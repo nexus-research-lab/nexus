@@ -1,0 +1,101 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# 文档
+docs
+*.md
+!README.md
+
+# Python 缓存
+**/__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*.sublime-*
+
+# 测试
+.coverage
+.pytest_cache
+.tox
+htmlcov/
+.cache
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# 环境变量文件
+.env
+.env.*
+!.env.example
+
+# 日志文件
+logs
+*.log
+
+# 临时文件
+*.tmp
+*.bak
+*.old
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose*
+.dockerignore
+
+# 部署相关
+deploy/
+!deploy/init-db.sh
+scripts/
+
+# 缓存目录
+cache/
+.cache/
+
+# 数据文件
+data/
+db/
+*.db
+*.sqlite
+
+# 前端文件
+web/
+
+# 其他
+.pytest_cache/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/

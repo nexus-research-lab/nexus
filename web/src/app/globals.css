@@ -1,0 +1,174 @@
+@import url('https://fonts.googleapis.com/css2?family=PT+Mono&display=swap');
+@import "tailwindcss";
+
+@layer utilities {
+  .scanline {
+    background: linear-gradient(to bottom,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0) 50%,
+        rgba(0, 0, 0, 0.2) 50%,
+        rgba(0, 0, 0, 0.2));
+    background-size: 100% 4px;
+    pointer-events: none;
+  }
+
+  /* 扫描线动画效果 */
+  .animate-scan {
+    background: linear-gradient(transparent 50%, rgba(0, 240, 255, 0.03) 50%);
+    background-size: 100% 4px;
+    animation: scan 4s linear infinite;
+  }
+
+  /* 进度条动画 */
+  .animate-progress-bar {
+    background: linear-gradient(to right, transparent, var(--primary), transparent);
+    background-size: 200% 100%;
+    animation: progress-sweep 1.5s ease-in-out infinite;
+  }
+
+  /* 自定义滚动条 */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.3);
+    border-radius: 2px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 240, 255, 0.5);
+  }
+}
+
+:root {
+  /* Cyberpunk / Sci-Fi Palette */
+  --background: #05050a;
+  /* Deep Void */
+  --foreground: #e0e0e0;
+
+  /* Neon Cyan - Primary */
+  --primary: #00f0ff;
+  --primary-foreground: #000000;
+
+  /* Dark Tech - Secondary */
+  --secondary: #0a0a14;
+  --secondary-foreground: #00f0ff;
+
+  /* Warning Orange - Accent */
+  --accent: #ff9900;
+  --accent-foreground: #000000;
+
+  /* Surface */
+  --card: rgba(10, 10, 20, 0.8);
+  --card-foreground: #e0e0e0;
+
+  /* Borders */
+  --border: rgba(0, 240, 255, 0.3);
+  --input: rgba(0, 240, 255, 0.2);
+
+  /* Radius - Sharp / Technical */
+  --radius-lg: 2px;
+  --radius-md: 2px;
+  --radius-sm: 1px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+
+  --radius-lg: var(--radius-lg);
+  --radius-md: var(--radius-md);
+  --radius-sm: var(--radius-sm);
+
+  --font-sans:
+    "PT Mono",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "WenQuanYi Micro Hei",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  --font-mono:
+    "PT Mono",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "WenQuanYi Micro Hei",
+    "SFMono-Regular",
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  /* Prevent scroll on body */
+}
+
+/* 打字光标效果 */
+.typing-cursor > *:last-child::after {
+  content: "▋";
+  display: inline-block;
+  animation: blink 1s step-start infinite;
+  color: var(--accent);
+  margin-left: 2px;
+  vertical-align: baseline;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 赛博朋克风格的滚动条 */
+::-webkit-scrollbar {
+  width: 1px;
+  height: 1px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.4);
+}

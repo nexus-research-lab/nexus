@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-core"
+dynamic = ["version", "dependencies"]
+description = "Production-Ready AI Agent Development Framework"
+authors = [{ name = "leemysw" }]
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Private :: Do Not Upload",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["agent*"]
+namespaces = true
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["agent/requirements.txt"] }
+version = { attr = "agent.__version__" }
+
+[project.scripts]
+nexus-core = "agent.cli:main"

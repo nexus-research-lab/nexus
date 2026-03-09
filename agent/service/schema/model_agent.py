@@ -1,0 +1,84 @@
+# !/usr/bin/env python
+# -*- coding: utf-8 -*-
+# =====================================================
+# @File   ：model_agent.py
+# @Date   ：2026/3/4 15:09
+# @Author ：leemysw
+# 2026/3/4 15:09   Create
+# =====================================================
+
+"""
+Agent Pydantic 模型
+
+[INPUT]: 依赖 pydantic
+[OUTPUT]: 对外提供 AAgent / AgentOptions / CreateAgentRequest / UpdateAgentRequest
+[POS]: schema 模块的 Agent 模型定义，被 agent_manager/agent_repository/api_agent 消费
+[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+"""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+# =====================================================
+# Agent 配置 — 映射到 ClaudeAgentOptions
+# =====================================================
+
+class AgentOptions(BaseModel):
+    """Agent 级别配置，对应 ClaudeAgentOptions 的 Agent 层字段"""
+    model: Optional[str] = Field(default=None, description="模型选择")
+    permission_mode: Optional[str] = Field(default=None, description="权限模式")
+    allowed_tools: Optional[list[str]] = Field(default=None, description="工具白名单")
+    disallowed_tools: Optional[list[str]] = Field(default=None, description="工具黑名单")
+    max_turns: Optional[int] = Field(default=None, description="最大轮次")
+    max_thinking_tokens: Optional[int] = Field(default=None, description="思考 token 上限")
+    mcp_servers: Optional[dict] = Field(default=None, description="MCP 服务器配置")
+    skills_enabled: bool = Field(default=False, description="是否启用技能")
+    setting_sources: Optional[list[str]] = Field(default=None, description="技能加载源")
+
+    model_config = {"from_attributes": True}
+
+
+# =====================================================
+# Agent 模型
+# =====================================================
+
+class AAgent(BaseModel):
+    """Agent 模型 — 一个 Agent = 一个工作区"""
+    agent_id: str = Field(..., description="Agent 唯一标识")
+    name: str = Field(..., description="显示名称")
+    workspace_path: str = Field(default="", description="工作区路径（系统托管: ~/.nexus-core/workspace/<agent_name_slug>）")
+    options: AgentOptions = Field(default_factory=AgentOptions, description="Agent 配置")
+    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
+    status: str = Field(default="active", description="状态: active/archived")
+
+    model_config = {"from_attributes": True}
+
+
+# =====================================================
+# 请求模型
+# =====================================================
+
+class CreateAgentRequest(BaseModel):
+    """创建 Agent 请求"""
+    name: str = Field(..., description="Agent 名称")
+    workspace_path: Optional[str] = Field(default=None, description="兼容字段，当前由后端自动管理")
+    options: Optional[AgentOptions] = Field(default=None, description="初始配置")
+
+
+class UpdateAgentRequest(BaseModel):
+    """更新 Agent 请求"""
+    name: Optional[str] = Field(default=None, description="名称")
+    options: Optional[AgentOptions] = Field(default=None, description="配置")
+
+
+class ValidateAgentNameResponse(BaseModel):
+    """Agent 名称校验结果"""
+    name: str = Field(..., description="原始输入名称")
+    normalized_name: str = Field(..., description="标准化后的名称")
+    is_valid: bool = Field(..., description="是否符合命名规则")
+    is_available: bool = Field(..., description="名称是否可用（未重复）")
+    workspace_path: Optional[str] = Field(default=None, description="预期工作区路径")
+    reason: Optional[str] = Field(default=None, description="不可用原因")
