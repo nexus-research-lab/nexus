@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     # Workspace 配置
     # =====================================================
     WORKSPACE_PATH: str = ""  # 为空时使用 ~/.nexus-core/workspace
+    BASE_SYSTEM_PROMPT: str = ""
+    BASE_SYSTEM_PROMPT_FILE: str = ""
 
     model_config = SettingsConfigDict(
         env_file=os.path.abspath(ENV_FILE),

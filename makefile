@@ -27,7 +27,18 @@ dev: ## Run both frontend and backend in development mode
 
 install: ## Install all dependencies
 	@echo "Installing backend dependencies..."
-	pip install -r agent/requirements.txt
+	@if [ -x .venv/bin/python ] && .venv/bin/python -m pip --version >/dev/null 2>&1; then \
+		PYTHON=.venv/bin/python; \
+		$$PYTHON -m pip install -r agent/requirements.txt; \
+	elif command -v uv >/dev/null 2>&1; then \
+		uv sync; \
+	elif command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then \
+		PYTHON=$$(command -v python3); \
+		$$PYTHON -m pip install -r agent/requirements.txt; \
+	else \
+		echo "No usable Python package installer found (.venv pip, uv, or python3 -m pip)"; \
+		exit 1; \
+	fi
 	@echo "Installing frontend dependencies..."
 	cd web && npm install
 

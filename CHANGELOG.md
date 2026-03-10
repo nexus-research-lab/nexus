@@ -20,6 +20,7 @@
 - 使用语义化颜色变量 (text-destructive, text-success, text-warning)。
 
 ### Changed
+- 新增项目级 `SYSTEM_PROMPT.md` 基础提示词层，并支持通过 `BASE_SYSTEM_PROMPT` / `BASE_SYSTEM_PROMPT_FILE` 在 workspace 规则之前强制注入身份设定。
 - Web 首页重构为 B 端控制台骨架，采用 `Agent Directory -> Agent Space` 的两层信息架构。
 - 在 Agent Space 内新增顶部快速切换器，支持不返回目录页直接切换 Agent，兼顾结构分层与多线程操作效率。
 - 新增 Session Rail 与 Agent Inspector，为后续承接权限队列、运行审计、Workspace/Memory 面板预留结构位置。
