@@ -41,21 +41,18 @@ export function AgentInspector({
 
   return (
     <aside className="flex min-h-0 w-[292px] flex-col rounded-[20px] panel-surface">
-      <div className="border-b border-border/80 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Agent State
-            </p>
-          </div>
-          <button
-            className="rounded-xl border border-border/80 bg-secondary/80 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
-            onClick={() => onEditAgent(agent.agent_id)}
-            type="button"
-          >
-            设置
-          </button>
-        </div>
+      <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Agent State
+        </p>
+        <button
+          aria-label="打开 Agent 设置"
+          className="inline-flex h-7 items-center gap-1.5 rounded-xl border border-border/80 bg-secondary/80 px-3 text-xs font-medium leading-4 text-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+          onClick={() => onEditAgent(agent.agent_id)}
+          type="button"
+        >
+          设置
+        </button>
       </div>
 
       <div className="soft-scrollbar flex-1 overflow-y-auto px-4 py-4">
@@ -101,7 +98,14 @@ export function AgentInspector({
               Context Capacity
             </div>
             <div className="mt-3">
-              <div className="h-2 overflow-hidden rounded-full bg-background">
+              <div
+                className="h-2 overflow-hidden rounded-full bg-background"
+                role="progressbar"
+                aria-valuenow={Math.round(contextRatio * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="上下文使用率"
+              >
                 <div
                   className="h-full rounded-full bg-primary transition-all"
                   style={{ width: `${Math.max(contextRatio * 100, 8)}%` }}
@@ -151,7 +155,14 @@ export function AgentInspector({
                 </span>
               </div>
               {todos.length > 0 && (
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="mt-3 h-2 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={Math.round((completedTodoCount / todos.length) * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="任务完成进度"
+                >
                   <div
                     className="h-full rounded-full bg-primary transition-all"
                     style={{ width: `${(completedTodoCount / todos.length) * 100}%` }}
