@@ -6,7 +6,7 @@
 
 "use client";
 
-import { MessageSquarePlus, Sparkles } from "lucide-react";
+import { FolderKanban, MessageSquarePlus, Sparkles } from "lucide-react";
 
 interface EmptyStateProps {
   onNewSession: () => void;
@@ -15,58 +15,55 @@ interface EmptyStateProps {
 export function EmptyState({onNewSession}: EmptyStateProps) {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      <div className="max-w-md w-full text-center space-y-6">
+      <div className="max-w-2xl w-full rounded-[28px] border border-dashed border-border/80 bg-white/70 p-10 text-center shadow-sm">
         {/* Icon */}
         <div className="flex justify-center">
-          <div className="relative">
-            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full"/>
-            <div
-              className="relative bg-gradient-to-br from-primary/10 to-primary/5 p-6 rounded-2xl border border-primary/20">
-              <Sparkles className="w-16 h-16 text-primary"/>
+          <div className="relative inline-flex h-20 w-20 items-center justify-center rounded-[24px] bg-primary/10 text-primary">
+            <div className="absolute -right-2 -top-2 rounded-full bg-white p-2 text-accent shadow-sm">
+              <FolderKanban className="h-4 w-4" />
             </div>
+            <Sparkles className="w-10 h-10"/>
           </div>
         </div>
 
         {/* Title */}
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">
-            欢迎使用 Nexus Core
+        <div className="mt-8 space-y-3">
+          <h2 className="text-3xl font-semibold text-foreground">
+            在当前 Agent 中开启一个新的 Session
           </h2>
-          <p className="text-muted-foreground">
-            开始你的第一次对话,体验强大的AI助手
+          <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
+            这个区域是 Agent Space 的执行主工作区。创建 Session 之后，这里会承载消息时间线、工具调用结果、权限交互和运行状态。
           </p>
         </div>
 
         {/* Features */}
-        <div className="grid gap-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2 justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary"/>
-            <span>实时流式响应</span>
+        <div className="mt-8 grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+          <div className="rounded-2xl bg-secondary/80 px-4 py-4">
+            <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
+            <span>按 Agent 隔离会话和上下文</span>
           </div>
-          <div className="flex items-center gap-2 justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary"/>
-            <span>会话历史自动保存</span>
+          <div className="rounded-2xl bg-secondary/80 px-4 py-4">
+            <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
+            <span>保留运行时间线与历史记录</span>
           </div>
-          <div className="flex items-center gap-2 justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary"/>
-            <span>支持工具调用和代码执行</span>
+          <div className="rounded-2xl bg-secondary/80 px-4 py-4">
+            <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
+            <span>承接后续的权限与审计面板</span>
           </div>
         </div>
 
         {/* CTA Button */}
         <button
           onClick={onNewSession}
-          className="group relative inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/25"
+          className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-transform hover:-translate-y-0.5"
         >
           <MessageSquarePlus className="w-5 h-5"/>
           <span>创建新会话</span>
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"/>
         </button>
 
         {/* Hint */}
-        <p className="text-xs text-muted-foreground/60">
-          提示:你也可以点击左侧的 "New Agent" 按钮
+        <p className="mt-5 text-xs text-muted-foreground/80">
+          你也可以先返回 Agent Directory，再切换到其他 Agent 空间。
         </p>
       </div>
     </div>

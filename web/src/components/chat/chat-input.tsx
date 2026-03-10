@@ -165,22 +165,15 @@ const ChatInput = memo((
   const isOverLimit = charCount > maxLength;
 
   return (
-    <div className=" w-full px-8 relative border-t border-primary/30 bg-background/95 backdrop-blur-md">
-      {/* 扫描线效果 */}
-      <div className="absolute inset-0 scanline opacity-20 pointer-events-none"/>
-
-      {/* 顶部发光线 */}
-      <div
-        className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"/>
-
+    <div className="w-full border-t border-border/80 bg-white/72 px-8 backdrop-blur-md">
       <div className="max-w-4xl mx-auto py-2 relative">
         {/* 附件预览区域 */}
         {attachments.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2 p-2 rounded border border-primary/20 bg-secondary/30">
+          <div className="mb-3 flex flex-wrap gap-2 rounded-2xl border border-border/80 bg-secondary/90 p-2">
             {attachments.map(attachment => (
               <div
                 key={attachment.id}
-                className="relative group flex items-center gap-2 px-3 py-2 rounded border border-primary/30 bg-background/50"
+                className="relative group flex items-center gap-2 rounded-2xl border border-border/80 bg-white px-3 py-2"
               >
                 {attachment.type === 'image' ? (
                   attachment.preview ? (
@@ -200,7 +193,7 @@ const ChatInput = memo((
                 </span>
                 <button
                   onClick={() => removeAttachment(attachment.id)}
-                  className="ml-1 p-0.5 hover:bg-red-500/20 rounded text-red-400 opacity-60 hover:opacity-100 transition-opacity"
+                  className="ml-1 rounded p-0.5 text-red-400 opacity-60 transition-opacity hover:bg-red-500/10 hover:opacity-100"
                 >
                   <X size={12}/>
                 </button>
@@ -212,19 +205,13 @@ const ChatInput = memo((
         {/* 主输入框容器 */}
         <div
           className={cn(
-            "relative rounded border bg-secondary/50 backdrop-blur-sm transition-all duration-300",
+            "relative rounded-[24px] border bg-white/90 backdrop-blur-sm transition-all duration-300",
             isFocused
-              ? "border-primary/60 shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_0_20px_rgba(0,240,255,0.05)]"
-              : "border-primary/30",
+              ? "border-primary/40 shadow-[0_18px_48px_rgba(29,95,145,0.14)]"
+              : "border-border/80",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
-          {/* 角落装饰 */}
-          <div className="absolute top-0 left-0 w-3 h-3 border-t border-l  border-primary/60"/>
-          <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-primary/60"/>
-          <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-primary/60"/>
-          <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-primary/60"/>
-
           {/* 输入区域 */}
           <div className="flex items-end gap-2 p-3">
             {/* 左侧工具栏 */}

@@ -102,20 +102,11 @@ export function ChatInterface({ sessionKey: externalSessionKey, onNewSession: on
   const roundIds = Array.from(messageGroups.keys());
 
   return (
-    <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-background">
-      {/* Grid Background */}
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(var(--primary) 1px, transparent 1px), linear-gradient(90deg, var(--primary) 1px, transparent 1px)`,
-          backgroundSize: "40px 40px",
-        }}
-      />
-
+    <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-transparent">
       {/* WebSocket连接错误提示 */}
       {error && error.includes('服务器') && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-md">
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 backdrop-blur-sm">
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/8 p-3 backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <svg className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
@@ -142,7 +133,7 @@ export function ChatInterface({ sessionKey: externalSessionKey, onNewSession: on
           <ChatHeader sessionKey={sessionKey} isLoading={isLoading} todos={todos} />
 
           {/* Messages Area */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 relative z-0 scroll-smooth">
+          <div ref={scrollRef} className="soft-scrollbar flex-1 overflow-y-auto p-6 space-y-8 relative z-0 scroll-smooth">
             {roundIds.map((roundId, idx) => {
               const roundMessages = messageGroups.get(roundId) || [];
               const isLastRound = idx === roundIds.length - 1;
