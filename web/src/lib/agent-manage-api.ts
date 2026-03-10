@@ -12,7 +12,9 @@ import {
     AgentNameValidationResult,
     ApiAgent,
     CreateAgentParams,
-    UpdateAgentParams
+    UpdateAgentParams,
+    WorkspaceFileContent,
+    WorkspaceFileEntry,
 } from '@/types/agent';
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010/agent/v1';
@@ -131,5 +133,50 @@ export const validateAgentNameApi = async (
         throw new Error(`校验 Agent 名称失败: ${response.statusText}`);
     }
     const result: ApiResponse<AgentNameValidationResult> = await response.json();
+    return result.data;
+};
+
+export const getWorkspaceFilesApi = async (agent_id: string): Promise<WorkspaceFileEntry[]> => {
+    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/files`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+        throw new Error(`获取 Workspace 文件列表失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<WorkspaceFileEntry[]> = await response.json();
+    return result.data;
+};
+
+export const getWorkspaceFileContentApi = async (
+    agent_id: string,
+    path: string
+): Promise<WorkspaceFileContent> => {
+    const query = new URLSearchParams({ path });
+    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file?${query.toString()}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+        throw new Error(`读取 Workspace 文件失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<WorkspaceFileContent> = await response.json();
+    return result.data;
+};
+
+export const updateWorkspaceFileContentApi = async (
+    agent_id: string,
+    path: string,
+    content: string
+): Promise<WorkspaceFileContent> => {
+    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, content }),
+    });
+    if (!response.ok) {
+        throw new Error(`更新 Workspace 文件失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<WorkspaceFileContent> = await response.json();
     return result.data;
 };

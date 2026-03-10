@@ -295,6 +295,17 @@ class AgentManager:
         """获取 Agent 的 workspace 实例"""
         return self._get_or_create_workspace(agent_id)
 
+    async def get_agent_workspace(self, agent_id: str) -> AgentWorkspace:
+        """按 Agent 当前配置获取 workspace 实例。"""
+        agent = await agent_repository.get_agent(agent_id)
+        if not agent:
+            raise ValueError(f"Agent not found: {agent_id}")
+
+        synced_workspace = await self._sync_workspace_path(agent)
+        workspace = self._get_or_create_workspace(agent_id, synced_workspace)
+        workspace.ensure_initialized(agent_name=agent.name)
+        return workspace
+
     def _get_or_create_workspace(self, agent_id: str, workspace_path: Optional[str] = None) -> AgentWorkspace:
         """惰性创建 workspace 实例"""
         desired_path = (

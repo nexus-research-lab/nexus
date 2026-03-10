@@ -243,10 +243,10 @@ export default function Home() {
 
   return (
     <main className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <div className="flex min-h-0 flex-1 flex-col p-5">
-        <header className="mb-5 rounded-[28px] panel-surface px-6 py-5">
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <header className="mb-4 rounded-[20px] panel-surface px-5 py-4">
           <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="space-y-3">
+            <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
                 Nexus Core Console
               </p>
@@ -258,13 +258,13 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <div className="rounded-full border border-border/80 bg-white/80 px-4 py-2">
+              <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5">
                 {agents.length} Agents
               </div>
-              <div className="rounded-full border border-border/80 bg-white/80 px-4 py-2">
+              <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5">
                 {sessions.length} Sessions
               </div>
-              <div className="rounded-full border border-border/80 bg-white/80 px-4 py-2">
+              <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5">
                 <span className="font-mono">Cmd/Ctrl + K</span> 预留快速操作入口
               </div>
             </div>
@@ -282,10 +282,10 @@ export default function Home() {
             onDeleteAgent={handleDeleteAgent}
           />
         ) : (
-          <section className="flex min-h-0 flex-1 flex-col gap-5">
-            <div className="rounded-[28px] panel-surface px-6 py-5">
+          <section className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="rounded-[20px] panel-surface px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-5">
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     <button
                       className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
@@ -308,7 +308,7 @@ export default function Home() {
 
                 <div className="flex flex-wrap items-center gap-3">
                   <button
-                    className="inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-white/80 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                    className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-white/80 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
                     onClick={() => handleEditAgent(currentAgent.agent_id)}
                     type="button"
                   >
@@ -316,7 +316,7 @@ export default function Home() {
                     Agent 设置
                   </button>
                   <button
-                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
                     onClick={handleNewSession}
                     type="button"
                   >
@@ -326,7 +326,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-border/80 pt-5">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border/80 pt-4">
                 <AgentSwitcher
                   agents={agents}
                   currentAgentId={current_agent_id}
@@ -336,14 +336,14 @@ export default function Home() {
                   onCreateAgent={handleOpenCreateAgent}
                 />
 
-                <div className="flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-sm text-muted-foreground">
                   <Command className="h-4 w-4" />
                   快速切换入口预留
                 </div>
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 gap-5">
+            <div className="flex min-h-0 flex-1 gap-4">
               <SessionRail
                 sessions={currentAgentSessions}
                 currentSessionKey={current_session_key}
@@ -352,8 +352,8 @@ export default function Home() {
                 onDeleteSession={handleDeleteSession}
               />
 
-              <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[28px] panel-surface">
-                <div className="flex items-center justify-between border-b border-border/80 px-6 py-4">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] panel-surface">
+                <div className="flex items-center justify-between border-b border-border/80 px-5 py-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       Session Workspace

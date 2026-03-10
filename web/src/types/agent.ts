@@ -67,3 +67,17 @@ export interface AgentNameValidationResult {
     workspace_path?: string | null;
     reason?: string | null;
 }
+
+export interface WorkspaceFileEntry {
+    path: string;
+    name: string;
+    is_dir: boolean;
+    size?: number | null;
+    modified_at: string;
+    depth: number;
+}
+
+export interface WorkspaceFileContent {
+    path: string;
+    content: string;
+}

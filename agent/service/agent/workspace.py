@@ -179,6 +179,69 @@ class AgentWorkspace:
         logger.info(f"📝 写入 Workspace: {filepath.name}")
         return True
 
+    def _resolve_relative_path(self, relative_path: str) -> Path:
+        """解析并校验相对路径，禁止逃逸出 workspace。"""
+        normalized = (relative_path or "").strip().lstrip("/").replace("\\", "/")
+        if not normalized:
+            raise ValueError("文件路径不能为空")
+
+        target_path = (self.path / normalized).resolve()
+        workspace_root = self.path.resolve()
+        if not target_path.is_relative_to(workspace_root):
+            raise ValueError("文件路径超出 workspace 范围")
+        return target_path
+
+    @staticmethod
+    def _is_visible_workspace_path(path: Path) -> bool:
+        """过滤运行时数据，避免把会话日志暴露到 workspace 编辑面板。"""
+        hidden_parts = {"sessions", ".git", "__pycache__"}
+        if any(part in hidden_parts for part in path.parts):
+            return False
+        if path.name == "agent.json":
+            return False
+        return True
+
+    def list_files(self) -> list[dict]:
+        """列出 workspace 可见文件树。"""
+        self.ensure_exists()
+
+        entries: list[dict] = []
+        workspace_root = self.path.resolve()
+        for path in workspace_root.rglob("*"):
+            relative = path.relative_to(workspace_root)
+            if not self._is_visible_workspace_path(relative):
+                continue
+
+            stat = path.stat()
+            entries.append({
+                "path": relative.as_posix(),
+                "name": path.name,
+                "is_dir": path.is_dir(),
+                "size": None if path.is_dir() else stat.st_size,
+                "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "depth": len(relative.parts),
+            })
+
+        entries.sort(key=lambda item: (item["is_dir"] is False, item["path"]))
+        return entries
+
+    def read_relative_file(self, relative_path: str) -> str:
+        """读取 workspace 内的文本文件。"""
+        target_path = self._resolve_relative_path(relative_path)
+        if target_path.is_dir():
+            raise ValueError("不能直接读取目录")
+        if not target_path.exists():
+            raise FileNotFoundError(f"文件不存在: {relative_path}")
+        return target_path.read_text(encoding="utf-8")
+
+    def write_relative_file(self, relative_path: str, content: str) -> str:
+        """写入 workspace 内的文本文件。"""
+        target_path = self._resolve_relative_path(relative_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(content, encoding="utf-8")
+        logger.info(f"📝 写入 Workspace 文件: {target_path}")
+        return target_path.relative_to(self.path.resolve()).as_posix()
+
     # =====================================================
     # System Prompt 构建
     # =====================================================

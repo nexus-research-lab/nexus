@@ -24,7 +24,10 @@ from agent.service.agent_manager import agent_manager
 from agent.service.schema.model_agent import (
     AAgent,
     CreateAgentRequest,
+    UpdateWorkspaceFileRequest,
     UpdateAgentRequest,
+    WorkspaceFileContentResponse,
+    WorkspaceFileEntry,
 )
 from agent.service.session_manager import session_manager
 from agent.service.session_store import session_store
@@ -126,4 +129,55 @@ async def get_agent_sessions(agent_id: str):
     # 过滤出属于此 Agent 的 session
     agent_sessions = [s for s in all_sessions if s.agent_id == agent_id]
     data = [s.model_dump() for s in agent_sessions]
+    return resp.ok(resp.Resp(data=data))
+
+
+@router.get("/agents/{agent_id}/workspace/files")
+async def get_workspace_files(agent_id: str):
+    """获取 Agent workspace 文件列表。"""
+    agent = await agent_manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    workspace = await agent_manager.get_agent_workspace(agent_id)
+    files = [WorkspaceFileEntry(**item).model_dump() for item in workspace.list_files()]
+    return resp.ok(resp.Resp(data=files))
+
+
+@router.get("/agents/{agent_id}/workspace/file", response_model=WorkspaceFileContentResponse)
+async def get_workspace_file(agent_id: str, path: str):
+    """读取 Agent workspace 文件内容。"""
+    agent = await agent_manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    workspace = await agent_manager.get_agent_workspace(agent_id)
+
+    try:
+        content = workspace.read_relative_file(path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    data = WorkspaceFileContentResponse(path=path, content=content).model_dump()
+    return resp.ok(resp.Resp(data=data))
+
+
+@router.put("/agents/{agent_id}/workspace/file")
+async def update_workspace_file(agent_id: str, request: UpdateWorkspaceFileRequest):
+    """更新 Agent workspace 文件内容。"""
+    agent = await agent_manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    workspace = await agent_manager.get_agent_workspace(agent_id)
+
+    try:
+        saved_path = workspace.write_relative_file(request.path, request.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await session_manager.refresh_agent_sessions(agent_id)
+    data = WorkspaceFileContentResponse(path=saved_path, content=request.content).model_dump()
     return resp.ok(resp.Resp(data=data))

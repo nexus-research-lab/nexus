@@ -1,10 +1,12 @@
 "use client";
 
-import { Bot, FileStack, KeyRound, Settings2, Workflow } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Bot, FileCode2, FolderTree, RefreshCw, Save, Settings2, Workflow } from "lucide-react";
 
-import { Agent } from "@/types/agent";
+import { getWorkspaceFileContentApi, getWorkspaceFilesApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
+import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Session } from "@/types/session";
-import { truncate } from "@/lib/utils";
+import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 
 interface AgentInspectorProps {
   agent: Agent;
@@ -13,105 +15,324 @@ interface AgentInspectorProps {
   onEditAgent: (agentId: string) => void;
 }
 
+type InspectorTab = "overview" | "workspace";
+
 export function AgentInspector({
   agent,
   sessions,
   activeSession,
   onEditAgent,
 }: AgentInspectorProps) {
+  const [activeTab, setActiveTab] = useState<InspectorTab>("workspace");
+  const [files, setFiles] = useState<WorkspaceFileEntry[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [draftContent, setDraftContent] = useState("");
+  const [savedContent, setSavedContent] = useState("");
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<number | null>(null);
+
   const allowedTools = agent.options.allowed_tools ?? [];
   const permissionMode = agent.options.permission_mode || "default";
 
+  const visibleFiles = useMemo(
+    () => files.filter((file) => !file.is_dir),
+    [files],
+  );
+
+  const selectedFile = useMemo(
+    () => visibleFiles.find((file) => file.path === selectedPath) ?? null,
+    [selectedPath, visibleFiles],
+  );
+
+  const isDirty = draftContent !== savedContent;
+
+  const loadFiles = async (preferredPath?: string | null) => {
+    setIsLoadingFiles(true);
+    setError(null);
+
+    try {
+      const nextFiles = await getWorkspaceFilesApi(agent.agent_id);
+      setFiles(nextFiles);
+      setSyncedAt(Date.now());
+
+      const textFiles = nextFiles.filter((item) => !item.is_dir);
+      if (textFiles.length === 0) {
+        setSelectedPath(null);
+        setDraftContent("");
+        setSavedContent("");
+        return;
+      }
+
+      const nextPath = preferredPath && textFiles.some((file) => file.path === preferredPath)
+        ? preferredPath
+        : textFiles[0].path;
+      setSelectedPath(nextPath);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "加载 Workspace 文件失败");
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadFiles();
+  }, [agent.agent_id]);
+
+  useEffect(() => {
+    if (!selectedPath) {
+      return;
+    }
+
+    let cancelled = false;
+    const loadContent = async () => {
+      setIsLoadingContent(true);
+      setError(null);
+      try {
+        const response = await getWorkspaceFileContentApi(agent.agent_id, selectedPath);
+        if (cancelled) {
+          return;
+        }
+        setDraftContent(response.content);
+        setSavedContent(response.content);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "读取 Workspace 文件失败");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingContent(false);
+        }
+      }
+    };
+
+    void loadContent();
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.agent_id, selectedPath]);
+
+  const handleSave = async () => {
+    if (!selectedPath || !isDirty || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await updateWorkspaceFileContentApi(agent.agent_id, selectedPath, draftContent);
+      setSavedContent(response.content);
+      setDraftContent(response.content);
+      await loadFiles(response.path);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存 Workspace 文件失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <aside className="flex min-h-0 w-[320px] flex-col gap-4">
-      <section className="rounded-[24px] panel-surface px-5 py-5">
-        <div className="flex items-start justify-between gap-4">
+    <aside className="flex min-h-0 w-[360px] flex-col rounded-[20px] panel-surface">
+      <div className="border-b border-border/80 px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Agent Space
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Inspector
             </p>
-            <h2 className="mt-2 text-xl font-semibold text-foreground">{agent.name}</h2>
+            <h2 className="mt-1 text-base font-semibold text-foreground">{agent.name}</h2>
           </div>
           <button
-            className="rounded-2xl border border-border/80 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+            className="rounded-xl border border-border/80 bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
             onClick={() => onEditAgent(agent.agent_id)}
             type="button"
           >
-            编辑
+            设置
           </button>
         </div>
 
-        <div className="mt-5 grid gap-3">
-          <div className="rounded-2xl bg-muted/70 px-4 py-3">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              <Workflow className="h-3.5 w-3.5" />
-              Sessions
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            className={cn(
+              "rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+              activeTab === "overview"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/80 text-foreground",
+            )}
+            onClick={() => setActiveTab("overview")}
+            type="button"
+          >
+            概览
+          </button>
+          <button
+            className={cn(
+              "rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+              activeTab === "workspace"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/80 text-foreground",
+            )}
+            onClick={() => setActiveTab("workspace")}
+            type="button"
+          >
+            Workspace
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "overview" ? (
+        <div className="soft-scrollbar flex-1 overflow-y-auto px-4 py-4">
+          <div className="grid gap-3">
+            <div className="rounded-2xl bg-muted/70 px-4 py-3">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                <Workflow className="h-3.5 w-3.5" />
+                Sessions
+              </div>
+              <p className="mt-2 text-sm font-medium text-foreground">{sessions.length} 个会话</p>
             </div>
-            <p className="mt-2 text-sm font-medium text-foreground">{sessions.length} 个空间实例</p>
-          </div>
 
-          <div className="rounded-2xl bg-muted/70 px-4 py-3">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              <Bot className="h-3.5 w-3.5" />
-              Model
+            <div className="rounded-2xl bg-muted/70 px-4 py-3">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                <Bot className="h-3.5 w-3.5" />
+                Model
+              </div>
+              <p className="mt-2 text-sm font-medium text-foreground">{agent.options.model || "inherit"}</p>
             </div>
-            <p className="mt-2 text-sm font-medium text-foreground">{agent.options.model || "inherit"}</p>
-          </div>
 
-          <div className="rounded-2xl bg-muted/70 px-4 py-3">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              <KeyRound className="h-3.5 w-3.5" />
-              Permission
+            <div className="rounded-2xl bg-muted/70 px-4 py-3">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                <Settings2 className="h-3.5 w-3.5" />
+                Permission
+              </div>
+              <p className="mt-2 text-sm font-medium text-foreground">{permissionMode}</p>
             </div>
-            <p className="mt-2 text-sm font-medium text-foreground">{permissionMode}</p>
+
+            <div className="rounded-2xl border border-border/80 bg-secondary/90 px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Workspace 路径</p>
+              <p className="mt-2 text-sm font-medium text-foreground">{truncate(agent.workspace_path, 48)}</p>
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-secondary/90 px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">当前 Session</p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {activeSession?.title || "未选择"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {activeSession
+                  ? `${activeSession.message_count ?? 0} 条消息，最后活动 ${formatRelativeTime(activeSession.last_activity_at)}`
+                  : "选择 Session 后查看运行上下文"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border/80 bg-secondary/90 px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Allowed Tools</p>
+              <p className="mt-2 text-sm leading-6 text-foreground">
+                {allowedTools.length > 0 ? allowedTools.join(", ") : "未限制"}
+              </p>
+            </div>
           </div>
         </div>
-      </section>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="border-b border-border/80 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  本地文件
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  直接读写当前 Agent 的 workspace 目录
+                </p>
+              </div>
+              <button
+                className="rounded-xl border border-border/80 bg-white p-2 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                onClick={() => void loadFiles(selectedPath)}
+                type="button"
+              >
+                <RefreshCw className={cn("h-4 w-4", isLoadingFiles && "animate-spin")} />
+              </button>
+            </div>
+          </div>
 
-      <section className="rounded-[24px] panel-surface px-5 py-5">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          <Settings2 className="h-3.5 w-3.5" />
-          Runtime Config
+          <div className="flex min-h-0 flex-1">
+            <div className="soft-scrollbar w-[148px] overflow-y-auto border-r border-border/80 px-2 py-2">
+              {visibleFiles.map((file) => (
+                <button
+                  key={file.path}
+                  className={cn(
+                    "mb-1 w-full rounded-xl px-3 py-2 text-left transition-colors",
+                    selectedPath === file.path
+                      ? "bg-primary/10 text-primary"
+                      : "text-foreground hover:bg-muted/80",
+                  )}
+                  onClick={() => setSelectedPath(file.path)}
+                  type="button"
+                >
+                  <div className="flex items-start gap-2">
+                    <FileCode2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{file.name}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {file.path}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+
+              {!isLoadingFiles && visibleFiles.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border/80 px-3 py-4 text-xs leading-5 text-muted-foreground">
+                  暂无可编辑文件
+                </div>
+              )}
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    <FolderTree className="h-3.5 w-3.5" />
+                    <span>{selectedFile?.path || "选择文件"}</span>
+                  </div>
+                  {syncedAt && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      最近同步 {formatRelativeTime(syncedAt)}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                    isDirty
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted/80 text-muted-foreground",
+                  )}
+                  disabled={!selectedPath || !isDirty || isSaving}
+                  onClick={() => void handleSave()}
+                  type="button"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "保存中" : "保存"}
+                </button>
+              </div>
+
+              {error && (
+                <div className="px-4 py-3 text-sm text-destructive">{error}</div>
+              )}
+
+              <div className="flex-1 p-4">
+                <textarea
+                  className="soft-scrollbar h-full w-full resize-none rounded-2xl border border-border/80 bg-secondary/90 p-4 font-mono text-sm leading-6 text-foreground outline-none focus:border-primary/20"
+                  onChange={(event) => setDraftContent(event.target.value)}
+                  placeholder={selectedPath ? "读取中..." : "选择左侧文件开始编辑"}
+                  value={isLoadingContent ? "加载中..." : draftContent}
+                />
+              </div>
+            </div>
+          </div>
         </div>
-
-        <dl className="mt-4 space-y-4 text-sm">
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Workspace</dt>
-            <dd className="font-medium text-foreground">{truncate(agent.workspace_path, 36)}</dd>
-          </div>
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Allowed Tools</dt>
-            <dd className="font-medium text-foreground">{allowedTools.length > 0 ? allowedTools.join(", ") : "未限制"}</dd>
-          </div>
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Skills</dt>
-            <dd className="font-medium text-foreground">{agent.options.skills_enabled ? "Enabled" : "Disabled"}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="flex-1 rounded-[24px] panel-surface px-5 py-5">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          <FileStack className="h-3.5 w-3.5" />
-          Active Context
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <div className="rounded-2xl bg-secondary/90 px-4 py-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Current Session</p>
-            <p className="mt-2 text-sm font-medium text-foreground">
-              {activeSession?.title || "尚未选择 Session"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {activeSession ? `${activeSession.message_count ?? 0} 条消息` : "进入 Session 后查看运行时间线"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-dashed border-border/80 bg-white/70 px-4 py-4 text-sm leading-6 text-muted-foreground">
-            右侧检查器后续可以继续承载 Permission Queue、Workspace 文件、Memory 摘要和 Tool Trace。这次先把 Agent Space 的结构骨架立住。
-          </div>
-        </div>
-      </section>
+      )}
     </aside>
   );
 }

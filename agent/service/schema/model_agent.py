@@ -82,3 +82,25 @@ class ValidateAgentNameResponse(BaseModel):
     is_available: bool = Field(..., description="名称是否可用（未重复）")
     workspace_path: Optional[str] = Field(default=None, description="预期工作区路径")
     reason: Optional[str] = Field(default=None, description="不可用原因")
+
+
+class WorkspaceFileEntry(BaseModel):
+    """Workspace 文件条目。"""
+    path: str = Field(..., description="相对 workspace 的文件路径")
+    name: str = Field(..., description="文件名")
+    is_dir: bool = Field(..., description="是否目录")
+    size: Optional[int] = Field(default=None, description="文件大小")
+    modified_at: str = Field(..., description="最后修改时间")
+    depth: int = Field(..., description="目录深度")
+
+
+class WorkspaceFileContentResponse(BaseModel):
+    """Workspace 文件内容响应。"""
+    path: str = Field(..., description="相对路径")
+    content: str = Field(..., description="文本内容")
+
+
+class UpdateWorkspaceFileRequest(BaseModel):
+    """更新 Workspace 文件请求。"""
+    path: str = Field(..., description="相对 workspace 的文件路径")
+    content: str = Field(default="", description="文件内容")
