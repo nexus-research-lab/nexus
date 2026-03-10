@@ -6,9 +6,14 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  File,
   FilePlus2,
   FileCode2,
+  FileImage,
+  FileJson,
+  FileSpreadsheet,
   FileText,
+  FileType2,
   Folder,
   FolderPlus,
   FolderTree,
@@ -32,6 +37,76 @@ import { ConfirmDialog, PromptDialog } from "@/components/ui/confirm-dialog";
 interface FileTreeNode {
   entry: WorkspaceFileEntry;
   children: FileTreeNode[];
+}
+
+function getFileIcon(name: string) {
+  const extension = name.includes(".") ? name.split(".").pop()?.toLowerCase() ?? "" : "";
+
+  if (["md", "mdx"].includes(extension)) {
+    return FileText;
+  }
+
+  if (["txt", "log", "rtf"].includes(extension)) {
+    return FileType2;
+  }
+
+  if (["pdf"].includes(extension)) {
+    return File;
+  }
+
+  if (["doc", "docx", "odt", "pages"].includes(extension)) {
+    return FileText;
+  }
+
+  if (["xls", "xlsx", "csv", "tsv"].includes(extension)) {
+    return FileSpreadsheet;
+  }
+
+  if (["json", "jsonl"].includes(extension)) {
+    return FileJson;
+  }
+
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "ico"].includes(extension)) {
+    return FileImage;
+  }
+
+  if (
+    [
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "py",
+      "java",
+      "go",
+      "rs",
+      "rb",
+      "php",
+      "c",
+      "cc",
+      "cpp",
+      "h",
+      "hpp",
+      "css",
+      "scss",
+      "sass",
+      "html",
+      "vue",
+      "sh",
+      "bash",
+      "zsh",
+      "yml",
+      "yaml",
+      "toml",
+      "ini",
+      "env",
+      "sql",
+    ].includes(extension)
+  ) {
+    return FileCode2;
+  }
+
+  return File;
 }
 
 interface WorkspaceSidebarProps {
@@ -246,6 +321,7 @@ export function WorkspaceSidebar({
       const isDirectory = node.entry.is_dir;
       const isExpanded = expandedDirectories[node.entry.path] ?? true;
       const isActive = !isDirectory && activeWorkspacePath === node.entry.path;
+      const FileIcon = isDirectory ? Folder : getFileIcon(node.entry.name);
 
       const row = (
         <div
@@ -281,7 +357,7 @@ export function WorkspaceSidebar({
             ) : (
               <>
                 <span className="w-3.5 shrink-0" />
-                <FileCode2 className="h-4 w-4 shrink-0" />
+                <FileIcon className="h-4 w-4 shrink-0" />
               </>
             )}
 

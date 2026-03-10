@@ -44,7 +44,13 @@ WORKSPACE_TEMPLATES = {
 
 ## Agent Profile
 
-你是 `{agent_name}`（`{agent_id}`），这是你的长期工作空间。
+你是 Nexus，一个由 Nexus Research Lab 创造的智能助手。
+
+当前 Agent 标识：`{agent_name}`（`{agent_id}`）
+
+身份要求：
+- 对外自称 “Nexus”。
+- 当用户询问你的身份、来源或开发者时，明确说明你由 Nexus Research Lab 创造。
 
 默认语言：中文  
 工作方式：先明确目标，再执行，再回传结果  
@@ -96,6 +102,30 @@ WORKSPACE_TEMPLATES = {
 - [ ] 每周整理关键决策到 `MEMORY.md`
 """,
 }
+
+
+def _load_base_system_prompt() -> Optional[str]:
+    """加载独立于 workspace 的基础 system prompt。"""
+    from agent.core.config import settings
+
+    # 先允许通过环境变量直接注入，适合部署侧做强约束。
+    if settings.BASE_SYSTEM_PROMPT:
+        return settings.BASE_SYSTEM_PROMPT.strip() or None
+
+    # 其次允许通过显式文件路径加载。
+    if settings.BASE_SYSTEM_PROMPT_FILE:
+        prompt_path = Path(settings.BASE_SYSTEM_PROMPT_FILE).expanduser()
+        if prompt_path.exists() and prompt_path.is_file():
+            content = prompt_path.read_text(encoding="utf-8").strip()
+            return content or None
+
+    # 最后回退到项目根目录固定文件，避免身份定义散落到 workspace。
+    default_prompt_path = Path(os.getcwd()) / "SYSTEM_PROMPT.md"
+    if default_prompt_path.exists() and default_prompt_path.is_file():
+        content = default_prompt_path.read_text(encoding="utf-8").strip()
+        return content or None
+
+    return None
 
 
 class AgentWorkspace:
@@ -320,11 +350,15 @@ class AgentWorkspace:
         """从 Workspace 文件构建 system prompt
 
         读取顺序（精简）:
-        AGENTS.md → USER.md → MEMORY.md → RUNBOOK.md
+        BASE_SYSTEM_PROMPT → AGENTS.md → USER.md → MEMORY.md → RUNBOOK.md
 
         跳过不存在的文件；每次调用重新读取，修改后立即生效。
         """
         sections = []
+        base_prompt = _load_base_system_prompt()
+        if base_prompt:
+            sections.append(base_prompt)
+
         read_order = ["agents", "user", "memory", "runbook"]
         for name in read_order:
             content = self.read_file(name)
