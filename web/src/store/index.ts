@@ -7,3 +7,4 @@
 export { useSessionStore } from './session';
 export { useAgentStore } from './agent';
 export { useWorkspaceLiveStore } from './workspace-live';
+export { useWorkspaceFilesStore } from './workspace-files';

@@ -1,0 +1,39 @@
+/**
+ * Workspace Files Store
+ *
+ * [INPUT]: 依赖 zustand，依赖 @/types/agent
+ * [OUTPUT]: 对外提供 useWorkspaceFilesStore
+ * [POS]: store 层共享当前 workspace 文件列表，用于跨组件判断文件是否存在
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+
+import { create } from 'zustand';
+
+import { WorkspaceFileEntry } from '@/types/agent';
+
+interface WorkspaceFilesStoreState {
+  filesByAgent: Record<string, WorkspaceFileEntry[]>;
+  setFiles: (agentId: string, files: WorkspaceFileEntry[]) => void;
+  clearAgent: (agentId: string) => void;
+}
+
+export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) => ({
+  filesByAgent: {},
+
+  setFiles: (agentId, files) => {
+    set((state) => ({
+      filesByAgent: {
+        ...state.filesByAgent,
+        [agentId]: files,
+      },
+    }));
+  },
+
+  clearAgent: (agentId) => {
+    set((state) => {
+      const next = { ...state.filesByAgent };
+      delete next[agentId];
+      return { filesByAgent: next };
+    });
+  },
+}));

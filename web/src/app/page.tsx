@@ -495,6 +495,7 @@ export default function Home() {
                   <div className="min-h-0 flex-1">
                     <ChatInterface
                       agentId={currentAgent.agent_id}
+                      onOpenWorkspaceFile={handleOpenWorkspaceFile}
                       onLoadingChange={setIsSessionBusy}
                       onSessionSnapshotChange={handleSessionSnapshotChange}
                       onTodosChange={setCurrentTodos}

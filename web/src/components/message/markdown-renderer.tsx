@@ -1,11 +1,14 @@
 "use client";
 
+import { Fragment, ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import { CodeBlock } from './block/code-block';
+import { useAgentStore } from '@/store/agent';
+import { useWorkspaceFilesStore } from '@/store/workspace-files';
 import { cn } from '@/lib/utils';
 import 'katex/dist/katex.min.css';
 
@@ -15,14 +18,104 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   isStreaming?: boolean;
+  onOpenWorkspaceFile?: (path: string) => void;
 }
 
-export function MarkdownRenderer({ content, className, isStreaming = false }: MarkdownRendererProps) {
+const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
+
+function looksLikeWorkspaceFilePath(value: string): boolean {
+  if (!value.includes('.') || /^https?:\/\//i.test(value) || value.startsWith('/')) {
+    return false;
+  }
+  return /[A-Za-z0-9]/.test(value);
+}
+
+function normalizeWorkspaceReference(value: string): string {
+  return value.replace(/^[("'`【]+|[)"'`】,，。；：:!?]+$/g, '');
+}
+
+function resolveWorkspaceFileReference(
+  value: string,
+  currentAgentId: string | null,
+  filesByAgent: Record<string, Array<{ path: string; name: string; is_dir: boolean }>>,
+): string | null {
+  const normalized = normalizeWorkspaceReference(value);
+  if (!currentAgentId || !looksLikeWorkspaceFilePath(normalized)) {
+    return null;
+  }
+
+  const files = (filesByAgent[currentAgentId] || []).filter((entry) => !entry.is_dir);
+  const exactMatch = files.find((entry) => entry.path === normalized);
+  if (exactMatch) {
+    return exactMatch.path;
+  }
+
+  const basenameMatches = files.filter((entry) => entry.name === normalized);
+  if (basenameMatches.length === 1) {
+    return basenameMatches[0].path;
+  }
+
+  return null;
+}
+
+function renderInteractiveText(
+  children: ReactNode,
+  resolveFilePath: (path: string) => string | null,
+  onOpenWorkspaceFile?: (path: string) => void,
+): ReactNode {
+  if (Array.isArray(children)) {
+    return children.map((child, index) => (
+      <Fragment key={index}>
+        {renderInteractiveText(child, resolveFilePath, onOpenWorkspaceFile)}
+      </Fragment>
+    ));
+  }
+
+  if (typeof children !== 'string') {
+    return children;
+  }
+
+  return children.split(WORKSPACE_FILE_PATTERN).map((part, index) => {
+    if (!onOpenWorkspaceFile || !looksLikeWorkspaceFilePath(part)) {
+      return <Fragment key={index}>{part}</Fragment>;
+    }
+
+    const normalizedPath = normalizeWorkspaceReference(part);
+    const resolvedPath = resolveFilePath(normalizedPath);
+    if (!looksLikeWorkspaceFilePath(normalizedPath) || !resolvedPath) {
+      return <Fragment key={index}>{part}</Fragment>;
+    }
+
+    const startIndex = part.indexOf(normalizedPath);
+    const prefix = startIndex > 0 ? part.slice(0, startIndex) : '';
+    const suffix = part.slice(startIndex + normalizedPath.length);
+
+    return (
+      <Fragment key={index}>
+        {prefix}
+        <button
+          className="inline-flex cursor-pointer items-center rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 font-mono text-[0.95em] text-primary transition-all duration-150 hover:-translate-y-[1px] hover:scale-[1.04] hover:border-primary/40 hover:bg-primary/14 hover:shadow-[0_6px_18px_rgba(59,130,246,0.16)]"
+          onClick={() => onOpenWorkspaceFile(resolvedPath)}
+          title={`Open ${resolvedPath}`}
+          type="button"
+        >
+          {normalizedPath}
+        </button>
+        {suffix}
+      </Fragment>
+    );
+  });
+}
+
+export function MarkdownRenderer({ content, className, isStreaming = false, onOpenWorkspaceFile }: MarkdownRendererProps) {
   const { displayedText, isComplete } = useTypewriter({
     text: content,
     enabled: isStreaming,
     speed: 5, // Fast typing
   });
+  const currentAgentId = useAgentStore((state) => state.current_agent_id);
+  const filesByAgent = useWorkspaceFilesStore((state) => state.filesByAgent);
+  const resolveFilePath = (path: string) => resolveWorkspaceFileReference(path, currentAgentId, filesByAgent);
 
   return (
     <div className={cn("prose prose-sm max-w-none", className)}>
@@ -34,9 +127,20 @@ export function MarkdownRenderer({ content, className, isStreaming = false }: Ma
             const match = /language-(\w+)/.exec(className || '');
             const value = String(children).replace(/\n$/, '');
             const isCodeBlock = match && value.includes('\n');
+            const resolvedPath = resolveFilePath(value);
 
             return isCodeBlock ? (
               <CodeBlock language={match[1]} value={value} />
+            ) : resolvedPath && onOpenWorkspaceFile ? (
+              <button
+                className="inline-flex cursor-pointer items-center px-2 py-0.5 mx-0.5 bg-primary/10 border border-primary/20 text-primary text-sm font-mono rounded-md whitespace-pre-wrap text-justify transition-all duration-150 hover:-translate-y-[1px] hover:scale-[1.04] hover:border-primary/40 hover:bg-primary/14 hover:shadow-[0_6px_18px_rgba(59,130,246,0.16)]"
+                onClick={() => onOpenWorkspaceFile(resolvedPath)}
+                title={`Open ${resolvedPath}`}
+                type="button"
+                {...props}
+              >
+                {children}
+              </button>
             ) : (
               <span
                 className="inline-block px-2 py-0.5 mx-0.5 bg-primary/10 border border-primary/20 text-primary text-sm font-mono rounded-md  whitespace-pre-wrap text-justify"
@@ -47,7 +151,11 @@ export function MarkdownRenderer({ content, className, isStreaming = false }: Ma
             );
           },
           p({ children }) {
-            return <p className="mb-2 mt-2 last:mb-0 leading-relaxed text-foreground/90 text-justify">{children}</p>;
+            return (
+              <p className="mb-2 mt-2 last:mb-0 leading-relaxed text-foreground/90 text-justify">
+                {renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}
+              </p>
+            );
           },
           ul({ children }) {
             return <ul className="list-disc list-inside mb-4 space-y-1 text-foreground/90">{children}</ul>;
@@ -55,11 +163,14 @@ export function MarkdownRenderer({ content, className, isStreaming = false }: Ma
           ol({ children }) {
             return <ol className="list-decimal list-inside mb-4 space-y-1 text-foreground/90">{children}</ol>;
           },
+          li({ children }) {
+            return <li>{renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}</li>;
+          },
           blockquote({ children }) {
             return (
               <blockquote
                 className="border-l-4 border-primary/30 pl-4 my-4 text-muted-foreground italic bg-primary/5 py-2 rounded-r">
-                {children}
+                {renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}
               </blockquote>
             );
           },

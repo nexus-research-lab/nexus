@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrainCircuit,
   ChevronDown,
@@ -31,6 +31,7 @@ import {
 } from "@/lib/agent-manage-api";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Session } from "@/types/session";
+import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/components/ui/confirm-dialog";
@@ -150,6 +151,8 @@ export function WorkspaceSidebar({
   const fileStates = useWorkspaceLiveStore((state) => state.fileStates);
   const recentEvents = useWorkspaceLiveStore((state) => state.recentEvents);
   const markFileSeen = useWorkspaceLiveStore((state) => state.markFileSeen);
+  const setWorkspaceFiles = useWorkspaceFilesStore((state) => state.setFiles);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const visibleFiles = useMemo(() => files.filter((file) => !file.is_dir), [files]);
   const memoryFiles = useMemo(
@@ -206,12 +209,13 @@ export function WorkspaceSidebar({
     try {
       const nextFiles = await getWorkspaceFilesApi(agent.agent_id);
       setFiles(nextFiles);
+      setWorkspaceFiles(agent.agent_id, nextFiles);
     } catch (loadError) {
       setFilesystemError(loadError instanceof Error ? loadError.message : "加载 workspace 失败");
     } finally {
       setIsLoadingFiles(false);
     }
-  }, [agent.agent_id]);
+  }, [agent.agent_id, setWorkspaceFiles]);
 
   useEffect(() => {
     void loadFiles();
@@ -266,6 +270,22 @@ export function WorkspaceSidebar({
     }
     markFileSeen(agent.agent_id, activeWorkspacePath);
   }, [activeWorkspacePath, agent.agent_id, markFileSeen]);
+
+  useEffect(() => {
+    if (!activeWorkspacePath) {
+      return;
+    }
+
+    const row = rowRefs.current[activeWorkspacePath];
+    if (!row) {
+      return;
+    }
+
+    row.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [activeWorkspacePath, files]);
 
   const handleCreateEntry = (entryType: "file" | "directory") => {
     setPromptDialog({ isOpen: true, type: "create", entryType });
@@ -369,6 +389,9 @@ export function WorkspaceSidebar({
       const row = (
         <div
           key={node.entry.path}
+          ref={(element) => {
+            rowRefs.current[node.entry.path] = element;
+          }}
           className={cn(
             "group flex items-center gap-2 rounded-lg pr-2 transition-colors",
             isActive
