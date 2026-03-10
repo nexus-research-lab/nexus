@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from agent.service.schema.model_message import AEvent, AMessage
+from agent.service.schema.model_workspace_event import WorkspaceEvent
 
 
 class ProtocolAdapter:
@@ -74,6 +75,18 @@ class ProtocolAdapter:
             self._apply_snapshot(history, snapshot)
 
         return history
+
+    def build_workspace_event(self, event: WorkspaceEvent) -> AEvent:
+        """将 WorkspaceEvent 转换为 WebSocket 事件。"""
+        return AEvent(
+            event_type="workspace_event",
+            agent_id=event.agent_id,
+            data={
+                **event.model_dump(),
+                "timestamp": event.timestamp.isoformat(),
+            },
+            timestamp=event.timestamp,
+        )
 
     def _apply_snapshot(self, history: List[Dict[str, Any]], snapshot: Dict[str, Any]) -> None:
         """对历史列表应用快照（upsert + tool_result 合并）。"""

@@ -190,7 +190,7 @@ async def update_workspace_file(agent_id: str, request: UpdateWorkspaceFileReque
     workspace = await agent_manager.get_agent_workspace(agent_id)
 
     try:
-        saved_path = workspace.write_relative_file(request.path, request.content)
+        saved_path = workspace.write_relative_file(request.path, request.content, source="api")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -28,7 +28,10 @@ from fastapi import WebSocket
 from agent.service.channel.channel import MessageChannel, MessageSender, PermissionStrategy
 from agent.service.process.protocol_adapter import ProtocolAdapter
 from agent.service.schema.model_message import AError, AEvent, AMessage
+from agent.service.schema.model_workspace_event import WorkspaceEvent
+from agent.service.workspace_observer import workspace_observer
 from agent.service.session_manager import session_manager
+from agent.service.workspace_event_bus import workspace_event_bus
 from agent.utils.logger import logger
 
 
@@ -45,6 +48,24 @@ class WebSocketSender(MessageSender):
     def __init__(self, websocket: WebSocket):
         self.websocket = websocket
         self.protocol_adapter = ProtocolAdapter()
+        self._workspace_subscriptions: Dict[str, str] = {}
+        self._is_closed = False
+
+    async def _safe_send_json(self, payload: Dict[str, Any]) -> None:
+        """安全发送，连接关闭后不再继续推送。"""
+        if self._is_closed:
+            return
+
+        try:
+            await self.websocket.send_json(payload)
+        except RuntimeError as exc:
+            self._is_closed = True
+            self.unsubscribe_all_workspace()
+            logger.warning(f"⚠️ WebSocket 已关闭，停止发送 workspace 事件: {exc}")
+        except Exception:
+            self._is_closed = True
+            self.unsubscribe_all_workspace()
+            raise
 
     async def send_message(self, message: AMessage) -> None:
         event = self.protocol_adapter.build_ws_event(message)
@@ -53,18 +74,58 @@ class WebSocketSender(MessageSender):
 
         payload = event.model_dump()
         payload["timestamp"] = payload["timestamp"].isoformat()
-        await self.websocket.send_json(payload)
+        await self._safe_send_json(payload)
         logger.debug(f"💬发送消息: {payload}")
 
     async def send_event(self, event: AEvent) -> None:
         payload = event.model_dump()
         payload["timestamp"] = payload["timestamp"].isoformat()
-        await self.websocket.send_json(payload)
+        await self._safe_send_json(payload)
 
     async def send_error(self, error: AError) -> None:
         payload = error.model_dump()
         payload["timestamp"] = payload["timestamp"].isoformat()
-        await self.websocket.send_json(payload)
+        await self._safe_send_json(payload)
+
+    async def send_workspace_event(self, event: WorkspaceEvent) -> None:
+        payload = self.protocol_adapter.build_workspace_event(event).model_dump()
+        payload["timestamp"] = payload["timestamp"].isoformat()
+        await self._safe_send_json(payload)
+
+    def subscribe_workspace(self, agent_id: str) -> None:
+        """订阅指定 Agent 的 workspace 事件。"""
+        if not agent_id or agent_id in self._workspace_subscriptions:
+            return
+
+        token_holder: Dict[str, str] = {}
+
+        async def _listener(event: WorkspaceEvent) -> None:
+            try:
+                await self.send_workspace_event(event)
+            except Exception as exc:
+                logger.warning(f"⚠️ workspace 事件推送失败: {exc}")
+                token = token_holder.get("token")
+                if token:
+                    workspace_event_bus.unsubscribe(token)
+
+        token = workspace_event_bus.subscribe(agent_id, _listener)
+        token_holder["token"] = token
+        self._workspace_subscriptions[agent_id] = token
+        workspace_observer.subscribe(agent_id)
+
+    def unsubscribe_workspace(self, agent_id: str) -> None:
+        """取消订阅指定 Agent 的 workspace 事件。"""
+        token = self._workspace_subscriptions.pop(agent_id, None)
+        if not token:
+            return
+        workspace_event_bus.unsubscribe(token)
+        workspace_observer.unsubscribe(agent_id)
+
+    def unsubscribe_all_workspace(self) -> None:
+        """取消当前连接的所有 workspace 事件订阅。"""
+        self._is_closed = True
+        for agent_id in list(self._workspace_subscriptions.keys()):
+            self.unsubscribe_workspace(agent_id)
 
 
 # =====================================================

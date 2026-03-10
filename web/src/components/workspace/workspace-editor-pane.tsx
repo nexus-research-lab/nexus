@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GripVertical, Minimize2, Save } from "lucide-react";
+import { GripVertical, LoaderCircle, Minimize2, Save } from "lucide-react";
 
 import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
+import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceEditorPaneProps {
@@ -28,6 +29,11 @@ export function WorkspaceEditorPane({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileStates = useWorkspaceLiveStore((state) => state.fileStates);
+
+  const liveState = path ? fileStates[`${agentId}:${path}`] : undefined;
+  const isExternalWriting = !!liveState && liveState.source !== "api" && liveState.status === "writing";
+  const hasLiveContent = typeof liveState?.liveContent === "string";
 
   const isDirty = draftContent !== savedContent;
 
@@ -63,6 +69,21 @@ export function WorkspaceEditorPane({
       cancelled = true;
     };
   }, [agentId, isOpen, path]);
+
+  useEffect(() => {
+    if (!isOpen || !path || !liveState || !hasLiveContent) {
+      return;
+    }
+
+    if (liveState.source === "api" && isSaving) {
+      return;
+    }
+
+    setDraftContent(liveState.liveContent || "");
+    if (liveState.status === "updated") {
+      setSavedContent(liveState.liveContent || "");
+    }
+  }, [hasLiveContent, isOpen, isSaving, liveState, path]);
 
   const handleSave = async () => {
     if (!path || !isDirty || isSaving) {
@@ -106,6 +127,26 @@ export function WorkspaceEditorPane({
               <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {path}
               </p>
+              {liveState && liveState.source !== "api" && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  {isExternalWriting ? (
+                    <>
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <span>模型正在实时写入该文件</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <span>
+                        已同步最新内容
+                        {liveState.diffStats
+                          ? ` · +${liveState.diffStats.additions} -${liveState.diffStats.deletions}`
+                          : ""}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -114,7 +155,7 @@ export function WorkspaceEditorPane({
                   "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                   isDirty ? "bg-primary text-primary-foreground" : "bg-muted/80 text-muted-foreground",
                 )}
-                disabled={!isDirty || isSaving}
+                disabled={!isDirty || isSaving || isExternalWriting}
                 onClick={() => void handleSave()}
                 type="button"
               >
@@ -138,7 +179,7 @@ export function WorkspaceEditorPane({
           <div className="flex-1 p-3">
             <textarea
               className="soft-scrollbar h-full w-full resize-none rounded-2xl border border-border/80 bg-background p-4 font-mono text-sm leading-6 text-foreground outline-none focus:border-primary/20 disabled:opacity-70"
-              disabled={isLoading}
+              disabled={isLoading || isExternalWriting}
               onChange={(event) => setDraftContent(event.target.value)}
               value={isLoading ? "加载中..." : draftContent}
             />

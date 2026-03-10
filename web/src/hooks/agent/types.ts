@@ -14,6 +14,7 @@ import { UserQuestionAnswer } from '@/types/ask-user-question';
 
 export interface UseAgentSessionOptions {
     wsUrl?: string;
+    agentId?: string | null;
     onError?: (error: Error) => void;
 }
 

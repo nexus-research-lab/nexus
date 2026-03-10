@@ -38,6 +38,7 @@ class WebSocketHandler:
     def __init__(self):
         self.websocket: Optional[WebSocket] = None
         self.chat_tasks: Dict[str, asyncio.Task] = {}
+        self.sender: Optional[WebSocketSender] = None
 
         # Handler 实例（连接时初始化）
         self.permission_handler: Optional[PermissionHandler] = None
@@ -49,6 +50,7 @@ class WebSocketHandler:
     def init_handlers(self, websocket: WebSocket) -> None:
         """初始化各处理器 — 使用 WebSocketSender 和 InteractivePermissionStrategy"""
         sender = WebSocketSender(websocket)
+        self.sender = sender
         permission_strategy = InteractivePermissionStrategy(sender)
 
         self.permission_handler = PermissionHandler(sender, permission_strategy)
@@ -93,6 +95,14 @@ class WebSocketHandler:
             await self.interrupt_handler.handle_interrupt(message, self.chat_tasks)
         elif msg_type == "permission_response":
             await self.permission_handler.handle_permission_response(message)
+        elif msg_type == "subscribe_workspace":
+            agent_id = message.get("agent_id", "")
+            if self.sender and agent_id:
+                self.sender.subscribe_workspace(agent_id)
+        elif msg_type == "unsubscribe_workspace":
+            agent_id = message.get("agent_id", "")
+            if self.sender and agent_id:
+                self.sender.unsubscribe_workspace(agent_id)
         elif msg_type == "ping":
             await self.ping_handler.handle_ping(message)
         else:
@@ -119,4 +129,7 @@ class WebSocketHandler:
             await asyncio.gather(*self.chat_tasks.values(), return_exceptions=True)
 
         self.chat_tasks.clear()
+        if self.sender:
+            self.sender.unsubscribe_all_workspace()
+            self.sender = None
         self.websocket = None

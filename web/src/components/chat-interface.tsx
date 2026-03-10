@@ -15,6 +15,7 @@ import { TodoItem } from "@/components/todo/agent-task-widget";
 
 
 interface ChatInterfaceProps {
+  agentId: string | null;
   sessionKey: string | null;
   onNewSession: () => void;
   onTodosChange?: (todos: TodoItem[]) => void;
@@ -45,6 +46,7 @@ function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
 }
 
 export function ChatInterface({
+  agentId,
   sessionKey: externalSessionKey,
   onNewSession: onNewSession,
   onTodosChange,
@@ -67,6 +69,7 @@ export function ChatInterface({
     deleteRound,
     regenerate,
   } = useAgentSession({
+    agentId,
     onError: (err) => {
       console.error("Session error:", err);
     },

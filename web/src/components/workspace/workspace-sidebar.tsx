@@ -31,6 +31,7 @@ import {
 } from "@/lib/agent-manage-api";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Session } from "@/types/session";
+import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/components/ui/confirm-dialog";
 
@@ -146,6 +147,9 @@ export function WorkspaceSidebar({
     isOpen: boolean;
     entry?: WorkspaceFileEntry;
   }>({ isOpen: false });
+  const fileStates = useWorkspaceLiveStore((state) => state.fileStates);
+  const recentEvents = useWorkspaceLiveStore((state) => state.recentEvents);
+  const markFileSeen = useWorkspaceLiveStore((state) => state.markFileSeen);
 
   const visibleFiles = useMemo(() => files.filter((file) => !file.is_dir), [files]);
   const memoryFiles = useMemo(
@@ -196,7 +200,7 @@ export function WorkspaceSidebar({
   const selectedSession = sessions.find((session) => session.session_key === currentSessionKey) ?? null;
   const latestSession = selectedSession ?? sessions[0] ?? null;
 
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     setIsLoadingFiles(true);
     setFilesystemError(null);
     try {
@@ -207,11 +211,40 @@ export function WorkspaceSidebar({
     } finally {
       setIsLoadingFiles(false);
     }
-  };
+  }, [agent.agent_id]);
 
   useEffect(() => {
     void loadFiles();
   }, [agent.agent_id]);
+
+  const latestAgentEvent = useMemo(
+    () => recentEvents.find((item) => item.agentId === agent.agent_id) ?? null,
+    [agent.agent_id, recentEvents],
+  );
+
+  useEffect(() => {
+    if (!latestAgentEvent || latestAgentEvent.eventType !== "file_write_end") {
+      return;
+    }
+
+    const pathParts = latestAgentEvent.path.split("/").slice(0, -1);
+    if (pathParts.length > 0) {
+      setExpandedDirectories((current) => {
+        const nextState = { ...current };
+        pathParts.forEach((_, index) => {
+          const parentPath = pathParts.slice(0, index + 1).join("/");
+          nextState[parentPath] = true;
+        });
+        return nextState;
+      });
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadFiles();
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [latestAgentEvent?.id, latestAgentEvent?.eventType, loadFiles]);
 
   useEffect(() => {
     setExpandedDirectories((current) => {
@@ -226,6 +259,13 @@ export function WorkspaceSidebar({
       return nextState;
     });
   }, [files]);
+
+  useEffect(() => {
+    if (!activeWorkspacePath) {
+      return;
+    }
+    markFileSeen(agent.agent_id, activeWorkspacePath);
+  }, [activeWorkspacePath, agent.agent_id, markFileSeen]);
 
   const handleCreateEntry = (entryType: "file" | "directory") => {
     setPromptDialog({ isOpen: true, type: "create", entryType });
@@ -322,6 +362,9 @@ export function WorkspaceSidebar({
       const isExpanded = expandedDirectories[node.entry.path] ?? true;
       const isActive = !isDirectory && activeWorkspacePath === node.entry.path;
       const FileIcon = isDirectory ? Folder : getFileIcon(node.entry.name);
+      const liveState = !isDirectory ? fileStates[`${agent.agent_id}:${node.entry.path}`] : undefined;
+      const isWriting = liveState?.status === "writing";
+      const isUpdated = liveState?.status === "updated" && Date.now() - liveState.updatedAt < 6000;
 
       const row = (
         <div
@@ -330,7 +373,11 @@ export function WorkspaceSidebar({
             "group flex items-center gap-2 rounded-lg pr-2 transition-colors",
             isActive
               ? "bg-primary/8 text-primary"
-              : "text-foreground hover:bg-secondary/80",
+              : isWriting
+                ? "bg-primary/8 text-primary"
+                : isUpdated
+                  ? "bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
+                  : "text-foreground hover:bg-secondary/80",
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
@@ -362,6 +409,25 @@ export function WorkspaceSidebar({
             )}
 
             <span className="truncate text-sm font-medium">{node.entry.name}</span>
+
+            {!isDirectory && liveState && (
+              <span
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  isWriting
+                    ? "bg-primary/10 text-primary"
+                    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    isWriting ? "animate-pulse bg-primary" : "bg-emerald-500",
+                  )}
+                />
+                {isWriting ? "writing" : "updated"}
+              </span>
+            )}
           </button>
 
           <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
