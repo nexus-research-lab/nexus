@@ -15,6 +15,8 @@ import {
     UpdateAgentParams,
     WorkspaceFileContent,
     WorkspaceFileEntry,
+    WorkspaceEntryMutationResponse,
+    WorkspaceEntryRenameResponse,
 } from '@/types/agent';
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010/agent/v1';
@@ -178,5 +180,56 @@ export const updateWorkspaceFileContentApi = async (
         throw new Error(`更新 Workspace 文件失败: ${response.statusText}`);
     }
     const result: ApiResponse<WorkspaceFileContent> = await response.json();
+    return result.data;
+};
+
+export const createWorkspaceEntryApi = async (
+    agent_id: string,
+    path: string,
+    entry_type: 'file' | 'directory',
+    content: string = ''
+): Promise<WorkspaceEntryMutationResponse> => {
+    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, entry_type, content }),
+    });
+    if (!response.ok) {
+        throw new Error(`创建 Workspace 条目失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<WorkspaceEntryMutationResponse> = await response.json();
+    return result.data;
+};
+
+export const renameWorkspaceEntryApi = async (
+    agent_id: string,
+    path: string,
+    new_path: string
+): Promise<WorkspaceEntryRenameResponse> => {
+    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, new_path }),
+    });
+    if (!response.ok) {
+        throw new Error(`重命名 Workspace 条目失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<WorkspaceEntryRenameResponse> = await response.json();
+    return result.data;
+};
+
+export const deleteWorkspaceEntryApi = async (
+    agent_id: string,
+    path: string
+): Promise<WorkspaceEntryMutationResponse> => {
+    const query = new URLSearchParams({ path });
+    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry?${query.toString()}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+        throw new Error(`删除 Workspace 条目失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<WorkspaceEntryMutationResponse> = await response.json();
     return result.data;
 };

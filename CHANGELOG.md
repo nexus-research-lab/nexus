@@ -16,6 +16,7 @@
 - Agent Space 进一步按 harness capability 重构为三栏布局：左侧 `Virtual filesystem + Context`，中间 `Session Space`，右侧 `Agent State`。
 - Workspace 文件编辑器改为按需从左侧滑出，展开后与对话主区对半分配，降低常驻编辑器对会话空间的挤压。
 - 右侧状态栏改为 runtime、context capacity、token/cost、planning、orchestration、policy 六个状态区，显式映射后续 harness telemetry 能力。
+- workspace 左栏升级为目录树视图，并补齐文件/目录创建、删除、重命名操作，保持与本地 workspace 目录同步。
 
 ## 2026-03-09
 

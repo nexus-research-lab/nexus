@@ -19,6 +19,7 @@ Agent Workspace 管理器
 """
 
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -241,6 +242,75 @@ class AgentWorkspace:
         target_path.write_text(content, encoding="utf-8")
         logger.info(f"📝 写入 Workspace 文件: {target_path}")
         return target_path.relative_to(self.path.resolve()).as_posix()
+
+    def create_entry(
+        self,
+        relative_path: str,
+        entry_type: str,
+        content: str = "",
+    ) -> str:
+        """创建 workspace 内的文件或目录。
+
+        Args:
+            relative_path: 相对 workspace 的目标路径。
+            entry_type: 条目类型，仅支持 ``file`` 或 ``directory``。
+            content: 创建文件时的初始内容。
+
+        Returns:
+            str: 创建后的相对路径。
+
+        Raises:
+            ValueError: 路径非法或类型不支持。
+            FileExistsError: 目标已存在。
+        """
+        target_path = self._resolve_relative_path(relative_path)
+        if target_path.exists():
+            raise FileExistsError(f"目标已存在: {relative_path}")
+
+        if entry_type == "directory":
+            target_path.mkdir(parents=True, exist_ok=False)
+        elif entry_type == "file":
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text(content, encoding="utf-8")
+        else:
+            raise ValueError("仅支持创建 file 或 directory")
+
+        logger.info(f"🆕 创建 Workspace 条目: {target_path}")
+        return target_path.relative_to(self.path.resolve()).as_posix()
+
+    def delete_entry(self, relative_path: str) -> str:
+        """删除 workspace 内的文件或目录。"""
+        target_path = self._resolve_relative_path(relative_path)
+        if not target_path.exists():
+            raise FileNotFoundError(f"目标不存在: {relative_path}")
+
+        if target_path.is_dir():
+            shutil.rmtree(target_path)
+        else:
+            target_path.unlink()
+
+        logger.info(f"🗑️ 删除 Workspace 条目: {target_path}")
+        return relative_path
+
+    def rename_entry(self, relative_path: str, new_relative_path: str) -> tuple[str, str]:
+        """重命名或移动 workspace 内的文件或目录。"""
+        source_path = self._resolve_relative_path(relative_path)
+        target_path = self._resolve_relative_path(new_relative_path)
+
+        if not source_path.exists():
+            raise FileNotFoundError(f"目标不存在: {relative_path}")
+        if source_path == target_path:
+            raise ValueError("新旧路径不能相同")
+        if target_path.exists():
+            raise FileExistsError(f"目标已存在: {new_relative_path}")
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.rename(target_path)
+        logger.info(f"✏️ 重命名 Workspace 条目: {source_path} -> {target_path}")
+        return (
+            source_path.relative_to(self.path.resolve()).as_posix(),
+            target_path.relative_to(self.path.resolve()).as_posix(),
+        )
 
     # =====================================================
     # System Prompt 构建

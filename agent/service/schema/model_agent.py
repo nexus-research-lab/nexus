@@ -17,6 +17,7 @@ Agent Pydantic 模型
 """
 
 from datetime import datetime
+from typing import Literal
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -104,3 +105,27 @@ class UpdateWorkspaceFileRequest(BaseModel):
     """更新 Workspace 文件请求。"""
     path: str = Field(..., description="相对 workspace 的文件路径")
     content: str = Field(default="", description="文件内容")
+
+
+class CreateWorkspaceEntryRequest(BaseModel):
+    """创建 Workspace 条目请求。"""
+    path: str = Field(..., description="相对 workspace 的目标路径")
+    entry_type: Literal["file", "directory"] = Field(..., description="创建类型")
+    content: str = Field(default="", description="创建文件时的初始内容")
+
+
+class RenameWorkspaceEntryRequest(BaseModel):
+    """重命名 Workspace 条目请求。"""
+    path: str = Field(..., description="当前相对路径")
+    new_path: str = Field(..., description="新的相对路径")
+
+
+class WorkspaceEntryMutationResponse(BaseModel):
+    """Workspace 条目变更响应。"""
+    path: str = Field(..., description="变更后的路径")
+
+
+class WorkspaceEntryRenameResponse(BaseModel):
+    """Workspace 条目重命名响应。"""
+    path: str = Field(..., description="旧路径")
+    new_path: str = Field(..., description="新路径")

@@ -81,3 +81,12 @@ export interface WorkspaceFileContent {
     path: string;
     content: string;
 }
+
+export interface WorkspaceEntryMutationResponse {
+    path: string;
+}
+
+export interface WorkspaceEntryRenameResponse {
+    path: string;
+    new_path: string;
+}

@@ -4,15 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit,
   Clock3,
+  FilePlus2,
   FileCode2,
   FileText,
+  Folder,
+  FolderPlus,
   FolderTree,
   MessageSquarePlus,
+  Pencil,
   RefreshCw,
   Trash2,
 } from "lucide-react";
 
-import { getWorkspaceFilesApi } from "@/lib/agent-manage-api";
+import {
+  createWorkspaceEntryApi,
+  deleteWorkspaceEntryApi,
+  getWorkspaceFilesApi,
+  renameWorkspaceEntryApi,
+} from "@/lib/agent-manage-api";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Session } from "@/types/session";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
@@ -25,7 +34,7 @@ interface WorkspaceSidebarProps {
   onSelectSession: (sessionKey: string) => void;
   onCreateSession: () => void;
   onDeleteSession: (sessionKey: string) => void;
-  onOpenWorkspaceFile: (path: string) => void;
+  onOpenWorkspaceFile: (path: string | null) => void;
 }
 
 export function WorkspaceSidebar({
@@ -40,23 +49,28 @@ export function WorkspaceSidebar({
 }: WorkspaceSidebarProps) {
   const [files, setFiles] = useState<WorkspaceFileEntry[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [filesystemError, setFilesystemError] = useState<string | null>(null);
 
-  const visibleFiles = useMemo(
-    () => files.filter((file) => !file.is_dir),
-    [files],
-  );
+  const visibleFiles = useMemo(() => files.filter((file) => !file.is_dir), [files]);
   const memoryFiles = useMemo(
     () => visibleFiles.filter((file) => /memory|context|summary|skill/i.test(file.path)),
     [visibleFiles],
+  );
+  const filesystemEntries = useMemo(
+    () => [...files].sort((left, right) => left.path.localeCompare(right.path, "zh-CN")),
+    [files],
   );
   const selectedSession = sessions.find((session) => session.session_key === currentSessionKey) ?? null;
   const latestSession = selectedSession ?? sessions[0] ?? null;
 
   const loadFiles = async () => {
     setIsLoadingFiles(true);
+    setFilesystemError(null);
     try {
       const nextFiles = await getWorkspaceFilesApi(agent.agent_id);
       setFiles(nextFiles);
+    } catch (loadError) {
+      setFilesystemError(loadError instanceof Error ? loadError.message : "加载 workspace 失败");
     } finally {
       setIsLoadingFiles(false);
     }
@@ -65,6 +79,73 @@ export function WorkspaceSidebar({
   useEffect(() => {
     void loadFiles();
   }, [agent.agent_id]);
+
+  const handleCreateEntry = async (entryType: "file" | "directory") => {
+    const placeholder = entryType === "file" ? "notes/todo.md" : "notes";
+    const nextPath = window.prompt(
+      entryType === "file" ? "输入新文件路径" : "输入新目录路径",
+      placeholder,
+    );
+
+    if (!nextPath) {
+      return;
+    }
+
+    try {
+      const response = await createWorkspaceEntryApi(agent.agent_id, nextPath, entryType);
+      await loadFiles();
+      if (entryType === "file") {
+        onOpenWorkspaceFile(response.path);
+      }
+    } catch (mutationError) {
+      setFilesystemError(mutationError instanceof Error ? mutationError.message : "创建条目失败");
+    }
+  };
+
+  const handleRenameEntry = async (entry: WorkspaceFileEntry) => {
+    const nextPath = window.prompt("输入新的相对路径", entry.path);
+    if (!nextPath || nextPath === entry.path) {
+      return;
+    }
+
+    try {
+      const response = await renameWorkspaceEntryApi(agent.agent_id, entry.path, nextPath);
+      await loadFiles();
+
+      if (!entry.is_dir && activeWorkspacePath === entry.path) {
+        onOpenWorkspaceFile(response.new_path);
+        return;
+      }
+
+      if (entry.is_dir && activeWorkspacePath?.startsWith(`${entry.path}/`)) {
+        const renamedActivePath = activeWorkspacePath.replace(entry.path, response.new_path);
+        onOpenWorkspaceFile(renamedActivePath);
+      }
+    } catch (mutationError) {
+      setFilesystemError(mutationError instanceof Error ? mutationError.message : "重命名条目失败");
+    }
+  };
+
+  const handleDeleteEntry = async (entry: WorkspaceFileEntry) => {
+    const confirmed = window.confirm(`确认删除 ${entry.path} 吗？`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteWorkspaceEntryApi(agent.agent_id, entry.path);
+      await loadFiles();
+
+      if (
+        activeWorkspacePath === entry.path ||
+        (entry.is_dir && activeWorkspacePath?.startsWith(`${entry.path}/`))
+      ) {
+        onOpenWorkspaceFile(null);
+      }
+    } catch (mutationError) {
+      setFilesystemError(mutationError instanceof Error ? mutationError.message : "删除条目失败");
+    }
+  };
 
   return (
     <aside className="flex min-h-0 w-[300px] flex-col rounded-[20px] panel-surface">
@@ -93,34 +174,88 @@ export function WorkspaceSidebar({
               <FolderTree className="h-3.5 w-3.5" />
               Virtual Filesystem
             </div>
+            <div className="flex items-center gap-1">
+              <button
+                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                onClick={() => void handleCreateEntry("file")}
+                title="创建文件"
+                type="button"
+              >
+                <FilePlus2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                onClick={() => void handleCreateEntry("directory")}
+                title="创建目录"
+                type="button"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            {visibleFiles.length === 0 ? (
+          {filesystemError && (
+            <div className="mb-3 rounded-xl border border-destructive/20 bg-destructive/6 px-3 py-2 text-xs text-destructive">
+              {filesystemError}
+            </div>
+          )}
+
+          <div className="space-y-1">
+            {filesystemEntries.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/80 bg-secondary/60 px-3 py-4 text-sm text-muted-foreground">
                 当前 workspace 还没有可展示的文件。
               </div>
             ) : (
-              visibleFiles.map((file) => (
-                <button
-                  key={file.path}
+              filesystemEntries.map((entry) => (
+                <div
+                  key={entry.path}
                   className={cn(
-                    "w-full rounded-xl border px-3 py-2.5 text-left transition-colors",
-                    activeWorkspacePath === file.path
+                    "group flex items-center gap-2 rounded-xl border pr-2 transition-colors",
+                    !entry.is_dir && activeWorkspacePath === entry.path
                       ? "border-primary/20 bg-primary/8 text-primary"
                       : "border-transparent bg-secondary/40 text-foreground hover:border-border/80 hover:bg-secondary/80",
                   )}
-                  onClick={() => onOpenWorkspaceFile(file.path)}
-                  type="button"
+                  style={{ paddingLeft: `${Math.max((entry.depth - 1) * 16, 0) + 12}px` }}
                 >
-                  <div className="flex items-start gap-2">
-                    <FileCode2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <button
+                    className="flex min-w-0 flex-1 items-start gap-2 px-0 py-2.5 text-left"
+                    onClick={() => {
+                      if (!entry.is_dir) {
+                        onOpenWorkspaceFile(entry.path);
+                      }
+                    }}
+                    type="button"
+                  >
+                    {entry.is_dir ? (
+                      <Folder className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <FileCode2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    )}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{file.name}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">{truncate(file.path, 28)}</p>
+                      <p className="truncate text-sm font-medium">{entry.name}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{truncate(entry.path, 30)}</p>
                     </div>
+                  </button>
+
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      className="rounded-lg border border-border/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                      onClick={() => void handleRenameEntry(entry)}
+                      title="重命名"
+                      type="button"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      className="rounded-lg border border-border/80 p-1.5 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive"
+                      onClick={() => void handleDeleteEntry(entry)}
+                      title="删除"
+                      type="button"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                </button>
+                </div>
               ))
             )}
           </div>

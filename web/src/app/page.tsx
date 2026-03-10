@@ -226,9 +226,9 @@ export default function Home() {
     }
   }, [current_session_key, currentAgentSessions, deleteSession, setCurrentSession]);
 
-  const handleOpenWorkspaceFile = useCallback((path: string) => {
+  const handleOpenWorkspaceFile = useCallback((path: string | null) => {
     setActiveWorkspacePath(path);
-    setIsEditorOpen(true);
+    setIsEditorOpen(Boolean(path));
   }, []);
 
   const handleCloseWorkspacePane = useCallback(() => {

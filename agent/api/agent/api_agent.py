@@ -23,11 +23,15 @@ from fastapi import APIRouter, HTTPException
 from agent.service.agent_manager import agent_manager
 from agent.service.schema.model_agent import (
     AAgent,
+    CreateWorkspaceEntryRequest,
     CreateAgentRequest,
+    RenameWorkspaceEntryRequest,
     UpdateWorkspaceFileRequest,
     UpdateAgentRequest,
     WorkspaceFileContentResponse,
     WorkspaceFileEntry,
+    WorkspaceEntryMutationResponse,
+    WorkspaceEntryRenameResponse,
 )
 from agent.service.session_manager import session_manager
 from agent.service.session_store import session_store
@@ -180,4 +184,76 @@ async def update_workspace_file(agent_id: str, request: UpdateWorkspaceFileReque
 
     await session_manager.refresh_agent_sessions(agent_id)
     data = WorkspaceFileContentResponse(path=saved_path, content=request.content).model_dump()
+    return resp.ok(resp.Resp(data=data))
+
+
+@router.post("/agents/{agent_id}/workspace/entry", response_model=WorkspaceEntryMutationResponse)
+async def create_workspace_entry(agent_id: str, request: CreateWorkspaceEntryRequest):
+    """创建 Agent workspace 条目。"""
+    agent = await agent_manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    workspace = await agent_manager.get_agent_workspace(agent_id)
+
+    try:
+        created_path = workspace.create_entry(
+            relative_path=request.path,
+            entry_type=request.entry_type,
+            content=request.content,
+        )
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await session_manager.refresh_agent_sessions(agent_id)
+    data = WorkspaceEntryMutationResponse(path=created_path).model_dump()
+    return resp.ok(resp.Resp(data=data))
+
+
+@router.patch("/agents/{agent_id}/workspace/entry", response_model=WorkspaceEntryRenameResponse)
+async def rename_workspace_entry(agent_id: str, request: RenameWorkspaceEntryRequest):
+    """重命名 Agent workspace 条目。"""
+    agent = await agent_manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    workspace = await agent_manager.get_agent_workspace(agent_id)
+
+    try:
+        old_path, new_path = workspace.rename_entry(
+            relative_path=request.path,
+            new_relative_path=request.new_path,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await session_manager.refresh_agent_sessions(agent_id)
+    data = WorkspaceEntryRenameResponse(path=old_path, new_path=new_path).model_dump()
+    return resp.ok(resp.Resp(data=data))
+
+
+@router.delete("/agents/{agent_id}/workspace/entry", response_model=WorkspaceEntryMutationResponse)
+async def delete_workspace_entry(agent_id: str, path: str):
+    """删除 Agent workspace 条目。"""
+    agent = await agent_manager.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    workspace = await agent_manager.get_agent_workspace(agent_id)
+
+    try:
+        deleted_path = workspace.delete_entry(path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await session_manager.refresh_agent_sessions(agent_id)
+    data = WorkspaceEntryMutationResponse(path=deleted_path).model_dump()
     return resp.ok(resp.Resp(data=data))
