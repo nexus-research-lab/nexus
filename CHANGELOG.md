@@ -2,6 +2,23 @@
 
 ## 2026-03-10
 
+### Fixed
+- 修复后端 `session_manager` 导入缺失问题。
+- 修复 HTML 嵌套 button 验证错误，改为语义化结构。
+
+### Added
+- 新增自定义对话框组件 (ConfirmDialog, PromptDialog)，替代 window.confirm/prompt。
+- 添加暗黑模式支持 (prefers-color-scheme: dark)。
+- 添加全局设计令牌 (success, warning, scrollbar 变量)。
+- 添加统一滚动条样式 (Webkit + Firefox)。
+- 添加全局 kbd 元素样式。
+
+### Accessibility
+- 为所有交互按钮添加 aria-label 属性。
+- 添加 focus-visible 聚焦样式。
+- 为进度条添加 ARIA progressbar 属性。
+- 使用语义化颜色变量 (text-destructive, text-success, text-warning)。
+
 ### Changed
 - Web 首页重构为 B 端控制台骨架，采用 `Agent Directory -> Agent Space` 的两层信息架构。
 - 在 Agent Space 内新增顶部快速切换器，支持不返回目录页直接切换 Agent，兼顾结构分层与多线程操作效率。
