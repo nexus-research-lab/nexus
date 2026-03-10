@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  BrainCircuit,
   CheckSquare,
   Cpu,
   LoaderCircle,
@@ -37,9 +36,6 @@ export function AgentInspector({
                                  agentCostSummary,
                                  onEditAgent,
                                }: AgentInspectorProps) {
-  const maxTurns = agent.options.max_turns ?? 24;
-  const turnUsage = activeSession?.message_count ?? 0;
-  const contextRatio = Math.min(turnUsage / Math.max(maxTurns, 1), 1);
   const completedTodoCount = todos.filter((todo) => todo.status === "completed").length;
   const activeTodo = todos.find((todo) => todo.status === "in_progress") ?? null;
   const lastRunDurationMs = sessionCostSummary.last_run_duration_ms ?? null;
@@ -153,33 +149,6 @@ export function AgentInspector({
           {todos.length === 0 && (
             <p className="mt-3 text-sm text-muted-foreground">暂无活跃计划。</p>
           )}
-        </section>
-
-        <section className="border-b border-border/80 px-3 py-3">
-          <div
-            className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            <BrainCircuit className="h-3.5 w-3.5"/>
-            Context Capacity
-          </div>
-          <div
-            className="h-2 overflow-hidden rounded-full bg-secondary/80"
-            role="progressbar"
-            aria-valuenow={Math.round(contextRatio * 100)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="上下文使用率"
-          >
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{width: `${Math.max(contextRatio * 100, 8)}%`}}
-            />
-          </div>
-          <div className="mt-3 flex justify-between gap-4 text-sm">
-            <span className="text-muted-foreground">Messages / Max Turns</span>
-            <span className="font-medium text-foreground">
-              {turnUsage} / {maxTurns}
-            </span>
-          </div>
         </section>
 
         <section className="border-b border-border/80 px-3 py-3">
