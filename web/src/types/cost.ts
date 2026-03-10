@@ -1,3 +1,12 @@
+/**
+ * 成本相关类型定义
+ *
+ * [INPUT]: 无外部依赖
+ * [OUTPUT]: 对外提供 SessionCostSummary, AgentCostSummary
+ * [POS]: types 模块的成本类型，被 agent-inspector 和 page.tsx 消费
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+
 export interface SessionCostSummary {
   agent_id: string;
   session_key: string;

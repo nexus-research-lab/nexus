@@ -1,7 +1,7 @@
 /**
  * Agent API 服务模块
  *
- * [INPUT]: 依赖 @/types/agent 的 Agent 类型定义
+ * [INPUT]: 依赖 @/types/agent, @/types/cost, @/types/api
  * [OUTPUT]: 对外提供 getAgents、createAgent、updateAgent、deleteAgent 等 API 函数
  * [POS]: lib 模块的 Agent API 层，被 agent store 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -19,16 +19,9 @@ import {
     WorkspaceEntryRenameResponse,
 } from '@/types/agent';
 import { AgentCostSummary } from '@/types/cost';
+import { ApiResponse } from '@/types/api';
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010/agent/v1';
-
-// ==================== API 响应类型 ====================
-
-interface ApiResponse<T> {
-    code: number;
-    message: string;
-    data: T;
-}
 
 // ==================== 类型转换 ====================
 
@@ -75,18 +68,7 @@ export const createAgentApi = async (params: CreateAgentParams): Promise<Agent> 
     return transformApiAgent(result.data);
 };
 
-/** 获取单个 Agent */
-export const getAgent = async (agent_id: string): Promise<Agent> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-    });
-    if (!response.ok) {
-        throw new Error(`获取 Agent 失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<ApiAgent> = await response.json();
-    return transformApiAgent(result.data);
-};
+
 
 /** 更新 Agent */
 export const updateAgentApi = async (agent_id: string, params: UpdateAgentParams): Promise<Agent> => {

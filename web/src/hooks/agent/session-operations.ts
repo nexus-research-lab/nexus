@@ -1,5 +1,10 @@
 /**
  * Session 操作函数
+ *
+ * [INPUT]: 依赖 @/types, @/lib/agent-api
+ * [OUTPUT]: 对外提供 createStartSession, createLoadSession, createClearSession, createResetSession, createLoadHistoryMessages
+ * [POS]: hooks/agent 模块的会话生命周期操作，被 useAgentSession 消费
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import { Message } from '@/types';
@@ -9,15 +14,15 @@ import { getSessionMessages } from "@/lib/agent-api";
  * 创建新session操作
  */
 export function createStartSession(
-  setstring: (id: string) => void,
+  setSessionKey: (id: string) => void,
   setMessages: (messages: Message[]) => void,
   setToolCalls: (calls: any[]) => void,
   setError: (error: string | null) => void,
   setIsLoading: (loading: boolean) => void
 ) {
   return () => {
-    const newstring = crypto.randomUUID();
-    setstring(newstring);
+    const newSessionKey = crypto.randomUUID();
+    setSessionKey(newSessionKey);
     setMessages([]);
     setToolCalls([]);
     setError(null);
@@ -121,7 +126,7 @@ function markInterruptedToolCalls(messages: Message[]): Message[] {
  * 设置sessionKey并从后端加载历史消息
  */
 export const createLoadSession = (
-  setstring: (id: string) => void,
+  setSessionKey: (id: string) => void,
   setMessages: (messages: Message[]) => void,
   setError: (error: string | null) => void,
 ) => async (id: string): Promise<void> => {
@@ -130,7 +135,7 @@ export const createLoadSession = (
 
     // 1. 设置sessionKey
     console.debug('[loadSession] 设置sessionKey:', id);
-    setstring(id);
+    setSessionKey(id);
 
     // 2. 清空当前消息
     setMessages([]);
@@ -162,7 +167,7 @@ export function createClearSession(
   setToolCalls: (calls: any[]) => void,
   setError: (error: string | null) => void,
   setIsLoading: (loading: boolean) => void,
-  setstring: (id: string | null) => void,
+  setSessionKey: (id: string | null) => void,
   abortControllerRef: React.RefObject<AbortController | null>
 ) {
   return () => {
@@ -170,7 +175,7 @@ export function createClearSession(
     setToolCalls([]);
     setError(null);
     setIsLoading(false);
-    setstring(null);
+    setSessionKey(null);
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();

@@ -1,7 +1,7 @@
 /**
  * Session API 服务模块
  *
- * [INPUT]: 依赖 @/types/session 的会话类型定义
+ * [INPUT]: 依赖 @/types/session, @/types/message, @/types/cost, @/types/api
  * [OUTPUT]: 对外提供 getSessions、createSession、updateSession、deleteSession 等 API 函数
  * [POS]: lib 模块的 Session API 层
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -10,17 +10,9 @@
 import { ApiSession, CreateSessionParams, Session, UpdateSessionParams } from '@/types/session';
 import { Message as ChatMessage } from '@/types/message';
 import { SessionCostSummary } from '@/types/cost';
+import { ApiResponse } from '@/types/api';
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010/agent/v1';
-
-// ==================== API 响应类型 ====================
-
-export interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
-  request_id?: string;
-}
 
 // ==================== 类型转换 ====================
 
