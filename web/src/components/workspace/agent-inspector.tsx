@@ -15,6 +15,7 @@ import { Session } from "@/types/session";
 import { formatCost, formatRelativeTime, formatTokens, truncate } from "@/lib/utils";
 import { TodoItem } from "@/components/todo/agent-task-widget";
 import { SessionTelemetry } from "@/types/telemetry";
+import { LoadingOrb } from "@/components/header/loading";
 
 interface AgentInspectorProps {
   agent: Agent;
@@ -108,34 +109,19 @@ export function AgentInspector({
 
         <section className="border-b border-border/80 px-3 py-3">
           <div
-            className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            className="mb-3 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="flex items-center gap-2">
             <CheckSquare className="h-3.5 w-3.5"/>
             Current Plan
-          </div>
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-medium text-foreground">Plan Progress</span>
-            <span className="text-muted-foreground">
-              {todos.length === 0 ? "0 / 0" : `${completedTodoCount} / ${todos.length}`}
-            </span>
-          </div>
-          {todos.length > 0 && (
-            <div
-              className="mt-3 h-2 overflow-hidden rounded-full bg-secondary/80"
-              role="progressbar"
-              aria-valuenow={Math.round((completedTodoCount / todos.length) * 100)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="任务完成进度"
-            >
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{width: `${(completedTodoCount / todos.length) * 100}%`}}
-              />
             </div>
-          )}
+            <div className="flex items-center gap-2 rounded-full border border-border/70 bg-secondary/70 px-2.5 py-1 text-[11px] tracking-normal normal-case">
+              {todos.length > 0 && <LoadingOrb />}
+              <span>{todos.length === 0 ? "0 / 0" : `${completedTodoCount} / ${todos.length}`}</span>
+            </div>
+          </div>
           {activeTodo && (
             <div
-              className="mt-3 flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/6 px-3 py-2.5 text-sm text-foreground">
+              className="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/6 px-3 py-2.5 text-sm text-foreground">
               <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"/>
               <div className="min-w-0">
                 <p className="truncate">{activeTodo.content}</p>
