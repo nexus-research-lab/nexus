@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit,
   ChevronDown,
@@ -27,6 +27,7 @@ import {
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Session } from "@/types/session";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
+import { ConfirmDialog, PromptDialog } from "@/components/ui/confirm-dialog";
 
 interface FileTreeNode {
   entry: WorkspaceFileEntry;
@@ -58,6 +59,18 @@ export function WorkspaceSidebar({
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [filesystemError, setFilesystemError] = useState<string | null>(null);
   const [expandedDirectories, setExpandedDirectories] = useState<Record<string, boolean>>({});
+
+  // 对话框状态
+  const [promptDialog, setPromptDialog] = useState<{
+    isOpen: boolean;
+    type: "create" | "rename";
+    entryType: "file" | "directory";
+    entry?: WorkspaceFileEntry;
+  }>({ isOpen: false, type: "create", entryType: "file" });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    entry?: WorkspaceFileEntry;
+  }>({ isOpen: false });
 
   const visibleFiles = useMemo(() => files.filter((file) => !file.is_dir), [files]);
   const memoryFiles = useMemo(
@@ -139,16 +152,17 @@ export function WorkspaceSidebar({
     });
   }, [files]);
 
-  const handleCreateEntry = async (entryType: "file" | "directory") => {
-    const placeholder = entryType === "file" ? "notes/todo.md" : "notes";
-    const nextPath = window.prompt(
-      entryType === "file" ? "输入新文件路径" : "输入新目录路径",
-      placeholder,
-    );
+  const handleCreateEntry = (entryType: "file" | "directory") => {
+    setPromptDialog({ isOpen: true, type: "create", entryType });
+  };
 
-    if (!nextPath) {
+  const handleCreateEntryConfirm = async (nextPath: string) => {
+    if (!nextPath.trim()) {
       return;
     }
+
+    const entryType = promptDialog.entryType;
+    setPromptDialog({ isOpen: false, type: "create", entryType: "file" });
 
     try {
       const response = await createWorkspaceEntryApi(agent.agent_id, nextPath, entryType);
@@ -161,11 +175,18 @@ export function WorkspaceSidebar({
     }
   };
 
-  const handleRenameEntry = async (entry: WorkspaceFileEntry) => {
-    const nextPath = window.prompt("输入新的相对路径", entry.path);
-    if (!nextPath || nextPath === entry.path) {
+  const handleRenameEntry = (entry: WorkspaceFileEntry) => {
+    setPromptDialog({ isOpen: true, type: "rename", entryType: entry.is_dir ? "directory" : "file", entry });
+  };
+
+  const handleRenameEntryConfirm = async (nextPath: string) => {
+    const entry = promptDialog.entry;
+    if (!entry || !nextPath.trim() || nextPath === entry.path) {
+      setPromptDialog({ isOpen: false, type: "create", entryType: "file" });
       return;
     }
+
+    setPromptDialog({ isOpen: false, type: "create", entryType: "file" });
 
     try {
       const response = await renameWorkspaceEntryApi(agent.agent_id, entry.path, nextPath);
@@ -185,11 +206,18 @@ export function WorkspaceSidebar({
     }
   };
 
-  const handleDeleteEntry = async (entry: WorkspaceFileEntry) => {
-    const confirmed = window.confirm(`确认删除 ${entry.path} 吗？`);
-    if (!confirmed) {
+  const handleDeleteEntry = (entry: WorkspaceFileEntry) => {
+    setConfirmDialog({ isOpen: true, entry });
+  };
+
+  const handleDeleteEntryConfirm = async () => {
+    const entry = confirmDialog.entry;
+    if (!entry) {
+      setConfirmDialog({ isOpen: false });
       return;
     }
+
+    setConfirmDialog({ isOpen: false });
 
     try {
       await deleteWorkspaceEntryApi(agent.agent_id, entry.path);
@@ -262,17 +290,17 @@ export function WorkspaceSidebar({
 
           <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
-              className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
-              onClick={() => void handleRenameEntry(node.entry)}
-              title="重命名"
+              aria-label="重命名"
+              className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+              onClick={() => handleRenameEntry(node.entry)}
               type="button"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
-              className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive"
-              onClick={() => void handleDeleteEntry(node.entry)}
-              title="删除"
+              aria-label="删除"
+              className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+              onClick={() => handleDeleteEntry(node.entry)}
               type="button"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -291,21 +319,18 @@ export function WorkspaceSidebar({
 
   return (
     <aside className="flex min-h-0 w-[300px] flex-col rounded-[20px] panel-surface">
-      <div className="border-b border-border/80 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Workspace
-            </p>
-          </div>
-          <button
-            className="rounded-xl border border-border/80 bg-secondary/80 p-2 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
-            onClick={() => void loadFiles()}
-            type="button"
-          >
-            <RefreshCw className={cn("h-4 w-4", isLoadingFiles && "animate-spin")} />
-          </button>
-        </div>
+      <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Workspace
+        </p>
+        <button
+          aria-label="刷新文件列表"
+          className="flex h-7 w-7 items-center justify-center rounded-xl border border-border/80 bg-secondary/80 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+          onClick={() => void loadFiles()}
+          type="button"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", isLoadingFiles && "animate-spin")} />
+        </button>
       </div>
 
       <div className="soft-scrollbar flex-1 overflow-y-auto">
@@ -317,17 +342,17 @@ export function WorkspaceSidebar({
             </div>
             <div className="flex items-center gap-1">
               <button
-                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
-                onClick={() => void handleCreateEntry("file")}
-                title="创建文件"
+                aria-label="创建文件"
+                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                onClick={() => handleCreateEntry("file")}
                 type="button"
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
               </button>
               <button
-                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
-                onClick={() => void handleCreateEntry("directory")}
-                title="创建目录"
+                aria-label="创建目录"
+                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                onClick={() => handleCreateEntry("directory")}
                 type="button"
               >
                 <FolderPlus className="h-3.5 w-3.5" />
@@ -404,16 +429,23 @@ export function WorkspaceSidebar({
               {sessions.map((session) => {
                 const isActive = session.session_key === currentSessionKey;
                 return (
-                  <button
+                  <div
                     key={session.session_key}
                     className={cn(
-                      "group w-full rounded-xl border px-3 py-2.5 text-left transition-all",
+                      "group cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all",
                       isActive
                         ? "border-primary/30 bg-primary/8 shadow-sm"
                         : "border-transparent bg-secondary/55 hover:border-border/90 hover:bg-secondary/90",
                     )}
                     onClick={() => onSelectSession(session.session_key)}
-                    type="button"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectSession(session.session_key);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -426,7 +458,8 @@ export function WorkspaceSidebar({
                       </div>
 
                       <button
-                        className="rounded-lg border border-border/80 p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:border-destructive/20 hover:text-destructive"
+                        aria-label="删除会话"
+                        className="rounded-lg border border-border/80 p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                         onClick={(event) => {
                           event.stopPropagation();
                           onDeleteSession(session.session_key);
@@ -436,13 +469,48 @@ export function WorkspaceSidebar({
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </div>
         </section>
       </div>
+
+      {/* 创建/重命名对话框 */}
+      <PromptDialog
+        isOpen={promptDialog.isOpen}
+        title={
+          promptDialog.type === "create"
+            ? promptDialog.entryType === "file"
+              ? "创建新文件"
+              : "创建新目录"
+            : "重命名"
+        }
+        message={
+          promptDialog.type === "create"
+            ? promptDialog.entryType === "file"
+              ? "请输入新文件的相对路径"
+              : "请输入新目录的相对路径"
+            : "请输入新的相对路径"
+        }
+        placeholder={promptDialog.entryType === "file" ? "notes/todo.md" : "notes"}
+        defaultValue={promptDialog.type === "rename" && promptDialog.entry ? promptDialog.entry.path : ""}
+        onConfirm={promptDialog.type === "create" ? handleCreateEntryConfirm : handleRenameEntryConfirm}
+        onCancel={() => setPromptDialog({ isOpen: false, type: "create", entryType: "file" })}
+      />
+
+      {/* 删除确认对话框 */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title="确认删除"
+        message={`确认删除 ${confirmDialog.entry?.path ?? ""} 吗？此操作无法撤销。`}
+        confirmText="删除"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={handleDeleteEntryConfirm}
+        onCancel={() => setConfirmDialog({ isOpen: false })}
+      />
     </aside>
   );
 }
