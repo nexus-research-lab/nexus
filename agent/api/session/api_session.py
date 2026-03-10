@@ -25,6 +25,7 @@ from agent.service.process.protocol_adapter import ProtocolAdapter
 from agent.service.schema.model_session import ASession
 from agent.service.session.session_router import build_session_key, get_default_agent_id
 from agent.service.session_store import session_store
+from agent.service.session_manager import session_manager
 from agent.shared.server.common import resp
 
 router = APIRouter(tags=["session"])
