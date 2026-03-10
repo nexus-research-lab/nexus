@@ -51,16 +51,23 @@ export function SessionRail({
             {sessions.map((session) => {
               const isActive = session.session_key === currentSessionKey;
               return (
-                <button
+                <div
                   key={session.session_key}
                   className={cn(
-                    "group w-full rounded-xl border px-3 py-3 text-left transition-all",
+                    "group cursor-pointer rounded-xl border px-3 py-3 text-left transition-all",
                     isActive
                       ? "border-primary/30 bg-primary/8 shadow-sm"
                       : "border-transparent bg-white/70 hover:border-border/90 hover:bg-white",
                   )}
                   onClick={() => onSelectSession(session.session_key)}
-                  type="button"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelectSession(session.session_key);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -100,7 +107,7 @@ export function SessionRail({
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

@@ -10,14 +10,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Command, MessageSquarePlus, Settings2 } from "lucide-react";
+import { ArrowLeft, PanelLeftOpen, Settings2 } from "lucide-react";
 
 import { ChatInterface } from "@/components/chat-interface";
 import { AgentOptions } from "@/components/option/agent-options";
 import { AgentDirectory } from "@/components/workspace/agent-directory";
 import { AgentInspector } from "@/components/workspace/agent-inspector";
 import { AgentSwitcher } from "@/components/workspace/agent-switcher";
-import { SessionRail } from "@/components/workspace/session-rail";
+import { WorkspaceEditorPane } from "@/components/workspace/workspace-editor-pane";
+import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { useAgentStore } from "@/store/agent";
 import { useSessionStore } from "@/store/session";
 import { useInitializeSessions } from "@/hooks/use-initialize-sessions";
@@ -60,6 +61,8 @@ export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [activeWorkspacePath, setActiveWorkspacePath] = useState<string | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const currentAgent = useMemo(
     () => agents.find((agent) => agent.agent_id === current_agent_id) ?? null,
@@ -128,6 +131,8 @@ export default function Home() {
       if (current_session_key !== null) {
         setCurrentSession(null);
       }
+      setActiveWorkspacePath(null);
+      setIsEditorOpen(false);
       return;
     }
 
@@ -221,6 +226,15 @@ export default function Home() {
     }
   }, [current_session_key, currentAgentSessions, deleteSession, setCurrentSession]);
 
+  const handleOpenWorkspaceFile = useCallback((path: string) => {
+    setActiveWorkspacePath(path);
+    setIsEditorOpen(true);
+  }, []);
+
+  const handleCloseWorkspacePane = useCallback(() => {
+    setIsEditorOpen(false);
+  }, []);
+
   const handleEditTitle = useCallback((sessionKey: string, title: string) => {
     updateSession(sessionKey, { title });
   }, [updateSession]);
@@ -251,7 +265,7 @@ export default function Home() {
           />
         ) : (
           <section className="flex min-h-0 flex-1 flex-col gap-3">
-            <div className="rounded-[20px] panel-surface px-4 py-3">
+            <div className="rounded-[20px] panel-surface px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <AgentSwitcher
                   agents={agents}
@@ -264,63 +278,77 @@ export default function Home() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                    className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
                     onClick={handleBackToDirectory}
                     type="button"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
                     返回目录
                   </button>
-                  <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-sm text-muted-foreground">
-                    <span className="font-mono">Cmd/Ctrl + K</span>
-                  </div>
-                  <button
-                    className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-white/80 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
-                    onClick={() => handleEditAgent(currentAgent.agent_id)}
-                    type="button"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    设置
-                  </button>
-                  <button
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                    onClick={handleNewSession}
-                    type="button"
-                  >
-                    <MessageSquarePlus className="h-4 w-4" />
-                    新建 Session
-                  </button>
                 </div>
               </div>
             </div>
 
             <div className="flex min-h-0 flex-1 gap-4">
-              <SessionRail
-                sessions={currentAgentSessions}
+              <WorkspaceSidebar
+                activeWorkspacePath={activeWorkspacePath}
+                agent={currentAgent}
                 currentSessionKey={current_session_key}
-                onSelectSession={handleSessionSelect}
                 onCreateSession={handleNewSession}
                 onDeleteSession={handleDeleteSession}
+                onOpenWorkspaceFile={handleOpenWorkspaceFile}
+                onSelectSession={handleSessionSelect}
+                sessions={currentAgentSessions}
               />
 
-              <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] panel-surface">
-                <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {currentSession?.title || "Session Space"}
-                    </p>
+              <section className="flex min-h-0 min-w-0 flex-1 rounded-[20px] panel-surface overflow-hidden">
+                <WorkspaceEditorPane
+                  agentId={currentAgent.agent_id}
+                  isOpen={isEditorOpen}
+                  onClose={handleCloseWorkspacePane}
+                  path={activeWorkspacePath}
+                />
+
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Session Space
+                      </p>
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {currentSession?.title || "Conversation"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-secondary/80 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                        onClick={() => setIsEditorOpen((value) => !value)}
+                        type="button"
+                      >
+                        <PanelLeftOpen className="h-4 w-4" />
+                        {isEditorOpen ? "收起文件" : "展开文件"}
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-secondary/80 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                        onClick={() => handleEditAgent(currentAgent.agent_id)}
+                        type="button"
+                      >
+                        <Settings2 className="h-4 w-4" />
+                        设置
+                      </button>
+                      <div className="rounded-full border border-border/80 bg-secondary/80 px-3 py-1.5 text-xs text-muted-foreground">
+                        {currentSession ? `${currentSession.message_count ?? 0} 条消息` : "选择会话"}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs text-muted-foreground">
-                    {currentSession ? `${currentSession.message_count ?? 0} 条消息` : "选择会话"}
+                  <div className="min-h-0 flex-1">
+                    <ChatInterface
+                      sessionKey={currentSession?.session_key ?? null}
+                      onNewSession={handleNewSession}
+                    />
                   </div>
-                </div>
-
-                <div className="min-h-0 flex-1">
-                  <ChatInterface
-                    sessionKey={currentSession?.session_key ?? null}
-                    onNewSession={handleNewSession}
-                  />
                 </div>
               </section>
 

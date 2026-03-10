@@ -13,6 +13,9 @@
 - 新增 workspace 文件浏览、读取和写回能力，右侧面板可直接操作本地 workspace 文件，并在保存后刷新 Agent 活跃 session。
 - 移除首页和 Agent Space 的大标题区，把目录页头部压缩成小工具栏，减少重复信息占位。
 - 继续放大 workspace 编辑区，收紧非核心面板，让 Session Space 与 Workspace 成为真正的双主区。
+- Agent Space 进一步按 harness capability 重构为三栏布局：左侧 `Virtual filesystem + Context`，中间 `Session Space`，右侧 `Agent State`。
+- Workspace 文件编辑器改为按需从左侧滑出，展开后与对话主区对半分配，降低常驻编辑器对会话空间的挤压。
+- 右侧状态栏改为 runtime、context capacity、token/cost、planning、orchestration、policy 六个状态区，显式映射后续 harness telemetry 能力。
 
 ## 2026-03-09
 
