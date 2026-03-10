@@ -12,6 +12,7 @@ interface WorkspaceEditorPaneProps {
   path: string | null;
   isOpen: boolean;
   widthPercent: number;
+  embedded?: boolean;
   onClose: () => void;
   onResizeStart: () => void;
 }
@@ -21,6 +22,7 @@ export function WorkspaceEditorPane({
   path,
   isOpen,
   widthPercent,
+  embedded = false,
   onClose,
   onResizeStart,
 }: WorkspaceEditorPaneProps) {
@@ -106,32 +108,51 @@ export function WorkspaceEditorPane({
   return (
     <section
       className={cn(
-        "relative flex min-h-0 flex-col overflow-hidden border-r border-border/80 bg-secondary/78 shadow-[12px_0_32px_rgba(17,24,39,0.08)] transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        isOpen ? "opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6",
+        "relative flex min-h-0 flex-col overflow-hidden bg-secondary/78 transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        embedded
+          ? "flex-1"
+          : "rounded-[20px] border border-border/70 shadow-[0_18px_44px_rgba(17,24,39,0.08)]",
+        isOpen || embedded ? "opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6",
       )}
       style={isOpen ? { width: `${widthPercent}%` } : undefined}
     >
-      {isOpen && path && (
+      {embedded && (!isOpen || !path) ? (
+        <div className="flex h-full flex-1 items-center justify-center px-8 text-center">
+          <div className="max-w-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Workspace Preview
+            </p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              从左侧选择一个文件，这里会显示对应内容。模型写入时，也会在这里实时同步。
+            </p>
+          </div>
+        </div>
+      ) : isOpen && path ? (
         <>
-          <button
-            aria-label="调整编辑器宽度"
-            className="absolute right-0 top-0 z-20 flex h-full w-3 translate-x-1/2 cursor-col-resize items-center justify-center text-muted-foreground/60 transition-colors hover:text-primary"
-            onMouseDown={onResizeStart}
-            type="button"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
+          {!embedded && (
+            <button
+              aria-label="调整编辑器宽度"
+              className="absolute -right-3 top-0 z-20 flex h-full w-6 cursor-col-resize items-center justify-center text-muted-foreground/60 transition-colors hover:text-primary"
+              onMouseDown={onResizeStart}
+              type="button"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
 
-          <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
+            <div className="min-w-0 pr-3">
+              <p
+                className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+                title={path}
+              >
                 {path}
               </p>
               {liveState && liveState.source !== "api" && (
-                <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
                   {isExternalWriting ? (
                     <>
-                      <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <LoaderCircle className="h-3 w-3 animate-spin text-primary" />
                       <span>模型正在实时写入该文件</span>
                     </>
                   ) : (
@@ -152,7 +173,7 @@ export function WorkspaceEditorPane({
             <div className="flex items-center gap-2">
               <button
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                  "inline-flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors",
                   isDirty ? "bg-primary text-primary-foreground" : "bg-muted/80 text-muted-foreground",
                 )}
                 disabled={!isDirty || isSaving || isExternalWriting}
@@ -163,7 +184,7 @@ export function WorkspaceEditorPane({
                 {isSaving ? "保存中" : "保存"}
               </button>
               <button
-                className="rounded-xl border border-border/80 bg-secondary p-2 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/80 bg-secondary text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
                 onClick={onClose}
                 type="button"
               >
@@ -185,7 +206,7 @@ export function WorkspaceEditorPane({
             />
           </div>
         </>
-      )}
+      ) : null}
     </section>
   );
 }

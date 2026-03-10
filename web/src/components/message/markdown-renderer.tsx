@@ -94,7 +94,7 @@ function renderInteractiveText(
       <Fragment key={index}>
         {prefix}
         <button
-          className="inline-flex cursor-pointer items-center rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 font-mono text-[0.95em] text-primary transition-all duration-150 hover:-translate-y-[1px] hover:scale-[1.04] hover:border-primary/40 hover:bg-primary/14 hover:shadow-[0_6px_18px_rgba(59,130,246,0.16)]"
+          className="inline-block cursor-pointer rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-sm font-mono text-primary whitespace-pre-wrap text-justify transition-colors hover:bg-primary/12 hover:border-primary/30"
           onClick={() => onOpenWorkspaceFile(resolvedPath)}
           title={`Open ${resolvedPath}`}
           type="button"
@@ -133,7 +133,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
               <CodeBlock language={match[1]} value={value} />
             ) : resolvedPath && onOpenWorkspaceFile ? (
               <button
-                className="inline-flex cursor-pointer items-center px-2 py-0.5 mx-0.5 bg-primary/10 border border-primary/20 text-primary text-sm font-mono rounded-md whitespace-pre-wrap text-justify transition-all duration-150 hover:-translate-y-[1px] hover:scale-[1.04] hover:border-primary/40 hover:bg-primary/14 hover:shadow-[0_6px_18px_rgba(59,130,246,0.16)]"
+                className="inline-block cursor-pointer px-2 py-0.5 mx-0.5 bg-primary/10 border border-primary/20 text-primary text-sm font-mono rounded-md whitespace-pre-wrap text-justify transition-colors hover:bg-primary/12 hover:border-primary/30"
                 onClick={() => onOpenWorkspaceFile(resolvedPath)}
                 title={`Open ${resolvedPath}`}
                 type="button"
