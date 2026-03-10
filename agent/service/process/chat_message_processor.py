@@ -24,9 +24,10 @@ from agent.utils.logger import logger
 class ChatMessageProcessor:
     """单轮聊天消息处理器 - 管理消息状态和处理逻辑"""
 
-    def __init__(self, session_key: str, query: str, round_id: Optional[str] = None):
+    def __init__(self, session_key: str, query: str, round_id: Optional[str] = None, agent_id: str = "main"):
         self.query = query
         self.session_key = session_key
+        self.agent_id = agent_id or "main"
         self.subtype: Optional[str] = None
         # 如果前端提供了 round_id 则使用，否则后端会在 save_user_message 时生成
         self.round_id: Optional[str] = round_id
@@ -65,6 +66,7 @@ class ChatMessageProcessor:
         messages = sdk_message_processor.process_message(
             message=response_msg,
             session_key=self.session_key,
+            agent_id=self.agent_id,
             session_id=self.session_id,
             round_id=self.round_id,
             parent_id=self.parent_id,
@@ -258,6 +260,7 @@ class ChatMessageProcessor:
 
             user_message = AMessage(
                 session_key=self.session_key,
+                agent_id=self.agent_id,
                 round_id=self.round_id,
                 message_id=self.round_id,
                 session_id=self.session_id,

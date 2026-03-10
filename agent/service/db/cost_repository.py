@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -61,8 +62,12 @@ class CostRepository:
             return {}
         if isinstance(payload, dict):
             return dict(payload)
+        if is_dataclass(payload):
+            return asdict(payload)
         if hasattr(payload, "model_dump"):
             return payload.model_dump(mode="json")
+        if hasattr(payload, "__dict__"):
+            return dict(payload.__dict__)
         return {}
 
     @staticmethod
@@ -140,6 +145,47 @@ class CostRepository:
         if not payload:
             return None
         return AgentCostSummary(**payload)
+
+    async def _backfill_session_from_messages(
+        self,
+        session_key: str,
+        agent_id: Optional[str] = None,
+    ) -> SessionCostSummary:
+        """从历史 messages.jsonl 回填成本账本。"""
+        session = await session_repository.get_session(session_key)
+        resolved_agent_id = agent_id or (session.agent_id if session else None) or "main"
+        session_dir = await self._resolve_session_dir(session_key, agent_id=resolved_agent_id)
+        if not session_dir:
+            return self._default_session_summary(resolved_agent_id, session_key)
+
+        result_entries: List[Dict[str, Any]] = []
+        messages = await session_repository.get_session_messages(session_key)
+        for message in messages:
+            if message.message_type != "result":
+                continue
+
+            normalized_message = message.model_copy(
+                update={
+                    "agent_id": resolved_agent_id,
+                    "session_id": message.session_id or (session.session_id if session else ""),
+                }
+            )
+            entry = self._build_cost_entry(normalized_message)
+            result_entries.append(entry.model_dump(mode="json"))
+
+        JsonFileStore.write_jsonl(session_dir / "telemetry_cost.jsonl", result_entries)
+        summary = await self.rebuild_session_summary(session_key, agent_id=resolved_agent_id)
+        await self.rebuild_agent_summary(resolved_agent_id)
+        return summary
+
+    async def _backfill_agent_from_messages(self, agent_id: str) -> AgentCostSummary:
+        """从 Agent 下的历史会话消息回填成本汇总。"""
+        sessions = await session_repository.get_all_sessions()
+        for session in sessions:
+            if session.agent_id != agent_id:
+                continue
+            await self._backfill_session_from_messages(session.session_key, agent_id=agent_id)
+        return await self.rebuild_agent_summary(agent_id)
 
     def _build_cost_entry(self, message: AMessage) -> CostLedgerEntry:
         """将 result 消息转换为成本账本条目。"""
@@ -289,16 +335,23 @@ class CostRepository:
         session = await session_repository.get_session(session_key)
         agent_id = session.agent_id if session else "main"
         summary = await self._read_session_summary(session_key, agent_id=agent_id)
-        if summary:
+        rows = await self._read_cost_rows(session_key, agent_id=agent_id)
+        if summary and summary.completed_rounds > 0 and summary.total_tokens == 0 and summary.total_cost_usd == 0:
+            return await self._backfill_session_from_messages(session_key, agent_id=agent_id)
+        if summary and (summary.completed_rounds > 0 or rows):
             return summary
-        return await self.rebuild_session_summary(session_key, agent_id=agent_id)
+        if rows:
+            return await self.rebuild_session_summary(session_key, agent_id=agent_id)
+        return await self._backfill_session_from_messages(session_key, agent_id=agent_id)
 
     async def get_agent_cost_summary(self, agent_id: str) -> AgentCostSummary:
         """获取 Agent 成本汇总。"""
         summary = await self._read_agent_summary(agent_id)
-        if summary:
+        if summary and summary.completed_rounds > 0 and summary.total_tokens == 0 and summary.total_cost_usd == 0:
+            return await self._backfill_agent_from_messages(agent_id)
+        if summary and (summary.completed_rounds > 0 or summary.total_tokens > 0 or summary.total_cost_usd > 0):
             return summary
-        return await self.rebuild_agent_summary(agent_id)
+        return await self._backfill_agent_from_messages(agent_id)
 
 
 cost_repository = CostRepository()

@@ -81,12 +81,18 @@ class ChatHandler(BaseHandler):
     async def handle_chat_message(self, message: Dict[str, Any]) -> None:
         """处理聊天消息 — session_key 路由"""
         session_key = message.get("session_key") or message.get("agent_id", "")
-        agent_id = message.get("agent_id", "")  # Agent ID
+        requested_agent_id = message.get("agent_id", "")  # Agent ID
         content = message.get("content")
         round_id = message.get("round_id")
+        existing_session = await session_store.get_session_info(session_key)
+        real_agent_id = (
+            existing_session.agent_id
+            if existing_session and existing_session.agent_id
+            else requested_agent_id or "main"
+        )
 
         try:
-            client = await self._get_or_create_client(session_key, agent_id)
+            client = await self._get_or_create_client(session_key, real_agent_id)
         except Exception as e:
             logger.error(f"❌ 获取 client 失败: {e}")
             await self.send(self.create_error_response(
@@ -105,6 +111,7 @@ class ChatHandler(BaseHandler):
                 session_key=session_key,
                 query=content,
                 round_id=round_id,
+                agent_id=real_agent_id,
             )
 
             async for response_msg in client.receive_messages():

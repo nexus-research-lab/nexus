@@ -45,7 +45,13 @@ class SDKMessageProcessor:
         }
 
     def process_message(
-            self, message: Message, session_key: str, session_id: str, round_id: str, parent_id: str = None
+            self,
+            message: Message,
+            session_key: str,
+            agent_id: str,
+            session_id: str,
+            round_id: str,
+            parent_id: str = None,
     ) -> List[AMessage]:
         """处理 Claude Agent SDK 消息
 
@@ -85,6 +91,7 @@ class SDKMessageProcessor:
                 block_type=block_type,  # noqa
                 message=msg,
                 message_id=str(uuid.uuid4()),
+                agent_id=agent_id,
                 session_id=session_id,
                 session_key=session_key,
                 round_id=round_id,

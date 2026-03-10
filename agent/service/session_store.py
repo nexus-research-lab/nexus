@@ -113,6 +113,18 @@ class MessageHistoryStore:
             if not session_info:
                 logger.error(f"❌ 会话不存在: {message.session_key}")
                 return False
+
+            # 统一以会话绑定的 Agent 为准，避免 SDK 转换链路丢失 agent_id 后写入错误 workspace。
+            if message.agent_id in ("", "main") and session_info.agent_id not in ("", None):
+                message.agent_id = session_info.agent_id
+            elif message.agent_id:
+                message.agent_id = message.agent_id
+            else:
+                message.agent_id = session_info.agent_id or "main"
+
+            if not message.session_id and session_info.session_id:
+                message.session_id = session_info.session_id
+
             success = await session_repository.create_message(message=message)
             if success and message.message_type == "result":
                 await cost_repository.record_result_message(message)

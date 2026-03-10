@@ -86,6 +86,7 @@ class InterruptHandler(BaseHandler):
     async def _send_interrupt_result(self, session_key: str, round_id: Optional[str] = None) -> None:
         """发送中断结果消息"""
         session_id = session_manager.get_session_id(session_key)
+        session_info = await session_store.get_session_info(session_key)
         if not round_id:
             round_id = await session_store.get_latest_round_id(session_key)
 
@@ -100,6 +101,7 @@ class InterruptHandler(BaseHandler):
 
         result_message = AMessage(
             session_key=session_key,
+            agent_id=session_info.agent_id if session_info else "main",
             round_id=round_id,
             session_id=session_id,
             message_id=str(uuid.uuid4()),
