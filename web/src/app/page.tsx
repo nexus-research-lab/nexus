@@ -10,7 +10,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Command, MessageSquarePlus, PanelRightOpen, Settings2 } from "lucide-react";
+import { ArrowLeft, Command, MessageSquarePlus, Settings2 } from "lucide-react";
 
 import { ChatInterface } from "@/components/chat-interface";
 import { AgentOptions } from "@/components/option/agent-options";
@@ -89,13 +89,12 @@ export default function Home() {
     return sessionsByAgent.get(current_agent_id) ?? [];
   }, [current_agent_id, sessionsByAgent]);
 
-  const currentSession = useMemo(() => {
-    return currentAgentSessions.find((session) => session.session_key === current_session_key) ?? null;
-  }, [currentAgentSessions, current_session_key]);
+  const currentSession = useMemo(
+    () => currentAgentSessions.find((session) => session.session_key === current_session_key) ?? null,
+    [currentAgentSessions, current_session_key],
+  );
 
-  const recentAgents = useMemo(() => {
-    return agents.slice(0, 4);
-  }, [agents]);
+  const recentAgents = useMemo(() => agents.slice(0, 4), [agents]);
 
   const editingAgent = useMemo(
     () => agents.find((agent) => agent.agent_id === editingAgentId),
@@ -124,7 +123,6 @@ export default function Home() {
     };
   }, [dialogMode, editingAgent]);
 
-  // 保证进入 Agent Space 后，当前 session 一直属于当前 agent。
   useEffect(() => {
     if (!current_agent_id) {
       if (current_session_key !== null) {
@@ -136,12 +134,9 @@ export default function Home() {
     const hasSelectedSession = currentAgentSessions.some(
       (session) => session.session_key === current_session_key,
     );
-
-    if (hasSelectedSession) {
-      return;
+    if (!hasSelectedSession) {
+      setCurrentSession(currentAgentSessions[0]?.session_key ?? null);
     }
-
-    setCurrentSession(currentAgentSessions[0]?.session_key ?? null);
   }, [current_agent_id, current_session_key, currentAgentSessions, setCurrentSession]);
 
   const handleOpenCreateAgent = useCallback(() => {
@@ -233,9 +228,9 @@ export default function Home() {
   if (!isHydrated) {
     return (
       <main className="flex h-screen w-full items-center justify-center bg-background text-foreground">
-        <div className="rounded-[28px] panel-surface px-8 py-7 text-center">
+        <div className="rounded-[20px] panel-surface px-8 py-7 text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">正在加载 Agent Console...</p>
+          <p className="mt-4 text-sm text-muted-foreground">正在加载...</p>
         </div>
       </main>
     );
@@ -244,33 +239,6 @@ export default function Home() {
   return (
     <main className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       <div className="flex min-h-0 flex-1 flex-col p-4">
-        <header className="mb-4 rounded-[20px] panel-surface px-5 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-                Nexus Core Console
-              </p>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                  Agent 工作台
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5">
-                {agents.length} Agents
-              </div>
-              <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5">
-                {sessions.length} Sessions
-              </div>
-              <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5">
-                <span className="font-mono">Cmd/Ctrl + K</span> 预留快速操作入口
-              </div>
-            </div>
-          </div>
-        </header>
-
         {!currentAgent ? (
           <AgentDirectory
             agents={agents}
@@ -282,51 +250,9 @@ export default function Home() {
             onDeleteAgent={handleDeleteAgent}
           />
         ) : (
-          <section className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="rounded-[20px] panel-surface px-5 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-5">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    <button
-                      className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
-                      onClick={handleBackToDirectory}
-                      type="button"
-                    >
-                      <ArrowLeft className="h-3.5 w-3.5" />
-                      Agent Directory
-                    </button>
-                    <span>/</span>
-                    <span>{currentAgent.name}</span>
-                  </div>
-
-                <div>
-                  <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-                      {currentAgent.name}
-                  </h2>
-                </div>
-              </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-white/80 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
-                    onClick={() => handleEditAgent(currentAgent.agent_id)}
-                    type="button"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    Agent 设置
-                  </button>
-                  <button
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                    onClick={handleNewSession}
-                    type="button"
-                  >
-                    <MessageSquarePlus className="h-4 w-4" />
-                    新建 Session
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border/80 pt-4">
+          <section className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="rounded-[20px] panel-surface px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <AgentSwitcher
                   agents={agents}
                   currentAgentId={current_agent_id}
@@ -336,9 +262,34 @@ export default function Home() {
                   onCreateAgent={handleOpenCreateAgent}
                 />
 
-                <div className="flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-sm text-muted-foreground">
-                  <Command className="h-4 w-4" />
-                  快速切换入口预留
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                    onClick={handleBackToDirectory}
+                    type="button"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    返回目录
+                  </button>
+                  <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-sm text-muted-foreground">
+                    <span className="font-mono">Cmd/Ctrl + K</span>
+                  </div>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-white/80 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                    onClick={() => handleEditAgent(currentAgent.agent_id)}
+                    type="button"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    设置
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                    onClick={handleNewSession}
+                    type="button"
+                  >
+                    <MessageSquarePlus className="h-4 w-4" />
+                    新建 Session
+                  </button>
                 </div>
               </div>
             </div>
@@ -353,19 +304,15 @@ export default function Home() {
               />
 
               <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] panel-surface">
-                <div className="flex items-center justify-between border-b border-border/80 px-5 py-3">
+                <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Session Workspace
-                    </p>
-                    <p className="mt-1 text-sm text-foreground">
-                      {currentSession?.title || "选择 Session"}
+                    <p className="text-sm font-medium text-foreground">
+                      {currentSession?.title || "Session Space"}
                     </p>
                   </div>
 
-                  <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-2 text-xs text-muted-foreground">
-                    <PanelRightOpen className="h-3.5 w-3.5" />
-                    Timeline + Inspector
+                  <div className="rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs text-muted-foreground">
+                    {currentSession ? `${currentSession.message_count ?? 0} 条消息` : "选择会话"}
                   </div>
                 </div>
 

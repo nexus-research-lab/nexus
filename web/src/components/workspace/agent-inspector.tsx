@@ -15,15 +15,12 @@ interface AgentInspectorProps {
   onEditAgent: (agentId: string) => void;
 }
 
-type InspectorTab = "overview" | "workspace";
-
 export function AgentInspector({
   agent,
   sessions,
   activeSession,
   onEditAgent,
 }: AgentInspectorProps) {
-  const [activeTab, setActiveTab] = useState<InspectorTab>("workspace");
   const [files, setFiles] = useState<WorkspaceFileEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState("");
@@ -34,7 +31,6 @@ export function AgentInspector({
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<number | null>(null);
 
-  const allowedTools = agent.options.allowed_tools ?? [];
   const permissionMode = agent.options.permission_mode || "default";
 
   const visibleFiles = useMemo(
@@ -134,13 +130,11 @@ export function AgentInspector({
   };
 
   return (
-    <aside className="flex min-h-0 w-[360px] flex-col rounded-[20px] panel-surface">
+    <aside className="flex min-h-0 w-[520px] flex-col rounded-[20px] panel-surface">
       <div className="border-b border-border/80 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Inspector
-            </p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Workspace</p>
             <h2 className="mt-1 text-base font-semibold text-foreground">{agent.name}</h2>
           </div>
           <button
@@ -152,187 +146,129 @@ export function AgentInspector({
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+          <div className="rounded-xl bg-muted/70 px-3 py-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              <Workflow className="h-3.5 w-3.5" />
+              Sessions
+            </div>
+            <p className="mt-2 font-medium text-foreground">{sessions.length}</p>
+          </div>
+          <div className="rounded-xl bg-muted/70 px-3 py-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              <Bot className="h-3.5 w-3.5" />
+              Model
+            </div>
+            <p className="mt-2 font-medium text-foreground">{agent.options.model || "inherit"}</p>
+          </div>
+          <div className="rounded-xl bg-muted/70 px-3 py-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              <Settings2 className="h-3.5 w-3.5" />
+              Permission
+            </div>
+            <p className="mt-2 font-medium text-foreground">{permissionMode}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-border/80 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              本地文件
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {truncate(agent.workspace_path, 48)}
+            </p>
+          </div>
           <button
-            className={cn(
-              "rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-              activeTab === "overview"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted/80 text-foreground",
-            )}
-            onClick={() => setActiveTab("overview")}
+            className="rounded-xl border border-border/80 bg-white p-2 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+            onClick={() => void loadFiles(selectedPath)}
             type="button"
           >
-            概览
-          </button>
-          <button
-            className={cn(
-              "rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-              activeTab === "workspace"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted/80 text-foreground",
-            )}
-            onClick={() => setActiveTab("workspace")}
-            type="button"
-          >
-            Workspace
+            <RefreshCw className={cn("h-4 w-4", isLoadingFiles && "animate-spin")} />
           </button>
         </div>
       </div>
 
-      {activeTab === "overview" ? (
-        <div className="soft-scrollbar flex-1 overflow-y-auto px-4 py-4">
-          <div className="grid gap-3">
-            <div className="rounded-2xl bg-muted/70 px-4 py-3">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                <Workflow className="h-3.5 w-3.5" />
-                Sessions
-              </div>
-              <p className="mt-2 text-sm font-medium text-foreground">{sessions.length} 个会话</p>
-            </div>
-
-            <div className="rounded-2xl bg-muted/70 px-4 py-3">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                <Bot className="h-3.5 w-3.5" />
-                Model
-              </div>
-              <p className="mt-2 text-sm font-medium text-foreground">{agent.options.model || "inherit"}</p>
-            </div>
-
-            <div className="rounded-2xl bg-muted/70 px-4 py-3">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                <Settings2 className="h-3.5 w-3.5" />
-                Permission
-              </div>
-              <p className="mt-2 text-sm font-medium text-foreground">{permissionMode}</p>
-            </div>
-
-            <div className="rounded-2xl border border-border/80 bg-secondary/90 px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Workspace 路径</p>
-              <p className="mt-2 text-sm font-medium text-foreground">{truncate(agent.workspace_path, 48)}</p>
-            </div>
-
-            <div className="rounded-2xl border border-border/80 bg-secondary/90 px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">当前 Session</p>
-              <p className="mt-2 text-sm font-medium text-foreground">
-                {activeSession?.title || "未选择"}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {activeSession
-                  ? `${activeSession.message_count ?? 0} 条消息，最后活动 ${formatRelativeTime(activeSession.last_activity_at)}`
-                  : "选择 Session 后查看运行上下文"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-border/80 bg-secondary/90 px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Allowed Tools</p>
-              <p className="mt-2 text-sm leading-6 text-foreground">
-                {allowedTools.length > 0 ? allowedTools.join(", ") : "未限制"}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-border/80 px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  本地文件
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  直接读写当前 Agent 的 workspace 目录
-                </p>
-              </div>
-              <button
-                className="rounded-xl border border-border/80 bg-white p-2 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
-                onClick={() => void loadFiles(selectedPath)}
-                type="button"
-              >
-                <RefreshCw className={cn("h-4 w-4", isLoadingFiles && "animate-spin")} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex min-h-0 flex-1">
-            <div className="soft-scrollbar w-[148px] overflow-y-auto border-r border-border/80 px-2 py-2">
-              {visibleFiles.map((file) => (
-                <button
-                  key={file.path}
-                  className={cn(
-                    "mb-1 w-full rounded-xl px-3 py-2 text-left transition-colors",
-                    selectedPath === file.path
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted/80",
-                  )}
-                  onClick={() => setSelectedPath(file.path)}
-                  type="button"
-                >
-                  <div className="flex items-start gap-2">
-                    <FileCode2 className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{file.name}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        {file.path}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-
-              {!isLoadingFiles && visibleFiles.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border/80 px-3 py-4 text-xs leading-5 text-muted-foreground">
-                  暂无可编辑文件
-                </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="soft-scrollbar w-[192px] overflow-y-auto border-r border-border/80 px-2 py-2">
+          {visibleFiles.map((file) => (
+            <button
+              key={file.path}
+              className={cn(
+                "mb-1 w-full rounded-xl px-3 py-2 text-left transition-colors",
+                selectedPath === file.path
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground hover:bg-muted/80",
               )}
-            </div>
-
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3">
+              onClick={() => setSelectedPath(file.path)}
+              type="button"
+            >
+              <div className="flex items-start gap-2">
+                <FileCode2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    <FolderTree className="h-3.5 w-3.5" />
-                    <span>{selectedFile?.path || "选择文件"}</span>
-                  </div>
-                  {syncedAt && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      最近同步 {formatRelativeTime(syncedAt)}
-                    </p>
-                  )}
+                  <p className="truncate text-sm font-medium">{file.name}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {file.path}
+                  </p>
                 </div>
-
-                <button
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                    isDirty
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted/80 text-muted-foreground",
-                  )}
-                  disabled={!selectedPath || !isDirty || isSaving}
-                  onClick={() => void handleSave()}
-                  type="button"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? "保存中" : "保存"}
-                </button>
               </div>
+            </button>
+          ))}
 
-              {error && (
-                <div className="px-4 py-3 text-sm text-destructive">{error}</div>
-              )}
-
-              <div className="flex-1 p-4">
-                <textarea
-                  className="soft-scrollbar h-full w-full resize-none rounded-2xl border border-border/80 bg-secondary/90 p-4 font-mono text-sm leading-6 text-foreground outline-none focus:border-primary/20"
-                  onChange={(event) => setDraftContent(event.target.value)}
-                  placeholder={selectedPath ? "读取中..." : "选择左侧文件开始编辑"}
-                  value={isLoadingContent ? "加载中..." : draftContent}
-                />
-              </div>
+          {!isLoadingFiles && visibleFiles.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border/80 px-3 py-4 text-xs leading-5 text-muted-foreground">
+              暂无可编辑文件
             </div>
+          )}
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                <FolderTree className="h-3.5 w-3.5" />
+                <span>{selectedFile?.path || "选择文件"}</span>
+              </div>
+              {syncedAt && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  当前 Session：{activeSession?.title || "未选择"} / 最近同步 {formatRelativeTime(syncedAt)}
+                </p>
+              )}
+            </div>
+
+            <button
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                isDirty
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/80 text-muted-foreground",
+              )}
+              disabled={!selectedPath || !isDirty || isSaving}
+              onClick={() => void handleSave()}
+              type="button"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "保存中" : "保存"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="px-4 py-3 text-sm text-destructive">{error}</div>
+          )}
+
+          <div className="flex-1 p-4">
+            <textarea
+              className="soft-scrollbar h-full w-full resize-none rounded-2xl border border-border/80 bg-secondary/90 p-4 font-mono text-sm leading-6 text-foreground outline-none focus:border-primary/20 disabled:opacity-70"
+              disabled={!selectedPath || isLoadingContent}
+              onChange={(event) => setDraftContent(event.target.value)}
+              placeholder={selectedPath ? "读取中..." : "选择左侧文件开始编辑"}
+              value={isLoadingContent ? "加载中..." : draftContent}
+            />
           </div>
         </div>
-      )}
+      </div>
     </aside>
   );
 }
