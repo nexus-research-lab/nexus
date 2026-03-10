@@ -35,9 +35,9 @@ export function AgentDirectory({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">Agent 管理</span>
-            <span className="rounded-full border border-border/80 bg-white/80 px-3 py-1">{activeAgents} Agents</span>
-            <span className="rounded-full border border-border/80 bg-white/80 px-3 py-1">{totalSessions} Sessions</span>
-            <span className="rounded-full border border-border/80 bg-white/80 px-3 py-1">{activeSessions} Active</span>
+            <span className="rounded-full border border-border/80 bg-secondary px-3 py-1">{activeAgents} Agents</span>
+            <span className="rounded-full border border-border/80 bg-secondary px-3 py-1">{totalSessions} Sessions</span>
+            <span className="rounded-full border border-border/80 bg-secondary px-3 py-1">{activeSessions} Active</span>
           </div>
 
           <button
@@ -64,7 +64,7 @@ export function AgentDirectory({
               <article
                 key={agent.agent_id}
                 className={cn(
-                  "group flex min-h-[200px] flex-col rounded-[20px] border bg-white/90 p-4 shadow-sm transition-all",
+                  "group flex min-h-[200px] flex-col rounded-[20px] border bg-card p-4 shadow-sm transition-all",
                   isActive
                     ? "border-primary/30 shadow-[0_18px_48px_rgba(29,95,145,0.16)]"
                     : "border-border/80 hover:-translate-y-1 hover:border-primary/20 hover:shadow-[0_18px_48px_rgba(20,33,43,0.08)]",
@@ -85,14 +85,16 @@ export function AgentDirectory({
 
                   <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
-                      className="rounded-xl border border-border/80 p-2 text-muted-foreground transition-colors hover:text-primary"
+                      aria-label="编辑 Agent 设置"
+                      className="rounded-xl border border-border/80 p-2 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                       onClick={() => onEditAgent(agent.agent_id)}
                       type="button"
                     >
                       <Settings className="h-4 w-4" />
                     </button>
                     <button
-                      className="rounded-xl border border-border/80 p-2 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive"
+                      aria-label="删除 Agent"
+                      className="rounded-xl border border-border/80 p-2 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                       onClick={() => onDeleteAgent(agent.agent_id)}
                       type="button"
                     >

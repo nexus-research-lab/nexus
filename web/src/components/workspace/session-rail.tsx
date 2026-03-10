@@ -22,20 +22,17 @@ export function SessionRail({
 }: SessionRailProps) {
   return (
     <aside className="flex min-h-0 w-[240px] flex-col rounded-[20px] panel-surface">
-      <div className="border-b border-border/80 px-4 py-4">
+      <div className="border-b border-border/80 px-4 py-2">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Sessions
-            </p>
-            <p className="mt-1 text-sm font-medium text-foreground">{sessions.length} 个会话</p>
-          </div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Sessions
+          </p>
           <button
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            className="inline-flex h-7 items-center gap-1.5 rounded-xl bg-primary px-2.5 text-xs font-medium leading-4 text-primary-foreground"
             onClick={onCreateSession}
             type="button"
           >
-            <MessageSquarePlus className="h-4 w-4" />
+            <MessageSquarePlus className="h-3.5 w-3.5" />
             新建
           </button>
         </div>
@@ -97,7 +94,8 @@ export function SessionRail({
 
                   <div className="mt-4 flex items-center justify-end opacity-0 transition-opacity group-hover:opacity-100">
                     <button
-                      className="rounded-lg border border-border/80 p-2 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive"
+                      aria-label="删除会话"
+                      className="rounded-lg border border-border/80 p-2 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                       onClick={(event) => {
                         event.stopPropagation();
                         onDeleteSession(session.session_key);
