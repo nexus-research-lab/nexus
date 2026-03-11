@@ -20,11 +20,14 @@ Agent Workspace 管理器
 
 import os
 import shutil
+from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from agent.utils.logger import logger
+from agent.service.schema.model_workspace_event import WorkspaceDiffStats, WorkspaceEvent
+from agent.service.workspace_event_bus import workspace_event_bus
 
 
 # =====================================================
@@ -274,13 +277,113 @@ class AgentWorkspace:
             raise FileNotFoundError(f"文件不存在: {relative_path}")
         return target_path.read_text(encoding="utf-8")
 
-    def write_relative_file(self, relative_path: str, content: str) -> str:
+    def write_relative_file(self, relative_path: str, content: str, source: str = "unknown") -> str:
         """写入 workspace 内的文本文件。"""
         target_path = self._resolve_relative_path(relative_path)
+        relative_path_str = target_path.relative_to(self.path.resolve()).as_posix()
+        before_content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+
+        workspace_event_bus.publish(WorkspaceEvent(
+            type="file_write_start",
+            agent_id=self.agent_id,
+            path=relative_path_str,
+            version=1,
+            source=source,
+            content_snapshot=before_content,
+        ))
+
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(content, encoding="utf-8")
         logger.info(f"📝 写入 Workspace 文件: {target_path}")
-        return target_path.relative_to(self.path.resolve()).as_posix()
+        workspace_event_bus.publish(WorkspaceEvent(
+            type="file_write_end",
+            agent_id=self.agent_id,
+            path=relative_path_str,
+            version=1,
+            source=source,
+            content_snapshot=content,
+            diff_stats=self._build_diff_stats(before_content, content),
+        ))
+        return relative_path_str
+
+    def stream_relative_file(
+        self,
+        relative_path: str,
+        chunks: list[str],
+        source: str = "agent",
+        session_key: Optional[str] = None,
+        tool_use_id: Optional[str] = None,
+    ) -> str:
+        """按 chunk 流式写入文件，并连续发布 delta 事件。"""
+        target_path = self._resolve_relative_path(relative_path)
+        relative_path_str = target_path.relative_to(self.path.resolve()).as_posix()
+        before_content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+        accumulated = ""
+
+        workspace_event_bus.publish(WorkspaceEvent(
+            type="file_write_start",
+            agent_id=self.agent_id,
+            path=relative_path_str,
+            version=1,
+            source=source,
+            session_key=session_key,
+            tool_use_id=tool_use_id,
+            content_snapshot=before_content,
+        ))
+
+        for version, chunk in enumerate(chunks, start=1):
+            accumulated += chunk
+            workspace_event_bus.publish(WorkspaceEvent(
+                type="file_write_delta",
+                agent_id=self.agent_id,
+                path=relative_path_str,
+                version=version,
+                source=source,
+                session_key=session_key,
+                tool_use_id=tool_use_id,
+                content_snapshot=accumulated,
+                appended_text=chunk,
+            ))
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(accumulated, encoding="utf-8")
+        logger.info(f"📝 流式写入 Workspace 文件: {target_path}")
+        workspace_event_bus.publish(WorkspaceEvent(
+            type="file_write_end",
+            agent_id=self.agent_id,
+            path=relative_path_str,
+            version=max(len(chunks), 1),
+            source=source,
+            session_key=session_key,
+            tool_use_id=tool_use_id,
+            content_snapshot=accumulated,
+            diff_stats=self._build_diff_stats(before_content, accumulated),
+        ))
+        return relative_path_str
+
+    @staticmethod
+    def _build_diff_stats(before_content: str, after_content: str) -> WorkspaceDiffStats:
+        """计算基础 diff 摘要，供前端展示写入结果。"""
+        before_lines = before_content.splitlines()
+        after_lines = after_content.splitlines()
+        matcher = SequenceMatcher(a=before_lines, b=after_lines)
+
+        additions = 0
+        deletions = 0
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "insert":
+                additions += j2 - j1
+            elif tag == "delete":
+                deletions += i2 - i1
+            elif tag == "replace":
+                deletions += i2 - i1
+                additions += j2 - j1
+
+        return WorkspaceDiffStats(
+            additions=additions,
+            deletions=deletions,
+            changed_lines=additions + deletions,
+        )
 
     def create_entry(
         self,

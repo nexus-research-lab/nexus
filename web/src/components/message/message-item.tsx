@@ -30,6 +30,7 @@ interface MessageItemProps {
   onDelete?: (roundId: string) => Promise<void>;
   onRegenerate?: (roundId: string) => Promise<void>;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   className?: string;
 }
 
@@ -45,6 +46,7 @@ export function MessageItem(
     onDelete,
     onRegenerate,
     onEditUserMessage,
+    onOpenWorkspaceFile,
     className,
   }: MessageItemProps) {
   const roundRef = useRef<HTMLDivElement>(null);
@@ -326,6 +328,7 @@ export function MessageItem(
                     isStreaming={showCursor}
                     pendingPermission={pendingPermission}
                     onPermissionResponse={onPermissionResponse}
+                    onOpenWorkspaceFile={onOpenWorkspaceFile}
                     hiddenToolNames={hiddenToolNames}
                   />
 

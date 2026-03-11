@@ -19,3 +19,5 @@ export * from './session';
 // Agent相关类型
 export * from './agent';
 
+// Workspace live 相关类型
+export * from './workspace-live';

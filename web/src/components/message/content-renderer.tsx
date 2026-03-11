@@ -20,6 +20,7 @@ interface ContentRendererProps {
   } | null;
   /** 权限响应回调（也用于 AskUserQuestion） */
   onPermissionResponse?: (decision: 'allow' | 'deny', userAnswers?: UserQuestionAnswer[]) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   /** 需要隐藏的工具名称列表 */
   hiddenToolNames?: string[];
 }
@@ -30,11 +31,18 @@ export function ContentRenderer(
     isStreaming = false,
     pendingPermission,
     onPermissionResponse,
+    onOpenWorkspaceFile,
     hiddenToolNames = [],
   }: ContentRendererProps) {
   // Handle string content (Markdown)
   if (typeof content === 'string') {
-    return <MarkdownRenderer content={content} isStreaming={isStreaming} />;
+    return (
+      <MarkdownRenderer
+        content={content}
+        isStreaming={isStreaming}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+      />
+    );
   }
 
   // Handle structured content (ContentBlock[])
@@ -71,7 +79,11 @@ export function ContentRenderer(
         if (block.type === 'text') {
           return (
             <div key={index}>
-              <ContentRenderer content={block.text} isStreaming={isStreaming} />
+              <ContentRenderer
+                content={block.text}
+                isStreaming={isStreaming}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+              />
             </div>
           );
         }

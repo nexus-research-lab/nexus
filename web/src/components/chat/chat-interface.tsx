@@ -15,8 +15,10 @@ import { TodoItem } from "@/components/workspace/agent-task-widget";
 
 
 interface ChatInterfaceProps {
+  agentId: string | null;
   sessionKey: string | null;
   onNewSession: () => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   onLoadingChange?: (isLoading: boolean) => void;
   onSessionSnapshotChange?: (snapshot: {
@@ -45,8 +47,10 @@ function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
 }
 
 export function ChatInterface({
+  agentId,
   sessionKey: externalSessionKey,
   onNewSession: onNewSession,
+  onOpenWorkspaceFile,
   onTodosChange,
   onLoadingChange,
   onSessionSnapshotChange,
@@ -67,6 +71,7 @@ export function ChatInterface({
     deleteRound,
     regenerate,
   } = useAgentSession({
+    agentId,
     onError: (err) => {
       console.error("Session error:", err);
     },
@@ -182,6 +187,7 @@ export function ChatInterface({
                   isLoading={isLoading}
                   pendingPermission={pendingPermission}
                   onPermissionResponse={sendPermissionResponse}
+                  onOpenWorkspaceFile={onOpenWorkspaceFile}
                   onDelete={deleteRound}
                   onRegenerate={isLastRound ? regenerate : undefined}
                 />

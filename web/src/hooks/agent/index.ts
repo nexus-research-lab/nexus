@@ -12,7 +12,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/lib/websocket';
 import { useSessionStore } from '@/store/session';
-import { Message, StreamEvent, ToolCall, UserMessage } from '@/types';
+import { useWorkspaceLiveStore } from '@/store/workspace-live';
+import { AssistantMessage, Message, StreamEvent, ToolCall, UserMessage } from '@/types';
 import { UserQuestionAnswer } from '@/types/ask-user-question';
 import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
 import {
@@ -40,6 +41,24 @@ interface ConversationEventPayload {
   delta?: StreamEvent;
 }
 
+interface WorkspaceEventPayload {
+  type: 'file_write_start' | 'file_write_delta' | 'file_write_end';
+  agent_id: string;
+  path: string;
+  version: number;
+  source: 'agent' | 'api' | 'system' | 'unknown';
+  session_key?: string | null;
+  tool_use_id?: string | null;
+  content_snapshot?: string | null;
+  appended_text?: string | null;
+  diff_stats?: {
+    additions: number;
+    deletions: number;
+    changed_lines: number;
+  } | null;
+  timestamp: string;
+}
+
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
   const wsUrl = options.wsUrl || process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8010/agent/v1/chat/ws';
 
@@ -59,6 +78,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
 
   // Store
   const { updateSession } = useSessionStore();
+  const applyWorkspaceEvent = useWorkspaceLiveStore((state) => state.applyEvent);
 
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -118,8 +138,16 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
           return;
         }
       }
+
+      if (backendMsg.event_type === 'workspace_event') {
+        const payload = backendMsg.data as WorkspaceEventPayload;
+        if (payload?.agent_id && payload?.path) {
+          applyWorkspaceEvent(payload);
+        }
+        return;
+      }
     }
-  }, [sessionKey]);
+  }, [applyWorkspaceEvent, sessionKey]);
 
   // WebSocket
   const { state: wsState, send: wsSend } = useWebSocket({
@@ -137,6 +165,25 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       }
     },
   });
+
+  useEffect(() => {
+    const agentId = options.agentId;
+    if (!agentId || wsState !== 'connected') {
+      return;
+    }
+
+    wsSend({
+      type: 'subscribe_workspace',
+      agent_id: agentId,
+    });
+
+    return () => {
+      wsSend({
+        type: 'unsubscribe_workspace',
+        agent_id: agentId,
+      });
+    };
+  }, [options.agentId, wsSend, wsState]);
   /**
    * 发送消息
    */

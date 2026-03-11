@@ -19,21 +19,36 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const [state, setState] = useState<WebSocketState>('disconnected');
   const [error, setError] = useState<Event | null>(null);
   const clientRef = useRef<WebSocketClient | null>(null);
+  const onMessageRef = useRef(options.onMessage);
+  const onErrorRef = useRef(options.onError);
+  const onStateChangeRef = useRef(options.onStateChange);
+
+  useEffect(() => {
+    onMessageRef.current = options.onMessage;
+  }, [options.onMessage]);
+
+  useEffect(() => {
+    onErrorRef.current = options.onError;
+  }, [options.onError]);
+
+  useEffect(() => {
+    onStateChangeRef.current = options.onStateChange;
+  }, [options.onStateChange]);
 
   // 使用useCallback稳定化回调函数
   const onMessageCallback = useCallback((msg: any) => {
-    options.onMessage?.(msg);
-  }, [options.onMessage]);
+    onMessageRef.current?.(msg);
+  }, []);
 
   const onErrorCallback = useCallback((err: Event) => {
     setError(err);
-    options.onError?.(err);
-  }, [options.onError]);
+    onErrorRef.current?.(err);
+  }, []);
 
   const onStateChangeCallback = useCallback((newState: WebSocketState) => {
     setState(newState);
-    options.onStateChange?.(newState);
-  }, [options.onStateChange]);
+    onStateChangeRef.current?.(newState);
+  }, []);
 
   useEffect(() => {
     // 创建WebSocket客户端
