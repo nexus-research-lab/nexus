@@ -79,9 +79,7 @@ export function AgentInspector({
           <div className="mt-3 space-y-1.5">
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">Cost Sessions</span>
-              <span className="text-[11px] font-medium text-foreground">
-                {agentCostSummary.cost_sessions}
-              </span>
+              <span className="text-[11px] font-medium text-foreground">{agentCostSummary.cost_sessions}</span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">Model</span>
@@ -107,7 +105,7 @@ export function AgentInspector({
               <CheckSquare className="h-3.5 w-3.5" />
               Current Plan
             </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary/70 px-2 py-0.5 text-[11px] tracking-normal normal-case text-muted-foreground">
+            <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary/70 px-2 py-0.5 text-[11px] font-medium tracking-normal normal-case text-muted-foreground">
               {todos.length > 0 && <LoadingOrb />}
               <span>{todos.length === 0 ? "0 / 0" : `${completedTodoCount} / ${todos.length}`}</span>
             </div>
@@ -116,7 +114,7 @@ export function AgentInspector({
             <div className="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/6 px-3 py-2 text-sm text-foreground">
               <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
               <div className="min-w-0">
-                <p className="truncate">{activeTodo.content}</p>
+                <p className="truncate font-medium">{activeTodo.content}</p>
                 {activeTodo.activeForm && (
                   <p className="mt-0.5 text-[11px] text-muted-foreground">{activeTodo.activeForm}</p>
                 )}
@@ -174,7 +172,9 @@ export function AgentInspector({
           <div className="mt-3 space-y-1.5">
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">Tokens</span>
-              <span className="text-[11px] font-medium text-foreground">{formatTokens(sessionCostSummary.total_tokens)}</span>
+              <span className="text-[11px] font-medium text-foreground">
+                {formatTokens(sessionCostSummary.total_tokens)}
+              </span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">In / Out</span>
@@ -206,11 +206,15 @@ export function AgentInspector({
           <div className="space-y-1.5">
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">Skills</span>
-              <span className="text-[11px] font-medium text-foreground">{agent.options.skills_enabled ? "On" : "Off"}</span>
+              <span className="text-[11px] font-medium text-foreground">
+                {agent.options.skills_enabled ? "On" : "Off"}
+              </span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">Allowed Tools</span>
-              <span className="text-[11px] font-medium text-foreground">{agent.options.allowed_tools?.length ?? 0}</span>
+              <span className="text-[11px] font-medium text-foreground">
+                {agent.options.allowed_tools?.length ?? 0}
+              </span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-[11px] text-muted-foreground">Current Session</span>

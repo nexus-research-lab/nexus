@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/lib/websocket';
 import { useSessionStore } from '@/store/session';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
-import { AssistantMessage, Message, StreamEvent, ToolCall, UserMessage } from '@/types';
+import { Message, StreamEvent, ToolCall, UserMessage } from '@/types';
 import { UserQuestionAnswer } from '@/types/ask-user-question';
 import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
 import {
