@@ -492,10 +492,10 @@ export function WorkspaceSidebar({
   return (
     <aside
       className={cn(
-        "flex min-h-0 flex-col",
+        "flex min-h-0 w-[280px] flex-col shrink-0 transition-colors duration-200",
         embedded
-          ? "w-[280px] border-r border-border/80 bg-transparent"
-          : "w-[300px] rounded-[20px] panel-surface",
+          ? "border-r border-border/80 bg-transparent"
+          : "rounded-[20px] panel-surface",
       )}
     >
       <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">

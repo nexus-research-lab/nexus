@@ -7,6 +7,7 @@
 - 修复 HTML 嵌套 button 验证错误，改为语义化结构。
 - 修复成本账本始终为 0 的问题：补齐 SDK `ResultMessage` 的 dataclass 解析，修正消息保存链路中的 `agent_id` 归一化，并支持从历史 `messages.jsonl` 自动回填 Session / Agent 成本汇总。
 - 修复左侧 session 区域 `msgs` 长期显示为 0 的问题：前端在消息加载和实时更新后会同步本地 session 快照，及时刷新 `message_count` 和最近活动时间。
+- 修复 workspace 文件编辑面板展开/收起的跳动：改为常驻挂载 + 显式宽度过渡，减少 flex 重排导致的动画突变。
 
 ### Added
 - 新增自定义对话框组件 (ConfirmDialog, PromptDialog)，替代 window.confirm/prompt。

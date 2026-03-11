@@ -463,48 +463,36 @@ export default function Home() {
             </div>
 
             <div className="flex min-h-0 flex-1 gap-4">
-              {isEditorOpen ? (
-                <section
-                  ref={workspaceSplitRef}
-                  className={cn(
-                    "flex min-h-0 min-w-0 flex-[1.15] rounded-[20px] panel-surface overflow-hidden",
-                    isResizingEditor && "select-none cursor-col-resize",
-                  )}
-                >
-                  <WorkspaceSidebar
-                    activeWorkspacePath={activeWorkspacePath}
-                    agent={currentAgent}
-                    currentSessionKey={current_session_key}
-                    embedded
-                    onCreateSession={handleNewSession}
-                    onDeleteSession={handleDeleteSession}
-                    onOpenWorkspaceFile={handleOpenWorkspaceFile}
-                    onSelectSession={handleSessionSelect}
-                    sessions={currentAgentSessions}
-                  />
-
-                  <WorkspaceEditorPane
-                    agentId={currentAgent.agent_id}
-                    embedded
-                    isOpen={isEditorOpen}
-                    onClose={handleCloseWorkspacePane}
-                    onResizeStart={handleStartEditorResize}
-                    path={activeWorkspacePath}
-                    widthPercent={editorWidthPercent}
-                  />
-                </section>
-              ) : (
+              <section
+                ref={workspaceSplitRef}
+                className={cn(
+                  "flex min-h-0 min-w-0 shrink-0 rounded-[20px] panel-surface overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  isEditorOpen ? "w-[clamp(280px,68vw,1120px)]" : "w-[280px]",
+                  isResizingEditor && "select-none cursor-col-resize",
+                )}
+              >
                 <WorkspaceSidebar
                   activeWorkspacePath={activeWorkspacePath}
                   agent={currentAgent}
                   currentSessionKey={current_session_key}
+                  embedded={isEditorOpen}
                   onCreateSession={handleNewSession}
                   onDeleteSession={handleDeleteSession}
                   onOpenWorkspaceFile={handleOpenWorkspaceFile}
                   onSelectSession={handleSessionSelect}
                   sessions={currentAgentSessions}
                 />
-              )}
+
+                <WorkspaceEditorPane
+                  agentId={currentAgent.agent_id}
+                  embedded
+                  isOpen={isEditorOpen}
+                  onClose={handleCloseWorkspacePane}
+                  onResizeStart={handleStartEditorResize}
+                  path={activeWorkspacePath}
+                  widthPercent={editorWidthPercent}
+                />
+              </section>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] panel-surface overflow-hidden">
                 <div className="min-h-0 flex-1">
@@ -520,16 +508,18 @@ export default function Home() {
                 </div>
               </div>
 
-              <AgentInspector
-                activeSession={currentSession}
-                agent={currentAgent}
-                agentCostSummary={agentCostSummary}
-                isSessionBusy={isSessionBusy}
-                onEditAgent={handleEditAgent}
-                sessionCostSummary={sessionCostSummary}
-                sessions={currentAgentSessions}
-                todos={currentTodos}
-              />
+              {!isEditorOpen && (
+                <AgentInspector
+                  activeSession={currentSession}
+                  agent={currentAgent}
+                  agentCostSummary={agentCostSummary}
+                  isSessionBusy={isSessionBusy}
+                  onEditAgent={handleEditAgent}
+                  sessionCostSummary={sessionCostSummary}
+                  sessions={currentAgentSessions}
+                  todos={currentTodos}
+                />
+              )}
             </div>
           </section>
         )}
