@@ -1,0 +1,96 @@
+name: Auto Merge with AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches-ignore:
+      - main
+      - 'gh-pages'
+
+jobs:
+  notify-openclaw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify OpenClaw Monitor
+        env:
+          OPENCLAW_WEBHOOK: ${{ secrets.OPENCLAW_WEBHOOK_URL }}
+        run: |
+          if [ -n "$OPENCLAW_WEBHOOK" ]; then
+            curl -X POST "$OPENCLAW_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "event": "github_trigger",
+                "repo": "${{ github.repository }}",
+                "action": "${{ github.event_name }}",
+                "pr_number": "${{ github.event.pull_request.number }}",
+                "branch": "${{ github.ref_name }}",
+                "sender": "${{ github.actor }}"
+              }'
+            echo "✅ Notified OpenClaw"
+          else
+            echo "⚠️ OPENCLAW_WEBHOOK_URL not configured"
+          fi
+
+  auto-merge-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR status
+        id: pr-status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "PR #${{ github.event.pull_request.number }}"
+          echo "State: ${{ github.event.pull_request.state }}"
+          echo "Mergeable: ${{ github.event.pull_request.mergeable }}"
+          echo "Head: ${{ github.event.pull_request.head.ref }}"
+          echo "Base: ${{ github.event.pull_request.base.ref }}"
+
+      - name: Wait for CI
+        run: |
+          echo "Waiting for CI checks..."
+          sleep 30
+
+      - name: Check CI status
+        id: ci-status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATUS=$(gh pr checks ${{ github.event.pull_request.number }} --repo ${{ github.repository }} 2>&1 || echo "no checks")
+          echo "CI Status: $STATUS"
+          if echo "$STATUS" | grep -q "fail"; then
+            echo "ci_passed=false" >> $GITHUB_OUTPUT
+          else
+            echo "ci_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add label for review
+        if: steps.ci-status.outputs.ci_passed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --add-label "ai-review-pending"
+          echo "✅ Added ai-review-pending label"
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body "🤖 **AI Monitor Active**
+
+          This PR is being monitored by OpenClaw AI system.
+
+          - CI Status: ${{ steps.ci-status.outputs.ci_passed == 'true' && '✅ Passed' || '❌ Failed' }}
+          - AI Review: Pending (will be processed by OpenClaw)
+          - Auto-merge: Enabled (if approved by AI review)
+
+          The PR will be automatically merged if AI review passes and CI succeeds."
