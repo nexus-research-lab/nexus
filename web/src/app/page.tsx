@@ -477,7 +477,8 @@ export default function Home() {
               <section
                 ref={workspaceSplitRef}
                 className={cn(
-                  "flex min-h-0 min-w-0 flex-1 gap-4",
+                  "flex min-h-0 min-w-0 flex-1",
+                  isEditorOpen ? "gap-4" : "gap-0",
                   isResizingEditor && "select-none cursor-col-resize",
                 )}
               >
