@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { buildStaticAssetUrl } from "@/lib/static-asset";
 
 export const metadata: Metadata = {
   title: "Nexus",
   description: "Nexus Core",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: buildStaticAssetUrl("/logo.png"),
+    shortcut: buildStaticAssetUrl("/logo.png"),
+    apple: buildStaticAssetUrl("/logo.png"),
   },
 };
 

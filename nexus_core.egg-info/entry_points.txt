@@ -1,0 +1,2 @@
+[console_scripts]
+nexus-core = agent.cli:main

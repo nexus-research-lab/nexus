@@ -1,0 +1,15 @@
+fastapi>=0.120.0
+uvloop>=0.22.1
+uvicorn>=0.38.0
+gunicorn>=23.0.0
+websockets>=15
+pydantic>=2.6.0
+pydantic-settings>=2.12.0
+typer>=0.20.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.20
+typing_inspect
+psutil>=5.9.4
+claude-agent-sdk>=0.1.43
+discord.py>=2.6.4
+python-telegram-bot>=22.6
