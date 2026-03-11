@@ -1,0 +1,21 @@
+{
+  "repo": "nexus-research-lab/nexus-core",
+  "mainBranch": "main",
+  "checkInterval": "15m",
+  "autoMerge": {
+    "enabled": true,
+    "requireCI": true,
+    "requireReview": false,
+    "mergeMethod": "squash",
+    "targetBranches": ["main"]
+  },
+  "branchSync": {
+    "enabled": true,
+    "watchBranches": ["*"],
+    "autoMergeToMain": true
+  },
+  "codex": {
+    "enabled": true,
+    "reviewPrompt": "Review this code change for: 1) Bugs or errors, 2) Security issues, 3) Code quality, 4) Breaking changes. Reply with APPROVE or REJECT and brief reason."
+  }
+}

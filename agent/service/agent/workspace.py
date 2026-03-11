@@ -239,7 +239,7 @@ class AgentWorkspace:
     @staticmethod
     def _is_visible_workspace_path(path: Path) -> bool:
         """过滤运行时数据，避免把会话日志暴露到 workspace 编辑面板。"""
-        hidden_parts = {".agent", ".git", "__pycache__"}
+        hidden_parts = {".agent", ".git", "__pycache__", ".DS_Store"}
         if any(part in hidden_parts for part in path.parts):
             return False
         return True
