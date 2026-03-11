@@ -108,13 +108,18 @@ export function WorkspaceEditorPane({
   return (
     <section
       className={cn(
-        "relative flex min-h-0 flex-col overflow-hidden bg-secondary/78 transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        "relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-secondary/78 transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,opacity,transform]",
         embedded
-          ? "flex-1"
+          ? "border-l border-border/70 shadow-none"
           : "rounded-[20px] border border-border/70 shadow-[0_18px_44px_rgba(17,24,39,0.08)]",
-        isOpen || embedded ? "opacity-100 translate-x-0" : "w-0 opacity-0 -translate-x-6",
+        isOpen ? "opacity-100 translate-x-0" : "pointer-events-none opacity-0 -translate-x-3",
+        embedded && !isOpen && "border-l-transparent",
       )}
-      style={isOpen ? { width: `${widthPercent}%` } : undefined}
+      style={
+        embedded
+          ? { width: isOpen ? "calc(100% - 280px)" : "0px" }
+          : { width: isOpen ? `${widthPercent}%` : "0px" }
+      }
     >
       {embedded && (!isOpen || !path) ? (
         <div className="flex h-full flex-1 items-center justify-center px-8 text-center">

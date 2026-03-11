@@ -116,7 +116,6 @@ interface WorkspaceSidebarProps {
   sessions: Session[];
   currentSessionKey: string | null;
   activeWorkspacePath: string | null;
-  embedded?: boolean;
   onSelectSession: (sessionKey: string) => void;
   onCreateSession: () => void;
   onDeleteSession: (sessionKey: string) => void;
@@ -128,7 +127,6 @@ export function WorkspaceSidebar({
   sessions,
   currentSessionKey,
   activeWorkspacePath,
-  embedded = false,
   onSelectSession,
   onCreateSession,
   onDeleteSession,
@@ -491,12 +489,7 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className={cn(
-        "flex min-h-0 flex-col",
-        embedded
-          ? "w-[280px] border-r border-border/80 bg-transparent"
-          : "w-[300px] rounded-[20px] panel-surface",
-      )}
+      className="flex min-h-0 w-[280px] shrink-0 flex-col rounded-[20px] panel-surface"
     >
       <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
