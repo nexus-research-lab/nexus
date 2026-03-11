@@ -6,8 +6,10 @@
 
 "use client";
 
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
+import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
 
 interface PermissionDialogProps {
   /** 是否显示对话框 */
@@ -16,10 +18,20 @@ interface PermissionDialogProps {
   toolName: string;
   /** 工具输入参数 */
   toolInput: Record<string, any>;
+  /** 风险级别 */
+  riskLevel?: PermissionRiskLevel;
+  /** 风险标签 */
+  riskLabel?: string;
+  /** 摘要 */
+  summary?: string;
+  /** SDK 建议的权限更新 */
+  suggestions?: PermissionUpdate[];
+  /** 过期时间 */
+  expiresAt?: string;
   /** 允许回调 */
-  onAllow: () => void;
+  onAllow: (updatedPermissions?: PermissionUpdate[]) => void;
   /** 拒绝回调 */
-  onDeny: () => void;
+  onDeny: (updatedPermissions?: PermissionUpdate[]) => void;
   /** 关闭弹窗 */
   onClose: () => void;
 }
@@ -29,14 +41,46 @@ export function PermissionDialog(
     isOpen,
     toolName,
     toolInput,
+    riskLevel,
+    riskLabel,
+    summary,
+    suggestions = [],
+    expiresAt,
     onAllow,
     onDeny,
     onClose
   }: PermissionDialogProps) {
-  if (!isOpen) return null;
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
 
-  // 使用 Portal 渲染到 body
-  if (typeof document === 'undefined') return null;
+  const readableSuggestions = useMemo(() => {
+    return suggestions.map((suggestion, index) => {
+      const destinationMap: Record<string, string> = {
+        session: '仅本会话',
+        projectSettings: '项目设置',
+        localSettings: '本地设置',
+        userSettings: '用户设置',
+      };
+      const behaviorMap: Record<string, string> = {
+        allow: '允许',
+        deny: '拒绝',
+        ask: '继续询问',
+      };
+      const destination = suggestion.destination ? destinationMap[suggestion.destination] || suggestion.destination : '当前会话';
+      const behavior = suggestion.behavior ? behaviorMap[suggestion.behavior] || suggestion.behavior : '更新规则';
+      const ruleSummary = suggestion.rules?.map((rule) => rule.ruleContent || rule.toolName).filter(Boolean).join('，');
+      return {
+        index,
+        label: `${behavior}并写入${destination}`,
+        description: ruleSummary || suggestion.type,
+      };
+    });
+  }, [suggestions]);
+
+  const riskColorMap: Record<PermissionRiskLevel, string> = {
+    low: 'text-emerald-700 dark:text-emerald-300',
+    medium: 'text-amber-700 dark:text-amber-300',
+    high: 'text-red-700 dark:text-red-300',
+  };
 
   // 格式化显示工具输入参数
   const formatToolInput = () => {
@@ -58,6 +102,11 @@ export function PermissionDialog(
       </div>
     );
   };
+
+  if (!isOpen) return null;
+
+  // 使用 Portal 渲染到 body
+  if (typeof document === 'undefined') return null;
 
   return createPortal(
     <div
@@ -96,7 +145,65 @@ export function PermissionDialog(
             <p className="text-xs text-orange-600/90 dark:text-orange-300/90 mt-1.5 leading-relaxed">
               允许此操作将使 Agent 能够执行相应的系统操作。请仔细检查参数后再决定。
             </p>
+            {(summary || riskLabel || expiresAt) && (
+              <div className="mt-3 space-y-1 text-xs">
+                {summary && (
+                  <p className="text-foreground/80 break-all">
+                    <span className="font-medium text-foreground">摘要：</span>
+                    {summary}
+                  </p>
+                )}
+                {riskLabel && (
+                  <p className={riskLevel ? riskColorMap[riskLevel] : 'text-foreground/80'}>
+                    <span className="font-medium text-foreground">风险：</span>
+                    {riskLabel}
+                  </p>
+                )}
+                {expiresAt && (
+                  <p className="text-foreground/70">
+                    <span className="font-medium text-foreground">过期：</span>
+                    {new Date(expiresAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+
+          {readableSuggestions.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase">记住这次授权</p>
+              <div className="space-y-2">
+                <label className="flex items-start gap-3 rounded-lg border border-border p-3">
+                  <input
+                    type="radio"
+                    name="permission-suggestion"
+                    checked={selectedSuggestionIndex === -1}
+                    onChange={() => setSelectedSuggestionIndex(-1)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">仅本次允许</p>
+                    <p className="text-xs text-muted-foreground">本次执行结束后不保留规则。</p>
+                  </div>
+                </label>
+                {readableSuggestions.map((suggestion) => (
+                  <label key={suggestion.index} className="flex items-start gap-3 rounded-lg border border-border p-3">
+                    <input
+                      type="radio"
+                      name="permission-suggestion"
+                      checked={selectedSuggestionIndex === suggestion.index}
+                      onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{suggestion.label}</p>
+                      <p className="text-xs text-muted-foreground break-all">{suggestion.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {formatToolInput()}
         </div>
@@ -104,13 +211,18 @@ export function PermissionDialog(
         {/* 底部按钮 */}
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-border bg-muted/30">
           <button
-            onClick={onDeny}
+            onClick={() => onDeny()}
             className="px-4 py-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium shadow-sm"
           >
             拒绝
           </button>
           <button
-            onClick={onAllow}
+            onClick={() => {
+              const selectedUpdate = selectedSuggestionIndex >= 0
+                ? [suggestions[selectedSuggestionIndex]]
+                : undefined;
+              onAllow(selectedUpdate);
+            }}
             className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium shadow-sm"
           >
             允许

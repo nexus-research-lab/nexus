@@ -21,6 +21,7 @@
 - 新增基于 workspace 文件存储的成本账本能力，按 Session 持久化 `telemetry_cost.jsonl` 与 `telemetry_cost_summary.json`。
 - 新增 Agent 级成本汇总文件 `telemetry_cost_summary.json`，支持按 Agent 聚合累计 token / cost。
 - 新增 Session / Agent 成本汇总 API，供前端右侧状态栏读取权威成本数据。
+- 新增权限运行时辅助层，支持序列化 Claude SDK `permission_suggestions`、构建权限风险摘要，并将用户决策回写为 `updated_permissions`。
 
 ### Accessibility
 - 为所有交互按钮添加 aria-label 属性。
@@ -49,6 +50,10 @@
 - 右侧 `Agent State` 接入真实 telemetry：基于 result 消息展示真实 token/cost，基于 pendingPermission 展示审批队列，基于 toolCalls 展示 trace timeline。
 - 右侧 `Agent State` 收口为只展示成本能力：移除 approval / trace telemetry，改为读取后端成本账本汇总，展示 Session / Agent 成本、token、缓存命中和最近一次执行耗时。
 - Agent 内部运行文件统一下沉到 workspace 隐藏目录 `.agent/`，包括 `agent.json`、Session 元数据/消息日志和成本账本，避免污染用户可见 workspace 根目录。
+- 权限链路对齐 Claude Agent SDK：后端现在会把 `permission_suggestions` 传到前端，并支持把“仅本次 / 写入 session / 项目 / 本地 / 用户设置”的授权决策回传给 SDK。
+- WebSocket 权限策略补齐关闭与超时兜底：连接关闭后会立即唤醒挂起中的权限请求并拒绝，避免继续向已关闭连接发送审批事件。
+- Agent 配置中的 `setting_sources` 重新透传到 SDK，不再被误过滤；前端也新增 `local` 来源，并将其文案收口为同时作用于技能和权限设置加载。
+- Agent 配置页补充 `bypassPermissions` 风险提示，明确 `allowed_tools` 不会约束全放行模式，避免误配造成错误安全感。
 
 ## 2026-03-09
 

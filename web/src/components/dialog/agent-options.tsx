@@ -47,7 +47,7 @@ interface AgentDialogInitialOptions extends Partial<SessionOptions> {
   max_turns?: number;
   max_thinking_tokens?: number;
   skills_enabled?: boolean;
-  setting_sources?: ('user' | 'project')[];
+  setting_sources?: ('user' | 'project' | 'local')[];
 }
 
 type TabKey = 'basic' | 'prompt' | 'tools' | 'skills' | 'advanced';
@@ -127,7 +127,7 @@ export function AgentOptions(
   const [skillsEnabled, setSkillsEnabled] = useState(
     sourceOptions.skillsEnabled ?? sourceOptions.skills_enabled ?? true
   );
-  const [settingSources, setSettingSources] = useState<('user' | 'project')[]>(
+  const [settingSources, setSettingSources] = useState<('user' | 'project' | 'local')[]>(
     sourceOptions.settingSources || sourceOptions.setting_sources || ['user', 'project']
   );
   const [nameValidation, setNameValidation] = useState<AgentNameValidationResult | null>(null);
@@ -154,7 +154,7 @@ export function AgentOptions(
   }, [isOpen, initialTitle, initialOptions]);
 
   // 切换技能来源
-  const toggleSettingSource = (source: 'user' | 'project') => {
+  const toggleSettingSource = (source: 'user' | 'project' | 'local') => {
     setSettingSources(prev =>
       prev.includes(source)
         ? prev.filter(s => s !== source)
@@ -258,7 +258,7 @@ export function AgentOptions(
       includePartialMessages,
       // Skills 配置
       skillsEnabled,
-      settingSources: skillsEnabled ? settingSources : undefined,
+      settingSources: settingSources.length > 0 ? settingSources : undefined,
     };
     onSave(trimmedTitle, options);
     onClose();
@@ -462,6 +462,12 @@ export function AgentOptions(
                       </button>
                     ))}
                   </div>
+                  {permissionMode === 'bypassPermissions' && allowedTools.length > 0 && (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-xs leading-relaxed text-amber-700">
+                      `bypassPermissions` 会放行所有工具，`allowed_tools` 只代表预授权集合，并不能限制其它工具。
+                      如果你想在全放行模式下屏蔽个别危险工具，请改用 `disallowed_tools`。
+                    </div>
+                  )}
                 </div>
 
                 {/* 预先授权工具 */}
@@ -564,90 +570,127 @@ export function AgentOptions(
                   </div>
                 </div>
 
-                {/* 技能来源选择 */}
+                {/* 设置来源选择 */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">设置加载来源</h3>
+
+                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 flex gap-3">
+                    <div className="text-orange-600 mt-0.5">
+                      <Sparkles className="w-4 h-4"/>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-orange-700">来源同时影响技能与权限规则</p>
+                      <p className="text-xs text-orange-600/90 mt-1 leading-relaxed">
+                        Claude 会从这些来源读取 `.claude` 配置。项目 / 本地设置里的权限规则只有在对应来源启用后，后续会话才会自动生效。
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {/* 用户设置 */}
+                    <div
+                      className={cn(
+                        "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
+                        settingSources.includes('user')
+                          ? "bg-primary/5 border-primary/30"
+                          : "bg-card border-border hover:border-primary/20"
+                      )}
+                    >
+                      <div className="flex-1 mr-4">
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          用户设置
+                          {settingSources.includes('user') && <span
+                            className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          从 `~/.claude/` 读取全局技能和权限设置。
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settingSources.includes('user')}
+                          onChange={() => toggleSettingSource('user')}
+                          className="sr-only peer"
+                        />
+                        <div
+                          className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                      </label>
+                    </div>
+
+                    {/* 项目设置 */}
+                    <div
+                      className={cn(
+                        "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
+                        settingSources.includes('project')
+                          ? "bg-primary/5 border-primary/30"
+                          : "bg-card border-border hover:border-primary/20"
+                      )}
+                    >
+                      <div className="flex-1 mr-4">
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          项目设置
+                          {settingSources.includes('project') && <span
+                            className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          从 workspace 下的 `.claude/settings.json` 和 `.claude/skills/` 读取共享规则。
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settingSources.includes('project')}
+                          onChange={() => toggleSettingSource('project')}
+                          className="sr-only peer"
+                        />
+                        <div
+                          className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                      </label>
+                    </div>
+
+                    {/* 本地设置 */}
+                    <div
+                      className={cn(
+                        "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
+                        settingSources.includes('local')
+                          ? "bg-primary/5 border-primary/30"
+                          : "bg-card border-border hover:border-primary/20"
+                      )}
+                    >
+                      <div className="flex-1 mr-4">
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          本地设置
+                          {settingSources.includes('local') && <span
+                            className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          从 workspace 下的 `.claude/settings.local.json` 读取仅本机生效的权限规则。
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settingSources.includes('local')}
+                          onChange={() => toggleSettingSource('local')}
+                          className="sr-only peer"
+                        />
+                        <div
+                          className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    推荐至少启用 `project`。否则项目级权限规则即使写入 `.claude/settings.json`，新会话也不会自动读取。
+                  </p>
+                </div>
+
+                {/* 技能额外说明 */}
                 {skillsEnabled && (
                   <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">技能加载来源</h3>
-
-                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 flex gap-3">
-                      <div className="text-orange-600 mt-0.5">
-                        <Sparkles className="w-4 h-4"/>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-orange-700">关于技能来源</p>
-                        <p className="text-xs text-orange-600/90 mt-1 leading-relaxed">
-                          技能从 SKILL.md 文件中加载。用户技能保存在 ~/.claude/skills/，项目技能保存在工作目录下的
-                          .claude/skills/。
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3">
-                      {/* 用户技能 */}
-                      <div
-                        className={cn(
-                          "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
-                          settingSources.includes('user')
-                            ? "bg-primary/5 border-primary/30"
-                            : "bg-card border-border hover:border-primary/20"
-                        )}
-                      >
-                        <div className="flex-1 mr-4">
-                          <div className="font-medium text-sm flex items-center gap-2">
-                            用户技能
-                            {settingSources.includes('user') && <span
-                              className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            从 ~/.claude/skills/ 加载个人技能，跨所有项目可用
-                          </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={settingSources.includes('user')}
-                            onChange={() => toggleSettingSource('user')}
-                            className="sr-only peer"
-                          />
-                          <div
-                            className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                        </label>
-                      </div>
-
-                      {/* 项目技能 */}
-                      <div
-                        className={cn(
-                          "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
-                          settingSources.includes('project')
-                            ? "bg-primary/5 border-primary/30"
-                            : "bg-card border-border hover:border-primary/20"
-                        )}
-                      >
-                        <div className="flex-1 mr-4">
-                          <div className="font-medium text-sm flex items-center gap-2">
-                            项目技能
-                            {settingSources.includes('project') && <span
-                              className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            从 .claude/skills/ 加载工作目录下的项目技能，可通过 Git 共享
-                          </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={settingSources.includes('project')}
-                            onChange={() => toggleSettingSource('project')}
-                            className="sr-only peer"
-                          />
-                          <div
-                            className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                        </label>
-                      </div>
-                    </div>
-
                     <p className="text-xs text-muted-foreground">
-                      💡 提示：至少需要启用一个技能来源，Claude 才能发现和使用技能。
+                      技能发现仍然依赖上面的设置来源。`user` / `project` 越完整，Claude 越容易找到可复用的 SKILL。
                     </p>
                   </div>
                 )}

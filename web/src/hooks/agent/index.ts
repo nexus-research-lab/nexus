@@ -14,7 +14,7 @@ import { useWebSocket } from '@/lib/websocket';
 import { useSessionStore } from '@/store/session';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import { Message, StreamEvent, ToolCall, UserMessage } from '@/types';
-import { UserQuestionAnswer } from '@/types/ask-user-question';
+import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
 import {
   createClearSession,
@@ -70,11 +70,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   // sessionKey 初始为 null，只在创建或加载 session 时设置
   const [sessionKey, setSessionKey] = useState<string | null>(null);
   // 权限请求状态
-  const [pendingPermission, setPendingPermission] = useState<{
-    request_id: string;
-    tool_name: string;
-    tool_input: Record<string, any>;
-  } | null>(null);
+  const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
 
   // Store
   const { updateSession } = useSessionStore();
@@ -105,6 +101,11 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
           request_id: data.request_id,
           tool_name: data.tool_name,
           tool_input: data.tool_input || {},
+          risk_level: data.risk_level,
+          risk_label: data.risk_label,
+          summary: data.summary,
+          suggestions: data.suggestions || [],
+          expires_at: data.expires_at,
         });
         return;
       }
@@ -295,27 +296,36 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   /**
    * 发送权限响应（也用于 AskUserQuestion）
    */
-  const sendPermissionResponse = useCallback((decision: 'allow' | 'deny', userAnswers?: UserQuestionAnswer[]) => {
+  const sendPermissionResponse = useCallback((payload: PermissionDecisionPayload) => {
     if (!pendingPermission) return;
+    if (wsState !== 'connected') {
+      setError('WebSocket未连接，无法提交权限决策');
+      return;
+    }
 
     const response: Record<string, any> = {
       type: 'permission_response',
       request_id: pendingPermission.request_id,
       session_key: sessionKey,
       agent_id: sessionKey,
-      decision,
-      message: decision === 'deny' ? 'User denied permission' : '',
+      decision: payload.decision,
+      message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
+      interrupt: payload.interrupt ?? false,
     };
 
     // 如果是 AskUserQuestion，附带用户答案
-    if (userAnswers && userAnswers.length > 0) {
-      response.user_answers = userAnswers;
+    if (payload.userAnswers && payload.userAnswers.length > 0) {
+      response.user_answers = payload.userAnswers;
+    }
+
+    if (payload.updatedPermissions && payload.updatedPermissions.length > 0) {
+      response.updated_permissions = payload.updatedPermissions;
     }
 
     console.debug('[useAgentSession] Sending permission response:', response);
     wsSend(response as any);
     setPendingPermission(null);
-  }, [pendingPermission, sessionKey, wsSend]);
+  }, [pendingPermission, sessionKey, wsSend, wsState]);
 
   /**
    * 删除一轮对话

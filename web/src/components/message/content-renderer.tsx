@@ -6,20 +6,16 @@ import { AskUserQuestionBlock } from './block/ask-user-question-block';
 import { CodeBlock } from './block/code-block';
 import { ThinkingBlock } from './block/thinking-block';
 import { ContentBlock } from '@/types/message';
-import { UserQuestionAnswer } from '@/types/ask-user-question';
+import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import { cn } from '@/lib/utils';
 
 interface ContentRendererProps {
   content: string | ContentBlock[];
   isStreaming?: boolean;
   /** 当前工具的权限请求 */
-  pendingPermission?: {
-    request_id: string;
-    tool_name: string;
-    tool_input: Record<string, any>;
-  } | null;
+  pendingPermission?: PendingPermission | null;
   /** 权限响应回调（也用于 AskUserQuestion） */
-  onPermissionResponse?: (decision: 'allow' | 'deny', userAnswers?: UserQuestionAnswer[]) => void;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   /** 需要隐藏的工具名称列表 */
   hiddenToolNames?: string[];
@@ -110,7 +106,10 @@ export function ContentRenderer(
                   isSubmitted={hasResult}
                   onSubmit={(_, answers) => {
                     // 发送 permission_response 并附带用户答案
-                    onPermissionResponse?.('allow', answers);
+                    onPermissionResponse?.({
+                      decision: 'allow',
+                      userAnswers: answers,
+                    });
                   }}
                 />
               </div>
@@ -144,8 +143,19 @@ export function ContentRenderer(
                 permissionRequest={isThisToolPendingPermission ? {
                   request_id: pendingPermission!.request_id,
                   tool_input: pendingPermission!.tool_input,
-                  onAllow: () => onPermissionResponse?.('allow'),
-                  onDeny: () => onPermissionResponse?.('deny'),
+                  risk_level: pendingPermission!.risk_level,
+                  risk_label: pendingPermission!.risk_label,
+                  summary: pendingPermission!.summary,
+                  suggestions: pendingPermission!.suggestions,
+                  expires_at: pendingPermission!.expires_at,
+                  onAllow: (updatedPermissions) => onPermissionResponse?.({
+                    decision: 'allow',
+                    updatedPermissions,
+                  }),
+                  onDeny: (updatedPermissions) => onPermissionResponse?.({
+                    decision: 'deny',
+                    updatedPermissions,
+                  }),
                 } : undefined}
               />
             </div>

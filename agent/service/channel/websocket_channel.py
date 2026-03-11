@@ -22,10 +22,21 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional, Union
 
-from claude_agent_sdk import PermissionResult, PermissionResultAllow, PermissionResultDeny
+from claude_agent_sdk import (
+    PermissionResult,
+    PermissionResultAllow,
+    PermissionResultDeny,
+    ToolPermissionContext,
+)
 from fastapi import WebSocket
 
+from agent.core.config import settings
 from agent.service.channel.channel import MessageChannel, MessageSender, PermissionStrategy
+from agent.service.channel.permission_runtime import (
+    PendingPermissionRequest,
+    PermissionRequestPresenter,
+    PermissionUpdateCodec,
+)
 from agent.service.process.protocol_adapter import ProtocolAdapter
 from agent.service.schema.model_message import AError, AEvent, AMessage
 from agent.service.schema.model_workspace_event import WorkspaceEvent
@@ -127,6 +138,11 @@ class WebSocketSender(MessageSender):
         for agent_id in list(self._workspace_subscriptions.keys()):
             self.unsubscribe_workspace(agent_id)
 
+    @property
+    def is_closed(self) -> bool:
+        """返回当前连接是否已关闭。"""
+        return self._is_closed
+
 
 # =====================================================
 # InteractivePermissionStrategy — 交互式权限策略
@@ -140,76 +156,74 @@ class InteractivePermissionStrategy(PermissionStrategy):
 
     def __init__(self, sender: MessageSender):
         self.sender = sender
-        self._permission_requests: Dict[str, asyncio.Event] = {}
+        self._permission_requests: Dict[str, PendingPermissionRequest] = {}
         self._permission_responses: Dict[str, Dict[str, Any]] = {}
+        self._is_closed = False
 
     async def request_permission(
         self,
-        agent_id: str,
+        session_key: str,
         tool_name: str,
         input_data: dict[str, Any],
+        context: ToolPermissionContext | None = None,
     ) -> PermissionResult:
         """通过 WebSocket 请求用户权限确认"""
+        if self._is_closed or self._sender_is_closed():
+            return PermissionResultDeny(message="Permission channel closed", interrupt=True)
+
         request_id = str(uuid.uuid4())
+        timeout_seconds = max(float(settings.PERMISSION_REQUEST_TIMEOUT_SECONDS), 1.0)
+        pending_request = PendingPermissionRequest(
+            request_id=request_id,
+            session_key=session_key,
+            tool_name=tool_name,
+            input_data=input_data,
+            event=asyncio.Event(),
+            expires_at=PermissionRequestPresenter.build_expiry(timeout_seconds),
+        )
+        self._permission_requests[request_id] = pending_request
 
-        logger.info(f"🔐 请求工具权限: agent_id={agent_id}, tool={tool_name}, request_id={request_id}")
+        suggestion_updates = PermissionUpdateCodec.serialize_updates(
+            context.suggestions if context else None
+        )
 
-        # 创建等待事件
-        event = asyncio.Event()
-        self._permission_requests[request_id] = event
+        logger.info(
+            "🔐 请求工具权限: "
+            f"session={session_key}, tool={tool_name}, request_id={request_id}"
+        )
 
         # 发送权限请求到前端
         permission_event = AEvent(
             event_type="permission_request",
-            agent_id=agent_id,
-            session_id=session_manager.get_session_id(agent_id),
-            data={
-                "request_id": request_id,
-                "tool_name": tool_name,
-                "tool_input": input_data,
-            },
+            agent_id=session_key,
+            session_id=session_manager.get_session_id(session_key),
+            data=PermissionRequestPresenter.build_payload(
+                pending_request,
+                suggestion_updates,
+            ),
         )
-        await self.sender.send_event(permission_event)
-
-        # 等待前端响应（60秒超时）
         try:
-            await asyncio.wait_for(event.wait(), timeout=60.0)
+            await self.sender.send_event(permission_event)
+        except Exception as exc:
+            logger.warning(f"⚠️ 发送权限请求失败: tool={tool_name}, error={exc}")
+            self._cleanup_request(request_id)
+            return PermissionResultDeny(message="Failed to dispatch permission request", interrupt=True)
 
+        if self._is_closed or self._sender_is_closed():
+            self._cleanup_request(request_id)
+            return PermissionResultDeny(message="Permission channel closed", interrupt=True)
+
+        # 等待前端响应
+        try:
+            await asyncio.wait_for(pending_request.event.wait(), timeout=timeout_seconds)
             response = self._permission_responses.get(request_id, {})
-            decision = response.get("decision", "deny")
-
-            # 清理
-            del self._permission_requests[request_id]
-            if request_id in self._permission_responses:
-                del self._permission_responses[request_id]
-
-            if decision == "allow":
-                logger.info(f"✅ 权限允许: {tool_name}")
-
-                # AskUserQuestion 特殊处理
-                updated_input = input_data.copy()
-                if tool_name == "AskUserQuestion" and "user_answers" in response:
-                    user_answers = response["user_answers"]
-                    questions = input_data.get("questions", [])
-                    answers = {}
-                    for answer in user_answers:
-                        question_idx = answer.get("questionIndex", 0)
-                        selected_options = answer.get("selectedOptions", [])
-                        if 0 <= question_idx < len(questions):
-                            question_text = questions[question_idx].get("question", "")
-                            answers[question_text] = ", ".join(selected_options)
-                    updated_input["answers"] = answers
-                    logger.info(f"📝 AskUserQuestion 用户回答: {answers}")
-
-                return PermissionResultAllow(updated_input=updated_input)
-            else:
-                logger.info(f"❌ 权限拒绝: {tool_name}")
-                return PermissionResultDeny(message=response.get("message", "User denied permission"))
+            return self._build_permission_result(tool_name, input_data, response)
 
         except asyncio.TimeoutError:
             logger.warning(f"⏰ 权限请求超时: {tool_name}")
-            del self._permission_requests[request_id]
             return PermissionResultDeny(message="Permission request timeout")
+        finally:
+            self._cleanup_request(request_id)
 
     def handle_permission_response(self, message: Dict[str, Any]) -> None:
         """处理前端的权限响应回调
@@ -221,10 +235,14 @@ class InteractivePermissionStrategy(PermissionStrategy):
         if not request_id:
             logger.warning("⚠️ permission_response消息缺少request_id")
             return
+        if self._is_closed:
+            logger.warning(f"⚠️ 权限通道已关闭，忽略响应: request_id={request_id}")
+            return
 
         response_data = {
             "decision": message.get("decision", "deny"),
             "message": message.get("message", ""),
+            "interrupt": bool(message.get("interrupt", False)),
         }
 
         # AskUserQuestion 的用户答案
@@ -233,13 +251,80 @@ class InteractivePermissionStrategy(PermissionStrategy):
             response_data["user_answers"] = user_answers
             logger.debug(f"📝 收到 AskUserQuestion 用户答案: {user_answers}")
 
+        updated_permissions = message.get("updated_permissions")
+        if isinstance(updated_permissions, list) and updated_permissions:
+            response_data["updated_permissions"] = updated_permissions
+
         self._permission_responses[request_id] = response_data
 
-        if request_id in self._permission_requests:
-            self._permission_requests[request_id].set()
+        pending_request = self._permission_requests.get(request_id)
+        if pending_request:
+            pending_request.event.set()
             logger.debug(f"📨 收到权限响应: request_id={request_id}, decision={message.get('decision')}")
         else:
             logger.warning(f"⚠️ 未找到对应的权限请求: request_id={request_id}")
+
+    def close(self) -> None:
+        """关闭权限策略并唤醒所有等待中的请求。"""
+        if self._is_closed:
+            return
+
+        self._is_closed = True
+        for request_id, pending_request in list(self._permission_requests.items()):
+            self._permission_responses[request_id] = {
+                "decision": "deny",
+                "message": "Permission channel closed",
+                "interrupt": True,
+            }
+            pending_request.event.set()
+
+    def _build_permission_result(
+        self,
+        tool_name: str,
+        input_data: dict[str, Any],
+        response: Dict[str, Any],
+    ) -> PermissionResult:
+        """根据前端响应构建 SDK 权限结果。"""
+        decision = response.get("decision", "deny")
+        if decision == "allow":
+            logger.info(f"✅ 权限允许: {tool_name}")
+
+            updated_input = input_data.copy()
+            if tool_name == "AskUserQuestion" and "user_answers" in response:
+                user_answers = response["user_answers"]
+                questions = input_data.get("questions", [])
+                answers = {}
+                for answer in user_answers:
+                    question_idx = answer.get("questionIndex", 0)
+                    selected_options = answer.get("selectedOptions", [])
+                    if 0 <= question_idx < len(questions):
+                        question_text = questions[question_idx].get("question", "")
+                        answers[question_text] = ", ".join(selected_options)
+                updated_input["answers"] = answers
+                logger.info(f"📝 AskUserQuestion 用户回答: {answers}")
+
+            updated_permissions = PermissionUpdateCodec.deserialize_updates(
+                response.get("updated_permissions")
+            )
+            return PermissionResultAllow(
+                updated_input=updated_input,
+                updated_permissions=updated_permissions or None,
+            )
+
+        logger.info(f"❌ 权限拒绝: {tool_name}")
+        return PermissionResultDeny(
+            message=response.get("message", "User denied permission"),
+            interrupt=bool(response.get("interrupt", False)),
+        )
+
+    def _cleanup_request(self, request_id: str) -> None:
+        """清理权限请求上下文。"""
+        self._permission_requests.pop(request_id, None)
+        self._permission_responses.pop(request_id, None)
+
+    def _sender_is_closed(self) -> bool:
+        """判断底层发送器是否已关闭。"""
+        return bool(getattr(self.sender, "is_closed", False))
 
 
 # =====================================================

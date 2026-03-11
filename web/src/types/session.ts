@@ -22,7 +22,7 @@ export interface SessionOptions {
   maxThinkingTokens?: number;
   cwd?: string;
   includePartialMessages?: boolean;
-  settingSources?: ('user' | 'project')[];
+  settingSources?: ('user' | 'project' | 'local')[];
   skillsEnabled?: boolean;
 }
 

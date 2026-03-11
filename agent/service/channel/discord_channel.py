@@ -26,7 +26,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Set
 
 import discord
-from claude_agent_sdk import PermissionResult, PermissionResultAllow, PermissionResultDeny
+from claude_agent_sdk import PermissionResult, PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
 
 from agent.core.config import settings
 from agent.service.channel.channel import MessageChannel, MessageSender, PermissionStrategy
@@ -78,6 +78,7 @@ class AutoAllowPermissionStrategy(PermissionStrategy):
             agent_id: str,
             tool_name: str,
             input_data: dict[str, Any],
+            context: ToolPermissionContext | None = None,
     ) -> PermissionResult:
         """白名单工具自动允许，其余拒绝"""
         if tool_name in self.allowed_tools:

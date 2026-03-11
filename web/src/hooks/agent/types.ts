@@ -8,7 +8,7 @@
  */
 
 import { Message, ToolCall } from '@/types';
-import { UserQuestionAnswer } from '@/types/ask-user-question';
+import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 
 // ==================== Hook 选项 ====================
 
@@ -36,10 +36,6 @@ export interface UseAgentSessionReturn {
     stopGeneration: () => void;
     deleteRound: (roundId: string) => Promise<void>;
     regenerate: (roundId: string) => Promise<void>;
-    pendingPermission: {
-        request_id: string;
-        tool_name: string;
-        tool_input: Record<string, any>;
-    } | null;
-    sendPermissionResponse: (decision: 'allow' | 'deny', userAnswers?: UserQuestionAnswer[]) => void;
+    pendingPermission: PendingPermission | null;
+    sendPermissionResponse: (payload: PermissionDecisionPayload) => void;
 }

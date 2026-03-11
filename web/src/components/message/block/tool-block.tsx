@@ -10,6 +10,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Check, CheckCircle, ChevronDown, ChevronRight, Clock, Copy, Loader, Terminal, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ToolResultContent, ToolUseContent } from '@/types/message';
+import { PermissionRiskLevel, PermissionUpdate } from '@/types/permission';
 import { CodeBlock } from './code-block';
 import { PermissionDialog } from '@/components/dialog/permission-dialog';
 
@@ -24,8 +25,13 @@ interface ToolExecutionBlockProps {
   permissionRequest?: {
     request_id: string;
     tool_input: Record<string, any>;
-    onAllow: () => void;
-    onDeny: () => void;
+    risk_level?: PermissionRiskLevel;
+    risk_label?: string;
+    summary?: string;
+    suggestions?: PermissionUpdate[];
+    expires_at?: string;
+    onAllow: (updatedPermissions?: PermissionUpdate[]) => void;
+    onDeny: (updatedPermissions?: PermissionUpdate[]) => void;
   };
 }
 
@@ -245,6 +251,14 @@ export function ToolBlock({
         <div className="border-t border-orange-500/20 bg-orange-500/5">
           {/* 参数预览 */}
           <div className="px-3 py-2 max-h-[120px] overflow-y-auto custom-scrollbar border-b border-orange-500/10">
+            {permissionRequest.summary && (
+              <div className="mb-2 text-[11px] text-orange-500 flex items-center gap-2">
+                <span className="font-semibold uppercase tracking-wider">
+                  {permissionRequest.risk_label || '待确认'}
+                </span>
+                <span className="truncate">{permissionRequest.summary}</span>
+              </div>
+            )}
             <pre className="text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-all">
               {JSON.stringify(permissionRequest.tool_input, null, 2)}
             </pre>
@@ -258,13 +272,13 @@ export function ToolBlock({
             </span>
             <div className="flex-1" />
             <button
-              onClick={permissionRequest.onDeny}
+              onClick={() => permissionRequest.onDeny()}
               className="px-3 py-1 rounded text-xs font-medium border border-border/50 hover:bg-muted transition-colors"
             >
               拒绝
             </button>
             <button
-              onClick={permissionRequest.onAllow}
+              onClick={() => permissionRequest.onAllow()}
               className="px-3 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               允许执行
@@ -285,13 +299,18 @@ export function ToolBlock({
           isOpen={showDetailModal}
           toolName={toolUse.name}
           toolInput={toolUse.input}
-          onAllow={() => {
+          riskLevel={permissionRequest.risk_level}
+          riskLabel={permissionRequest.risk_label}
+          summary={permissionRequest.summary}
+          suggestions={permissionRequest.suggestions}
+          expiresAt={permissionRequest.expires_at}
+          onAllow={(updatedPermissions) => {
             setShowDetailModal(false);
-            permissionRequest.onAllow();
+            permissionRequest.onAllow(updatedPermissions);
           }}
-          onDeny={() => {
+          onDeny={(updatedPermissions) => {
             setShowDetailModal(false);
-            permissionRequest.onDeny();
+            permissionRequest.onDeny(updatedPermissions);
           }}
           onClose={() => setShowDetailModal(false)}
         />

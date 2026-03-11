@@ -37,7 +37,10 @@ class AgentOptions(BaseModel):
     max_thinking_tokens: Optional[int] = Field(default=None, description="思考 token 上限")
     mcp_servers: Optional[dict] = Field(default=None, description="MCP 服务器配置")
     skills_enabled: bool = Field(default=False, description="是否启用技能")
-    setting_sources: Optional[list[str]] = Field(default=None, description="技能加载源")
+    setting_sources: Optional[list[Literal["user", "project", "local"]]] = Field(
+        default=None,
+        description="Claude 设置加载源",
+    )
 
     model_config = {"from_attributes": True}
 

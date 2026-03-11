@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Edit2, Terminal, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContentBlock, Message, ResultMessage } from "@/types/message";
-import { UserQuestionAnswer } from "@/types/ask-user-question";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
 
@@ -19,13 +19,9 @@ interface MessageItemProps {
   messages: Message[];
   isLastRound?: boolean;
   isLoading?: boolean;
-  pendingPermission?: {
-    request_id: string;
-    tool_name: string;
-    tool_input: Record<string, any>;
-  } | null;
+  pendingPermission?: PendingPermission | null;
   /** 权限响应回调（也用于 AskUserQuestion） */
-  onPermissionResponse?: (decision: 'allow' | 'deny', userAnswers?: UserQuestionAnswer[]) => void;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => void;
   hiddenToolNames?: string[];
   onDelete?: (roundId: string) => Promise<void>;
   onRegenerate?: (roundId: string) => Promise<void>;

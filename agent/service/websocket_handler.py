@@ -39,6 +39,7 @@ class WebSocketHandler:
         self.websocket: Optional[WebSocket] = None
         self.chat_tasks: Dict[str, asyncio.Task] = {}
         self.sender: Optional[WebSocketSender] = None
+        self.permission_strategy: Optional[InteractivePermissionStrategy] = None
 
         # Handler 实例（连接时初始化）
         self.permission_handler: Optional[PermissionHandler] = None
@@ -52,6 +53,7 @@ class WebSocketHandler:
         sender = WebSocketSender(websocket)
         self.sender = sender
         permission_strategy = InteractivePermissionStrategy(sender)
+        self.permission_strategy = permission_strategy
 
         self.permission_handler = PermissionHandler(sender, permission_strategy)
         self.chat_handler = ChatHandler(sender, permission_strategy)
@@ -111,6 +113,8 @@ class WebSocketHandler:
     async def on_close(self) -> None:
         """清理 WebSocket 连接资源"""
         logger.info("🧹 WebSocket连接清理")
+        if self.permission_strategy:
+            self.permission_strategy.close()
 
         for session_key, task in self.chat_tasks.items():
             if not task.done():
@@ -129,6 +133,8 @@ class WebSocketHandler:
             await asyncio.gather(*self.chat_tasks.values(), return_exceptions=True)
 
         self.chat_tasks.clear()
+        if self.permission_strategy:
+            self.permission_strategy = None
         if self.sender:
             self.sender.unsubscribe_all_workspace()
             self.sender = None

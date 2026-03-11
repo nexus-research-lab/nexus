@@ -21,7 +21,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Union
 
-from claude_agent_sdk import PermissionResult
+from claude_agent_sdk import PermissionResult, ToolPermissionContext
 
 from agent.service.schema.model_message import AError, AEvent, AMessage
 
@@ -104,6 +104,7 @@ class PermissionStrategy(ABC):
         agent_id: str,
         tool_name: str,
         input_data: dict[str, Any],
+        context: ToolPermissionContext | None = None,
     ) -> PermissionResult:
         """请求工具使用权限
 
@@ -111,6 +112,7 @@ class PermissionStrategy(ABC):
             agent_id: 会话 ID
             tool_name: 工具名称
             input_data: 工具输入参数
+            context: SDK 传入的权限上下文
 
         Returns:
             PermissionResult: 允许或拒绝

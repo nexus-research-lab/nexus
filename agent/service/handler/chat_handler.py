@@ -159,7 +159,7 @@ class ChatHandler(BaseHandler):
 
         # 5. 创建权限回调
         async def can_use_tool(name: str, data: dict[str, Any], context: ToolPermissionContext) -> PermissionResult:
-            return await self.permission_strategy.request_permission(session_key, name, data)
+            return await self.permission_strategy.request_permission(session_key, name, data, context)
 
         # 6. 创建 client
         client = await session_manager.create_session(

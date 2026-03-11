@@ -19,7 +19,7 @@ export interface AgentOptions {
     max_thinking_tokens?: number;
     mcp_servers?: Record<string, any>;
     skills_enabled?: boolean;
-    setting_sources?: ('user' | 'project')[];
+    setting_sources?: ('user' | 'project' | 'local')[];
 }
 
 // ==================== Agent 数据结构 ====================

@@ -330,7 +330,7 @@ class AgentManager:
     # =====================================================
 
     # SDK 不支持的配置字段（业务层专用）
-    _NON_SDK_FIELDS = {"skills_enabled", "setting_sources"}
+    _NON_SDK_FIELDS = {"skills_enabled"}
 
     async def build_sdk_options(self, agent_id: str) -> dict:
         """从 Agent 配置 + Workspace 构建 ClaudeAgentOptions 参数
