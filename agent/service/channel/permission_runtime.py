@@ -22,7 +22,8 @@ from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timedelta
 from typing import Any, Iterable, Optional
 
-from claude_agent_sdk import PermissionRuleValue, PermissionUpdate
+from claude_agent_sdk import PermissionUpdate
+from claude_agent_sdk.types import PermissionRuleValue
 
 
 @dataclass
@@ -42,8 +43,8 @@ class PermissionUpdateCodec:
 
     @classmethod
     def serialize_updates(
-        cls,
-        updates: Optional[Iterable[Any]],
+            cls,
+            updates: Optional[Iterable[Any]],
     ) -> list[dict[str, Any]]:
         """将 SDK 返回的权限建议转换为可序列化结构。"""
         serialized: list[dict[str, Any]] = []
@@ -55,8 +56,8 @@ class PermissionUpdateCodec:
 
     @classmethod
     def deserialize_updates(
-        cls,
-        updates: Optional[list[dict[str, Any]]],
+            cls,
+            updates: Optional[list[dict[str, Any]]],
     ) -> list[PermissionUpdate]:
         """将前端回传的权限更新恢复为 SDK 对象。"""
         result: list[PermissionUpdate] = []
@@ -171,9 +172,9 @@ class PermissionRequestPresenter:
 
     @classmethod
     def build_payload(
-        cls,
-        request: PendingPermissionRequest,
-        suggestion_updates: list[dict[str, Any]],
+            cls,
+            request: PendingPermissionRequest,
+            suggestion_updates: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """构建前端展示所需的权限请求载荷。"""
         risk_level, risk_label = cls._resolve_risk(request.tool_name)
