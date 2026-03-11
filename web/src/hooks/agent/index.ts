@@ -19,11 +19,10 @@ import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
 import {
   createClearSession,
   createLoadHistoryMessages,
-  createLoadSession,
+  markInterruptedToolCalls,
   createResetSession,
-  createStartSession,
 } from './session-operations';
-import { deleteRound as deleteRoundApi } from '@/lib/agent-api';
+import { deleteRound as deleteRoundApi, getSessionMessages } from '@/lib/agent-api';
 import {
   reduceIncomingMessage,
   extractToolCallsFromMessage,
@@ -78,13 +77,36 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
 
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null);
+  const activeSessionKeyRef = useRef<string | null>(null);
+  const loadRequestIdRef = useRef(0);
+
+  const resetSessionView = useCallback((nextError: string | null = null) => {
+    setMessages([]);
+    setToolCalls([]);
+    setPendingPermission(null);
+    setIsLoading(false);
+    setError(nextError);
+  }, []);
+
+  const isCurrentSessionEvent = useCallback((incomingSessionKey?: string | null) => {
+    if (!incomingSessionKey) {
+      return false;
+    }
+    const activeSessionKey = activeSessionKeyRef.current;
+    return !!activeSessionKey && incomingSessionKey === activeSessionKey;
+  }, []);
 
   /**
    * 处理WebSocket消息
    */
   const handleWebSocketMessage = useCallback((backendMsg: any) => {
+    const incomingSessionKey = backendMsg.agent_id || backendMsg.session_key || null;
+
     // 处理错误
     if (backendMsg.error_type) {
+      if (incomingSessionKey && !isCurrentSessionEvent(incomingSessionKey)) {
+        return;
+      }
       console.error('[useAgentSession] Error:', backendMsg);
       setError(backendMsg.message || 'Unknown error');
       setIsLoading(false);
@@ -95,6 +117,9 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     if (backendMsg.event_type) {
       // 处理权限请求事件
       if (backendMsg.event_type === 'permission_request') {
+        if (!isCurrentSessionEvent(incomingSessionKey)) {
+          return;
+        }
         const data = backendMsg.data || {};
         console.debug('[useAgentSession] Permission request:', data);
         setPendingPermission({
@@ -112,8 +137,8 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
 
       if (backendMsg.event_type === 'conversation_event') {
         const payload = backendMsg.data as ConversationEventPayload;
-        const messageSessionKey = backendMsg.agent_id || sessionKey;
-        if (!payload || !messageSessionKey) {
+        const messageSessionKey = incomingSessionKey;
+        if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
           return;
         }
 
@@ -148,7 +173,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
         return;
       }
     }
-  }, [applyWorkspaceEvent, sessionKey]);
+  }, [applyWorkspaceEvent, isCurrentSessionEvent]);
 
   // WebSocket
   const { state: wsState, send: wsSend } = useWebSocket({
@@ -210,6 +235,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     try {
       // 创建用户消息
       const message_id = crypto.randomUUID();
+      activeSessionKeyRef.current = sessionKey;
       const userMessage: Message = {
         message_id: message_id,
         round_id: message_id,
@@ -291,6 +317,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
 
     setIsLoading(false);
     setToolCalls([]);
+    setPendingPermission(null);
 
   }, [sessionKey, messages, wsSend, wsState]);
   /**
@@ -298,6 +325,10 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
    */
   const sendPermissionResponse = useCallback((payload: PermissionDecisionPayload) => {
     if (!pendingPermission) return;
+    if (!sessionKey || activeSessionKeyRef.current !== sessionKey) {
+      setPendingPermission(null);
+      return;
+    }
     if (wsState !== 'connected') {
       setError('WebSocket未连接，无法提交权限决策');
       return;
@@ -384,25 +415,56 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   }, [sessionKey, messages, wsSend]);
 
   // 创建操作函数
+  const startSession = useCallback(() => {
+    const newSessionKey = crypto.randomUUID();
+    loadRequestIdRef.current += 1;
+    activeSessionKeyRef.current = newSessionKey;
+    setSessionKey(newSessionKey);
+    resetSessionView();
+  }, [resetSessionView]);
+
+  const loadSession = useCallback(async (id: string): Promise<void> => {
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
+    activeSessionKeyRef.current = id;
+    setSessionKey(id);
+    resetSessionView();
+
+    try {
+      const data = await getSessionMessages(id);
+      if (loadRequestIdRef.current !== requestId || activeSessionKeyRef.current !== id) {
+        return;
+      }
+
+      if (Array.isArray(data)) {
+        const finalMessages = markInterruptedToolCalls(data);
+        setMessages(finalMessages);
+      }
+    } catch (err) {
+      if (loadRequestIdRef.current !== requestId || activeSessionKeyRef.current !== id) {
+        return;
+      }
+      console.error('[loadSession] 加载session失败:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load session');
+    }
+  }, [resetSessionView]);
+
   const loadHistoryMessages = useCallback(
     createLoadHistoryMessages(setMessages, updateSession),
     [updateSession]
   );
 
-  const startSession = useCallback(
-    createStartSession(setSessionKey, setMessages, setToolCalls, setError, setIsLoading),
-    []
-  );
-
-  const loadSession = useCallback(
-    createLoadSession(setSessionKey, setMessages, setError),
-    []
-  );
-
-  const clearSession = useCallback(
+  const clearSessionBase = useCallback(
     createClearSession(setMessages, setToolCalls, setError, setIsLoading, setSessionKey, abortControllerRef),
     []
   );
+
+  const clearSession = useCallback(() => {
+    loadRequestIdRef.current += 1;
+    activeSessionKeyRef.current = null;
+    setPendingPermission(null);
+    clearSessionBase();
+  }, [clearSessionBase]);
 
   const resetSession = useCallback(
     createResetSession(startSession),

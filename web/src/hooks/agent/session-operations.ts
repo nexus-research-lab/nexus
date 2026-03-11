@@ -35,7 +35,7 @@ export function createStartSession(
  * 当页面刷新时，如果有工具调用没有对应的结果，将其标记为中断状态
  * 同时添加虚拟的 ResultMessage 以便 UI 正确显示完成状态
  */
-function markInterruptedToolCalls(messages: Message[]): Message[] {
+export function markInterruptedToolCalls(messages: Message[]): Message[] {
   // 收集所有 tool_use id 和 tool_result 的 tool_use_id
   const toolUseIds = new Set<string>();
   const toolResultIds = new Set<string>();
