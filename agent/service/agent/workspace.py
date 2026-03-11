@@ -28,8 +28,15 @@ from agent.utils.logger import logger
 
 
 # =====================================================
-# Workspace 文件定义（精简版）
+# Workspace 文件定义
 # =====================================================
+
+DEFAULT_DIR = {
+    "agent": ".agent",
+    "config": ".claude",
+    "memory": "memory"
+
+}
 
 WORKSPACE_FILES = {
     "agents": "AGENTS.md",   # Agent 核心规则（身份+风格+边界+安全）
@@ -142,7 +149,9 @@ class AgentWorkspace:
     def ensure_exists(self) -> None:
         """确保 Workspace 目录和子目录存在"""
         self.path.mkdir(parents=True, exist_ok=True)
-        (self.path / "memory").mkdir(exist_ok=True)
+        for name, subdir in DEFAULT_DIR.items():
+            (self.path / subdir).mkdir(exist_ok=True)
+            logger.info(f"📁 初始化 Workspace 子目录: {subdir}")
         logger.info(f"📁 Workspace 就绪: {self.path}")
 
     def ensure_initialized(self, agent_name: str = "Agent") -> None:
