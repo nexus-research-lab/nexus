@@ -148,14 +148,31 @@ class AgentWorkspace:
     def __init__(self, agent_id: str, workspace_path: Path):
         self.agent_id = agent_id
         self.path = workspace_path
+        self._exists_ensured = False
 
     def ensure_exists(self) -> None:
         """确保 Workspace 目录和子目录存在"""
+        if self._exists_ensured and self.path.exists():
+            return
+
+        root_created = not self.path.exists()
         self.path.mkdir(parents=True, exist_ok=True)
-        for name, subdir in DEFAULT_DIR.items():
-            (self.path / subdir).mkdir(exist_ok=True)
+
+        created_subdirs: list[str] = []
+        for subdir in DEFAULT_DIR.values():
+            target_dir = self.path / subdir
+            if target_dir.exists():
+                continue
+            target_dir.mkdir(exist_ok=True)
+            created_subdirs.append(subdir)
+
+        for subdir in created_subdirs:
             logger.info(f"📁 初始化 Workspace 子目录: {subdir}")
-        logger.info(f"📁 Workspace 就绪: {self.path}")
+
+        if root_created or created_subdirs:
+            logger.info(f"📁 Workspace 就绪: {self.path}")
+
+        self._exists_ensured = True
 
     def ensure_initialized(self, agent_name: str = "Agent") -> None:
         """确保 workspace 已初始化并写入默认模板（仅首次创建）。"""
