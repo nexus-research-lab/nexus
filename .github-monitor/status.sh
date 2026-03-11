@@ -1,8 +1,8 @@
 #!/bin/bash
-# Check GitHub Monitor Status (OpenClaw Cron Mode)
+# GitHub Monitor Status
 
-echo "GitHub Monitor Status (OpenClaw Cron)"
-echo "========================================"
+echo "GitHub Monitor Status"
+echo "===================="
 echo ""
 
 # Check OpenClaw cron status
@@ -20,12 +20,18 @@ else
 fi
 
 echo ""
-echo "📋 Schedule: Every 15 minutes (via OpenClaw cron)"
+echo "📋 Configuration:"
+echo "  - Repo: nexus-research-lab/nexus-core"
+echo "  - Schedule: Every 15 minutes"
+echo "  - Method: OpenClaw Cron"
+echo ""
 echo "📁 Logs:"
-echo "  - Monitor:  /Users/aibox/.openclaw/workspace/PROJECTS/nexus-core/.github-monitor/monitor.log"
+echo "  - Monitor: /Users/aibox/.openclaw/workspace/PROJECTS/nexus-core/.github-monitor/monitor.log"
 echo ""
 echo "💡 Management:"
 echo "  - Status:    bash $0"
 echo "  - Run now:   openclaw cron run a368c987-4aa8-4a28-a818-9ca8d5b334f8"
 echo "  - View logs: tail -f /Users/aibox/.openclaw/workspace/PROJECTS/nexus-core/.github-monitor/monitor.log"
 echo "  - List jobs: openclaw cron list"
+echo "  - Disable:   openclaw cron disable a368c987-4aa8-4a28-a818-9ca8d5b334f8"
+echo "  - Enable:    openclaw cron enable a368c987-4aa8-4a28-a818-9ca8d5b334f8"
