@@ -42,4 +42,4 @@ PRs should include:
 - migration/environment notes when applicable.
 
 ## Security & Configuration Tips
-Copy env templates (`example.env`, `web/example.env`) and keep secrets local. Never commit API keys, local `.env` files, or debug logs containing sensitive data.
+Copy env templates (`env.example`, `web/env.example`) and keep secrets local. Never commit API keys, local `.env` files, or debug logs containing sensitive data.

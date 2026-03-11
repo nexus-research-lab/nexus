@@ -11,6 +11,9 @@
 - 进一步调整 workspace 文件编辑布局：将 editor 从 workspace 侧栏中拆成独立中间面板，避免展开时推挤顶部工具条和侧栏。
 - 修复 Agent Space 左右侧栏宽度不一致的问题，统一 `Workspace` 与 `Agent State` 的固定宽度。
 - 修复文件编辑器关闭后仍保留中间 gap 的问题，恢复 `Workspace`、`Session`、`Agent State` 三栏等距。
+- 修复环境模板命名漂移：根目录统一改为 `env.example`，协作规则同步更新为 `env.example` / `web/env.example`。
+- 修复 Next.js 构建时的 workspace root 推断警告，显式设置 `turbopack.root` 为前端工程目录。
+- 修复前端 store 在静态构建阶段直接访问 `localStorage` 的问题，改为构建期安全的 browser storage 包装器。
 
 ### Added
 - 新增自定义对话框组件 (ConfirmDialog, PromptDialog)，替代 window.confirm/prompt。
@@ -54,6 +57,7 @@
 - WebSocket 权限策略补齐关闭与超时兜底：连接关闭后会立即唤醒挂起中的权限请求并拒绝，避免继续向已关闭连接发送审批事件。
 - Agent 配置中的 `setting_sources` 重新透传到 SDK，不再被误过滤；前端也新增 `local` 来源，并将其文案收口为同时作用于技能和权限设置加载。
 - Agent 配置页补充 `bypassPermissions` 风险提示，明确 `allowed_tools` 不会约束全放行模式，避免误配造成错误安全感。
+- 前端新增 `browser-storage` 辅助，统一处理 Zustand persist 在浏览器与构建环境下的存储回退。
 
 ## 2026-03-09
 

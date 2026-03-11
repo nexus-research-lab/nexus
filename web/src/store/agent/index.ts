@@ -10,8 +10,9 @@
  */
 
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { Agent, CreateAgentParams, UpdateAgentParams } from '@/types/agent';
+import { createBrowserJSONStorage } from '@/lib/browser-storage';
 import {
     getAgents,
     createAgentApi,
@@ -137,7 +138,7 @@ export const useAgentStore = create<AgentStoreState>()(
         }),
         {
             name: 'agent-ui-agents',
-            storage: createJSONStorage(() => localStorage),
+            storage: createBrowserJSONStorage(),
             partialize: (state) => ({
                 agents: state.agents,
                 current_agent_id: state.current_agent_id,

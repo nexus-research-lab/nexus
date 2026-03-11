@@ -8,7 +8,8 @@
  */
 
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { createBrowserJSONStorage } from '@/lib/browser-storage';
 import { SessionStoreState } from './types';
 import * as actions from './actions';
 
@@ -33,7 +34,7 @@ export const useSessionStore = create<SessionStoreState>()(
     }),
     {
       name: 'agent-ui-sessions',
-      storage: createJSONStorage(() => localStorage),
+      storage: createBrowserJSONStorage(),
       partialize: (state) => ({
         sessions: state.sessions,
         current_session_key: state.current_session_key,

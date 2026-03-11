@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactStrictMode: false,
-  // allowedDevOrigins: ['*'],
-  output: "standalone"
+  output: "standalone",
+  turbopack: {
+    root: process.cwd(),
+  },
 };
 
 export default nextConfig;
