@@ -26,7 +26,7 @@ from claude_agent_sdk.types import ResultMessage
 
 from agent.service.handler.base_handler import BaseHandler
 from agent.service.schema.model_message import AMessage
-from agent.service.session_manager import session_manager
+from agent.infra.runtime.session_manager import session_manager
 from agent.service.session_store import session_store
 from agent.utils.logger import logger
 

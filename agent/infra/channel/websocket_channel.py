@@ -31,18 +31,18 @@ from claude_agent_sdk import (
 from fastapi import WebSocket
 
 from agent.config.config import settings
-from agent.service.channel.channel import MessageChannel, MessageSender, PermissionStrategy
-from agent.service.channel.permission_runtime import (
+from agent.infra.runtime.permission_runtime import (
     PendingPermissionRequest,
     PermissionRequestPresenter,
     PermissionUpdateCodec,
 )
+from agent.infra.runtime.workspace_event_bus import workspace_event_bus
+from agent.infra.runtime.workspace_observer import workspace_observer
+from agent.infra.channel.channel import MessageChannel, MessageSender, PermissionStrategy
 from agent.service.process.protocol_adapter import ProtocolAdapter
 from agent.service.schema.model_message import AError, AEvent, AMessage
 from agent.service.schema.model_workspace_event import WorkspaceEvent
-from agent.service.workspace_observer import workspace_observer
-from agent.service.session_manager import session_manager
-from agent.service.workspace_event_bus import workspace_event_bus
+from agent.infra.runtime.session_manager import session_manager
 from agent.utils.logger import logger
 
 

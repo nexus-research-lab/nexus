@@ -16,7 +16,7 @@ from claude_agent_sdk.types import TextBlock, ToolResultBlock, ToolUseBlock
 
 from agent.service.process.sdk_message_processor import sdk_message_processor
 from agent.service.schema.model_message import AMessage
-from agent.service.session_manager import session_manager
+from agent.infra.runtime.session_manager import session_manager
 from agent.service.session_store import session_store
 from agent.utils.logger import logger
 

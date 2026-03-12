@@ -11,7 +11,7 @@
 from abc import ABC
 from typing import Any, Dict, Optional, Union
 
-from agent.service.channel.channel import MessageSender
+from agent.infra.channel.channel import MessageSender
 from agent.service.schema.model_message import AError, AEvent, AMessage
 
 

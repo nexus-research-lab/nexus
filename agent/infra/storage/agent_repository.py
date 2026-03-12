@@ -21,8 +21,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Optional
 
+from agent.infra.storage.file_store import FileStorageBootstrap, FileStoragePaths, JsonFileStore
 from agent.service.schema.model_agent import AAgent, AgentOptions
-from agent.service.storage.file_store import FileStorageBootstrap, FileStoragePaths, JsonFileStore
 from agent.utils.logger import logger
 
 

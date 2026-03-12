@@ -2,16 +2,17 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：permission_runtime.py
-# @Date   ：2026/3/11 15:43
+# @Date   ：2026/3/12 20:06
 # @Author ：leemysw
-# 2026/3/11 15:43   Create
+# 2026/3/12 20:06   Create
 # =====================================================
 
-"""权限运行时辅助对象。
+"""
+权限运行时辅助对象。
 
 [INPUT]: 依赖 claude_agent_sdk 的 PermissionUpdate/PermissionRuleValue
 [OUTPUT]: 对外提供权限请求状态、建议序列化与风险摘要能力
-[POS]: channel 模块的权限辅助层，被 WebSocket 权限策略消费
+[POS]: infra 层的权限运行时组件，被 WebSocket 权限策略消费
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 """
 
@@ -43,8 +44,8 @@ class PermissionUpdateCodec:
 
     @classmethod
     def serialize_updates(
-            cls,
-            updates: Optional[Iterable[Any]],
+        cls,
+        updates: Optional[Iterable[Any]],
     ) -> list[dict[str, Any]]:
         """将 SDK 返回的权限建议转换为可序列化结构。"""
         serialized: list[dict[str, Any]] = []
@@ -56,8 +57,8 @@ class PermissionUpdateCodec:
 
     @classmethod
     def deserialize_updates(
-            cls,
-            updates: Optional[list[dict[str, Any]]],
+        cls,
+        updates: Optional[list[dict[str, Any]]],
     ) -> list[PermissionUpdate]:
         """将前端回传的权限更新恢复为 SDK 对象。"""
         result: list[PermissionUpdate] = []
@@ -172,9 +173,9 @@ class PermissionRequestPresenter:
 
     @classmethod
     def build_payload(
-            cls,
-            request: PendingPermissionRequest,
-            suggestion_updates: list[dict[str, Any]],
+        cls,
+        request: PendingPermissionRequest,
+        suggestion_updates: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """构建前端展示所需的权限请求载荷。"""
         risk_level, risk_label = cls._resolve_risk(request.tool_name)

@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from agent.service.handler.base_handler import BaseHandler
 from agent.service.schema.model_message import AEvent, AStatus
-from agent.service.session_manager import session_manager
+from agent.infra.runtime.session_manager import session_manager
 from agent.utils.logger import logger
 
 
