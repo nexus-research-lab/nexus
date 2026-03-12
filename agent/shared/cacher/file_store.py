@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Optional
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils.logger import logger
 from agent.utils.snowflake import worker
 from agent.utils.utils import cache_path

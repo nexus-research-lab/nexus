@@ -14,7 +14,7 @@ from logging import handlers
 
 from gunicorn.glogging import Logger
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils.logger.logger import cleanup_container_folders, remove_ansi_escape
 from agent.utils.utils import abspath, get_host_ip
 

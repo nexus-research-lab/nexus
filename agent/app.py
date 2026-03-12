@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from agent.api.router import api_router
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.service.channel.channel_manager import ChannelManager
 from agent.shared.server.register import register_exception, register_hook, register_middleware
 from agent.utils.logger import logger

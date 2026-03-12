@@ -18,7 +18,7 @@ from claude_agent_sdk.types import Message  # noqa
 from claude_agent_sdk.types import TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock  # noqa
 from pydantic import BaseModel, Field
 
-from agent.core.config import settings
+from agent.config.config import settings
 
 
 class AMessage(BaseModel):

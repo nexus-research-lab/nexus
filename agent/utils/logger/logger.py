@@ -17,7 +17,7 @@ from logging import handlers
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from typing import Optional
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils.utils import abspath, ROOT_PATH
 
 

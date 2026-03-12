@@ -15,7 +15,7 @@ from typing import Optional, Union
 import redis
 from redis.cluster import RedisCluster as RedisCluster
 
-from agent.core.config import settings
+from agent.config.config import settings
 
 
 class RedisCache:

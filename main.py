@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 import uvicorn
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils import utils
 from agent.utils.logger import logger
 

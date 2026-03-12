@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Set
 import discord
 from claude_agent_sdk import PermissionResult, PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.service.channel.channel import MessageChannel, MessageSender, PermissionStrategy
 from agent.service.schema.model_message import AError, AEvent, AMessage
 from agent.service.session.session_router import build_session_key

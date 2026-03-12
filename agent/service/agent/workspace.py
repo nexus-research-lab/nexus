@@ -116,7 +116,7 @@ WORKSPACE_TEMPLATES = {
 
 def _load_base_system_prompt() -> Optional[str]:
     """加载独立于 workspace 的基础 system prompt。"""
-    from agent.core.config import settings
+    from agent.config.config import settings
 
     # 先允许通过环境变量直接注入，适合部署侧做强约束。
     if settings.BASE_SYSTEM_PROMPT:
@@ -531,7 +531,7 @@ class AgentWorkspace:
 
 def get_workspace_base_path() -> Path:
     """获取 workspace 基础路径"""
-    from agent.core.config import settings
+    from agent.config.config import settings
     workspace_path = getattr(settings, "WORKSPACE_PATH", None)
     if not workspace_path:
         workspace_path = os.path.join(Path.home(), ".nexus-core", "workspace")

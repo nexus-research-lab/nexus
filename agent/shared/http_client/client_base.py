@@ -17,7 +17,7 @@ import certifi
 import requests
 from aiohttp import ClientTimeout
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.shared.server.common.base_exception import ServerException
 from agent.utils.logger import logger
 

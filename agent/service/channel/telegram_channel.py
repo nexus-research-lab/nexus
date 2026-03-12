@@ -27,7 +27,7 @@ from typing import List, Optional, Set
 from telegram import Update
 from telegram.ext import Application, ContextTypes, filters, MessageHandler
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.service.channel.channel import MessageChannel, MessageSender
 from agent.service.channel.discord_channel import AutoAllowPermissionStrategy
 from agent.service.schema.model_message import AError, AEvent, AMessage

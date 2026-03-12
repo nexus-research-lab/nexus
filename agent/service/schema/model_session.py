@@ -23,7 +23,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from agent.core.config import settings
+from agent.config.config import settings
 
 
 class ASession(BaseModel):

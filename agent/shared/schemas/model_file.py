@@ -12,7 +12,7 @@ from typing import Literal, Union
 
 from pydantic import ConfigDict, Field, model_validator
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.shared.schemas.model_cython import AModel
 from agent.shared.server.common.base_exception import ServerException
 

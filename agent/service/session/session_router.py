@@ -19,7 +19,7 @@
 
 from typing import Optional
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils.logger import logger
 
 # =====================================================

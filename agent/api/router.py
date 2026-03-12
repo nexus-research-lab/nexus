@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from agent.api.agent.api_agent import router as agent_router
 from agent.api.chat_ws.websocket_server import router as websocket_router
 from agent.api.session.api_session import router as session_router
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.shared.server.common.base_depends import extract_request_id
 
 api_router = APIRouter(dependencies=[Depends(extract_request_id)], prefix=settings.API_PREFIX)

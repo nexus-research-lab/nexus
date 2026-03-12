@@ -30,7 +30,7 @@ from claude_agent_sdk import (
 )
 from fastapi import WebSocket
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.service.channel.channel import MessageChannel, MessageSender, PermissionStrategy
 from agent.service.channel.permission_runtime import (
     PendingPermissionRequest,

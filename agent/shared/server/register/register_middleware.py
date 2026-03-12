@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from agent.shared.server.common.base_exception import Unauthorized
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils.logger import logger
 
 

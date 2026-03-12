@@ -12,7 +12,7 @@ import json
 
 from fastapi import Request
 
-from agent.core.config import settings
+from agent.config.config import settings
 from agent.utils.snowflake import worker
 
 
