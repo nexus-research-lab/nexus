@@ -25,10 +25,10 @@ from typing import Any, Dict, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from agent.service.channel.websocket_channel import InteractivePermissionStrategy, WebSocketSender
+from agent.infra.channel.websocket_channel import InteractivePermissionStrategy, WebSocketSender
+from agent.infra.runtime.session_manager import session_manager
 from agent.service.handler import ChatHandler, ErrorHandler, InterruptHandler, PermissionHandler, PingHandler
 from agent.service.session.session_router import build_session_key
-from agent.service.session_manager import session_manager
 from agent.utils.logger import logger
 
 

@@ -25,11 +25,11 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from agent.service.db.agent_repository import agent_repository
-from agent.service.db.session_repository import session_repository
+from agent.infra.storage.agent_repository import agent_repository
+from agent.infra.storage.file_store import FileStoragePaths, JsonFileStore
+from agent.infra.storage.session_repository import session_repository
 from agent.service.schema.model_cost import AgentCostSummary, CostLedgerEntry, SessionCostSummary
 from agent.service.schema.model_message import AMessage
-from agent.service.storage.file_store import FileStoragePaths, JsonFileStore
 from agent.utils.logger import logger
 
 

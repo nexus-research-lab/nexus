@@ -2,50 +2,43 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：workspace.py
-# @Date   ：2026/2/25 23:15
+# @Date   ：2026/3/12 20:06
 # @Author ：leemysw
-#
-# 2026/2/25 23:15   Create
-# 2026/3/4  15:09   重构：从全局单例改为 Agent 级别实例
+# 2026/3/12 20:06   Create
 # =====================================================
 
 """
-Agent Workspace 管理器
+Agent Workspace 运行时基础设施。
 
-[INPUT]: 依赖 agent.core.config 的 settings.WORKSPACE_PATH
-[OUTPUT]: 对外提供 AgentWorkspace 类（读写 Workspace .md 文件，构建 system prompt 和 SDK options）
-[POS]: agent 模块的工作区管理层，被 AgentManager 消费
+[INPUT]: 依赖配置项 settings.WORKSPACE_PATH、workspace 事件协议
+[OUTPUT]: 对外提供 AgentWorkspace 与 workspace 根路径解析能力
+[POS]: infra 层的 workspace 文件系统封装，被 agent_manager、storage、websocket runtime 复用
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 """
 
 import os
 import shutil
-from difflib import SequenceMatcher
 from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Optional
 
-from agent.utils.logger import logger
+from agent.infra.runtime.workspace_event_bus import workspace_event_bus
 from agent.service.schema.model_workspace_event import WorkspaceDiffStats, WorkspaceEvent
-from agent.service.workspace_event_bus import workspace_event_bus
+from agent.utils.logger import logger
 
-
-# =====================================================
-# Workspace 文件定义
-# =====================================================
 
 DEFAULT_DIR = {
     "agent": ".agent",
     "config": ".claude",
-    "memory": "memory"
-
+    "memory": "memory",
 }
 
 WORKSPACE_FILES = {
-    "agents": "AGENTS.md",   # Agent 核心规则（身份+风格+边界+安全）
-    "user": "USER.md",       # 用户偏好与协作约定
-    "memory": "MEMORY.md",   # 长期记忆与决策沉淀
-    "runbook": "RUNBOOK.md", # 工作流、常用命令、周期任务
+    "agents": "AGENTS.md",
+    "user": "USER.md",
+    "memory": "MEMORY.md",
+    "runbook": "RUNBOOK.md",
 }
 
 
@@ -62,10 +55,10 @@ WORKSPACE_TEMPLATES = {
 - 对外自称 “Nexus”。
 - 当用户询问你的身份、来源或开发者时，明确说明你由 Nexus Research Lab 创造。
 
-默认语言：中文  
-工作方式：先明确目标，再执行，再回传结果  
-风险原则：删除/覆盖/外部写入前必须确认  
-事实原则：不编造，结论有依据，不确定就说明边界  
+默认语言：中文
+工作方式：先明确目标，再执行，再回传结果
+风险原则：删除/覆盖/外部写入前必须确认
+事实原则：不编造，结论有依据，不确定就说明边界
 
 执行约定：
 - 回复优先给可执行结果，再补充必要说明。
@@ -118,18 +111,15 @@ def _load_base_system_prompt() -> Optional[str]:
     """加载独立于 workspace 的基础 system prompt。"""
     from agent.config.config import settings
 
-    # 先允许通过环境变量直接注入，适合部署侧做强约束。
     if settings.BASE_SYSTEM_PROMPT:
         return settings.BASE_SYSTEM_PROMPT.strip() or None
 
-    # 其次允许通过显式文件路径加载。
     if settings.BASE_SYSTEM_PROMPT_FILE:
         prompt_path = Path(settings.BASE_SYSTEM_PROMPT_FILE).expanduser()
         if prompt_path.exists() and prompt_path.is_file():
             content = prompt_path.read_text(encoding="utf-8").strip()
             return content or None
 
-    # 最后回退到项目根目录固定文件，避免身份定义散落到 workspace。
     default_prompt_path = Path(os.getcwd()) / "SYSTEM_PROMPT.md"
     if default_prompt_path.exists() and default_prompt_path.is_file():
         content = default_prompt_path.read_text(encoding="utf-8").strip()
@@ -139,11 +129,7 @@ def _load_base_system_prompt() -> Optional[str]:
 
 
 class AgentWorkspace:
-    """Agent 的专属工作区
-
-    每个 Agent 拥有独立的 workspace 目录，包含 prompt 文件和记忆。
-    Agent 的所有 session 共享同一个 workspace。
-    """
+    """Agent 的专属工作区。"""
 
     def __init__(self, agent_id: str, workspace_path: Path):
         self.agent_id = agent_id
@@ -152,7 +138,7 @@ class AgentWorkspace:
         self._initialized = False
 
     def ensure_exists(self) -> None:
-        """确保 Workspace 目录和子目录存在"""
+        """确保 workspace 目录和子目录存在。"""
         if self._exists_ensured and self.path.exists():
             return
 
@@ -176,7 +162,7 @@ class AgentWorkspace:
         self._exists_ensured = True
 
     def ensure_initialized(self, agent_name: str = "Agent") -> None:
-        """确保 workspace 已初始化并写入默认模板（仅首次创建）。"""
+        """确保 workspace 已初始化并写入默认模板。"""
         if self._initialized and self.path.exists():
             return
 
@@ -219,12 +205,8 @@ class AgentWorkspace:
         """解析逻辑名称到文件名。"""
         return WORKSPACE_FILES.get(name)
 
-    # =====================================================
-    # 读写
-    # =====================================================
-
     def read_file(self, name: str) -> Optional[str]:
-        """读取 Workspace 文件内容"""
+        """读取 workspace 文件内容。"""
         filename = self._resolve_filename(name)
         if not filename:
             return None
@@ -234,7 +216,7 @@ class AgentWorkspace:
         return filepath.read_text(encoding="utf-8").strip()
 
     def write_file(self, name: str, content: str) -> bool:
-        """写入 Workspace 文件"""
+        """写入 workspace 文件。"""
         filename = self._resolve_filename(name)
         if not filename:
             logger.warning(f"⚠️ 未知的 Workspace 文件: {name}")
@@ -299,7 +281,12 @@ class AgentWorkspace:
             raise FileNotFoundError(f"文件不存在: {relative_path}")
         return target_path.read_text(encoding="utf-8")
 
-    def write_relative_file(self, relative_path: str, content: str, source: str = "unknown") -> str:
+    def write_relative_file(
+        self,
+        relative_path: str,
+        content: str,
+        source: str = "unknown",
+    ) -> str:
         """写入 workspace 内的文本文件。"""
         target_path = self._resolve_relative_path(relative_path)
         relative_path_str = target_path.relative_to(self.path.resolve()).as_posix()
@@ -413,20 +400,7 @@ class AgentWorkspace:
         entry_type: str,
         content: str = "",
     ) -> str:
-        """创建 workspace 内的文件或目录。
-
-        Args:
-            relative_path: 相对 workspace 的目标路径。
-            entry_type: 条目类型，仅支持 ``file`` 或 ``directory``。
-            content: 创建文件时的初始内容。
-
-        Returns:
-            str: 创建后的相对路径。
-
-        Raises:
-            ValueError: 路径非法或类型不支持。
-            FileExistsError: 目标已存在。
-        """
+        """创建 workspace 内的文件或目录。"""
         target_path = self._resolve_relative_path(relative_path)
         if target_path.exists():
             raise FileExistsError(f"目标已存在: {relative_path}")
@@ -476,25 +450,14 @@ class AgentWorkspace:
             target_path.relative_to(self.path.resolve()).as_posix(),
         )
 
-    # =====================================================
-    # System Prompt 构建
-    # =====================================================
-
     def build_system_prompt(self) -> Optional[str]:
-        """从 Workspace 文件构建 system prompt
-
-        读取顺序（精简）:
-        BASE_SYSTEM_PROMPT → AGENTS.md → USER.md → MEMORY.md → RUNBOOK.md
-
-        跳过不存在的文件；每次调用重新读取，修改后立即生效。
-        """
+        """从 workspace 文件构建 system prompt。"""
         sections = []
         base_prompt = _load_base_system_prompt()
         if base_prompt:
             sections.append(base_prompt)
 
-        read_order = ["agents", "user", "memory", "runbook"]
-        for name in read_order:
+        for name in ["agents", "user", "memory", "runbook"]:
             content = self.read_file(name)
             if content:
                 sections.append(content)
@@ -505,19 +468,15 @@ class AgentWorkspace:
         return "\n\n---\n\n".join(sections)
 
     def build_sdk_options(self) -> dict:
-        """构建 ClaudeAgentOptions 的 workspace 相关配置"""
+        """构建 ClaudeAgentOptions 的 workspace 相关配置。"""
         options = {"cwd": str(self.path)}
         prompt = self.build_system_prompt()
         if prompt:
             options["system_prompt"] = prompt
         return options
 
-    # =====================================================
-    # 记忆存储
-    # =====================================================
-
     def save_memory(self, filename: str, content: str) -> None:
-        """保存会话摘要到 memory/ 目录"""
+        """保存会话摘要到 memory/ 目录。"""
         memory_dir = self.path / "memory"
         memory_dir.mkdir(exist_ok=True)
         filepath = memory_dir / filename
@@ -525,13 +484,10 @@ class AgentWorkspace:
         logger.info(f"💾 保存记忆: {filepath}")
 
 
-# =====================================================
-# Workspace 基础路径
-# =====================================================
-
 def get_workspace_base_path() -> Path:
-    """获取 workspace 基础路径"""
+    """获取 workspace 基础路径。"""
     from agent.config.config import settings
+
     workspace_path = getattr(settings, "WORKSPACE_PATH", None)
     if not workspace_path:
         workspace_path = os.path.join(Path.home(), ".nexus-core", "workspace")

@@ -21,8 +21,8 @@
 
 from typing import Any, Dict
 
-from agent.service.channel.channel import MessageSender, PermissionStrategy
-from agent.service.channel.websocket_channel import InteractivePermissionStrategy
+from agent.infra.channel.channel import MessageSender, PermissionStrategy
+from agent.infra.channel.websocket_channel import InteractivePermissionStrategy
 from agent.service.handler.base_handler import BaseHandler
 from agent.utils.logger import logger
 

@@ -2,16 +2,17 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：workspace_event_bus.py
-# @Date   ：2026/3/10
-# @Author ：Codex
+# @Date   ：2026/3/12 20:06
+# @Author ：leemysw
+# 2026/3/12 20:06   Create
 # =====================================================
 
 """
-Workspace 事件总线
+Workspace 事件总线。
 
 [INPUT]: 依赖 WorkspaceEvent
-[OUTPUT]: 对外提供 workspace_event_bus 单例
-[POS]: service 层广播 workspace 文件实时事件，向 WebSocket 连接分发
+[OUTPUT]: 对外提供按 agent 维度的事件广播能力
+[POS]: infra 层的 workspace 事件分发基础设施，被 workspace/websocket runtime 复用
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 """
 
@@ -92,6 +93,7 @@ class WorkspaceEventBus:
                 break
 
     async def _dispatch(self, event: WorkspaceEvent) -> None:
+        """将事件分发给当前 agent 的订阅者。"""
         listeners = list(self._listeners.get(event.agent_id, {}).values())
         if not listeners:
             return

@@ -25,10 +25,10 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from agent.service.db.agent_repository import agent_repository
+from agent.infra.storage.agent_repository import agent_repository
+from agent.infra.storage.file_store import FileStorageBootstrap, FileStoragePaths, JsonFileStore
 from agent.service.schema.model_message import AMessage
 from agent.service.schema.model_session import ASession
-from agent.service.storage.file_store import FileStorageBootstrap, FileStoragePaths, JsonFileStore
 from agent.utils.logger import logger
 
 
@@ -249,10 +249,10 @@ class SessionRepository:
         JsonFileStore.write_json(meta_path, meta)
 
     def _materialize_unfinished_rounds(
-        self,
-        session_key: str,
-        meta: Dict[str, Any],
-        message_rows: List[Dict[str, Any]],
+            self,
+            session_key: str,
+            meta: Dict[str, Any],
+            message_rows: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """为未完成轮次补齐中断态 tool_result 和 result。"""
         rows = [dict(row) for row in message_rows]
@@ -355,14 +355,14 @@ class SessionRepository:
         return rows
 
     async def create_session(
-        self,
-        session_key: str,
-        channel_type: str = "websocket",
-        chat_type: str = "dm",
-        agent_id: str = "main",
-        session_id: Optional[str] = None,
-        title: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None,
+            self,
+            session_key: str,
+            channel_type: str = "websocket",
+            chat_type: str = "dm",
+            agent_id: str = "main",
+            session_id: Optional[str] = None,
+            title: Optional[str] = None,
+            options: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """创建新会话。"""
         try:
@@ -417,12 +417,12 @@ class SessionRepository:
             return None
 
     async def update_session(
-        self,
-        session_key: str,
-        session_id: Optional[str] = None,
-        title: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None,
-        status: Optional[str] = None,
+            self,
+            session_key: str,
+            session_id: Optional[str] = None,
+            title: Optional[str] = None,
+            options: Optional[Dict[str, Any]] = None,
+            status: Optional[str] = None,
     ) -> bool:
         """更新会话信息。"""
         try:

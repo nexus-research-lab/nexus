@@ -26,11 +26,11 @@ from typing import Any, Dict
 
 from claude_agent_sdk import ClaudeSDKClient, PermissionResult, ToolPermissionContext
 
+from agent.infra.channel.channel import MessageSender, PermissionStrategy
+from agent.infra.runtime.session_manager import session_manager
 from agent.service.agent_manager import agent_manager
-from agent.service.channel.channel import MessageSender, PermissionStrategy
 from agent.service.handler.base_handler import BaseHandler
 from agent.service.process.chat_message_processor import ChatMessageProcessor
-from agent.service.session_manager import session_manager
 from agent.service.session_store import session_store
 from agent.utils.logger import logger
 

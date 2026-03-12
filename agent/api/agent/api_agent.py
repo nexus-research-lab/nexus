@@ -34,7 +34,7 @@ from agent.service.schema.model_agent import (
     WorkspaceEntryRenameResponse,
 )
 from agent.service.schema.model_cost import AgentCostSummary
-from agent.service.session_manager import session_manager
+from agent.infra.runtime.session_manager import session_manager
 from agent.service.session_store import session_store
 from agent.shared.server.common import resp
 

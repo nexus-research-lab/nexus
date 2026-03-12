@@ -2,27 +2,28 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：workspace_observer.py
-# @Date   ：2026/3/10
-# @Author ：Codex
+# @Date   ：2026/3/12 20:06
+# @Author ：leemysw
+# 2026/3/12 20:06   Create
 # =====================================================
 
 """
-Workspace 轮询观察器
+Workspace 轮询观察器。
 
 [INPUT]: 依赖 agent_manager 获取 workspace，依赖 workspace_event_bus 广播事件
 [OUTPUT]: 对外提供 workspace_observer 单例
-[POS]: service 层用于捕捉 SDK/模型直接写入 workspace 文件系统的变化
+[POS]: infra 层用于捕捉 SDK/模型直接写入 workspace 文件系统的变化
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 """
 
 import asyncio
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict
 
+from agent.infra.runtime.workspace import AgentWorkspace
+from agent.infra.runtime.workspace_event_bus import workspace_event_bus
 from agent.service.agent_manager import agent_manager
-from agent.service.agent.workspace import AgentWorkspace
 from agent.service.schema.model_workspace_event import WorkspaceEvent
-from agent.service.workspace_event_bus import workspace_event_bus
 from agent.utils.logger import logger
 
 
@@ -99,7 +100,7 @@ class WorkspaceObserver:
             logger.warning(f"⚠️ workspace 观察失败: agent={agent_id}, error={exc}")
 
     async def _poll_workspace(self, agent_id: str, workspace: AgentWorkspace) -> None:
-        """对比新旧快照，推断文件写入中的开始/增量/结束。"""
+        """对比新旧快照，推断文件写入中的开始、增量和结束。"""
         previous_snapshot = self._snapshots.get(agent_id, {})
         current_snapshot = await self._capture_snapshot(workspace)
         active_writes = self._active_writes.setdefault(agent_id, {})

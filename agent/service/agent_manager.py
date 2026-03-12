@@ -22,8 +22,8 @@ import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from agent.service.agent.workspace import AgentWorkspace, get_workspace_base_path
-from agent.service.db.agent_repository import agent_repository
+from agent.infra.storage.agent_repository import agent_repository
+from agent.infra.runtime.workspace import AgentWorkspace, get_workspace_base_path
 from agent.service.schema.model_agent import AAgent, AgentOptions
 from agent.utils.logger import logger
 

@@ -11,7 +11,7 @@
 """
 通道管理器
 
-[INPUT]: 依赖 agent.service.channel.channel 的 MessageChannel 协议
+[INPUT]: 依赖 channel 的 MessageChannel 协议
 [OUTPUT]: 对外提供 ChannelManager 单例
 [POS]: channel 模块的编排层，在 app.py lifespan 中统一管理所有通道的生命周期
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -19,7 +19,7 @@
 
 from typing import Dict, List
 
-from agent.service.channel.channel import MessageChannel
+from agent.infra.channel.channel import MessageChannel
 from agent.utils.logger import logger
 
 
