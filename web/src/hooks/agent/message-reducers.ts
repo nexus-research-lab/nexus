@@ -11,6 +11,7 @@
  */
 
 import { AssistantMessage, Message, StreamEvent, ToolCall } from '@/types';
+import { generateUuid } from '@/lib/uuid';
 
 // ==================== 流式事件判别 ====================
 
@@ -104,7 +105,7 @@ function createAssistantMessageFromStreamStart(
     roundId: string
 ): AssistantMessage {
     return {
-        message_id: event.message_id || crypto.randomUUID(),
+        message_id: event.message_id || generateUuid(),
         agent_id: messageSessionKey,
         round_id: roundId,
         role: 'assistant',

@@ -10,6 +10,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getAgentWsUrl } from '@/lib/runtime-config';
+import { generateUuid } from '@/lib/uuid';
 import { useWebSocket } from '@/lib/websocket';
 import { useSessionStore } from '@/store/session';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
@@ -59,7 +61,7 @@ interface WorkspaceEventPayload {
 }
 
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
-  const wsUrl = options.wsUrl || process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8010/agent/v1/chat/ws';
+  const wsUrl = options.wsUrl || getAgentWsUrl();
 
   // 状态
   const [messages, setMessages] = useState<Message[]>([]);
@@ -234,7 +236,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
 
     try {
       // 创建用户消息
-      const message_id = crypto.randomUUID();
+      const message_id = generateUuid();
       activeSessionKeyRef.current = sessionKey;
       const userMessage: Message = {
         message_id: message_id,

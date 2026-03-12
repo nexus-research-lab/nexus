@@ -9,6 +9,7 @@
 
 import { Message } from '@/types';
 import { getSessionMessages } from "@/lib/agent-api";
+import { generateUuid } from '@/lib/uuid';
 
 /**
  * 创建新session操作
@@ -21,7 +22,7 @@ export function createStartSession(
   setIsLoading: (loading: boolean) => void
 ) {
   return () => {
-    const newSessionKey = crypto.randomUUID();
+    const newSessionKey = generateUuid();
     setSessionKey(newSessionKey);
     setMessages([]);
     setToolCalls([]);

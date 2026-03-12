@@ -8,12 +8,13 @@
  */
 
 import { CreateSessionParams, Session } from '@/types';
+import { generateUuid } from '@/lib/uuid';
 
 // ==================== ID生成 ====================
 
 /** 生成新的 session 路由键 */
 export const generateSessionKey = (): string => {
-  return crypto.randomUUID();
+  return generateUuid();
 };
 
 // ==================== 默认值创建 ====================

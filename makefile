@@ -20,8 +20,10 @@ run-backend: ## Run backend in development mode
 		.venv/bin/python main.py; \
 	elif command -v python3 >/dev/null 2>&1; then \
 		python3 main.py; \
+	elif command -v python >/dev/null 2>&1; then \
+		python main.py; \
 	else \
-		echo "No usable Python runtime found (.venv/bin/python or python3)"; \
+		echo "No usable Python runtime found"; \
 		exit 1; \
 	fi
 
