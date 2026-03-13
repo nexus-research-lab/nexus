@@ -26,10 +26,12 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from agent.infra.storage.agent_repository import agent_repository
-from agent.infra.storage.file_store import FileStoragePaths, JsonFileStore
+from agent.infra.storage.config_store import ConfigStore
+from agent.infra.storage.jsonl_store import JsonlStore
+from agent.infra.storage.storage_paths import FileStoragePaths
 from agent.infra.storage.session_repository import session_repository
-from agent.service.schema.model_cost import AgentCostSummary, CostLedgerEntry, SessionCostSummary
-from agent.service.schema.model_message import AMessage
+from agent.schema.model_cost import AgentCostSummary, CostLedgerEntry, SessionCostSummary
+from agent.schema.model_message import AMessage
 from agent.utils.logger import logger
 
 
@@ -111,7 +113,7 @@ class CostRepository:
         session_dir = await self._resolve_session_dir(session_key, agent_id=agent_id)
         if not session_dir:
             return []
-        return JsonFileStore.read_jsonl(session_dir / "telemetry_cost.jsonl")
+        return JsonlStore.read(session_dir / "telemetry_cost.jsonl")
 
     async def _write_session_summary(
         self,
@@ -123,7 +125,7 @@ class CostRepository:
         session_dir = await self._resolve_session_dir(session_key, agent_id=agent_id)
         if not session_dir:
             return
-        JsonFileStore.write_json(session_dir / "telemetry_cost_summary.json", summary.model_dump(mode="json"))
+        ConfigStore.write(session_dir / "telemetry_cost_summary.json", summary.model_dump(mode="json"))
 
     async def _read_session_summary(self, session_key: str, agent_id: Optional[str] = None) -> Optional[SessionCostSummary]:
         """读取 Session 成本汇总。"""
@@ -131,7 +133,7 @@ class CostRepository:
         if not session_dir:
             return None
         summary_path = session_dir / "telemetry_cost_summary.json"
-        payload = JsonFileStore.read_json(summary_path, None)
+        payload = ConfigStore.read(summary_path, None)
         if not payload:
             return None
         return SessionCostSummary(**payload)
@@ -139,7 +141,7 @@ class CostRepository:
     async def _write_agent_summary(self, agent_id: str, summary: AgentCostSummary) -> None:
         """写入 Agent 成本汇总。"""
         workspace_path = await self._resolve_workspace_path(agent_id)
-        JsonFileStore.write_json(
+        ConfigStore.write(
             self._paths.get_agent_cost_summary_path(workspace_path),
             summary.model_dump(mode="json"),
         )
@@ -147,7 +149,7 @@ class CostRepository:
     async def _read_agent_summary(self, agent_id: str) -> Optional[AgentCostSummary]:
         """读取 Agent 成本汇总。"""
         workspace_path = await self._resolve_workspace_path(agent_id)
-        payload = JsonFileStore.read_json(self._paths.get_agent_cost_summary_path(workspace_path), None)
+        payload = ConfigStore.read(self._paths.get_agent_cost_summary_path(workspace_path), None)
         if not payload:
             return None
         return AgentCostSummary(**payload)
@@ -180,7 +182,7 @@ class CostRepository:
             entry = self._build_cost_entry(normalized_message)
             result_entries.append(entry.model_dump(mode="json"))
 
-        JsonFileStore.write_jsonl(self._paths.get_session_cost_log_path(workspace_path, session_key), result_entries)
+        JsonlStore.write(self._paths.get_session_cost_log_path(workspace_path, session_key), result_entries)
         summary = await self.rebuild_session_summary(session_key, agent_id=resolved_agent_id)
         await self.rebuild_agent_summary(resolved_agent_id)
         return summary
@@ -271,7 +273,7 @@ class CostRepository:
 
         session_summaries: List[SessionCostSummary] = []
         for summary_path in summary_paths:
-            payload = JsonFileStore.read_json(summary_path, None)
+            payload = ConfigStore.read(summary_path, None)
             if not payload:
                 continue
             try:
@@ -309,7 +311,7 @@ class CostRepository:
         entry = self._build_cost_entry(message)
 
         with self._lock:
-            JsonFileStore.append_jsonl(log_path, entry.model_dump(mode="json"))
+            JsonlStore.append(log_path, entry.model_dump(mode="json"))
 
         await self.rebuild_session_summary(message.session_key, agent_id=message.agent_id)
         await self.rebuild_agent_summary(message.agent_id)
@@ -324,12 +326,12 @@ class CostRepository:
             return 0
 
         log_path = session_dir / "telemetry_cost.jsonl"
-        rows = JsonFileStore.read_jsonl(log_path)
+        rows = JsonlStore.read(log_path)
         remaining_rows = [row for row in rows if row.get("round_id") != round_id]
         deleted_count = len(rows) - len(remaining_rows)
 
         with self._lock:
-            JsonFileStore.write_jsonl(log_path, remaining_rows)
+            JsonlStore.write(log_path, remaining_rows)
 
         await self.rebuild_session_summary(session_key, agent_id=resolved_agent_id)
         await self.rebuild_agent_summary(resolved_agent_id)

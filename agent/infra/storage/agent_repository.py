@@ -21,8 +21,10 @@ from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Optional
 
-from agent.infra.storage.file_store import FileStorageBootstrap, FileStoragePaths, JsonFileStore
-from agent.service.schema.model_agent import AAgent, AgentOptions
+from agent.infra.storage.config_store import ConfigStore
+from agent.infra.storage.storage_bootstrap import FileStorageBootstrap
+from agent.infra.storage.storage_paths import FileStoragePaths
+from agent.schema.model_agent import AAgent, AgentOptions
 from agent.utils.logger import logger
 
 
@@ -38,19 +40,19 @@ class AgentRepository:
     def _load_records(self) -> List[Dict]:
         """读取 Agent 索引。"""
         self._bootstrap.ensure_ready()
-        records = JsonFileStore.read_json(self._paths.agents_index_path, [])
+        records = ConfigStore.read(self._paths.agents_index_path, [])
         return records if isinstance(records, list) else []
 
     def _write_records(self, records: List[Dict]) -> None:
         """写回 Agent 索引。"""
-        JsonFileStore.write_json(self._paths.agents_index_path, records)
+        ConfigStore.write(self._paths.agents_index_path, records)
 
     def _write_agent_snapshot(self, record: Dict) -> None:
         """将 Agent 快照同步到各自 workspace。"""
         workspace_path = Path(record["workspace_path"]).expanduser()
         workspace_path.mkdir(parents=True, exist_ok=True)
         self._paths.migrate_workspace_runtime_layout(workspace_path)
-        JsonFileStore.write_json(self._paths.get_agent_file_path(workspace_path), record)
+        ConfigStore.write(self._paths.get_agent_file_path(workspace_path), record)
 
     @staticmethod
     def _to_model(record: Dict) -> AAgent:

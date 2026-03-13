@@ -19,8 +19,8 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from agent.service.schema.model_message import AEvent, AMessage
-from agent.service.schema.model_workspace_event import WorkspaceEvent
+from agent.schema.model_message import AEvent, AMessage
+from agent.schema.model_workspace_event import WorkspaceEvent
 
 
 class ProtocolAdapter:

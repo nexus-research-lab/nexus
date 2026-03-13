@@ -8,10 +8,10 @@
 # =====================================================
 
 """
-Agent Runtime 基础设施模块。
+Agent Runtime 基础设施入口。
 
-[OUTPUT]: 对外提供 Workspace、事件总线、观察器与权限运行时组件
-[POS]: infra 层的 agent runtime 聚合入口，供 service/app 层装配使用
+[OUTPUT]: 对外提供权限运行时与 workspace 能力
+[POS]: infra/runtime 的轻量聚合入口，避免包初始化时引入额外循环依赖
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 """
 
@@ -20,18 +20,12 @@ from agent.infra.runtime.permission_runtime import (
     PermissionRequestPresenter,
     PermissionUpdateCodec,
 )
-from agent.infra.runtime.workspace import AgentWorkspace, get_workspace_base_path
-from agent.infra.runtime.workspace_event_bus import WorkspaceEventBus, workspace_event_bus
-from agent.infra.runtime.workspace_observer import WorkspaceObserver, workspace_observer
+from agent.infra.workspace.initializer import AgentWorkspace, get_workspace_base_path
 
 __all__ = [
     "AgentWorkspace",
     "PendingPermissionRequest",
     "PermissionRequestPresenter",
     "PermissionUpdateCodec",
-    "WorkspaceEventBus",
-    "WorkspaceObserver",
     "get_workspace_base_path",
-    "workspace_event_bus",
-    "workspace_observer",
 ]

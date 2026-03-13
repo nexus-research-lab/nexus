@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-03-13
+
+### Docs
+- 新增 `docs/nexus-core-technical-doc.md`，补充项目技术架构、核心链路与技术交流提纲。
+
 ## 2026-03-12
 
 ### Changed

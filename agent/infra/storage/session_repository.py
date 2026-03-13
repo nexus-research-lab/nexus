@@ -26,9 +26,12 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from agent.infra.storage.agent_repository import agent_repository
-from agent.infra.storage.file_store import FileStorageBootstrap, FileStoragePaths, JsonFileStore
-from agent.service.schema.model_message import AMessage
-from agent.service.schema.model_session import ASession
+from agent.infra.storage.config_store import ConfigStore
+from agent.infra.storage.jsonl_store import JsonlStore
+from agent.infra.storage.storage_bootstrap import FileStorageBootstrap
+from agent.infra.storage.storage_paths import FileStoragePaths
+from agent.schema.model_message import AMessage
+from agent.schema.model_session import ASession
 from agent.utils.logger import logger
 
 
@@ -129,7 +132,7 @@ class SessionRepository:
 
     def _iter_known_workspace_paths(self) -> List[Path]:
         """返回当前所有已知 workspace 路径。"""
-        records = JsonFileStore.read_json(self._paths.agents_index_path, [])
+        records = ConfigStore.read(self._paths.agents_index_path, [])
         paths: List[Path] = []
         for record in records if isinstance(records, list) else []:
             workspace_path = record.get("workspace_path")
@@ -208,7 +211,7 @@ class SessionRepository:
         """读取原始消息日志。"""
         if not log_path:
             return []
-        return JsonFileStore.read_jsonl(log_path)
+        return JsonlStore.read(log_path)
 
     def _load_compacted_message_rows(self, log_path: Optional[Path]) -> List[Dict[str, Any]]:
         """读取压缩后的消息快照。"""
@@ -246,7 +249,7 @@ class SessionRepository:
 
     def _write_session_meta(self, meta_path: Path, meta: Dict[str, Any]) -> None:
         """写入会话元数据。"""
-        JsonFileStore.write_json(meta_path, meta)
+        ConfigStore.write(meta_path, meta)
 
     def _materialize_unfinished_rounds(
             self,
@@ -394,7 +397,7 @@ class SessionRepository:
                 self._write_session_meta(meta_path, meta)
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 if not log_path.exists():
-                    JsonFileStore.write_jsonl(log_path, [])
+                    JsonlStore.write(log_path, [])
 
             logger.info(f"✅ 创建会话: key={session_key}")
             return True
@@ -408,7 +411,7 @@ class SessionRepository:
             meta_path = self._find_session_meta_path(session_key)
             if not meta_path:
                 return None
-            meta = JsonFileStore.read_json(meta_path, {})
+            meta = ConfigStore.read(meta_path, {})
             if not meta:
                 return None
             return self._session_from_meta(meta)
@@ -431,7 +434,7 @@ class SessionRepository:
                 return False
 
             with self._lock:
-                meta = JsonFileStore.read_json(meta_path, {})
+                meta = ConfigStore.read(meta_path, {})
                 if not meta:
                     return False
 
@@ -464,7 +467,7 @@ class SessionRepository:
                     if meta_path in seen_paths:
                         continue
                     seen_paths.add(meta_path)
-                    meta = JsonFileStore.read_json(meta_path, {})
+                    meta = ConfigStore.read(meta_path, {})
                     if not meta:
                         continue
                     try:
@@ -506,9 +509,9 @@ class SessionRepository:
                 raw_rows = self._load_raw_message_rows(log_path)
                 deleted_count = len([row for row in raw_rows if row.get("round_id") == round_id])
                 remaining_rows = [row for row in raw_rows if row.get("round_id") != round_id]
-                JsonFileStore.write_jsonl(log_path, remaining_rows)
+                JsonlStore.write(log_path, remaining_rows)
 
-                meta = JsonFileStore.read_json(meta_path, {})
+                meta = ConfigStore.read(meta_path, {})
                 refreshed_meta = self._refresh_meta_from_messages(meta, remaining_rows)
                 self._write_session_meta(meta_path, refreshed_meta)
 
@@ -552,10 +555,10 @@ class SessionRepository:
 
             with self._lock:
                 record = self._message_record_from_message(message)
-                JsonFileStore.append_jsonl(log_path, record)
+                JsonlStore.append(log_path, record)
 
                 raw_rows = self._load_raw_message_rows(log_path)
-                meta = JsonFileStore.read_json(meta_path, {})
+                meta = ConfigStore.read(meta_path, {})
                 meta["agent_id"] = message.agent_id
                 meta["session_id"] = message.session_id
                 refreshed_meta = self._refresh_meta_from_messages(meta, raw_rows)
@@ -569,7 +572,7 @@ class SessionRepository:
         """获取会话的所有历史消息。"""
         try:
             meta_path = self._find_session_meta_path(session_key)
-            meta = JsonFileStore.read_json(meta_path, {}) if meta_path else {}
+            meta = ConfigStore.read(meta_path, {}) if meta_path else {}
             compacted_rows = self._load_compacted_message_rows(self._find_message_log_path(session_key))
             materialized_rows = self._materialize_unfinished_rounds(session_key, meta, compacted_rows)
             message_list: List[AMessage] = []

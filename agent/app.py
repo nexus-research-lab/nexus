@@ -15,12 +15,12 @@ from fastapi import FastAPI
 
 from agent.api.router import api_router
 from agent.config.config import settings
-from agent.infra.channel.channel_manager import ChannelManager
+from agent.channels.channel_register import ChannelRegister
 from agent.shared.server.register import register_exception, register_hook, register_middleware
 from agent.utils.logger import logger
 
 # 全局通道管理器
-channel_manager = ChannelManager()
+channel_manager = ChannelRegister()
 
 
 @asynccontextmanager
@@ -45,7 +45,7 @@ async def _register_channels() -> None:
     """按配置注册消息通道"""
     if settings.DISCORD_ENABLED:
         try:
-            from agent.infra.channel.discord_channel import DiscordChannel
+            from agent.channels.im.discord_channel import DiscordChannel
 
             guild_ids = None
             if settings.DISCORD_ALLOWED_GUILDS:
@@ -62,7 +62,7 @@ async def _register_channels() -> None:
 
     if settings.TELEGRAM_ENABLED:
         try:
-            from agent.infra.channel.telegram_channel import TelegramChannel
+            from agent.channels.im.telegram_channel import TelegramChannel
 
             user_ids = None
             if settings.TELEGRAM_ALLOWED_USERS:
