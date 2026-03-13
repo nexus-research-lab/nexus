@@ -10,7 +10,7 @@
 """
 Session API
 
-[INPUT]: 依赖 session_store, session_manager, protocol_adapter
+[INPUT]: 依赖 session_service 与统一消息协议
 [OUTPUT]: 对外提供 /sessions CRUD 端点
 [POS]: api 层的 Session 管理端点
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -90,7 +90,7 @@ async def update_session(session_key: str, request: UpdateSessionRequest):
 async def get_session_messages(session_key: str):
     """获取指定会话的所有消息"""
     data = await session_service.get_session_messages(session_key)
-    return resp.ok(resp.Resp(data=data))
+    return resp.ok(resp.Resp(data=[item.model_dump(mode="json", exclude_none=True) for item in data]))
 
 
 @router.get("/sessions/{session_key}/cost/summary", response_model=SessionCostSummary)

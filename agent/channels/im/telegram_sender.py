@@ -14,7 +14,7 @@ from typing import List, Optional
 from telegram.ext import Application
 
 from agent.channels.message_sender import MessageSender
-from agent.schema.model_message import AError, AEvent, AMessage
+from agent.schema.model_message import EventMessage, Message, StreamMessage
 
 TELEGRAM_MAX_LENGTH = 4096
 
@@ -26,13 +26,13 @@ class TelegramSender(MessageSender):
         self._chat_id = chat_id
         self._app = application
 
-    async def send_message(self, message: AMessage) -> None:
+    async def send_message(self, message: Message) -> None:
         """发送 Agent 消息到 Telegram。"""
-        if message.message_type in ("stream", "system"):
+        if message.role in ("system", "result"):
             return
 
         text = self._extract_text(message)
-        if not text or message.message_type == "result":
+        if not text:
             return
 
         for chunk in self._split_message(text):
@@ -42,33 +42,23 @@ class TelegramSender(MessageSender):
                 parse_mode="Markdown",
             )
 
-    async def send_event(self, event: AEvent) -> None:
+    async def send_stream_message(self, message: StreamMessage) -> None:
+        """流式消息不推送到 Telegram。"""
+        del message
+
+    async def send_event_message(self, event: EventMessage) -> None:
         """事件消息不推送到 Telegram。"""
         del event
 
-    async def send_error(self, error: AError) -> None:
-        """发送错误到 Telegram。"""
-        text = f"⚠️ Error: {error.message}"
-        await self._app.bot.send_message(
-            chat_id=self._chat_id,
-            text=text[:TELEGRAM_MAX_LENGTH],
-        )
-
     @staticmethod
-    def _extract_text(message: AMessage) -> Optional[str]:
-        """从 AMessage 提取可读文本。"""
-        msg = message.message
-        if message.message_type == "assistant" and message.block_type == "text":
-            if hasattr(msg, "content") and msg.content:
-                block = msg.content[0]
-                if hasattr(block, "text"):
-                    return block.text
-            return None
+    def _extract_text(message: Message) -> Optional[str]:
+        """从 Message 提取可读文本。"""
+        if message.role == "assistant" and isinstance(message.content, list):
+            texts = [block.text for block in message.content if getattr(block, "type", None) == "text"]
+            return "\n".join(filter(None, texts)) or None
 
-        if message.message_type == "result":
-            if hasattr(msg, "result") and msg.result:
-                return f"✅ {msg.result}"
-            return None
+        if message.role == "user" and isinstance(message.content, str):
+            return message.content
 
         return None
 

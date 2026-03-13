@@ -13,11 +13,9 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional
 
-from claude_agent_sdk.types import ResultMessage
-
 from agent.channels.ws.handlers.base_handler import BaseHandler
 from agent.infra.agent.session_manager import session_manager
-from agent.schema.model_message import AMessage
+from agent.schema.model_message import Message
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -87,32 +85,29 @@ class InterruptHandler(BaseHandler):
             logger.info(f"ℹ️ 跳过中断结果: round 已有 result, key={session_key}, round_id={round_id}")
             return
 
-        result_message = AMessage(
+        result_message = Message(
             session_key=session_key,
             agent_id=session_info.agent_id if session_info else "main",
             round_id=round_id,
             session_id=session_id,
             message_id=str(uuid.uuid4()),
-            message=ResultMessage(
-                subtype="interrupted",
-                duration_ms=0,
-                duration_api_ms=0,
-                is_error=True,
-                num_turns=0,
-                session_id=session_id,
-                total_cost_usd=0,
-                usage={
-                    "input_tokens": 0,
-                    "cache_creation_input_tokens": 0,
-                    "cache_read_input_tokens": 0,
-                    "output_tokens": 0,
-                    "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
-                    "service_tier": "standard",
-                    "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-                },
-                result="用户中断",
-            ),
-            message_type="result",
+            role="result",
+            subtype="interrupted",
+            duration_ms=0,
+            duration_api_ms=0,
+            is_error=True,
+            num_turns=0,
+            total_cost_usd=0,
+            usage={
+                "input_tokens": 0,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "output_tokens": 0,
+                "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
+                "service_tier": "standard",
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+            },
+            result="用户中断",
         )
 
         await session_store.save_message(result_message)

@@ -101,12 +101,13 @@ export function markInterruptedToolCalls(messages: Message[]): Message[] {
     const lastMessage = updatedMessages[updatedMessages.length - 1];
     const interruptedResultMessage: Message = {
       message_id: `interrupted_result_${Date.now()}`,
+      session_key: lastMessage.session_key,
       round_id: lastMessage.round_id,
       agent_id: lastMessage.agent_id,
       session_id: lastMessage.session_id,
       role: 'result',
       timestamp: Date.now(),
-      subtype: 'error',
+      subtype: 'interrupted',
       duration_ms: 0,
       duration_api_ms: 0,
       num_turns: 0,

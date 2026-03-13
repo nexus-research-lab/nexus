@@ -3,7 +3,7 @@ import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { Message, ResultMessage } from "@/types/message";
 
 function isSameSessionMessage(message: Message, externalSessionKey: string): boolean {
-  return !message.agent_id || message.agent_id === externalSessionKey;
+  return !message.session_key || message.session_key === externalSessionKey;
 }
 
 export const useExtractTodos = (

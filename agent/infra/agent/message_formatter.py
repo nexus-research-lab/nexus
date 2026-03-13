@@ -2,31 +2,26 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：message_formatter.py
-# @Date   ：2026/3/13 14:28
+# @Date   ：2026/3/14 11:42
 # @Author ：leemysw
-# 2026/3/13 14:28   Create
+# 2026/3/14 11:42   Create
 # =====================================================
 
 """Claude 消息格式转换与会话消息处理。"""
 
+from __future__ import annotations
+
 import json
 import uuid
-from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from claude_agent_sdk import Message, ResultMessage, SystemMessage, ThinkingBlock, UserMessage
-from claude_agent_sdk.types import (
-    AssistantMessage,
-    ContentBlock,
-    StreamEvent,
-    TextBlock,
-    ToolResultBlock,
-    ToolUseBlock,
-)
+from claude_agent_sdk import Message as SDKMessage
+from claude_agent_sdk import ResultMessage, SystemMessage
+from claude_agent_sdk.types import AssistantMessage, StreamEvent, TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock, UserMessage
 
 from agent.infra.agent.session_manager import session_manager
-from agent.schema.model_message import AMessage
+from agent.schema.model_message import Message, StreamMessage
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -34,186 +29,228 @@ from agent.utils.logger import logger
 class SDKMessageProcessor:
     """Claude Agent SDK 消息处理器。"""
 
-    def __init__(self):
-        self.message_type_mapping = {
-            AssistantMessage: "assistant",
-            UserMessage: "user",
-            SystemMessage: "system",
-            ResultMessage: "result",
-            StreamEvent: "stream",
-        }
-        self.content_block_mapping = {
-            TextBlock: "text",
-            ThinkingBlock: "thinking",
-            ToolUseBlock: "tool_use",
-            ToolResultBlock: "tool_result",
-        }
-
     def process_message(
         self,
-        message: Message,
+        message: SDKMessage,
         session_key: str,
         agent_id: str,
         session_id: str,
         round_id: str,
-        parent_id: str = None,
-    ) -> List[AMessage]:
-        """将 Claude SDK 消息转换为 AMessage 列表。"""
-        messages = [message]
-        if isinstance(message, (AssistantMessage, UserMessage)):
-            messages = self._process_assistant_user_message(message)
+        parent_id: Optional[str] = None,
+    ) -> List[Message | StreamMessage]:
+        """将 Claude SDK 消息转换为统一协议。"""
+        if isinstance(message, SystemMessage):
+            return []
 
-        a_messages = []
-        for msg in messages:
-            block_type = None
-            if (
-                isinstance(msg, (AssistantMessage, UserMessage))
-                and hasattr(msg, "content")
-                and isinstance(msg.content, list)
-                and len(msg.content) > 0
-            ):
-                if len(msg.content) == 1:
-                    block_type = self.content_block_mapping.get(type(msg.content[0]))
-                else:
-                    block_type = "mixed"
-
-            a_messages.append(
-                AMessage(
-                    message_type=self.message_type_mapping.get(type(msg)),
-                    block_type=block_type,
-                    message=msg,
-                    message_id=str(uuid.uuid4()),
-                    agent_id=agent_id,
-                    session_id=session_id,
-                    session_key=session_key,
-                    round_id=round_id,
-                    parent_id=parent_id,
-                )
-            )
-
-        return a_messages
-
-    @staticmethod
-    def _process_assistant_user_message(message: Message) -> List[Message]:
-        """规范化 AssistantMessage/UserMessage 的 content。"""
-        if isinstance(message.content, str):
-            message.content = [TextBlock(text=message.content)]
-            return [message]
-
-        if isinstance(message.content, list) and len(message.content) > 0:
-            return [message]
-
-        raise ValueError(f"Invalid content type: {type(message.content)}")
-
-    def print_message(self, message: Message, session_id: str = None) -> None:
-        """打印 SDK 消息，便于跟踪执行过程。"""
-        is_stream_event = isinstance(message, StreamEvent)
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        if not is_stream_event:
-            if session_id:
-                print(f"🕐 [{timestamp}] 📋 Session: {session_id} - ", end="")
-            else:
-                print(f"🕐 [{timestamp}] 📋 Agent Message - ", end="")
+        if isinstance(message, StreamEvent):
+            return [self._build_stream_message(message, session_key, agent_id, session_id, round_id)]
 
         if isinstance(message, AssistantMessage):
-            self._print_assistant_message(message)
-        elif isinstance(message, UserMessage):
-            self._print_user_message(message)
-        elif isinstance(message, SystemMessage):
-            self._print_system_message(message)
-        elif isinstance(message, ResultMessage):
-            self._print_result_message(message)
-        elif isinstance(message, StreamEvent):
-            ...
-        else:
-            print(f"❓ 未知消息类型: {type(message)}")
-            self._print_pretty_json(asdict(message))
+            return [self._build_assistant_message(message, session_key, agent_id, session_id, round_id, parent_id)]
 
-        if not is_stream_event:
-            print("=" * 80)
-            print()
+        if isinstance(message, UserMessage):
+            return [self._build_user_or_tool_result_message(message, session_key, agent_id, session_id, round_id, parent_id)]
+
+        if isinstance(message, ResultMessage):
+            return [self._build_result_message(message, session_key, agent_id, session_id, round_id, parent_id)]
+
+        raise ValueError(f"Unsupported SDK message type: {type(message)}")
 
     @staticmethod
-    def _print_block(block: ContentBlock) -> None:
-        """打印单个内容块。"""
+    def _to_plain_dict(payload: Any) -> Dict[str, Any]:
+        """将任意对象转换为字典。"""
+        if payload is None:
+            return {}
+        if isinstance(payload, dict):
+            return dict(payload)
+        if hasattr(payload, "model_dump"):
+            return payload.model_dump(mode="json", exclude_none=True)
+        if hasattr(payload, "__dict__"):
+            return dict(payload.__dict__)
+        return {}
+
+    @staticmethod
+    def _to_plain_block(block: Any) -> Dict[str, Any]:
+        """将 SDK 内容块统一转换为字典。"""
+        if isinstance(block, dict):
+            return dict(block)
+        if hasattr(block, "model_dump"):
+            return block.model_dump(mode="json", exclude_none=True)
         if isinstance(block, TextBlock):
-            print(f"💬 文本: {block.text}")
-        elif isinstance(block, ThinkingBlock):
-            print(f"🤔 思考: {block.thinking}")
-            print(f"🔑 签名: {block.signature}")
-        elif isinstance(block, ToolResultBlock):
-            print(f"🆔 工具ID: {block.tool_use_id}")
-            if block.content:
-                print(f"📈 结果: {block.content}")
-            if block.is_error:
-                print(" ❌ 工具执行错误")
-        elif isinstance(block, ToolUseBlock):
-            print(f"🔧 工具调用: {block.name}({block.input}) -- {block.id}")
+            return {"type": "text", "text": block.text}
+        if isinstance(block, ThinkingBlock):
+            return {"type": "thinking", "thinking": block.thinking, "signature": getattr(block, "signature", None)}
+        if isinstance(block, ToolUseBlock):
+            return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input or {}}
+        if isinstance(block, ToolResultBlock):
+            return {
+                "type": "tool_result",
+                "tool_use_id": block.tool_use_id,
+                "content": block.content,
+                "is_error": bool(getattr(block, "is_error", False)),
+            }
+        return {"type": "text", "text": str(block)}
 
-    def _print_user_message(self, message: UserMessage) -> None:
-        """打印用户消息。"""
-        print("👤 用户消息 (User Message)")
-        print("-" * 40)
-        if message.parent_tool_use_id:
-            print(f"🔗 父工具ID: {message.parent_tool_use_id}")
-
-        content = message.content
+    def _normalize_content_blocks(self, content: Any) -> List[Dict[str, Any]]:
+        """统一规范化内容块列表。"""
         if isinstance(content, str):
-            print(f"💬: {content}")
-        elif isinstance(content, list):
-            if len(content) == 1:
-                self._print_block(content[0])
-            else:
-                for index, block in enumerate(content):
-                    print(f"  📝 块 {index + 1}:")
-                    self._print_block(block)
+            return [{"type": "text", "text": content}]
+        if isinstance(content, list):
+            return [self._to_plain_block(block) for block in content]
+        if content is None:
+            return []
+        return [{"type": "text", "text": str(content)}]
 
-    def _print_assistant_message(self, message: AssistantMessage) -> None:
-        """打印助手消息。"""
-        print(f"🤖 助手回复 (Assistant Message) - 模型: {message.model}")
-        print("-" * 40)
-        if message.parent_tool_use_id:
-            print(f"🔗 父工具ID: {message.parent_tool_use_id}")
+    def _build_assistant_message(
+        self,
+        message: AssistantMessage,
+        session_key: str,
+        agent_id: str,
+        session_id: str,
+        round_id: str,
+        parent_id: Optional[str],
+    ) -> Message:
+        """构建助手消息。"""
+        raw = self._to_plain_dict(message)
+        return Message(
+            message_id=str(uuid.uuid4()),
+            session_key=session_key,
+            agent_id=agent_id,
+            round_id=round_id,
+            session_id=session_id,
+            parent_id=parent_id,
+            role="assistant",
+            content=self._normalize_content_blocks(raw.get("content")),
+            model=raw.get("model"),
+            stop_reason=raw.get("stop_reason"),
+            usage=raw.get("usage"),
+            parent_tool_use_id=raw.get("parent_tool_use_id"),
+        )
 
-        if len(message.content) == 1:
-            self._print_block(message.content[0])
-            return
+    def _build_user_or_tool_result_message(
+        self,
+        message: UserMessage,
+        session_key: str,
+        agent_id: str,
+        session_id: str,
+        round_id: str,
+        parent_id: Optional[str],
+    ) -> Message:
+        """构建用户消息或 tool_result 消息。"""
+        raw = self._to_plain_dict(message)
+        blocks = self._normalize_content_blocks(raw.get("content"))
+        if blocks and all(block.get("type") == "tool_result" for block in blocks):
+            return Message(
+                message_id=str(uuid.uuid4()),
+                session_key=session_key,
+                agent_id=agent_id,
+                round_id=round_id,
+                session_id=session_id,
+                parent_id=parent_id,
+                role="assistant",
+                content=blocks,
+                parent_tool_use_id=raw.get("parent_tool_use_id"),
+                is_tool_result=True,
+            )
 
-        for index, block in enumerate(message.content):
-            print(f"  📦 内容块 {index + 1}:")
-            self._print_block(block)
+        content = raw.get("content")
+        if not isinstance(content, str):
+            content = next(
+                (block.get("text", "") for block in blocks if block.get("type") == "text"),
+                "",
+            )
+        return Message(
+            message_id=str(uuid.uuid4()),
+            session_key=session_key,
+            agent_id=agent_id,
+            round_id=round_id,
+            session_id=session_id,
+            parent_id=parent_id,
+            role="user",
+            content=content,
+            parent_tool_use_id=raw.get("parent_tool_use_id"),
+        )
 
-    @staticmethod
-    def _print_system_message(message: SystemMessage) -> None:
-        """打印系统消息。"""
-        print(f"⚙️ 系统消息 (System Message) - 类型: {message.subtype}")
-        print("-" * 40)
+    def _build_result_message(
+        self,
+        message: ResultMessage,
+        session_key: str,
+        agent_id: str,
+        session_id: str,
+        round_id: str,
+        parent_id: Optional[str],
+    ) -> Message:
+        """构建结果消息。"""
+        raw = self._to_plain_dict(message)
+        subtype = str(raw.get("subtype") or "success")
+        normalized_subtype = subtype if subtype in ("success", "error", "interrupted") else "error"
+        return Message(
+            message_id=str(uuid.uuid4()),
+            session_key=session_key,
+            agent_id=agent_id,
+            round_id=round_id,
+            session_id=session_id,
+            parent_id=parent_id,
+            role="result",
+            subtype=normalized_subtype,
+            duration_ms=int(raw.get("duration_ms") or 0),
+            duration_api_ms=int(raw.get("duration_api_ms") or 0),
+            num_turns=int(raw.get("num_turns") or 0),
+            total_cost_usd=raw.get("total_cost_usd"),
+            usage=raw.get("usage"),
+            result=raw.get("result"),
+            is_error=bool(raw.get("is_error", normalized_subtype != "success")),
+        )
 
-        if not message.data:
-            return
+    def _build_stream_message(
+        self,
+        message: StreamEvent,
+        session_key: str,
+        agent_id: str,
+        session_id: str,
+        round_id: str,
+    ) -> StreamMessage:
+        """构建流式消息。"""
+        raw = self._to_plain_dict(message)
+        event = raw.get("event") if isinstance(raw.get("event"), dict) else raw
+        return StreamMessage(
+            message_id=str(uuid.uuid4()),
+            session_key=session_key,
+            agent_id=agent_id,
+            round_id=round_id,
+            session_id=session_id,
+            type=str(event.get("type") or ""),
+            index=event.get("index"),
+            delta=event.get("delta"),
+            message=event.get("message"),
+            usage=event.get("usage"),
+            content_block=self._to_plain_block(event["content_block"]) if event.get("content_block") else None,
+        )
 
-        print("📋 数据内容:")
-        for key, value in message.data.items():
-            print(f"   • {key}: {value}")
+    def print_message(self, message: SDKMessage, session_id: Optional[str] = None) -> None:
+        """打印 SDK 消息，便于跟踪执行过程。"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        prefix = f"🕐 [{timestamp}] "
+        if session_id:
+            prefix += f"📋 Session: {session_id} - "
+        print(prefix, end="")
 
-    @staticmethod
-    def _print_result_message(message: ResultMessage) -> None:
-        """打印结果消息。"""
-        print("✅ 执行结果 (Result Message)")
-        print("-" * 40)
-        print("📊 执行统计:")
-        print(f"   • 耗时: {message.duration_ms}ms")
-        print(f"   • API耗时: {message.duration_api_ms}ms")
-        print(f"   • 对话轮数: {message.num_turns}")
-        print(f"   • 状态: {'✅ 成功' if not message.is_error else '❌ 失败'}")
-        if message.total_cost_usd:
-            print(f"   • 成本: ${message.total_cost_usd:.6f}")
+        if isinstance(message, AssistantMessage):
+            print("AssistantMessage")
+        elif isinstance(message, UserMessage):
+            print("UserMessage")
+        elif isinstance(message, SystemMessage):
+            print("SystemMessage")
+        elif isinstance(message, ResultMessage):
+            print("ResultMessage")
+        elif isinstance(message, StreamEvent):
+            print("StreamEvent")
+        else:
+            print(type(message))
 
-    @staticmethod
-    def _print_pretty_json(data: Dict[str, Any]) -> None:
-        """格式化打印 JSON。"""
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+        raw = self._to_plain_dict(message)
+        print(json.dumps(raw, ensure_ascii=False, indent=2))
+        print("=" * 80)
 
 
 sdk_message_processor = SDKMessageProcessor()
@@ -237,9 +274,9 @@ class ChatMessageProcessor:
         self.stream_message_id: Optional[str] = None
         self.accumulated_thinking: str = ""
         self.accumulated_signature: str = ""
-        self.accumulated_content_blocks: list[Any] = []
+        self.accumulated_content_blocks: List[Dict[str, Any]] = []
 
-    async def process_messages(self, response_msg: Message) -> list[AMessage]:
+    async def process_messages(self, response_msg: SDKMessage) -> List[Message | StreamMessage]:
         """处理响应消息并管理消息状态。"""
         sdk_message_processor.print_message(response_msg, self.session_key)
         self.set_subtype(response_msg)
@@ -250,89 +287,93 @@ class ChatMessageProcessor:
             message=response_msg,
             session_key=self.session_key,
             agent_id=self.agent_id,
-            session_id=self.session_id,
-            round_id=self.round_id,
+            session_id=self.session_id or "",
+            round_id=self.round_id or "",
             parent_id=self.parent_id,
         )
 
-        processed_messages = []
-        for a_message in messages:
-            self.update_stream_state(a_message)
+        processed_messages: List[Message | StreamMessage] = []
+        for message in messages:
+            self.update_stream_state(message)
 
-            if a_message.message_type == "stream" and self.is_streaming_tool:
+            if isinstance(message, StreamMessage) and self.is_streaming_tool:
                 continue
 
-            if a_message.message_type != "stream":
-                self.parent_id = a_message.message_id
-                await session_store.save_message(a_message)
+            if isinstance(message, Message):
+                self.parent_id = message.message_id
+                await session_store.save_message(message)
 
-            processed_messages.append(a_message)
+            processed_messages.append(message)
             self.message_count += 1
 
         return processed_messages
 
-    async def set_session_id(self, response_msg: Message) -> Optional[str]:
+    async def set_session_id(self, response_msg: SDKMessage) -> Optional[str]:
         """处理 session 映射关系。"""
-        if self.session_id is None:
-            if isinstance(response_msg, SystemMessage):
-                self.session_id = response_msg.data.get("session_id", None)
-            else:
-                raise ValueError("⚠️When session_id is None, response_msg must be a SystemMessage")
+        if self.session_id is not None:
+            return self.session_id
 
-            await session_manager.register_sdk_session(session_key=self.session_key, session_id=self.session_id)
-            logger.debug(f"🔗建立映射: key={self.session_key} ↔ sdk_session={self.session_id}")
+        if not isinstance(response_msg, SystemMessage):
+            raise ValueError("When session_id is None, response_msg must be a SystemMessage")
 
+        raw = sdk_message_processor._to_plain_dict(response_msg)
+        data = raw.get("data") or {}
+        self.session_id = data.get("session_id")
+        await session_manager.register_sdk_session(session_key=self.session_key, session_id=self.session_id)
+        logger.debug(f"🔗建立映射: key={self.session_key} ↔ sdk_session={self.session_id}")
         return self.session_id
 
-    def set_subtype(self, response_msg: Message) -> None:
+    def set_subtype(self, response_msg: SDKMessage) -> None:
         """设置消息子类型。"""
-        if hasattr(response_msg, "subtype"):
-            self.subtype = response_msg.subtype
-
+        raw = sdk_message_processor._to_plain_dict(response_msg)
+        subtype = raw.get("subtype")
+        if subtype:
+            self.subtype = str(subtype)
         if isinstance(response_msg, ResultMessage):
-            self.subtype = "success" if response_msg.subtype == "success" else "error"
+            self.subtype = "success" if self.subtype == "success" else "error"
 
-    def update_stream_state(self, a_message: AMessage) -> None:
+    def update_stream_state(self, message: Message | StreamMessage) -> None:
         """更新流式处理状态。"""
-        if a_message.message_type == "stream" and a_message.message.event["type"] == "message_start":
+        if isinstance(message, StreamMessage) and message.type == "message_start":
             self.is_streaming = True
-            self.stream_message_id = a_message.message_id
+            self.stream_message_id = message.message_id
             self.accumulated_thinking = ""
             self.accumulated_signature = ""
             self.accumulated_content_blocks = []
 
         if self.is_streaming:
-            if a_message.message_type == "stream":
-                a_message.message_id = self.stream_message_id
-                event_type = a_message.message.event["type"]
+            if isinstance(message, StreamMessage):
+                if self.stream_message_id:
+                    message.message_id = self.stream_message_id
 
-                if event_type == "content_block_start":
-                    if a_message.message.event["content_block"]["type"] == "tool_use":
+                if message.type == "content_block_start":
+                    block = sdk_message_processor._to_plain_block(message.content_block) if message.content_block else {}
+                    if block.get("type") == "tool_use":
                         self.is_streaming_tool = True
-                elif event_type == "content_block_delta":
-                    delta = a_message.message.event.get("delta", {})
+                elif message.type == "content_block_delta":
+                    delta = message.delta or {}
                     if delta.get("type") == "thinking_delta":
                         self.accumulated_thinking += delta.get("thinking", "")
                     elif delta.get("type") == "signature_delta":
                         self.accumulated_signature += delta.get("signature", "")
 
-                if self.is_streaming_tool and event_type == "content_block_stop":
+                if self.is_streaming_tool and message.type == "content_block_stop":
                     self.is_streaming_tool = False
 
-            elif a_message.message_type == "assistant":
+            elif message.role == "assistant":
                 if self.stream_message_id:
-                    a_message.message_id = self.stream_message_id
-                self.parent_id = a_message.message_id
+                    message.message_id = self.stream_message_id
+                self.parent_id = message.message_id
 
-                if isinstance(a_message.message.content, list):
-                    a_message.message.content = self._merge_assistant_stream_content(a_message.message.content)
+                if isinstance(message.content, list):
+                    message.content = self._merge_assistant_stream_content(message.content)
 
-        if a_message.message_type == "stream" and a_message.message.event["type"] == "message_stop":
+        if isinstance(message, StreamMessage) and message.type == "message_stop":
             self.is_streaming = False
             self.stream_message_id = None
             self.accumulated_content_blocks = []
 
-    def _merge_assistant_stream_content(self, incoming_blocks: list[Any]) -> list[Any]:
+    def _merge_assistant_stream_content(self, incoming_blocks: List[Any]) -> List[Dict[str, Any]]:
         """合并同一条流式 assistant 消息的内容块。"""
         merged_blocks = list(self.accumulated_content_blocks)
 
@@ -340,85 +381,86 @@ class ChatMessageProcessor:
             self._upsert_content_block(merged_blocks, block)
 
         if self.accumulated_thinking:
-            thinking_block = ThinkingBlock(
-                thinking=self.accumulated_thinking,
-                signature=self.accumulated_signature,
+            self._upsert_content_block(
+                merged_blocks,
+                {
+                    "type": "thinking",
+                    "thinking": self.accumulated_thinking,
+                    "signature": self.accumulated_signature,
+                },
             )
-            self._upsert_content_block(merged_blocks, thinking_block)
 
         self._move_thinking_to_front(merged_blocks)
         self.accumulated_content_blocks = merged_blocks
         return list(merged_blocks)
 
     @staticmethod
-    def _upsert_content_block(content_blocks: list[Any], new_block: Any) -> None:
+    def _upsert_content_block(content_blocks: List[Dict[str, Any]], new_block: Any) -> None:
         """按块类型做幂等更新。"""
-        if isinstance(new_block, ThinkingBlock):
+        normalized_block = sdk_message_processor._to_plain_block(new_block)
+        block_type = normalized_block.get("type")
+
+        if block_type == "thinking":
             for index, block in enumerate(content_blocks):
-                if isinstance(block, ThinkingBlock):
-                    content_blocks[index] = new_block
+                if block.get("type") == "thinking":
+                    content_blocks[index] = normalized_block
                     return
-            content_blocks.insert(0, new_block)
+            content_blocks.insert(0, normalized_block)
             return
 
-        if isinstance(new_block, ToolUseBlock):
+        if block_type == "tool_use":
             for index, block in enumerate(content_blocks):
-                if isinstance(block, ToolUseBlock) and block.id == new_block.id:
-                    content_blocks[index] = new_block
+                if block.get("type") == "tool_use" and block.get("id") == normalized_block.get("id"):
+                    content_blocks[index] = normalized_block
                     return
-            content_blocks.append(new_block)
+            content_blocks.append(normalized_block)
             return
 
-        if isinstance(new_block, ToolResultBlock):
+        if block_type == "tool_result":
             for index, block in enumerate(content_blocks):
-                if isinstance(block, ToolResultBlock) and block.tool_use_id == new_block.tool_use_id:
-                    content_blocks[index] = new_block
+                if block.get("type") == "tool_result" and block.get("tool_use_id") == normalized_block.get("tool_use_id"):
+                    content_blocks[index] = normalized_block
                     return
-            content_blocks.append(new_block)
+            content_blocks.append(normalized_block)
             return
 
-        if isinstance(new_block, TextBlock):
+        if block_type == "text":
             for block in content_blocks:
-                if isinstance(block, TextBlock) and block.text == new_block.text:
+                if block.get("type") == "text" and block.get("text") == normalized_block.get("text"):
                     return
-            content_blocks.append(new_block)
+            content_blocks.append(normalized_block)
             return
 
-        content_blocks.append(new_block)
+        content_blocks.append(normalized_block)
 
     @staticmethod
-    def _move_thinking_to_front(content_blocks: list[Any]) -> None:
+    def _move_thinking_to_front(content_blocks: List[Dict[str, Any]]) -> None:
         """确保 thinking 始终位于首位。"""
         thinking_index: Optional[int] = None
         for index, block in enumerate(content_blocks):
-            if isinstance(block, ThinkingBlock):
+            if block.get("type") == "thinking":
                 thinking_index = index
                 break
-
         if thinking_index is None or thinking_index == 0:
             return
-
         thinking_block = content_blocks.pop(thinking_index)
         content_blocks.insert(0, thinking_block)
 
-    async def save_user_message(self, content: str):
+    async def save_user_message(self, content: str) -> None:
         """保存用户消息。"""
         if self.is_save_user_message:
             return
-
         if not self.round_id:
             self.round_id = str(uuid.uuid4())
 
-        user_message = AMessage(
+        user_message = Message(
             session_key=self.session_key,
             agent_id=self.agent_id,
             round_id=self.round_id,
             message_id=self.round_id,
             session_id=self.session_id,
-            message_type="user",
-            block_type="text",
-            message=UserMessage(content=content),
+            role="user",
+            content=content,
         )
-
         await session_store.save_message(user_message)
         self.is_save_user_message = True

@@ -6,20 +6,13 @@
 
 import { SessionId, ToolInput, ToolOutput } from './sdk';
 
-// ==================== 消息角色 ====================
-
-/** 消息角色 */
 export type MessageRole = 'user' | 'assistant' | 'system' | 'result';
 
-// ==================== 内容块类型 ====================
-
-/** 文本内容块 */
 export interface TextContent {
   type: 'text';
   text: string;
 }
 
-/** 工具使用内容块 */
 export interface ToolUseContent {
   type: 'tool_use';
   id: string;
@@ -27,7 +20,6 @@ export interface ToolUseContent {
   input: ToolInput;
 }
 
-/** 工具结果内容块 */
 export interface ToolResultContent {
   type: 'tool_result';
   tool_use_id: string;
@@ -35,71 +27,63 @@ export interface ToolResultContent {
   is_error?: boolean;
 }
 
-/** 思考内容块 */
 export interface ThinkingContent {
   type: 'thinking';
   thinking: string;
+  signature?: string | null;
 }
 
-/** 内容块联合类型 */
 export type ContentBlock =
   | TextContent
   | ToolUseContent
   | ToolResultContent
   | ThinkingContent;
 
-// ==================== 消息类型 ====================
-
-/** 基础消息接口 */
 export interface BaseMessage {
   message_id: string;
-  round_id: string;            // 轮次ID
-  agent_id: string;            // session 路由键
-  session_id?: SessionId;      // SDK Session ID (可选，由后端返回)
-  parent_id?: string;          // 父消息ID (可选，由后端返回)
+  session_key: string;
+  agent_id: string;
+  round_id: string;
+  session_id?: SessionId;
+  parent_id?: string;
   role: MessageRole;
   timestamp: number;
 }
 
-/** 用户消息 */
 export interface UserMessage extends BaseMessage {
   role: 'user';
   content: string;
   parent_tool_use_id?: string | null;
 }
 
-
-/** token使用消息 */
 export interface Usage {
   input_tokens: number;
   output_tokens: number;
-  cache_creation_tokens?: number;
+  cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
-
   [key: string]: any;
 }
 
-/** 助手消息 */
 export interface AssistantMessage extends BaseMessage {
   role: 'assistant';
   content: ContentBlock[];
   stop_reason?: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use';
   model?: string;
+  usage?: Usage;
   parent_tool_use_id?: string | null;
   is_tool_result?: boolean;
+  target_message_id?: string | null;
 }
 
-/** 系统消息 */
 export interface SystemMessage extends BaseMessage {
   role: 'system';
   content: string;
   metadata?: Record<string, any>;
 }
 
-/** 执行结果消息 */
 export interface ResultMessage extends BaseMessage {
   role: 'result';
-  subtype: 'success' | 'error';
+  subtype: 'success' | 'error' | 'interrupted';
   duration_ms: number;
   duration_api_ms: number;
   num_turns: number;
@@ -109,15 +93,10 @@ export interface ResultMessage extends BaseMessage {
   is_error: boolean;
 }
 
-/** 消息联合类型 */
 export type Message = UserMessage | AssistantMessage | SystemMessage | ResultMessage;
 
-// ==================== 工具调用类型 ====================
-
-/** 工具调用状态 */
 export type ToolCallStatus = 'pending' | 'running' | 'success' | 'error';
 
-/** 工具调用记录 */
 export interface ToolCall {
   id: string;
   tool_name: string;
@@ -130,10 +109,7 @@ export interface ToolCall {
   parent_tool_use_id?: string | null;
 }
 
-// ==================== 消息流事件 ====================
-
-/** 流式消息事件类型 */
-export type StreamEventType =
+export type StreamMessageType =
   | 'message_start'
   | 'content_block_start'
   | 'content_block_delta'
@@ -141,12 +117,26 @@ export type StreamEventType =
   | 'message_delta'
   | 'message_stop';
 
-/** 流式消息事件 */
-export interface StreamEvent {
-  type: StreamEventType;
+export interface StreamMessage {
+  message_id: string;
+  session_key: string;
+  agent_id: string;
+  round_id: string;
+  session_id?: SessionId;
+  type: StreamMessageType;
   index?: number;
   delta?: any;
   content_block?: ContentBlock;
   message?: Partial<AssistantMessage>;
-  message_id?: string;
+  usage?: Record<string, any>;
+  timestamp: number;
+}
+
+export interface EventMessage {
+  event_type: 'message' | 'stream' | 'permission_request' | 'workspace_event' | 'pong' | 'error';
+  session_key?: string | null;
+  agent_id?: string | null;
+  session_id?: SessionId | null;
+  data: any;
+  timestamp: number;
 }

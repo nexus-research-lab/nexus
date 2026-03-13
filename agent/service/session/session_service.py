@@ -13,17 +13,14 @@ from typing import List, Optional
 
 from agent.infra.agent.session_manager import session_manager
 from agent.infra.session.session_router import build_session_key, get_default_agent_id
-from agent.service.process.protocol_adapter import ProtocolAdapter
 from agent.schema.model_cost import SessionCostSummary
+from agent.schema.model_message import Message
 from agent.schema.model_session import ASession
 from agent.service.session.session_store import session_store
 
 
 class SessionService:
     """负责 Session 相关应用编排。"""
-
-    def __init__(self) -> None:
-        self._protocol_adapter = ProtocolAdapter()
 
     def to_session_key(self, session_key: str, agent_id: Optional[str] = None) -> str:
         """将前端 session_key 规范化为内部 session_key。"""
@@ -88,11 +85,10 @@ class SessionService:
             raise RuntimeError("Failed to retrieve updated session")
         return updated
 
-    async def get_session_messages(self, session_key: str) -> list[dict]:
+    async def get_session_messages(self, session_key: str) -> list[Message]:
         """获取会话历史消息。"""
         internal_key = self.to_session_key(session_key)
-        messages = await session_store.get_session_messages(internal_key)
-        return self._protocol_adapter.build_history_messages(messages)
+        return await session_store.get_session_messages(internal_key)
 
     async def get_session_cost_summary(self, session_key: str) -> SessionCostSummary:
         """获取会话成本汇总。"""
