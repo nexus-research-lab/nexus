@@ -246,7 +246,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
         type: 'chat',
         content,
         session_key: sessionKey,
-        agent_id: sessionKey,
+        agent_id: options.agentId || 'main',
         round_id: message_id,
       });
 
@@ -256,7 +256,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       setError(err instanceof Error ? err.message : 'Failed to send message');
       setIsLoading(false);
     }
-  }, [wsState, sessionKey, wsSend]);
+  }, [options.agentId, wsState, sessionKey, wsSend]);
 
   /**
    * 停止生成
@@ -284,7 +284,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       const interruptMsg: { type: 'interrupt'; session_key: string; agent_id: string; round_id?: string } = {
         type: 'interrupt',
         session_key: sessionKey,
-        agent_id: sessionKey,
+        agent_id: options.agentId || 'main',
       };
       if (latestUserRoundId) {
         interruptMsg.round_id = latestUserRoundId;
@@ -310,7 +310,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     setToolCalls([]);
     setPendingPermission(null);
 
-  }, [sessionKey, messages, wsSend, wsState]);
+  }, [options.agentId, sessionKey, messages, wsSend, wsState]);
   /**
    * 发送权限响应（也用于 AskUserQuestion）
    */
@@ -329,7 +329,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       type: 'permission_response',
       request_id: pendingPermission.request_id,
       session_key: sessionKey,
-      agent_id: sessionKey,
+      agent_id: options.agentId || 'main',
       decision: payload.decision,
       message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
       interrupt: payload.interrupt ?? false,
@@ -347,7 +347,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     console.debug('[useAgentSession] Sending permission response:', response);
     wsSend(response as any);
     setPendingPermission(null);
-  }, [pendingPermission, sessionKey, wsSend, wsState]);
+  }, [options.agentId, pendingPermission, sessionKey, wsSend, wsState]);
 
   /**
    * 删除一轮对话
