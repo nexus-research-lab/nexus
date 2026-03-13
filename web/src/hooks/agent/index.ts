@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/lib/websocket';
 import { useSessionStore } from '@/store/session';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
-import { Message, StreamEvent, ToolCall, UserMessage } from '@/types';
+import { EventMessage, Message, StreamMessage, ToolCall, UserMessage } from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
 import {
@@ -30,15 +30,6 @@ import {
 } from './message-reducers';
 
 // ==================== Hook实现 ====================
-
-interface ConversationEventPayload {
-  event_id: string;
-  seq: number;
-  turn_id: string;
-  kind: 'message_upsert' | 'message_delta';
-  message?: Message;
-  delta?: StreamEvent;
-}
 
 interface WorkspaceEventPayload {
   type: 'file_write_start' | 'file_write_delta' | 'file_write_end';
@@ -100,78 +91,77 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
    * 处理WebSocket消息
    */
   const handleWebSocketMessage = useCallback((backendMsg: any) => {
-    const incomingSessionKey = backendMsg.agent_id || backendMsg.session_key || null;
+    const event = backendMsg as EventMessage;
+    const incomingSessionKey = event.session_key || null;
 
-    // 处理错误
-    if (backendMsg.error_type) {
+    if (event.event_type === 'error') {
       if (incomingSessionKey && !isCurrentSessionEvent(incomingSessionKey)) {
         return;
       }
-      console.error('[useAgentSession] Error:', backendMsg);
-      setError(backendMsg.message || 'Unknown error');
+      console.error('[useAgentSession] Error:', event);
+      setError(event.data?.message || 'Unknown error');
       setIsLoading(false);
       return;
     }
 
-    // 处理事件
-    if (backendMsg.event_type) {
-      // 处理权限请求事件
-      if (backendMsg.event_type === 'permission_request') {
-        if (!isCurrentSessionEvent(incomingSessionKey)) {
-          return;
-        }
-        const data = backendMsg.data || {};
-        console.debug('[useAgentSession] Permission request:', data);
-        setPendingPermission({
-          request_id: data.request_id,
-          tool_name: data.tool_name,
-          tool_input: data.tool_input || {},
-          risk_level: data.risk_level,
-          risk_label: data.risk_label,
-          summary: data.summary,
-          suggestions: data.suggestions || [],
-          expires_at: data.expires_at,
-        });
+    if (event.event_type === 'permission_request') {
+      if (!isCurrentSessionEvent(incomingSessionKey)) {
+        return;
+      }
+      const data = event.data || {};
+      console.debug('[useAgentSession] Permission request:', data);
+      setPendingPermission({
+        request_id: data.request_id,
+        tool_name: data.tool_name,
+        tool_input: data.tool_input || {},
+        risk_level: data.risk_level,
+        risk_label: data.risk_label,
+        summary: data.summary,
+        suggestions: data.suggestions || [],
+        expires_at: data.expires_at,
+      });
+      return;
+    }
+
+    if (event.event_type === 'message') {
+      const payload = event.data as Message;
+      const messageSessionKey = payload?.session_key || incomingSessionKey;
+      if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
         return;
       }
 
-      if (backendMsg.event_type === 'conversation_event') {
-        const payload = backendMsg.data as ConversationEventPayload;
-        const messageSessionKey = incomingSessionKey;
-        if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
-          return;
-        }
+      setMessages(prev => reduceIncomingMessage(prev, payload, messageSessionKey, payload.round_id || ''));
 
-        if (payload.kind === 'message_delta' && payload.delta) {
-          setMessages(prev => reduceIncomingMessage(prev, payload.delta!, messageSessionKey, payload.turn_id || ''));
-          setIsLoading(true);
-          return;
-        }
-
-        if (payload.kind === 'message_upsert' && payload.message) {
-          setMessages(prev => reduceIncomingMessage(prev, payload.message!, messageSessionKey, payload.turn_id || ''));
-
-          const toolCallsFromMessage = extractToolCallsFromMessage(payload.message);
-          if (toolCallsFromMessage.length > 0) {
-            setToolCalls(prev => mergeToolCalls(prev, toolCallsFromMessage));
-          }
-
-          if (payload.message.role === 'result') {
-            setIsLoading(false);
-          } else if (payload.message.role === 'assistant') {
-            setIsLoading(true);
-          }
-          return;
-        }
+      const toolCallsFromMessage = extractToolCallsFromMessage(payload);
+      if (toolCallsFromMessage.length > 0) {
+        setToolCalls(prev => mergeToolCalls(prev, toolCallsFromMessage));
       }
 
-      if (backendMsg.event_type === 'workspace_event') {
-        const payload = backendMsg.data as WorkspaceEventPayload;
-        if (payload?.agent_id && payload?.path) {
-          applyWorkspaceEvent(payload);
-        }
+      if (payload.role === 'result') {
+        setIsLoading(false);
+      } else if (payload.role === 'assistant') {
+        setIsLoading(true);
+      }
+      return;
+    }
+
+    if (event.event_type === 'stream') {
+      const payload = event.data as StreamMessage;
+      const messageSessionKey = payload?.session_key || incomingSessionKey;
+      if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
         return;
       }
+      setMessages(prev => reduceIncomingMessage(prev, payload, messageSessionKey, payload.round_id || ''));
+      setIsLoading(true);
+      return;
+    }
+
+    if (event.event_type === 'workspace_event') {
+      const payload = event.data as WorkspaceEventPayload;
+      if (payload?.agent_id && payload?.path) {
+        applyWorkspaceEvent(payload);
+      }
+      return;
     }
   }, [applyWorkspaceEvent, isCurrentSessionEvent]);
 
@@ -238,8 +228,9 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       activeSessionKeyRef.current = sessionKey;
       const userMessage: Message = {
         message_id: message_id,
+        session_key: sessionKey,
         round_id: message_id,
-        agent_id: sessionKey,
+        agent_id: options.agentId || 'main',
         role: 'user',
         content,
         timestamp: Date.now(),

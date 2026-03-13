@@ -19,7 +19,6 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -31,7 +30,7 @@ from agent.infra.storage.jsonl_store import JsonlStore
 from agent.infra.storage.storage_paths import FileStoragePaths
 from agent.infra.storage.session_repository import session_repository
 from agent.schema.model_cost import AgentCostSummary, CostLedgerEntry, SessionCostSummary
-from agent.schema.model_message import AMessage
+from agent.schema.model_message import Message
 from agent.utils.logger import logger
 
 
@@ -64,8 +63,6 @@ class CostRepository:
             return {}
         if isinstance(payload, dict):
             return dict(payload)
-        if is_dataclass(payload):
-            return asdict(payload)
         if hasattr(payload, "model_dump"):
             return payload.model_dump(mode="json")
         if hasattr(payload, "__dict__"):
@@ -170,7 +167,7 @@ class CostRepository:
         result_entries: List[Dict[str, Any]] = []
         messages = await session_repository.get_session_messages(session_key)
         for message in messages:
-            if message.message_type != "result":
+            if message.role != "result":
                 continue
 
             normalized_message = message.model_copy(
@@ -196,9 +193,9 @@ class CostRepository:
             await self._backfill_session_from_messages(session.session_key, agent_id=agent_id)
         return await self.rebuild_agent_summary(agent_id)
 
-    def _build_cost_entry(self, message: AMessage) -> CostLedgerEntry:
+    def _build_cost_entry(self, message: Message) -> CostLedgerEntry:
         """将 result 消息转换为成本账本条目。"""
-        payload = self._normalize_result_payload(message.message)
+        payload = message.model_dump(mode="json", exclude_none=True)
         usage = payload.get("usage") or {}
 
         return CostLedgerEntry(
@@ -301,9 +298,9 @@ class CostRepository:
         await self._write_agent_summary(agent_id, agent_summary)
         return agent_summary
 
-    async def record_result_message(self, message: AMessage) -> bool:
+    async def record_result_message(self, message: Message) -> bool:
         """对 result 消息落账并刷新汇总。"""
-        if message.message_type != "result":
+        if message.role != "result":
             return False
 
         workspace_path = await self._resolve_workspace_path(message.agent_id)

@@ -17,7 +17,7 @@ from agent.infra.agent.message_formatter import ChatMessageProcessor
 from agent.channels.message_sender import MessageSender
 from agent.infra.permission.permission_strategy import PermissionStrategy
 from agent.infra.agent.session_manager import session_manager
-from agent.schema.model_message import AError
+from agent.schema.model_message import EventMessage, build_error_event
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -41,6 +41,7 @@ class ChatService:
                 self._build_error(
                     error_type="validation_error",
                     message="session_key is required for chat messages",
+                    session_key=session_key or None,
                 )
             )
             return
@@ -80,7 +81,8 @@ class ChatService:
                 self._build_error(
                     error_type="client_error",
                     message=f"Failed to get or create client: {str(exc)}",
-                    agent_id=session_key,
+                    session_key=session_key,
+                    agent_id=real_agent_id,
                 )
             )
             return
@@ -120,14 +122,16 @@ class ChatService:
     def _build_error(
         error_type: str,
         message: str,
+        session_key: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
         details: Dict[str, Any] | None = None,
-    ) -> AError:
+    ) -> EventMessage:
         """构建错误响应。"""
-        return AError(
+        return build_error_event(
             error_type=error_type,
             message=message,
+            session_key=session_key,
             agent_id=agent_id,
             session_id=session_id,
             details=details,

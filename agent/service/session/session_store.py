@@ -22,7 +22,7 @@ from typing import Dict, List, Optional
 
 from agent.infra.storage.cost_repository import cost_repository
 from agent.infra.storage.session_repository import session_repository
-from agent.schema.model_message import AMessage
+from agent.schema.model_message import Message
 from agent.schema.model_session import ASession
 from agent.utils.logger import logger
 
@@ -106,7 +106,7 @@ class MessageHistoryStore:
     # Message 操作
     # =====================================================
 
-    async def save_message(self, message: AMessage) -> bool:
+    async def save_message(self, message: Message) -> bool:
         """保存消息"""
         try:
             session_info = await session_repository.get_session(message.session_key)
@@ -126,14 +126,14 @@ class MessageHistoryStore:
                 message.session_id = session_info.session_id
 
             success = await session_repository.create_message(message=message)
-            if success and message.message_type == "result":
+            if success and message.role == "result":
                 await cost_repository.record_result_message(message)
             return success
         except Exception as e:
             logger.error(f"❌ 保存消息失败: {e}")
             return False
 
-    async def get_session_messages(self, session_key: str) -> List[AMessage]:
+    async def get_session_messages(self, session_key: str) -> List[Message]:
         """获取会话历史消息"""
         return await session_repository.get_session_messages(session_key)
 

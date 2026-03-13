@@ -15,9 +15,8 @@ from fastapi import WebSocket
 
 from agent.channels.message_sender import MessageSender
 from agent.infra.workspace.monitor import workspace_event_bus, workspace_observer
-from agent.schema.model_message import AError, AEvent, AMessage
+from agent.schema.model_message import EventMessage, Message, StreamMessage
 from agent.schema.model_workspace_event import WorkspaceEvent
-from agent.service.process.protocol_adapter import ProtocolAdapter
 from agent.utils.logger import logger
 
 
@@ -26,7 +25,6 @@ class WebSocketSender(MessageSender):
 
     def __init__(self, websocket: WebSocket):
         self.websocket = websocket
-        self.protocol_adapter = ProtocolAdapter()
         self._workspace_subscriptions: Dict[str, str] = {}
         self._is_closed = False
 
@@ -46,34 +44,41 @@ class WebSocketSender(MessageSender):
             self.unsubscribe_all_workspace()
             raise
 
-    async def send_message(self, message: AMessage) -> None:
-        """发送会话消息。"""
-        event = self.protocol_adapter.build_ws_event(message)
-        if event is None:
-            return
+    async def send_message(self, message: Message) -> None:
+        """发送完整消息。"""
+        event = EventMessage(
+            event_type="message",
+            session_key=message.session_key,
+            agent_id=message.agent_id,
+            session_id=message.session_id,
+            data=message.model_dump(mode="json", exclude_none=True),
+        )
+        await self._safe_send_json(event.model_dump(mode="json", exclude_none=True))
 
-        payload = event.model_dump()
-        payload["timestamp"] = payload["timestamp"].isoformat()
-        await self._safe_send_json(payload)
-        logger.debug(f"💬发送消息: {payload}")
+    async def send_stream_message(self, message: StreamMessage) -> None:
+        """发送流式消息。"""
+        event = EventMessage(
+            event_type="stream",
+            session_key=message.session_key,
+            agent_id=message.agent_id,
+            session_id=message.session_id,
+            data=message.model_dump(mode="json", exclude_none=True),
+        )
+        await self._safe_send_json(event.model_dump(mode="json", exclude_none=True))
 
-    async def send_event(self, event: AEvent) -> None:
+    async def send_event_message(self, event: EventMessage) -> None:
         """发送事件消息。"""
-        payload = event.model_dump()
-        payload["timestamp"] = payload["timestamp"].isoformat()
-        await self._safe_send_json(payload)
-
-    async def send_error(self, error: AError) -> None:
-        """发送错误消息。"""
-        payload = error.model_dump()
-        payload["timestamp"] = payload["timestamp"].isoformat()
-        await self._safe_send_json(payload)
+        await self._safe_send_json(event.model_dump(mode="json", exclude_none=True))
 
     async def send_workspace_event(self, event: WorkspaceEvent) -> None:
         """发送 workspace 事件。"""
-        payload = self.protocol_adapter.build_workspace_event(event).model_dump()
-        payload["timestamp"] = payload["timestamp"].isoformat()
-        await self._safe_send_json(payload)
+        message = EventMessage(
+            event_type="workspace_event",
+            session_key=event.session_key,
+            agent_id=event.agent_id,
+            data=event.model_dump(mode="json", exclude_none=True),
+        )
+        await self._safe_send_json(message.model_dump(mode="json", exclude_none=True))
 
     def subscribe_workspace(self, agent_id: str) -> None:
         """订阅指定 Agent 的 workspace 事件。"""

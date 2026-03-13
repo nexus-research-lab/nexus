@@ -4,17 +4,17 @@
  * 无状态的消息归并、流式事件处理、工具调用提取逻辑
  * 从 useAgentSession Hook 中抽取，保持纯函数与反应式逻辑的职责分离
  *
- * [INPUT]: 依赖 @/types 的 Message/StreamEvent/ToolCall 类型
+ * [INPUT]: 依赖 @/types 的 Message/StreamMessage/ToolCall 类型
  * [OUTPUT]: 对外提供 reduceIncomingMessage, extractToolCallsFromMessage, mergeToolCalls
  * [POS]: hooks/agent 模块的消息处理内核，被 useAgentSession 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { AssistantMessage, Message, StreamEvent, ToolCall } from '@/types';
+import { AssistantMessage, Message, StreamMessage, ToolCall } from '@/types';
 
 // ==================== 流式事件判别 ====================
 
-export function isStreamEventMessage(message: Message | StreamEvent): message is StreamEvent {
+export function isStreamMessage(message: Message | StreamMessage): message is StreamMessage {
     return 'type' in message && !('role' in message);
 }
 
@@ -99,24 +99,25 @@ function findAssistantMessageIndex(messages: Message[], messageId?: string): num
 // ==================== 流式消息处理 ====================
 
 function createAssistantMessageFromStreamStart(
-    event: StreamEvent,
+    event: StreamMessage,
     messageSessionKey: string,
     roundId: string
 ): AssistantMessage {
     return {
-        message_id: event.message_id || crypto.randomUUID(),
-        agent_id: messageSessionKey,
+        message_id: event.message_id,
+        session_key: messageSessionKey,
+        agent_id: event.agent_id,
         round_id: roundId,
         role: 'assistant',
         content: [],
-        timestamp: Date.now(),
+        timestamp: event.timestamp || Date.now(),
         model: event.message?.model,
     };
 }
 
-function applyStreamEventToAssistantMessage(
+function applyStreamMessageToAssistantMessage(
     message: AssistantMessage,
-    event: StreamEvent
+    event: StreamMessage
 ): AssistantMessage {
     const updatedMessage: AssistantMessage = {
         ...message,
@@ -173,9 +174,9 @@ function applyStreamEventToAssistantMessage(
     return updatedMessage;
 }
 
-function handleStreamEventMessage(
+function handleStreamMessage(
     messages: Message[],
-    event: StreamEvent,
+    event: StreamMessage,
     messageSessionKey: string,
     roundId: string
 ): Message[] {
@@ -197,7 +198,7 @@ function handleStreamEventMessage(
     }
 
     const assistantMessage = messages[targetIndex] as AssistantMessage;
-    const updatedMessage = applyStreamEventToAssistantMessage(assistantMessage, event);
+    const updatedMessage = applyStreamMessageToAssistantMessage(assistantMessage, event);
     const nextMessages = [...messages];
     nextMessages[targetIndex] = updatedMessage;
     return nextMessages;
@@ -267,12 +268,12 @@ function upsertMessageById(messages: Message[], message: Message): Message[] | n
  */
 export function reduceIncomingMessage(
     messages: Message[],
-    incoming: Message | StreamEvent,
+    incoming: Message | StreamMessage,
     messageSessionKey: string,
     roundId: string
 ): Message[] {
-    if (isStreamEventMessage(incoming)) {
-        return handleStreamEventMessage(messages, incoming, messageSessionKey, roundId);
+    if (isStreamMessage(incoming)) {
+        return handleStreamMessage(messages, incoming, messageSessionKey, roundId);
     }
 
     if (incoming.role === 'assistant') {

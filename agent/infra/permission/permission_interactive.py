@@ -29,7 +29,7 @@ from agent.infra.runtime.permission_runtime import (
     PermissionRequestPresenter,
     PermissionUpdateCodec,
 )
-from agent.schema.model_message import AEvent
+from agent.schema.model_message import EventMessage
 from agent.utils.logger import logger
 
 
@@ -69,9 +69,9 @@ class InteractivePermissionStrategy(PermissionStrategy):
             context.suggestions if context else None
         )
 
-        permission_event = AEvent(
+        permission_event = EventMessage(
             event_type="permission_request",
-            agent_id=session_key,
+            session_key=session_key,
             session_id=session_manager.get_session_id(session_key),
             data=PermissionRequestPresenter.build_payload(
                 pending_request,
@@ -80,7 +80,7 @@ class InteractivePermissionStrategy(PermissionStrategy):
         )
 
         try:
-            await self.sender.send_event(permission_event)
+            await self.sender.send(permission_event)
         except Exception as exc:
             logger.warning(f"⚠️ 发送权限请求失败: tool={tool_name}, error={exc}")
             self._cleanup_request(request_id)
