@@ -24,7 +24,7 @@ from agent.channels.message_sender import MessageSender
 from agent.config.config import settings
 from agent.infra.agent.session_manager import session_manager
 from agent.infra.permission.permission_strategy import PermissionStrategy
-from agent.infra.runtime.permission_runtime import (
+from agent.infra.permission.permission_runtime import (
     PendingPermissionRequest,
     PermissionRequestPresenter,
     PermissionUpdateCodec,

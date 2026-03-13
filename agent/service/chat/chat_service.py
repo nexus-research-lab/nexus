@@ -13,7 +13,7 @@ import asyncio
 from typing import Any, Dict
 
 from agent.infra.agent.client import agent_client_runtime
-from agent.infra.agent.message_formatter import ChatMessageProcessor
+from agent.infra.agent.chat_message_processor import ChatMessageProcessor
 from agent.channels.message_sender import MessageSender
 from agent.infra.permission.permission_strategy import PermissionStrategy
 from agent.infra.agent.session_manager import session_manager

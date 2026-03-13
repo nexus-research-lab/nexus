@@ -113,7 +113,7 @@ export function markInterruptedToolCalls(messages: Message[]): Message[] {
       num_turns: 0,
       result: '任务已中断（页面刷新或连接断开）',
       is_error: true,
-    } as Message;
+    };
 
     console.debug('[markInterruptedToolCalls] 添加虚拟 ResultMessage:', interruptedResultMessage);
     updatedMessages.push(interruptedResultMessage);

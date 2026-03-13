@@ -2,19 +2,12 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：permission_runtime.py
-# @Date   ：2026/3/12 20:06
+# @Date   ：2026/3/14 12:01
 # @Author ：leemysw
-# 2026/3/12 20:06   Create
+# 2026/3/14 12:01   Create
 # =====================================================
 
-"""
-权限运行时辅助对象。
-
-[INPUT]: 依赖 claude_agent_sdk 的 PermissionUpdate/PermissionRuleValue
-[OUTPUT]: 对外提供权限请求状态、建议序列化与风险摘要能力
-[POS]: infra 层的权限运行时组件，被 WebSocket 权限策略消费
-[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
-"""
+"""权限运行时辅助对象。"""
 
 from __future__ import annotations
 
@@ -101,14 +94,10 @@ class PermissionUpdateCodec:
         """序列化单个权限更新。"""
         if isinstance(update, PermissionUpdate):
             return update.to_dict()
-
         if is_dataclass(update):
-            raw = asdict(update)
-            return cls._normalize_update_dict(raw)
-
+            return cls._normalize_update_dict(asdict(update))
         if isinstance(update, dict):
             return cls._normalize_update_dict(update)
-
         return None
 
     @classmethod
