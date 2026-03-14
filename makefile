@@ -16,7 +16,16 @@ run-web: ## Run frontend in development mode
 	cd web && npm run dev
 
 run-backend: ## Run backend in development mode
-	python main.py
+	@if [ -x .venv/bin/python ]; then \
+		.venv/bin/python main.py; \
+	elif command -v python3 >/dev/null 2>&1; then \
+		python3 main.py; \
+	elif command -v python >/dev/null 2>&1; then \
+		python main.py; \
+	else \
+		echo "No usable Python runtime found"; \
+		exit 1; \
+	fi
 
 dev: ## Run both frontend and backend in development mode
 	@echo "Starting development servers..."

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getAgentWsUrl } from '@/lib/runtime-config';
+import { generateUuid } from '@/lib/uuid';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import { AssistantMessage, EventMessage, Message, StreamMessage, UserMessage } from '@/types';
@@ -96,7 +98,7 @@ function sortMessages(messages: Message[]): Message[] {
 }
 
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
-  const wsUrl = options.wsUrl || process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8010/agent/v1/chat/ws';
+  const wsUrl = options.wsUrl || getAgentWsUrl();
   const applyWorkspaceEvent = useWorkspaceLiveStore((state) => state.applyEvent);
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -240,9 +242,8 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       return;
     }
 
-    const roundId = crypto.randomUUID();
+    const roundId = generateUuid();
     activeSessionKeyRef.current = sessionKey;
-
     const userMessage: Message = {
       message_id: roundId,
       session_key: sessionKey,
@@ -359,7 +360,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   }, [deleteRound, messages, sendMessage, sessionKey]);
 
   const startSession = useCallback(() => {
-    const newSessionKey = crypto.randomUUID();
+    const newSessionKey = generateUuid();
     loadRequestIdRef.current += 1;
     activeSessionKeyRef.current = newSessionKey;
     setSessionKey(newSessionKey);
