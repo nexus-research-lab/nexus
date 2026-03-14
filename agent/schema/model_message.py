@@ -86,12 +86,10 @@ class Message(BaseModel):
     role: Literal["user", "assistant", "system", "result"] = Field(..., description="消息角色")
     timestamp: int = Field(default_factory=current_timestamp_ms, description="毫秒时间戳")
     content: Optional[Union[str, List[ContentBlock]]] = Field(default=None, description="消息内容")
-    parent_tool_use_id: Optional[str] = Field(default=None, description="父工具调用 ID")
     stop_reason: Optional[str] = Field(default=None, description="停止原因")
     model: Optional[str] = Field(default=None, description="模型名称")
     usage: Optional[Usage] = Field(default=None, description="用量信息")
-    is_tool_result: bool = Field(default=False, description="是否为工具结果消息")
-    target_message_id: Optional[str] = Field(default=None, description="目标助手消息 ID")
+    is_complete: bool = Field(default=True, description="消息是否已完成")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="系统元数据")
     subtype: Optional[Literal["success", "error", "interrupted"]] = Field(
         default=None,
@@ -127,33 +125,6 @@ class Message(BaseModel):
         if isinstance(value, dict):
             return Usage(**value)
         return value
-
-
-class StreamMessage(BaseModel):
-    """流式消息。"""
-
-    message_id: str = Field(..., description="目标消息 ID")
-    session_key: str = Field(..., description="会话路由键")
-    agent_id: str = Field(default="", description="Agent ID")
-    round_id: str = Field(..., description="轮次 ID")
-    session_id: Optional[str] = Field(default=None, description="SDK Session ID")
-    type: str = Field(..., description="流式事件类型")
-    index: Optional[int] = Field(default=None, description="内容块索引")
-    delta: Optional[Dict[str, Any]] = Field(default=None, description="增量内容")
-    content_block: Optional[ContentBlock] = Field(default=None, description="内容块快照")
-    message: Optional[Dict[str, Any]] = Field(default=None, description="消息级别增量")
-    usage: Optional[Dict[str, Any]] = Field(default=None, description="用量信息")
-    timestamp: int = Field(default_factory=current_timestamp_ms, description="毫秒时间戳")
-
-    model_config = {"extra": "allow"}
-
-    @field_validator("content_block", mode="before")
-    @classmethod
-    def _validate_content_block(cls, value: Any) -> Any:
-        """将流式内容块解析为协议模型。"""
-        if value is None or not isinstance(value, dict):
-            return value
-        return parse_content_block(value)
 
 
 class EventMessage(BaseModel):

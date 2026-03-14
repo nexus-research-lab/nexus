@@ -60,7 +60,6 @@ export function ChatInterface({
   const {
     error,
     messages,
-    toolCalls,
     sessionKey,
     isLoading,
     pendingPermission,
@@ -127,7 +126,7 @@ export function ChatInterface({
   // 消息变化时自动滚动到底部
   useEffect(() => {
     scrollToBottom('smooth');
-  }, [messages, toolCalls, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
