@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
-import { EventMessage, Message, UserMessage } from '@/types';
+import { AssistantMessage, EventMessage, Message, StreamMessage, UserMessage } from '@/types';
 import { deleteRound as deleteRoundApi, getSessionMessages } from '@/lib/agent-api';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
@@ -34,6 +34,60 @@ function upsertMessage(messages: Message[], incoming: Message): Message[] {
 
   const nextMessages = [...messages];
   nextMessages[existingIndex] = incoming;
+  return nextMessages;
+}
+
+function applyStreamMessage(messages: Message[], event: StreamMessage): Message[] {
+  const existingIndex = messages.findIndex(
+    (message) => message.role === 'assistant' && message.message_id === event.message_id,
+  );
+
+  if (event.type === 'message_start') {
+    if (existingIndex !== -1) {
+      return messages;
+    }
+    return [
+      ...messages,
+      {
+        message_id: event.message_id,
+        session_key: event.session_key,
+        agent_id: event.agent_id,
+        round_id: event.round_id,
+        session_id: event.session_id,
+        role: 'assistant',
+        content: [],
+        model: event.message?.model,
+        timestamp: event.timestamp,
+      },
+    ];
+  }
+
+  if (existingIndex === -1) {
+    return messages;
+  }
+
+  const assistantMessage = messages[existingIndex] as AssistantMessage;
+  const nextMessage: AssistantMessage = {
+    ...assistantMessage,
+    model: event.message?.model || assistantMessage.model,
+    stop_reason: event.message?.stop_reason || assistantMessage.stop_reason,
+    usage: event.usage || assistantMessage.usage,
+    content: [...assistantMessage.content],
+  };
+
+  if (
+    (event.type === 'content_block_start' || event.type === 'content_block_delta') &&
+    typeof event.index === 'number' &&
+    event.content_block
+  ) {
+    while (nextMessage.content.length <= event.index) {
+      nextMessage.content.push({ type: 'text', text: '' });
+    }
+    nextMessage.content[event.index] = event.content_block;
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[existingIndex] = nextMessage;
   return nextMessages;
 }
 
@@ -108,6 +162,18 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     }
 
     if (event.event_type !== 'message') {
+      if (event.event_type !== 'stream') {
+        return;
+      }
+
+      const payload = event.data as StreamMessage;
+      const messageSessionKey = payload?.session_key || incomingSessionKey;
+      if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
+        return;
+      }
+
+      setMessages((prev) => applyStreamMessage(prev, payload));
+      setIsLoading(true);
       return;
     }
 

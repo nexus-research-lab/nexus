@@ -18,10 +18,7 @@ export interface SessionOptions {
   allowedTools?: string[];
   disallowedTools?: string[];
   systemPrompt?: string;
-  maxTurns?: number;
-  maxThinkingTokens?: number;
   cwd?: string;
-  includePartialMessages?: boolean;
   settingSources?: ('user' | 'project' | 'local')[];
   skillsEnabled?: boolean;
 }

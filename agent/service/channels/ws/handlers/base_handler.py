@@ -13,7 +13,7 @@ from abc import ABC
 from typing import Any, Dict, Optional, Union
 
 from agent.service.channels.message_sender import MessageSender
-from agent.schema.model_message import EventMessage, Message, build_error_event
+from agent.schema.model_message import EventMessage, Message, StreamMessage, build_error_event
 
 
 class BaseHandler(ABC):
@@ -22,7 +22,7 @@ class BaseHandler(ABC):
     def __init__(self, sender: MessageSender):
         self.sender = sender
 
-    async def send(self, message: Union[Message, EventMessage]) -> None:
+    async def send(self, message: Union[Message, StreamMessage, EventMessage]) -> None:
         """通过 MessageSender 协议发送消息，与传输层解耦。"""
         await self.sender.send(message)
 

@@ -176,7 +176,6 @@ export default function Home() {
       if (current_session_key !== null) {
         setCurrentSession(null);
       }
-      setActiveWorkspacePath(null);
       setIsEditorOpen(false);
       setCurrentTodos([]);
       setIsSessionBusy(false);
@@ -306,8 +305,6 @@ export default function Home() {
       permission_mode: options.permissionMode,
       allowed_tools: options.allowedTools,
       disallowed_tools: options.disallowedTools,
-      max_turns: options.maxTurns,
-      max_thinking_tokens: options.maxThinkingTokens,
       skills_enabled: options.skillsEnabled,
       setting_sources: options.settingSources,
     };

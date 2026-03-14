@@ -14,7 +14,7 @@ from typing import List, Optional
 from telegram.ext import Application
 
 from agent.service.channels.message_sender import MessageSender
-from agent.schema.model_message import EventMessage, Message
+from agent.schema.model_message import EventMessage, Message, StreamMessage
 
 TELEGRAM_MAX_LENGTH = 4096
 
@@ -43,6 +43,10 @@ class TelegramSender(MessageSender):
                 text=chunk,
                 parse_mode="Markdown",
             )
+
+    async def send_stream_message(self, message: StreamMessage) -> None:
+        """流式消息不推送到 Telegram。"""
+        del message
 
     async def send_event_message(self, event: EventMessage) -> None:
         """事件消息不推送到 Telegram。"""

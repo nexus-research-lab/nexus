@@ -257,7 +257,20 @@ class SessionRepository:
                 }
             )
 
-        rows.sort(key=lambda item: int(item.get("timestamp") or 0))
+        # 处理时间戳排序：支持 ISO 字符串或整数毫秒戳
+        def parse_timestamp(ts: Any) -> int:
+            if isinstance(ts, (int, float)):
+                return int(ts)
+            if isinstance(ts, str):
+                try:
+                    # 尝试解析为 ISO 格式时间字符串
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    return int(dt.timestamp() * 1000)
+                except (ValueError, AttributeError):
+                    pass
+            return 0
+
+        rows.sort(key=lambda item: parse_timestamp(item.get("timestamp")))
         return rows
 
     async def create_session(
