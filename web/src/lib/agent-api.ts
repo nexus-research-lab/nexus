@@ -70,6 +70,9 @@ export const getSessionCostSummary = async (session_key: string): Promise<Sessio
 };
 
 export const deleteSession = async (session_key: string): Promise<{ success: boolean }> => {
+  if (!session_key) {
+    throw new Error('session_key 不能为空');
+  }
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${session_key}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },

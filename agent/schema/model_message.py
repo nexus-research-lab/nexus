@@ -127,6 +127,48 @@ class Message(BaseModel):
         return value
 
 
+class StreamMessage(BaseModel):
+    """统一流式消息。"""
+
+    message_id: str = Field(..., description="目标消息 ID")
+    session_key: str = Field(..., description="会话路由键")
+    agent_id: str = Field(default="", description="Agent ID")
+    round_id: str = Field(..., description="轮次 ID")
+    session_id: Optional[str] = Field(default=None, description="SDK Session ID")
+    type: Literal[
+        "message_start",
+        "content_block_start",
+        "content_block_delta",
+        "message_delta",
+        "message_stop",
+    ] = Field(..., description="流式事件类型")
+    index: Optional[int] = Field(default=None, description="内容块索引")
+    content_block: Optional[ContentBlock] = Field(default=None, description="内容块快照")
+    message: Dict[str, Any] = Field(default_factory=dict, description="消息级别元数据")
+    usage: Optional[Usage] = Field(default=None, description="用量信息")
+    timestamp: int = Field(default_factory=current_timestamp_ms, description="毫秒时间戳")
+
+    model_config = {"extra": "allow"}
+
+    @field_validator("content_block", mode="before")
+    @classmethod
+    def _validate_content_block(cls, value: Any) -> Any:
+        """将内容块统一解析为协议模型。"""
+        if value is None or not isinstance(value, dict):
+            return value
+        return parse_content_block(value)
+
+    @field_validator("usage", mode="before")
+    @classmethod
+    def _validate_usage(cls, value: Any) -> Any:
+        """将 usage 统一解析为模型。"""
+        if value is None or isinstance(value, Usage):
+            return value
+        if isinstance(value, dict):
+            return Usage(**value)
+        return value
+
+
 class EventMessage(BaseModel):
     """事件消息。"""
 

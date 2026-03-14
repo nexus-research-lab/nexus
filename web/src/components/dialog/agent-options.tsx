@@ -44,8 +44,6 @@ interface AgentDialogInitialOptions extends Partial<SessionOptions> {
   permission_mode?: string;
   allowed_tools?: string[];
   disallowed_tools?: string[];
-  max_turns?: number;
-  max_thinking_tokens?: number;
   skills_enabled?: boolean;
   setting_sources?: ('user' | 'project' | 'local')[];
 }
@@ -54,8 +52,8 @@ type TabKey = 'basic' | 'prompt' | 'tools' | 'skills' | 'advanced';
 
 // 预定义的模型列表
 const AVAILABLE_MODELS = [
-  {value: 'deepseek-chat', label: 'DeepSeek Chat | 深度求索'},
   {value: 'glm-5', label: 'GLM 5'},
+  {value: 'deepseek-chat', label: 'DeepSeek Chat | 深度求索'},
   {value: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet'},
   {value: 'claude-3-opus', label: 'Claude 3 Opus'},
   {value: 'claude-3-haiku', label: 'Claude 3 Haiku'},
@@ -108,7 +106,7 @@ export function AgentOptions(
   // 状态管理
   const [activeTab, setActiveTab] = useState<TabKey>('basic');
   const [title, setTitle] = useState(initialTitle || 'Agent');
-  const [model, setModel] = useState(sourceOptions.model || 'deepseek-chat');
+  const [model, setModel] = useState(sourceOptions.model || 'glm-5');
   const [permissionMode, setPermissionMode] = useState(
     sourceOptions.permissionMode || sourceOptions.permission_mode || 'default'
   );
@@ -119,10 +117,7 @@ export function AgentOptions(
     sourceOptions.disallowedTools || sourceOptions.disallowed_tools || []
   );
   const [systemPrompt, setSystemPrompt] = useState(sourceOptions.systemPrompt || '');
-  const [maxTurns, setMaxTurns] = useState(
-    (sourceOptions.maxTurns ?? sourceOptions.max_turns)?.toString() || ''
-  );
-  const [includePartialMessages, setIncludePartialMessages] = useState(sourceOptions.includePartialMessages ?? true);
+
   // 技能配置状态
   const [skillsEnabled, setSkillsEnabled] = useState(
     sourceOptions.skillsEnabled ?? sourceOptions.skills_enabled ?? true
@@ -138,13 +133,11 @@ export function AgentOptions(
     const nextOptions = initialOptions as AgentDialogInitialOptions;
     setActiveTab('basic');
     setTitle(initialTitle || 'Agent');
-    setModel(nextOptions.model || 'deepseek-chat');
+    setModel(nextOptions.model || 'glm-5');
     setPermissionMode(nextOptions.permissionMode || nextOptions.permission_mode || 'default');
     setAllowedTools(nextOptions.allowedTools || nextOptions.allowed_tools || []);
     setDisallowedTools(nextOptions.disallowedTools || nextOptions.disallowed_tools || []);
     setSystemPrompt(nextOptions.systemPrompt || '');
-    setMaxTurns((nextOptions.maxTurns ?? nextOptions.max_turns)?.toString() || '');
-    setIncludePartialMessages(nextOptions.includePartialMessages ?? true);
     setSkillsEnabled(nextOptions.skillsEnabled ?? nextOptions.skills_enabled ?? true);
     setSettingSources(
       nextOptions.settingSources || nextOptions.setting_sources || ['user', 'project']
@@ -254,8 +247,6 @@ export function AgentOptions(
       allowedTools: finalAllowedTools,
       disallowedTools,
       systemPrompt: systemPrompt || undefined,
-      maxTurns: maxTurns ? parseInt(maxTurns) : undefined,
-      includePartialMessages,
       // Skills 配置
       skillsEnabled,
       settingSources: settingSources.length > 0 ? settingSources : undefined,
@@ -700,53 +691,7 @@ export function AgentOptions(
             {/* 高级设置 */}
             {activeTab === 'advanced' && (
               <div className="space-y-8 max-w-2xl animate-in slide-in-from-right-4 duration-300">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">流式输出配置</h3>
 
-                  <div
-                    className="flex items-center justify-between p-4 border rounded-lg bg-card hover:border-primary/20 transition-all">
-                    <div className="flex-1">
-                      <label className="text-sm font-medium leading-none flex items-center gap-2">
-                        启用流式输出
-                        {includePartialMessages && <span
-                          className="text-[10px] px-1.5 py-0.5 bg-green-500/10 text-green-600 rounded font-medium">已启用</span>}
-                      </label>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        启用后将实时显示 Agent 的输出内容，提供更流畅的交互体验。关闭后将等待完整响应后一次性显示。
-                      </p>
-                    </div>
-
-                    {/* 自定义 Switch 样式 */}
-                    <label className="relative inline-flex items-center cursor-pointer ml-4">
-                      <input
-                        type="checkbox"
-                        checked={includePartialMessages}
-                        onChange={(e) => setIncludePartialMessages(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div
-                        className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">限制与配额</h3>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none">最大对话轮次</label>
-                    <input
-                      type="number"
-                      value={maxTurns}
-                      onChange={(e) => setMaxTurns(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder="例如: 50"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      达到此限制后，Agent 将停止响应。留空表示无限制。
-                    </p>
-                  </div>
-                </div>
               </div>
             )}
           </div>

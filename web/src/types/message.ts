@@ -92,8 +92,32 @@ export interface ResultMessage extends BaseMessage {
 
 export type Message = UserMessage | AssistantMessage | SystemMessage | ResultMessage;
 
+export type StreamMessageType =
+  | 'message_start'
+  | 'content_block_start'
+  | 'content_block_delta'
+  | 'message_delta'
+  | 'message_stop';
+
+export interface StreamMessage {
+  message_id: string;
+  session_key: string;
+  agent_id: string;
+  round_id: string;
+  session_id?: SessionId;
+  type: StreamMessageType;
+  index?: number;
+  content_block?: ContentBlock;
+  message?: {
+    model?: string;
+    stop_reason?: AssistantMessage['stop_reason'];
+  };
+  usage?: Usage;
+  timestamp: number;
+}
+
 export interface EventMessage {
-  event_type: 'message' | 'permission_request' | 'workspace_event' | 'pong' | 'error';
+  event_type: 'message' | 'stream' | 'permission_request' | 'workspace_event' | 'pong' | 'error';
   session_key?: string | null;
   agent_id?: string | null;
   session_id?: SessionId | null;

@@ -596,7 +596,9 @@ export function WorkspaceSidebar({
             </div>
 
             <div className="space-y-2">
-              {sessions.map((session) => {
+              {(sessions || [])
+                .filter((s): s is Session => s != null && !!s.session_key)
+                .map((session) => {
                 const isActive = session.session_key === currentSessionKey;
                 return (
                   <div
@@ -632,7 +634,9 @@ export function WorkspaceSidebar({
                         className="rounded-lg border border-border/80 p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                         onClick={(event) => {
                           event.stopPropagation();
-                          onDeleteSession(session.session_key);
+                          if (session.session_key) {
+                            onDeleteSession(session.session_key);
+                          }
                         }}
                         type="button"
                       >

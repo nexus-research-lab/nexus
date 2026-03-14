@@ -43,6 +43,9 @@ export const useExtractTodos = (
 
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
         for (const block of msg.content) {
+          if (!block) {
+            continue;
+          }
           if (block.type === "tool_use" && block.name === "TodoWrite") {
             if (block.input && Array.isArray(block.input.todos)) {
               latestTodos = block.input.todos;

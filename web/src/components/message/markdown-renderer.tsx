@@ -12,8 +12,6 @@ import { useWorkspaceFilesStore } from '@/store/workspace-files';
 import { cn } from '@/lib/utils';
 import 'katex/dist/katex.min.css';
 
-import { useTypewriter } from '@/hooks/use-typewriter';
-
 interface MarkdownRendererProps {
   content: string;
   className?: string;
@@ -108,11 +106,6 @@ function renderInteractiveText(
 }
 
 export function MarkdownRenderer({ content, className, isStreaming = false, onOpenWorkspaceFile }: MarkdownRendererProps) {
-  const { displayedText, isComplete } = useTypewriter({
-    text: content,
-    enabled: isStreaming,
-    speed: 5, // Fast typing
-  });
   const currentAgentId = useAgentStore((state) => state.current_agent_id);
   const filesByAgent = useWorkspaceFilesStore((state) => state.filesByAgent);
   const resolveFilePath = (path: string) => resolveWorkspaceFileReference(path, currentAgentId, filesByAgent);
@@ -213,9 +206,9 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
           },
         }}
       >
-        {displayedText}
+        {content}
       </ReactMarkdown>
-      {isStreaming && !isComplete && (
+      {isStreaming && (
         <span className="inline-block w-2 h-4 ml-1 align-middle bg-primary animate-pulse" />
       )}
     </div>

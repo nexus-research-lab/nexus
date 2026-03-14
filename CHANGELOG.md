@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-03-14
+
+### Fixed
+- 修复 `thinking` / 文本流式内容在前端被二次打字机动画延迟显示的问题，恢复按后端真实 chunk 即时渲染。
+- 修复消息流式链路中 assistant 段收束、工具结果插入与同一 `message_id` 更新顺序不稳定的问题。
+- 修复 `TodoWrite` 提取、会话删除与工作区侧栏在空块/空 `session_key` 场景下的前端异常。
+
+### Changed
+- 重构消息协议边界，新增 `StreamMessage`，统一后端流式消息、最终消息与前端消费模型。
+- 调整 WebSocket / IM 发送层，显式区分 `message`、`stream` 与 `event` 三类传输。
+- 默认向 SDK 透传 `include_partial_messages`，并同步收敛前端无效的流式/轮次配置项。
+
 ## 2026-03-13
 
 ### Docs

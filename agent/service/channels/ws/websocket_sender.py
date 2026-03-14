@@ -15,7 +15,7 @@ from fastapi import WebSocket
 
 from agent.service.channels.message_sender import MessageSender
 from agent.service.workspace.monitor import workspace_event_bus, workspace_observer
-from agent.schema.model_message import EventMessage, Message
+from agent.schema.model_message import EventMessage, Message, StreamMessage
 from agent.schema.model_workspace_event import WorkspaceEvent
 from agent.utils.logger import logger
 
@@ -48,6 +48,17 @@ class WebSocketSender(MessageSender):
         """发送完整消息。"""
         event = EventMessage(
             event_type="message",
+            session_key=message.session_key,
+            agent_id=message.agent_id,
+            session_id=message.session_id,
+            data=message.model_dump(mode="json", exclude_none=True),
+        )
+        await self._safe_send_json(event.model_dump(mode="json", exclude_none=True))
+
+    async def send_stream_message(self, message: StreamMessage) -> None:
+        """发送流式消息。"""
+        event = EventMessage(
+            event_type="stream",
             session_key=message.session_key,
             agent_id=message.agent_id,
             session_id=message.session_id,

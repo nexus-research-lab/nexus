@@ -16,8 +16,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Optional
 
-from agent.service.workspace.monitor import workspace_event_bus
 from agent.schema.model_workspace_event import WorkspaceDiffStats, WorkspaceEvent
+from agent.service.workspace.monitor import workspace_event_bus
 from agent.utils.logger import logger
 
 DEFAULT_DIR = {
@@ -304,12 +304,12 @@ class AgentWorkspace:
         return relative_path_str
 
     def stream_relative_file(
-        self,
-        relative_path: str,
-        chunks: list[str],
-        source: str = "agent",
-        session_key: Optional[str] = None,
-        tool_use_id: Optional[str] = None,
+            self,
+            relative_path: str,
+            chunks: list[str],
+            source: str = "agent",
+            session_key: Optional[str] = None,
+            tool_use_id: Optional[str] = None,
     ) -> str:
         """按 chunk 流式写入文件，并连续发布 delta 事件。"""
         target_path = self._resolve_relative_path(relative_path)
@@ -456,13 +456,14 @@ class AgentWorkspace:
 
         return "\n\n---\n\n".join(sections)
 
-    def build_sdk_options(self) -> dict:
+    def build_sdk_options(self, base_options) -> dict:
         """构建 ClaudeAgentOptions 的 workspace 相关配置。"""
         options = {"cwd": str(self.path)}
         prompt = self.build_system_prompt()
         if prompt:
             options["system_prompt"] = prompt
-        return options
+        base_options.update(options)
+        return base_options
 
     def save_memory(self, filename: str, content: str) -> None:
         """保存会话摘要到 memory 目录。"""

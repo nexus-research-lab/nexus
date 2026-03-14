@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：chat_message_processor.py
-# @Date   ：2026/3/14 13:45
+# @Date   ：2026/3/14 16:20
 # @Author ：leemysw
-# 2026/3/14 13:45   Create
+# 2026/3/14 16:20   Create
 # =====================================================
 
 """单轮聊天消息处理器。"""
@@ -18,9 +18,18 @@ from typing import Any, Dict, Optional
 
 from claude_agent_sdk import Message as SDKMessage
 from claude_agent_sdk import ResultMessage, SystemMessage
-from claude_agent_sdk.types import AssistantMessage, StreamEvent, UserMessage
+from claude_agent_sdk.types import (
+    AssistantMessage,
+    StreamEvent,
+    TextBlock,
+    ThinkingBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+    UserMessage,
+)
 
-from agent.schema.model_message import Message
+from agent.schema.model_message import Message, StreamMessage
+from agent.service.message.sdk_message_processor import message_vis
 from agent.service.session.session_manager import session_manager
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
@@ -36,18 +45,19 @@ class AssistantDraft:
     stop_reason: Optional[str] = None
     usage: Optional[Dict[str, Any]] = None
     partial_tool_inputs: Dict[int, str] = field(default_factory=dict)
+    is_open: bool = False
 
 
 class ChatMessageProcessor:
-    """负责单轮消息转换、聚合与落盘。"""
+    """负责单轮消息转换、流式 patch 生成与最终落盘。"""
 
     def __init__(
-        self,
-        session_key: str,
-        query: str,
-        round_id: Optional[str] = None,
-        agent_id: str = "main",
-        session_id: Optional[str] = None,
+            self,
+            session_key: str,
+            query: str,
+            round_id: Optional[str] = None,
+            agent_id: str = "main",
+            session_id: Optional[str] = None,
     ):
         self.query = query
         self.session_key = session_key
@@ -58,21 +68,22 @@ class ChatMessageProcessor:
         self.message_count: int = 0
         self.is_save_user_message: bool = False
         self.draft = AssistantDraft()
+        self.last_assistant_message_id: Optional[str] = None
 
-    async def process_messages(self, response_msg: SDKMessage) -> list[Message]:
-        """处理响应消息并返回可直接消费的消息快照。"""
+    async def process_messages(self, response_msg: SDKMessage) -> list[Message | StreamMessage]:
+        """处理响应消息并返回规范化消息。"""
         self._print_message(response_msg)
+        message_vis.print_message(response_msg)
         self._set_subtype(response_msg)
         await self._set_session_id(response_msg)
         await self._save_user_message()
 
-        message = self._build_message(response_msg)
-        if message is None:
-            return []
-
-        await session_store.save_message(message)
-        self.message_count += 1
-        return [message]
+        processed_messages = self._build_messages(response_msg)
+        for message in processed_messages:
+            if isinstance(message, Message):
+                await session_store.save_message(message)
+            self.message_count += 1
+        return processed_messages
 
     async def _set_session_id(self, response_msg: SDKMessage) -> Optional[str]:
         """处理 session 映射关系。"""
@@ -122,113 +133,118 @@ class ChatMessageProcessor:
         await session_store.save_message(user_message)
         self.is_save_user_message = True
 
-    def _build_message(self, response_msg: SDKMessage) -> Optional[Message]:
-        """将 SDK 消息聚合为统一 Message。"""
+    def _build_messages(self, response_msg: SDKMessage) -> list[Message | StreamMessage]:
+        """将 SDK 消息转换为统一协议。"""
         if isinstance(response_msg, SystemMessage):
-            return None
+            return []
         if isinstance(response_msg, StreamEvent):
             return self._consume_stream_event(response_msg)
         if isinstance(response_msg, AssistantMessage):
-            return self._consume_assistant_message(response_msg)
+            message = self._consume_assistant_message(response_msg)
+            return [message] if message else []
         if isinstance(response_msg, UserMessage):
-            return self._consume_tool_result_message(response_msg)
+            return self._consume_tool_result_messages(response_msg)
         if isinstance(response_msg, ResultMessage):
-            return self._build_result_message(response_msg)
+            return [self._build_result_message(response_msg)]
         raise ValueError(f"Unsupported SDK message type: {type(response_msg)}")
 
-    def _consume_stream_event(self, response_msg: StreamEvent) -> Optional[Message]:
-        """消费流式事件并产出 assistant 快照。"""
+    def _consume_stream_event(self, response_msg: StreamEvent) -> list[Message | StreamMessage]:
+        """消费流式事件并产出标准化 patch。"""
         raw = self._to_plain_dict(response_msg)
         event = raw.get("event") if isinstance(raw.get("event"), dict) else raw
         event_type = str(event.get("type") or "")
         if not event_type:
-            return None
+            return []
 
         if event_type == "message_start":
             message_payload = event.get("message") or {}
-            self._ensure_assistant_draft()
+            self._start_new_draft()
             self.draft.model = message_payload.get("model") or self.draft.model
             self.draft.usage = message_payload.get("usage") or self.draft.usage
-            return self._build_assistant_snapshot()
+            return [
+                self._build_stream_message(
+                    stream_type="message_start",
+                    message={
+                        "model": self.draft.model,
+                    },
+                    usage=self.draft.usage,
+                )
+            ]
 
         if event_type == "content_block_start":
             self._ensure_assistant_draft()
             index = event.get("index")
+            if not isinstance(index, int):
+                return []
             block = self._to_plain_block(event.get("content_block"))
-            if isinstance(index, int):
-                self._set_content_block(index, block)
-                return self._build_assistant_snapshot()
-            return None
+            self._set_content_block(index, block)
+            if block.get("type") == "tool_use":
+                return []
+            return [
+                self._build_stream_message(
+                    stream_type="content_block_start",
+                    index=index,
+                    content_block=block,
+                )
+            ]
 
         if event_type == "content_block_delta":
             self._ensure_assistant_draft()
             index = event.get("index")
-            delta = event.get("delta") or {}
             if not isinstance(index, int):
-                return None
-            if self._apply_content_delta(index, delta):
-                return self._build_assistant_snapshot()
-            return None
+                return []
+            delta = event.get("delta") or {}
+            if not self._apply_content_delta(index, delta):
+                return []
+            current_block = self.draft.content[index]
+            if current_block.get("type") == "tool_use":
+                return []
+            return [
+                self._build_stream_message(
+                    stream_type="content_block_delta",
+                    index=index,
+                    content_block=current_block,
+                )
+            ]
 
         if event_type == "message_delta":
             self._ensure_assistant_draft()
             delta = event.get("delta") or {}
             self.draft.stop_reason = delta.get("stop_reason") or self.draft.stop_reason
             self.draft.usage = event.get("usage") or self.draft.usage
-            return self._build_assistant_snapshot()
+            return [
+                self._build_stream_message(
+                    stream_type="message_delta",
+                    message={"stop_reason": self.draft.stop_reason},
+                    usage=self.draft.usage,
+                )
+            ]
 
-        return None
+        if event_type == "message_stop":
+            self._ensure_assistant_draft()
+            messages: list[Message | StreamMessage] = [
+                self._build_stream_message(stream_type="message_stop"),
+            ]
+            finalized_message = self._finalize_current_draft()
+            if finalized_message:
+                messages.append(finalized_message)
+            return messages
 
-    def _consume_assistant_message(self, response_msg: AssistantMessage) -> Message:
-        """消费 assistant 完整消息。"""
+        return []
+
+    def _consume_assistant_message(self, response_msg: AssistantMessage) -> Optional[Message]:
+        """消费 assistant 快照，更新当前段的权威内容。"""
         raw = self._to_plain_dict(response_msg)
         self._ensure_assistant_draft()
-        self.draft.content = self._normalize_content_blocks(raw.get("content"))
+        self.draft.content = self._merge_content_blocks(
+            current_blocks=self.draft.content,
+            incoming_blocks=self._normalize_content_blocks(raw.get("content")),
+        )
         self.draft.model = raw.get("model") or self.draft.model
         self.draft.stop_reason = raw.get("stop_reason") or self.draft.stop_reason
         self.draft.usage = raw.get("usage") or self.draft.usage
-        return self._build_assistant_snapshot(is_complete=True)
-
-    def _consume_tool_result_message(self, response_msg: UserMessage) -> Optional[Message]:
-        """消费工具结果回灌消息。"""
-        raw = self._to_plain_dict(response_msg)
-        content_blocks = self._normalize_content_blocks(raw.get("content"))
-        if not content_blocks:
+        if not self.draft.content:
             return None
-        if not all(block.get("type") == "tool_result" for block in content_blocks):
-            return None
-
-        self._ensure_assistant_draft()
-        for block in content_blocks:
-            self._merge_or_append_block(block)
-        return self._build_assistant_snapshot()
-
-    def _build_result_message(self, response_msg: ResultMessage) -> Message:
-        """构建结果消息。"""
-        raw = self._to_plain_dict(response_msg)
-        subtype = str(raw.get("subtype") or "success")
-        normalized_subtype = subtype if subtype in ("success", "error", "interrupted") else "error"
-        return Message(
-            message_id=str(uuid.uuid4()),
-            session_key=self.session_key,
-            agent_id=self.agent_id,
-            round_id=self.round_id or str(uuid.uuid4()),
-            session_id=self.session_id,
-            parent_id=self.draft.message_id or self.round_id,
-            role="result",
-            subtype=normalized_subtype,
-            duration_ms=int(raw.get("duration_ms") or 0),
-            duration_api_ms=int(raw.get("duration_api_ms") or 0),
-            num_turns=int(raw.get("num_turns") or 0),
-            total_cost_usd=raw.get("total_cost_usd"),
-            usage=raw.get("usage"),
-            result=raw.get("result"),
-            is_error=bool(raw.get("is_error", normalized_subtype != "success")),
-        )
-
-    def _build_assistant_snapshot(self, is_complete: bool = False) -> Message:
-        """根据当前草稿生成 assistant 快照。"""
-        self._ensure_assistant_draft()
         return Message(
             message_id=self.draft.message_id or str(uuid.uuid4()),
             session_key=self.session_key,
@@ -241,7 +257,109 @@ class ChatMessageProcessor:
             model=self.draft.model,
             stop_reason=self.draft.stop_reason,
             usage=self.draft.usage,
-            is_complete=is_complete,
+            is_complete=False,
+        )
+
+    def _consume_tool_result_messages(self, response_msg: UserMessage) -> list[Message]:
+        """消费工具结果回灌，并通过消息快照更新 UI。"""
+        raw = self._to_plain_dict(response_msg)
+        content_blocks = self._normalize_content_blocks(raw.get("content"))
+        if not content_blocks:
+            return []
+        if not all(block.get("type") == "tool_result" for block in content_blocks):
+            return []
+
+        message = Message(
+            message_id=str(uuid.uuid4()),
+            session_key=self.session_key,
+            agent_id=self.agent_id,
+            round_id=self.round_id or str(uuid.uuid4()),
+            session_id=self.session_id,
+            parent_id=self._current_parent_message_id(),
+            role="assistant",
+            content=content_blocks,
+            is_complete=True,
+        )
+        self.last_assistant_message_id = message.message_id
+        return [message]
+
+    def _build_result_message(self, response_msg: ResultMessage) -> Message:
+        """构建结果消息。"""
+        raw = self._to_plain_dict(response_msg)
+        subtype = str(raw.get("subtype") or "success")
+        normalized_subtype = subtype if subtype in ("success", "error", "interrupted") else "error"
+        return Message(
+            message_id=str(uuid.uuid4()),
+            session_key=self.session_key,
+            agent_id=self.agent_id,
+            round_id=self.round_id or str(uuid.uuid4()),
+            session_id=self.session_id,
+            parent_id=self._current_parent_message_id(),
+            role="result",
+            subtype=normalized_subtype,
+            duration_ms=int(raw.get("duration_ms") or 0),
+            duration_api_ms=int(raw.get("duration_api_ms") or 0),
+            num_turns=int(raw.get("num_turns") or 0),
+            total_cost_usd=raw.get("total_cost_usd"),
+            usage=raw.get("usage"),
+            result=raw.get("result"),
+            is_error=bool(raw.get("is_error", normalized_subtype != "success")),
+        )
+
+    def _start_new_draft(self) -> None:
+        """开始一段新的 assistant 草稿。"""
+        if not self.round_id:
+            self.round_id = str(uuid.uuid4())
+        self.draft = AssistantDraft(
+            message_id=str(uuid.uuid4()),
+            is_open=True,
+        )
+
+    def _finalize_current_draft(self) -> Optional[Message]:
+        """在 message_stop 时收束当前 assistant 段。"""
+        if not self.draft.is_open or not self.draft.message_id or not self.draft.content:
+            self.draft = AssistantDraft()
+            return None
+
+        message = Message(
+            message_id=self.draft.message_id,
+            session_key=self.session_key,
+            agent_id=self.agent_id,
+            round_id=self.round_id or str(uuid.uuid4()),
+            session_id=self.session_id,
+            parent_id=self.round_id,
+            role="assistant",
+            content=list(self.draft.content),
+            model=self.draft.model,
+            stop_reason=self.draft.stop_reason,
+            usage=self.draft.usage,
+            is_complete=True,
+        )
+        self.last_assistant_message_id = message.message_id
+        self.draft = AssistantDraft()
+        return message
+
+    def _build_stream_message(
+            self,
+            stream_type: str,
+            index: Optional[int] = None,
+            content_block: Optional[Dict[str, Any]] = None,
+            message: Optional[Dict[str, Any]] = None,
+            usage: Optional[Dict[str, Any]] = None,
+    ) -> StreamMessage:
+        """构建统一流式消息。"""
+        self._ensure_assistant_draft()
+        return StreamMessage(
+            message_id=self.draft.message_id or str(uuid.uuid4()),
+            session_key=self.session_key,
+            agent_id=self.agent_id,
+            round_id=self.round_id or str(uuid.uuid4()),
+            session_id=self.session_id,
+            type=stream_type,
+            index=index,
+            content_block=content_block,
+            message=message or {},
+            usage=usage,
         )
 
     def _ensure_assistant_draft(self) -> None:
@@ -250,6 +368,13 @@ class ChatMessageProcessor:
             self.round_id = str(uuid.uuid4())
         if not self.draft.message_id:
             self.draft.message_id = str(uuid.uuid4())
+        self.draft.is_open = True
+
+    def _current_parent_message_id(self) -> Optional[str]:
+        """返回当前应关联的父助手消息 ID。"""
+        if self.draft.message_id:
+            return self.draft.message_id
+        return self.last_assistant_message_id or self.round_id
 
     def _set_content_block(self, index: int, block: Dict[str, Any]) -> None:
         """按索引写入内容块。"""
@@ -287,53 +412,88 @@ class ChatMessageProcessor:
                 return False
         return False
 
-    def _merge_or_append_block(self, incoming_block: Dict[str, Any]) -> None:
-        """将新内容块幂等合入 assistant 草稿。"""
-        block_type = incoming_block.get("type")
-        if block_type == "thinking":
-            self._replace_matching_block(
-                lambda item: item.get("type") == "thinking",
-                incoming_block,
-                insert_front=True,
-            )
-            return
-        if block_type == "tool_use":
-            self._replace_matching_block(
-                lambda item: item.get("type") == "tool_use" and item.get("id") == incoming_block.get("id"),
-                incoming_block,
-            )
-            return
-        if block_type == "tool_result":
-            self._replace_matching_block(
-                lambda item: item.get("type") == "tool_result"
-                and item.get("tool_use_id") == incoming_block.get("tool_use_id"),
-                incoming_block,
-            )
-            return
-        if block_type == "text":
-            self._replace_matching_block(
-                lambda item: item.get("type") == "text" and item.get("text") == incoming_block.get("text"),
-                incoming_block,
-            )
-            return
-        self.draft.content.append(incoming_block)
-
-    def _replace_matching_block(
-        self,
-        match_func,
-        incoming_block: Dict[str, Any],
-        insert_front: bool = False,
-    ) -> None:
-        """替换匹配内容块，不存在时追加。"""
+    def _upsert_block(self, incoming_block: Dict[str, Any]) -> tuple[int, bool]:
+        """将内容块幂等合入草稿，并返回索引和是否新建。"""
         for index, current_block in enumerate(self.draft.content):
-            if match_func(current_block):
+            if self._is_same_block(current_block, incoming_block):
                 self.draft.content[index] = incoming_block
-                return
+                return index, False
 
-        if insert_front:
-            self.draft.content.insert(0, incoming_block)
-            return
         self.draft.content.append(incoming_block)
+        return len(self.draft.content) - 1, True
+
+    def _merge_content_blocks(
+            self,
+            current_blocks: list[Dict[str, Any]],
+            incoming_blocks: list[Dict[str, Any]],
+    ) -> list[Dict[str, Any]]:
+        """合并最终 assistant 内容，避免流式块被最终态覆盖。"""
+        merged_blocks = [dict(block) for block in current_blocks]
+        text_indexes = [
+            index
+            for index, block in enumerate(merged_blocks)
+            if block.get("type") == "text"
+        ]
+        next_text_index = 0
+
+        for block in incoming_blocks:
+            if block.get("type") == "text":
+                if next_text_index < len(text_indexes):
+                    merged_blocks[text_indexes[next_text_index]] = dict(block)
+                    next_text_index += 1
+                    continue
+                merged_blocks.append(dict(block))
+                continue
+            self._merge_block_into_list(merged_blocks, block)
+
+        merged_blocks = [
+            block
+            for block in merged_blocks
+            if block.get("type") != "text" or bool(str(block.get("text", "")).strip())
+        ]
+        self._move_thinking_to_front(merged_blocks)
+        return merged_blocks
+
+    def _merge_block_into_list(
+            self,
+            blocks: list[Dict[str, Any]],
+            incoming_block: Dict[str, Any],
+    ) -> None:
+        """将内容块合入指定列表。"""
+        for index, current_block in enumerate(blocks):
+            if self._is_same_block(current_block, incoming_block):
+                blocks[index] = incoming_block
+                return
+        blocks.append(incoming_block)
+
+    @staticmethod
+    def _move_thinking_to_front(blocks: list[Dict[str, Any]]) -> None:
+        """确保 thinking 位于首位。"""
+        for index, block in enumerate(blocks):
+            if block.get("type") != "thinking":
+                continue
+            if index == 0:
+                return
+            thinking_block = blocks.pop(index)
+            blocks.insert(0, thinking_block)
+            return
+
+    @staticmethod
+    def _is_same_block(left: Dict[str, Any], right: Dict[str, Any]) -> bool:
+        """判断两个内容块是否代表同一逻辑块。"""
+        left_type = left.get("type")
+        right_type = right.get("type")
+        if left_type != right_type:
+            return False
+        if left_type == "thinking":
+            return True
+        if left_type == "tool_use":
+            return left.get("id") == right.get("id")
+        if left_type == "tool_result":
+            return left.get("tool_use_id") == right.get("tool_use_id")
+        if left_type == "text":
+            return False
+        return left == right
 
     @staticmethod
     def _to_plain_dict(payload: Any) -> Dict[str, Any]:
@@ -362,6 +522,31 @@ class ChatMessageProcessor:
         """将 SDK block 转换为普通字典。"""
         if isinstance(block, dict):
             return dict(block)
+        if isinstance(block, TextBlock):
+            return {
+                "type": "text",
+                "text": block.text,
+            }
+        if isinstance(block, ThinkingBlock):
+            return {
+                "type": "thinking",
+                "thinking": block.thinking,
+                "signature": getattr(block, "signature", None),
+            }
+        if isinstance(block, ToolUseBlock):
+            return {
+                "type": "tool_use",
+                "id": block.id,
+                "name": block.name,
+                "input": block.input or {},
+            }
+        if isinstance(block, ToolResultBlock):
+            return {
+                "type": "tool_result",
+                "tool_use_id": block.tool_use_id,
+                "content": block.content,
+                "is_error": bool(getattr(block, "is_error", False)),
+            }
         if hasattr(block, "model_dump"):
             return block.model_dump(mode="json", exclude_none=True)
         if hasattr(block, "__dict__"):

@@ -14,7 +14,7 @@ from typing import List, Optional
 import discord
 
 from agent.service.channels.message_sender import MessageSender
-from agent.schema.model_message import EventMessage, Message
+from agent.schema.model_message import EventMessage, Message, StreamMessage
 from agent.utils.logger import logger
 
 DISCORD_MAX_LENGTH = 2000
@@ -45,6 +45,10 @@ class DiscordSender(MessageSender):
 
         for chunk in self._split_message(text):
             await self._channel.send(chunk)
+
+    async def send_stream_message(self, message: StreamMessage) -> None:
+        """流式消息不推送到 Discord。"""
+        del message
 
     async def send_event_message(self, event: EventMessage) -> None:
         """事件消息不推送到 Discord。"""

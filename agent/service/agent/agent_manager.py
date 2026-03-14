@@ -317,6 +317,7 @@ class AgentManager:
         合并顺序: workspace options (cwd + system_prompt) → agent options (model + tools + ...)
         每次调用重新读取 workspace 文件，修改后立即生效。
         """
+        base_options = {"include_partial_messages": True}
         agent = await agent_repository.get_agent(agent_id)
         if not agent:
             raise ValueError(f"Agent not found: {agent_id}")
@@ -326,7 +327,7 @@ class AgentManager:
         # Workspace 层: cwd + system_prompt
         workspace = self._get_or_create_workspace(agent_id, synced_workspace)
         workspace.ensure_initialized(agent_name=agent.name)
-        sdk_options = workspace.build_sdk_options()
+        sdk_options = workspace.build_sdk_options(base_options)
 
         # Agent 层: model + tools + permissions + ...（过滤掉非 SDK 字段）
         agent_opts = agent.options.model_dump(exclude_none=True)
