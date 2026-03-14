@@ -14,7 +14,7 @@ from typing import List, Optional
 from telegram.ext import Application
 
 from agent.service.channels.message_sender import MessageSender
-from agent.schema.model_message import EventMessage, Message, StreamMessage
+from agent.schema.model_message import EventMessage, Message
 
 TELEGRAM_MAX_LENGTH = 4096
 
@@ -30,6 +30,8 @@ class TelegramSender(MessageSender):
         """发送 Agent 消息到 Telegram。"""
         if message.role in ("system", "result"):
             return
+        if message.role == "assistant" and not message.is_complete:
+            return
 
         text = self._extract_text(message)
         if not text:
@@ -41,10 +43,6 @@ class TelegramSender(MessageSender):
                 text=chunk,
                 parse_mode="Markdown",
             )
-
-    async def send_stream_message(self, message: StreamMessage) -> None:
-        """流式消息不推送到 Telegram。"""
-        del message
 
     async def send_event_message(self, event: EventMessage) -> None:
         """事件消息不推送到 Telegram。"""

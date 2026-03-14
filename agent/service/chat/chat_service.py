@@ -12,12 +12,12 @@
 import asyncio
 from typing import Any, Dict
 
+from agent.schema.model_message import build_error_event, EventMessage
 from agent.service.agent.client import agent_client_runtime
-from agent.service.message.chat_message_processor import ChatMessageProcessor
 from agent.service.channels.message_sender import MessageSender
+from agent.service.message.chat_message_processor import ChatMessageProcessor
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.session.session_manager import session_manager
-from agent.schema.model_message import EventMessage, build_error_event
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -30,9 +30,9 @@ class ChatService:
         self._permission_strategy = permission_strategy
 
     async def handle_chat_message_with_task(
-        self,
-        message: Dict[str, Any],
-        chat_tasks: Dict[str, Any],
+            self,
+            message: Dict[str, Any],
+            chat_tasks: Dict[str, Any],
     ) -> None:
         """处理聊天消息并维护任务生命周期。"""
         session_key = message.get("session_key") or message.get("agent_id", "")
@@ -97,6 +97,7 @@ class ChatService:
                 query=content,
                 round_id=round_id,
                 agent_id=real_agent_id,
+                session_id=existing_session.session_id if existing_session else None,
             )
 
             async for response_msg in client.receive_messages():
@@ -120,12 +121,12 @@ class ChatService:
 
     @staticmethod
     def _build_error(
-        error_type: str,
-        message: str,
-        session_key: str | None = None,
-        agent_id: str | None = None,
-        session_id: str | None = None,
-        details: Dict[str, Any] | None = None,
+            error_type: str,
+            message: str,
+            session_key: str | None = None,
+            agent_id: str | None = None,
+            session_id: str | None = None,
+            details: Dict[str, Any] | None = None,
     ) -> EventMessage:
         """构建错误响应。"""
         return build_error_event(
