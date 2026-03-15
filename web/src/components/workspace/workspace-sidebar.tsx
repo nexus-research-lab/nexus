@@ -225,6 +225,7 @@ export function WorkspaceSidebar({
     () => recentEvents.find((item) => item.agentId === agent.agent_id) ?? null,
     [agent.agent_id, recentEvents],
   );
+  const knownFilePaths = useMemo(() => new Set(files.map((entry) => entry.path)), [files]);
 
   useEffect(() => {
     if (!latestAgentEvent || latestAgentEvent.eventType !== "file_write_end") {
@@ -243,12 +244,16 @@ export function WorkspaceSidebar({
       });
     }
 
+    if (knownFilePaths.has(latestAgentEvent.path)) {
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       void loadFiles();
-    }, 180);
+    }, 240);
 
     return () => window.clearTimeout(timer);
-  }, [latestAgentEvent?.id, latestAgentEvent?.eventType, loadFiles]);
+  }, [knownFilePaths, latestAgentEvent?.id, latestAgentEvent?.eventType, latestAgentEvent?.path, loadFiles]);
 
   useEffect(() => {
     setExpandedDirectories((current) => {

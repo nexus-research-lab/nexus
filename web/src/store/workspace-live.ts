@@ -33,36 +33,40 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
       event.type === 'file_write_end' ? 'updated' : 'writing';
     const nextUpdatedAt = Date.parse(event.timestamp) || Date.now();
 
-    set((state) => ({
-      recentEvents: [
-        {
-          id: `${key}:${event.type}:${event.version}:${nextUpdatedAt}`,
-          eventType: event.type,
-          agentId: event.agent_id,
-          path: event.path,
-          status: nextStatus,
-          version: event.version,
-          source: event.source,
-          liveContent: event.content_snapshot,
-          diffStats: event.diff_stats,
-          updatedAt: nextUpdatedAt,
+    set((state) => {
+      const nextLiveContent = resolveLiveContent(state.fileStates[key]?.liveContent, event);
+
+      return {
+        recentEvents: [
+          {
+            id: `${key}:${event.type}:${event.version}:${nextUpdatedAt}`,
+            eventType: event.type,
+            agentId: event.agent_id,
+            path: event.path,
+            status: nextStatus,
+            version: event.version,
+            source: event.source,
+            liveContent: nextLiveContent,
+            diffStats: event.diff_stats,
+            updatedAt: nextUpdatedAt,
+          },
+          ...state.recentEvents,
+        ].slice(0, 24),
+        fileStates: {
+          ...state.fileStates,
+          [key]: {
+            agentId: event.agent_id,
+            path: event.path,
+            status: nextStatus,
+            version: event.version,
+            source: event.source,
+            liveContent: nextLiveContent,
+            diffStats: event.diff_stats,
+            updatedAt: nextUpdatedAt,
+          },
         },
-        ...state.recentEvents,
-      ].slice(0, 24),
-      fileStates: {
-        ...state.fileStates,
-        [key]: {
-          agentId: event.agent_id,
-          path: event.path,
-          status: nextStatus,
-          version: event.version,
-          source: event.source,
-          liveContent: event.content_snapshot,
-          diffStats: event.diff_stats,
-          updatedAt: nextUpdatedAt,
-        },
-      },
-    }));
+      };
+    });
   },
 
   markFileSeen: (agentId, path) => {
@@ -73,7 +77,9 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
       delete nextFileStates[key];
 
       return {
-        recentEvents: state.recentEvents.filter((item) => !(item.agentId === agentId && item.path === path)),
+        recentEvents: [
+          ...state.recentEvents.filter((item) => !(item.agentId === agentId && item.path === path)),
+        ],
         fileStates: nextFileStates,
       };
     });
@@ -88,3 +94,22 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
     }));
   },
 }));
+
+function resolveLiveContent(
+  previousContent: string | null | undefined,
+  event: WorkspaceLiveEvent,
+): string | null | undefined {
+  if (typeof event.content_snapshot === 'string') {
+    return event.content_snapshot;
+  }
+
+  if (
+    event.type === 'file_write_delta' &&
+    typeof event.appended_text === 'string' &&
+    typeof previousContent === 'string'
+  ) {
+    return `${previousContent}${event.appended_text}`;
+  }
+
+  return previousContent;
+}

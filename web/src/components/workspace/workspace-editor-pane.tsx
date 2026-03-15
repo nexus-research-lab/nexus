@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GripVertical, LoaderCircle, Minimize2, Save } from "lucide-react";
 
 import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
@@ -39,13 +39,31 @@ export function WorkspaceEditorPane({
 
   const isDirty = draftContent !== savedContent;
 
+  const loadContent = useCallback(async () => {
+    if (!isOpen || !path) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await getWorkspaceFileContentApi(agentId, path);
+      setDraftContent(response.content);
+      setSavedContent(response.content);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "读取文件失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [agentId, isOpen, path]);
+
   useEffect(() => {
     if (!isOpen || !path) {
       return;
     }
 
     let cancelled = false;
-    const loadContent = async () => {
+    void (async () => {
       setIsLoading(true);
       setError(null);
       try {
@@ -64,9 +82,8 @@ export function WorkspaceEditorPane({
           setIsLoading(false);
         }
       }
-    };
+    })();
 
-    void loadContent();
     return () => {
       cancelled = true;
     };
@@ -86,6 +103,18 @@ export function WorkspaceEditorPane({
       setSavedContent(liveState.liveContent || "");
     }
   }, [hasLiveContent, isOpen, isSaving, liveState, path]);
+
+  useEffect(() => {
+    if (!isOpen || !path || !liveState) {
+      return;
+    }
+
+    if (liveState.status !== "updated" || typeof liveState.liveContent === "string") {
+      return;
+    }
+
+    void loadContent();
+  }, [isOpen, liveState, loadContent, path]);
 
   const handleSave = async () => {
     if (!path || !isDirty || isSaving) {

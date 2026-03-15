@@ -122,6 +122,8 @@ def _load_base_system_prompt() -> Optional[str]:
 class AgentWorkspace:
     """Agent 的专属工作区。"""
 
+    MAX_LIVE_SNAPSHOT_BYTES = 128 * 1024
+
     def __init__(self, agent_id: str, workspace_path: Path):
         self.agent_id = agent_id
         self.path = workspace_path
@@ -270,6 +272,13 @@ class AgentWorkspace:
             raise FileNotFoundError(f"文件不存在: {relative_path}")
         return target_path.read_text(encoding="utf-8")
 
+    @classmethod
+    def _build_live_snapshot(cls, content: str) -> Optional[str]:
+        """限制实时同步快照大小，避免长文档反复推送拖慢链路。"""
+        if len(content.encode("utf-8")) > cls.MAX_LIVE_SNAPSHOT_BYTES:
+            return None
+        return content
+
     def write_relative_file(self, relative_path: str, content: str, source: str = "unknown") -> str:
         """写入 workspace 内的文本文件。"""
         target_path = self._resolve_relative_path(relative_path)
@@ -283,7 +292,7 @@ class AgentWorkspace:
                 path=relative_path_str,
                 version=1,
                 source=source,
-                content_snapshot=before_content,
+                content_snapshot=self._build_live_snapshot(before_content),
             )
         )
 
@@ -297,7 +306,7 @@ class AgentWorkspace:
                 path=relative_path_str,
                 version=1,
                 source=source,
-                content_snapshot=content,
+                content_snapshot=self._build_live_snapshot(content),
                 diff_stats=self._build_diff_stats(before_content, content),
             )
         )
@@ -326,7 +335,7 @@ class AgentWorkspace:
                 source=source,
                 session_key=session_key,
                 tool_use_id=tool_use_id,
-                content_snapshot=before_content,
+                content_snapshot=self._build_live_snapshot(before_content),
             )
         )
 
@@ -341,7 +350,6 @@ class AgentWorkspace:
                     source=source,
                     session_key=session_key,
                     tool_use_id=tool_use_id,
-                    content_snapshot=accumulated,
                     appended_text=chunk,
                 )
             )
@@ -358,7 +366,7 @@ class AgentWorkspace:
                 source=source,
                 session_key=session_key,
                 tool_use_id=tool_use_id,
-                content_snapshot=accumulated,
+                content_snapshot=self._build_live_snapshot(accumulated),
                 diff_stats=self._build_diff_stats(before_content, accumulated),
             )
         )

@@ -99,15 +99,14 @@ class ObservedFileSnapshot:
 
     modified_at: str
     size: int
-    content: str
 
 
 @dataclass
 class ActiveWriteState:
     """正在写入中的文件状态。"""
 
-    before_content: str
-    current_content: str
+    before_content: Optional[str]
+    current_content: Optional[str]
     last_modified_at: str
     last_change_at: float
     version: int
@@ -121,8 +120,9 @@ class WorkspaceObserver:
         self._watch_tasks: Dict[str, asyncio.Task] = {}
         self._snapshots: Dict[str, Dict[str, ObservedFileSnapshot]] = {}
         self._active_writes: Dict[str, Dict[str, ActiveWriteState]] = {}
-        self._poll_interval_seconds = 0.35
-        self._quiet_window_seconds = 0.8
+        self._poll_interval_seconds = 0.8
+        self._quiet_window_seconds = 1.2
+        self._max_snapshot_bytes = 128 * 1024
 
     def subscribe(self, agent_id: str) -> None:
         """增加某个 Agent 的观察订阅。"""
@@ -179,10 +179,11 @@ class WorkspaceObserver:
             if previous and previous.modified_at == current.modified_at and previous.size == current.size:
                 continue
 
+            current_content = self._read_snapshot_content(workspace, path, current.size)
             if path not in active_writes:
                 active_writes[path] = ActiveWriteState(
-                    before_content=previous.content if previous else "",
-                    current_content=current.content,
+                    before_content=None,
+                    current_content=current_content,
                     last_modified_at=current.modified_at,
                     last_change_at=now,
                     version=1,
@@ -194,13 +195,12 @@ class WorkspaceObserver:
                         path=path,
                         version=1,
                         source="agent",
-                        content_snapshot=previous.content if previous else "",
                     )
                 )
             else:
                 state = active_writes[path]
                 state.version += 1
-                state.current_content = current.content
+                state.current_content = current_content
                 state.last_modified_at = current.modified_at
                 state.last_change_at = now
 
@@ -212,7 +212,7 @@ class WorkspaceObserver:
                     path=path,
                     version=state.version,
                     source="agent",
-                    content_snapshot=current.content,
+                    content_snapshot=state.current_content,
                 )
             )
 
@@ -232,7 +232,9 @@ class WorkspaceObserver:
                     version=state.version,
                     source="agent",
                     content_snapshot=state.current_content,
-                    diff_stats=workspace._build_diff_stats(state.before_content, state.current_content),
+                    diff_stats=workspace._build_diff_stats(state.before_content, state.current_content)
+                    if state.before_content is not None and state.current_content is not None
+                    else None,
                 )
             )
             active_writes.pop(path, None)
@@ -240,25 +242,29 @@ class WorkspaceObserver:
         self._snapshots[agent_id] = current_snapshot
 
     async def _capture_snapshot(self, workspace) -> Dict[str, ObservedFileSnapshot]:
-        """抓取当前 workspace 可见文本文件快照。"""
+        """抓取当前 workspace 可见文件的元数据快照。"""
         snapshot: Dict[str, ObservedFileSnapshot] = {}
         for entry in workspace.list_files():
             if entry["is_dir"]:
                 continue
 
             path = str(entry["path"])
-            try:
-                content = workspace.read_relative_file(path)
-            except (UnicodeDecodeError, ValueError, FileNotFoundError):
-                continue
-
             snapshot[path] = ObservedFileSnapshot(
                 modified_at=str(entry["modified_at"]),
                 size=int(entry.get("size") or 0),
-                content=content,
             )
 
         return snapshot
+
+    def _read_snapshot_content(self, workspace, path: str, size: int) -> Optional[str]:
+        """仅读取发生变化的小文件内容，避免轮询时全量读取所有文档。"""
+        if size > self._max_snapshot_bytes:
+            return None
+
+        try:
+            return workspace.read_relative_file(path)
+        except (UnicodeDecodeError, ValueError, FileNotFoundError):
+            return None
 
 
 workspace_event_bus = WorkspaceEventBus()
