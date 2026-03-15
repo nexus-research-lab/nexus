@@ -639,37 +639,6 @@ export function AgentOptions(
                           className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
                       </label>
                     </div>
-
-                    {/* 本地设置 */}
-                    <div
-                      className={cn(
-                        "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
-                        settingSources.includes('local')
-                          ? "bg-primary/5 border-primary/30"
-                          : "bg-card border-border hover:border-primary/20"
-                      )}
-                    >
-                      <div className="flex-1 mr-4">
-                        <div className="font-medium text-sm flex items-center gap-2">
-                          本地设置
-                          {settingSources.includes('local') && <span
-                            className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          从 workspace 下的 `.claude/settings.local.json` 读取仅本机生效的权限规则。
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settingSources.includes('local')}
-                          onChange={() => toggleSettingSource('local')}
-                          className="sr-only peer"
-                        />
-                        <div
-                          className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                      </label>
-                    </div>
                   </div>
 
                   <p className="text-xs text-muted-foreground">

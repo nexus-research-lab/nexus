@@ -2,59 +2,69 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f4f6;
-  --foreground: #111827;
-  --primary: #243b53;
+  --background: #f8fafd;
+  --foreground: #0d0d12;
+  --primary: #6366f1;
   --primary-foreground: #ffffff;
-  --secondary: #fbfbfc;
-  --secondary-foreground: #1f2937;
-  --accent: #355c7d;
+  --secondary: #f0f9ff;
+  --secondary-foreground: #1e1a2e;
+  --accent: #f97316;
   --accent-foreground: #ffffff;
-  --card: rgba(255, 255, 255, 0.92);
-  --card-foreground: #111827;
-  --muted: #e8eaee;
-  --muted-foreground: #6b7280;
-  --border: rgba(17, 24, 39, 0.1);
-  --input: rgba(17, 24, 39, 0.08);
-  --ring: rgba(36, 59, 83, 0.16);
-  --destructive: #b4534a;
+  --card: rgba(255, 255, 255, 0.98);
+  --card-foreground: #0d0d12;
+  --muted: #f1f5f9;
+  --muted-foreground: #4b5563;
+  --border: rgba(13, 17, 23, 0.12);
+  --input: rgba(13, 17, 23, 0.06);
+  --ring: rgba(99, 102, 241, 0.25);
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #3f6f57;
+  --success: #059669;
   --success-foreground: #ffffff;
-  --warning: #946c2f;
-  --radius-lg: 18px;
-  --radius-md: 14px;
-  --radius-sm: 10px;
+  --warning: #d97706;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
   /* 滚动条颜色 */
-  --scrollbar-thumb: rgba(36, 59, 83, 0.18);
-  --scrollbar-thumb-hover: rgba(36, 59, 83, 0.3);
+  --scrollbar-thumb: rgba(99, 102, 241, 0.3);
+  --scrollbar-thumb-hover: rgba(99, 102, 241, 0.5);
+  /* 额外的 bold 颜色 */
+  --primary-bold: #4f46e5;
+  --primary-deep: #1e40af;
+  --accent-deep: #c026d3;
+  --success-deep: #047857;
 }
 
 /* Dark Mode */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f1419;
-    --foreground: #e7e9ea;
-    --primary: #5b9bd5;
-    --primary-foreground: #0f1419;
-    --secondary: #192734;
-    --secondary-foreground: #e7e9ea;
-    --accent: #7bb3d4;
-    --accent-foreground: #0f1419;
-    --card: rgba(25, 39, 52, 0.92);
-    --card-foreground: #e7e9ea;
-    --muted: #22303c;
-    --muted-foreground: #8899a6;
-    --border: rgba(255, 255, 255, 0.1);
-    --input: rgba(255, 255, 255, 0.08);
-    --ring: rgba(91, 155, 213, 0.24);
-    --destructive: #d9797a;
-    --destructive-foreground: #0f1419;
-    --success: #5cb87a;
-    --success-foreground: #0f1419;
-    --warning: #d4a853;
-    --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.24);
+    --background: #0c0a1a;
+    --foreground: #f0fdf4;
+    --primary: #8b5cf6;
+    --primary-foreground: #0c0a1a;
+    --secondary: #1e293b;
+    --secondary-foreground: #f0fdf4;
+    --accent: #fbbf24;
+    --accent-foreground: #0c0a1a;
+    --card: rgba(23, 23, 23, 0.96);
+    --card-foreground: #f0fdf4;
+    --muted: #2d3748;
+    --muted-foreground: #a1a1aa;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.06);
+    --ring: rgba(139, 92, 246, 0.3);
+    --destructive: #dc2626;
+    --destructive-foreground: #0c0a1a;
+    --success: #059669;
+    --success-foreground: #0c0a1a;
+    --warning: #f59e0b;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+    /* 额外的 bold 颜色 */
+    --primary-bold: #a78bfa;
+    --primary-deep: #60a5fa;
+    --accent-deep: #fcd34d;
+    --success-deep: #10b981;
   }
 
   body {
@@ -148,8 +158,8 @@
 
   body {
     background:
-      radial-gradient(circle at top left, rgba(36, 59, 83, 0.05), transparent 24%),
-      linear-gradient(180deg, #f8f9fb 0%, #f3f4f6 52%, #eef1f4 100%);
+      radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+      linear-gradient(135deg, #ffffff 0%, #f8fafd 25%, #e2e8f0 50%, #d9f99d 75%, #f8fafd 100%);
     color: var(--foreground);
     font-family: var(--font-sans);
     line-height: 1.5;
@@ -171,34 +181,34 @@
     align-items: center;
     justify-content: center;
     padding: 0.125rem 0.375rem;
-    font-size: 9px;
+    font-size: 10px;
     font-family: var(--font-mono);
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1;
-    border-radius: 4px;
-    background: rgba(36, 59, 83, 0.08);
-    border: 1px solid rgba(36, 59, 83, 0.15);
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.2);
     color: var(--muted-foreground);
   }
 }
 
 @layer utilities {
   .panel-surface {
-    background: rgba(255, 255, 255, 0.78);
-    border: 1px solid rgba(17, 24, 39, 0.08);
-    box-shadow: 0 12px 32px rgba(17, 24, 39, 0.06);
-    backdrop-filter: blur(14px);
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(13, 17, 23, 0.12);
+    box-shadow: 0 20px 50px rgba(13, 17, 23, 0.1);
+    backdrop-filter: blur(16px);
   }
 
   .panel-subtle {
-    background: rgba(247, 250, 252, 0.88);
-    border: 1px solid rgba(17, 24, 39, 0.06);
+    background: rgba(251, 251, 253, 0.94);
+    border: 1px solid rgba(13, 17, 23, 0.08);
   }
 
   .data-grid {
     background-image:
-      linear-gradient(rgba(17, 24, 39, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(17, 24, 39, 0.03) 1px, transparent 1px);
+      linear-gradient(rgba(13, 17, 23, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(13, 17, 23, 0.04) 1px, transparent 1px);
     background-size: 28px 28px;
   }
 }
@@ -241,4 +251,23 @@
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* 多行输入框块光标效果 */
+.multiline-cursor {
+  caret-color: rgb(99, 102, 241, 0.9);
+}
+
+.multiline-cursor:focus-within {
+  text-shadow: 0 0 1px rgba(99, 102, 241, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .multiline-cursor {
+    caret-color: rgb(139, 92, 246, 0.9);
+  }
+
+  .multiline-cursor:focus-within {
+    text-shadow: 0 0 1px rgba(139, 92, 246, 0.3);
+  }
 }

@@ -13,6 +13,7 @@ import { ContentBlock, Message, ResultMessage } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
+import { ToolBlock } from "./block/tool-block";
 
 interface MessageItemProps {
   roundId: string;
@@ -59,30 +60,59 @@ export function MessageItem(
     return { userMessage: user, assistantMessages: assistant, resultMessage: result };
   }, [messages]);
 
+  const streamingAssistantMessageId = useMemo(() => {
+    if (!isLastRound || !isLoading) {
+      return null;
+    }
+
+    for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
+      const message = assistantMessages[index];
+      if (message.is_complete === false) {
+        return message.message_id;
+      }
+    }
+
+    return null;
+  }, [assistantMessages, isLastRound, isLoading]);
+
   // 合并并去重 assistant 内容
-  const mergedContent = useMemo(() => {
+  const { mergedContent, streamingBlockIndexes } = useMemo(() => {
     const allBlocks: ContentBlock[] = [];
+    const nextStreamingBlockIndexes = new Set<number>();
     const seenToolIds = new Set<string>();
 
     for (const msg of assistantMessages) {
       if (!Array.isArray(msg.content)) continue;
-      for (const block of msg.content) {
+      const isStreamingMessage = msg.message_id === streamingAssistantMessageId;
+      const streamingContentIndex = isStreamingMessage
+        ? findLastStreamableBlockIndex(msg.content)
+        : -1;
+
+      msg.content.forEach((block, blockIndex) => {
         if (!block) {
-          continue;
+          return;
         }
         if (block.type === 'tool_use' && block.id) {
-          if (seenToolIds.has(block.id)) continue;
+          if (seenToolIds.has(block.id)) return;
           seenToolIds.add(block.id);
         }
         if (block.type === 'tool_result' && block.tool_use_id) {
-          if (seenToolIds.has(`result_${block.tool_use_id}`)) continue;
+          if (seenToolIds.has(`result_${block.tool_use_id}`)) return;
           seenToolIds.add(`result_${block.tool_use_id}`);
         }
+
+        const nextIndex = allBlocks.length;
         allBlocks.push(block);
-      }
+        if (isStreamingMessage && blockIndex === streamingContentIndex) {
+          nextStreamingBlockIndexes.add(nextIndex);
+        }
+      });
     }
-    return allBlocks;
-  }, [assistantMessages]);
+    return {
+      mergedContent: allBlocks,
+      streamingBlockIndexes: nextStreamingBlockIndexes,
+    };
+  }, [assistantMessages, streamingAssistantMessageId]);
 
   // 获取纯文本内容用于复制
   const assistantTextContent = useMemo(() => {
@@ -138,6 +168,32 @@ export function MessageItem(
     });
   }, [mergedContent, hiddenToolNames]);
 
+  const hasInlinePendingTool = useMemo(() => {
+    if (!pendingPermission) {
+      return false;
+    }
+
+    const pendingToolUseIds = new Set<string>();
+    const resolvedToolUseIds = new Set<string>();
+
+    for (const block of mergedContent) {
+      if (block.type === 'tool_use' && block.name === pendingPermission.tool_name) {
+        pendingToolUseIds.add(block.id);
+      }
+      if (block.type === 'tool_result') {
+        resolvedToolUseIds.add(block.tool_use_id);
+      }
+    }
+
+    for (const toolUseId of pendingToolUseIds) {
+      if (!resolvedToolUseIds.has(toolUseId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [mergedContent, pendingPermission]);
+
   // 滚动
   useEffect(() => {
     if (isLastRound && roundRef.current) {
@@ -188,7 +244,7 @@ export function MessageItem(
     }
   }, [onRegenerate, roundId, isRegenerating]);
 
-  const showCursor = isLastRound && isLoading && assistantMessages.length > 0;
+  const showCursor = isLastRound && isLoading && streamingBlockIndexes.size > 0;
   const isCompleted = hasFinalAnswer && !isLoading;
   const canOperateRound = !!userMessage && !isLoading;
 
@@ -262,7 +318,9 @@ export function MessageItem(
 
                 {/* 内容 */}
                 <div className="px-4 py-3">
-                  <p className="text-sm text-foreground leading-relaxed text-right">{userContent}</p>
+                  <p className="text-sm text-foreground leading-relaxed text-right whitespace-pre-wrap break-words">
+                    {userContent}
+                  </p>
                 </div>
               </div>
             </div>
@@ -322,15 +380,42 @@ export function MessageItem(
                   <ContentRenderer
                     content={mergedContent}
                     isStreaming={showCursor}
+                    streamingBlockIndexes={streamingBlockIndexes}
                     pendingPermission={pendingPermission}
                     onPermissionResponse={onPermissionResponse}
                     onOpenWorkspaceFile={onOpenWorkspaceFile}
                     hiddenToolNames={hiddenToolNames}
                   />
 
-                  {/* 打字光标 */}
-                  {showCursor && (
-                    <span className="inline-block w-2 h-4 ml-0.5 bg-primary/80 animate-pulse" />
+                  {pendingPermission && !hasInlinePendingTool && (
+                    <div className="mt-4">
+                      <ToolBlock
+                        toolUse={{
+                          type: 'tool_use',
+                          id: `pending_${pendingPermission.request_id}`,
+                          name: pendingPermission.tool_name,
+                          input: pendingPermission.tool_input,
+                        }}
+                        status="waiting_permission"
+                        permissionRequest={{
+                          request_id: pendingPermission.request_id,
+                          tool_input: pendingPermission.tool_input,
+                          risk_level: pendingPermission.risk_level,
+                          risk_label: pendingPermission.risk_label,
+                          summary: pendingPermission.summary,
+                          suggestions: pendingPermission.suggestions,
+                          expires_at: pendingPermission.expires_at,
+                          onAllow: (updatedPermissions) => onPermissionResponse?.({
+                            decision: 'allow',
+                            updatedPermissions,
+                          }),
+                          onDeny: (updatedPermissions) => onPermissionResponse?.({
+                            decision: 'deny',
+                            updatedPermissions,
+                          }),
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
 
@@ -362,3 +447,17 @@ export function MessageItem(
 }
 
 export default MessageItem;
+
+function findLastStreamableBlockIndex(blocks: ContentBlock[]): number {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index];
+    if (!block) {
+      continue;
+    }
+    if (block.type === 'text' || block.type === 'thinking') {
+      return index;
+    }
+  }
+
+  return -1;
+}

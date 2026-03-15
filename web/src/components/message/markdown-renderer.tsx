@@ -208,9 +208,6 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
       >
         {content}
       </ReactMarkdown>
-      {isStreaming && (
-        <span className="inline-block w-2 h-4 ml-1 align-middle bg-primary animate-pulse" />
-      )}
     </div>
   );
 }

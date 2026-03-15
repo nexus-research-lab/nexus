@@ -12,7 +12,7 @@ interface ThinkingBlockProps {
 
 export function ThinkingBlock({ thinking, isStreaming }: ThinkingBlockProps) {
     // If it's streaming, default to expanded so the user can see it typing.
-    const [isExpanded, setIsExpanded] = useState(isStreaming ?? false);
+    const [isExpanded, setIsExpanded] = useState(isStreaming ?? true);
 
     if (!thinking) return null;
 

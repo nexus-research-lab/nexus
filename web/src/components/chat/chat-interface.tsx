@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown } from "lucide-react";
 
 import { useAgentSession } from "@/hooks/agent";
 import { MessageItem } from "@/components/message";
@@ -27,6 +28,8 @@ interface ChatInterfaceProps {
     sessionId: string | null;
   }) => void;
 }
+
+const BOTTOM_THRESHOLD_PX = 80;
 
 /**
  * 按 roundId 对消息进行分组
@@ -56,6 +59,13 @@ export function ChatInterface({
   onSessionSnapshotChange,
 }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomAnchorRef = useRef<HTMLDivElement>(null);
+  const shouldFollowLatestRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
+  const pendingScrollFrameRef = useRef<number | null>(null);
+  const pendingScrollInnerFrameRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const {
     error,
@@ -108,29 +118,125 @@ export function ChatInterface({
     return groupMessagesByRound(messages);
   }, [messages]);
 
-  // 滚动到底部的函数
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    // 使用 requestAnimationFrame + setTimeout 确保 DOM 已完全更新
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTo({
-            top: scrollRef.current.scrollHeight,
-            behavior
-          });
-        }
-      }, 50);
-    });
+  const updateFollowState = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isNearBottom = distanceToBottom <= BOTTOM_THRESHOLD_PX;
+    shouldFollowLatestRef.current = isNearBottom;
+    setShowScrollToBottom(!isNearBottom);
   }, []);
 
-  // 消息变化时自动滚动到底部
+  const cancelPendingScroll = useCallback(() => {
+    if (pendingScrollFrameRef.current !== null) {
+      cancelAnimationFrame(pendingScrollFrameRef.current);
+      pendingScrollFrameRef.current = null;
+    }
+    if (pendingScrollInnerFrameRef.current !== null) {
+      cancelAnimationFrame(pendingScrollInnerFrameRef.current);
+      pendingScrollInnerFrameRef.current = null;
+    }
+  }, []);
+
+  const stopFollowingLatest = useCallback(() => {
+    cancelPendingScroll();
+    shouldFollowLatestRef.current = false;
+    setShowScrollToBottom(true);
+  }, [cancelPendingScroll]);
+
+  // 滚动到底部的函数
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    cancelPendingScroll();
+    shouldFollowLatestRef.current = true;
+    setShowScrollToBottom(false);
+
+    // 使用底部锚点滚动，避免 scrollHeight 在布局抖动时不准确。
+    pendingScrollFrameRef.current = requestAnimationFrame(() => {
+      pendingScrollInnerFrameRef.current = requestAnimationFrame(() => {
+        bottomAnchorRef.current?.scrollIntoView({
+          block: 'end',
+          behavior,
+        });
+      });
+    });
+  }, [cancelPendingScroll]);
+
+  // 消息变化时仅在“跟随最新输出”模式下自动滚动。
   useEffect(() => {
+    if (!shouldFollowLatestRef.current) {
+      updateFollowState();
+      return;
+    }
+
+    scrollToBottom(isLoading ? 'auto' : 'smooth');
+  }, [isLoading, messages, scrollToBottom, updateFollowState]);
+
+  useEffect(() => {
+    updateFollowState();
+    lastScrollTopRef.current = scrollRef.current?.scrollTop || 0;
+  }, [updateFollowState, externalSessionKey]);
+
+  useEffect(() => {
+    return () => {
+      cancelPendingScroll();
+    };
+  }, [cancelPendingScroll]);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const currentScrollTop = container.scrollTop;
+    const isScrollingUp = currentScrollTop < lastScrollTopRef.current;
+    lastScrollTopRef.current = currentScrollTop;
+
+    if (isScrollingUp) {
+      stopFollowingLatest();
+      return;
+    }
+
+    updateFollowState();
+  }, [stopFollowingLatest, updateFollowState]);
+
+  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) {
+      stopFollowingLatest();
+    }
+  }, [stopFollowingLatest]);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    touchStartYRef.current = event.touches[0]?.clientY ?? null;
+  }, []);
+
+  const handleTouchMove = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    const currentY = event.touches[0]?.clientY;
+    if (currentY === undefined || touchStartYRef.current === null) {
+      return;
+    }
+    if (currentY > touchStartYRef.current) {
+      stopFollowingLatest();
+    }
+  }, [stopFollowingLatest]);
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartYRef.current = null;
+  }, []);
+
+  const handleJumpToBottom = useCallback(() => {
     scrollToBottom('smooth');
-  }, [messages, scrollToBottom]);
+  }, [scrollToBottom]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
+    shouldFollowLatestRef.current = true;
+    setShowScrollToBottom(false);
     await sendMessage(content);
+    scrollToBottom('auto');
   };
 
   const handleStop = () => {
@@ -172,7 +278,15 @@ export function ChatInterface({
           <ChatHeader sessionKey={sessionKey} isLoading={isLoading} />
 
           {/* Messages Area */}
-          <div ref={scrollRef} className="soft-scrollbar flex-1 overflow-y-auto p-6 space-y-8 relative z-0 scroll-smooth">
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="soft-scrollbar flex-1 overflow-y-auto p-6 space-y-8 relative z-0"
+          >
             {roundIds.map((roundId, idx) => {
               const roundMessages = messageGroups.get(roundId) || [];
               const isLastRound = idx === roundIds.length - 1;
@@ -192,7 +306,19 @@ export function ChatInterface({
                 />
               );
             })}
+            <div ref={bottomAnchorRef} className="h-px w-full" />
           </div>
+
+          {showScrollToBottom && (
+            <button
+              type="button"
+              onClick={handleJumpToBottom}
+              className="absolute bottom-28 right-8 z-20 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-background/95 px-4 py-2 text-sm text-foreground shadow-lg backdrop-blur-md transition hover:border-primary/50 hover:bg-background"
+            >
+              <ArrowDown className={isLoading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
+              <span>回到底部</span>
+            </button>
+          )}
 
           {/* Input Area */}
           <ChatInput

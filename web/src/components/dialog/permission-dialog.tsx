@@ -57,7 +57,6 @@ export function PermissionDialog(
       const destinationMap: Record<string, string> = {
         session: '仅本会话',
         projectSettings: '项目设置',
-        localSettings: '本地设置',
         userSettings: '用户设置',
       };
       const behaviorMap: Record<string, string> = {

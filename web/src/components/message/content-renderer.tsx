@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 interface ContentRendererProps {
   content: string | ContentBlock[];
   isStreaming?: boolean;
+  streamingBlockIndexes?: Set<number>;
   /** 当前工具的权限请求 */
   pendingPermission?: PendingPermission | null;
   /** 权限响应回调（也用于 AskUserQuestion） */
@@ -25,6 +26,7 @@ export function ContentRenderer(
   {
     content,
     isStreaming = false,
+    streamingBlockIndexes,
     pendingPermission,
     onPermissionResponse,
     onOpenWorkspaceFile,
@@ -67,6 +69,8 @@ export function ContentRenderer(
   return (
     <div className="space-y-4">
       {content.map((block, index) => {
+        const blockIsStreaming = streamingBlockIndexes?.has(index) ?? isStreaming;
+
         // 跳过已经被组合渲染的 tool_result
         if (renderedIndices.has(index)) {
           return null;
@@ -77,7 +81,7 @@ export function ContentRenderer(
             <div key={index}>
               <ContentRenderer
                 content={block.text}
-                isStreaming={isStreaming}
+                isStreaming={blockIsStreaming}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
               />
             </div>
@@ -87,7 +91,7 @@ export function ContentRenderer(
         if (block.type === 'thinking') {
           return (
             <div key={index}>
-              <ThinkingBlock thinking={block.thinking || ''} isStreaming={isStreaming} />
+              <ThinkingBlock thinking={block.thinking || ''} isStreaming={blockIsStreaming} />
             </div>
           );
         }
