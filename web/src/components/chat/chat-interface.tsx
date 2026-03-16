@@ -141,17 +141,8 @@ export function ChatInterface({
     }
   }, []);
 
-  const stopFollowingLatest = useCallback(() => {
+  const scheduleScrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     cancelPendingScroll();
-    shouldFollowLatestRef.current = false;
-    setShowScrollToBottom(true);
-  }, [cancelPendingScroll]);
-
-  // 滚动到底部的函数
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    cancelPendingScroll();
-    shouldFollowLatestRef.current = true;
-    setShowScrollToBottom(false);
 
     // 使用底部锚点滚动，避免 scrollHeight 在布局抖动时不准确。
     pendingScrollFrameRef.current = requestAnimationFrame(() => {
@@ -164,6 +155,13 @@ export function ChatInterface({
     });
   }, [cancelPendingScroll]);
 
+  // 滚动到底部的函数
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    shouldFollowLatestRef.current = true;
+    setShowScrollToBottom(false);
+    scheduleScrollToBottom(behavior);
+  }, [scheduleScrollToBottom]);
+
   // 消息变化时仅在“跟随最新输出”模式下自动滚动。
   useEffect(() => {
     if (!shouldFollowLatestRef.current) {
@@ -171,8 +169,8 @@ export function ChatInterface({
       return;
     }
 
-    scrollToBottom(isLoading ? 'auto' : 'smooth');
-  }, [isLoading, messages, scrollToBottom, updateFollowState]);
+    scheduleScrollToBottom(isLoading ? 'auto' : 'smooth');
+  }, [isLoading, messages, scheduleScrollToBottom, updateFollowState]);
 
   useEffect(() => {
     updateFollowState();
@@ -196,18 +194,17 @@ export function ChatInterface({
     lastScrollTopRef.current = currentScrollTop;
 
     if (isScrollingUp) {
-      stopFollowingLatest();
-      return;
+      cancelPendingScroll();
     }
 
     updateFollowState();
-  }, [stopFollowingLatest, updateFollowState]);
+  }, [cancelPendingScroll, updateFollowState]);
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     if (event.deltaY < 0) {
-      stopFollowingLatest();
+      cancelPendingScroll();
     }
-  }, [stopFollowingLatest]);
+  }, [cancelPendingScroll]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
@@ -219,9 +216,9 @@ export function ChatInterface({
       return;
     }
     if (currentY > touchStartYRef.current) {
-      stopFollowingLatest();
+      cancelPendingScroll();
     }
-  }, [stopFollowingLatest]);
+  }, [cancelPendingScroll]);
 
   const handleTouchEnd = useCallback(() => {
     touchStartYRef.current = null;
