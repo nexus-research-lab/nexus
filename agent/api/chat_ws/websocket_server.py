@@ -8,7 +8,7 @@
 # 2025/11/28 15:27   Create
 # =====================================================
 
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from agent.service.channels.ws.handler import WebSocketHandler
 from agent.utils.logger import logger
@@ -30,6 +30,10 @@ async def chat(websocket: WebSocket):
         # 为每个连接创建独立的WebSocketHandler实例
         handler = WebSocketHandler()
         await handler.handle_websocket_connection(websocket)
+    except WebSocketDisconnect as disconnect_error:
+        logger.info(
+            f"🔌WebSocket连接断开: code={disconnect_error.code}, reason={disconnect_error.reason}"
+        )
     except Exception as e:
         logger.error(f"❌WebSocket端点处理失败: {e}")
         # 确保连接被关闭
