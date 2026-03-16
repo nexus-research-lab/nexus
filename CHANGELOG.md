@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 修复聊天区在已滚动到底部时仍错误显示“回到底部”按钮的问题，统一基于实际离底距离判断按钮显隐。
+
 ## [0.0.1] - 2026-03-14
 
 ### Fixed
