@@ -11,7 +11,7 @@ import { ApiSession, CreateSessionParams, Session, UpdateSessionParams } from '@
 import { Message as ChatMessage } from '@/types/message';
 import { SessionCostSummary } from '@/types/cost';
 import { ApiResponse } from '@/types/api';
-import { getAgentApiBaseUrl } from '@/lib/runtime-config';
+import { getAgentApiBaseUrl } from '@/config/runtime-config';
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 

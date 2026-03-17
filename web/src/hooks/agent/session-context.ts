@@ -1,6 +1,6 @@
 import { Dispatch, RefObject, SetStateAction } from 'react';
 
-import { WebSocketMessage, WebSocketState } from '@/lib/websocket';
+import { WebSocketMessage, WebSocketState } from '@/types/websocket';
 import { Message } from '@/types';
 import { PendingPermission } from '@/types/permission';
 

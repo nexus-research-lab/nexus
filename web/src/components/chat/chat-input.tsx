@@ -277,7 +277,6 @@ const ChatInput = memo((
                 )}
                 rows={1}
                 style={{
-                  // @ts-ignore - fieldSizing is a newer CSS property
                   fieldSizing: 'content',
                 }}
               />

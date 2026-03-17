@@ -2,7 +2,12 @@
  * WebSocket 核心客户端类
  */
 
-import { WebSocketClientCallbacks, WebSocketConfig, WebSocketMessage, WebSocketState } from './types';
+import {
+  WebSocketClientCallbacks,
+  WebSocketConfig,
+  WebSocketMessage,
+  WebSocketState,
+} from '@/types/websocket';
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;

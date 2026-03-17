@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getAgentWsUrl } from '@/lib/runtime-config';
+import { getAgentWsUrl } from '@/config/runtime-config';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import { Message } from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
-import { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
+import { UseAgentSessionOptions, UseAgentSessionReturn } from '@/types/agent-session';
 import {
   AgentSessionActionContext,
   AgentSessionLifecycleContext,
@@ -166,4 +166,4 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   };
 }
 
-export type { UseAgentSessionOptions, UseAgentSessionReturn } from './types';
+export type { UseAgentSessionOptions, UseAgentSessionReturn } from '@/types/agent-session';

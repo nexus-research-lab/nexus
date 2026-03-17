@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebSocketClient } from './socket-client';
-import { WebSocketConfig, WebSocketState, WebSocketMessage } from './types';
+import { WebSocketConfig, WebSocketState, WebSocketMessage } from '@/types/websocket';
 
 export interface UseWebSocketOptions extends Omit<WebSocketConfig, 'protocols'> {
   onMessage?: (message: any) => void;
