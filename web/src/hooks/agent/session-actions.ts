@@ -1,4 +1,4 @@
-import { WebSocketMessage } from '@/lib/websocket';
+import { WebSocketMessage } from '@/types/websocket';
 import { deleteRound as deleteRoundApi } from '@/lib/agent-api';
 import { generateUuid } from '@/lib/uuid';
 import { Message, UserMessage } from '@/types';

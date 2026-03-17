@@ -16,8 +16,14 @@ export * from './message';
 // 会话相关类型
 export * from './session';
 
+// Agent 会话交互类型
+export * from './agent-session';
+
 // Agent相关类型
 export * from './agent';
 
 // Workspace live 相关类型
 export * from './workspace-live';
+
+// WebSocket 相关类型
+export * from './websocket';
