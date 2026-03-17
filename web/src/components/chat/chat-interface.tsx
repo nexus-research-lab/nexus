@@ -23,6 +23,7 @@ interface ChatInterfaceProps {
   onTodosChange?: (todos: TodoItem[]) => void;
   onLoadingChange?: (isLoading: boolean) => void;
   onSessionSnapshotChange?: (snapshot: {
+    sessionKey: string;
     messageCount: number;
     lastActivityAt: number;
     sessionId: string | null;
@@ -104,6 +105,7 @@ export function ChatInterface({
 
     const lastMessage = messages[messages.length - 1];
     onSessionSnapshotChange?.({
+      sessionKey: externalSessionKey,
       messageCount: messages.length,
       lastActivityAt: lastMessage?.timestamp ?? Date.now(),
       sessionId: lastMessage?.session_id ?? null,
@@ -295,7 +297,7 @@ export function ChatInterface({
                   messages={roundMessages}
                   isLastRound={isLastRound}
                   isLoading={isLoading}
-                  pendingPermission={pendingPermission}
+                  pendingPermission={isLastRound ? pendingPermission : null}
                   onPermissionResponse={sendPermissionResponse}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   onDelete={deleteRound}

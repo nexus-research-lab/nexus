@@ -22,7 +22,7 @@ from agent.utils.logger import logger
 
 DEFAULT_DIR = {
     "agent": ".agent",
-    "config": ".claude",
+    "config": ".agent",
     "memory": "memory",
 }
 

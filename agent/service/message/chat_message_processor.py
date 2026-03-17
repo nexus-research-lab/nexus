@@ -521,7 +521,7 @@ class ChatMessageProcessor:
     def _to_plain_block(self, block: Any) -> Dict[str, Any]:
         """将 SDK block 转换为普通字典。"""
         if isinstance(block, dict):
-            return dict(block)
+            return self._normalize_block_payload(dict(block))
         if isinstance(block, TextBlock):
             return {
                 "type": "text",
@@ -548,13 +548,30 @@ class ChatMessageProcessor:
                 "is_error": bool(getattr(block, "is_error", False)),
             }
         if hasattr(block, "model_dump"):
-            return block.model_dump(mode="json", exclude_none=True)
+            return self._normalize_block_payload(
+                block.model_dump(mode="json", exclude_none=True)
+            )
         if hasattr(block, "__dict__"):
-            return dict(block.__dict__)
+            return self._normalize_block_payload(dict(block.__dict__))
         return {"type": "text", "text": str(block)}
+
+    @staticmethod
+    def _normalize_block_payload(block: Dict[str, Any]) -> Dict[str, Any]:
+        """将 SDK 新增块类型归一到现有消息协议。"""
+        normalized_block = dict(block)
+        block_type = normalized_block.get("type")
+        if block_type == "server_tool_use":
+            normalized_block["type"] = "tool_use"
+        elif block_type == "server_tool_result":
+            normalized_block["type"] = "tool_result"
+        return normalized_block
 
     def _print_message(self, message: SDKMessage) -> None:
         """打印 SDK 消息，便于跟踪执行过程。"""
+
+        if isinstance(message, StreamEvent):
+            return
+
         logger.debug(
             "📨 SDK message: session=%s type=%s payload=%s",
             self.session_key,

@@ -184,14 +184,22 @@ class EventMessage(BaseModel):
 
 def parse_content_block(payload: Dict[str, Any]) -> ContentBlock:
     """将字典解析为内容块模型。"""
-    block_type = payload.get("type")
+    normalized_payload = dict(payload)
+    block_type = normalized_payload.get("type")
+    if block_type == "server_tool_use":
+        normalized_payload["type"] = "tool_use"
+        block_type = "tool_use"
+    elif block_type == "server_tool_result":
+        normalized_payload["type"] = "tool_result"
+        block_type = "tool_result"
+
     if block_type == "tool_use":
-        return ToolUseContent(**payload)
+        return ToolUseContent(**normalized_payload)
     if block_type == "tool_result":
-        return ToolResultContent(**payload)
+        return ToolResultContent(**normalized_payload)
     if block_type == "thinking":
-        return ThinkingContent(**payload)
-    return TextContent(**payload)
+        return ThinkingContent(**normalized_payload)
+    return TextContent(**normalized_payload)
 
 
 def parse_message(payload: Dict[str, Any]) -> Message:

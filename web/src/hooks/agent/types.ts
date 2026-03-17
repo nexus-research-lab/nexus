@@ -37,3 +37,10 @@ export interface UseAgentSessionReturn {
     pendingPermission: PendingPermission | null;
     sendPermissionResponse: (payload: PermissionDecisionPayload) => void;
 }
+
+export interface SessionSnapshot {
+    sessionKey: string;
+    messageCount: number;
+    lastActivityAt: number;
+    sessionId: string | null;
+}

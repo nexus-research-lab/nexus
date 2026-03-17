@@ -336,20 +336,21 @@ export default function Home() {
   }, [setCurrentSession]);
 
   const handleSessionSnapshotChange = useCallback((snapshot: {
+    sessionKey: string;
     messageCount: number;
     lastActivityAt: number;
     sessionId: string | null;
   }) => {
-    if (!currentSession?.session_key) {
+    if (!snapshot.sessionKey) {
       return;
     }
 
-    syncSessionSnapshot(currentSession.session_key, {
+    syncSessionSnapshot(snapshot.sessionKey, {
       message_count: snapshot.messageCount,
       last_activity_at: snapshot.lastActivityAt,
       session_id: snapshot.sessionId,
     });
-  }, [currentSession?.session_key, syncSessionSnapshot]);
+  }, [syncSessionSnapshot]);
 
   const handleDeleteSession = useCallback(async (sessionKey: string) => {
     await deleteSession(sessionKey);

@@ -25,8 +25,13 @@ export function cn(...inputs: ClassValue[]) {
  * 格式化相对时间
  */
 export function formatRelativeTime(timestamp: number): string {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return '刚刚';
+  }
+
+  const normalizedTimestamp = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
   const now = Date.now();
-  const diff = now - timestamp;
+  const diff = Math.max(0, now - normalizedTimestamp);
 
   const seconds = Math.floor(diff / 1000);
   const minutes = Math.floor(seconds / 60);
