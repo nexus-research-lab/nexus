@@ -102,14 +102,45 @@ class AssistantSegment:
         usage: Optional[Dict[str, Any]] = None,
         stop_reason: Optional[str] = None,
     ) -> None:
-        """使用 SDK assistant 快照覆盖当前段状态。"""
+        """使用 SDK assistant 快照补齐当前段状态。"""
         self.ensure_started()
-        self.content = [dict(block) for block in content]
+        if not self.content:
+            self.content = [dict(block) for block in content]
+        else:
+            for block in content:
+                self._upsert_block(dict(block))
         self.update_message_meta(model=model, usage=usage, stop_reason=stop_reason)
+
+    def append_tool_results(self, content: list[Dict[str, Any]]) -> None:
+        """将工具结果回填到当前段。"""
+        self.ensure_started()
+        for block in content:
+            self._upsert_block(dict(block))
 
     def has_content(self) -> bool:
         """判断当前段是否已有内容。"""
         return bool(self.content)
+
+    def _upsert_block(self, incoming_block: Dict[str, Any]) -> None:
+        """按块身份更新或追加内容块。"""
+        incoming_type = incoming_block.get("type")
+        for index, current_block in enumerate(self.content):
+            current_type = current_block.get("type")
+            if current_type != incoming_type:
+                continue
+            if incoming_type == "thinking":
+                self.content[index] = incoming_block
+                return
+            if incoming_type == "tool_use" and current_block.get("id") == incoming_block.get("id"):
+                self.content[index] = incoming_block
+                return
+            if incoming_type == "tool_result" and current_block.get("tool_use_id") == incoming_block.get("tool_use_id"):
+                self.content[index] = incoming_block
+                return
+            if incoming_type == "text" and current_block.get("text") == incoming_block.get("text"):
+                self.content[index] = incoming_block
+                return
+        self.content.append(incoming_block)
 
     def build_stream_message(
         self,

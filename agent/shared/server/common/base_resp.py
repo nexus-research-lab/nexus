@@ -9,7 +9,7 @@
 # =====================================================
 
 from enum import Enum
-from typing import Union
+from typing import Any, Union
 
 from fastapi import status as http_status
 from fastapi.encoders import jsonable_encoder
@@ -23,6 +23,7 @@ __all__ = [
     'ok',
     'fail',
     'Resp',
+    'build_log_payload',
     'Unauthorized',
     'FORBIDDEN',
     'NotFound',
@@ -76,10 +77,62 @@ class Resp(AModel):
         }
 
 
+MAX_LOG_STRING_LENGTH = 20
+MAX_LOG_COLLECTION_ITEMS = 5
+TRUNCATED_MARKER = "...<truncated>"
+
+
+def _truncate_string(value: str, max_length: int = MAX_LOG_STRING_LENGTH) -> str:
+    """裁剪过长字符串，避免日志被大字段刷屏。"""
+    if len(value) <= max_length:
+        return value
+    return f"{value[:max_length]}{TRUNCATED_MARKER}(len={len(value)})"
+
+
+def _clip_payload(value: Any) -> Any:
+    """递归裁剪日志载荷中的大字段。"""
+    if isinstance(value, str):
+        return _truncate_string(value)
+
+    if isinstance(value, dict):
+        clipped_items = list(value.items())[:MAX_LOG_COLLECTION_ITEMS]
+        result = {key: _clip_payload(item) for key, item in clipped_items}
+        if len(value) > MAX_LOG_COLLECTION_ITEMS:
+            result["__truncated__"] = (
+                f"dict_items={len(value)}, kept={MAX_LOG_COLLECTION_ITEMS}"
+            )
+        return result
+
+    if isinstance(value, list):
+        result = [_clip_payload(item) for item in value[:MAX_LOG_COLLECTION_ITEMS]]
+        if len(value) > MAX_LOG_COLLECTION_ITEMS:
+            result.append(
+                f"{TRUNCATED_MARKER}(list_items={len(value)}, kept={MAX_LOG_COLLECTION_ITEMS})"
+            )
+        return result
+
+    if isinstance(value, tuple):
+        result = tuple(_clip_payload(item) for item in value[:MAX_LOG_COLLECTION_ITEMS])
+        if len(value) > MAX_LOG_COLLECTION_ITEMS:
+            return result + (
+                f"{TRUNCATED_MARKER}(tuple_items={len(value)}, kept={MAX_LOG_COLLECTION_ITEMS})",
+            )
+        return result
+
+    return value
+
+
+def build_log_payload(response: Resp) -> dict[str, Any]:
+    """构建用于日志输出的裁剪后响应内容。"""
+    payload = dict(response.info_dict)
+    payload["data"] = _clip_payload(payload.get("data"))
+    return payload
+
+
 def ok(response: Resp, data=None) -> Response:
     logger.info(
         f"\n\n=====================DONE========================\n"
-        f"{response.info_dict}\n"
+        f"{build_log_payload(response)}\n"
     )
     if not data:
         data = response.resp_dict
@@ -98,7 +151,7 @@ def fail(response: Resp) -> Response:
 
     logger.error(
         f"{TermColors.RED}\n\n=====================DONE========================\n"
-        f"{response.info_dict}\n"
+        f"{build_log_payload(response)}\n"
     )
 
     return JSONResponse(

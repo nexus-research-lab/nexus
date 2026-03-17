@@ -224,7 +224,7 @@ class ChatMessageProcessor:
         return []
 
     def _handle_assistant_message(self, response_msg: AssistantMessage) -> list[Message]:
-        """使用 SDK assistant 快照直接覆盖当前段内容。"""
+        """使用 SDK assistant 快照补齐当前段内容。"""
         payload = SdkMessageMapper.to_plain_dict(response_msg)
         content = SdkMessageMapper.normalize_content_blocks(payload.get("content"))
         if not content:
@@ -247,20 +247,18 @@ class ChatMessageProcessor:
         return [assistant_message]
 
     def _handle_tool_result_message(self, response_msg: UserMessage) -> list[Message]:
-        """将工具结果回灌转换为 assistant 消息。"""
+        """将工具结果回填到当前 assistant 段。"""
         payload = SdkMessageMapper.to_plain_dict(response_msg)
         content = SdkMessageMapper.normalize_content_blocks(payload.get("content"))
         if not content or not all(block.get("type") == "tool_result" for block in content):
             return []
-        message = Message(
-            message_id=str(uuid.uuid4()),
+        self._segment.append_tool_results(content)
+        message = self._segment.build_message(
             session_key=self.session_key,
             agent_id=self.agent_id,
             round_id=self.round_id,
             session_id=self.session_id,
-            parent_id=self._current_parent_id(),
-            role="assistant",
-            content=content,
+            parent_id=self.round_id,
             is_complete=True,
         )
         self._remember_assistant_message(message)
@@ -292,6 +290,7 @@ class ChatMessageProcessor:
     def _current_parent_id(self) -> str:
         """返回当前消息应该关联的父节点。"""
         return self._segment.message_id or self._last_assistant_message_id or self.round_id
+
     def _remember_assistant_message(self, message: Message) -> None:
         """记录最近一条 assistant 消息 ID。"""
         self._last_assistant_message_id = message.message_id
