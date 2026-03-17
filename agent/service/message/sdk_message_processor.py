@@ -15,8 +15,6 @@ from typing import Any, Dict
 from claude_agent_sdk.types import AssistantMessage, Message, ResultMessage, StreamEvent, SystemMessage, UserMessage
 from claude_agent_sdk.types import ContentBlock, TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock
 
-from agent.utils.logger import logger
-
 
 class MessageVis:
     """Claude Agent SDK 消息处理器
@@ -24,43 +22,6 @@ class MessageVis:
     将 Claude Agent SDK 的各种消息类型转换为 JSON 格式，
     在保留原始数据的基础上添加 type 字段来标识消息类型。
     """
-
-    def __init__(self):
-        """初始化消息处理器"""
-        self.message_type_mapping = {
-            AssistantMessage: "assistant",
-            UserMessage: "user",
-            SystemMessage: "system",
-            ResultMessage: "result",
-            StreamEvent: "stream"
-        }
-
-        self.content_block_mapping = {
-            TextBlock: "text",
-            ThinkingBlock: "thinking",
-            ToolUseBlock: "tool_use",
-            ToolResultBlock: "tool_result"
-        }
-
-    def _process_content_block(self, block: Any) -> Dict[str, Any]:
-        """处理单个内容块，在原始数据基础上添加 type 字段"""
-        try:
-            # 直接使用 asdict 获取原始数据
-            result = asdict(block)
-
-            # 添加 type 字段
-            block_type = self.content_block_mapping.get(type(block), "unknown_block")
-            result["type"] = block_type
-
-            return result
-
-        except Exception as e:
-            logger.error(f"❌Error processing content block {type(block)}: {e}")
-            return {
-                "type": "error_block",
-                "error": str(e),
-                "original_type": str(type(block))
-            }
 
     def print_message(self, message: Message, session_id: str = None) -> None:
         """美观地打印消息，展示 agent 执行过程

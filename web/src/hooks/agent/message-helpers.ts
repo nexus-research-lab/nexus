@@ -1,4 +1,10 @@
-import { AssistantMessage, Message, StreamMessage } from '@/types';
+import { AssistantMessage, Message, StreamMessage, ThinkingContent, TextContent } from '@/types';
+
+function isStreamRenderableBlock(
+  block: StreamMessage['content_block'],
+): block is TextContent | ThinkingContent {
+  return block?.type === 'text' || block?.type === 'thinking';
+}
 
 /**
  * 按 message_id 合并完整消息。
@@ -60,12 +66,13 @@ export function applyStreamMessage(messages: Message[], event: StreamMessage): M
   if (
     (event.type === 'content_block_start' || event.type === 'content_block_delta') &&
     typeof event.index === 'number' &&
-    event.content_block
+    isStreamRenderableBlock(event.content_block)
   ) {
+    const streamBlock = event.content_block;
     while (nextMessage.content.length <= event.index) {
       nextMessage.content.push({ type: 'text', text: '' });
     }
-    nextMessage.content[event.index] = event.content_block;
+    nextMessage.content[event.index] = streamBlock;
   }
 
   const nextMessages = [...messages];
