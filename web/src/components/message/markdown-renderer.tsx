@@ -151,13 +151,17 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
             );
           },
           ul({ children }) {
-            return <ul className="list-disc list-inside mb-4 space-y-1 text-foreground/90">{children}</ul>;
+            return <ul className="mb-4 list-disc space-y-2 pl-6 text-foreground/90 marker:text-muted-foreground">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-decimal list-inside mb-4 space-y-1 text-foreground/90">{children}</ol>;
+            return <ol className="mb-4 list-decimal space-y-2 pl-6 text-foreground/90 marker:text-muted-foreground">{children}</ol>;
           },
           li({ children }) {
-            return <li>{renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}</li>;
+            return (
+              <li className="pl-1 leading-relaxed [&>p]:m-0 [&>p]:inline [&>p]:leading-relaxed">
+                {renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}
+              </li>
+            );
           },
           blockquote({ children }) {
             return (
