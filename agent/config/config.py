@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     CACHE_FILE_DIR: str = os.path.abspath(os.path.join(os.getcwd(), "cache"))
     DEFAULT_CACHE_TTL_DAYS: int = 7
 
+    # 数据库配置
+    DATABASE_URL: str = "sqlite+aiosqlite:///./cache/data/data.db"
+
     # Key
     ANTHROPIC_AUTH_TOKEN: str = ""
     ANTHROPIC_BASE_URL: str = ""

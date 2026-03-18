@@ -335,6 +335,13 @@ export default function Home() {
     setCurrentSession(sessionKey);
   }, [setCurrentSession]);
 
+  const handleOpenSessionFromDirectory = useCallback((sessionKey: string, agentId?: string) => {
+    if (agentId) {
+      set_current_agent(agentId);
+    }
+    setCurrentSession(sessionKey);
+  }, [setCurrentSession, set_current_agent]);
+
   const handleSessionSnapshotChange = useCallback((snapshot: {
     sessionKey: string;
     messageCount: number;
@@ -437,6 +444,7 @@ export default function Home() {
             sessions={sessions}
             currentAgentId={current_agent_id}
             onSelectAgent={handleAgentSelect}
+            onOpenSession={handleOpenSessionFromDirectory}
             onCreateAgent={handleOpenCreateAgent}
             onEditAgent={handleEditAgent}
             onDeleteAgent={handleDeleteAgent}
