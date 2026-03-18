@@ -412,8 +412,10 @@ export default function Home() {
 
   if (!isHydrated) {
     return (
-      <main className="flex h-screen w-full items-center justify-center bg-background text-foreground">
-        <div className="rounded-[20px] panel-surface px-8 py-7 text-center">
+      <main className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-background px-6 text-foreground">
+        <div className="pointer-events-none absolute left-[10%] top-[12%] h-56 w-56 rounded-full glow-lilac opacity-70" />
+        <div className="pointer-events-none absolute bottom-[10%] right-[12%] h-64 w-64 rounded-full glow-green opacity-60" />
+        <div className="soft-ring rounded-[36px] panel-surface px-10 py-9 text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
           <p className="mt-4 text-sm text-muted-foreground">正在加载...</p>
         </div>
@@ -422,8 +424,13 @@ export default function Home() {
   }
 
   return (
-    <main className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <div className="flex min-h-0 flex-1 flex-col p-4">
+    <main className="relative flex h-screen w-full overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute left-[5%] top-[8%] h-72 w-72 rounded-full glow-lilac opacity-55" />
+      <div className="pointer-events-none absolute bottom-[6%] left-[22%] h-80 w-80 rounded-full bg-white/40 blur-3xl" />
+      <div className="pointer-events-none absolute right-[8%] top-[18%] h-72 w-72 rounded-full glow-peach opacity-35" />
+      <div className="pointer-events-none absolute right-[12%] bottom-[8%] h-80 w-80 rounded-full glow-green opacity-40" />
+
+      <div className="relative flex min-h-0 flex-1 flex-col p-5 md:p-6">
         {!currentAgent ? (
           <AgentDirectory
             agents={agents}
@@ -436,7 +443,7 @@ export default function Home() {
           />
         ) : (
           <section className="flex min-h-0 flex-1 flex-col gap-3">
-            <div className="rounded-[20px] panel-surface px-3 py-2.5">
+            <div className="soft-ring rounded-[34px] panel-surface px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <AgentSwitcher
                   agents={agents}
@@ -449,7 +456,7 @@ export default function Home() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-secondary/80 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                    className="neo-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-foreground transition-transform duration-300 hover:-translate-y-0.5 hover:text-primary"
                     onClick={handleBackToDirectory}
                     type="button"
                   >
@@ -489,7 +496,7 @@ export default function Home() {
                   widthPercent={editorWidthPercent}
                 />
 
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] panel-surface overflow-hidden">
+                <div className="soft-ring flex min-h-0 min-w-0 flex-1 flex-col rounded-[36px] panel-surface overflow-hidden">
                   <div className="min-h-0 flex-1">
                     <ChatInterface
                       agentId={currentAgent.agent_id}

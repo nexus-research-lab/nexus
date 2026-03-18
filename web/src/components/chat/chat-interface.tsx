@@ -246,7 +246,9 @@ export function ChatInterface({
   const roundIds = Array.from(messageGroups.keys());
 
   return (
-    <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-transparent">
+    <div className="relative flex h-full flex-1 flex-col overflow-hidden bg-transparent">
+      <div className="pointer-events-none absolute left-8 top-10 h-24 w-24 rounded-full glow-lilac opacity-35" />
+      <div className="pointer-events-none absolute bottom-10 right-10 h-28 w-28 rounded-full glow-green opacity-30" />
       {/* WebSocket连接错误提示 */}
       {error && error.includes('服务器') && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-md">
@@ -284,7 +286,7 @@ export function ChatInterface({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="soft-scrollbar flex-1 overflow-y-auto p-6 space-y-8 relative z-0"
+            className="soft-scrollbar relative z-0 flex-1 space-y-8 overflow-y-auto px-6 py-7"
           >
             {roundIds.map((roundId, idx) => {
               const roundMessages = messageGroups.get(roundId) || [];
@@ -312,7 +314,7 @@ export function ChatInterface({
             <button
               type="button"
               onClick={handleJumpToBottom}
-              className="absolute bottom-28 right-8 z-20 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-background/95 px-4 py-2 text-sm text-foreground shadow-lg backdrop-blur-md transition hover:border-primary/50 hover:bg-background"
+              className="neo-pill absolute bottom-30 right-8 z-20 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-foreground transition hover:-translate-y-0.5 hover:text-primary"
             >
               <ArrowDown className={isLoading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
               <span>回到底部</span>

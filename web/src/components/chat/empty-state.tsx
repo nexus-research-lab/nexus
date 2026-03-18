@@ -15,11 +15,13 @@ interface EmptyStateProps {
 export function EmptyState({onNewSession}: EmptyStateProps) {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full rounded-[28px] border border-dashed border-border/80 bg-white/70 p-10 text-center shadow-sm">
+      <div className="soft-ring panel-surface relative max-w-2xl w-full overflow-hidden rounded-[40px] p-10 text-center">
+        <div className="pointer-events-none absolute left-12 top-12 h-28 w-28 rounded-full glow-lilac opacity-40" />
+        <div className="pointer-events-none absolute bottom-10 right-12 h-28 w-28 rounded-full glow-green opacity-35" />
         {/* Icon */}
         <div className="flex justify-center">
-          <div className="relative inline-flex h-20 w-20 items-center justify-center rounded-[24px] bg-primary/10 text-primary">
-            <div className="absolute -right-2 -top-2 rounded-full bg-white p-2 text-accent shadow-sm">
+          <div className="neo-pill relative inline-flex h-24 w-24 items-center justify-center rounded-[30px] text-primary">
+            <div className="absolute -right-2 -top-2 rounded-full bg-[linear-gradient(135deg,rgba(255,194,148,0.92),rgba(255,155,86,0.88))] p-2 text-[#8a4409] shadow-[0_14px_24px_rgba(255,157,86,0.24)]">
               <FolderKanban className="h-4 w-4" />
             </div>
             <Sparkles className="w-10 h-10"/>
@@ -28,22 +30,25 @@ export function EmptyState({onNewSession}: EmptyStateProps) {
 
         {/* Title */}
         <div className="mt-8 space-y-3">
-          <h2 className="text-3xl font-semibold text-foreground">
+          <h2 className="text-4xl font-extrabold tracking-[-0.05em] text-foreground">
             还没有会话
           </h2>
+          <p className="mx-auto max-w-md text-sm leading-7 text-muted-foreground">
+            先创建一个新会话，当前工作区就会进入参考图那种柔和、浮起、可聚焦的主交互状态。
+          </p>
         </div>
 
         {/* Features */}
         <div className="mt-8 grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-          <div className="rounded-2xl bg-secondary/80 px-4 py-4">
+          <div className="neo-inset rounded-[26px] px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
             <span>按 Agent 隔离上下文</span>
           </div>
-          <div className="rounded-2xl bg-secondary/80 px-4 py-4">
+          <div className="neo-inset rounded-[26px] px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
             <span>历史对话自动保存</span>
           </div>
-          <div className="rounded-2xl bg-secondary/80 px-4 py-4">
+          <div className="neo-inset rounded-[26px] px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
             <span>工具使用需你授权</span>
           </div>
@@ -52,7 +57,7 @@ export function EmptyState({onNewSession}: EmptyStateProps) {
         {/* CTA Button */}
         <button
           onClick={onNewSession}
-          className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-transform hover:-translate-y-0.5"
+          className="mt-8 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] px-7 py-3.5 text-sm font-bold text-[#18653a] shadow-[0_20px_34px_rgba(102,217,143,0.22)] transition-transform hover:-translate-y-0.5"
         >
           <MessageSquarePlus className="w-5 h-5"/>
           <span>创建新会话</span>

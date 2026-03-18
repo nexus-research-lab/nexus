@@ -24,18 +24,18 @@ export function AgentSwitcher({
 }: AgentSwitcherProps) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-2 rounded-full border border-border/80 bg-secondary px-3 py-2 shadow-sm">
+      <div className="neo-pill flex items-center gap-2 rounded-full px-4 py-2.5">
         <Grid2X2 className="h-4 w-4 text-muted-foreground" />
         <button
           onClick={onOpenDirectory}
-          className="text-sm font-medium text-foreground transition-colors hover:text-primary"
+          className="text-sm font-semibold text-foreground transition-colors hover:text-primary"
           type="button"
         >
           Agents
         </button>
       </div>
 
-      <div className="flex items-center gap-2 rounded-full border border-border/80 bg-card px-3 py-2 shadow-sm">
+      <div className="neo-pill flex items-center gap-2 rounded-full px-4 py-2.5">
         <div className="relative">
           <select
             aria-label="选择 Agent"
@@ -63,10 +63,10 @@ export function AgentSwitcher({
             <button
               key={agent.agent_id}
               className={cn(
-                "rounded-full border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-primary/50",
+                "rounded-full px-3.5 py-2 text-sm transition-all duration-300 focus-visible:ring-2 focus-visible:ring-primary/50",
                 isActive
-                  ? "border-primary/30 bg-primary/10 text-primary"
-                  : "border-border/80 bg-secondary text-muted-foreground hover:border-primary/20 hover:text-foreground",
+                  ? "bg-[linear-gradient(135deg,rgba(174,163,255,0.34),rgba(240,237,232,0.92))] text-primary neo-soft-shadow"
+                  : "neo-pill text-muted-foreground hover:-translate-y-0.5 hover:text-foreground",
               )}
               onClick={() => onSelectAgent(agent.agent_id)}
               type="button"
@@ -78,7 +78,7 @@ export function AgentSwitcher({
       </div>
 
       <button
-        className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-secondary px-3 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50"
+        className="neo-pill inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-foreground transition-all duration-300 hover:-translate-y-0.5 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50"
         onClick={onCreateAgent}
         type="button"
       >
