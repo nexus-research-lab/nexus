@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from agent.api.router import api_router
 from agent.config.config import settings
 from agent.service.channels.channel_register import ChannelRegister
-from agent.shared.server.register import register_exception, register_hook, register_middleware
+from agent.infra.server.register import register_exception, register_hook, register_middleware
 from agent.utils.logger import logger
 
 # 全局通道管理器

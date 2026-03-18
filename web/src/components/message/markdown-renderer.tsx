@@ -92,7 +92,7 @@ function renderInteractiveText(
       <Fragment key={index}>
         {prefix}
         <button
-          className="inline-block cursor-pointer rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-sm font-mono text-primary whitespace-pre-wrap text-justify transition-colors hover:bg-primary/12 hover:border-primary/30"
+          className="inline-block max-w-full cursor-pointer rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-sm font-mono text-primary break-all whitespace-pre-wrap align-middle transition-colors hover:bg-primary/12 hover:border-primary/30"
           onClick={() => onOpenWorkspaceFile(resolvedPath)}
           title={`Open ${resolvedPath}`}
           type="button"
@@ -111,7 +111,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
   const resolveFilePath = (path: string) => resolveWorkspaceFileReference(path, currentAgentId, filesByAgent);
 
   return (
-    <div className={cn("prose prose-sm max-w-none", className)}>
+    <div className={cn("prose prose-sm max-w-none min-w-0 overflow-hidden break-words", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
         rehypePlugins={[rehypeKatex]}
@@ -126,7 +126,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
               <CodeBlock language={match[1]} value={value} />
             ) : resolvedPath && onOpenWorkspaceFile ? (
               <button
-                className="inline-block cursor-pointer px-2 py-0.5 mx-0.5 bg-primary/10 border border-primary/20 text-primary text-sm font-mono rounded-md whitespace-pre-wrap text-justify transition-colors hover:bg-primary/12 hover:border-primary/30"
+                className="mx-0.5 inline-block max-w-full cursor-pointer rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-sm font-mono text-primary break-all whitespace-pre-wrap align-middle transition-colors hover:bg-primary/12 hover:border-primary/30"
                 onClick={() => onOpenWorkspaceFile(resolvedPath)}
                 title={`Open ${resolvedPath}`}
                 type="button"
@@ -136,7 +136,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
               </button>
             ) : (
               <span
-                className="inline-block px-2 py-0.5 mx-0.5 bg-primary/10 border border-primary/20 text-primary text-sm font-mono rounded-md  whitespace-pre-wrap text-justify"
+                className="mx-0.5 inline-block max-w-full rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-sm font-mono text-primary break-all whitespace-pre-wrap align-middle"
                 {...props}
               >
                 {children}
@@ -145,7 +145,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
           },
           p({ children }) {
             return (
-              <p className="mb-2 mt-2 last:mb-0 leading-relaxed text-foreground/90 text-justify">
+              <p className="mb-2 mt-2 last:mb-0 break-words leading-relaxed text-foreground/90 [overflow-wrap:anywhere]">
                 {renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}
               </p>
             );
@@ -158,7 +158,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
           },
           li({ children }) {
             return (
-              <li className="pl-1 leading-relaxed [&>p]:m-0 [&>p]:inline [&>p]:leading-relaxed">
+              <li className="pl-1 break-words leading-relaxed [overflow-wrap:anywhere] [&>p]:m-0 [&>p]:inline [&>p]:leading-relaxed">
                 {renderInteractiveText(children, resolveFilePath, onOpenWorkspaceFile)}
               </li>
             );

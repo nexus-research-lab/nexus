@@ -12,7 +12,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field
 
-from agent.shared.schemas.model_cython import AModel
+from agent.infra.schemas.model_cython import AModel
 
 
 class BaseSchema(AModel):

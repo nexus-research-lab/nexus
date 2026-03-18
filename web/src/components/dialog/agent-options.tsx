@@ -572,7 +572,7 @@ export function AgentOptions(
                     <div>
                       <p className="text-sm font-medium text-orange-700">来源同时影响技能与权限规则</p>
                       <p className="text-xs text-orange-600/90 mt-1 leading-relaxed">
-                        Claude 会从这些来源读取 `.claude` 配置。项目 / 本地设置里的权限规则只有在对应来源启用后，后续会话才会自动生效。
+                        Nexus 会从这些来源读取配置。项目 / 本地设置里的权限规则只有在对应来源启用后，后续会话才会自动生效。
                       </p>
                     </div>
                   </div>
@@ -594,7 +594,7 @@ export function AgentOptions(
                             className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          从 `~/.claude/` 读取全局技能和权限设置。
+                          读取全局技能和权限设置。
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -625,7 +625,7 @@ export function AgentOptions(
                             className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">已启用</span>}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          从 workspace 下的 `.claude/settings.json` 和 `.claude/skills/` 读取共享规则。
+                          从 workspace 读取。
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -640,20 +640,7 @@ export function AgentOptions(
                       </label>
                     </div>
                   </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    推荐至少启用 `project`。否则项目级权限规则即使写入 `.claude/settings.json`，新会话也不会自动读取。
-                  </p>
                 </div>
-
-                {/* 技能额外说明 */}
-                {skillsEnabled && (
-                  <div className="space-y-4">
-                    <p className="text-xs text-muted-foreground">
-                      技能发现仍然依赖上面的设置来源。`user` / `project` 越完整，Claude 越容易找到可复用的 SKILL。
-                    </p>
-                  </div>
-                )}
               </div>
             )}
 

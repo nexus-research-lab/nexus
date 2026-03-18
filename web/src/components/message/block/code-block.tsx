@@ -58,9 +58,13 @@ export function CodeBlock({language, value}: CodeBlockProps) {
             background: 'transparent',
             fontSize: '0.875rem',
             lineHeight: '1.5',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+            whiteSpace: 'pre-wrap',
           }}
           showLineNumbers={true}
           wrapLines={true}
+          wrapLongLines={true}
         >
           {value}
         </SyntaxHighlighter>

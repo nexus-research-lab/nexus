@@ -21,7 +21,7 @@ from agent.schema.model_agent import AAgent, CreateAgentRequest, CreateWorkspace
 from agent.schema.model_cost import AgentCostSummary
 from agent.service.agent.agent_service import agent_service
 from agent.service.workspace.workspace_service import workspace_service
-from agent.shared.server.common import resp
+from agent.infra.server.common import resp
 
 router = APIRouter(tags=["agent"])
 

@@ -11,8 +11,8 @@
 from fastapi import APIRouter
 
 from agent.api.handler import BaseHandler
-from agent.shared.server.common import cbv
-from agent.shared.server.common import resp
+from agent.infra.server.common import cbv
+from agent.infra.server.common import resp
 
 # import signal
 

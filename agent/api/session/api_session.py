@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from agent.schema.model_cost import SessionCostSummary
 from agent.schema.model_session import ASession
 from agent.service.session.session_service import session_service
-from agent.shared.server.common import resp
+from agent.infra.server.common import resp
 
 router = APIRouter(tags=["session"])
 

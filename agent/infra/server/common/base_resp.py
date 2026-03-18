@@ -15,7 +15,7 @@ from fastapi import status as http_status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
-from agent.shared.schemas.model_cython import AModel
+from agent.infra.schemas.model_cython import AModel
 from agent.utils.constants import TermColors
 from agent.utils.logger import logger
 

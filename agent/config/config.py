@@ -14,7 +14,7 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 
-from agent.shared.schemas.model_cython import CyFunctionDetector
+from agent.infra.schemas.model_cython import CyFunctionDetector
 
 ROOT_PATH = os.path.abspath(os.path.abspath(os.path.dirname(__file__)) + '/../')
 if os.environ.get("ENV_FILE"):

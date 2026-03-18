@@ -17,7 +17,7 @@ from claude_agent_sdk import CanUseTool, ClaudeAgentOptions, ClaudeSDKClient
 
 from agent.service.session.session_store import session_store
 from agent.service.session.session_router import parse_session_key
-from agent.shared.server.common.base_exception import ServerException
+from agent.infra.server.common.base_exception import ServerException
 from agent.utils.logger import logger
 
 

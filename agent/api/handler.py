@@ -14,7 +14,7 @@ from typing import Optional, Union
 from fastapi import Request
 from pydantic import BaseModel
 
-from agent.shared.server.schemas.base_models import BaseSchema
+from agent.infra.server.schemas.base_models import BaseSchema
 from agent.utils.logger import logger
 
 

@@ -18,7 +18,7 @@ import requests
 from aiohttp import ClientTimeout
 
 from agent.config.config import settings
-from agent.shared.server.common.base_exception import ServerException
+from agent.infra.server.common.base_exception import ServerException
 from agent.utils.logger import logger
 
 
