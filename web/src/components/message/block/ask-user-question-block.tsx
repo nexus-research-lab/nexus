@@ -56,15 +56,15 @@ function QuestionCard({
 
     return (
         <div className={cn(
-            "border rounded-lg overflow-hidden transition-all duration-200",
-            hasSelection ? "border-primary/40 bg-primary/5" : "border-border/30 bg-card/30"
+            "radius-shell-md overflow-hidden transition-all duration-200",
+            hasSelection ? "neo-card shadow-[0_14px_24px_rgba(133,119,255,0.12)]" : "neo-card-flat"
         )}>
             {/* 问题头部（可点击收起） */}
             <div
                 className={cn(
-                    "px-3 py-2 flex items-center gap-2 cursor-pointer select-none",
-                    "hover:bg-primary/5 transition-colors",
-                    isExpanded && "border-b border-border/20"
+                    "flex items-center gap-2 px-3 py-2 cursor-pointer select-none",
+                    "hover:bg-white/20 transition-colors",
+                    isExpanded && "border-b border-white/50"
                 )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
@@ -134,11 +134,11 @@ function QuestionCard({
                                     onToggleOption(questionIndex, option.label, isMultiSelect);
                                 }}
                                 className={cn(
-                                    "w-full text-left p-3 border rounded-lg transition-all duration-200",
+                                    "radius-shell-sm w-full text-left p-3 transition-all duration-200",
                                     "hover:border-primary/50 hover:bg-primary/5",
                                     isSelected
-                                        ? "border-primary/60 bg-primary/10 shadow-[0_0_10px_rgba(0,240,255,0.1)]"
-                                        : "border-border/40 bg-card/50",
+                                        ? "neo-card bg-primary/10 shadow-[0_12px_20px_rgba(133,119,255,0.12)]"
+                                        : "neo-card-flat",
                                     isSubmitted && "opacity-60 cursor-not-allowed"
                                 )}
                             >
@@ -267,23 +267,23 @@ export function AskUserQuestionBlock({
 
     return (
         <div className={cn(
-            "my-2 border rounded-lg overflow-hidden transition-all duration-300",
+            "radius-shell-md my-2 overflow-hidden transition-all duration-300",
             isSubmitted
-                ? "border-green-500/40 bg-green-500/5"
-                : "border-primary/40 bg-primary/5 shadow-[0_0_15px_rgba(0,240,255,0.05)]"
+                ? "neo-card shadow-[0_18px_30px_rgba(102,217,143,0.12)]"
+                : "neo-card shadow-[0_18px_30px_rgba(133,119,255,0.12)]"
         )}>
             {/* ═══════════ 头部（可点击展开/收起） ═══════════ */}
             <div
                 className={cn(
-                    "h-9 px-3 flex items-center gap-2 font-mono text-xs cursor-pointer select-none",
-                    "hover:bg-primary/5 transition-colors",
+                    "flex h-10 items-center gap-2 px-3 font-mono text-xs cursor-pointer select-none transition-colors",
+                    "hover:bg-white/20",
                     isSubmitted ? "border-green-500/20" : "border-primary/20",
                     isExpanded && "border-b"
                 )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className={cn(
-                    "w-5 h-5 flex items-center justify-center rounded",
+                    "neo-pill radius-shell-sm flex h-6 w-6 items-center justify-center",
                     isSubmitted ? "text-green-500" : "text-primary"
                 )}>
                     {isSubmitted ? (
@@ -386,4 +386,3 @@ export function AskUserQuestionBlock({
         </div>
     );
 }
-

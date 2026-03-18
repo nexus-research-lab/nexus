@@ -54,14 +54,14 @@ export function ConfirmDialog({
       aria-labelledby="confirm-dialog-title"
       aria-describedby="confirm-dialog-message"
     >
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl animate-in zoom-in-95 duration-150">
+      <div className="soft-ring radius-shell-lg panel-surface w-full max-w-md p-5 animate-in zoom-in-95 duration-150">
         <div className="flex items-start justify-between gap-3 pb-3">
           <h3 id="confirm-dialog-title" className="text-base font-semibold text-foreground">
             {title}
           </h3>
           <button
             aria-label="关闭"
-            className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="neo-pill radius-shell-sm p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={onCancel}
           >
             <X className="h-4 w-4" />
@@ -74,17 +74,17 @@ export function ConfirmDialog({
 
         <div className="mt-4 flex justify-end gap-2">
           <button
-            className="rounded-xl border border-border bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="neo-pill radius-shell-sm px-4 py-2 text-sm font-medium text-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={onCancel}
           >
             {cancelText}
           </button>
           <button
             ref={confirmButtonRef}
-            className={`rounded-xl px-4 py-2 text-sm font-medium text-primary-foreground transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 ${
+            className={`radius-shell-sm px-4 py-2 text-sm font-medium text-primary-foreground transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 ${
               variant === "danger"
-                ? "bg-destructive hover:bg-destructive/90"
-                : "bg-primary hover:bg-primary/90"
+                ? "bg-destructive shadow-[0_16px_28px_rgba(235,90,81,0.22)] hover:bg-destructive/90"
+                : "bg-primary shadow-[0_16px_28px_rgba(133,119,255,0.22)] hover:bg-primary/90"
             }`}
             onClick={onConfirm}
           >
@@ -159,14 +159,14 @@ export function PromptDialog({
       aria-modal="true"
       aria-labelledby="prompt-dialog-title"
     >
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl animate-in zoom-in-95 duration-150">
+      <div className="soft-ring radius-shell-lg panel-surface w-full max-w-md p-5 animate-in zoom-in-95 duration-150">
         <div className="flex items-start justify-between gap-3 pb-3">
           <h3 id="prompt-dialog-title" className="text-base font-semibold text-foreground">
             {title}
           </h3>
           <button
             aria-label="关闭"
-            className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="neo-pill radius-shell-sm p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={() => {
               setValue(defaultValue);
               onCancel();
@@ -186,12 +186,12 @@ export function PromptDialog({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+          className="neo-inset radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
         />
 
         <div className="mt-4 flex justify-end gap-2">
           <button
-            className="rounded-xl border border-border bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="neo-pill radius-shell-sm px-4 py-2 text-sm font-medium text-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={() => {
               setValue(defaultValue);
               onCancel();
@@ -200,7 +200,7 @@ export function PromptDialog({
             取消
           </button>
           <button
-            className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="radius-shell-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[0_16px_28px_rgba(133,119,255,0.22)] transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={() => onConfirm(value)}
           >
             确认

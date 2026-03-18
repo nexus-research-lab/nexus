@@ -140,7 +140,7 @@ export function WorkspaceEditorPane({
         "relative flex min-h-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,opacity,transform]",
         embedded
           ? "border-l border-border/70 shadow-none"
-          : "soft-ring rounded-[36px] panel-surface",
+          : "soft-ring radius-shell-lg panel-surface",
         isOpen ? "opacity-100 translate-x-0" : "pointer-events-none opacity-0 -translate-x-3",
         embedded && !isOpen && "border-l-transparent",
       )}

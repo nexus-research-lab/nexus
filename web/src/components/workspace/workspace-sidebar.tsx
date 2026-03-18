@@ -494,7 +494,7 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className="soft-ring flex min-h-0 w-[292px] shrink-0 flex-col rounded-[36px] panel-surface"
+      className="soft-ring radius-shell-lg flex min-h-0 w-[292px] shrink-0 flex-col panel-surface"
     >
       <div className="flex h-14 items-center justify-between border-b border-white/55 px-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -538,7 +538,7 @@ export function WorkspaceSidebar({
           </div>
 
           {filesystemError && (
-            <div className="mb-3 rounded-[20px] border border-destructive/20 bg-destructive/6 px-3 py-2 text-xs text-destructive">
+            <div className="radius-shell-sm mb-3 border border-destructive/20 bg-destructive/6 px-3 py-2 text-xs text-destructive">
               {filesystemError}
             </div>
           )}
@@ -577,16 +577,16 @@ export function WorkspaceSidebar({
                 记忆与上下文
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="neo-inset rounded-[20px] px-3 py-2">
+                <div className="neo-inset radius-shell-sm px-3 py-2">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">会话数</p>
                   <p className="mt-1 text-sm font-semibold text-foreground">{sessions.length}</p>
                 </div>
-                <div className="neo-inset rounded-[20px] px-3 py-2">
+                <div className="neo-inset radius-shell-sm px-3 py-2">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">记忆文件</p>
                   <p className="mt-1 text-sm font-semibold text-foreground">{memoryFiles.length}</p>
                 </div>
               </div>
-              <div className="neo-inset mt-3 flex items-center justify-between rounded-[20px] px-3 py-2">
+              <div className="neo-inset radius-shell-sm mt-3 flex items-center justify-between px-3 py-2">
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <Clock3 className="h-3.5 w-3.5" />
                   <span>当前会话</span>
@@ -609,7 +609,7 @@ export function WorkspaceSidebar({
                   <div
                     key={session.session_key}
                     className={cn(
-                      "group cursor-pointer rounded-[24px] px-4 py-3 text-left transition-all duration-300",
+                      "group cursor-pointer radius-shell-md px-4 py-3 text-left transition-all duration-300",
                       isActive
                         ? "bg-[linear-gradient(145deg,rgba(170,161,255,0.24),rgba(244,241,236,0.96))] shadow-[0_16px_28px_rgba(133,119,255,0.16)]"
                         : "neo-card-flat hover:-translate-y-0.5",

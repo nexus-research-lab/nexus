@@ -30,7 +30,7 @@ export function AgentDirectory({
   const activeSessions = sessions.filter((session) => session.is_active !== false).length;
 
   return (
-    <section className="soft-ring flex min-h-0 flex-1 flex-col overflow-hidden rounded-[42px] panel-surface">
+    <section className="soft-ring radius-shell-xl flex min-h-0 flex-1 flex-col overflow-hidden panel-surface">
       <div className="border-b border-white/55 px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -73,7 +73,7 @@ export function AgentDirectory({
                 <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/50 blur-2xl" />
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2">
-                    <div className="neo-pill inline-flex h-12 w-12 items-center justify-center rounded-[20px] text-primary">
+                    <div className="neo-pill radius-shell-sm inline-flex h-12 w-12 items-center justify-center text-primary">
                       <Bot className="h-5 w-5" />
                     </div>
                     <div>
@@ -105,17 +105,17 @@ export function AgentDirectory({
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="neo-inset rounded-[24px] px-4 py-4">
+                  <div className="neo-inset radius-shell-md px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Model</p>
                     <p className="mt-2 text-sm font-bold text-foreground">{model}</p>
                   </div>
-                  <div className="neo-inset rounded-[24px] px-4 py-4">
+                  <div className="neo-inset radius-shell-md px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Tools</p>
                     <p className="mt-2 text-sm font-bold text-foreground">{toolCount}</p>
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2 rounded-[24px] neo-card-flat px-4 py-4">
+                <div className="mt-4 space-y-2 radius-shell-md neo-card-flat px-4 py-4">
                   <div className="flex items-center gap-2 text-sm text-foreground">
                     <FolderKanban className="h-4 w-4 text-muted-foreground" />
                     <span>{agentSessions.length} 个 Session</span>

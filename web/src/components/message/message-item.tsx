@@ -265,7 +265,7 @@ export function MessageItem(
             <div className="group flex items-end gap-3 ">
 
               <div className={cn(
-                "neo-card relative flex-1 overflow-hidden rounded-[30px] transition-all duration-300 hover:-translate-y-0.5",
+                "neo-card soft-ring radius-shell-lg relative flex-1 overflow-hidden transition-all duration-300 hover:-translate-y-0.5",
                 "bg-[linear-gradient(145deg,rgba(255,235,220,0.86),rgba(244,241,236,0.96))]"
               )}>
                 {/* 头部 */}
@@ -330,7 +330,7 @@ export function MessageItem(
             <div className="group flex items-start gap-3">
 
               <div className={cn(
-                "neo-card relative flex-1 overflow-hidden rounded-[32px] transition-all duration-500",
+                "neo-card soft-ring radius-shell-lg relative flex-1 overflow-hidden transition-all duration-500",
                 "bg-[linear-gradient(145deg,rgba(244,241,236,0.98),rgba(232,229,223,0.96))]",
                 showCursor && "shadow-[0_24px_44px_rgba(133,119,255,0.18)]",
                 isCompleted && "shadow-[0_24px_44px_rgba(102,217,143,0.16)]"

@@ -15,12 +15,12 @@ interface EmptyStateProps {
 export function EmptyState({onNewSession}: EmptyStateProps) {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      <div className="soft-ring panel-surface relative max-w-2xl w-full overflow-hidden rounded-[40px] p-10 text-center">
+      <div className="soft-ring radius-shell-xl panel-surface relative max-w-2xl w-full overflow-hidden p-10 text-center">
         <div className="pointer-events-none absolute left-12 top-12 h-28 w-28 rounded-full glow-lilac opacity-40" />
         <div className="pointer-events-none absolute bottom-10 right-12 h-28 w-28 rounded-full glow-green opacity-35" />
         {/* Icon */}
         <div className="flex justify-center">
-          <div className="neo-pill relative inline-flex h-24 w-24 items-center justify-center rounded-[30px] text-primary">
+          <div className="neo-pill radius-shell-md relative inline-flex h-24 w-24 items-center justify-center text-primary">
             <div className="absolute -right-2 -top-2 rounded-full bg-[linear-gradient(135deg,rgba(255,194,148,0.92),rgba(255,155,86,0.88))] p-2 text-[#8a4409] shadow-[0_14px_24px_rgba(255,157,86,0.24)]">
               <FolderKanban className="h-4 w-4" />
             </div>
@@ -40,15 +40,15 @@ export function EmptyState({onNewSession}: EmptyStateProps) {
 
         {/* Features */}
         <div className="mt-8 grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-          <div className="neo-inset rounded-[26px] px-4 py-4">
+          <div className="neo-inset radius-shell-md px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
             <span>按 Agent 隔离上下文</span>
           </div>
-          <div className="neo-inset rounded-[26px] px-4 py-4">
+          <div className="neo-inset radius-shell-md px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
             <span>历史对话自动保存</span>
           </div>
-          <div className="neo-inset rounded-[26px] px-4 py-4">
+          <div className="neo-inset radius-shell-md px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary"/>
             <span>工具使用需你授权</span>
           </div>
