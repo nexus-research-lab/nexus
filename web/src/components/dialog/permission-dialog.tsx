@@ -90,7 +90,7 @@ export function PermissionDialog(
       <div className="mt-3 space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase">参数详情</p>
         {entries.map(([key, value]) => (
-          <div key={key} className="bg-muted/30 rounded-md p-3">
+          <div key={key} className="neo-inset radius-shell-sm p-3">
             <span className="text-xs font-medium text-foreground">{key}:</span>
             <pre className="mt-1 text-xs text-muted-foreground overflow-auto max-h-32 whitespace-pre-wrap break-words">
               {typeof value === 'string' && value.length > 200 ? value.substring(0, 200) + '...'
@@ -109,13 +109,13 @@ export function PermissionDialog(
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="bg-background border border-border w-full max-w-lg flex flex-col shadow-2xl rounded-xl overflow-hidden animate-in zoom-in-95 duration-200">
+        className="soft-ring radius-shell-lg panel-surface flex w-full max-w-lg flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-orange-500/10">
+        <div className="flex items-center justify-between border-b border-white/55 bg-orange-500/10 px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-600">
+            <div className="neo-pill radius-shell-sm flex h-10 w-10 items-center justify-center bg-orange-500/15 text-orange-600">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
@@ -129,7 +129,7 @@ export function PermissionDialog(
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="neo-pill radius-shell-sm p-2 text-muted-foreground transition-colors hover:text-foreground"
           >
             <X className="w-4 h-4" />
           </button>
@@ -137,7 +137,7 @@ export function PermissionDialog(
 
         {/* 内容 */}
         <div className="p-5 space-y-4 max-h-[60vh] overflow-auto">
-          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
+          <div className="radius-shell-md border border-orange-500/20 bg-orange-500/10 p-4">
             <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
               Agent 想要使用「{toolName}」工具
             </p>
@@ -172,7 +172,7 @@ export function PermissionDialog(
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase">记住这次授权</p>
               <div className="space-y-2">
-                <label className="flex items-start gap-3 rounded-lg border border-border p-3">
+                <label className="neo-card-flat radius-shell-md flex items-start gap-3 p-3">
                   <input
                     type="radio"
                     name="permission-suggestion"
@@ -186,7 +186,7 @@ export function PermissionDialog(
                   </div>
                 </label>
                 {readableSuggestions.map((suggestion) => (
-                  <label key={suggestion.index} className="flex items-start gap-3 rounded-lg border border-border p-3">
+                  <label key={suggestion.index} className="neo-card-flat radius-shell-md flex items-start gap-3 p-3">
                     <input
                       type="radio"
                       name="permission-suggestion"
@@ -208,10 +208,10 @@ export function PermissionDialog(
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-border bg-muted/30">
+        <div className="flex items-center justify-end gap-3 border-t border-white/55 px-5 py-4">
           <button
             onClick={() => onDeny()}
-            className="px-4 py-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium shadow-sm"
+            className="neo-pill radius-shell-sm px-4 py-2 text-sm font-medium transition-colors hover:text-accent"
           >
             拒绝
           </button>
@@ -222,7 +222,7 @@ export function PermissionDialog(
                 : undefined;
               onAllow(selectedUpdate);
             }}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium shadow-sm"
+            className="radius-shell-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[0_16px_28px_rgba(133,119,255,0.22)] transition-colors hover:bg-primary/90"
           >
             允许
           </button>

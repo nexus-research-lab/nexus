@@ -110,30 +110,30 @@ export function ToolBlock({
 
   // 状态配色
   const statusColors = {
-    pending: 'border-muted-foreground/30',
-    running: 'border-primary/50 shadow-[0_0_10px_rgba(0,240,255,0.1)]',
-    success: 'border-green-500/40',
-    error: 'border-red-500/40',
-    waiting_permission: 'border-orange-500/40 shadow-[0_0_10px_rgba(255,165,0,0.1)]',
+    pending: 'neo-card-flat',
+    running: 'neo-card shadow-[0_18px_30px_rgba(133,119,255,0.14)]',
+    success: 'neo-card shadow-[0_18px_30px_rgba(102,217,143,0.12)]',
+    error: 'neo-card shadow-[0_18px_30px_rgba(235,90,81,0.12)]',
+    waiting_permission: 'neo-card shadow-[0_18px_30px_rgba(255,157,86,0.14)]',
   };
 
   return (
     <div className={cn(
-      "my-2 border rounded overflow-hidden bg-background/50 backdrop-blur-sm transition-all duration-300",
+      "radius-shell-md my-2 overflow-hidden transition-all duration-300",
       statusColors[finalStatus]
     )}>
       {/* ═══════════ 头部栏：工具名+路径+状态+时间 ═══════════ */}
       <div
         className={cn(
-          "h-9 px-3 flex items-center gap-2 font-mono text-xs cursor-pointer select-none",
-          "hover:bg-primary/5 transition-colors",
+          "flex h-10 cursor-pointer select-none items-center gap-2 px-3 font-mono text-xs transition-colors",
+          "hover:bg-white/20",
           isRunning && "animate-pulse"
         )}
         onClick={() => hasResult && setIsExpanded(!isExpanded)}
       >
         {/* 工具图标 */}
         <div className={cn(
-          "w-5 h-5 flex items-center justify-center rounded",
+          "neo-pill radius-shell-sm flex h-6 w-6 items-center justify-center",
           isSuccess && "text-green-500",
           isError && "text-red-500",
           isRunning && "text-primary",
@@ -188,7 +188,7 @@ export function ToolBlock({
           <button
             onClick={handleCopyResult}
             className={cn(
-              "px-2 py-0.5 rounded text-[10px] uppercase tracking-wider transition-all",
+              "neo-pill radius-shell-sm px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
               copied
                 ? "text-green-500 bg-green-500/10"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -221,10 +221,10 @@ export function ToolBlock({
 
       {/* ═══════════ 展开的结果内容 ═══════════ */}
       {hasResult && isExpanded && (
-        <div className="border-t border-border/30">
-          <div className="p-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+        <div className="border-t border-white/50">
+          <div className="max-h-[300px] overflow-y-auto p-3 custom-scrollbar">
             {typeof toolResult.content === 'string' ? (
-              <pre className="text-xs font-mono whitespace-pre-wrap break-all text-foreground/80">
+              <pre className="neo-inset radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-foreground/80">
                 {toolResult.content}
               </pre>
             ) : (
@@ -236,7 +236,7 @@ export function ToolBlock({
 
       {/* ═══════════ 运行中指示 ═══════════ */}
       {!hasResult && isRunning && (
-        <div className="h-8 px-3 flex items-center gap-2 text-xs text-muted-foreground border-t border-border/20">
+        <div className="flex h-8 items-center gap-2 border-t border-white/50 px-3 text-xs text-muted-foreground">
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
@@ -250,7 +250,7 @@ export function ToolBlock({
       {permissionRequest && isWaiting && (
         <div className="border-t border-orange-500/20 bg-orange-500/5">
           {/* 参数预览 */}
-          <div className="px-3 py-2 max-h-[120px] overflow-y-auto custom-scrollbar border-b border-orange-500/10">
+          <div className="max-h-[120px] overflow-y-auto border-b border-orange-500/10 px-3 py-3 custom-scrollbar">
             {permissionRequest.summary && (
               <div className="mb-2 text-[11px] text-orange-500 flex items-center gap-2">
                 <span className="font-semibold uppercase tracking-wider">
@@ -259,13 +259,13 @@ export function ToolBlock({
                 <span className="truncate">{permissionRequest.summary}</span>
               </div>
             )}
-            <pre className="text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-all">
+            <pre className="neo-inset radius-shell-sm p-3 text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-all">
               {JSON.stringify(permissionRequest.tool_input, null, 2)}
             </pre>
           </div>
 
           {/* 操作栏 */}
-          <div className="h-10 px-3 flex items-center gap-2">
+          <div className="flex h-11 items-center gap-2 px-3">
             <span className="text-xs text-orange-500 font-medium flex items-center gap-1.5">
               <Clock className="w-3 h-3" />
               AWAITING_PERMISSION
@@ -273,19 +273,19 @@ export function ToolBlock({
             <div className="flex-1" />
             <button
               onClick={() => permissionRequest.onDeny()}
-              className="px-3 py-1 rounded text-xs font-medium border border-border/50 hover:bg-muted transition-colors"
+              className="neo-pill radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-foreground"
             >
               拒绝
             </button>
             <button
               onClick={() => permissionRequest.onAllow()}
-              className="px-3 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="radius-shell-sm bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-[0_14px_24px_rgba(133,119,255,0.18)] transition-colors hover:bg-primary/90"
             >
               允许执行
             </button>
             <button
               onClick={() => setShowDetailModal(true)}
-              className="px-3 py-1 rounded text-xs font-medium border border-border/50 hover:bg-muted transition-colors"
+              className="neo-pill radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-foreground"
             >
               查看详情
             </button>

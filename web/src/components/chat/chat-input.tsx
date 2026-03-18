@@ -172,11 +172,11 @@ const ChatInput = memo((
       <div className="relative mx-auto max-w-4xl py-2">
         {/* 附件预览区域 */}
         {attachments.length > 0 && (
-          <div className="neo-card-flat mb-3 flex flex-wrap gap-2 rounded-[26px] p-3">
+          <div className="neo-card-flat radius-shell-md mb-3 flex flex-wrap gap-2 p-3">
             {attachments.map(attachment => (
               <div
                 key={attachment.id}
-                className="neo-pill relative group flex items-center gap-2 rounded-[20px] px-3 py-2"
+                className="neo-pill radius-shell-sm relative group flex items-center gap-2 px-3 py-2"
               >
                 {attachment.type === 'image' ? (
                   attachment.preview ? (
@@ -212,7 +212,7 @@ const ChatInput = memo((
         {/* 主输入框容器 */}
         <div
           className={cn(
-            "panel-surface soft-ring relative rounded-[32px] transition-all duration-300",
+            "panel-surface soft-ring radius-shell-lg relative transition-all duration-300",
             isFocused
               ? "shadow-[0_28px_54px_rgba(133,119,255,0.18)]"
               : "",

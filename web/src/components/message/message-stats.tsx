@@ -30,7 +30,7 @@ export function MessageStats(
   }: MessageStatsProps) {
   return (
     <div
-      className="h-7 px-4 flex items-center gap-3 border-t border-primary/10 text-[10px] text-muted-foreground/50 font-mono">
+      className="flex h-8 items-center gap-3 border-t border-white/55 px-4 text-[10px] text-muted-foreground/50 font-mono">
       <span className="tabular-nums">{stats?.duration}</span>
       {stats?.tokens && (
         <>
@@ -64,7 +64,7 @@ export function MessageStats(
           <button
             onClick={onCopyAssistant}
             className={cn(
-              "p-1 rounded transition-colors",
+              "neo-pill radius-shell-sm p-1 transition-colors",
               copiedAssistant ? "text-green-500" : "text-muted-foreground/50 hover:text-foreground"
             )}
             title="复制回答"
@@ -76,7 +76,7 @@ export function MessageStats(
             <button
               onClick={onRegenerate}
               disabled={isRegenerating}
-              className="p-1 rounded text-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-50"
+              className="neo-pill radius-shell-sm p-1 text-muted-foreground/50 transition-colors hover:text-foreground disabled:opacity-50"
               title="重新生成"
             >
               <RefreshCw className={cn("w-3 h-3", isRegenerating && "animate-spin")}/>
@@ -87,7 +87,7 @@ export function MessageStats(
             <button
               onClick={onDelete}
               disabled={isDeleting}
-              className="p-1 rounded text-muted-foreground/50 hover:text-red-500 transition-colors disabled:opacity-50"
+              className="neo-pill radius-shell-sm p-1 text-muted-foreground/50 transition-colors hover:text-red-500 disabled:opacity-50"
               title="删除"
             >
               <Trash2 className="w-3 h-3"/>

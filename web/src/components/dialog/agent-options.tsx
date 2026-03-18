@@ -262,13 +262,13 @@ export function AgentOptions(
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="bg-background border border-border w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl rounded-xl overflow-hidden animate-in zoom-in-95 duration-200">
+        className="soft-ring radius-shell-xl panel-surface flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
+        <div className="flex items-center justify-between border-b border-white/55 px-6 py-5">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <div className="neo-pill radius-shell-sm flex h-10 w-10 items-center justify-center text-primary">
               <Settings className="w-4 h-4"/>
             </div>
             <div>
@@ -283,7 +283,7 @@ export function AgentOptions(
           <button
             aria-label="关闭对话框"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="neo-pill radius-shell-sm p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             <X className="w-5 h-5"/>
           </button>
@@ -292,7 +292,7 @@ export function AgentOptions(
         {/* 主体：左侧标签 + 右侧内容 */}
         <div className="flex flex-1 overflow-hidden">
           {/* 左侧标签页 */}
-          <div className="w-56 bg-muted/10 border-r border-border flex flex-col p-3 gap-1">
+          <div className="flex w-56 flex-col gap-2 border-r border-white/55 bg-white/10 p-3">
             {tabs.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
@@ -301,10 +301,10 @@ export function AgentOptions(
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 text-sm rounded-lg transition-all duration-200",
+                    "radius-shell-md flex items-center gap-3 px-4 py-3 text-sm transition-all duration-200",
                     isActive
-                      ? "bg-primary/10 text-primary font-medium shadow-sm"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "neo-card-flat text-primary font-medium shadow-[0_14px_24px_rgba(133,119,255,0.12)]"
+                      : "text-muted-foreground hover:bg-white/25 hover:text-foreground"
                   )}
                 >
                   <Icon className={cn("w-4 h-4", isActive ? "text-primary" : "opacity-70")}/>
@@ -318,7 +318,7 @@ export function AgentOptions(
           </div>
 
           {/* 右侧内容区 */}
-          <div className="flex-1 overflow-y-auto p-8 bg-background">
+          <div className="flex-1 overflow-y-auto bg-transparent p-8">
             {/* 基础设置 */}
             {activeTab === 'basic' && (
               <div className="space-y-8 max-w-2xl animate-in slide-in-from-right-4 duration-300">
@@ -334,7 +334,7 @@ export function AgentOptions(
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                      className="neo-inset radius-shell-sm flex h-11 w-full px-4 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
                       placeholder="例如：Coding Assistant"
                     />
                     <div className="min-h-5 text-xs">
@@ -360,7 +360,7 @@ export function AgentOptions(
                       <select
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none transition-all"
+                        className="neo-inset radius-shell-sm flex h-11 w-full appearance-none px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
                       >
                         {AVAILABLE_MODELS.map(m => (
                           <option key={m.value} value={m.value}>{m.label}</option>
@@ -379,7 +379,7 @@ export function AgentOptions(
 
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">工作区策略</h3>
-                  <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground space-y-1">
+                  <div className="neo-card-flat radius-shell-md space-y-1 p-4 text-sm text-muted-foreground">
                     <p>工作目录由系统自动托管，不再支持手动输入。</p>
                     <p>目录规则：`~/.nexus-core/workspace/&lt;agent_name_slug&gt;`。</p>
                     <p>首次创建时会自动初始化 `AGENTS.md`、`MEMORY.md` 等模板。</p>
@@ -387,7 +387,7 @@ export function AgentOptions(
                   <div className="space-y-2">
                     <label className="text-sm font-medium leading-none">描述</label>
                     <textarea
-                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y transition-all"
+                      className="neo-inset radius-shell-md flex min-h-[96px] w-full resize-y px-4 py-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
                       rows={3}
                       placeholder="描述此会话的目标或背景信息..."
                     />
@@ -408,7 +408,7 @@ export function AgentOptions(
                     <textarea
                       value={systemPrompt}
                       onChange={(e) => setSystemPrompt(e.target.value)}
-                      className="absolute inset-0 w-full h-full rounded-md border border-input bg-background px-4 py-3 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-relaxed"
+                      className="absolute inset-0 h-full w-full resize-none neo-inset radius-shell-md px-4 py-3 text-sm font-mono leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
                       placeholder="在此输入自定义系统提示词，它将决定 Agent 的行为模式、角色设定和限制条件..."
                     />
                   </div>
@@ -431,10 +431,10 @@ export function AgentOptions(
                         key={pm.value}
                         onClick={() => setPermissionMode(pm.value)}
                         className={cn(
-                          "relative p-4 border rounded-xl text-left transition-all duration-200 hover:shadow-md",
+                          "radius-shell-md relative p-4 text-left transition-all duration-200",
                           permissionMode === pm.value
-                            ? "bg-primary/5 border-primary ring-1 ring-primary"
-                            : "bg-card border-border hover:border-primary/50"
+                            ? "neo-card bg-primary/5 ring-1 ring-primary/40"
+                            : "neo-card-flat hover:border-primary/30"
                         )}
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -454,7 +454,7 @@ export function AgentOptions(
                     ))}
                   </div>
                   {permissionMode === 'bypassPermissions' && allowedTools.length > 0 && (
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-xs leading-relaxed text-amber-700">
+                    <div className="radius-shell-md border border-amber-500/20 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-700">
                       `bypassPermissions` 会放行所有工具，`allowed_tools` 只代表预授权集合，并不能限制其它工具。
                       如果你想在全放行模式下屏蔽个别危险工具，请改用 `disallowed_tools`。
                     </div>
@@ -470,7 +470,7 @@ export function AgentOptions(
                     </span>
                   </div>
 
-                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 flex gap-3">
+                  <div className="radius-shell-md flex gap-3 border border-orange-500/20 bg-orange-500/10 p-4">
                     <div className="text-orange-600 mt-0.5">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                            strokeLinecap="round" strokeLinejoin="round">
@@ -495,10 +495,10 @@ export function AgentOptions(
                         <div
                           key={tool.name}
                           className={cn(
-                            "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
+                            "radius-shell-md flex items-center justify-between p-4 transition-all duration-200",
                             isChecked
-                              ? "bg-primary/5 border-primary/30"
-                              : "bg-card border-border hover:border-primary/20"
+                              ? "neo-card bg-primary/5"
+                              : "neo-card-flat hover:border-primary/20"
                           )}
                         >
                           <div className="flex-1 mr-4">
@@ -537,7 +537,7 @@ export function AgentOptions(
 
                   {/* 技能启用开关 */}
                   <div
-                    className="flex items-center justify-between p-4 border rounded-lg bg-card hover:border-primary/20 transition-all">
+                    className="neo-card-flat radius-shell-md flex items-center justify-between p-4 transition-all hover:border-primary/20">
                     <div className="flex-1">
                       <label className="text-sm font-medium leading-none flex items-center gap-2">
                         启用技能系统
@@ -565,7 +565,7 @@ export function AgentOptions(
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">设置加载来源</h3>
 
-                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 flex gap-3">
+                  <div className="radius-shell-md flex gap-3 border border-orange-500/20 bg-orange-500/10 p-4">
                     <div className="text-orange-600 mt-0.5">
                       <Sparkles className="w-4 h-4"/>
                     </div>
@@ -581,10 +581,10 @@ export function AgentOptions(
                     {/* 用户设置 */}
                     <div
                       className={cn(
-                        "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
+                        "radius-shell-md flex items-center justify-between p-4 transition-all duration-200",
                         settingSources.includes('user')
-                          ? "bg-primary/5 border-primary/30"
-                          : "bg-card border-border hover:border-primary/20"
+                          ? "neo-card bg-primary/5"
+                          : "neo-card-flat hover:border-primary/20"
                       )}
                     >
                       <div className="flex-1 mr-4">
@@ -612,10 +612,10 @@ export function AgentOptions(
                     {/* 项目设置 */}
                     <div
                       className={cn(
-                        "flex items-center justify-between p-4 border rounded-lg transition-all duration-200",
+                        "radius-shell-md flex items-center justify-between p-4 transition-all duration-200",
                         settingSources.includes('project')
-                          ? "bg-primary/5 border-primary/30"
-                          : "bg-card border-border hover:border-primary/20"
+                          ? "neo-card bg-primary/5"
+                          : "neo-card-flat hover:border-primary/20"
                       )}
                     >
                       <div className="flex-1 mr-4">
@@ -667,10 +667,10 @@ export function AgentOptions(
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/30">
+        <div className="flex items-center justify-end gap-3 border-t border-white/55 px-6 py-5">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium shadow-sm"
+            className="neo-pill radius-shell-sm px-5 py-2.5 text-sm font-medium transition-colors hover:text-accent"
           >
             取消
           </button>
@@ -678,10 +678,10 @@ export function AgentOptions(
             onClick={handleSave}
             disabled={!canSave}
             className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium shadow-sm transition-colors",
+              "radius-shell-sm px-5 py-2.5 text-sm font-medium transition-colors",
               canSave
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
+                ? "bg-primary text-primary-foreground shadow-[0_18px_34px_rgba(133,119,255,0.2)] hover:bg-primary/90"
+                : "neo-pill text-muted-foreground cursor-not-allowed"
             )}
           >
             {mode === 'create' ? '创建 Agent' : '保存更改'}

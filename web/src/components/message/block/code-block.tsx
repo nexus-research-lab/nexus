@@ -20,8 +20,8 @@ export function CodeBlock({language, value}: CodeBlockProps) {
   };
 
   return (
-    <div className="relative group my-4 rounded-lg overflow-hidden border border-primary/20 bg-[#1e1e1e] shadow-lg">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-white/5">
+    <div className="relative group my-4 overflow-hidden rounded-[22px] border border-white/10 bg-[#1e1e1e] shadow-[0_22px_36px_rgba(17,24,39,0.28)]">
+      <div className="flex items-center justify-between border-b border-white/5 bg-[#252526] px-4 py-2">
         <div className="flex items-center gap-2">
           <div className="flex gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"/>
@@ -32,7 +32,7 @@ export function CodeBlock({language, value}: CodeBlockProps) {
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white transition-colors"
+          className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-white"
         >
           {copied ? (
             <>
