@@ -7,3 +7,40 @@
 
 # 2025/11/28 23:14   Create
 # =====================================================
+
+"""Schema 导出。"""
+
+from agent.schema.model_agent import AAgent, AgentOptions
+from agent.schema.model_agent_persistence import (
+    AgentAggregate,
+    AgentRecord,
+    CreateAgentAggregate,
+    ProfileRecord,
+    RuntimeRecord,
+)
+from agent.schema.model_chat_persistence import (
+    ConversationRecord,
+    MemberRecord,
+    MessageRecord,
+    RoomAggregate,
+    RoomRecord,
+    RoundRecord,
+    SessionRecord,
+)
+
+__all__ = [
+    "AAgent",
+    "AgentOptions",
+    "AgentRecord",
+    "ProfileRecord",
+    "RuntimeRecord",
+    "AgentAggregate",
+    "CreateAgentAggregate",
+    "RoomRecord",
+    "MemberRecord",
+    "RoomAggregate",
+    "ConversationRecord",
+    "SessionRecord",
+    "MessageRecord",
+    "RoundRecord",
+]
