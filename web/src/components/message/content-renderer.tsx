@@ -170,10 +170,10 @@ export function ContentRenderer(
         if (block.type === 'tool_result') {
           return (
             <div key={index} className={cn(
-              "p-4 border rounded-lg my-2",
+              "radius-shell-md my-2 p-4",
               block.is_error
-                ? "bg-red-500/5 border-red-500/20"
-                : "bg-green-500/5 border-green-500/20"
+                ? "neo-card bg-red-500/5"
+                : "neo-card bg-green-500/5"
             )}>
               <div className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
                 {block.is_error ? (
@@ -184,7 +184,7 @@ export function ContentRenderer(
               </div>
               <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                 {typeof block.content === 'string' ? (
-                  <pre className="text-xs font-mono whitespace-pre-wrap break-all text-foreground/80">
+                  <pre className="neo-inset radius-shell-sm text-xs font-mono whitespace-pre-wrap break-all p-4 text-foreground/80">
                     {block.content}
                   </pre>
                 ) : (

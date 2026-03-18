@@ -28,24 +28,21 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
 
   return (
     <div className="relative">
-      {/* 赛博朋克风格按钮 */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
         whileHover={{scale: 1.1}}
         whileTap={{scale: 0.95}}
         className={cn(
-          "relative w-8 h-8 rounded-lg overflow-hidden",
-          "bg-background/80 border border-primary/30",
-          "hover:border-primary/60 hover:shadow-[0_0_15px_rgba(0,240,255,0.3)]",
-          isOpen && "border-primary shadow-[0_0_20px_rgba(0,240,255,0.4)]",
+          "neo-pill radius-shell-sm relative h-8 w-8 overflow-hidden",
+          "hover:text-primary hover:shadow-[0_12px_20px_rgba(133,119,255,0.18)]",
+          isOpen && "text-primary shadow-[0_16px_26px_rgba(133,119,255,0.22)]",
           "transition-all duration-300"
         )}
       >
-        {/* 背景网格 */}
         <div
           className="absolute inset-0 opacity-20"
           style={{
-            backgroundImage: "linear-gradient(rgba(0,240,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.1) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(rgba(133,119,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(133,119,255,0.08) 1px, transparent 1px)",
             backgroundSize: "4px 4px"
           }}
         />
@@ -70,7 +67,7 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
             animate={{pathLength: progress / 100}}
             transition={{duration: 0.5}}
             style={{
-              filter: "drop-shadow(0 0 3px rgba(0,240,255,0.8))"
+              filter: "drop-shadow(0 0 3px rgba(133,119,255,0.45))"
             }}
           />
         </svg>
@@ -83,7 +80,7 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
               transition={{duration: 4, repeat: Infinity, ease: "linear"}}
             >
               <Sparkles className="w-3.5 h-3.5 text-primary"
-                        style={{filter: "drop-shadow(0 0 4px rgba(0,240,255,0.8))"}}/>
+                        style={{filter: "drop-shadow(0 0 4px rgba(133,119,255,0.45))"}}/>
             </motion.div>
           ) : (
             <CheckCircle2 className="w-3.5 h-3.5 text-primary/70"/>
@@ -99,14 +96,8 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
           />
         )}
 
-        {/* 角落装饰 */}
-        <div className="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-primary/50"/>
-        <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-primary/50"/>
-        <div className="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-primary/50"/>
-        <div className="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-primary/50"/>
       </motion.button>
 
-      {/* 下拉看板 - 立体玻璃效果 */}
       <AnimatePresence>
         {isOpen && (
           <>
@@ -119,7 +110,6 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
               onClick={() => setIsOpen(false)}
             />
 
-            {/* Panel */}
             <motion.div
               initial={{opacity: 0, y: -8, scale: 0.96}}
               animate={{opacity: 1, y: 0, scale: 1}}
@@ -127,35 +117,22 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
               transition={{type: "spring", stiffness: 400, damping: 30}}
               className={cn(
                 "absolute top-full right-0 mt-3 w-72",
-                "rounded-2xl overflow-hidden z-50",
-                // 立体玻璃效果
-                "bg-gradient-to-br from-gray-900/95 via-gray-900/90 to-gray-800/95",
-                "backdrop-blur-xl",
-                "border border-white/10",
-                // 多层阴影营造立体感
-                "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.3),0_10px_20px_-5px_rgba(0,0,0,0.4),0_25px_50px_-12px_rgba(0,0,0,0.5)]",
-                // 内发光
-                "before:absolute before:inset-0 before:rounded-2xl before:p-px",
-                "before:bg-gradient-to-b before:from-white/20 before:to-transparent before:pointer-events-none"
+                "soft-ring radius-shell-lg panel-surface overflow-hidden z-50"
               )}
             >
-              {/* 顶部高光条 */}
-              <div
-                className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent"/>
-
               {/* Header */}
               <div className="relative p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/15 rounded-xl text-primary border border-primary/20">
+                  <div className="neo-pill radius-shell-sm p-2 text-primary">
                     <Sparkles size={14}/>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-white">Agent Plan</h3>
-                    <div className="flex items-center gap-2 text-[10px] text-white/50">
+                    <h3 className="font-semibold text-sm text-foreground">Agent Plan</h3>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                       <span>{completedCount}/{totalCount} done</span>
-                      <div className="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-1 w-12 overflow-hidden rounded-full bg-muted/50">
                         <motion.div
-                          className="h-full bg-primary rounded-full"
+                          className="h-full rounded-full bg-primary"
                           initial={{width: 0}}
                           animate={{width: `${progress}%`}}
                         />
@@ -165,14 +142,14 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors"
+                  className="neo-pill radius-shell-sm p-1.5 text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <X size={14}/>
                 </button>
               </div>
 
               {/* Divider */}
-              <div className="mx-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"/>
+              <div className="mx-4 h-px bg-gradient-to-r from-transparent via-border to-transparent"/>
 
               {/* Task List */}
               <div className="max-h-[320px] overflow-y-auto p-3 space-y-2 custom-scrollbar">
@@ -183,12 +160,12 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
                     animate={{opacity: 1, x: 0}}
                     transition={{delay: index * 0.03}}
                     className={cn(
-                      "relative p-3 rounded-xl transition-all duration-300",
+                      "radius-shell-md relative p-3 transition-all duration-300",
                       todo.status === "in_progress"
-                        ? "bg-primary/15 border border-primary/25 shadow-[0_0_20px_rgba(0,240,255,0.15)]"
+                        ? "neo-card bg-primary/10 shadow-[0_14px_24px_rgba(133,119,255,0.12)]"
                         : todo.status === "completed"
-                          ? "bg-white/5 opacity-50"
-                          : "bg-white/5 border border-white/5"
+                          ? "neo-card-flat opacity-55"
+                          : "neo-card-flat"
                     )}
                   >
                     <div className="flex items-start gap-2.5">
@@ -205,15 +182,15 @@ export function AgentTaskWidget({todos}: AgentTaskWidgetProps) {
                             <Clock className="w-4 h-4 text-primary relative"/>
                           </div>
                         ) : (
-                          <Circle className="w-4 h-4 text-white/30"/>
+                            <Circle className="w-4 h-4 text-muted-foreground/40"/>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={cn(
                           "text-xs leading-relaxed",
                           todo.status === "completed"
-                            ? "line-through text-white/40"
-                            : "text-white/80"
+                            ? "line-through text-muted-foreground/60"
+                            : "text-foreground/80"
                         )}>
                           {todo.content}
                         </p>

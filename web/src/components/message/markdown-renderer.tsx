@@ -190,7 +190,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
           },
           table({ children }) {
             return (
-              <div className="overflow-x-auto my-4 border border-border rounded-lg">
+              <div className="neo-card-flat radius-shell-md my-4 overflow-x-auto">
                 <table className="w-full text-sm text-left">{children}</table>
               </div>
             );
@@ -202,7 +202,7 @@ export function MarkdownRenderer({ content, className, isStreaming = false, onOp
             return <th className="px-4 py-3 font-medium">{children}</th>;
           },
           td({ children }) {
-            return <td className="px-4 py-3 border-t border-border">{children}</td>;
+            return <td className="border-t border-border px-4 py-3">{children}</td>;
           },
         }}
       >

@@ -352,7 +352,7 @@ export function AskUserQuestionBlock({
 
             {/* ═══════════ 底部操作栏 ═══════════ */}
             {!isSubmitted && isExpanded && (
-                <div className="h-12 px-4 flex items-center justify-between border-t border-primary/20 bg-primary/5">
+                <div className="flex h-12 items-center justify-between border-t border-white/55 bg-primary/5 px-4">
                     <span className="text-xs text-muted-foreground">
                         {canSubmit ? '✓ 所有问题都已选择' : '每个问题至少选一项'}
                     </span>
@@ -364,10 +364,10 @@ export function AskUserQuestionBlock({
                         }}
                         disabled={!canSubmit}
                         className={cn(
-                            "px-4 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all duration-200",
+                            "radius-shell-sm flex items-center gap-2 px-4 py-1.5 text-xs font-medium transition-all duration-200",
                             canSubmit
-                                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_10px_rgba(0,240,255,0.2)]"
-                                : "bg-muted text-muted-foreground cursor-not-allowed"
+                                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_14px_24px_rgba(133,119,255,0.18)]"
+                                : "neo-pill text-muted-foreground cursor-not-allowed"
                         )}
                     >
                         <Send className="w-3 h-3" />
@@ -378,7 +378,7 @@ export function AskUserQuestionBlock({
 
             {/* ═══════════ 已提交状态（展开时显示） ═══════════ */}
             {isSubmitted && isExpanded && (
-                <div className="h-10 px-4 flex items-center gap-2 border-t border-green-500/20 bg-green-500/5">
+                <div className="flex h-10 items-center gap-2 border-t border-green-500/20 bg-green-500/5 px-4">
                     <Check className="w-3.5 h-3.5 text-green-500" />
                     <span className="text-xs text-green-600 font-medium">已收到你的回答</span>
                 </div>
