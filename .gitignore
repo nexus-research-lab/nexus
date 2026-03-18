@@ -124,6 +124,7 @@ agent/tests
 logs
 cache
 playground
+docs
 
 # Python
 __pycache__/
