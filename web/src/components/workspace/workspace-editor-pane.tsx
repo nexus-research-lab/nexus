@@ -137,10 +137,10 @@ export function WorkspaceEditorPane({
   return (
     <section
       className={cn(
-        "relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-secondary/78 transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,opacity,transform]",
+        "relative flex min-h-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,opacity,transform]",
         embedded
           ? "border-l border-border/70 shadow-none"
-          : "rounded-[20px] border border-border/70 shadow-[0_18px_44px_rgba(17,24,39,0.08)]",
+          : "soft-ring rounded-[36px] panel-surface",
         isOpen ? "opacity-100 translate-x-0" : "pointer-events-none opacity-0 -translate-x-3",
         embedded && !isOpen && "border-l-transparent",
       )}
@@ -207,8 +207,10 @@ export function WorkspaceEditorPane({
             <div className="flex items-center gap-2">
               <button
                 className={cn(
-                  "inline-flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors",
-                  isDirty ? "bg-primary text-primary-foreground" : "bg-muted/80 text-muted-foreground",
+                  "inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-all duration-300",
+                  isDirty
+                    ? "bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] text-[#18653a] shadow-[0_14px_24px_rgba(102,217,143,0.22)]"
+                    : "neo-pill text-muted-foreground",
                 )}
                 disabled={!isDirty || isSaving || isExternalWriting}
                 onClick={() => void handleSave()}
@@ -218,7 +220,7 @@ export function WorkspaceEditorPane({
                 {isSaving ? "保存中" : "保存"}
               </button>
               <button
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/80 bg-secondary text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary"
+                className="neo-pill flex h-10 w-10 items-center justify-center rounded-2xl text-muted-foreground transition-colors hover:text-primary"
                 onClick={onClose}
                 type="button"
               >
@@ -233,7 +235,7 @@ export function WorkspaceEditorPane({
 
           <div className="flex-1 p-3">
             <textarea
-              className="soft-scrollbar h-full w-full resize-none rounded-2xl border border-border/80 bg-background p-4 font-mono text-sm leading-6 text-foreground outline-none focus:border-primary/20 disabled:opacity-70"
+              className="soft-scrollbar neo-inset h-full w-full resize-none rounded-[28px] p-5 font-mono text-sm leading-6 text-foreground outline-none disabled:opacity-70"
               disabled={isLoading || isExternalWriting}
               onChange={(event) => setDraftContent(event.target.value)}
               value={isLoading ? "加载中..." : draftContent}

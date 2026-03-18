@@ -265,17 +265,11 @@ export function MessageItem(
             <div className="group flex items-end gap-3 ">
 
               <div className={cn(
-                "flex-1 relative border rounded-lg overflow-hidden transition-all duration-300",
-                "border-accent/30 bg-gradient-to-br from-accent/5 to-transparent hover:border-accent/50"
+                "neo-card relative flex-1 overflow-hidden rounded-[30px] transition-all duration-300 hover:-translate-y-0.5",
+                "bg-[linear-gradient(145deg,rgba(255,235,220,0.86),rgba(244,241,236,0.96))]"
               )}>
-                {/* Decorative Corners */}
-                <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-accent/50" />
-                <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-accent/50" />
-                <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-accent/50" />
-                <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-accent/50" />
-
                 {/* 头部 */}
-                <div className="h-7 px-3 flex items-center gap-2 border-b border-accent/10">
+                <div className="flex h-10 items-center gap-2 border-b border-white/55 px-4">
                   <div className="flex-1" />
 
                   {/* 操作按钮 */}
@@ -312,12 +306,12 @@ export function MessageItem(
                   </span>
 
                   {/* 头像在右边 */}
-                  <span className="text-[10px] font-medium text-accent/70">You</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent/70">You</span>
                   <User className="w-3 h-3 text-accent/70" />
                 </div>
 
                 {/* 内容 */}
-                <div className="px-4 py-3">
+                <div className="px-5 py-4">
                   <p className="text-sm text-foreground leading-relaxed text-right whitespace-pre-wrap break-words">
                     {userContent}
                   </p>
@@ -336,17 +330,11 @@ export function MessageItem(
             <div className="group flex items-start gap-3">
 
               <div className={cn(
-                "flex-1 relative border rounded-lg overflow-hidden transition-all duration-500",
-                "border-primary/20 bg-gradient-to-br from-primary/5 to-transparent",
-                showCursor && "border-primary/40 shadow-[0_0_15px_rgba(0,240,255,0.08)]",
-                isCompleted && "border-green-500/20"
+                "neo-card relative flex-1 overflow-hidden rounded-[32px] transition-all duration-500",
+                "bg-[linear-gradient(145deg,rgba(244,241,236,0.98),rgba(232,229,223,0.96))]",
+                showCursor && "shadow-[0_24px_44px_rgba(133,119,255,0.18)]",
+                isCompleted && "shadow-[0_24px_44px_rgba(102,217,143,0.16)]"
               )}>
-                {/* Decorative Corners */}
-                <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary/50" />
-                <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary/50" />
-                <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary/50" />
-                <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary/50" />
-
                 {/* 扫描线效果 */}
                 {showCursor && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -355,9 +343,11 @@ export function MessageItem(
                 )}
 
                 {/* 优雅的头部栏 */}
-                <div className="h-7 px-3 flex items-center gap-2 border-b border-primary/10">
-                  <Terminal className="w-3 h-3 text-primary/70" />
-                  <span className="text-[10px] font-medium text-primary/70">Assistant</span>
+                <div className="flex h-10 items-center gap-2 border-b border-white/55 px-4">
+                  <div className="neo-pill flex h-6 w-6 items-center justify-center rounded-full">
+                    <Terminal className="w-3 h-3 text-primary/70" />
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary/70">Assistant</span>
 
                   {/* 时间 */}
                   <span className="text-[10px] font-mono text-muted-foreground/50">
@@ -373,7 +363,7 @@ export function MessageItem(
 
                 {/* 内容区 */}
                 <div className={cn(
-                  "p-4 text-sm leading-relaxed",
+                  "p-5 text-sm leading-relaxed",
                   showCursor && "min-h-[60px]"
                 )}>
 

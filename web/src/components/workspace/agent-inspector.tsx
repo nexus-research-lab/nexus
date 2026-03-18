@@ -41,15 +41,15 @@ export function AgentInspector({
   const lastRunDurationMs = sessionCostSummary.last_run_duration_ms ?? null;
 
   return (
-    <aside className="flex min-h-0 w-[292px] flex-col rounded-[20px] panel-surface">
+    <aside className="soft-ring flex min-h-0 w-[292px] flex-col rounded-[36px] panel-surface">
       {/* 面板头部 */}
-      <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
+      <div className="flex h-14 items-center justify-between border-b border-white/55 px-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Agent State
         </p>
         <button
           aria-label="打开 Agent 设置"
-          className="inline-flex h-7 items-center gap-1.5 rounded-xl border border-border/80 bg-secondary/80 px-3 text-[11px] font-medium text-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+          className="neo-pill inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[11px] font-semibold text-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
           onClick={() => onEditAgent(agent.agent_id)}
           type="button"
         >
@@ -59,17 +59,17 @@ export function AgentInspector({
 
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {/* Runtime 状态 */}
-        <section className="border-b border-border/80 px-3 py-3">
+        <section className="border-b border-white/55 px-4 py-4">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <Activity className="h-3.5 w-3.5" />
             Runtime
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-secondary/80 px-3 py-2">
+            <div className="neo-inset rounded-[22px] px-3 py-2">
               <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Session</p>
               <p className="mt-1 text-sm font-semibold text-foreground">{sessions.length}</p>
             </div>
-            <div className="rounded-xl bg-secondary/80 px-3 py-2">
+            <div className="neo-inset rounded-[22px] px-3 py-2">
               <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Status</p>
               <p className="mt-1 text-sm font-semibold text-foreground">
                 {isSessionBusy ? "Running" : activeSession?.is_active === false ? "Idle" : "Active"}
@@ -99,19 +99,19 @@ export function AgentInspector({
         </section>
 
         {/* Current Plan */}
-        <section className="border-b border-border/80 px-3 py-3">
+        <section className="border-b border-white/55 px-4 py-4">
           <div className="mb-3 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <div className="flex items-center gap-2">
               <CheckSquare className="h-3.5 w-3.5" />
               Current Plan
             </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary/70 px-2 py-0.5 text-[11px] font-medium tracking-normal normal-case text-muted-foreground">
+            <div className="neo-pill flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium tracking-normal normal-case text-muted-foreground">
               {todos.length > 0 && <LoadingOrb />}
               <span>{todos.length === 0 ? "0 / 0" : `${completedTodoCount} / ${todos.length}`}</span>
             </div>
           </div>
           {activeTodo && (
-            <div className="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/6 px-3 py-2 text-sm text-foreground">
+            <div className="flex items-start gap-2 rounded-[22px] bg-[linear-gradient(145deg,rgba(170,161,255,0.24),rgba(244,241,236,0.96))] px-3 py-3 text-sm text-foreground shadow-[0_16px_24px_rgba(133,119,255,0.12)]">
               <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
               <div className="min-w-0">
                 <p className="truncate font-medium">{activeTodo.content}</p>
@@ -126,7 +126,7 @@ export function AgentInspector({
               {todos.map((todo, index) => (
                 <div
                   key={`${index}-${todo.content}`}
-                  className="flex items-start gap-2 rounded-lg border border-border/50 px-2.5 py-1.5 text-[11px]"
+                  className="neo-card-flat flex items-start gap-2 rounded-[18px] px-3 py-2 text-[11px]"
                 >
                   <span
                     className={
@@ -150,19 +150,19 @@ export function AgentInspector({
         </section>
 
         {/* Token / Cost */}
-        <section className="border-b border-border/80 px-3 py-3">
+        <section className="border-b border-white/55 px-4 py-4">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <Cpu className="h-3.5 w-3.5" />
             Token / Cost
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-secondary/80 px-3 py-2">
+            <div className="neo-inset rounded-[22px] px-3 py-2">
               <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Session</p>
               <p className="mt-1 text-sm font-semibold text-foreground">
                 {formatCost(sessionCostSummary.total_cost_usd)}
               </p>
             </div>
-            <div className="rounded-xl bg-secondary/80 px-3 py-2">
+            <div className="neo-inset rounded-[22px] px-3 py-2">
               <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Agent</p>
               <p className="mt-1 text-sm font-semibold text-foreground">
                 {formatCost(agentCostSummary.total_cost_usd)}
@@ -198,7 +198,7 @@ export function AgentInspector({
         </section>
 
         {/* Policy / Workspace */}
-        <section className="px-3 py-3">
+        <section className="px-4 py-4">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5" />
             Policy / Workspace

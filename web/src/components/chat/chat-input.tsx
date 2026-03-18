@@ -1,7 +1,8 @@
 "use client";
 
+import NextImage from "next/image";
 import { KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Image, Paperclip, Send, StopCircle, X, Zap } from "lucide-react";
+import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/components/loading";
 
@@ -167,25 +168,28 @@ const ChatInput = memo((
   const isOverLimit = charCount > maxLength;
 
   return (
-    <div className="w-full border-t border-border/80 bg-white/72 px-8 backdrop-blur-md">
-      <div className="max-w-4xl mx-auto py-2 relative">
+    <div className="w-full border-t border-white/55 bg-transparent px-8 pb-6 pt-3">
+      <div className="relative mx-auto max-w-4xl py-2">
         {/* 附件预览区域 */}
         {attachments.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2 rounded-2xl border border-border/80 bg-secondary/90 p-2">
+          <div className="neo-card-flat mb-3 flex flex-wrap gap-2 rounded-[26px] p-3">
             {attachments.map(attachment => (
               <div
                 key={attachment.id}
-                className="relative group flex items-center gap-2 rounded-2xl border border-border/80 bg-card px-3 py-2"
+                className="neo-pill relative group flex items-center gap-2 rounded-[20px] px-3 py-2"
               >
                 {attachment.type === 'image' ? (
                   attachment.preview ? (
-                    <img
+                    <NextImage
                       src={attachment.preview}
                       alt={attachment.file.name}
-                      className="w-8 h-8 object-cover rounded"
+                      className="h-8 w-8 rounded object-cover"
+                      height={32}
+                      unoptimized
+                      width={32}
                     />
                   ) : (
-                    <Image size={16} className="text-primary" />
+                    <ImageIcon size={16} className="text-primary" />
                   )
                 ) : (
                   <FileText size={16} className="text-accent" />
@@ -208,10 +212,10 @@ const ChatInput = memo((
         {/* 主输入框容器 */}
         <div
           className={cn(
-            "relative rounded-[24px] border bg-card backdrop-blur-sm transition-all duration-300",
+            "panel-surface soft-ring relative rounded-[32px] transition-all duration-300",
             isFocused
-              ? "border-primary/40 shadow-[0_18px_48px_rgba(29,95,145,0.14)]"
-              : "border-border/80",
+              ? "shadow-[0_28px_54px_rgba(133,119,255,0.18)]"
+              : "",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
@@ -235,11 +239,11 @@ const ChatInput = memo((
                 disabled={disabled || isLoading}
                 aria-label="添加附件"
                 className={cn(
-                  "p-2 rounded border border-primary/30 transition-all duration-200",
-                  "text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/10",
+                  "neo-pill rounded-2xl p-2 transition-all duration-200",
+                  "text-muted-foreground hover:-translate-y-0.5 hover:text-primary",
                   "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground",
                   "focus-visible:ring-2 focus-visible:ring-primary/50",
-                  "hover:shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+                  "hover:shadow-[0_12px_22px_rgba(133,119,255,0.12)]"
                 )}
               >
                 <Paperclip size={16} />
@@ -268,7 +272,7 @@ const ChatInput = memo((
                 disabled={disabled || isLoading}
                 className={cn(
                   "w-full bg-transparent resize-none outline-none",
-                  "text-sm leading-relaxed text-foreground",
+                  "text-sm leading-relaxed text-foreground multiline-cursor",
                   "placeholder:text-muted-foreground/40",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                   "min-h-[24px] max-h-[160px]",
@@ -304,11 +308,10 @@ const ChatInput = memo((
                   aria-label="停止生成"
                   onClick={onStop}
                   className={cn(
-                    "flex items-center justify-center p-2",
-                    "bg-destructive/20 hover:bg-destructive/30 text-destructive",
-                    "rounded border border-destructive/50 hover:border-destructive/70",
+                    "flex items-center justify-center rounded-2xl p-2",
+                    "bg-[linear-gradient(135deg,rgba(255,219,219,0.96),rgba(245,163,163,0.9))] text-destructive",
                     "transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/50",
-                    "hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]",
+                    "hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(239,68,68,0.22)]",
                     "relative overflow-hidden group"
                   )}
                 >
@@ -321,11 +324,10 @@ const ChatInput = memo((
                   onClick={handleSend}
                   disabled={isInputEmpty || disabled || isOverLimit}
                   className={cn(
-                    "flex items-center justify-center p-2",
-                    "bg-primary/20 text-primary",
-                    "rounded border border-primary/50 transition-all duration-200",
-                    "hover:bg-primary/30 hover:border-primary/70",
-                    "hover:shadow-[0_0_15px_rgba(0,240,255,0.3)]",
+                    "flex items-center justify-center rounded-2xl p-2",
+                    "bg-[linear-gradient(135deg,rgba(174,163,255,0.92),rgba(207,200,255,0.92))] text-primary",
+                    "transition-all duration-200",
+                    "hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(133,119,255,0.22)]",
                     "disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:bg-primary/20",
                     "focus-visible:ring-2 focus-visible:ring-primary/50",
                     "relative overflow-hidden group"
@@ -341,7 +343,7 @@ const ChatInput = memo((
           </div>
 
           {/* 底部状态栏 */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-t border-primary/10 bg-secondary/30">
+          <div className="flex items-center justify-between border-t border-white/55 px-4 py-2">
             <div className="flex items-center gap-3 text-[10px] text-muted-foreground/50">
               {isLoading ? (
                 <span className="flex items-center gap-2 text-primary/70">

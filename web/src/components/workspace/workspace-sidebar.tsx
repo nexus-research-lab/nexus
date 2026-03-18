@@ -398,14 +398,14 @@ export function WorkspaceSidebar({
             rowRefs.current[node.entry.path] = element;
           }}
           className={cn(
-            "group flex items-center gap-2 rounded-lg pr-2 transition-colors",
+            "group flex items-center gap-2 rounded-[18px] pr-2 transition-all duration-300",
             isActive
-              ? "bg-primary/8 text-primary"
+              ? "neo-card-flat text-primary shadow-[0_10px_20px_rgba(133,119,255,0.12)]"
               : isWriting
-                ? "bg-primary/8 text-primary"
+                ? "neo-card-flat text-primary"
                 : isUpdated
-                  ? "bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
-                  : "text-foreground hover:bg-secondary/80",
+                  ? "bg-[linear-gradient(135deg,rgba(166,255,194,0.32),rgba(244,241,236,0.94))] text-emerald-700 dark:text-emerald-300"
+                  : "text-foreground hover:bg-white/40",
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
@@ -437,7 +437,7 @@ export function WorkspaceSidebar({
             )}
 
             <span
-              className="truncate text-sm font-medium"
+              className="truncate text-sm font-semibold"
               title={node.entry.path}
             >
               {node.entry.name}
@@ -446,10 +446,10 @@ export function WorkspaceSidebar({
             {!isDirectory && liveState && (
               <span
                 className={cn(
-                  "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  "ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold",
                   isWriting
-                    ? "bg-primary/10 text-primary"
-                    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                    ? "bg-[rgba(133,119,255,0.12)] text-primary"
+                    : "bg-[rgba(102,217,143,0.16)] text-emerald-700 dark:text-emerald-300",
                 )}
               >
                 <span
@@ -466,7 +466,7 @@ export function WorkspaceSidebar({
           <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               aria-label="重命名"
-              className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+              className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
               onClick={() => handleRenameEntry(node.entry)}
               type="button"
             >
@@ -474,7 +474,7 @@ export function WorkspaceSidebar({
             </button>
             <button
               aria-label="删除"
-              className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+              className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
               onClick={() => handleDeleteEntry(node.entry)}
               type="button"
             >
@@ -494,15 +494,15 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className="flex min-h-0 w-[292px] shrink-0 flex-col rounded-[20px] panel-surface"
+      className="soft-ring flex min-h-0 w-[292px] shrink-0 flex-col rounded-[36px] panel-surface"
     >
-      <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
+      <div className="flex h-14 items-center justify-between border-b border-white/55 px-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Workspace
         </p>
         <button
           aria-label="刷新文件列表"
-          className="flex h-7 w-7 items-center justify-center rounded-xl border border-border/80 bg-secondary/80 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+          className="neo-pill flex h-9 w-9 items-center justify-center rounded-2xl text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
           onClick={() => void loadFiles()}
           type="button"
         >
@@ -511,7 +511,7 @@ export function WorkspaceSidebar({
       </div>
 
       <div className="soft-scrollbar flex-1 overflow-y-auto">
-        <section className="border-b border-border/80 px-3 py-3">
+        <section className="border-b border-white/55 px-4 py-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               <FolderTree className="h-3.5 w-3.5" />
@@ -520,7 +520,7 @@ export function WorkspaceSidebar({
             <div className="flex items-center gap-1">
               <button
                 aria-label="创建文件"
-                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                 onClick={() => handleCreateEntry("file")}
                 type="button"
               >
@@ -528,7 +528,7 @@ export function WorkspaceSidebar({
               </button>
               <button
                 aria-label="创建目录"
-                className="rounded-lg border border-border/80 bg-secondary/80 p-1.5 text-muted-foreground transition-colors hover:border-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                 onClick={() => handleCreateEntry("directory")}
                 type="button"
               >
@@ -538,14 +538,14 @@ export function WorkspaceSidebar({
           </div>
 
           {filesystemError && (
-            <div className="mb-3 rounded-xl border border-destructive/20 bg-destructive/6 px-3 py-2 text-xs text-destructive">
+            <div className="mb-3 rounded-[20px] border border-destructive/20 bg-destructive/6 px-3 py-2 text-xs text-destructive">
               {filesystemError}
             </div>
           )}
 
           <div className="space-y-1">
             {directoryTree.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border/80 bg-secondary/60 px-3 py-4 text-sm text-muted-foreground">
+              <div className="neo-inset rounded-[22px] px-3 py-4 text-sm text-muted-foreground">
                 还没有文件
               </div>
             ) : (
@@ -554,14 +554,14 @@ export function WorkspaceSidebar({
           </div>
         </section>
 
-        <section className="px-3 py-3">
+        <section className="px-4 py-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               <BrainCircuit className="h-3.5 w-3.5" />
               会话与记忆
             </div>
             <button
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] px-3 py-1.5 text-[11px] font-bold text-[#18653a] shadow-[0_14px_24px_rgba(102,217,143,0.24)]"
               onClick={onCreateSession}
               type="button"
             >
@@ -571,22 +571,22 @@ export function WorkspaceSidebar({
           </div>
 
           <div className="space-y-3">
-            <div className="rounded-2xl bg-secondary/80 px-3 py-3">
+            <div className="rounded-[28px] neo-card-flat px-4 py-4">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 <FileText className="h-3.5 w-3.5" />
                 记忆与上下文
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-background px-3 py-2">
+                <div className="neo-inset rounded-[20px] px-3 py-2">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">会话数</p>
                   <p className="mt-1 text-sm font-semibold text-foreground">{sessions.length}</p>
                 </div>
-                <div className="rounded-xl bg-background px-3 py-2">
+                <div className="neo-inset rounded-[20px] px-3 py-2">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">记忆文件</p>
                   <p className="mt-1 text-sm font-semibold text-foreground">{memoryFiles.length}</p>
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between rounded-xl bg-background px-3 py-2">
+              <div className="neo-inset mt-3 flex items-center justify-between rounded-[20px] px-3 py-2">
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <Clock3 className="h-3.5 w-3.5" />
                   <span>当前会话</span>
@@ -609,10 +609,10 @@ export function WorkspaceSidebar({
                   <div
                     key={session.session_key}
                     className={cn(
-                      "group cursor-pointer rounded-xl border px-3 py-2 text-left transition-all",
+                      "group cursor-pointer rounded-[24px] px-4 py-3 text-left transition-all duration-300",
                       isActive
-                        ? "border-primary/30 bg-primary/8 shadow-sm"
-                        : "border-transparent bg-secondary/55 hover:border-border/90 hover:bg-secondary/90",
+                        ? "bg-[linear-gradient(145deg,rgba(170,161,255,0.24),rgba(244,241,236,0.96))] shadow-[0_16px_28px_rgba(133,119,255,0.16)]"
+                        : "neo-card-flat hover:-translate-y-0.5",
                     )}
                     onClick={() => onSelectSession(session.session_key)}
                     onKeyDown={(e) => {
@@ -626,7 +626,7 @@ export function WorkspaceSidebar({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-foreground">
+                        <p className="text-[11px] font-semibold text-foreground">
                           {truncate(session.title || "未命名会话", 22)}
                         </p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -636,7 +636,7 @@ export function WorkspaceSidebar({
 
                       <button
                         aria-label="删除会话"
-                        className="rounded-lg border border-border/80 p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:border-destructive/20 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                        className="neo-pill rounded-xl p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                         onClick={(event) => {
                           event.stopPropagation();
                           if (session.session_key) {
