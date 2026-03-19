@@ -59,6 +59,7 @@ class Agent(TimestampMixin, Base):
     contacts: Mapped[list["Contact"]] = relationship(
         back_populates="owner_agent",
         cascade="all, delete-orphan",
+        foreign_keys="Contact.owner_agent_id",
     )
     memberships: Mapped[list["Member"]] = relationship(
         back_populates="agent",

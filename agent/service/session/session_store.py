@@ -20,6 +20,17 @@
 
 from typing import Dict, List, Optional
 
+from agent.service.persistence.agent_persistence_service import (
+    agent_persistence_service,
+)
+from agent.service.persistence.conversation_persistence_service import (
+    conversation_persistence_service,
+)
+from agent.service.persistence.legacy_sync_bridge import (
+    build_agent_aggregate_from_legacy,
+    build_dm_context_from_legacy,
+    extract_existing_runtime_id,
+)
 from agent.storage.cost_repository import cost_repository
 from agent.storage.session_repository import session_repository
 from agent.schema.model_message import Message
@@ -58,7 +69,10 @@ class MessageHistoryStore:
             options=options,
         )
         if success:
-            return await session_repository.get_session(session_key)
+            session_info = await session_repository.get_session(session_key)
+            if session_info:
+                await self._sync_session_to_sql(session_info)
+            return session_info
         return None
 
     async def get_session_info(self, session_key: str) -> Optional[ASession]:
@@ -76,19 +90,29 @@ class MessageHistoryStore:
         """创建或更新会话"""
         existing = await session_repository.get_session(session_key)
         if not existing:
-            return await session_repository.create_session(
+            success = await session_repository.create_session(
                 session_key=session_key,
                 agent_id=agent_id,
                 session_id=session_id,
                 title=title or "New Chat",
                 options=options,
             )
-        return await session_repository.update_session(
+            if success:
+                created = await session_repository.get_session(session_key)
+                if created:
+                    await self._sync_session_to_sql(created)
+            return success
+        success = await session_repository.update_session(
             session_key=session_key,
             session_id=session_id,
             title=title,
             options=options,
         )
+        if success:
+            updated = await session_repository.get_session(session_key)
+            if updated:
+                await self._sync_session_to_sql(updated)
+        return success
 
     async def get_all_sessions(self) -> List[ASession]:
         """获取所有会话列表"""
@@ -164,6 +188,52 @@ class MessageHistoryStore:
     async def get_agent_cost_summary(self, agent_id: str):
         """获取 Agent 成本汇总。"""
         return await cost_repository.get_agent_cost_summary(agent_id)
+
+    async def sync_session_to_sql(self, session_info: ASession) -> None:
+        """公开的会话双写入口。"""
+        await self._sync_session_to_sql(session_info)
+
+    async def _sync_session_to_sql(self, session_info: ASession) -> None:
+        """将文件版会话同步写入新数据库。"""
+        try:
+            from agent.service.agent.agent_manager import agent_manager
+
+            agent_aggregate = await agent_persistence_service.get_agent_aggregate(
+                session_info.agent_id,
+            )
+            if agent_aggregate is None:
+                legacy_agent = await agent_manager.get_agent(session_info.agent_id)
+                if legacy_agent is not None:
+                    agent_aggregate = await agent_persistence_service.create_agent_aggregate(
+                        build_agent_aggregate_from_legacy(legacy_agent),
+                    )
+
+            runtime_id = extract_existing_runtime_id(
+                agent_aggregate.runtime.id if agent_aggregate else None,
+                session_info.agent_id,
+            )
+            room, members, conversation, session_record = build_dm_context_from_legacy(
+                session_info=session_info,
+                runtime_id=runtime_id,
+            )
+            existing_conversations = await conversation_persistence_service.get_room_conversations(
+                room.id,
+            )
+            if existing_conversations:
+                await conversation_persistence_service.touch_session(session_record.id)
+                return
+
+            await conversation_persistence_service.create_dm_context(
+                room=room,
+                members=members,
+                conversation=conversation,
+                session_record=session_record,
+            )
+        except Exception as exc:
+            # 新库同步失败不应阻断现有文件存储主链路。
+            logger.warning(
+                f"⚠️ Session SQL 同步失败: key={session_info.session_key}, error={exc}",
+            )
 
 
 # 全局实例

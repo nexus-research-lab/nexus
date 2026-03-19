@@ -63,6 +63,15 @@ class ConversationRecord(PersistenceModel):
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 
 
+class ConversationContextAggregate(PersistenceModel):
+    """房间对话上下文聚合。"""
+
+    room: RoomRecord = Field(..., description="房间实体")
+    members: list[MemberRecord] = Field(default_factory=list, description="成员列表")
+    conversation: ConversationRecord = Field(..., description="对话实体")
+    sessions: list["SessionRecord"] = Field(default_factory=list, description="运行时会话")
+
+
 class SessionRecord(PersistenceModel):
     """运行时会话记录。"""
 
@@ -110,3 +119,6 @@ class RoundRecord(PersistenceModel):
     finished_at: Optional[datetime] = Field(default=None, description="结束时间")
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
+
+
+ConversationContextAggregate.model_rebuild()
