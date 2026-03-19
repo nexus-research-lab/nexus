@@ -19,6 +19,7 @@ from agent.schema.model_agent_persistence import (
     RuntimeRecord,
 )
 from agent.schema.model_chat_persistence import (
+    ConversationContextAggregate,
     ConversationRecord,
     MemberRecord,
     MessageRecord,
@@ -39,6 +40,7 @@ __all__ = [
     "RoomRecord",
     "MemberRecord",
     "RoomAggregate",
+    "ConversationContextAggregate",
     "ConversationRecord",
     "SessionRecord",
     "MessageRecord",
