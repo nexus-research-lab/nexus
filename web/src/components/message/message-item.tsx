@@ -256,12 +256,12 @@ export function MessageItem(
 
   return (
     <div ref={roundRef}
-      className={cn("w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300", className)}>
+      className={cn("w-full min-w-0 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300", className)}>
 
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
       {userMessage && (
         <div className="w-full px-4">
-          <div className="max-w-4xl mx-auto">
+          <div className="mx-auto w-full">
             <div className="group flex items-end gap-3 ">
 
               <div className={cn(
@@ -326,7 +326,7 @@ export function MessageItem(
       {/* 没有可见 assistant 内容时，仍渲染容器以提供删除/重试操作 */}
       {(!shouldHideAssistantContent || canOperateRound) && (
         <div className="w-full px-4">
-          <div className="max-w-4xl mx-auto">
+          <div className="mx-auto w-full">
             <div className="group flex items-start gap-3">
 
               <div className={cn(
@@ -363,7 +363,7 @@ export function MessageItem(
 
                 {/* 内容区 */}
                 <div className={cn(
-                  "p-5 text-sm leading-relaxed",
+                  "min-w-0 p-5 text-sm leading-relaxed",
                   showCursor && "min-h-[60px]"
                 )}>
 

@@ -41,7 +41,7 @@ export function AgentInspector({
   const lastRunDurationMs = sessionCostSummary.last_run_duration_ms ?? null;
 
   return (
-    <aside className="soft-ring radius-shell-lg flex min-h-0 w-[292px] flex-col panel-surface">
+    <aside className="soft-ring radius-shell-lg flex min-h-0 w-[200px] shrink-0 flex-col panel-surface xl:w-[clamp(232px,20vw,336px)] 2xl:w-[clamp(280px,22vw,420px)]">
       {/* 面板头部 */}
       <div className="flex h-14 items-center justify-between border-b border-white/55 px-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

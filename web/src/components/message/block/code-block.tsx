@@ -48,7 +48,7 @@ export function CodeBlock({language, value}: CodeBlockProps) {
         </button>
       </div>
 
-      <div className="relative">
+      <div className="relative grid">
         <SyntaxHighlighter
           language={language || 'text'}
           style={vscDarkPlus}

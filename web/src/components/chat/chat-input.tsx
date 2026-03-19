@@ -169,7 +169,7 @@ const ChatInput = memo((
 
   return (
     <div className="w-full border-t border-white/55 bg-transparent px-8 pb-6 pt-3">
-      <div className="relative mx-auto max-w-4xl py-2">
+      <div className="relative mx-auto w-full py-2">
         {/* 附件预览区域 */}
         {attachments.length > 0 && (
           <div className="neo-card-flat radius-shell-md mb-3 flex flex-wrap gap-2 p-3">
