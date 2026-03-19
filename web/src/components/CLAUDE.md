@@ -24,7 +24,7 @@ L2 | 父级: web/CLAUDE.md
 - `block/ask-user-question-block.tsx`: 用户交互问答块
 
 ### workspace/ — 工作区域
-- `agent-directory.tsx`: Agent 目录列表页
+- `console.tsx`: 首页 Spotlight 启动页
 - `agent-inspector.tsx`: Agent 详情面板（成本/任务/会话）
 - `agent-switcher.tsx`: Agent 快速切换器
 - `workspace-editor-pane.tsx`: 工作区文件编辑面板

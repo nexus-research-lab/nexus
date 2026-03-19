@@ -14,7 +14,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { ChatInterface } from "@/components/chat/chat-interface";
 import { AgentOptions } from "@/components/dialog/agent-options";
-import { AgentDirectory } from "@/components/workspace/agent-directory";
+import { Console } from "@/components/home/console";
 import { AgentInspector } from "@/components/workspace/agent-inspector";
 import { AgentSwitcher } from "@/components/workspace/agent-switcher";
 import { WorkspaceEditorPane } from "@/components/workspace/workspace-editor-pane";
@@ -437,9 +437,9 @@ export default function Home() {
       <div className="pointer-events-none absolute right-[8%] top-[18%] h-72 w-72 rounded-full glow-peach opacity-35" />
       <div className="pointer-events-none absolute right-[12%] bottom-[8%] h-80 w-80 rounded-full glow-green opacity-40" />
 
-      <div className="relative flex min-h-0 flex-1 flex-col p-5 md:p-6">
+      <div className="relative flex min-h-0 flex-1 flex-col p-3 sm:p-4 xl:p-5 2xl:p-6">
         {!currentAgent ? (
-          <AgentDirectory
+          <Console
             agents={agents}
             sessions={sessions}
             currentAgentId={current_agent_id}
@@ -450,7 +450,7 @@ export default function Home() {
             onDeleteAgent={handleDeleteAgent}
           />
         ) : (
-          <section className="flex min-h-0 flex-1 flex-col gap-3">
+          <section className="flex min-h-0 flex-1 flex-col gap-2 xl:gap-3">
             <div className="soft-ring radius-shell-lg panel-surface px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <AgentSwitcher
@@ -475,7 +475,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 gap-4">
+            <div className="flex min-h-0 flex-1 gap-2 xl:gap-4">
               <WorkspaceSidebar
                 activeWorkspacePath={activeWorkspacePath}
                 agent={currentAgent}
@@ -520,16 +520,18 @@ export default function Home() {
               </section>
 
               {!isEditorOpen && (
-                <AgentInspector
-                  activeSession={currentSession}
-                  agent={currentAgent}
-                  agentCostSummary={agentCostSummary}
-                  isSessionBusy={isSessionBusy}
-                  onEditAgent={handleEditAgent}
-                  sessionCostSummary={sessionCostSummary}
-                  sessions={currentAgentSessions}
-                  todos={currentTodos}
-                />
+                <div className="hidden min-[1280px]:flex min-[1280px]:min-h-0 min-[1280px]:shrink-0">
+                  <AgentInspector
+                    activeSession={currentSession}
+                    agent={currentAgent}
+                    agentCostSummary={agentCostSummary}
+                    isSessionBusy={isSessionBusy}
+                    onEditAgent={handleEditAgent}
+                    sessionCostSummary={sessionCostSummary}
+                    sessions={currentAgentSessions}
+                    todos={currentTodos}
+                  />
+                </div>
               )}
             </div>
           </section>

@@ -9,12 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@lottiefiles/dotlottie-react": "^0.18.7",
+    "@types/matter-js": "^0.20.2",
     "@types/react-syntax-highlighter": "^15.5.13",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.25",
     "katex": "^0.16.25",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.554.0",
+    "matter-js": "^0.20.0",
     "next": "^16.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
