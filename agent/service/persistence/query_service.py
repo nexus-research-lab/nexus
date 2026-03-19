@@ -51,6 +51,12 @@ class PersistenceQueryService:
             repository = RoomSqlRepository(session)
             return await repository.list_recent(limit=limit)
 
+    async def get_room(self, room_id: str) -> Optional[RoomAggregate]:
+        """读取单个房间聚合。"""
+        async with self._db.session() as session:
+            repository = RoomSqlRepository(session)
+            return await repository.get(room_id)
+
     async def get_room_contexts(
         self,
         room_id: str,

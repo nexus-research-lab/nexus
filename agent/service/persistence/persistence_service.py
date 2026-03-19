@@ -39,6 +39,10 @@ class PersistenceService:
         """列出最近房间。"""
         return await persistence_query_service.list_recent_rooms(limit=limit)
 
+    async def get_room(self, room_id: str) -> Optional[RoomAggregate]:
+        """读取单个房间。"""
+        return await persistence_query_service.get_room(room_id)
+
     async def get_room_contexts(
         self,
         room_id: str,
