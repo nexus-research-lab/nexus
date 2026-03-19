@@ -24,11 +24,18 @@ from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
 class MessageSqlRepository(BaseSqlRepository):
     """消息与轮次 SQL 仓储。"""
 
-    async def create_message(self, message: MessageRecord) -> MessageRecord:
-        """创建消息索引。"""
-        entity = Message(**message.model_dump(exclude={"created_at", "updated_at"}))
-        self._session.add(entity)
+    async def upsert_message(self, message: MessageRecord) -> MessageRecord:
+        """创建或更新消息索引。"""
+        entity = await self._session.get(Message, message.id)
+        if entity is None:
+            entity = Message(**message.model_dump(exclude={"created_at", "updated_at"}))
+            self._session.add(entity)
+        else:
+            payload = message.model_dump(exclude={"created_at", "updated_at"})
+            for field_name, value in payload.items():
+                setattr(entity, field_name, value)
         await self.flush()
+        await self.refresh(entity)
         return MessageRecord.model_validate(entity)
 
     async def list_by_conversation(
@@ -61,11 +68,23 @@ class MessageSqlRepository(BaseSqlRepository):
         result = await self._session.execute(stmt)
         return [MessageRecord.model_validate(entity) for entity in result.scalars().all()]
 
-    async def create_round(self, round_record: RoundRecord) -> RoundRecord:
-        """创建轮次索引。"""
-        entity = Round(**round_record.model_dump(exclude={"created_at", "updated_at"}))
-        self._session.add(entity)
+    async def upsert_round(self, round_record: RoundRecord) -> RoundRecord:
+        """创建或更新轮次索引。"""
+        stmt = select(Round).where(Round.round_id == round_record.round_id)
+        result = await self._session.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            entity = Round(**round_record.model_dump(exclude={"created_at", "updated_at"}))
+            self._session.add(entity)
+        else:
+            payload = round_record.model_dump(exclude={"created_at", "updated_at"})
+            for field_name, value in payload.items():
+                if field_name == "started_at" and getattr(entity, field_name, None):
+                    continue
+                if value is not None:
+                    setattr(entity, field_name, value)
         await self.flush()
+        await self.refresh(entity)
         return RoundRecord.model_validate(entity)
 
     async def get_round(self, round_id: str) -> Optional[RoundRecord]:

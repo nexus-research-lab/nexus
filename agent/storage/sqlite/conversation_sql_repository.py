@@ -30,6 +30,7 @@ class ConversationSqlRepository(BaseSqlRepository):
         )
         self._session.add(entity)
         await self.flush()
+        await self.refresh(entity)
         return ConversationRecord.model_validate(entity)
 
     async def get(self, conversation_id: str) -> Optional[ConversationRecord]:

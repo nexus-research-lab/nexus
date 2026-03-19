@@ -23,3 +23,7 @@ class BaseSqlRepository:
     async def flush(self) -> None:
         """刷新当前事务。"""
         await self._session.flush()
+
+    async def refresh(self, entity: object) -> None:
+        """刷新实体，拉取数据库默认值。"""
+        await self._session.refresh(entity)

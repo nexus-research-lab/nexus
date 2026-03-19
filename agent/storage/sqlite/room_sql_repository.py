@@ -73,6 +73,7 @@ class RoomSqlRepository(BaseSqlRepository):
         entity = Member(**member.model_dump(exclude={"joined_at"}))
         self._session.add(entity)
         await self.flush()
+        await self.refresh(entity)
         return MemberRecord.model_validate(entity)
 
     async def list_members(self, room_id: str) -> list[MemberRecord]:

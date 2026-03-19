@@ -68,5 +68,17 @@ class PersistenceBackfillService:
             synced_count += 1
         return synced_count
 
+    async def sync_all_messages(self) -> int:
+        """回填全部消息索引。"""
+        from agent.service.session.session_store import session_store
+
+        synced_count = 0
+        sessions = await session_store.get_all_sessions()
+        for session_info in sessions:
+            messages = await session_store.get_session_messages(session_info.session_key)
+            await session_store.sync_session_messages_to_sql(session_info)
+            synced_count += len(messages)
+        return synced_count
+
 
 persistence_backfill_service = PersistenceBackfillService()

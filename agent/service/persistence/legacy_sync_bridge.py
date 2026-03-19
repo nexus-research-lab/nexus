@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from agent.schema.model_agent import AAgent
@@ -25,9 +27,12 @@ from agent.schema.model_agent_persistence import (
 from agent.schema.model_chat_persistence import (
     ConversationRecord,
     MemberRecord,
+    MessageRecord,
     RoomRecord,
+    RoundRecord,
     SessionRecord,
 )
+from agent.schema.model_message import Message
 from agent.schema.model_session import ASession
 from agent.service.agent.agent_name_policy import AgentNamePolicy
 
@@ -143,3 +148,102 @@ def extract_runtime_id(agent_aggregate: CreateAgentAggregate) -> str:
 def extract_existing_runtime_id(runtime_id: Optional[str], agent_id: str) -> str:
     """兜底返回 runtime ID。"""
     return runtime_id or _stable_id("runtime", agent_id)
+
+
+def build_room_id(session_key: str) -> str:
+    """根据旧 session_key 生成房间 ID。"""
+    return _stable_id("room", session_key)
+
+
+def build_conversation_id(session_key: str) -> str:
+    """根据旧 session_key 生成对话 ID。"""
+    return _stable_id("conv", session_key)
+
+
+def build_persistent_session_id(session_key: str) -> str:
+    """根据旧 session_key 生成持久化会话 ID。"""
+    return _stable_id("sess", session_key)
+
+
+def _timestamp_ms_to_datetime(timestamp_ms: int | None) -> Optional[datetime]:
+    """将毫秒时间戳转换为 UTC datetime。"""
+    if not timestamp_ms:
+        return None
+    return datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+
+
+def build_message_record_from_legacy(
+    message: Message,
+    session_info: ASession,
+    jsonl_path: str,
+    jsonl_offset: Optional[int] = None,
+) -> MessageRecord:
+    """将旧消息模型映射为消息索引记录。"""
+    sender_type_map = {
+        "user": "user",
+        "assistant": "agent",
+        "system": "system",
+        "result": "agent",
+    }
+    kind = "text"
+    if message.role == "system":
+        kind = "event"
+    elif message.role == "result" and (message.is_error or message.subtype in {"error", "interrupted"}):
+        kind = "error"
+    elif isinstance(message.content, list):
+        block_types = {
+            getattr(block, "type", None) if not isinstance(block, dict) else block.get("type")
+            for block in message.content
+        }
+        if "tool_use" in block_types:
+            kind = "tool_call"
+        elif "tool_result" in block_types:
+            kind = "tool_result"
+
+    content_preview: Optional[str] = None
+    if isinstance(message.content, str):
+        content_preview = message.content[:500]
+    elif message.result:
+        content_preview = message.result[:500]
+
+    return MessageRecord(
+        id=message.message_id,
+        conversation_id=build_conversation_id(session_info.session_key),
+        session_id=build_persistent_session_id(session_info.session_key),
+        sender_type=sender_type_map.get(message.role, "system"),
+        sender_agent_id=message.agent_id or session_info.agent_id or None,
+        kind=kind,
+        content_preview=content_preview,
+        jsonl_path=str(Path(jsonl_path)),
+        jsonl_offset=jsonl_offset,
+        round_id=message.round_id,
+        created_at=_timestamp_ms_to_datetime(message.timestamp),
+    )
+
+
+def build_round_record_from_legacy(
+    message: Message,
+    session_info: ASession,
+) -> Optional[RoundRecord]:
+    """将旧消息映射为轮次索引记录。"""
+    if not message.round_id:
+        return None
+    status = "running"
+    if message.role == "result":
+        if message.subtype == "success":
+            status = "success"
+        elif message.subtype == "interrupted":
+            status = "cancelled"
+        else:
+            status = "error"
+
+    finished_at = _timestamp_ms_to_datetime(message.timestamp) if message.role == "result" else None
+    return RoundRecord(
+        id=_stable_id("round", f"{session_info.session_key}:{message.round_id}"),
+        session_id=build_persistent_session_id(session_info.session_key),
+        round_id=message.round_id,
+        trigger_message_id=message.round_id,
+        status=status,
+        started_at=_timestamp_ms_to_datetime(message.timestamp),
+        finished_at=finished_at,
+    )

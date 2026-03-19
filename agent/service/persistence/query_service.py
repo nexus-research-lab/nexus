@@ -17,7 +17,9 @@ from agent.schema.model_agent_persistence import AgentAggregate
 from agent.schema.model_chat_persistence import (
     ConversationContextAggregate,
     ConversationRecord,
+    MessageRecord,
     RoomAggregate,
+    RoundRecord,
     SessionRecord,
 )
 from agent.service.persistence.agent_persistence_service import agent_persistence_service
@@ -25,6 +27,7 @@ from agent.service.persistence.conversation_persistence_service import (
     conversation_persistence_service,
 )
 from agent.storage.sqlite.room_sql_repository import RoomSqlRepository
+from agent.storage.sqlite.message_sql_repository import MessageSqlRepository
 from agent.infra.database.get_db import get_db
 
 
@@ -83,6 +86,22 @@ class PersistenceQueryService:
         return await conversation_persistence_service.get_conversation_sessions(
             conversation_id,
         )
+
+    async def get_session_messages(
+        self,
+        session_id: str,
+        limit: int = 200,
+    ) -> list[MessageRecord]:
+        """读取会话下的消息索引。"""
+        async with self._db.session() as session:
+            repository = MessageSqlRepository(session)
+            return await repository.list_by_session(session_id, limit=limit)
+
+    async def get_session_rounds(self, session_id: str) -> list[RoundRecord]:
+        """读取会话下的轮次索引。"""
+        async with self._db.session() as session:
+            repository = MessageSqlRepository(session)
+            return await repository.list_rounds(session_id)
 
 
 persistence_query_service = PersistenceQueryService()

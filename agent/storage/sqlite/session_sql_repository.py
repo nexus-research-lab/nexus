@@ -33,6 +33,7 @@ class SessionSqlRepository(BaseSqlRepository):
             entity.last_activity_at = session.last_activity_at
         self._session.add(entity)
         await self.flush()
+        await self.refresh(entity)
         return SessionRecord.model_validate(entity)
 
     async def get(self, session_id: str) -> Optional[SessionRecord]:
@@ -83,4 +84,5 @@ class SessionSqlRepository(BaseSqlRepository):
             return None
         entity.last_activity_at = last_activity_at or datetime.now()
         await self.flush()
+        await self.refresh(entity)
         return SessionRecord.model_validate(entity)
