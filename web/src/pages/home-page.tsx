@@ -8,7 +8,7 @@
  */
 
 import { AgentOptions } from "@/components/dialog/agent-options";
-import { AgentWorkspaceShell } from "@/components/home/agent-workspace-shell";
+import { AgentWorkspace } from "@/components/home/agent-workspace";
 import { Console } from "@/components/home/console";
 import { HomeLoadingScreen } from "@/components/home/home-loading-screen";
 import { useHomePageController } from "@/hooks/use-home-page-controller";
@@ -41,7 +41,7 @@ export function HomePage() {
             onDeleteAgent={controller.handleDeleteAgent}
           />
         ) : (
-          <AgentWorkspaceShell
+          <AgentWorkspace
             activeWorkspacePath={controller.activeWorkspacePath}
             agentCostSummary={controller.agentCostSummary}
             agents={controller.agents}

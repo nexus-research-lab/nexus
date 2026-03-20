@@ -50,7 +50,7 @@ interface AgentWorkspaceShellProps {
   }) => void;
 }
 
-export function AgentWorkspaceShell({
+export function AgentWorkspace({
   agents,
   currentAgent,
   currentAgentId,
