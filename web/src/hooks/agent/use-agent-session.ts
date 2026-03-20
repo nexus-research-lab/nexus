@@ -65,6 +65,8 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     });
   }, [applyWorkspaceEvent, isCurrentSessionEvent]);
 
+  const hasConnectedRef = useRef(false);
+
   const { state: wsState, send: wsSend } = useWebSocket({
     url: wsUrl,
     autoConnect: true,
@@ -72,12 +74,26 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     heartbeatInterval: 30000,
     onMessage: handleWebSocketMessage,
     onError: (event) => {
+      // 开发环境 StrictMode 会触发一次挂载后立即清理，
+      // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
+      if (!hasConnectedRef.current) {
+        console.debug('[useAgentSession] Ignored transient WebSocket error before first successful connection', event);
+        return;
+      }
+
       const errorMessage = 'WebSocket error occurred';
       console.error('[useAgentSession] WebSocket error:', event);
       setError(errorMessage);
       options.onError?.(new Error(errorMessage));
     },
   });
+
+  useEffect(() => {
+    if (wsState === 'connected') {
+      hasConnectedRef.current = true;
+      setError(null);
+    }
+  }, [wsState]);
 
   useEffect(() => {
     const agentId = options.agentId;

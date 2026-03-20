@@ -14,6 +14,7 @@ export class WebSocketClient {
   private config: Required<WebSocketConfig>;
   private callbacks: WebSocketClientCallbacks;
   private state: WebSocketState = 'disconnected';
+  private isIntentionalDisconnect = false;
   private reconnectAttempts = 0;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -46,6 +47,8 @@ export class WebSocketClient {
       return;
     }
 
+    // 重连或重新连接前，清空主动断开标记，避免误伤真实错误。
+    this.isIntentionalDisconnect = false;
     this.setState('connecting');
     this.createConnection();
   }
@@ -54,6 +57,8 @@ export class WebSocketClient {
    * 断开连接
    */
   public disconnect(): void {
+    // 标记为主动断开，忽略卸载或手动关闭过程中的 error/1006 噪音。
+    this.isIntentionalDisconnect = true;
     this.config.reconnect = false; // 禁止自动重连
     this.cleanup();
     if (this.ws) {
@@ -112,6 +117,7 @@ export class WebSocketClient {
    */
   private handleOpen(event: Event): void {
     console.debug('[WebSocketClient] Connected');
+    this.isIntentionalDisconnect = false;
     this.setState('connected');
     this.reconnectAttempts = 0;
 
@@ -152,6 +158,11 @@ export class WebSocketClient {
    * 处理连接错误
    */
   private handleError(event: Event): void {
+    if (this.isIntentionalDisconnect) {
+      console.debug('[WebSocketClient] Ignored WebSocket error during intentional disconnect');
+      return;
+    }
+
     console.error('[WebSocketClient] WebSocket error:', event);
     this.callbacks.onError?.(event);
   }
@@ -165,10 +176,17 @@ export class WebSocketClient {
     this.cleanup();
     this.callbacks.onClose?.(event);
 
+    if (this.isIntentionalDisconnect) {
+      this.ws = null;
+      this.setState('disconnected');
+      return;
+    }
+
     // 判断是否需要重连
     if (this.config.reconnect && !event.wasClean && event.code !== 1000) {
       this.attemptReconnect();
     } else {
+      this.ws = null;
       this.setState('disconnected');
     }
   }
