@@ -125,7 +125,7 @@ export function ToolBlock({
       {/* ═══════════ 头部栏：工具名+路径+状态+时间 ═══════════ */}
       <div
         className={cn(
-          "flex h-10 cursor-pointer select-none items-center gap-2 px-3 font-mono text-xs transition-colors",
+          "flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 px-3 py-2 font-mono text-xs transition-colors sm:h-10 sm:flex-nowrap",
           "hover:bg-white/20",
           isRunning && "animate-pulse"
         )}
@@ -154,6 +154,7 @@ export function ToolBlock({
 
         {/* 工具名 */}
         <span className={cn(
+          "shrink-0",
           "font-medium uppercase tracking-wider",
           isSuccess && "text-green-500",
           isError && "text-red-500",
@@ -168,26 +169,27 @@ export function ToolBlock({
 
         {/* 路径/命令 */}
         {pathDisplay && (
-          <span className="text-muted-foreground truncate max-w-[300px]">
+          <span className="order-2 min-w-0 text-muted-foreground break-all sm:order-none w-auto sm:flex-1 sm:truncate sm:break-normal sm:max-w-[240px] xl:max-w-[300px]">
             {pathDisplay}
           </span>
         )}
 
         {/* 弹性空间 */}
-        <div className="flex-1" />
+        <div className="hidden flex-1 sm:block" />
 
         {/* 结果摘要（折叠时） */}
-        {hasResult && !isExpanded && (
-          <span className="text-muted-foreground/60 truncate max-w-[200px] hidden sm:block">
-            {getResultSummary(toolResult.content)}
-          </span>
-        )}
+        {/*{hasResult && !isExpanded && (*/}
+        {/*  <span className="hidden max-w-[100px] truncate text-muted-foreground/60 lg:block">*/}
+        {/*    {getResultSummary(toolResult.content)}*/}
+        {/*  </span>*/}
+        {/*)}*/}
 
         {/* 复制按钮（有结果时） */}
         {hasResult && (
           <button
             onClick={handleCopyResult}
             className={cn(
+              "ml-auto sm:ml-0",
               "neo-pill radius-shell-sm px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
               copied
                 ? "text-green-500 bg-green-500/10"
@@ -201,14 +203,14 @@ export function ToolBlock({
         {/* 时间 */}
         {durationText && (
           <>
-            <span className="text-muted-foreground/30">│</span>
-            <span className="text-muted-foreground/60 tabular-nums">{durationText}</span>
+            <span className="hidden text-muted-foreground/30 sm:inline">│</span>
+            <span className="hidden text-muted-foreground/60 tabular-nums sm:inline">{durationText}</span>
           </>
         )}
 
         {/* 展开指示器 */}
         {hasResult && (
-          <div className="text-muted-foreground/40">
+          <div className="shrink-0 text-muted-foreground/40">
             {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           </div>
         )}
@@ -265,12 +267,12 @@ export function ToolBlock({
           </div>
 
           {/* 操作栏 */}
-          <div className="flex h-11 items-center gap-2 px-3">
-            <span className="text-xs text-orange-500 font-medium flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:h-11 sm:flex-nowrap sm:py-0">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-orange-500">
               <Clock className="w-3 h-3" />
               AWAITING_PERMISSION
             </span>
-            <div className="flex-1" />
+            <div className="hidden flex-1 sm:block" />
             <button
               onClick={() => permissionRequest.onDeny()}
               className="neo-pill radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-foreground"

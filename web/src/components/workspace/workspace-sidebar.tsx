@@ -35,6 +35,7 @@ import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/components/dialog/confirm-dialog";
+import { HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS } from "@/lib/home-layout";
 
 interface FileTreeNode {
   entry: WorkspaceFileEntry;
@@ -494,7 +495,7 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className="soft-ring radius-shell-lg flex min-h-0 w-[200px] shrink-0 flex-col panel-surface sm:w-[200px] lg:w-[220px] xl:w-[clamp(232px,20vw,336px)] 2xl:w-[clamp(280px,22vw,420px)]"
+      className={`soft-ring radius-shell-lg flex min-h-0 flex-col panel-surface ${HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS}`}
     >
       <div className="flex h-14 items-center justify-between border-b border-white/55 px-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

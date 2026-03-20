@@ -1,6 +1,5 @@
 "use client";
 
-import NextImage from "next/image";
 import { KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,6 +19,7 @@ interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  compact?: boolean;
 }
 
 const ChatInput = memo((
@@ -29,7 +29,8 @@ const ChatInput = memo((
     onStop,
     disabled = false,
     placeholder = "输入消息...",
-    maxLength = 10000
+    maxLength = 10000,
+    compact = false,
   }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
@@ -168,8 +169,13 @@ const ChatInput = memo((
   const isOverLimit = charCount > maxLength;
 
   return (
-    <div className="w-full border-t border-white/55 bg-transparent px-8 pb-6 pt-3">
-      <div className="relative mx-auto w-full py-2">
+    <div className={cn(
+      "w-full border-t border-white/55 bg-transparent",
+      compact
+        ? "px-2 pb-2 pt-2"
+        : "px-2 pb-1 pt-1 sm:px-6 xl:px-8",
+    )}>
+      <div className="relative mx-auto w-full py-1">
         {/* 附件预览区域 */}
         {attachments.length > 0 && (
           <div className="neo-card-flat radius-shell-md mb-3 flex flex-wrap gap-2 p-3">
@@ -180,12 +186,12 @@ const ChatInput = memo((
               >
                 {attachment.type === 'image' ? (
                   attachment.preview ? (
-                    <NextImage
+                    <img
                       src={attachment.preview}
                       alt={attachment.file.name}
                       className="h-8 w-8 rounded object-cover"
                       height={32}
-                      unoptimized
+                      loading="lazy"
                       width={32}
                     />
                   ) : (
@@ -216,11 +222,12 @@ const ChatInput = memo((
             isFocused
               ? "shadow-[0_28px_54px_rgba(133,119,255,0.18)]"
               : "",
-            disabled && "opacity-50 cursor-not-allowed"
+            disabled && "opacity-50 cursor-not-allowed",
+            compact && "radius-shell-md shadow-none",
           )}
         >
           {/* 输入区域 */}
-          <div className="flex items-end gap-2 p-3">
+          <div className={cn("flex items-end gap-2", compact ? "p-2.5" : "p-3")}>
             {/* 左侧工具栏 */}
             <div className="flex items-center gap-1 pb-1">
               {/* 附件按钮 */}
@@ -287,7 +294,7 @@ const ChatInput = memo((
             </div>
 
             {/* 右侧操作区域 */}
-            <div className="flex items-center gap-2 pb-1">
+            <div className={cn("flex items-center gap-2 pb-1", compact && "gap-1.5")}>
               {/* 字符计数 */}
               {charCount > 0 && (
                 <div className="text-[10px] tabular-nums">

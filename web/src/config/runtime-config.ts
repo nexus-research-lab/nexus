@@ -53,16 +53,16 @@ function alignUrlHost(rawUrl: string): string {
 }
 
 export function getAgentApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return alignUrlHost(process.env.NEXT_PUBLIC_API_URL);
+  if (import.meta.env.VITE_API_URL) {
+    return alignUrlHost(import.meta.env.VITE_API_URL);
   }
 
   return `http://${getBrowserHost()}:8010/agent/v1`;
 }
 
 export function getAgentWsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) {
-    return alignUrlHost(process.env.NEXT_PUBLIC_WS_URL);
+  if (import.meta.env.VITE_WS_URL) {
+    return alignUrlHost(import.meta.env.VITE_WS_URL);
   }
 
   return `ws://${getBrowserHost()}:8010/agent/v1/chat/ws`;

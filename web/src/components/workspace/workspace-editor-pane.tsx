@@ -13,6 +13,7 @@ interface WorkspaceEditorPaneProps {
   isOpen: boolean;
   widthPercent: number;
   embedded?: boolean;
+  className?: string;
   onClose: () => void;
   onResizeStart: () => void;
 }
@@ -23,6 +24,7 @@ export function WorkspaceEditorPane({
   isOpen,
   widthPercent,
   embedded = false,
+  className,
   onClose,
   onResizeStart,
 }: WorkspaceEditorPaneProps) {
@@ -137,12 +139,13 @@ export function WorkspaceEditorPane({
   return (
     <section
       className={cn(
-        "relative flex min-h-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,opacity,transform]",
+        "relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,opacity,transform]",
         embedded
           ? "border-l border-border/70 shadow-none"
           : "soft-ring radius-shell-lg panel-surface",
         isOpen ? "opacity-100 translate-x-0" : "pointer-events-none opacity-0 -translate-x-3",
         embedded && !isOpen && "border-l-transparent",
+        className,
       )}
       style={
         embedded
@@ -174,25 +177,25 @@ export function WorkspaceEditorPane({
             </button>
           )}
 
-          <div className="flex h-12 items-center justify-between border-b border-border/80 px-4">
-            <div className="min-w-0 pr-3">
+          <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b border-border/80 px-4">
+            <div className="min-w-0 flex-1 overflow-hidden pr-3">
               <p
-                className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+                className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
                 title={path}
               >
-                {path}
+                {path.split("/").at(-1)}
               </p>
               {liveState && liveState.source !== "api" && (
-                <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
                   {isExternalWriting ? (
                     <>
-                      <LoaderCircle className="h-3 w-3 animate-spin text-primary" />
-                      <span>模型正在实时写入该文件</span>
+                      <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
+                      <span className="truncate">模型正在实时写入该文件</span>
                     </>
                   ) : (
                     <>
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      <span>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      <span className="truncate">
                         已同步最新内容
                         {liveState.diffStats
                           ? ` · +${liveState.diffStats.additions} -${liveState.diffStats.deletions}`
@@ -204,7 +207,7 @@ export function WorkspaceEditorPane({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 className={cn(
                   "inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-all duration-300",

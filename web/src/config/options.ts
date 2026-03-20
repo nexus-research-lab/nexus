@@ -1,4 +1,4 @@
 export const initialOptions = {
-  model: process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'glm-5',
+  model: import.meta.env.VITE_DEFAULT_MODEL || 'glm-5',
   permissionMode: 'default',
 }

@@ -33,16 +33,13 @@ services:
       context: ../web
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_WS_URL=ws://localhost/agent/v1/chat/ws
-        - NEXT_PUBLIC_API_URL=http://localhost/agent/v1
-        - NEXT_PUBLIC_DEFAULT_MODEL=glm-5
+        - VITE_WS_URL=ws://localhost/agent/v1/chat/ws
+        - VITE_API_URL=http://localhost/agent/v1
+        - VITE_DEFAULT_MODEL=glm-5
     image: ${IMAGE:-nexus-core}:web-${TAG}
     restart: always
     environment:
       - TZ=Asia/Shanghai
-      - NODE_ENV=production
-      - PORT=3000
-      - HOSTNAME=0.0.0.0
     networks:
       - net
     volumes:

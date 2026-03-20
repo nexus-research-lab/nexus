@@ -382,26 +382,26 @@ export function Console({
                     onOpenSession(session.session_key, session.agent_id);
                   }}
                   type="button"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        {truncate(session.title || "Untitled Room", 26)}
-                      </p>
-                      <p className="max-w-[210px] truncate text-xs text-muted-foreground">
-                        {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-muted-foreground">
-                        {formatRelativeTime(session.last_activity_at)}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {truncate(session.title || "Untitled Room", 26)}
+                    </p>
+                    <p className="max-w-[210px] truncate text-xs text-muted-foreground">
+                      {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatRelativeTime(session.last_activity_at)}
+                    </span>
+                    {(session.message_count ?? 0) > 0 && (
+                      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-foreground px-1.5 text-[9px] font-bold text-background">
+                        {Math.min(session.message_count ?? 0, 9)}
                       </span>
-                      {(session.message_count ?? 0) > 0 && (
-                        <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-foreground px-1.5 text-[9px] font-bold text-background">
-                          {Math.min(session.message_count ?? 0, 9)}
-                        </span>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 </button>
               ))}
 

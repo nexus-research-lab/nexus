@@ -30,36 +30,36 @@ export function MessageStats(
   }: MessageStatsProps) {
   return (
     <div
-      className="flex h-8 items-center gap-3 border-t border-white/55 px-4 text-[10px] text-muted-foreground/50 font-mono">
-      <span className="tabular-nums">{stats?.duration}</span>
+      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/55 px-3 py-2 text-[10px] font-mono text-muted-foreground/50 sm:h-8 sm:flex-nowrap sm:gap-3 sm:px-4 sm:py-0">
+      <span className="shrink-0 tabular-nums">{stats?.duration}</span>
       {stats?.tokens && (
         <>
-          <span className="text-muted-foreground/20">•</span>
-          <span className="tabular-nums">{stats.tokens}</span>
+          <span className="hidden text-muted-foreground/20 sm:inline">•</span>
+          <span className="min-w-0 truncate tabular-nums">{stats.tokens}</span>
         </>
       )}
       {stats?.cost && (
         <>
-          <span className="text-muted-foreground/20">•</span>
-          <span className="tabular-nums">{stats.cost}</span>
+          <span className="hidden text-muted-foreground/20 sm:inline">•</span>
+          <span className="shrink-0 tabular-nums">{stats.cost}</span>
         </>
       )}
       {stats?.cacheHit && (
         <>
-          <span className="text-muted-foreground/20">•</span>
-          <span>{stats.cacheHit}</span>
+          <span className="hidden text-muted-foreground/20 sm:inline">•</span>
+          <span className="shrink-0">{stats.cacheHit}</span>
         </>
       )}
 
-      <div className="flex-1"/>
+      <div className="hidden flex-1 sm:block" />
 
       {/* 状态/操作 */}
       {showCursor ? (
-        <div className="flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1">
           <Zap className="w-3 h-3 text-primary animate-pulse"/>
         </div>
       ) : (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
           {/* 复制 */}
           <button
             onClick={onCopyAssistant}

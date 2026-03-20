@@ -19,6 +19,7 @@ interface ChatInterfaceProps {
   agentId: string | null;
   sessionKey: string | null;
   onNewSession: () => void;
+  layout?: "desktop" | "mobile";
   onOpenWorkspaceFile?: (path: string) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   onLoadingChange?: (isLoading: boolean) => void;
@@ -54,11 +55,13 @@ export function ChatInterface({
   agentId,
   sessionKey: externalSessionKey,
   onNewSession: onNewSession,
+  layout = "desktop",
   onOpenWorkspaceFile,
   onTodosChange,
   onLoadingChange,
   onSessionSnapshotChange,
 }: ChatInterfaceProps) {
+  const isMobileLayout = layout === "mobile";
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
   const shouldFollowLatestRef = useRef(true);
@@ -246,9 +249,13 @@ export function ChatInterface({
   const roundIds = Array.from(messageGroups.keys());
 
   return (
-    <div className="relative flex h-full flex-1 flex-col overflow-hidden bg-transparent">
-      <div className="pointer-events-none absolute left-8 top-10 h-24 w-24 rounded-full glow-lilac opacity-35" />
-      <div className="pointer-events-none absolute bottom-10 right-10 h-28 w-28 rounded-full glow-green opacity-30" />
+    <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+      {!isMobileLayout && (
+        <>
+          <div className="pointer-events-none absolute left-8 top-10 h-24 w-24 rounded-full glow-lilac opacity-35" />
+          <div className="pointer-events-none absolute bottom-10 right-10 h-28 w-28 rounded-full glow-green opacity-30" />
+        </>
+      )}
       {/* WebSocket连接错误提示 */}
       {error && error.includes('服务器') && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-md">
@@ -275,8 +282,9 @@ export function ChatInterface({
         <EmptyState onNewSession={onNewSession} />
       ) : (
         <>
-          {/* Header */}
-          <ChatHeader sessionKey={sessionKey} isLoading={isLoading} />
+          {!isMobileLayout && (
+            <ChatHeader sessionKey={sessionKey} isLoading={isLoading} />
+          )}
 
           {/* Messages Area */}
           <div
@@ -286,7 +294,11 @@ export function ChatInterface({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="soft-scrollbar relative z-0 flex-1 space-y-8 overflow-y-auto px-6 py-7"
+            className={
+              isMobileLayout
+                ? "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-1 py-2"
+                : "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-6 overflow-x-hidden overflow-y-auto px-2 py-3 sm:px-4 sm:py-5 xl:space-y-8 xl:px-6 xl:py-7"
+            }
           >
             {roundIds.map((roundId, idx) => {
               const roundMessages = messageGroups.get(roundId) || [];
@@ -314,15 +326,20 @@ export function ChatInterface({
             <button
               type="button"
               onClick={handleJumpToBottom}
-              className="neo-pill absolute bottom-30 right-8 z-20 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-foreground transition hover:-translate-y-0.5 hover:text-primary"
+              className={
+                isMobileLayout
+                  ? "neo-pill absolute bottom-24 right-2 z-20 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-foreground transition hover:-translate-y-0.5 hover:text-primary"
+                  : "neo-pill absolute bottom-24 right-3 z-20 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-foreground transition hover:-translate-y-0.5 hover:text-primary sm:bottom-30 sm:right-8 sm:px-4 sm:py-2.5"
+              }
             >
               <ArrowDown className={isLoading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
-              <span>回到底部</span>
+              {!isMobileLayout && <span>回到底部</span>}
             </button>
           )}
 
           {/* Input Area */}
           <ChatInput
+            compact={isMobileLayout}
             isLoading={isLoading}
             onSendMessage={handleSendMessage}
             onStop={handleStop}

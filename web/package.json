@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "start": "vite preview --host 0.0.0.0 --port 3000",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs"
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.18.7",
@@ -19,10 +19,10 @@
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.554.0",
     "matter-js": "^0.20.0",
-    "next": "^16.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.9.5",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",
@@ -32,15 +32,21 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.38.0",
     "@tailwindcss/postcss": "^4",
-    "@types/katex": "^0.16.7",
     "@types/node": "^20",
+    "@types/katex": "^0.16.7",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.1.0",
     "baseline-browser-mapping": "^2.10.0",
     "eslint": "^9",
-    "eslint-config-next": "16.0.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8.46.1",
+    "vite": "^7.1.12"
   }
 }

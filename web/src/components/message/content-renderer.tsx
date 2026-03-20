@@ -67,7 +67,7 @@ export function ContentRenderer(
   });
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {content.map((block, index) => {
         const blockIsStreaming = streamingBlockIndexes?.has(index) ?? isStreaming;
 
@@ -139,7 +139,7 @@ export function ContentRenderer(
           }
 
           return (
-            <div key={index}>
+            <div key={index} className="min-w-0">
               <ToolBlock
                 toolUse={block}
                 toolResult={toolData?.result}

@@ -72,9 +72,9 @@ function hexToRgba(hex: string, alpha: number) {
   const value =
     normalized.length === 3
       ? normalized
-          .split("")
-          .map((item) => `${item}${item}`)
-          .join("")
+        .split("")
+        .map((item) => `${item}${item}`)
+        .join("")
       : normalized;
   const red = Number.parseInt(value.slice(0, 2), 16);
   const green = Number.parseInt(value.slice(2, 4), 16);
@@ -257,9 +257,9 @@ export function AgentPile({
         token.kind === "agent"
           ? Bodies.circle(config.spawnX, config.spawnY, config.size / 2, common)
           : Bodies.rectangle(config.spawnX, config.spawnY, config.size, config.size, {
-              ...common,
-              chamfer: { radius: config.radius },
-            });
+            ...common,
+            chamfer: { radius: config.radius },
+          });
 
       Body.setAngle(body, config.angle);
       Body.setVelocity(body, {
@@ -342,7 +342,7 @@ export function AgentPile({
             )}
             data-token-kind={token.kind}
             onClick={() => token.agentId && onSelectAgent(token.agentId)}
-              style={{
+            style={{
               width: config.size,
               height: config.size,
               background: `linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,248,244,0.92) 100%)`,
