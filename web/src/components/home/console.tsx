@@ -219,7 +219,11 @@ export function Console({
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.36),transparent_38%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.24),transparent_32%)]" />
 
       <div className="relative flex items-center justify-between px-7 pt-6">
-        <div className="flex items-center gap-3 px-1 py-1">
+        <div className="relative flex items-center gap-3 px-1 py-1">
+          <LottiePlayer
+            className="pointer-events-none absolute left-7.5 -top-10 h-20 w-24 opacity-[0.8] sm:left-7.5 sm:-top-13 sm:h-24 sm:w-24"
+            src={ANIMATIONS.PRIDE}
+          />
           <span className="h-7 w-7 rounded-full bg-[#171917]" />
           <span className="text-base font-semibold text-foreground">Nexus</span>
         </div>
@@ -415,25 +419,20 @@ export function Console({
         )}
 
         <div className="relative flex w-full max-w-[1180px] flex-col items-center">
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-0 overflow-visible">
-            <LottiePlayer
-              className="absolute -left-1 top-3 h-14 w-14 opacity-[0.6] sm:-left-6 sm:-top-2 sm:h-18 sm:w-18 sm:opacity-[0.68] lg:-left-10 lg:-top-6 lg:h-22 lg:w-22"
-              src={ANIMATIONS.PRIDE}
-            />
-            <LottiePlayer
-              className="absolute right-[8%] top-20 h-16 w-16 opacity-[0.44] sm:right-[16%] sm:top-14 sm:h-20 sm:w-20 sm:opacity-[0.5] lg:right-[22%] lg:top-10 lg:h-24 lg:w-24"
-              src={ANIMATIONS.SPARKLES}
-            />
-          </div>
-
           <div className="relative z-10 w-full max-w-[650px] rounded-[32px] bg-[linear-gradient(180deg,rgba(250,251,248,0.68),rgba(246,248,242,0.52))] px-8 py-7 text-center shadow-[0_18px_56px_rgba(107,122,96,0.035),0_2px_10px_rgba(160,166,148,0.025)] backdrop-blur-[10px] sm:px-10 sm:py-9">
             <div className="space-y-3">
               <p className="text-[9px] font-medium uppercase tracking-[0.32em] text-muted-foreground/70">
                 Collaboration Hub
               </p>
-              <h1 className="text-[38px] font-extrabold  sm:text-[50px] sm:leading-[1.05]">
-                和你的 agents 开始协作
-              </h1>
+              <div className="relative inline-block">
+                <LottiePlayer
+                  className="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
+                  src={ANIMATIONS.SPARKLES}
+                />
+                <h1 className="text-[38px] font-extrabold sm:text-[50px] sm:leading-[1.05]">
+                  和你的 agents 开始协作
+                </h1>
+              </div>
               <p className="mx-auto text-sm leading-7 text-muted-foreground/82">
                 用 @Agent 直接对话，或 #Room 进入协作空间。
               </p>
