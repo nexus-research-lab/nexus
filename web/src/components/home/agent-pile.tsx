@@ -317,9 +317,13 @@ export function AgentPile({
   return (
     <div
       ref={containerRef}
-      className="relative mt-20 h-[238px] w-full max-w-[560px] overflow-hidden [mask-image:linear-gradient(90deg,transparent_0,black_8%,black_92%,transparent_100%)]"
+      className="relative mt-14 h-[286px] w-full max-w-[640px] overflow-hidden [mask-image:linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]"
     >
-      <div className="pointer-events-none absolute left-0 right-0 top-[176px] h-px bg-[linear-gradient(90deg,rgba(58,61,56,0),rgba(58,61,56,0.18),rgba(58,61,56,0.28),rgba(58,61,56,0.18),rgba(58,61,56,0))]" />
+      <div className="pointer-events-none absolute inset-x-[10%] top-[64px] h-28 rounded-full bg-[radial-gradient(circle,rgba(154,127,255,0.18),rgba(154,127,255,0)_72%)] blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-[18%] bottom-[58px] h-24 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.18),rgba(255,255,255,0)_76%)] blur-2xl" />
+      <div className="pointer-events-none absolute left-1/2 top-[108px] h-[124px] w-px -translate-x-1/2 bg-[linear-gradient(180deg,rgba(255,255,255,0.24),rgba(255,255,255,0))]" />
+      <div className="pointer-events-none absolute bottom-[34px] left-1/2 h-[114px] w-[128%] -translate-x-1/2 rounded-[999px] border-t border-white/22 bg-[radial-gradient(circle_at_50%_8%,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_28%,rgba(255,255,255,0)_62%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-[194px] h-px bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.1),rgba(255,255,255,0.3),rgba(255,255,255,0.1),rgba(255,255,255,0))]" />
 
       {tokens.map((token) => {
         const config = configs.find((item) => item.key === token.key);
@@ -351,8 +355,8 @@ export function AgentPile({
               borderColor: hexToRgba("#ffffff", 0.46),
               boxShadow:
                 token.kind === "agent"
-                  ? `inset 0 1px 0 ${hexToRgba("#ffffff", 0.74)}, 0 14px 28px rgba(53, 59, 50, 0.13), 0 2px 8px ${hexToRgba(token.swatch.fill, 0.13)}`
-                  : `inset 0 1px 0 ${hexToRgba("#ffffff", 0.68)}, 0 16px 30px rgba(53, 59, 50, 0.14), 0 2px 9px ${hexToRgba(token.swatch.fill, 0.14)}`,
+                  ? `inset 0 1px 0 ${hexToRgba("#ffffff", 0.74)}, 0 16px 34px rgba(10,14,28,0.16), 0 0 18px ${hexToRgba(token.swatch.fill, 0.18)}`
+                  : `inset 0 1px 0 ${hexToRgba("#ffffff", 0.68)}, 0 18px 38px rgba(10,14,28,0.18), 0 0 20px ${hexToRgba(token.swatch.fill, 0.2)}`,
             }}
             type="button"
           >
