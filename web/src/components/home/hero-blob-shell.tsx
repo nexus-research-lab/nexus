@@ -43,7 +43,7 @@ export function HeroBlobShell({children, className}: HeroBlobShellProps) {
 
   return (
     <>
-      <div className={cn("relative isolate w-full max-w-[980px]", className)}>
+      <div className={cn("relative isolate w-full max-w-[980px]", className)} data-thread-anchor-group="hero-shell">
         <div className="absolute inset-[-20%] z-0">
           <div
             className="absolute inset-x-[10%] bottom-[18%] h-24 rounded-full bg-[radial-gradient(circle,rgba(133,119,255,0.26),rgba(133,119,255,0)_74%)] blur-3xl"/>

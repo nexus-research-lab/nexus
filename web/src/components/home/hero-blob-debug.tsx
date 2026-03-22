@@ -8,8 +8,90 @@ import { cn } from "@/lib/utils";
 import { type BlobPoint } from "@/components/home/hero-blob-shape";
 import { type BlobDebugTarget } from "@/components/home/hero-blob-debug-hooks";
 
+export function useDebugSvgRect(
+  debugEnabled: boolean,
+  svgRef: React.RefObject<SVGSVGElement | null>,
+): DOMRect | null {
+  const [svgRect, setSvgRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (!debugEnabled || !svgRef.current) {
+      setSvgRect(null);
+      return;
+    }
+
+    const svgElement = svgRef.current;
+    const updateRect = () => {
+      setSvgRect(svgElement.getBoundingClientRect());
+    };
+
+    updateRect();
+    const resizeObserver = new ResizeObserver(updateRect);
+    resizeObserver.observe(svgElement);
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect, true);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect, true);
+    };
+  }, [debugEnabled, svgRef]);
+
+  return svgRect;
+}
+
+export function DebugPortalHandles({
+  debugEnabled,
+  handleClassName,
+  onPointPointerDown,
+  onPointPointerUp,
+  points,
+  svgRect,
+  viewBoxHeight,
+  viewBoxWidth,
+}: {
+  debugEnabled: boolean;
+  handleClassName?: string;
+  onPointPointerDown: (index: number) => (event: ReactPointerEvent<Element>) => void;
+  onPointPointerUp: (event: ReactPointerEvent<Element>) => void;
+  points: BlobPoint[];
+  svgRect: DOMRect | null;
+  viewBoxHeight: number;
+  viewBoxWidth: number;
+}) {
+  if (!debugEnabled || !svgRect) {
+    return null;
+  }
+
+  return createPortal(
+    <>
+      {points.map((point, index) => (
+        <button
+          key={`point-handle-${index}`}
+          className={cn(
+            "fixed z-[200] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent",
+            handleClassName,
+          )}
+          onPointerDown={onPointPointerDown(index)}
+          onPointerUp={onPointPointerUp}
+          style={{
+            cursor: "grab",
+            left: svgRect.left + (point.x / viewBoxWidth) * svgRect.width,
+            top: svgRect.top + (point.y / viewBoxHeight) * svgRect.height,
+          }}
+          type="button"
+        />
+      ))}
+    </>,
+    document.body,
+  );
+}
+
 export function BlobDebugPanel({
+  countLabel = "当前点数",
   currentTarget,
+  description = "直接拖点调轮廓，双击轮廓线新增点。",
   onCopy,
   onReset,
   panelClassName,
@@ -18,7 +100,9 @@ export function BlobDebugPanel({
   target,
   title,
 }: {
+  countLabel?: string;
   currentTarget: BlobDebugTarget;
+  description?: string;
   onCopy: () => void;
   onReset: () => void;
   panelClassName: string;
@@ -27,20 +111,26 @@ export function BlobDebugPanel({
   target: BlobDebugTarget;
   title: string;
 }) {
+  const targetLabels: Record<BlobDebugTarget, string> = {
+    hero: "Hero",
+    input: "Input",
+    thread: "Threads",
+  };
+
   return (
     <div
       className={cn(
-        "fixed z-[60] w-[300px] rounded-2xl border border-white/18 bg-black/55 p-4 text-white shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+        "pointer-events-auto fixed z-[60] w-[300px] rounded-2xl border border-white/18 bg-black/55 p-4 text-white shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl",
         panelClassName,
       )}
     >
       <div className="mb-3">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/74">{title}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/46">直接拖点调轮廓，双击轮廓线新增点。</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/46">{description}</p>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-[11px] text-white/42">
-        当前点数：{points.length}
+        {countLabel}：{points.length}
       </div>
 
       <div className="mt-3 flex items-center gap-2">
@@ -68,6 +158,18 @@ export function BlobDebugPanel({
         >
           编辑 Input
         </button>
+        <button
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-[11px] transition-colors",
+            target === "thread"
+              ? "border-white/28 bg-white/12 text-white"
+              : "border-white/14 text-white/62 hover:text-white",
+          )}
+          onClick={() => setTarget("thread")}
+          type="button"
+        >
+          编辑 Threads
+        </button>
       </div>
 
       <div className="mt-3 flex items-center gap-2">
@@ -88,7 +190,7 @@ export function BlobDebugPanel({
       </div>
 
       <p className="mt-3 text-[11px] leading-5 text-white/42">
-        当前激活层：{currentTarget === "hero" ? "Hero" : "Input"}
+        当前激活层：{targetLabels[currentTarget]}
       </p>
     </div>
   );
@@ -125,31 +227,7 @@ export function BlobDebugOverlay({
 }) {
   const debugAreaFill = debugEnabled ? color.replace(/0?\.\d+\)$/, "0.12)") : fill;
   const debugStroke = debugEnabled ? color.replace(/0?\.\d+\)$/, "0.78)") : stroke;
-  const [svgRect, setSvgRect] = useState<DOMRect | null>(null);
-
-  useEffect(() => {
-    if (!debugEnabled || !svgRef.current) {
-      setSvgRect(null);
-      return;
-    }
-
-    const svgElement = svgRef.current;
-    const updateRect = () => {
-      setSvgRect(svgElement.getBoundingClientRect());
-    };
-
-    updateRect();
-    const resizeObserver = new ResizeObserver(updateRect);
-    resizeObserver.observe(svgElement);
-    window.addEventListener("resize", updateRect);
-    window.addEventListener("scroll", updateRect, true);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateRect);
-      window.removeEventListener("scroll", updateRect, true);
-    };
-  }, [debugEnabled, svgRef]);
+  const svgRect = useDebugSvgRect(debugEnabled, svgRef);
 
   return (
     <>
@@ -213,25 +291,15 @@ export function BlobDebugOverlay({
         )}
       </svg>
 
-      {debugEnabled && svgRect && createPortal(
-        <>
-          {points.map((point, index) => (
-            <button
-              key={`point-handle-${index}`}
-              className="fixed z-[200] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent"
-              onPointerDown={onPointPointerDown(index)}
-              onPointerUp={onPointPointerUp}
-              style={{
-                cursor: "grab",
-                left: svgRect.left + (point.x / viewBoxWidth) * svgRect.width,
-                top: svgRect.top + (point.y / viewBoxHeight) * svgRect.height,
-              }}
-              type="button"
-            />
-          ))}
-        </>,
-        document.body,
-      )}
+      <DebugPortalHandles
+        debugEnabled={debugEnabled}
+        onPointPointerDown={onPointPointerDown}
+        onPointPointerUp={onPointPointerUp}
+        points={points}
+        svgRect={svgRect}
+        viewBoxHeight={viewBoxHeight}
+        viewBoxWidth={viewBoxWidth}
+      />
     </>
   );
 }
