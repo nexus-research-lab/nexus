@@ -1,7 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   ChevronRight,
@@ -19,6 +18,7 @@ import { SpotlightToken, AgentPile } from "@/components/home/agent-pile";
 import { ANIMATIONS } from "@/components/animations/animations";
 import { LottiePlayer } from "@/components/animations/lottiePlayer";
 import { HeroBlobShell, HeroInputShell } from "@/components/home/hero-blob-shell";
+import { HeroThreadField } from "@/components/home/hero-thread-field";
 import { DebugReferenceOverlay } from "@/components/home/reference-overlay-debug";
 
 interface AgentDirectoryProps {
@@ -116,129 +116,6 @@ function buildDecorativeTokens(
   return source.slice(0, 22);
 }
 
-function OrbitTokenChip({
-  token,
-  className,
-  delay = 0,
-}: {
-  token: SpotlightToken;
-  className: string;
-  delay?: number;
-}) {
-  return (
-    <motion.div
-      animate={{
-        opacity: [0.72, 1, 0.76],
-        y: [0, -8, 0],
-        rotate: token.kind === "room" ? [-6, 4, -6] : [0, 6, 0],
-      }}
-      className={cn(
-        "pointer-events-none absolute flex items-center justify-center rounded-[18px] border border-white/28 text-[10px] font-semibold tracking-[0.12em] text-white/88 shadow-[0_10px_26px_rgba(7,10,22,0.16)] backdrop-blur-sm",
-        token.kind === "agent" ? "h-13 w-13 rounded-full" : "h-14 w-14",
-        className,
-      )}
-      style={{
-        background: `radial-gradient(circle at 30% 24%, rgba(255,255,255,0.4) 0%, transparent 38%), linear-gradient(180deg, ${token.swatch.fill} 0%, rgba(255,255,255,0.2) 100%)`,
-      }}
-      transition={{
-        duration: 6.4,
-        delay,
-        ease: "easeInOut",
-        repeat: Infinity,
-        repeatType: "mirror",
-      }}
-    >
-      {token.label}
-    </motion.div>
-  );
-}
-
-function HeroFlowField({ tokens }: { tokens: SpotlightToken[] }) {
-  const orbitTokens = tokens.slice(0, 5);
-  const orbitLinePaths = [
-    { d: "M120 298C210 198 326 154 448 144C572 136 694 164 860 104", duration: 8.2, delay: 0.08, width: 1.02 },
-    { d: "M126 308C230 220 336 178 466 172C612 166 724 198 894 156", duration: 8.9, delay: 0.22, width: 0.82 },
-    { d: "M132 320C254 244 356 210 486 206C634 200 746 228 920 214", duration: 9.4, delay: 0.34, width: 0.68 },
-    { d: "M140 334C272 264 368 236 500 232C646 228 768 258 922 280", duration: 10.0, delay: 0.46, width: 0.62 },
-    { d: "M154 350C296 286 398 264 508 260C622 256 724 286 876 336", duration: 10.8, delay: 0.6, width: 0.56 },
-    { d: "M182 286C264 192 362 152 470 146C584 140 690 178 828 132", duration: 8.5, delay: 0.74, width: 0.5 },
-  ];
-  const coreLinePaths = [
-    { d: "M470 286C452 336 426 390 382 438C346 478 318 494 290 520", delay: 0.16, width: 0.82 },
-    { d: "M484 286C482 340 480 396 478 522", delay: 0.3, width: 0.72 },
-    { d: "M498 286C512 342 534 396 566 440C594 478 632 502 680 526", delay: 0.46, width: 0.82 },
-    { d: "M458 282C428 326 404 366 382 408", delay: 0.62, width: 0.56 },
-    { d: "M512 282C544 326 572 366 602 408", delay: 0.76, width: 0.56 },
-    { d: "M474 292C450 354 430 410 418 470", delay: 0.94, width: 0.48 },
-    { d: "M506 292C530 354 552 410 586 474", delay: 1.08, width: 0.48 },
-  ];
-
-  return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-visible">
-      <svg
-        aria-hidden="true"
-        className="absolute left-1/2 top-[20px] h-[560px] w-[min(100%,1020px)] -translate-x-1/2 opacity-85"
-        fill="none"
-        viewBox="0 0 1020 560"
-      >
-        <defs>
-          <linearGradient id="hero-flow-line" x1="134" x2="856" y1="18" y2="424" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.02)" />
-            <stop offset="24%" stopColor="rgba(255,255,255,0.18)" />
-            <stop offset="62%" stopColor="rgba(190,219,255,0.14)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
-          </linearGradient>
-          <linearGradient id="hero-flow-core" x1="490" x2="490" y1="228" y2="480" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.22)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-          </linearGradient>
-        </defs>
-
-        {orbitLinePaths.map((path, index) => (
-          <motion.path
-            key={`orbit-line-${index}`}
-            animate={{ pathLength: [0.72, 1, 0.8], opacity: [0.8, 0.34, 0.12] }}
-            d={path.d}
-            pathLength={1}
-            stroke="url(#hero-flow-line)"
-            strokeLinecap="round"
-            strokeWidth={path.width}
-            transition={{ duration: path.duration, delay: path.delay, ease: "easeInOut", repeat: Infinity }}
-          />
-        ))}
-        {coreLinePaths.map((path, index) => (
-          <motion.path
-            key={`core-line-${index}`}
-            animate={{ pathLength: [0.5, 1, 0.64], opacity: [0.6, 0.26, 0.1] }}
-            d={path.d}
-            pathLength={1}
-            stroke="url(#hero-flow-core)"
-            strokeLinecap="round"
-            strokeWidth={path.width}
-            transition={{ duration: 7.6 + index * 0.6, delay: path.delay, ease: "easeInOut", repeat: Infinity }}
-          />
-        ))}
-      </svg>
-
-      {orbitTokens[0] && (
-        <OrbitTokenChip className="left-[12%] top-[31%]" delay={0.1} token={orbitTokens[0]} />
-      )}
-      {orbitTokens[1] && (
-        <OrbitTokenChip className="left-[68%] top-[8%]" delay={0.6} token={orbitTokens[1]} />
-      )}
-      {orbitTokens[2] && (
-        <OrbitTokenChip className="right-[14%] top-[18%]" delay={0.9} token={orbitTokens[2]} />
-      )}
-      {orbitTokens[3] && (
-        <OrbitTokenChip className="right-[24%] top-[58%]" delay={1.3} token={orbitTokens[3]} />
-      )}
-      {orbitTokens[4] && (
-        <OrbitTokenChip className="left-[26%] top-[70%]" delay={1.7} token={orbitTokens[4]} />
-      )}
-    </div>
-  );
-}
-
 export function Console({
   agents,
   sessions,
@@ -249,6 +126,7 @@ export function Console({
   onEditAgent,
   onDeleteAgent,
 }: AgentDirectoryProps) {
+  const heroSceneRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [showContacts, setShowContacts] = useState(false);
   const [showRooms, setShowRooms] = useState(false);
@@ -544,9 +422,9 @@ export function Console({
           </div>
         )}
 
-        <div className="relative flex w-full max-w-[1180px] flex-col items-center">
+        <div ref={heroSceneRef} className="relative flex w-full max-w-[1180px] flex-col items-center">
           <DebugReferenceOverlay />
-          <HeroFlowField tokens={decorativeTokens} />
+          <HeroThreadField sceneRef={heroSceneRef} tokens={decorativeTokens} />
 
           <HeroBlobShell className="z-10">
             <div className="space-y-3">
