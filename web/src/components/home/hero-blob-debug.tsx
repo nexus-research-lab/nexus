@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { type BlobPoint } from "@/components/home/hero-blob-shape";
 import { type BlobDebugTarget } from "@/components/home/hero-blob-debug-hooks";
 
-export function useDebugSvgRect(
+function useDebugSvgRect(
   debugEnabled: boolean,
   svgRef: React.RefObject<SVGSVGElement | null>,
 ): DOMRect | null {
@@ -41,7 +41,7 @@ export function useDebugSvgRect(
   return svgRect;
 }
 
-export function DebugPortalHandles({
+function DebugPortalHandles({
   debugEnabled,
   handleClassName,
   onPointPointerDown,
@@ -114,7 +114,6 @@ export function BlobDebugPanel({
   const targetLabels: Record<BlobDebugTarget, string> = {
     hero: "Hero",
     input: "Input",
-    thread: "Threads",
   };
 
   return (
@@ -157,18 +156,6 @@ export function BlobDebugPanel({
           type="button"
         >
           编辑 Input
-        </button>
-        <button
-          className={cn(
-            "rounded-full border px-3 py-1.5 text-[11px] transition-colors",
-            target === "thread"
-              ? "border-white/28 bg-white/12 text-white"
-              : "border-white/14 text-white/62 hover:text-white",
-          )}
-          onClick={() => setTarget("thread")}
-          type="button"
-        >
-          编辑 Threads
         </button>
       </div>
 

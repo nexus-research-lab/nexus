@@ -43,7 +43,7 @@ export function HeroBlobShell({children, className}: HeroBlobShellProps) {
 
   return (
     <>
-      <div className={cn("relative isolate w-full max-w-[980px]", className)} data-thread-anchor-group="hero-shell">
+      <div className={cn("relative isolate w-full max-w-[980px]", className)}>
         <div className="absolute inset-[-20%] z-0">
           <div
             className="absolute inset-x-[10%] bottom-[18%] h-24 rounded-full bg-[radial-gradient(circle,rgba(133,119,255,0.26),rgba(133,119,255,0)_74%)] blur-3xl"/>
@@ -114,35 +114,37 @@ export function HeroBlobShell({children, className}: HeroBlobShellProps) {
           {children}
         </div>
 
-        <BlobDebugController
-          active={target === "hero"}
-          color="rgba(122,108,255,0.9)"
-          currentTarget={target}
-          enabled={outer.debugEnabled}
-          fill="transparent"
-          onCopy={async () => {
-            await navigator.clipboard.writeText(outer.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
-          }}
-          onPathDoubleClick={outer.handlePathDoubleClick}
-          onPointPointerDown={outer.handlePointPointerDown}
-          onPointPointerUp={outer.handlePointPointerUp}
-          onReset={() => {
-            localStorage.removeItem(OUTER_STORAGE_KEY);
-            outer.setPoints(DEFAULT_OUTER_POINTS);
-          }}
-          panelClassName="bottom-4 left-4"
-          path={outer.path}
-          points={outer.points}
-          setTarget={setTarget}
-          showPanel={false}
-          stroke="transparent"
-          strokeWidth={10}
-          svgRef={outer.svgRef}
-          target="hero"
-          title="Hero Shape"
-          viewBoxHeight={OUTER_VIEWBOX_HEIGHT}
-          viewBoxWidth={OUTER_VIEWBOX_WIDTH}
-        />
+        {outer.debugEnabled && (
+          <BlobDebugController
+            active={target === "hero"}
+            color="rgba(122,108,255,0.9)"
+            currentTarget={target}
+            enabled={outer.debugEnabled}
+            fill="transparent"
+            onCopy={async () => {
+              await navigator.clipboard.writeText(outer.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
+            }}
+            onPathDoubleClick={outer.handlePathDoubleClick}
+            onPointPointerDown={outer.handlePointPointerDown}
+            onPointPointerUp={outer.handlePointPointerUp}
+            onReset={() => {
+              localStorage.removeItem(OUTER_STORAGE_KEY);
+              outer.setPoints(DEFAULT_OUTER_POINTS);
+            }}
+            panelClassName="bottom-4 left-4"
+            path={outer.path}
+            points={outer.points}
+            setTarget={setTarget}
+            showPanel={false}
+            stroke="transparent"
+            strokeWidth={10}
+            svgRef={outer.svgRef}
+            target="hero"
+            title="Hero Shape"
+            viewBoxHeight={OUTER_VIEWBOX_HEIGHT}
+            viewBoxWidth={OUTER_VIEWBOX_WIDTH}
+          />
+        )}
       </div>
 
       {outer.debugEnabled && activeShape && (
@@ -236,35 +238,37 @@ export function HeroInputShell({children, className}: HeroInputShellProps) {
           {children}
         </div>
 
-        <BlobDebugController
-          active={target === "input"}
-          color="rgba(118,231,206,0.92)"
-          currentTarget={target}
-          enabled={input.debugEnabled}
-          fill="transparent"
-          onCopy={async () => {
-            await navigator.clipboard.writeText(input.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
-          }}
-          onPathDoubleClick={input.handlePathDoubleClick}
-          onPointPointerDown={input.handlePointPointerDown}
-          onPointPointerUp={input.handlePointPointerUp}
-          onReset={() => {
-            localStorage.removeItem(INPUT_STORAGE_KEY);
-            input.setPoints(DEFAULT_INPUT_POINTS);
-          }}
-          panelClassName="bottom-4 right-4"
-          path={input.path}
-          points={input.points}
-          setTarget={setTarget}
-          showPanel={false}
-          stroke="transparent"
-          strokeWidth={10}
-          svgRef={input.svgRef}
-          target="input"
-          title="Input Shape"
-          viewBoxHeight={INPUT_VIEWBOX_HEIGHT}
-          viewBoxWidth={INPUT_VIEWBOX_WIDTH}
-        />
+        {input.debugEnabled && (
+          <BlobDebugController
+            active={target === "input"}
+            color="rgba(118,231,206,0.92)"
+            currentTarget={target}
+            enabled={input.debugEnabled}
+            fill="transparent"
+            onCopy={async () => {
+              await navigator.clipboard.writeText(input.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
+            }}
+            onPathDoubleClick={input.handlePathDoubleClick}
+            onPointPointerDown={input.handlePointPointerDown}
+            onPointPointerUp={input.handlePointPointerUp}
+            onReset={() => {
+              localStorage.removeItem(INPUT_STORAGE_KEY);
+              input.setPoints(DEFAULT_INPUT_POINTS);
+            }}
+            panelClassName="bottom-4 right-4"
+            path={input.path}
+            points={input.points}
+            setTarget={setTarget}
+            showPanel={false}
+            stroke="transparent"
+            strokeWidth={10}
+            svgRef={input.svgRef}
+            target="input"
+            title="Input Shape"
+            viewBoxHeight={INPUT_VIEWBOX_HEIGHT}
+            viewBoxWidth={INPUT_VIEWBOX_WIDTH}
+          />
+        )}
       </div>
 
       {input.debugEnabled && activeShape && (

@@ -10,7 +10,7 @@ import {
   parsePoints,
 } from "@/components/home/hero-blob-shape";
 
-export type BlobDebugTarget = "hero" | "input" | "thread";
+export type BlobDebugTarget = "hero" | "input";
 
 interface EditableShapeOptions {
   defaultPoints: BlobPoint[];
@@ -37,13 +37,13 @@ export function useBlobDebugTarget() {
 
   useEffect(() => {
     const persisted = window.localStorage.getItem(DEBUG_TARGET_STORAGE_KEY);
-    if (persisted === "hero" || persisted === "input" || persisted === "thread") {
+    if (persisted === "hero" || persisted === "input") {
       setTargetState(persisted);
     }
 
     const handleTargetChange = (event: Event) => {
       const nextTarget = (event as CustomEvent<BlobDebugTarget>).detail;
-      if (nextTarget === "hero" || nextTarget === "input" || nextTarget === "thread") {
+      if (nextTarget === "hero" || nextTarget === "input") {
         setTargetState(nextTarget);
       }
     };

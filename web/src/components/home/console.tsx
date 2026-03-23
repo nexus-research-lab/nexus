@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowUp,
   ChevronRight,
@@ -18,7 +18,6 @@ import { SpotlightToken, AgentPile } from "@/components/home/agent-pile";
 import { ANIMATIONS } from "@/components/animations/animations";
 import { LottiePlayer } from "@/components/animations/lottiePlayer";
 import { HeroBlobShell, HeroInputShell } from "@/components/home/hero-blob-shell";
-import { HeroThreadField } from "@/components/home/hero-thread-field";
 import { DebugReferenceOverlay } from "@/components/home/reference-overlay-debug";
 
 interface AgentDirectoryProps {
@@ -126,7 +125,6 @@ export function Console({
   onEditAgent,
   onDeleteAgent,
 }: AgentDirectoryProps) {
-  const heroSceneRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [showContacts, setShowContacts] = useState(false);
   const [showRooms, setShowRooms] = useState(false);
@@ -220,7 +218,7 @@ export function Console({
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.36),transparent_38%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.24),transparent_32%)]" />
+      <div className="pointer-events-none absolute inset-0" />
 
       <div className="relative flex items-center justify-between px-7 pt-6">
         <div className="relative flex items-center gap-3 px-1 py-1">
@@ -422,9 +420,8 @@ export function Console({
           </div>
         )}
 
-        <div ref={heroSceneRef} className="relative flex w-full max-w-[1180px] flex-col items-center">
+        <div className="relative flex w-full max-w-[1180px] flex-col items-center">
           <DebugReferenceOverlay />
-          <HeroThreadField sceneRef={heroSceneRef} tokens={decorativeTokens} />
 
           <HeroBlobShell className="z-10">
             <div className="space-y-3">
@@ -436,21 +433,18 @@ export function Console({
                   className="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
                   src={ANIMATIONS.SPARKLES}
                 />
-                <h1 className="text-[32px] font-extrabold text-foreground/96 tracking-[-0.05em] sm:text-[42px] sm:leading-[1.05]">
+                <h1 className="text-[32px] mb-10 font-extrabold text-foreground/96 tracking-[-0.05em] sm:text-[42px] sm:leading-[1.05]">
                   和你的 agents 开始协作
                 </h1>
               </div>
-              <p className="mx-auto max-w-[40ch] text-sm leading-7 text-muted-foreground/82 sm:text-[15px]">
-                用 @Agent 直接对话，或 #Room 进入协作空间。
-              </p>
             </div>
 
             <div className="mt-4">
               <HeroInputShell className="mx-auto w-full max-w-[480px]">
                 <div className="flex min-w-0 items-center gap-3">
-                  <MessageSquare className="h-4.5 w-4.5 text-white/58" />
+                  <MessageSquare className="h-4.5 w-4.5 text-black/58" />
                   <input
-                    className="flex-1 bg-transparent text-[15px] text-white/92 outline-none placeholder:text-white/42"
+                    className="flex-1 bg-transparent text-[15px] text-white/92 outline-none placeholder:text-black/42"
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {

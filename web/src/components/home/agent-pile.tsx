@@ -49,19 +49,25 @@ type TokenBrandStyle = {
   ring: boolean;
 };
 
+function seededUnit(seed: number, salt: number) {
+  const value = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
 function createTokenConfig(tokens: SpotlightToken[], width: number): TokenPhysicsConfig[] {
   const horizontalPadding = 108;
   return tokens.map((token, index) => {
+    const seed = hashString(token.key);
     const baseSize = token.kind === "agent" ? 40 : 44;
-    const size = baseSize + Math.round(Math.random() * 12);
+    const size = baseSize + Math.round(seededUnit(seed, 1) * 12);
     return {
       key: token.key,
       size,
       radius: token.kind === "agent" ? size / 2 : Math.max(12, Math.round(size * 0.28)),
       spawnX:
-        horizontalPadding + Math.random() * Math.max(width - horizontalPadding * 2, 72),
-      spawnY: -180 - Math.random() * 240 - index * 14,
-      angle: ((Math.random() * 36 - 18) * Math.PI) / 180,
+        horizontalPadding + seededUnit(seed, 2) * Math.max(width - horizontalPadding * 2, 72),
+      spawnY: -180 - seededUnit(seed, 3) * 240 - index * 14,
+      angle: ((seededUnit(seed, 4) * 36 - 18) * Math.PI) / 180,
       delay: 40 + index * 55,
     };
   });
@@ -198,12 +204,19 @@ export function AgentPile({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const physicsSeed = useMemo(() => tokens.map((token) => token.key).join("|"), [tokens]);
-  const configs = useMemo(() => createTokenConfig(tokens, 560), [physicsSeed, tokens]);
+  const configs = useMemo(() => createTokenConfig(tokens, 560), [tokens]);
+  const configByKey = useMemo(
+    () => new Map(configs.map((config) => [config.key, config])),
+    [configs],
+  );
+  const tokenByKey = useMemo(
+    () => new Map(tokens.map((token) => [token.key, token])),
+    [tokens],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || tokens.length === 0) {
+    if (!container || tokenByKey.size === 0) {
       return;
     }
 
@@ -240,7 +253,7 @@ export function AgentPile({
     World.add(engine.world, [ground, leftRamp, rightRamp]);
 
     configs.forEach((config) => {
-      const token = tokens.find((item) => item.key === config.key);
+      const token = tokenByKey.get(config.key);
       if (!token) {
         return;
       }
@@ -284,15 +297,10 @@ export function AgentPile({
       previousTime = time;
       Engine.update(engine, delta || 1000 / 60);
 
-      tokens.forEach((token) => {
-        const ref = tokenRefs.current[token.key];
-        const body = bodyMap.get(token.key);
+      configs.forEach((config) => {
+        const ref = tokenRefs.current[config.key];
+        const body = bodyMap.get(config.key);
         if (!ref || !body) {
-          return;
-        }
-
-        const config = configs.find((item) => item.key === token.key);
-        if (!config) {
           return;
         }
 
@@ -312,7 +320,7 @@ export function AgentPile({
       Matter.World.clear(engine.world, false);
       Matter.Engine.clear(engine);
     };
-  }, [configs, physicsSeed, tokens]);
+  }, [configs, tokenByKey]);
 
   return (
     <div
@@ -326,7 +334,7 @@ export function AgentPile({
       <div className="pointer-events-none absolute inset-x-0 top-[194px] h-px bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.1),rgba(255,255,255,0.3),rgba(255,255,255,0.1),rgba(255,255,255,0))]" />
 
       {tokens.map((token) => {
-        const config = configs.find((item) => item.key === token.key);
+        const config = configByKey.get(token.key);
         if (!config) {
           return null;
         }
