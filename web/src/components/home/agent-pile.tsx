@@ -224,12 +224,14 @@ export function AgentPile({
     const width = container.clientWidth || 560;
     const height = container.clientHeight;
     const engine = Engine.create({
+      enableSleeping: true,
       gravity: { x: 0, y: 1.16, scale: 0.0034 },
-      positionIterations: 10,
-      velocityIterations: 9,
+      positionIterations: 8,
+      velocityIterations: 6,
     });
 
     const bodyMap = new Map<string, Matter.Body>();
+    const renderCache = new Map<string, { opacity: string; transform: string; zIndex: string }>();
     const timeoutIds: number[] = [];
 
     const ground = Bodies.rectangle(width / 2, height - 18, width + 120, 28, {
@@ -263,6 +265,7 @@ export function AgentPile({
         friction: 0.22,
         frictionAir: 0.012,
         density: 0.0014,
+        sleepThreshold: 24,
         slop: 0.5,
       };
 
@@ -313,9 +316,26 @@ export function AgentPile({
           return;
         }
 
-        ref.style.opacity = "1";
-        ref.style.zIndex = `${Math.round(body.position.y)}`;
-        ref.style.transform = `translate3d(${body.position.x - config.size / 2}px, ${body.position.y - config.size / 2}px, 0) rotate(${body.angle}rad)`;
+        const nextOpacity = "1";
+        const nextZIndex = `${Math.round(body.position.y)}`;
+        const nextTransform = `translate3d(${Math.round((body.position.x - config.size / 2) * 10) / 10}px, ${Math.round((body.position.y - config.size / 2) * 10) / 10}px, 0) rotate(${Math.round(body.angle * 1000) / 1000}rad)`;
+        const previousRender = renderCache.get(config.key);
+
+        if (!previousRender || previousRender.opacity !== nextOpacity) {
+          ref.style.opacity = nextOpacity;
+        }
+        if (!previousRender || previousRender.zIndex !== nextZIndex) {
+          ref.style.zIndex = nextZIndex;
+        }
+        if (!previousRender || previousRender.transform !== nextTransform) {
+          ref.style.transform = nextTransform;
+        }
+
+        renderCache.set(config.key, {
+          opacity: nextOpacity,
+          transform: nextTransform,
+          zIndex: nextZIndex,
+        });
       });
 
       animationFrame = window.requestAnimationFrame(update);
