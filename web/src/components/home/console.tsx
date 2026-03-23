@@ -17,7 +17,13 @@ import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { SpotlightToken, AgentPile } from "@/components/home/agent-pile";
 import { ANIMATIONS } from "@/components/animations/animations";
 import { LottiePlayer } from "@/components/animations/lottiePlayer";
-import { HeroBlobShell, HeroInputShell } from "@/components/home/hero-blob-shell";
+import {
+  HeroActionOrbShell,
+  HeroActionPillShell,
+  HeroBlobShell,
+  HeroInputShell,
+  HeroSidePanelShell,
+} from "@/components/home/hero-blob-shell";
 import { DebugReferenceOverlay } from "@/components/home/reference-overlay-debug";
 
 interface AgentDirectoryProps {
@@ -121,6 +127,33 @@ function buildDecorativeTokens(
 }
 
 const MemoAgentPile = memo(AgentPile);
+
+const HeaderActionButton = memo(function HeaderActionButton({
+  active = false,
+  children,
+  onClick,
+}: {
+  active?: boolean;
+  children: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="transition-transform duration-300 hover:-translate-y-0.5"
+      onClick={onClick}
+      type="button"
+    >
+      <HeroActionPillShell active={active}>
+        <span className={cn(
+          "text-sm font-medium transition-colors",
+          active ? "text-white/96" : "text-white/72",
+        )}>
+          {children}
+        </span>
+      </HeroActionPillShell>
+    </button>
+  );
+});
 
 const HeroStage = memo(function HeroStage({
   currentAgentId,
@@ -272,81 +305,85 @@ const ContactsPopover = memo(function ContactsPopover({
   }, [agents, deferredQuery]);
 
   return (
-    <div className="absolute right-10 top-2 z-20 w-[340px] rounded-[22px] bg-[linear-gradient(180deg,rgba(251,252,248,0.96),rgba(245,247,242,0.94))] p-3 shadow-[0_24px_56px_rgba(90,102,80,0.12),0_2px_8px_rgba(90,102,80,0.04)] backdrop-blur-md">
-      <div className="flex items-center gap-2 rounded-[14px] bg-white/78 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(226,230,223,0.72)]">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <input
-          className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search contacts..."
-          value={query}
-        />
-      </div>
-
-      <div className="mt-3 space-y-1 px-1">
-        {filteredAgents.slice(0, 5).map((agent, index) => (
-          <div
-            key={agent.agent_id}
-            className={cn(
-              "flex items-center gap-3 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-white/60",
-              index === 1 && "bg-white/58",
-            )}
-          >
-            <button
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5f7f2]"
-              onClick={() => {
-                onClose();
-                onSelectAgent(agent.agent_id);
-              }}
-              type="button"
-            >
-              <span className="text-sm font-semibold text-foreground">
-                {getInitials(agent.name)}
-              </span>
-            </button>
-
-            <button
-              className="min-w-0 flex-1 text-left"
-              onClick={() => {
-                onClose();
-                onSelectAgent(agent.agent_id);
-              }}
-              type="button"
-            >
-              <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
-                <p className="truncate text-xs text-muted-foreground">
-                  {truncate(agent.workspace_path, 22)}
-                </p>
-              </div>
-            </button>
-
-            <div className="flex items-center gap-1">
-              <button
-                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/80 hover:text-primary"
-                onClick={() => onEditAgent(agent.agent_id)}
-                type="button"
-                aria-label="编辑 Agent 设置"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-              <button
-                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/80 hover:text-destructive"
-                onClick={() => onDeleteAgent(agent.agent_id)}
-                type="button"
-                aria-label="删除 Agent"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
+    <HeroSidePanelShell className="absolute right-6 top-0 z-20">
+      <div className="space-y-4">
+        <HeroInputShell className="w-full">
+          <div className="flex min-w-0 items-center gap-3">
+            <Search className="h-4 w-4 text-white/56" />
+            <input
+              className="flex-1 bg-transparent text-sm text-white/92 outline-none placeholder:text-white/38"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search contacts..."
+              value={query}
+            />
           </div>
-        ))}
+        </HeroInputShell>
 
-        <div className="mt-2 h-px w-full bg-[#e7ebe3]" />
+        <div className="space-y-2">
+          {filteredAgents.slice(0, 5).map((agent, index) => (
+            <div
+              key={agent.agent_id}
+              className={cn(
+                "flex items-center gap-3 rounded-[18px] bg-white/[0.05] px-3 py-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.09]",
+                index === 0 && "bg-white/[0.10]",
+              )}
+            >
+              <button
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/14 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-colors hover:bg-white/18"
+                onClick={() => {
+                  onClose();
+                  onSelectAgent(agent.agent_id);
+                }}
+                type="button"
+              >
+                <span className="text-sm font-semibold text-white/92">
+                  {getInitials(agent.name)}
+                </span>
+              </button>
+
+              <button
+                className="min-w-0 flex-1 text-left"
+                onClick={() => {
+                  onClose();
+                  onSelectAgent(agent.agent_id);
+                }}
+                type="button"
+              >
+                <p className="truncate text-sm font-semibold text-white/92">{agent.name}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
+                  <p className="truncate text-xs text-white/54">
+                    {truncate(agent.workspace_path, 22)}
+                  </p>
+                </div>
+              </button>
+
+              <div className="flex items-center gap-1">
+                <button
+                  className="rounded-full p-2 text-white/44 transition-colors hover:bg-white/10 hover:text-white/84"
+                  onClick={() => onEditAgent(agent.agent_id)}
+                  type="button"
+                  aria-label="编辑 Agent 设置"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+                <button
+                  className="rounded-full p-2 text-white/44 transition-colors hover:bg-white/10 hover:text-white/84"
+                  onClick={() => onDeleteAgent(agent.agent_id)}
+                  type="button"
+                  aria-label="删除 Agent"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="h-px w-full bg-white/10" />
 
         <button
-          className="flex w-full items-center gap-2 rounded-[14px] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/60"
+          className="flex w-full items-center gap-2 rounded-[18px] bg-white/[0.05] px-3 py-3 text-sm font-medium text-white/88 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.09]"
           onClick={onCreateAgent}
           type="button"
         >
@@ -354,7 +391,7 @@ const ContactsPopover = memo(function ContactsPopover({
           New Agent
         </button>
       </div>
-    </div>
+    </HeroSidePanelShell>
   );
 });
 
@@ -385,57 +422,61 @@ const RoomsPopover = memo(function RoomsPopover({
   }, [deferredQuery, sessionsWithOwners]);
 
   return (
-    <div className="absolute right-10 top-2 z-20 w-[360px] rounded-[22px] bg-[linear-gradient(180deg,rgba(251,252,248,0.96),rgba(245,247,242,0.94))] p-3 shadow-[0_24px_56px_rgba(90,102,80,0.12),0_2px_8px_rgba(90,102,80,0.04)] backdrop-blur-md">
-      <div className="flex items-center gap-2 rounded-[14px] bg-white/78 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(226,230,223,0.72)]">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <input
-          className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search rooms..."
-          value={query}
-        />
-      </div>
+    <HeroSidePanelShell className="absolute right-6 top-0 z-20">
+      <div className="space-y-4">
+        <HeroInputShell className="w-full">
+          <div className="flex min-w-0 items-center gap-3">
+            <Search className="h-4 w-4 text-white/56" />
+            <input
+              className="flex-1 bg-transparent text-sm text-white/92 outline-none placeholder:text-white/38"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search rooms..."
+              value={query}
+            />
+          </div>
+        </HeroInputShell>
 
-      <div className="mt-3 space-y-1 px-1">
-        {filteredRooms.slice(0, 4).map(({ session, owner }, index) => (
-          <button
-            key={session.session_key}
-            className={cn(
-              "flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition-colors hover:bg-white/60",
-              index === 1 && "bg-white/58",
-            )}
-            onClick={() => {
-              onClose();
-              onOpenSession(session.session_key, session.agent_id);
-            }}
-            type="button"
-          >
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                {truncate(session.title || "Untitled Room", 26)}
-              </p>
-              <p className="max-w-[210px] truncate text-xs text-muted-foreground">
-                {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-muted-foreground">
-                {formatRelativeTime(session.last_activity_at)}
-              </span>
-              {(session.message_count ?? 0) > 0 && (
-                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-foreground px-1.5 text-[9px] font-bold text-background">
-                  {Math.min(session.message_count ?? 0, 9)}
-                </span>
+        <div className="space-y-2">
+          {filteredRooms.slice(0, 4).map(({ session, owner }, index) => (
+            <button
+              key={session.session_key}
+              className={cn(
+                "flex w-full items-center justify-between rounded-[18px] bg-white/[0.05] px-3 py-3 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.09]",
+                index === 0 && "bg-white/[0.10]",
               )}
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </button>
-        ))}
+              onClick={() => {
+                onClose();
+                onOpenSession(session.session_key, session.agent_id);
+              }}
+              type="button"
+            >
+              <div>
+                <p className="text-sm font-semibold text-white/92">
+                  {truncate(session.title || "Untitled Room", 26)}
+                </p>
+                <p className="max-w-[210px] truncate text-xs text-white/52">
+                  {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-white/40">
+                  {formatRelativeTime(session.last_activity_at)}
+                </span>
+                {(session.message_count ?? 0) > 0 && (
+                  <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/16 px-1.5 text-[9px] font-bold text-white/92 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                    {Math.min(session.message_count ?? 0, 9)}
+                  </span>
+                )}
+                <ChevronRight className="h-4 w-4 text-white/40" />
+              </div>
+            </button>
+          ))}
+        </div>
 
-        <div className="mt-2 h-px w-full bg-[#e7ebe3]" />
+        <div className="h-px w-full bg-white/10" />
 
         <button
-          className="flex w-full items-center gap-2 rounded-[14px] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/60"
+          className="flex w-full items-center gap-2 rounded-[18px] bg-white/[0.05] px-3 py-3 text-sm font-medium text-white/88 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.09]"
           onClick={() => {
             onClose();
             if (recentRooms[0]) {
@@ -448,7 +489,7 @@ const RoomsPopover = memo(function RoomsPopover({
           New Room
         </button>
       </div>
-    </div>
+    </HeroSidePanelShell>
   );
 });
 
@@ -552,38 +593,34 @@ export function Console({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            className={cn(
-              "rounded-full bg-white/62 px-4 py-2 text-sm font-medium text-muted-foreground shadow-[0_3px_10px_rgba(90,102,80,0.03)] transition-all hover:bg-white/80 hover:text-foreground",
-              showContacts && "bg-white text-foreground shadow-[0_8px_18px_rgba(90,102,80,0.08)]",
-            )}
+          <HeaderActionButton
+            active={showContacts}
             onClick={() => {
               setShowContacts((current) => !current);
               setShowRooms(false);
             }}
-            type="button"
           >
             Contacts
-          </button>
-          <button
-            className={cn(
-              "rounded-full bg-white/62 px-4 py-2 text-sm font-medium text-muted-foreground shadow-[0_3px_10px_rgba(90,102,80,0.03)] transition-all hover:bg-white/80 hover:text-foreground",
-              showRooms && "bg-white text-foreground shadow-[0_8px_18px_rgba(90,102,80,0.08)]",
-            )}
+          </HeaderActionButton>
+          <HeaderActionButton
+            active={showRooms}
             onClick={() => {
               setShowRooms((current) => !current);
               setShowContacts(false);
             }}
-            type="button"
           >
             Rooms
-          </button>
+          </HeaderActionButton>
           <button
-            className="h-6 w-6 rounded-full bg-[#bff0ca] shadow-[0_0_0_1px_rgba(127,227,168,0.9),0_4px_12px_rgba(127,227,168,0.24)]"
+            className="transition-transform duration-300 hover:-translate-y-0.5"
             onClick={onCreateAgent}
             type="button"
             aria-label="创建 Agent"
-          />
+          >
+            <HeroActionOrbShell active>
+              <Plus className="h-4 w-4 text-white/92" />
+            </HeroActionOrbShell>
+          </button>
         </div>
       </div>
 
