@@ -120,6 +120,8 @@ function buildDecorativeTokens(
   return source.slice(0, 22);
 }
 
+const MemoAgentPile = memo(AgentPile);
+
 const HeroStage = memo(function HeroStage({
   currentAgentId,
   decorativeTokens,
@@ -230,7 +232,7 @@ const HeroStage = memo(function HeroStage({
         </div>
       </HeroBlobShell>
 
-      <AgentPile
+      <MemoAgentPile
         currentAgentId={currentAgentId}
         onSelectAgent={onSelectAgent}
         tokens={decorativeTokens}
