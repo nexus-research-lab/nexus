@@ -239,6 +239,217 @@ const HeroStage = memo(function HeroStage({
   );
 });
 
+const ContactsPopover = memo(function ContactsPopover({
+  agents,
+  onClose,
+  onCreateAgent,
+  onDeleteAgent,
+  onEditAgent,
+  onSelectAgent,
+}: {
+  agents: Agent[];
+  onClose: () => void;
+  onCreateAgent: () => void;
+  onDeleteAgent: (agentId: string) => void;
+  onEditAgent: (agentId: string) => void;
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const filteredAgents = useMemo(() => {
+    const keyword = deferredQuery.trim().toLowerCase();
+    if (!keyword) {
+      return agents;
+    }
+
+    return agents.filter((agent) =>
+      [agent.name, agent.workspace_path, agent.options.model ?? ""].some((field) =>
+        field.toLowerCase().includes(keyword),
+      ),
+    );
+  }, [agents, deferredQuery]);
+
+  return (
+    <div className="absolute right-10 top-2 z-20 w-[340px] rounded-[22px] bg-[linear-gradient(180deg,rgba(251,252,248,0.96),rgba(245,247,242,0.94))] p-3 shadow-[0_24px_56px_rgba(90,102,80,0.12),0_2px_8px_rgba(90,102,80,0.04)] backdrop-blur-md">
+      <div className="flex items-center gap-2 rounded-[14px] bg-white/78 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(226,230,223,0.72)]">
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <input
+          className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search contacts..."
+          value={query}
+        />
+      </div>
+
+      <div className="mt-3 space-y-1 px-1">
+        {filteredAgents.slice(0, 5).map((agent, index) => (
+          <div
+            key={agent.agent_id}
+            className={cn(
+              "flex items-center gap-3 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-white/60",
+              index === 1 && "bg-white/58",
+            )}
+          >
+            <button
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5f7f2]"
+              onClick={() => {
+                onClose();
+                onSelectAgent(agent.agent_id);
+              }}
+              type="button"
+            >
+              <span className="text-sm font-semibold text-foreground">
+                {getInitials(agent.name)}
+              </span>
+            </button>
+
+            <button
+              className="min-w-0 flex-1 text-left"
+              onClick={() => {
+                onClose();
+                onSelectAgent(agent.agent_id);
+              }}
+              type="button"
+            >
+              <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
+                <p className="truncate text-xs text-muted-foreground">
+                  {truncate(agent.workspace_path, 22)}
+                </p>
+              </div>
+            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/80 hover:text-primary"
+                onClick={() => onEditAgent(agent.agent_id)}
+                type="button"
+                aria-label="编辑 Agent 设置"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              <button
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/80 hover:text-destructive"
+                onClick={() => onDeleteAgent(agent.agent_id)}
+                type="button"
+                aria-label="删除 Agent"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <div className="mt-2 h-px w-full bg-[#e7ebe3]" />
+
+        <button
+          className="flex w-full items-center gap-2 rounded-[14px] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/60"
+          onClick={onCreateAgent}
+          type="button"
+        >
+          <Plus className="h-4 w-4" />
+          New Agent
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const RoomsPopover = memo(function RoomsPopover({
+  onClose,
+  onOpenSession,
+  recentRooms,
+  sessionsWithOwners,
+}: {
+  onClose: () => void;
+  onOpenSession: (sessionKey: string, agentId?: string) => void;
+  recentRooms: SessionWithOwner[];
+  sessionsWithOwners: SessionWithOwner[];
+}) {
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const filteredRooms = useMemo(() => {
+    const keyword = deferredQuery.trim().toLowerCase();
+    if (!keyword) {
+      return sessionsWithOwners;
+    }
+
+    return sessionsWithOwners.filter(({ session, owner }) =>
+      [session.title, owner?.name ?? ""].some((field) =>
+        field.toLowerCase().includes(keyword),
+      ),
+    );
+  }, [deferredQuery, sessionsWithOwners]);
+
+  return (
+    <div className="absolute right-10 top-2 z-20 w-[360px] rounded-[22px] bg-[linear-gradient(180deg,rgba(251,252,248,0.96),rgba(245,247,242,0.94))] p-3 shadow-[0_24px_56px_rgba(90,102,80,0.12),0_2px_8px_rgba(90,102,80,0.04)] backdrop-blur-md">
+      <div className="flex items-center gap-2 rounded-[14px] bg-white/78 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(226,230,223,0.72)]">
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <input
+          className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search rooms..."
+          value={query}
+        />
+      </div>
+
+      <div className="mt-3 space-y-1 px-1">
+        {filteredRooms.slice(0, 4).map(({ session, owner }, index) => (
+          <button
+            key={session.session_key}
+            className={cn(
+              "flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition-colors hover:bg-white/60",
+              index === 1 && "bg-white/58",
+            )}
+            onClick={() => {
+              onClose();
+              onOpenSession(session.session_key, session.agent_id);
+            }}
+            type="button"
+          >
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                {truncate(session.title || "Untitled Room", 26)}
+              </p>
+              <p className="max-w-[210px] truncate text-xs text-muted-foreground">
+                {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-muted-foreground">
+                {formatRelativeTime(session.last_activity_at)}
+              </span>
+              {(session.message_count ?? 0) > 0 && (
+                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-foreground px-1.5 text-[9px] font-bold text-background">
+                  {Math.min(session.message_count ?? 0, 9)}
+                </span>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+        ))}
+
+        <div className="mt-2 h-px w-full bg-[#e7ebe3]" />
+
+        <button
+          className="flex w-full items-center gap-2 rounded-[14px] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/60"
+          onClick={() => {
+            onClose();
+            if (recentRooms[0]) {
+              onOpenSession(recentRooms[0].session.session_key, recentRooms[0].session.agent_id);
+            }
+          }}
+          type="button"
+        >
+          <Plus className="h-4 w-4" />
+          New Room
+        </button>
+      </div>
+    </div>
+  );
+});
+
 export function Console({
   agents,
   sessions,
@@ -252,10 +463,6 @@ export function Console({
   const [query, setQuery] = useState("");
   const [showContacts, setShowContacts] = useState(false);
   const [showRooms, setShowRooms] = useState(false);
-  const [contactsQuery, setContactsQuery] = useState("");
-  const [roomsQuery, setRoomsQuery] = useState("");
-  const deferredContactsQuery = useDeferredValue(contactsQuery);
-  const deferredRoomsQuery = useDeferredValue(roomsQuery);
 
   const agentsById = useMemo(
     () => new Map(agents.map((agent) => [agent.agent_id, agent])),
@@ -277,30 +484,6 @@ export function Console({
     () => buildDecorativeTokens(agents, sessionsWithOwners),
     [agents, sessionsWithOwners],
   );
-
-  const filteredContacts = useMemo(() => {
-    const keyword = deferredContactsQuery.trim().toLowerCase();
-    if (!keyword) {
-      return agents;
-    }
-    return agents.filter((agent) =>
-      [agent.name, agent.workspace_path, agent.options.model ?? ""].some((field) =>
-        field.toLowerCase().includes(keyword),
-      ),
-    );
-  }, [agents, deferredContactsQuery]);
-
-  const filteredRooms = useMemo(() => {
-    const keyword = deferredRoomsQuery.trim().toLowerCase();
-    if (!keyword) {
-      return sessionsWithOwners;
-    }
-    return sessionsWithOwners.filter(({ session, owner }) =>
-      [session.title, owner?.name ?? ""].some((field) =>
-        field.toLowerCase().includes(keyword),
-      ),
-    );
-  }, [deferredRoomsQuery, sessionsWithOwners]);
 
   const handleSubmit = useCallback(() => {
     const trimmed = query.trim();
@@ -404,156 +587,23 @@ export function Console({
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-8 pb-8 pt-6">
         {showContacts && (
-          <div className="absolute right-10 top-2 z-20 w-[340px] rounded-[22px] bg-[linear-gradient(180deg,rgba(251,252,248,0.96),rgba(245,247,242,0.94))] p-3 shadow-[0_24px_56px_rgba(90,102,80,0.12),0_2px_8px_rgba(90,102,80,0.04)] backdrop-blur-md">
-            <div className="flex items-center gap-2 rounded-[14px] bg-white/78 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(226,230,223,0.72)]">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <input
-                className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                onChange={(event) => setContactsQuery(event.target.value)}
-                placeholder="Search contacts..."
-                value={contactsQuery}
-              />
-            </div>
-
-            <div className="mt-3 space-y-1 px-1">
-              {filteredContacts.slice(0, 5).map((agent, index) => (
-                <div
-                  key={agent.agent_id}
-                  className={cn(
-                    "flex items-center gap-3 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-white/60",
-                    index === 1 && "bg-white/58",
-                  )}
-                >
-                  <button
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5f7f2]"
-                    onClick={() => {
-                      setShowContacts(false);
-                      onSelectAgent(agent.agent_id);
-                    }}
-                    type="button"
-                  >
-                    <span className="text-sm font-semibold text-foreground">
-                      {getInitials(agent.name)}
-                    </span>
-                  </button>
-
-                  <button
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => {
-                      setShowContacts(false);
-                      onSelectAgent(agent.agent_id);
-                    }}
-                    type="button"
-                  >
-                    <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
-                      <p className="truncate text-xs text-muted-foreground">
-                        {truncate(agent.workspace_path, 22)}
-                      </p>
-                    </div>
-                  </button>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/80 hover:text-primary"
-                      onClick={() => onEditAgent(agent.agent_id)}
-                      type="button"
-                      aria-label="编辑 Agent 设置"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
-                    <button
-                      className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/80 hover:text-destructive"
-                      onClick={() => onDeleteAgent(agent.agent_id)}
-                      type="button"
-                      aria-label="删除 Agent"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              <div className="mt-2 h-px w-full bg-[#e7ebe3]" />
-
-              <button
-                className="flex w-full items-center gap-2 rounded-[14px] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/60"
-                onClick={onCreateAgent}
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-                New Agent
-              </button>
-            </div>
-          </div>
+          <ContactsPopover
+            agents={agents}
+            onClose={() => setShowContacts(false)}
+            onCreateAgent={onCreateAgent}
+            onDeleteAgent={onDeleteAgent}
+            onEditAgent={onEditAgent}
+            onSelectAgent={onSelectAgent}
+          />
         )}
 
         {showRooms && (
-          <div className="absolute right-10 top-2 z-20 w-[360px] rounded-[22px] bg-[linear-gradient(180deg,rgba(251,252,248,0.96),rgba(245,247,242,0.94))] p-3 shadow-[0_24px_56px_rgba(90,102,80,0.12),0_2px_8px_rgba(90,102,80,0.04)] backdrop-blur-md">
-            <div className="flex items-center gap-2 rounded-[14px] bg-white/78 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(226,230,223,0.72)]">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <input
-                className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                onChange={(event) => setRoomsQuery(event.target.value)}
-                placeholder="Search rooms..."
-                value={roomsQuery}
-              />
-            </div>
-
-            <div className="mt-3 space-y-1 px-1">
-              {filteredRooms.slice(0, 4).map(({ session, owner }, index) => (
-                <button
-                  key={session.session_key}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition-colors hover:bg-white/60",
-                    index === 1 && "bg-white/58",
-                  )}
-                  onClick={() => {
-                    setShowRooms(false);
-                    onOpenSession(session.session_key, session.agent_id);
-                  }}
-                  type="button"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {truncate(session.title || "Untitled Room", 26)}
-                    </p>
-                    <p className="max-w-[210px] truncate text-xs text-muted-foreground">
-                      {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatRelativeTime(session.last_activity_at)}
-                    </span>
-                    {(session.message_count ?? 0) > 0 && (
-                      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-foreground px-1.5 text-[9px] font-bold text-background">
-                        {Math.min(session.message_count ?? 0, 9)}
-                      </span>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
-
-              <div className="mt-2 h-px w-full bg-[#e7ebe3]" />
-
-              <button
-                className="flex w-full items-center gap-2 rounded-[14px] px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/60"
-                onClick={() => {
-                  setShowRooms(false);
-                  if (recentRooms[0]) {
-                    onOpenSession(recentRooms[0].session.session_key, recentRooms[0].session.agent_id);
-                  }
-                }}
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-                New Room
-              </button>
-            </div>
-          </div>
+          <RoomsPopover
+            onClose={() => setShowRooms(false)}
+            onOpenSession={onOpenSession}
+            recentRooms={recentRooms}
+            sessionsWithOwners={sessionsWithOwners}
+          />
         )}
 
         <HeroStage
