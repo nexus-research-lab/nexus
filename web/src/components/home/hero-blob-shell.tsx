@@ -46,13 +46,14 @@ export function HeroBlobShell({children, className}: HeroBlobShellProps) {
       <div className={cn("relative isolate w-full max-w-[980px]", className)}>
         <div className="absolute inset-[-20%] z-0">
           <div
-            className="absolute inset-x-[10%] bottom-[18%] h-24 rounded-full bg-[radial-gradient(circle,rgba(133,119,255,0.26),rgba(133,119,255,0)_74%)] blur-3xl"/>
-          <div
-            className="absolute right-[10%] top-[18%] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(118,231,206,0.18),rgba(118,231,206,0)_76%)] blur-3xl"/>
-          <div
-            className="absolute left-[10%] top-[34%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(255,190,122,0.14),rgba(255,190,122,0)_76%)] blur-3xl"/>
-          <div
-            className="absolute inset-x-[16%] top-[10%] h-20 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.12),rgba(255,255,255,0)_74%)] blur-2xl"/>
+            className="absolute inset-0 pointer-events-none blur-[56px]"
+            style={{
+              background: `radial-gradient(30% 16% at 50% 82%, rgba(133,119,255,0.26), rgba(133,119,255,0) 74%),
+                radial-gradient(12% 20% at 86% 22%, rgba(118,231,206,0.18), rgba(118,231,206,0) 76%),
+                radial-gradient(12% 18% at 14% 38%, rgba(255,190,122,0.14), rgba(255,190,122,0) 76%),
+                radial-gradient(40% 12% at 50% 12%, rgba(255,255,255,0.12), rgba(255,255,255,0) 74%)`,
+            }}
+          />
 
           <svg
             aria-hidden="true"
