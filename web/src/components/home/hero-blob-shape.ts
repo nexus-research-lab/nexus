@@ -7,10 +7,13 @@ export interface BlobPoint {
 
 export const OUTER_STORAGE_KEY = "nexus-home-blob-points";
 export const INPUT_STORAGE_KEY = "nexus-home-input-blob-points";
+export const SIDE_PANEL_STORAGE_KEY = "nexus-home-side-panel-blob-points";
 export const OUTER_VIEWBOX_WIDTH = 1040;
 export const OUTER_VIEWBOX_HEIGHT = 760;
 export const INPUT_VIEWBOX_WIDTH = 760;
 export const INPUT_VIEWBOX_HEIGHT = 180;
+export const SIDE_PANEL_VIEWBOX_WIDTH = 420;
+export const SIDE_PANEL_VIEWBOX_HEIGHT = 620;
 
 export const DEFAULT_OUTER_POINTS: BlobPoint[] = [
   {"x": 340.6696428571429, "y": 210.5098285236303},
@@ -45,6 +48,26 @@ export const DEFAULT_INPUT_POINTS: BlobPoint[] = [
   {"x": 415.19824218749994, "y": 142.314453125},
   {"x": 265.30729166666663, "y": 147.03125},
   {"x": 138.7705078125, "y": 146.533203125}
+];
+
+export const DEFAULT_SIDE_PANEL_POINTS: BlobPoint[] = [
+  {"x": 16, "y": 66.0382326007326},
+  {"x": 64.67578125, "y": 16},
+  {"x": 159.45703125, "y": 16},
+  {"x": 267.392578125, "y": 16},
+  {"x": 350.712890625, "y": 16},
+  {"x": 395.4375, "y": 47.50530660377358},
+  {"x": 404, "y": 154.93790064102564},
+  {"x": 404, "y": 251.5201465201465},
+  {"x": 404, "y": 404.8789491758242},
+  {"x": 400.880859375, "y": 573.5851648351648},
+  {"x": 349.04296875, "y": 604},
+  {"x": 222.59179687500003, "y": 604},
+  {"x": 149.6484375, "y": 604},
+  {"x": 69.005859375, "y": 604},
+  {"x": 16, "y": 555.3811813186813},
+  {"x": 16, "y": 401.44574175824175},
+  {"x": 16, "y": 218.6429716117216}
 ];
 
 export function clamp(value: number, min: number, max: number): number {

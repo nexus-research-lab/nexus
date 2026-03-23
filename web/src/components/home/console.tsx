@@ -324,7 +324,7 @@ const ContactsPopover = memo(function ContactsPopover({
             <div
               key={agent.agent_id}
               className={cn(
-                "flex items-center gap-3 rounded-[18px] bg-white/[0.05] px-3 py-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.09]",
+                "flex items-center gap-3 rounded-[18px] bg-white/[0.05] px-2 py-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.09]",
                 index === 0 && "bg-white/[0.10]",
               )}
             >

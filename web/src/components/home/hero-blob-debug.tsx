@@ -114,6 +114,7 @@ export function BlobDebugPanel({
   const targetLabels: Record<BlobDebugTarget, string> = {
     hero: "Hero",
     input: "Input",
+    panel: "Panel",
   };
 
   return (
@@ -156,6 +157,18 @@ export function BlobDebugPanel({
           type="button"
         >
           编辑 Input
+        </button>
+        <button
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-[11px] transition-colors",
+            target === "panel"
+              ? "border-white/28 bg-white/12 text-white"
+              : "border-white/14 text-white/62 hover:text-white",
+          )}
+          onClick={() => setTarget("panel")}
+          type="button"
+        >
+          编辑 Panel
         </button>
       </div>
 
