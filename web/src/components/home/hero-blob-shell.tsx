@@ -10,12 +10,16 @@ import {
   createInnerPoints,
   DEFAULT_INPUT_POINTS,
   DEFAULT_OUTER_POINTS,
+  DEFAULT_SIDE_PANEL_POINTS,
   INPUT_STORAGE_KEY,
   INPUT_VIEWBOX_HEIGHT,
   INPUT_VIEWBOX_WIDTH,
   OUTER_STORAGE_KEY,
   OUTER_VIEWBOX_HEIGHT,
   OUTER_VIEWBOX_WIDTH,
+  SIDE_PANEL_STORAGE_KEY,
+  SIDE_PANEL_VIEWBOX_HEIGHT,
+  SIDE_PANEL_VIEWBOX_WIDTH,
 } from "@/components/home/hero-blob-shape";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +45,7 @@ interface StaticGlassShellProps {
   outerGlowWidth?: number;
   path: string;
   stroke: string;
+  svgOverlay?: ReactNode;
   viewBoxHeight: number;
   viewBoxWidth: number;
 }
@@ -56,30 +61,6 @@ interface HeroActionOrbShellProps {
   children: ReactNode;
   className?: string;
 }
-
-const SIDE_PANEL_VIEWBOX_WIDTH = 420;
-const SIDE_PANEL_VIEWBOX_HEIGHT = 620;
-const SIDE_PANEL_POINTS: BlobPoint[] = [
-  {x: 62, y: 102},
-  {x: 76, y: 44},
-  {x: 162, y: 22},
-  {x: 268, y: 28},
-  {x: 334, y: 52},
-  {x: 352, y: 116},
-  {x: 342, y: 204},
-  {x: 350, y: 310},
-  {x: 346, y: 432},
-  {x: 330, y: 534},
-  {x: 274, y: 580},
-  {x: 184, y: 592},
-  {x: 104, y: 576},
-  {x: 70, y: 520},
-  {x: 56, y: 428},
-  {x: 52, y: 300},
-  {x: 58, y: 176},
-];
-const SIDE_PANEL_PATH = createClosedSplinePath(SIDE_PANEL_POINTS);
-const SIDE_PANEL_INNER_PATH = createClosedSplinePath(createInnerPoints(SIDE_PANEL_POINTS, 0.958, 0.95));
 
 const ACTION_PILL_VIEWBOX_WIDTH = 220;
 const ACTION_PILL_VIEWBOX_HEIGHT = 86;
@@ -126,6 +107,7 @@ function StaticGlassShell({
   outerGlowWidth = 18,
   path,
   stroke,
+  svgOverlay,
   viewBoxHeight,
   viewBoxWidth,
 }: StaticGlassShellProps) {
@@ -196,6 +178,8 @@ function StaticGlassShell({
         />
       </svg>
 
+      {svgOverlay}
+
       <div className={cn("relative z-10", contentClassName)}>
         {children}
       </div>
@@ -204,21 +188,82 @@ function StaticGlassShell({
 }
 
 export function HeroSidePanelShell({children, className}: HeroBlobShellProps) {
+  const panel = useEditableShape({
+    defaultPoints: DEFAULT_SIDE_PANEL_POINTS,
+    storageKey: SIDE_PANEL_STORAGE_KEY,
+    viewBoxHeight: SIDE_PANEL_VIEWBOX_HEIGHT,
+    viewBoxWidth: SIDE_PANEL_VIEWBOX_WIDTH,
+  });
+  const {setTarget, target} = useBlobDebugTarget();
+  const activeShape = target === "panel" ? panel : null;
+  const innerPath = createClosedSplinePath(createInnerPoints(panel.points, 0.958, 0.95));
+
   return (
-    <StaticGlassShell
-      className={cn("w-[360px]", className)}
-      contentClassName="px-6 py-7"
-      fill="rgba(255,255,255,0.08)"
-      innerFill="rgba(255,255,255,0.04)"
-      innerPath={SIDE_PANEL_INNER_PATH}
-      innerStroke="rgba(255,255,255,0.08)"
-      path={SIDE_PANEL_PATH}
-      stroke="rgba(255,255,255,0.28)"
-      viewBoxHeight={SIDE_PANEL_VIEWBOX_HEIGHT}
-      viewBoxWidth={SIDE_PANEL_VIEWBOX_WIDTH}
-    >
-      {children}
-    </StaticGlassShell>
+    <>
+      <StaticGlassShell
+        className={cn("w-[280px]", className)}
+        contentClassName="px-6 py-7"
+        fill={panel.debugEnabled ? "rgba(37,55,88,0.5)" : "rgba(255,255,255,0.08)"}
+        innerFill={panel.debugEnabled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"}
+        innerPath={innerPath}
+        innerStroke={panel.debugEnabled ? "rgba(170,226,255,0.22)" : "rgba(255,255,255,0.08)"}
+        path={panel.path}
+        stroke={panel.debugEnabled ? "rgba(170,226,255,0.42)" : "rgba(255,255,255,0.28)"}
+        svgOverlay={panel.debugEnabled ? (
+          <BlobDebugController
+            active={target === "panel"}
+            color="rgba(170,226,255,0.92)"
+            currentTarget={target}
+            enabled={panel.debugEnabled}
+            fill="transparent"
+            onCopy={async () => {
+              await navigator.clipboard.writeText(panel.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
+            }}
+            onPathDoubleClick={panel.handlePathDoubleClick}
+            onPointPointerDown={panel.handlePointPointerDown}
+            onPointPointerUp={panel.handlePointPointerUp}
+            onReset={() => {
+              localStorage.removeItem(SIDE_PANEL_STORAGE_KEY);
+              panel.setPoints(DEFAULT_SIDE_PANEL_POINTS);
+            }}
+            panelClassName="bottom-4 left-4"
+            path={panel.path}
+            points={panel.points}
+            setTarget={setTarget}
+            showPanel={false}
+            stroke="transparent"
+            strokeWidth={10}
+            svgRef={panel.svgRef}
+            target="panel"
+            title="Panel Shape"
+            viewBoxHeight={SIDE_PANEL_VIEWBOX_HEIGHT}
+            viewBoxWidth={SIDE_PANEL_VIEWBOX_WIDTH}
+          />
+        ) : null}
+        viewBoxHeight={SIDE_PANEL_VIEWBOX_HEIGHT}
+        viewBoxWidth={SIDE_PANEL_VIEWBOX_WIDTH}
+      >
+        {children}
+      </StaticGlassShell>
+
+      {panel.debugEnabled && activeShape && (
+        <BlobDebugPanel
+          currentTarget={target}
+          onCopy={async () => {
+            await navigator.clipboard.writeText(activeShape.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
+          }}
+          onReset={() => {
+            localStorage.removeItem(SIDE_PANEL_STORAGE_KEY);
+            panel.setPoints(DEFAULT_SIDE_PANEL_POINTS);
+          }}
+          panelClassName="bottom-4 left-4"
+          points={activeShape.points}
+          setTarget={setTarget}
+          target={target}
+          title="Blob Shape"
+        />
+      )}
+    </>
   );
 }
 

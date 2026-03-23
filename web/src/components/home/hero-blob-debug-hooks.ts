@@ -10,7 +10,7 @@ import {
   parsePoints,
 } from "@/components/home/hero-blob-shape";
 
-export type BlobDebugTarget = "hero" | "input";
+export type BlobDebugTarget = "hero" | "input" | "panel";
 
 interface EditableShapeOptions {
   defaultPoints: BlobPoint[];
@@ -20,6 +20,10 @@ interface EditableShapeOptions {
 }
 
 const DEBUG_TARGET_STORAGE_KEY = "nexus-home-blob-debug-target";
+
+function isBlobDebugTarget(value: string | null): value is BlobDebugTarget {
+  return value === "hero" || value === "input" || value === "panel";
+}
 
 export function useBlobDebugEnabled(): boolean {
   const [enabled, setEnabled] = useState(false);
@@ -37,13 +41,13 @@ export function useBlobDebugTarget() {
 
   useEffect(() => {
     const persisted = window.localStorage.getItem(DEBUG_TARGET_STORAGE_KEY);
-    if (persisted === "hero" || persisted === "input") {
+    if (isBlobDebugTarget(persisted)) {
       setTargetState(persisted);
     }
 
     const handleTargetChange = (event: Event) => {
       const nextTarget = (event as CustomEvent<BlobDebugTarget>).detail;
-      if (nextTarget === "hero" || nextTarget === "input") {
+      if (isBlobDebugTarget(nextTarget)) {
         setTargetState(nextTarget);
       }
     };
