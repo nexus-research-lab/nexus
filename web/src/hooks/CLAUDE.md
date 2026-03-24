@@ -8,8 +8,8 @@ L2 | 父级: web/CLAUDE.md
 - `agent/index.ts`: hooks/agent 目录导出入口
 - `agent/message-helpers.ts`: 消息归并与排序辅助
 - `agent/websocket-event-handler.ts`: WebSocket 事件分发
-- `agent/session-actions.ts`: 对话动作层
-- `agent/session-lifecycle.ts`: 对话生命周期处理
+- `agent/conversation-actions.ts`: 对话动作层
+- `agent/conversation-lifecycle.ts`: 对话生命周期处理
 - `use-extract-todos.ts`: 从消息中提取 TodoItem 的 Hook
 - `use-initialize-conversations.ts`: 初始化对话列表的 Hook（hydration 控制）
 - `use-conversation-loader.ts`: 响应式对话加载 Hook

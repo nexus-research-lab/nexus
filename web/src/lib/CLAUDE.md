@@ -4,7 +4,7 @@ L2 | 父级: web/CLAUDE.md
 
 ## 成员清单
 
-- `agent-api.ts`: Session CRUD + 消息/成本/轮次 API 封装
+- `agent-api.ts`: Conversation CRUD + 消息/成本/轮次 API 封装
 - `agent-manage-api.ts`: Agent CRUD + Workspace 文件操作 + 名称校验 API 封装
 - `utils.ts`: 通用工具函数（cn/格式化/截断）
 - `websocket/index.ts`: WebSocket 模块统一导出
