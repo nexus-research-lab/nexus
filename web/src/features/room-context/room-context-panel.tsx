@@ -46,18 +46,18 @@ export function RoomContextPanel({
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         <RoomMemberSummaryCard
           agent={agent}
-          localizedRuntimeStatus={localized_runtime_status}
-          modelName={model_name}
-          onEditAgent={on_edit_agent}
-          runtimeStatus={runtime_status}
+          localized_runtime_status={localized_runtime_status}
+          model_name={model_name}
+          on_edit_agent={on_edit_agent}
+          runtime_status={runtime_status}
         />
 
         <RoomCollaborationStatusSection
-          activeConversation={current_conversation}
-          localizedAgentSkill={localized_agent_skill}
-          localizedRuntimeStatus={localized_runtime_status}
-          modelName={model_name}
-          totalRoomCount={sessions.length}
+          active_conversation={current_conversation}
+          localized_agent_skill={localized_agent_skill}
+          localized_runtime_status={localized_runtime_status}
+          model_name={model_name}
+          total_room_count={sessions.length}
         />
 
         <RoomProgressSection todos={todos} />
@@ -68,10 +68,10 @@ export function RoomContextPanel({
         />
 
         <RoomWorkspaceContextSection
-          allowedToolCount={agent.options.allowed_tools?.length ?? 0}
-          localizedAgentSkill={localized_agent_skill}
-          permissionMode={agent.options.permission_mode || "default"}
-          servedRoomCount={sessions.length}
+          allowed_tool_count={agent.options.allowed_tools?.length ?? 0}
+          localized_agent_skill={localized_agent_skill}
+          permission_mode={agent.options.permission_mode || "default"}
+          served_room_count={sessions.length}
         />
       </div>
     </aside>

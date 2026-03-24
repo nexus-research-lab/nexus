@@ -529,11 +529,11 @@ export function RoomSidebarPanel({
   return (
     <aside className={`flex min-h-0 flex-col bg-transparent ${HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS}`}>
       <RoomSidebarHeader
-        activeRoomTitle={active_room_title}
-        currentAgentName={agent.name}
-        isRefreshing={is_loading_files}
-        onOpenDirectory={on_open_directory}
-        onRefresh={() => void load_files()}
+        active_room_title={active_room_title}
+        current_agent_name={agent.name}
+        is_refreshing={is_loading_files}
+        on_open_directory={on_open_directory}
+        on_refresh={() => void load_files()}
       />
 
       <div className="soft-scrollbar flex-1 overflow-y-auto">

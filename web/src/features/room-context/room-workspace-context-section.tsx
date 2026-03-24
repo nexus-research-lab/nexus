@@ -1,17 +1,17 @@
 import { ShieldCheck } from "lucide-react";
 
 interface RoomWorkspaceContextSectionProps {
-  allowedToolCount: number;
-  localizedAgentSkill: string;
-  permissionMode: string;
-  servedRoomCount: number;
+  allowed_tool_count: number;
+  localized_agent_skill: string;
+  permission_mode: string;
+  served_room_count: number;
 }
 
 export function RoomWorkspaceContextSection({
-  allowedToolCount,
-  localizedAgentSkill,
-  permissionMode,
-  servedRoomCount,
+  allowed_tool_count,
+  localized_agent_skill,
+  permission_mode,
+  served_room_count,
 }: RoomWorkspaceContextSectionProps) {
   return (
     <section className="px-4 py-4">
@@ -23,25 +23,25 @@ export function RoomWorkspaceContextSection({
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-slate-700/54">技能画像</span>
           <span className="text-[11px] font-medium text-slate-900/84">
-            {localizedAgentSkill}
+            {localized_agent_skill}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-slate-700/54">可用工具</span>
           <span className="text-[11px] font-medium text-slate-900/84">
-            {allowedToolCount}
+            {allowed_tool_count}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-slate-700/54">权限模式</span>
           <span className="text-[11px] font-medium text-slate-900/84">
-            {permissionMode}
+            {permission_mode}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-slate-700/54">服务中的 room</span>
           <span className="text-[11px] font-medium text-slate-900/84">
-            {servedRoomCount}
+            {served_room_count}
           </span>
         </div>
       </div>

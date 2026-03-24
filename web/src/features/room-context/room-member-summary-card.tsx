@@ -3,18 +3,18 @@ import { cn } from "@/lib/utils";
 
 interface RoomMemberSummaryCardProps {
   agent: Agent;
-  modelName: string;
-  runtimeStatus: "Running" | "Idle" | "Active";
-  localizedRuntimeStatus: string;
-  onEditAgent: (agentId: string) => void;
+  model_name: string;
+  runtime_status: "Running" | "Idle" | "Active";
+  localized_runtime_status: string;
+  on_edit_agent: (agent_id: string) => void;
 }
 
 export function RoomMemberSummaryCard({
   agent,
-  modelName,
-  runtimeStatus,
-  localizedRuntimeStatus,
-  onEditAgent,
+  model_name,
+  runtime_status,
+  localized_runtime_status,
+  on_edit_agent,
 }: RoomMemberSummaryCardProps) {
   return (
     <section className="border-b workspace-divider px-4 py-4">
@@ -28,26 +28,26 @@ export function RoomMemberSummaryCard({
               {agent.name}
             </p>
             <p className="mt-1 text-[12px] text-slate-700/54">
-              当前 room 的执行成员 · {modelName}
+              当前 room 的执行成员 · {model_name}
             </p>
           </div>
 
           <div className="flex flex-col items-end gap-2">
             <span className={cn(
               "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold",
-              runtimeStatus === "Running"
+              runtime_status === "Running"
                 ? "bg-emerald-100 text-emerald-700"
-                : runtimeStatus === "Idle"
+                : runtime_status === "Idle"
                   ? "bg-slate-200 text-slate-700"
                   : "bg-emerald-100 text-emerald-700",
             )}>
               <span className="h-2 w-2 rounded-full bg-current" />
-              {localizedRuntimeStatus}
+              {localized_runtime_status}
             </span>
             <button
               aria-label="打开 Agent 设置"
               className="workspace-chip inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[11px] font-semibold text-slate-900/84 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
-              onClick={() => onEditAgent(agent.agent_id)}
+              onClick={() => on_edit_agent(agent.agent_id)}
               type="button"
             >
               设置

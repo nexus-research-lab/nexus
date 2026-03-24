@@ -301,25 +301,25 @@ export function RoomChatPanel({
             onWheel={handle_wheel}
           >
             <RoomConversationFeed
-              bottomAnchorRef={bottom_anchor_ref}
-              currentAgentName={current_agent_name ?? null}
-              isLastRoundPendingPermission={pending_permission}
-              isLoading={is_loading}
-              isMobileLayout={is_mobile_layout}
-              messageGroups={message_groups}
-              onDeleteRound={delete_round}
-              onOpenWorkspaceFile={on_open_workspace_file}
-              onPermissionResponse={send_permission_response}
-              onRegenerateRound={regenerate}
-              roundIds={round_ids}
+              bottom_anchor_ref={bottom_anchor_ref}
+              current_agent_name={current_agent_name ?? null}
+              is_last_round_pending_permission={pending_permission}
+              is_loading={is_loading}
+              is_mobile_layout={is_mobile_layout}
+              message_groups={message_groups}
+              on_delete_round={delete_round}
+              on_open_workspace_file={on_open_workspace_file}
+              on_permission_response={send_permission_response}
+              on_regenerate_round={regenerate}
+              round_ids={round_ids}
             />
           </div>
 
           {show_scroll_to_bottom ? (
             <RoomScrollToLatestButton
-              isLoading={is_loading}
-              isMobileLayout={is_mobile_layout}
-              onClick={handle_jump_to_bottom}
+              is_loading={is_loading}
+              is_mobile_layout={is_mobile_layout}
+              on_click={handle_jump_to_bottom}
             />
           ) : null}
 
