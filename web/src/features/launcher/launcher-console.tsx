@@ -17,10 +17,10 @@ import {
   HeroBlobShell,
   HeroInputShell,
   HeroSidePanelShell,
-} from "@/features/launcher-search/launcher-glass-shell";
-import { DebugReferenceOverlay } from "@/features/launcher-search/launcher-reference-overlay-debug";
+} from "@/features/launcher/launcher-glass-shell";
+import { DebugReferenceOverlay } from "@/features/launcher/launcher-reference-overlay-debug";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
-import { ANIMATIONS } from "@/shared/ui/animation-assets";
+import { ANIMATIONS } from "@/config/animation-assets";
 import { LottiePlayer } from "@/shared/ui/lottie-player";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
@@ -637,7 +637,7 @@ export function LauncherConsole({
               setShowContacts(false);
             }}
           >
-            Recent Rooms
+            Rooms
           </HeaderActionButton>
           <HeaderActionButton on_click={on_open_nexus}>Nexus</HeaderActionButton>
           <button

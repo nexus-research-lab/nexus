@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 
-import { ContactsDirectory } from "@/features/contacts-list/contacts-directory";
+import { ContactsDirectory } from "@/features/contacts/contacts-directory";
 import { RouteScaffold } from "@/shared/ui/route-scaffold";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";

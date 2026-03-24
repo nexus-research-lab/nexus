@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { BlobPoint } from "@/types/launcher";
-import { type BlobDebugTarget } from "@/features/launcher-search/launcher-blob-debug-hooks";
+import { type BlobDebugTarget } from "@/features/launcher/launcher-blob-debug-hooks";
 
 interface BlobDebugPanelProps {
   count_label?: string;

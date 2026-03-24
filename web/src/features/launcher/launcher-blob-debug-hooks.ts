@@ -7,7 +7,7 @@ import {
   createClosedSplinePath,
   findNearestSegmentIndex,
   parsePoints,
-} from "@/features/launcher-search/launcher-blob-shape";
+} from "@/features/launcher/launcher-blob-shape";
 import { BlobPoint } from "@/types/launcher";
 
 export type BlobDebugTarget = "hero" | "input" | "panel";

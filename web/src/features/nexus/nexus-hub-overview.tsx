@@ -173,7 +173,7 @@ export function NexusHubOverview({
 
       <aside className="workspace-card flex flex-col rounded-[30px] px-6 py-6">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-          Recent Rooms
+          Rooms
         </p>
         <p className="mt-2 text-sm leading-6 text-slate-700/60">
           从系统层面继续最近活跃的协作空间，而不是在 room 页里承担全局编排。

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 
-import { NexusHubOverview } from "@/features/nexus-chat/nexus-hub-overview";
+import { NexusHubOverview } from "@/features/nexus/nexus-hub-overview";
 import { RouteScaffold } from "@/shared/ui/route-scaffold";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";

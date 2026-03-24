@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { LauncherConsole } from "@/features/launcher-search/launcher-console";
+import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";

@@ -17,7 +17,7 @@ import {
   SIDE_PANEL_STORAGE_KEY,
   SIDE_PANEL_VIEWBOX_HEIGHT,
   SIDE_PANEL_VIEWBOX_WIDTH,
-} from "@/features/launcher-search/launcher-blob-shape";
+} from "@/features/launcher/launcher-blob-shape";
 import { cn } from "@/lib/utils";
 import { BlobPoint } from "@/types/launcher";
 
