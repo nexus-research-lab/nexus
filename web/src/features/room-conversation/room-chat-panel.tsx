@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentSession } from "@/hooks/agent";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
-import { useSessionLoader } from "@/hooks/use-session-loader";
+import { useConversationLoader } from "@/hooks/use-session-loader";
 import { Message } from "@/types/message";
 import { ConversationSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
@@ -109,7 +109,7 @@ export function RoomChatPanel({
     });
   }, [external_session_key, messages, on_conversation_snapshot_change]);
 
-  useSessionLoader({
+  useConversationLoader({
     session_key: external_session_key,
     load_session,
     debug_name: "RoomChatPanel",

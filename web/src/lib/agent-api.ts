@@ -46,7 +46,7 @@ export const getSessions = async (): Promise<Session[]> => {
   return result.data.map(transformApiSession);
 };
 
-export const getSessionMessages = async (session_key: string): Promise<ChatMessage[]> => {
+export const getConversationMessages = async (session_key: string): Promise<ChatMessage[]> => {
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${session_key}/messages`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
@@ -58,7 +58,7 @@ export const getSessionMessages = async (session_key: string): Promise<ChatMessa
   return result.data;
 };
 
-export const getSessionCostSummary = async (session_key: string): Promise<SessionCostSummary> => {
+export const getConversationCostSummary = async (session_key: string): Promise<SessionCostSummary> => {
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${session_key}/cost/summary`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },

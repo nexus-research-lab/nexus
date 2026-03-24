@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getSessionCostSummary } from "@/lib/agent-api";
+import { getConversationCostSummary } from "@/lib/agent-api";
 import {
   clampHomeEditorWidthPercent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
@@ -120,7 +120,7 @@ export function useHomeWorkspaceController({
 
     const loadSessionCostSummary = async () => {
       try {
-        const nextSummary = await getSessionCostSummary(current_conversation.session_key);
+        const nextSummary = await getConversationCostSummary(current_conversation.session_key);
         if (!ignore) {
           setSessionCostSummary(nextSummary);
         }
