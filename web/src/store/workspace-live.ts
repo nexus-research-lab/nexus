@@ -12,32 +12,32 @@ import { create } from 'zustand';
 import { WorkspaceActivityItem, WorkspaceLiveEvent, WorkspaceLiveFileState } from '@/types/workspace-live';
 
 interface WorkspaceLiveStoreState {
-  recentEvents: WorkspaceActivityItem[];
-  fileStates: Record<string, WorkspaceLiveFileState>;
-  applyEvent: (event: WorkspaceLiveEvent) => void;
-  markFileSeen: (agentId: string, path: string) => void;
-  clearAgent: (agentId: string) => void;
+  recent_events: WorkspaceActivityItem[];
+  file_states: Record<string, WorkspaceLiveFileState>;
+  apply_event: (event: WorkspaceLiveEvent) => void;
+  mark_file_seen: (agent_id: string, path: string) => void;
+  clear_agent: (agent_id: string) => void;
 }
 
-function buildKey(agentId: string, path: string) {
-  return `${agentId}:${path}`;
+function buildKey(agent_id: string, path: string) {
+  return `${agent_id}:${path}`;
 }
 
 export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => ({
-  recentEvents: [],
-  fileStates: {},
+  recent_events: [],
+  file_states: {},
 
-  applyEvent: (event) => {
+  apply_event: (event) => {
     const key = buildKey(event.agent_id, event.path);
     const nextStatus: WorkspaceLiveFileState['status'] =
       event.type === 'file_write_end' ? 'updated' : 'writing';
     const nextUpdatedAt = Date.parse(event.timestamp) || Date.now();
 
     set((state) => {
-      const nextLiveContent = resolveLiveContent(state.fileStates[key]?.live_content, event);
+      const nextLiveContent = resolveLiveContent(state.file_states[key]?.live_content, event);
 
       return {
-        recentEvents: [
+        recent_events: [
           {
             id: `${key}:${event.type}:${event.version}:${nextUpdatedAt}`,
             event_type: event.type,
@@ -50,10 +50,10 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
             diff_stats: event.diff_stats,
             updated_at: nextUpdatedAt,
           },
-          ...state.recentEvents,
+          ...state.recent_events,
         ].slice(0, 24),
-        fileStates: {
-          ...state.fileStates,
+        file_states: {
+          ...state.file_states,
           [key]: {
             agent_id: event.agent_id,
             path: event.path,
@@ -69,34 +69,34 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
     });
   },
 
-  markFileSeen: (agentId, path) => {
-    const key = buildKey(agentId, path);
+  mark_file_seen: (agent_id, path) => {
+    const key = buildKey(agent_id, path);
 
     set((state) => {
-      const nextFileStates = { ...state.fileStates };
-      delete nextFileStates[key];
+      const next_file_states = { ...state.file_states };
+      delete next_file_states[key];
 
       return {
-        recentEvents: [
-          ...state.recentEvents.filter((item) => !(item.agent_id === agentId && item.path === path)),
+        recent_events: [
+          ...state.recent_events.filter((item) => !(item.agent_id === agent_id && item.path === path)),
         ],
-        fileStates: nextFileStates,
+        file_states: next_file_states,
       };
     });
   },
 
-  clearAgent: (agentId) => {
+  clear_agent: (agent_id) => {
     set((state) => ({
-      recentEvents: state.recentEvents.filter((item) => item.agent_id !== agentId),
-      fileStates: Object.fromEntries(
-        Object.entries(state.fileStates).filter(([, value]) => value.agent_id !== agentId),
+      recent_events: state.recent_events.filter((item) => item.agent_id !== agent_id),
+      file_states: Object.fromEntries(
+        Object.entries(state.file_states).filter(([, value]) => value.agent_id !== agent_id),
       ),
     }));
   },
 }));
 
 function resolveLiveContent(
-  previousContent: string | null | undefined,
+  previous_content: string | null | undefined,
   event: WorkspaceLiveEvent,
 ): string | null | undefined {
   if (typeof event.content_snapshot === 'string') {
@@ -106,10 +106,10 @@ function resolveLiveContent(
   if (
     event.type === 'file_write_delta' &&
     typeof event.appended_text === 'string' &&
-    typeof previousContent === 'string'
+    typeof previous_content === 'string'
   ) {
-    return `${previousContent}${event.appended_text}`;
+    return `${previous_content}${event.appended_text}`;
   }
 
-  return previousContent;
+  return previous_content;
 }
