@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { useHomeAgentSessionController } from "@/hooks/use-home-agent-session-controller";
+import { useHomeAgentConversationController } from "@/hooks/use-home-agent-conversation-controller";
 import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
 import { RoomPageControllerOptions } from "@/types/route";
 
@@ -10,7 +10,7 @@ export function useRoomPageController({
   room_id,
   conversation_id,
 }: RoomPageControllerOptions) {
-  const agent_session = useHomeAgentSessionController();
+  const agent_conversation = useHomeAgentConversationController();
   const {
     agents,
     current_agent,
@@ -24,7 +24,7 @@ export function useRoomPageController({
     recent_agents,
     dialog_initial_options,
     dialog_initial_title,
-  } = agent_session;
+  } = agent_conversation;
   const workspace = useHomeWorkspaceController({
     current_agent_id,
     current_conversation,
@@ -72,7 +72,7 @@ export function useRoomPageController({
   ]);
 
   return {
-    ...agent_session,
+    ...agent_conversation,
     ...workspace,
     current_agent,
     current_agent_id,

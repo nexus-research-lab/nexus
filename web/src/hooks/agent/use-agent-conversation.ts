@@ -15,7 +15,7 @@ import {
   loadAgentConversation,
   resetAgentConversation,
   startAgentConversation,
-} from './session-lifecycle';
+} from './conversation-lifecycle';
 import { handleAgentConversationWebSocketMessage } from './websocket-event-handler';
 import {
   deleteConversationRound,
@@ -23,7 +23,7 @@ import {
   sendConversationMessage,
   sendConversationPermissionResponse,
   stopConversationGeneration,
-} from './session-actions';
+} from './conversation-actions';
 
 export function useAgentConversation(options: UseAgentConversationOptions = {}): UseAgentConversationReturn {
   const ws_url = options.ws_url || getAgentWsUrl();
@@ -35,12 +35,12 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [session_key, set_session_key] = useState<string | null>(null);
   const [pending_permission, set_pending_permission] = useState<UseAgentConversationReturn['pending_permission']>(null);
 
-  const active_session_key_ref = useRef<string | null>(null);
+  const active_conversation_key_ref = useRef<string | null>(null);
   const load_request_id_ref = useRef(0);
   const lifecycle_context: AgentConversationLifecycleContext = {
-    active_session_key_ref,
+    active_conversation_key_ref,
     load_request_id_ref,
-    set_session_key,
+    set_conversation_key: set_session_key,
     set_messages,
     set_pending_permission,
     set_is_loading,
@@ -51,7 +51,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     if (!incoming_session_key) {
       return false;
     }
-    return active_session_key_ref.current === incoming_session_key;
+    return active_conversation_key_ref.current === incoming_session_key;
   }, []);
 
   const handle_websocket_message = useCallback((backend_message: unknown) => {
@@ -120,7 +120,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     session_key,
     ws_state,
     ws_send,
-    active_session_key_ref,
+    active_conversation_key_ref,
     pending_permission,
     messages,
     set_error,
@@ -149,19 +149,19 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     await deleteConversationRound(round_id, action_context);
   }, [action_context]);
 
-  const start_session = useCallback(() => {
+  const start_conversation = useCallback(() => {
     startAgentConversation(lifecycle_context);
   }, [lifecycle_context]);
 
-  const load_session = useCallback(async (id: string): Promise<void> => {
+  const load_conversation = useCallback(async (id: string): Promise<void> => {
     await loadAgentConversation(id, lifecycle_context);
   }, [lifecycle_context]);
 
-  const clear_session = useCallback(() => {
+  const clear_conversation = useCallback(() => {
     clearAgentConversation(lifecycle_context);
   }, [lifecycle_context]);
 
-  const reset_session = useCallback(() => {
+  const reset_conversation = useCallback(() => {
     resetAgentConversation(lifecycle_context);
   }, [lifecycle_context]);
 
@@ -172,10 +172,10 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     is_loading,
     pending_permission,
     send_message,
-    start_session,
-    load_session,
-    clear_session,
-    reset_session,
+    start_conversation,
+    load_conversation,
+    clear_conversation,
+    reset_conversation,
     stop_generation,
     delete_round,
     regenerate,

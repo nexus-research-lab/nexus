@@ -74,14 +74,14 @@ export function RoomChatPanel({
     pending_permission,
     send_message,
     stop_generation,
-    load_session,
+    load_conversation,
     send_permission_response,
     delete_round,
     regenerate,
   } = useAgentConversation({
     agent_id,
     on_error: (err) => {
-      console.error("Session error:", err);
+      console.error("Conversation error:", err);
     },
   });
 
@@ -111,7 +111,7 @@ export function RoomChatPanel({
 
   useConversationLoader({
     conversation_id: external_session_key,
-    load_conversation: load_session,
+    load_conversation,
     debug_name: "RoomChatPanel",
   });
 

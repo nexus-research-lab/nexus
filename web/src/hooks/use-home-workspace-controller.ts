@@ -8,11 +8,11 @@ import {
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/home-layout";
 import { getAgentCostSummaryApi } from "@/lib/agent-manage-api";
-import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
+import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { TodoItem } from "@/types/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/workspace";
 
-const EMPTY_SESSION_COST_SUMMARY: SessionCostSummary = {
+const EMPTY_CONVERSATION_COST_SUMMARY: ConversationCostSummary = {
   agent_id: "",
   session_key: "",
   session_id: "",
@@ -51,9 +51,9 @@ export function useHomeWorkspaceController({
   const [editor_width_percent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
   const [is_resizing_editor, setIsResizingEditor] = useState(false);
   const [current_todos, setCurrentTodos] = useState<TodoItem[]>([]);
-  const [is_session_busy, setIsSessionBusy] = useState(false);
-  const [session_cost_summary, setSessionCostSummary] = useState<SessionCostSummary>(
-    EMPTY_SESSION_COST_SUMMARY,
+  const [is_conversation_busy, setIsConversationBusy] = useState(false);
+  const [conversation_cost_summary, setConversationCostSummary] = useState<ConversationCostSummary>(
+    EMPTY_CONVERSATION_COST_SUMMARY,
   );
   const [agent_cost_summary, setAgentCostSummary] = useState<AgentCostSummary>(
     EMPTY_AGENT_COST_SUMMARY,
@@ -68,13 +68,13 @@ export function useHomeWorkspaceController({
     setActiveWorkspacePath(null);
     setIsEditorOpen(false);
     setCurrentTodos([]);
-    setIsSessionBusy(false);
-    setSessionCostSummary(EMPTY_SESSION_COST_SUMMARY);
+    setIsConversationBusy(false);
+    setConversationCostSummary(EMPTY_CONVERSATION_COST_SUMMARY);
     setAgentCostSummary(EMPTY_AGENT_COST_SUMMARY);
   }, [current_agent_id]);
 
   useEffect(() => {
-    if (!current_agent_id || is_session_busy) {
+    if (!current_agent_id || is_conversation_busy) {
       return;
     }
 
@@ -102,33 +102,33 @@ export function useHomeWorkspaceController({
     return () => {
       ignore = true;
     };
-  }, [current_agent_id, is_session_busy]);
+  }, [current_agent_id, is_conversation_busy]);
 
   useEffect(() => {
     if (!current_conversation?.session_key) {
-      setSessionCostSummary({
-        ...EMPTY_SESSION_COST_SUMMARY,
+      setConversationCostSummary({
+        ...EMPTY_CONVERSATION_COST_SUMMARY,
         agent_id: current_agent_id ?? "",
       });
       return;
     }
-    if (is_session_busy) {
+    if (is_conversation_busy) {
       return;
     }
 
     let ignore = false;
 
-    const loadSessionCostSummary = async () => {
+    const loadConversationCostSummary = async () => {
       try {
         const nextSummary = await getConversationCostSummary(current_conversation.session_key);
         if (!ignore) {
-          setSessionCostSummary(nextSummary);
+          setConversationCostSummary(nextSummary);
         }
       } catch (error) {
-        console.error("Failed to load session cost summary:", error);
+        console.error("Failed to load conversation cost summary:", error);
         if (!ignore) {
-          setSessionCostSummary({
-            ...EMPTY_SESSION_COST_SUMMARY,
+          setConversationCostSummary({
+            ...EMPTY_CONVERSATION_COST_SUMMARY,
             agent_id: current_agent_id ?? "",
             session_key: current_conversation.session_key,
             session_id: current_conversation.session_id ?? "",
@@ -137,12 +137,12 @@ export function useHomeWorkspaceController({
       }
     };
 
-    void loadSessionCostSummary();
+    void loadConversationCostSummary();
 
     return () => {
       ignore = true;
     };
-  }, [current_conversation?.session_id, current_conversation?.session_key, current_agent_id, is_session_busy]);
+  }, [current_conversation?.session_id, current_conversation?.session_key, current_agent_id, is_conversation_busy]);
 
   const handle_open_workspace_file = useCallback((path: string | null) => {
     setActiveWorkspacePath((currentPath) => {
@@ -199,12 +199,12 @@ export function useHomeWorkspaceController({
     editor_width_percent,
     is_resizing_editor,
     current_todos,
-    is_session_busy,
-    session_cost_summary,
+    is_conversation_busy,
+    conversation_cost_summary,
     agent_cost_summary,
     workspace_split_ref,
     set_current_todos: setCurrentTodos,
-    set_is_session_busy: setIsSessionBusy,
+    set_is_conversation_busy: setIsConversationBusy,
     handle_open_workspace_file,
     handle_start_editor_resize,
     handle_close_workspace_pane,

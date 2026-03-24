@@ -11,7 +11,7 @@ L2 | 父级: web/CLAUDE.md
 - `conversation.ts`: 对话类型（Conversation/ApiConversation/CRUD 参数）
 - `agent-conversation.ts`: useAgentConversation 相关类型
 - `agent.ts`: Agent 类型（Agent/AgentOptions/Workspace 文件操作类型）
-- `cost.ts`: 成本统计类型（SessionCostSummary/AgentCostSummary）
+- `cost.ts`: 成本统计类型（ConversationCostSummary/AgentCostSummary）
 - `ask-user-question.ts`: AskUserQuestion 工具交互类型
 - `websocket.ts`: WebSocket 连接与消息类型
 

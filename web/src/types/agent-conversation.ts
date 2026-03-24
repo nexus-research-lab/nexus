@@ -26,10 +26,10 @@ export interface UseAgentConversationReturn {
   is_loading: boolean;
   error: string | null;
   send_message: (content: string) => Promise<void>;
-  start_session: () => void;
-  load_session: (key: string) => Promise<void>;
-  clear_session: () => void;
-  reset_session: () => void;
+  start_conversation: () => void;
+  load_conversation: (key: string) => Promise<void>;
+  clear_conversation: () => void;
+  reset_conversation: () => void;
   stop_generation: () => void;
   delete_round: (round_id: string) => Promise<void>;
   regenerate: (round_id: string) => Promise<void>;
@@ -49,7 +49,7 @@ export interface AgentConversationActionContext {
   session_key: string | null;
   ws_state: WebSocketState;
   ws_send: (message: WebSocketMessage) => void;
-  active_session_key_ref: RefObject<string | null>;
+  active_conversation_key_ref: RefObject<string | null>;
   pending_permission: PendingPermission | null;
   messages: Message[];
   set_error: Dispatch<SetStateAction<string | null>>;
@@ -59,9 +59,9 @@ export interface AgentConversationActionContext {
 }
 
 export interface AgentConversationLifecycleContext {
-  active_session_key_ref: RefObject<string | null>;
+  active_conversation_key_ref: RefObject<string | null>;
   load_request_id_ref: RefObject<number>;
-  set_session_key: Dispatch<SetStateAction<string | null>>;
+  set_conversation_key: Dispatch<SetStateAction<string | null>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
   set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;

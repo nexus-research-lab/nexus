@@ -66,12 +66,12 @@ export function RoomPage() {
           editor_width_percent={controller.editor_width_percent}
           is_editor_open={controller.is_editor_open}
           is_resizing_editor={controller.is_resizing_editor}
-          is_session_busy={controller.is_session_busy}
+          is_conversation_busy={controller.is_conversation_busy}
           on_back_to_directory={handleBackToLauncher}
           on_close_workspace_pane={controller.handle_close_workspace_pane}
           on_delete_conversation={controller.handle_delete_conversation}
           on_edit_agent={controller.handle_edit_agent}
-          on_loading_change={controller.set_is_session_busy}
+          on_loading_change={controller.set_is_conversation_busy}
           on_create_conversation={handleCreateConversation}
           on_open_create_agent={controller.handle_open_create_agent}
           on_open_workspace_file={controller.handle_open_workspace_file}
@@ -81,7 +81,7 @@ export function RoomPage() {
           on_start_editor_resize={controller.handle_start_editor_resize}
           on_todos_change={controller.set_current_todos}
           recent_agents={controller.recent_agents}
-          session_cost_summary={controller.session_cost_summary}
+          conversation_cost_summary={controller.conversation_cost_summary}
           workspace_split_ref={controller.workspace_split_ref}
         />
 

@@ -19,7 +19,7 @@ export async function sendConversationMessage(
     session_key,
     ws_state,
     ws_send,
-    active_session_key_ref,
+    active_conversation_key_ref,
     set_error,
     set_is_loading,
     set_messages,
@@ -39,7 +39,7 @@ export async function sendConversationMessage(
   }
 
   const round_id = generateUuid();
-  active_session_key_ref.current = session_key;
+  active_conversation_key_ref.current = session_key;
   const userMessage: Message = {
     message_id: round_id,
     session_key,
@@ -110,7 +110,7 @@ export function sendConversationPermissionResponse(
     session_key,
     ws_state,
     ws_send,
-    active_session_key_ref,
+    active_conversation_key_ref,
     pending_permission,
     set_error,
     set_pending_permission,
@@ -119,7 +119,7 @@ export function sendConversationPermissionResponse(
   if (!pending_permission) {
     return;
   }
-  if (!session_key || active_session_key_ref.current !== session_key) {
+  if (!session_key || active_conversation_key_ref.current !== session_key) {
     set_pending_permission(null);
     return;
   }

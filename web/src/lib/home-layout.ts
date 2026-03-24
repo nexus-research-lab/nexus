@@ -5,7 +5,7 @@
  * 后面调布局时只改这一处，不用在多个组件里到处找类名。
  */
 
-export const HOME_PAGE_PADDING_CLASS = "p-1 sm:p-4 xl:p-5 2xl:p-6";
+export const HOME_PAGE_PADDING_CLASS = "p-1 sm:p-4 xl:pt-4 xl:p-4 2xl:p-4";
 export const HOME_WORKSPACE_SECTION_GAP_CLASS = "gap-2 xl:gap-3";
 export const HOME_WORKSPACE_MAIN_GAP_CLASS = "gap-0 lg:gap-3 xl:gap-4";
 
@@ -19,7 +19,7 @@ export const HOME_AGENT_INSPECTOR_WRAPPER_CLASS =
   "hidden min-[1280px]:flex min-[1280px]:min-h-0 min-[1280px]:shrink-0";
 
 export const HOME_CHAT_PANEL_CLASS =
-  "soft-ring radius-shell-lg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden panel-surface";
+  "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent";
 
 export const HOME_EDITOR_DEFAULT_WIDTH_PERCENT = 42;
 export const HOME_EDITOR_MIN_WIDTH_PERCENT = 30;

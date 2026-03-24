@@ -23,8 +23,8 @@ export function resetConversationView(
 export function startAgentConversation(context: AgentConversationLifecycleContext): void {
   const new_session_key = generateUuid();
   context.load_request_id_ref.current += 1;
-  context.active_session_key_ref.current = new_session_key;
-  context.set_session_key(new_session_key);
+  context.active_conversation_key_ref.current = new_session_key;
+  context.set_conversation_key(new_session_key);
   resetConversationView(context);
 }
 
@@ -37,15 +37,15 @@ export async function loadAgentConversation(
 ): Promise<void> {
   const request_id = context.load_request_id_ref.current + 1;
   context.load_request_id_ref.current = request_id;
-  context.active_session_key_ref.current = session_key;
-  context.set_session_key(session_key);
+  context.active_conversation_key_ref.current = session_key;
+  context.set_conversation_key(session_key);
   resetConversationView(context);
 
   try {
     const data = await getConversationMessages(session_key);
     if (
       context.load_request_id_ref.current !== request_id ||
-      context.active_session_key_ref.current !== session_key
+      context.active_conversation_key_ref.current !== session_key
     ) {
       return;
     }
@@ -55,12 +55,12 @@ export async function loadAgentConversation(
   } catch (err) {
     if (
       context.load_request_id_ref.current !== request_id ||
-      context.active_session_key_ref.current !== session_key
+      context.active_conversation_key_ref.current !== session_key
     ) {
       return;
     }
     console.error('[loadConversation] 加载 conversation 失败:', err);
-    context.set_error(err instanceof Error ? err.message : 'Failed to load session');
+    context.set_error(err instanceof Error ? err.message : 'Failed to load conversation');
   }
 }
 
@@ -69,8 +69,8 @@ export async function loadAgentConversation(
  */
 export function clearAgentConversation(context: AgentConversationLifecycleContext): void {
   context.load_request_id_ref.current += 1;
-  context.active_session_key_ref.current = null;
-  context.set_session_key(null);
+  context.active_conversation_key_ref.current = null;
+  context.set_conversation_key(null);
   resetConversationView(context);
 }
 

@@ -14,7 +14,7 @@ import {
   UpdateConversationParams,
 } from '@/types/conversation';
 import { Message as ChatMessage } from '@/types/message';
-import { SessionCostSummary } from '@/types/cost';
+import { ConversationCostSummary } from '@/types/cost';
 import { ApiResponse } from '@/types/api';
 import { getAgentApiBaseUrl } from '@/config/runtime-config';
 
@@ -63,7 +63,7 @@ export const getConversationMessages = async (session_key: string): Promise<Chat
   return result.data;
 };
 
-export const getConversationCostSummary = async (session_key: string): Promise<SessionCostSummary> => {
+export const getConversationCostSummary = async (session_key: string): Promise<ConversationCostSummary> => {
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${session_key}/cost/summary`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
@@ -71,7 +71,7 @@ export const getConversationCostSummary = async (session_key: string): Promise<S
   if (!response.ok) {
     throw new Error(`获取会话成本失败: ${response.statusText}`);
   }
-  const result: ApiResponse<SessionCostSummary> = await response.json();
+  const result: ApiResponse<ConversationCostSummary> = await response.json();
   return result.data;
 };
 

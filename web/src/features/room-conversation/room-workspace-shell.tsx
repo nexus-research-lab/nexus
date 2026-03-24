@@ -5,7 +5,7 @@ import { HOME_WORKSPACE_SECTION_GAP_CLASS } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
+import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { TodoItem } from "@/types/todo";
 
 import { RoomMobileWorkspace } from "./room-mobile-workspace";
@@ -23,9 +23,9 @@ interface RoomWorkspaceShellProps {
   is_editor_open: boolean;
   editor_width_percent: number;
   is_resizing_editor: boolean;
-  is_session_busy: boolean;
+  is_conversation_busy: boolean;
   current_todos: TodoItem[];
-  session_cost_summary: SessionCostSummary;
+  conversation_cost_summary: ConversationCostSummary;
   agent_cost_summary: AgentCostSummary;
   workspace_split_ref: React.RefObject<HTMLElement | null>;
   on_select_agent: (agent_id: string) => void;
@@ -55,9 +55,9 @@ export function RoomWorkspaceShell({
   is_editor_open,
   editor_width_percent,
   is_resizing_editor,
-  is_session_busy,
+  is_conversation_busy,
   current_todos,
-  session_cost_summary,
+  conversation_cost_summary,
   agent_cost_summary,
   workspace_split_ref,
   on_select_agent,
@@ -108,7 +108,7 @@ export function RoomWorkspaceShell({
           editor_width_percent={editor_width_percent}
           is_editor_open={is_editor_open}
           is_resizing_editor={is_resizing_editor}
-          is_session_busy={is_session_busy}
+          is_conversation_busy={is_conversation_busy}
           on_close_workspace_pane={on_close_workspace_pane}
           on_conversation_snapshot_change={on_conversation_snapshot_change}
           on_create_agent={on_open_create_agent}
@@ -123,7 +123,7 @@ export function RoomWorkspaceShell({
           on_start_editor_resize={on_start_editor_resize}
           on_todos_change={on_todos_change}
           recent_agents={recent_agents}
-          session_cost_summary={session_cost_summary}
+          conversation_cost_summary={conversation_cost_summary}
           workspace_split_ref={workspace_split_ref}
         />
       </div>

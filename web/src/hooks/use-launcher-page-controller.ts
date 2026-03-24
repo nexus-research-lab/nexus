@@ -1,7 +1,7 @@
 "use client";
 
-import { useHomeAgentSessionController } from "@/hooks/use-home-agent-session-controller";
+import { useHomeAgentConversationController } from "@/hooks/use-home-agent-conversation-controller";
 
 export function useLauncherPageController() {
-  return useHomeAgentSessionController();
+  return useHomeAgentConversationController();
 }

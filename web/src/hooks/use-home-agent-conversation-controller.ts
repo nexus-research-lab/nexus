@@ -10,7 +10,7 @@ import { useAgentStore } from "@/store/agent";
 import { AgentOptions } from "@/types/agent";
 import { ConversationSnapshotPayload } from "@/types/conversation";
 
-export function useHomeAgentSessionController() {
+export function useHomeAgentConversationController() {
   const {
     agents,
     current_agent_id,
@@ -50,7 +50,7 @@ export function useHomeAgentSessionController() {
     [agents, current_agent_id],
   );
 
-  const sessionsByAgent = useMemo(() => {
+  const conversations_by_agent = useMemo(() => {
     const grouped = new Map<string, typeof conversations>();
     conversations.forEach((conversation) => {
       const owner = conversation.agent_id ?? "main";
@@ -70,8 +70,8 @@ export function useHomeAgentSessionController() {
     if (!current_agent_id) {
       return [];
     }
-    return sessionsByAgent.get(current_agent_id) ?? [];
-  }, [current_agent_id, sessionsByAgent]);
+    return conversations_by_agent.get(current_agent_id) ?? [];
+  }, [conversations_by_agent, current_agent_id]);
 
   const current_conversation = useMemo(
     () => current_room_conversations.find((conversation) => conversation.session_key === current_conversation_id) ?? null,
