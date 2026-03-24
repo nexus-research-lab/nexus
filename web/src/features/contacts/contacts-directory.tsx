@@ -57,7 +57,7 @@ export function ContactsDirectory({
               Contacts 负责发现成员，不负责承载协作流
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700/62">
-              这里更像成员目录和协作网络。你可以浏览成员、查看能力、直接发起 1v1，或者把成员带去 Nexus 进行更高层的组织和编排。
+              这里更像成员目录和协作网络。你可以浏览成员、查看能力、直接发起 1v1，或者把成员交给首页里的 App Agent 继续组织协作。
             </p>
           </div>
 
@@ -100,7 +100,7 @@ export function ContactsDirectory({
             })
           ) : (
             <div className="workspace-card rounded-[24px] px-4 py-4 text-sm leading-6 text-slate-700/60">
-              当前还没有可浏览的成员。先从 launcher 或 Nexus 创建第一个成员。
+              当前还没有可浏览的成员。先从首页创建第一个成员。
             </div>
           )}
         </div>
@@ -151,15 +151,15 @@ export function ContactsDirectory({
 
               <button
                 className="workspace-card rounded-[24px] px-4 py-4 text-left transition hover:bg-white/20"
-                onClick={() => navigate(AppRouteBuilders.nexus())}
+                onClick={() => navigate(AppRouteBuilders.launcher_app(`帮我组织和 ${selected_agent.name} 的协作`))}
                 type="button"
               >
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-950/86">
                   <Sparkles className="h-4 w-4" />
-                  带去 Nexus 编排
+                  交给 App Agent 组织
                 </p>
                 <p className="mt-1 text-xs leading-5 text-slate-700/58">
-                  当你需要把这个成员拉入一个多人 room，或者先整理协作结构时，应从 Nexus 继续。
+                  当你需要把这个成员拉入一个多人 room，或者先整理协作结构时，应回到首页唤起 App Agent。
                 </p>
               </button>
             </div>

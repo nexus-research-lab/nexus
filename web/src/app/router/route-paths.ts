@@ -1,18 +1,32 @@
 export const APP_ROUTE_PATHS = {
   launcher: "/",
-  nexus: "/nexus",
-  nexus_conversation: "/nexus/conversations/:conversation_id",
   room: "/rooms/:room_id",
   room_conversation: "/rooms/:room_id/conversations/:conversation_id",
   contacts: "/contacts",
   contact_profile: "/contacts/:agent_id",
 } as const;
 
+function createLauncherSearchParams(params: Record<string, string | null | undefined>) {
+  const search_params = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (!value) {
+      return;
+    }
+    search_params.set(key, value);
+  });
+
+  const search_string = search_params.toString();
+  return search_string ? `/?${search_string}` : APP_ROUTE_PATHS.launcher;
+}
+
 export const AppRouteBuilders = {
   launcher: () => APP_ROUTE_PATHS.launcher,
-  nexus: () => APP_ROUTE_PATHS.nexus,
-  nexus_conversation: (conversation_id: string) =>
-    `/nexus/conversations/${encodeURIComponent(conversation_id)}`,
+  launcher_app: (app_prompt?: string) =>
+    createLauncherSearchParams({
+      surface: "app",
+      app_prompt: app_prompt?.trim() || undefined,
+    }),
   room: (room_id: string) => `/rooms/${encodeURIComponent(room_id)}`,
   room_conversation: (room_id: string, conversation_id: string) =>
     `/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,

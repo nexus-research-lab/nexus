@@ -3,8 +3,9 @@ export interface RoomRouteParams extends Record<string, string | undefined> {
   conversation_id?: string;
 }
 
-export interface NexusRouteParams extends Record<string, string | undefined> {
-  conversation_id?: string;
+export interface LauncherSearchParams {
+  surface?: "launcher" | "app";
+  app_prompt?: string;
 }
 
 export interface ContactsRouteParams extends Record<string, string | undefined> {

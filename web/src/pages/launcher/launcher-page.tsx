@@ -2,8 +2,10 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { LauncherAppConversationPanel } from "@/features/launcher/launcher-app-conversation-panel";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
+import { cn } from "@/lib/utils";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
@@ -31,10 +33,6 @@ export function LauncherPage() {
     navigate(AppRouteBuilders.contacts());
   }, [navigate]);
 
-  const handleOpenNexus = useCallback(() => {
-    navigate(AppRouteBuilders.nexus());
-  }, [navigate]);
-
   const handleSaveAgentOptions = useCallback(async (title: string, options: AgentConfigOptions) => {
     const should_open_room_after_create = controller.dialog_mode === "create";
     await controller.handle_save_agent_options(title, options);
@@ -55,18 +53,40 @@ export function LauncherPage() {
 
   return (
     <AppStage>
-      <LauncherConsole
-        agents={controller.agents}
-        conversations={controller.conversations}
-        current_agent_id={controller.current_agent_id}
-        on_open_contacts_page={handleOpenContactsPage}
-        on_open_nexus={handleOpenNexus}
-        on_select_agent={handleSelectAgent}
-        on_open_conversation={handleOpenConversation}
-        on_create_agent={controller.handle_open_create_agent}
-        on_edit_agent={controller.handle_edit_agent}
-        on_delete_agent={controller.handle_delete_agent}
-      />
+      <div className="relative flex min-h-0 flex-1 gap-5 overflow-hidden">
+        <div
+          className={cn(
+            "min-w-0 flex-1 transition-all duration-500 ease-out",
+            controller.is_app_conversation_open && "lg:max-w-[calc(100%-390px)] lg:-translate-x-6",
+          )}
+        >
+          <LauncherConsole
+            agents={controller.agents}
+            conversations={controller.conversations}
+            current_agent_id={controller.current_agent_id}
+            on_open_contacts_page={handleOpenContactsPage}
+            on_open_app_conversation={controller.open_app_conversation}
+            on_select_agent={handleSelectAgent}
+            on_open_conversation={handleOpenConversation}
+            on_create_agent={controller.handle_open_create_agent}
+            on_edit_agent={controller.handle_edit_agent}
+            on_delete_agent={controller.handle_delete_agent}
+            surface={controller.surface}
+          />
+        </div>
+
+        {controller.is_app_conversation_open ? (
+          <div className="absolute inset-x-3 bottom-4 top-[96px] z-40 lg:static lg:inset-auto lg:block lg:w-[380px] lg:shrink-0 lg:pb-8 lg:pt-4">
+            <LauncherAppConversationPanel
+              app_conversation_draft={controller.app_conversation_draft}
+              on_change_draft={controller.set_app_conversation_draft}
+              on_close={controller.close_app_conversation}
+              on_open_contacts_page={handleOpenContactsPage}
+              on_submit={controller.submit_app_conversation}
+            />
+          </div>
+        ) : null}
+      </div>
 
       <AgentOptions
         mode={controller.dialog_mode}

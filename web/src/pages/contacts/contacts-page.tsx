@@ -26,7 +26,7 @@ export function ContactsPage() {
     <RouteScaffold
       badge="CONTACTS"
       title="成员与联系人网络"
-      description="Contacts 负责发现成员、查看能力、发起 1v1，以及把成员带入 Nexus 或 room。它不应该继续混在 room 页面里承担联系人管理职责。"
+      description="Contacts 负责发现成员、查看能力、发起 1v1，以及把成员带回首页交给 App Agent 继续组织协作。它不应该继续混在 room 页面里承担联系人管理职责。"
       meta={
         params.agent_id ? (
           <div className="workspace-card rounded-[20px] px-4 py-3 text-right">

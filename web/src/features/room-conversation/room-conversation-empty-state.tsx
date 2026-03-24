@@ -26,28 +26,28 @@ export function RoomConversationEmptyState({
 
         <div className="mt-8 space-y-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-700/46">
-            Nexus Collaboration
+            Room Collaboration
           </p>
           <h2 className="text-4xl font-extrabold tracking-[-0.05em] text-slate-950/90">
             从这里开始一段协作
           </h2>
           <p className="mx-auto max-w-md text-sm leading-7 text-slate-700/62">
-            创建新会话后，这个工作台会进入和首页同源的玻璃协作态：对话、文件、计划与上下文围绕同一条任务展开。
+            创建新会话后，这个工作台会进入真正承载协作的 room 对话态：对话、文件、计划与上下文围绕同一条任务展开。
           </p>
         </div>
 
         <div className="mt-8 grid gap-3 text-sm text-slate-700/62 md:grid-cols-3">
           <div className="workspace-card radius-shell-md px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary" />
-            <span>按 Agent 隔离上下文</span>
+            <span>按 Room 承接协作任务</span>
           </div>
           <div className="workspace-card radius-shell-md px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary" />
-            <span>历史对话自动保存</span>
+            <span>对话线程自动保存</span>
           </div>
           <div className="workspace-card radius-shell-md px-4 py-4">
             <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary" />
-            <span>工具使用需你授权</span>
+            <span>上下文围绕同一任务展开</span>
           </div>
         </div>
 
@@ -60,7 +60,7 @@ export function RoomConversationEmptyState({
         </button>
 
         <p className="mt-5 text-xs text-slate-700/52">
-          先切换到想要的 Agent，再创建会话
+          先进入目标 room，再创建第一条对话
         </p>
       </div>
     </div>

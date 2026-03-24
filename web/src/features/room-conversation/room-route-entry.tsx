@@ -35,7 +35,7 @@ export function RoomRouteEntry({
           {room_agent ? room_agent.name : "这个协作空间还没有对应成员"}
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700/62">
-          room 是协作单元，不是成员目录。如果当前 URL 还没有找到可进入的 room，可以先回到 launcher 继续已有协作，或者去 Contacts/Nexus 重新组织成员。
+          room 是协作单元，不是成员目录。如果当前 URL 还没有找到可进入的 room，可以先回到首页继续已有协作，或者去 Contacts / 首页 App Agent 重新组织成员。
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -65,13 +65,13 @@ export function RoomRouteEntry({
 
           <button
             className="workspace-card rounded-[24px] px-4 py-4 text-left transition hover:bg-white/20"
-            onClick={() => navigate(AppRouteBuilders.nexus())}
+            onClick={() => navigate(AppRouteBuilders.launcher_app("帮我整理一个新的协作 room"))}
             type="button"
           >
             <Sparkles className="h-5 w-5 text-slate-900/78" />
-            <p className="mt-3 text-sm font-semibold text-slate-950/86">交给 Nexus</p>
+            <p className="mt-3 text-sm font-semibold text-slate-950/86">交给 App Agent</p>
             <p className="mt-1 text-xs leading-5 text-slate-700/58">
-              当你需要组织成员、创建新 room 或整理结构时，应在 Nexus 处理。
+              当你需要组织成员、创建新 room 或整理结构时，应回到首页唤起 App Agent。
             </p>
           </button>
         </div>

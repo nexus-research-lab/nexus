@@ -33,12 +33,13 @@ interface LauncherConsoleProps {
   conversations: Conversation[];
   current_agent_id: string | null;
   on_open_contacts_page: () => void;
-  on_open_nexus: () => void;
+  on_open_app_conversation: (initial_prompt?: string) => void;
   on_select_agent: (agent_id: string) => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_create_agent: () => void;
   on_edit_agent: (agent_id: string) => void;
   on_delete_agent: (agent_id: string) => void;
+  surface: "launcher" | "app";
 }
 
 interface HeaderActionButtonProps {
@@ -50,7 +51,7 @@ interface HeaderActionButtonProps {
 interface HeroStageProps {
   current_agent_id: string | null;
   decorative_tokens: SpotlightToken[];
-  on_open_nexus: () => void;
+  on_open_app_conversation: (initial_prompt?: string) => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_query_change: (value: string) => void;
   on_select_agent: (agent_id: string) => void;
@@ -58,6 +59,7 @@ interface HeroStageProps {
   query: string;
   recent_agents: Agent[];
   recent_rooms: ConversationWithOwner[];
+  surface: "launcher" | "app";
 }
 
 interface ContactsPopoverProps {
@@ -191,7 +193,7 @@ const HeaderActionButton = memo(function HeaderActionButton({
 const HeroStage = memo(function HeroStage({
   current_agent_id,
   decorative_tokens,
-  on_open_nexus,
+  on_open_app_conversation,
   on_open_conversation,
   on_query_change,
   on_select_agent,
@@ -199,12 +201,18 @@ const HeroStage = memo(function HeroStage({
   query,
   recent_agents,
   recent_rooms,
+  surface,
 }: HeroStageProps) {
   return (
     <div className="relative flex w-full max-w-[1180px] flex-col items-center">
       <DebugReferenceOverlay />
 
-      <HeroBlobShell class_name="z-10">
+      <HeroBlobShell
+        class_name={cn(
+          "z-10 transition-transform duration-500 ease-out lg:origin-left",
+          surface === "app" && "lg:translate-x-[-4%] lg:scale-[0.97]",
+        )}
+      >
         <div className="space-y-3">
           <p className="text-[9px] font-medium uppercase tracking-[0.32em] text-muted-foreground/70">
             Collaboration Hub
@@ -279,10 +287,10 @@ const HeroStage = memo(function HeroStage({
 
             <button
               className="px-2 text-xs font-medium text-white/52 transition-colors hover:text-white/82 sm:text-sm"
-              onClick={on_open_nexus}
+              onClick={() => on_open_app_conversation(query)}
               type="button"
             >
-              Ask Nexus →
+              交给 App →
             </button>
           </div>
         </div>
@@ -526,12 +534,13 @@ export function LauncherConsole({
   conversations,
   current_agent_id,
   on_open_contacts_page,
-  on_open_nexus,
+  on_open_app_conversation,
   on_select_agent,
   on_open_conversation,
   on_create_agent,
   on_edit_agent,
   on_delete_agent,
+  surface,
 }: LauncherConsoleProps) {
   const [query, setQuery] = useState("");
   const [show_contacts, setShowContacts] = useState(false);
@@ -603,8 +612,11 @@ export function LauncherConsole({
     );
     if (agent_first) {
       on_select_agent(agent_first.agent_id);
+      return;
     }
-  }, [agents, conversations_with_owners, on_open_conversation, on_select_agent, query]);
+
+    on_open_app_conversation(trimmed);
+  }, [agents, conversations_with_owners, on_open_app_conversation, on_open_conversation, on_select_agent, query]);
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -638,7 +650,7 @@ export function LauncherConsole({
               setShowContacts(false);
             }}
           >
-            Rooms
+            Recent Rooms
           </HeaderActionButton>
           <button
             aria-label="创建 Agent"
@@ -679,13 +691,14 @@ export function LauncherConsole({
           current_agent_id={current_agent_id}
           decorative_tokens={decorative_tokens}
           on_open_conversation={on_open_conversation}
-          on_open_nexus={on_open_nexus}
+          on_open_app_conversation={on_open_app_conversation}
           on_query_change={setQuery}
           on_select_agent={on_select_agent}
           on_submit={handle_submit}
           query={query}
           recent_agents={recent_agents}
           recent_rooms={recent_rooms}
+          surface={surface}
         />
       </div>
     </section>
