@@ -1,11 +1,12 @@
 /**
  * Conversation 初始化 Hook
  *
- * 当前仍复用 session store 做持久化与服务端同步，
- * 这里只提供 conversation 语义层，方便页面和 controller 逐步迁移。
+ * 直接基于 conversation store 初始化，不再通过 session 语义中转。
  */
 
-import { useInitializeSessions } from "@/hooks/use-initialize-sessions";
+import { useEffect, useState } from "react";
+
+import { getConversationStoreSnapshot } from "@/store/conversation";
 import { InitializeConversationsOptions } from "@/types/conversation";
 
 export const useInitializeConversations = ({
@@ -14,10 +15,27 @@ export const useInitializeConversations = ({
   auto_select_first = true,
   debug_name = "useInitializeConversations",
 }: InitializeConversationsOptions) => {
-  return useInitializeSessions({
-    load_sessions_from_server: load_conversations_from_server,
-    set_current_session: set_current_conversation,
-    auto_select_first,
-    debug_name,
-  });
+  const [is_hydrated, set_is_hydrated] = useState(false);
+
+  useEffect(() => {
+    set_is_hydrated(true);
+
+    const current_state = getConversationStoreSnapshot();
+    if (current_state.conversations.length > 0) {
+      return;
+    }
+
+    load_conversations_from_server()
+      .then(() => {
+        const state = getConversationStoreSnapshot();
+        if (auto_select_first && !state.current_conversation_id && state.conversations.length > 0) {
+          set_current_conversation(state.conversations[0].session_key);
+        }
+      })
+      .catch((err) => {
+        console.error(`[${debug_name}] Failed to load conversations:`, err);
+      });
+  }, [auto_select_first, debug_name, load_conversations_from_server, set_current_conversation]);
+
+  return is_hydrated;
 };

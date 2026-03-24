@@ -1,6 +1,5 @@
 import {
   CreateSessionParams,
-  InitializeSessionsOptions,
   Session,
   UpdateSessionParams,
 } from "@/types/session";
@@ -23,6 +22,12 @@ export interface InitializeConversationsOptions {
   debug_name?: string;
 }
 
+export interface ConversationLoaderOptions {
+  conversation_id: string | null;
+  load_conversation: (key: string) => void;
+  debug_name?: string;
+}
+
 export interface ConversationStoreState {
   conversations: Conversation[];
   current_conversation_id: string | null;
@@ -37,6 +42,6 @@ export interface ConversationStoreState {
     patch: Partial<Pick<Conversation, "message_count" | "last_activity_at" | "session_id">>,
   ) => void;
   get_conversation: (key: string) => Conversation | undefined;
-  load_conversations_from_server: InitializeSessionsOptions["load_sessions_from_server"];
+  load_conversations_from_server: () => Promise<void>;
   clear_all_conversations: () => void;
 }
