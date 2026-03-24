@@ -1,4 +1,4 @@
-import { RefObject } from "react";
+import { ReactNode, RefObject } from "react";
 
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
@@ -105,4 +105,74 @@ export interface RoomEditorPanelProps {
 export interface FileTreeNode {
   entry: WorkspaceFileEntry;
   children: FileTreeNode[];
+}
+
+export interface RoomMemberSummaryCardProps {
+  agent: Agent;
+  model_name: string;
+  runtime_status: "Running" | "Idle" | "Active";
+  localized_runtime_status: string;
+  on_edit_agent: (agent_id: string) => void;
+}
+
+export interface RoomWorkspaceContextSectionProps {
+  allowed_tool_count: number;
+  localized_agent_skill: string;
+  permission_mode: string;
+  served_room_count: number;
+}
+
+export interface RoomMembersSectionProps {
+  current_agent_id: string | null;
+  members: Agent[];
+  on_create_agent: () => void;
+  on_select_agent: (agent_id: string) => void;
+}
+
+export interface RoomSidebarHeaderProps {
+  active_room_title: string;
+  current_agent_name: string;
+  is_refreshing: boolean;
+  on_open_directory: () => void;
+  on_refresh: () => void;
+}
+
+export interface RoomConversationsSectionProps {
+  conversations: Conversation[];
+  current_conversation_id: string | null;
+  on_create_conversation: () => void;
+  on_delete_conversation: (conversation_id: string) => void;
+  on_select_conversation: (conversation_id: string) => void;
+}
+
+export interface RoomContextSectionProps {
+  contextualFiles: WorkspaceFileEntry[];
+  current_conversation: Conversation | null;
+  file_explorer_content: ReactNode;
+  filesystem_error: string | null;
+  is_file_explorer_visible: boolean;
+  memory_file_count: number;
+  on_create_directory: () => void;
+  on_create_file: () => void;
+  on_open_workspace_file: (path: string) => void;
+  on_toggle_file_explorer: () => void;
+  total_conversation_count: number;
+  active_workspace_path: string | null;
+}
+
+export interface RoomProgressSectionProps {
+  todos: TodoItem[];
+}
+
+export interface RoomCollaborationStatusSectionProps {
+  active_conversation: Conversation | null;
+  localized_agent_skill: string;
+  localized_runtime_status: string;
+  model_name: string;
+  total_room_count: number;
+}
+
+export interface RoomUsageSectionProps {
+  agent_cost_summary: AgentCostSummary;
+  session_cost_summary: SessionCostSummary;
 }

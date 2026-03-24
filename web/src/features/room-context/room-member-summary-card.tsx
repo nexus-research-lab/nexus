@@ -1,13 +1,5 @@
-import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
-
-interface RoomMemberSummaryCardProps {
-  agent: Agent;
-  model_name: string;
-  runtime_status: "Running" | "Idle" | "Active";
-  localized_runtime_status: string;
-  on_edit_agent: (agent_id: string) => void;
-}
+import { RoomMemberSummaryCardProps } from "@/types/room";
 
 export function RoomMemberSummaryCard({
   agent,
