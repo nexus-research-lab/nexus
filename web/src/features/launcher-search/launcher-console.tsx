@@ -208,7 +208,7 @@ const HeroStage = memo(function HeroStage({
     <div className="relative flex w-full max-w-[1180px] flex-col items-center">
       <DebugReferenceOverlay />
 
-      <HeroBlobShell className="z-10">
+      <HeroBlobShell class_name="z-10">
         <div className="space-y-3">
           <p className="text-[9px] font-medium uppercase tracking-[0.32em] text-muted-foreground/70">
             Collaboration Hub
@@ -225,7 +225,7 @@ const HeroStage = memo(function HeroStage({
         </div>
 
         <div className="mt-4">
-          <HeroInputShell className="mx-auto w-full max-w-[480px]">
+          <HeroInputShell class_name="mx-auto w-full max-w-[480px]">
             <div className="flex min-w-0 items-center gap-3">
               <MessageSquare className="h-4.5 w-4.5 text-black/58" />
               <input
@@ -325,9 +325,9 @@ const ContactsPopover = memo(function ContactsPopover({
   }, [agents, deferred_query]);
 
   return (
-    <HeroSidePanelShell className="absolute right-0 top-[calc(100%+14px)] z-30">
+    <HeroSidePanelShell class_name="absolute right-0 top-[calc(100%+14px)] z-30">
       <div className="mx-2 space-y-4">
-        <HeroInputShell className="w-full opacity-[0.92]">
+        <HeroInputShell class_name="w-full opacity-[0.92]">
           <div className="flex min-w-0 items-center gap-3">
             <Search className="h-4 w-4 text-slate-700/50" />
             <input
@@ -449,9 +449,9 @@ const RecentRoomsPopover = memo(function RecentRoomsPopover({
   }, [conversations_with_owners, deferred_query]);
 
   return (
-    <HeroSidePanelShell className="absolute right-0 top-[calc(100%+14px)] z-30">
+    <HeroSidePanelShell class_name="absolute right-0 top-[calc(100%+14px)] z-30">
       <div className="mx-2 space-y-4">
-        <HeroInputShell className="w-full opacity-[0.92]">
+        <HeroInputShell class_name="w-full opacity-[0.92]">
           <div className="flex min-w-0 items-center gap-3">
             <Search className="h-4 w-4 text-slate-700/50" />
             <input

@@ -26,47 +26,47 @@ import { useBlobDebugTarget, useEditableShape } from "./launcher-blob-debug-hook
 
 interface HeroBlobShellProps {
   children: ReactNode;
-  className?: string;
+  class_name?: string;
 }
 
 interface HeroInputShellProps {
   children: ReactNode;
-  className?: string;
+  class_name?: string;
 }
 
 interface StaticGlassShellProps {
-  auraBackground?: string;
-  auraBlurClassName?: string;
+  aura_background?: string;
+  aura_blur_class_name?: string;
   children: ReactNode;
-  className?: string;
-  contentClassName?: string;
+  class_name?: string;
+  content_class_name?: string;
   fill: string;
-  fillGradientStops?: Array<{ color: string; offset: string }>;
-  glowBlurDeviation?: number;
-  innerFill: string;
-  innerFillGradientStops?: Array<{ color: string; offset: string }>;
-  innerGlowOpacity?: number;
-  innerPath: string;
-  innerStroke: string;
-  outerGlowOpacity?: number;
-  outerGlowWidth?: number;
+  fill_gradient_stops?: Array<{ color: string; offset: string }>;
+  glow_blur_deviation?: number;
+  inner_fill: string;
+  inner_fill_gradient_stops?: Array<{ color: string; offset: string }>;
+  inner_glow_opacity?: number;
+  inner_path: string;
+  inner_stroke: string;
+  outer_glow_opacity?: number;
+  outer_glow_width?: number;
   path: string;
   stroke: string;
-  svgOverlay?: ReactNode;
-  viewBoxHeight: number;
-  viewBoxWidth: number;
+  svg_overlay?: ReactNode;
+  view_box_height: number;
+  view_box_width: number;
 }
 
 interface HeroActionPillShellProps {
   active?: boolean;
   children: ReactNode;
-  className?: string;
+  class_name?: string;
 }
 
 interface HeroActionOrbShellProps {
   active?: boolean;
   children: ReactNode;
-  className?: string;
+  class_name?: string;
 }
 
 const ACTION_PILL_VIEWBOX_WIDTH = 220;
@@ -103,44 +103,44 @@ const ACTION_ORB_PATH = createClosedSplinePath(ACTION_ORB_POINTS);
 const ACTION_ORB_INNER_PATH = createClosedSplinePath(createInnerPoints(ACTION_ORB_POINTS, 0.93, 0.93));
 
 function StaticGlassShell({
-  auraBackground = `radial-gradient(28% 22% at 20% 24%, rgba(255,190,122,0.12), rgba(255,190,122,0) 76%),
+  aura_background = `radial-gradient(28% 22% at 20% 24%, rgba(255,190,122,0.12), rgba(255,190,122,0) 76%),
     radial-gradient(24% 24% at 82% 18%, rgba(118,231,206,0.12), rgba(118,231,206,0) 78%),
     radial-gradient(34% 26% at 46% 82%, rgba(133,119,255,0.14), rgba(133,119,255,0) 74%),
     radial-gradient(40% 20% at 52% 12%, rgba(255,255,255,0.12), rgba(255,255,255,0) 72%)`,
-  auraBlurClassName = "blur-[44px]",
+  aura_blur_class_name = "blur-[44px]",
   children,
-  className,
-  contentClassName,
+  class_name,
+  content_class_name,
   fill,
-  fillGradientStops,
-  glowBlurDeviation = 6,
-  innerFill,
-  innerFillGradientStops,
-  innerGlowOpacity = 0.78,
-  innerPath,
-  innerStroke,
-  outerGlowOpacity = 0.86,
-  outerGlowWidth = 18,
+  fill_gradient_stops,
+  glow_blur_deviation = 6,
+  inner_fill,
+  inner_fill_gradient_stops,
+  inner_glow_opacity = 0.78,
+  inner_path,
+  inner_stroke,
+  outer_glow_opacity = 0.86,
+  outer_glow_width = 18,
   path,
   stroke,
-  svgOverlay,
-  viewBoxHeight,
-  viewBoxWidth,
+  svg_overlay,
+  view_box_height,
+  view_box_width,
 }: StaticGlassShellProps) {
   const glowGradientId = useId();
   const glowId = useId();
   const fillGradientId = useId();
   const innerFillGradientId = useId();
-  const surfaceFill = fillGradientStops ? `url(#${fillGradientId})` : fill;
-  const innerSurfaceFill = innerFillGradientStops ? `url(#${innerFillGradientId})` : innerFill;
+  const surfaceFill = fill_gradient_stops ? `url(#${fillGradientId})` : fill;
+  const innerSurfaceFill = inner_fill_gradient_stops ? `url(#${innerFillGradientId})` : inner_fill;
 
   return (
-    <div className={cn("relative isolate overflow-visible", className)}>
+    <div className={cn("relative isolate overflow-visible", class_name)}>
       <div className="absolute inset-[-14%] z-0 pointer-events-none">
-        {auraBackground ? (
+        {aura_background ? (
           <div
-            className={cn("absolute inset-0", auraBlurClassName)}
-            style={{ background: auraBackground }}
+            className={cn("absolute inset-0", aura_blur_class_name)}
+            style={{ background: aura_background }}
           />
         ) : null}
       </div>
@@ -149,28 +149,28 @@ function StaticGlassShell({
         aria-hidden="true"
         className="absolute inset-0 z-0 h-full w-full pointer-events-none"
         preserveAspectRatio="none"
-        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        viewBox={`0 0 ${view_box_width} ${view_box_height}`}
       >
         <defs>
-          <linearGradient id={glowGradientId} x1="42" x2={viewBoxWidth - 28} y1="26" y2={viewBoxHeight - 18} gradientUnits="userSpaceOnUse">
+          <linearGradient id={glowGradientId} x1="42" x2={view_box_width - 28} y1="26" y2={view_box_height - 18} gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="rgba(255,255,255,0.78)"/>
             <stop offset="34%" stopColor="rgba(255,255,255,0.34)"/>
             <stop offset="74%" stopColor="rgba(211,224,248,0.26)"/>
             <stop offset="100%" stopColor="rgba(255,255,255,0.18)"/>
           </linearGradient>
           <filter id={glowId} x="-20%" y="-80%" width="140%" height="260%">
-            <feGaussianBlur stdDeviation={glowBlurDeviation}/>
+            <feGaussianBlur stdDeviation={glow_blur_deviation}/>
           </filter>
-          {fillGradientStops ? (
-            <linearGradient id={fillGradientId} x1="28" x2={viewBoxWidth - 20} y1="24" y2={viewBoxHeight - 18} gradientUnits="userSpaceOnUse">
-              {fillGradientStops.map((stop) => (
+          {fill_gradient_stops ? (
+            <linearGradient id={fillGradientId} x1="28" x2={view_box_width - 20} y1="24" y2={view_box_height - 18} gradientUnits="userSpaceOnUse">
+              {fill_gradient_stops.map((stop) => (
                 <stop key={`fill-${stop.offset}-${stop.color}`} offset={stop.offset} stopColor={stop.color}/>
               ))}
             </linearGradient>
           ) : null}
-          {innerFillGradientStops ? (
-            <linearGradient id={innerFillGradientId} x1="42" x2={viewBoxWidth - 36} y1="32" y2={viewBoxHeight - 22} gradientUnits="userSpaceOnUse">
-              {innerFillGradientStops.map((stop) => (
+          {inner_fill_gradient_stops ? (
+            <linearGradient id={innerFillGradientId} x1="42" x2={view_box_width - 36} y1="32" y2={view_box_height - 22} gradientUnits="userSpaceOnUse">
+              {inner_fill_gradient_stops.map((stop) => (
                 <stop key={`inner-${stop.offset}-${stop.color}`} offset={stop.offset} stopColor={stop.color}/>
               ))}
             </linearGradient>
@@ -181,17 +181,17 @@ function StaticGlassShell({
           d={path}
           fill="none"
           filter={`url(#${glowId})`}
-          opacity={outerGlowOpacity}
+          opacity={outer_glow_opacity}
           stroke={`url(#${glowGradientId})`}
-          strokeWidth={outerGlowWidth}
+          strokeWidth={outer_glow_width}
         />
         <path
-          d={innerPath}
+          d={inner_path}
           fill="none"
           filter={`url(#${glowId})`}
-          opacity={innerGlowOpacity}
+          opacity={inner_glow_opacity}
           stroke="rgba(255,255,255,0.22)"
-          strokeWidth={Math.max(outerGlowWidth - 4, 10)}
+          strokeWidth={Math.max(outer_glow_width - 4, 10)}
         />
         <path
           d={path}
@@ -201,24 +201,24 @@ function StaticGlassShell({
           strokeWidth="2"
         />
         <path
-          d={innerPath}
+          d={inner_path}
           fill={innerSurfaceFill}
           opacity="0.92"
-          stroke={innerStroke}
+          stroke={inner_stroke}
           strokeWidth="4"
         />
       </svg>
 
-      {svgOverlay}
+      {svg_overlay}
 
-      <div className={cn("relative z-10", contentClassName)}>
+      <div className={cn("relative z-10", content_class_name)}>
         {children}
       </div>
     </div>
   );
 }
 
-export function HeroSidePanelShell({children, className}: HeroBlobShellProps) {
+export function HeroSidePanelShell({ children, class_name }: HeroBlobShellProps) {
   const panel = useEditableShape({
     defaultPoints: DEFAULT_SIDE_PANEL_POINTS,
     storageKey: SIDE_PANEL_STORAGE_KEY,
@@ -231,35 +231,35 @@ export function HeroSidePanelShell({children, className}: HeroBlobShellProps) {
 
   return (
     <>
-      <StaticGlassShell
-        className={cn("w-[280px]", className)}
-        contentClassName="px-6 py-7"
-        auraBackground={`radial-gradient(24% 20% at 18% 28%, rgba(255,184,124,0.10), rgba(255,184,124,0) 78%),
+        <StaticGlassShell
+        class_name={cn("w-[280px]", class_name)}
+        content_class_name="px-6 py-7"
+        aura_background={`radial-gradient(24% 20% at 18% 28%, rgba(255,184,124,0.10), rgba(255,184,124,0) 78%),
           radial-gradient(24% 20% at 80% 18%, rgba(110,228,214,0.10), rgba(110,228,214,0) 78%),
           radial-gradient(32% 18% at 46% 92%, rgba(128,118,255,0.12), rgba(128,118,255,0) 76%),
           radial-gradient(40% 18% at 52% 8%, rgba(255,255,255,0.08), rgba(255,255,255,0) 72%)`}
-        auraBlurClassName="blur-[34px]"
+        aura_blur_class_name="blur-[34px]"
         fill={panel.debugEnabled ? "rgba(37,55,88,0.5)" : "rgba(214,224,246,0.12)"}
-        fillGradientStops={panel.debugEnabled ? undefined : [
+        fill_gradient_stops={panel.debugEnabled ? undefined : [
           { offset: "0%", color: "rgba(245,248,255,0.18)" },
           { offset: "42%", color: "rgba(212,224,248,0.12)" },
           { offset: "100%", color: "rgba(182,200,235,0.14)" },
         ]}
-        glowBlurDeviation={5}
-        innerFill={panel.debugEnabled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)"}
-        innerFillGradientStops={panel.debugEnabled ? undefined : [
+        glow_blur_deviation={5}
+        inner_fill={panel.debugEnabled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)"}
+        inner_fill_gradient_stops={panel.debugEnabled ? undefined : [
           { offset: "0%", color: "rgba(250,252,255,0.08)" },
           { offset: "52%", color: "rgba(217,229,249,0.04)" },
           { offset: "100%", color: "rgba(200,214,240,0.07)" },
         ]}
-        innerGlowOpacity={panel.debugEnabled ? 0.78 : 0.42}
-        innerPath={innerPath}
-        innerStroke={panel.debugEnabled ? "rgba(170,226,255,0.22)" : "rgba(255,255,255,0.09)"}
-        outerGlowOpacity={panel.debugEnabled ? 0.86 : 0.5}
-        outerGlowWidth={panel.debugEnabled ? 18 : 13}
+        inner_glow_opacity={panel.debugEnabled ? 0.78 : 0.42}
+        inner_path={innerPath}
+        inner_stroke={panel.debugEnabled ? "rgba(170,226,255,0.22)" : "rgba(255,255,255,0.09)"}
+        outer_glow_opacity={panel.debugEnabled ? 0.86 : 0.5}
+        outer_glow_width={panel.debugEnabled ? 18 : 13}
         path={panel.path}
         stroke={panel.debugEnabled ? "rgba(170,226,255,0.42)" : "rgba(255,255,255,0.22)"}
-        svgOverlay={panel.debugEnabled ? (
+        svg_overlay={panel.debugEnabled ? (
           <BlobDebugController
             active={target === "panel"}
             color="rgba(170,226,255,0.92)"
@@ -290,8 +290,8 @@ export function HeroSidePanelShell({children, className}: HeroBlobShellProps) {
             viewBoxWidth={SIDE_PANEL_VIEWBOX_WIDTH}
           />
         ) : null}
-        viewBoxHeight={SIDE_PANEL_VIEWBOX_HEIGHT}
-        viewBoxWidth={SIDE_PANEL_VIEWBOX_WIDTH}
+        view_box_height={SIDE_PANEL_VIEWBOX_HEIGHT}
+        view_box_width={SIDE_PANEL_VIEWBOX_WIDTH}
       >
         {children}
       </StaticGlassShell>
@@ -320,32 +320,32 @@ export function HeroSidePanelShell({children, className}: HeroBlobShellProps) {
 export function HeroActionPillShell({
   active = false,
   children,
-  className,
+  class_name,
 }: HeroActionPillShellProps) {
   return (
     <StaticGlassShell
-      className={cn("h-11 min-w-[108px]", className)}
-      contentClassName="flex h-full items-center justify-center px-5"
-      auraBackground={active
+      class_name={cn("h-11 min-w-[108px]", class_name)}
+      content_class_name="flex h-full items-center justify-center px-5"
+      aura_background={active
         ? "radial-gradient(48% 38% at 50% 50%, rgba(255,255,255,0.12), rgba(255,255,255,0) 72%)"
         : ""}
-      auraBlurClassName="blur-[18px]"
+      aura_blur_class_name="blur-[18px]"
       fill={active ? "rgba(219,228,246,0.16)" : "rgba(204,216,239,0.12)"}
-      fillGradientStops={[
+      fill_gradient_stops={[
         { offset: "0%", color: active ? "rgba(247,250,255,0.24)" : "rgba(238,244,255,0.18)" },
         { offset: "100%", color: active ? "rgba(203,217,241,0.14)" : "rgba(188,204,233,0.12)" },
       ]}
-      glowBlurDeviation={4}
-      innerFill={active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"}
-      innerPath={ACTION_PILL_INNER_PATH}
-      innerGlowOpacity={active ? 0.3 : 0.22}
-      innerStroke={active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)"}
-      outerGlowOpacity={active ? 0.44 : 0.28}
-      outerGlowWidth={10}
+      glow_blur_deviation={4}
+      inner_fill={active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"}
+      inner_path={ACTION_PILL_INNER_PATH}
+      inner_glow_opacity={active ? 0.3 : 0.22}
+      inner_stroke={active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)"}
+      outer_glow_opacity={active ? 0.44 : 0.28}
+      outer_glow_width={10}
       path={ACTION_PILL_PATH}
       stroke={active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.14)"}
-      viewBoxHeight={ACTION_PILL_VIEWBOX_HEIGHT}
-      viewBoxWidth={ACTION_PILL_VIEWBOX_WIDTH}
+      view_box_height={ACTION_PILL_VIEWBOX_HEIGHT}
+      view_box_width={ACTION_PILL_VIEWBOX_WIDTH}
     >
       {children}
     </StaticGlassShell>
@@ -355,39 +355,39 @@ export function HeroActionPillShell({
 export function HeroActionOrbShell({
   active = false,
   children,
-  className,
+  class_name,
 }: HeroActionOrbShellProps) {
   return (
     <StaticGlassShell
-      className={cn("h-11 w-11", className)}
-      contentClassName="flex h-full items-center justify-center"
-      auraBackground={active
+      class_name={cn("h-11 w-11", class_name)}
+      content_class_name="flex h-full items-center justify-center"
+      aura_background={active
         ? "radial-gradient(54% 54% at 50% 50%, rgba(171,238,194,0.22), rgba(171,238,194,0) 70%)"
         : ""}
-      auraBlurClassName="blur-[18px]"
+      aura_blur_class_name="blur-[18px]"
       fill={active ? "rgba(176,235,192,0.22)" : "rgba(204,216,239,0.12)"}
-      fillGradientStops={[
+      fill_gradient_stops={[
         { offset: "0%", color: active ? "rgba(229,252,235,0.30)" : "rgba(238,244,255,0.18)" },
         { offset: "100%", color: active ? "rgba(150,222,170,0.20)" : "rgba(188,204,233,0.12)" },
       ]}
-      glowBlurDeviation={4}
-      innerFill={active ? "rgba(191,240,202,0.10)" : "rgba(255,255,255,0.05)"}
-      innerPath={ACTION_ORB_INNER_PATH}
-      innerGlowOpacity={active ? 0.3 : 0.2}
-      innerStroke={active ? "rgba(180,235,194,0.18)" : "rgba(255,255,255,0.08)"}
-      outerGlowOpacity={active ? 0.46 : 0.28}
-      outerGlowWidth={10}
+      glow_blur_deviation={4}
+      inner_fill={active ? "rgba(191,240,202,0.10)" : "rgba(255,255,255,0.05)"}
+      inner_path={ACTION_ORB_INNER_PATH}
+      inner_glow_opacity={active ? 0.3 : 0.2}
+      inner_stroke={active ? "rgba(180,235,194,0.18)" : "rgba(255,255,255,0.08)"}
+      outer_glow_opacity={active ? 0.46 : 0.28}
+      outer_glow_width={10}
       path={ACTION_ORB_PATH}
       stroke={active ? "rgba(191,240,202,0.26)" : "rgba(255,255,255,0.14)"}
-      viewBoxHeight={ACTION_ORB_VIEWBOX_HEIGHT}
-      viewBoxWidth={ACTION_ORB_VIEWBOX_WIDTH}
+      view_box_height={ACTION_ORB_VIEWBOX_HEIGHT}
+      view_box_width={ACTION_ORB_VIEWBOX_WIDTH}
     >
       {children}
     </StaticGlassShell>
   );
 }
 
-export function HeroBlobShell({children, className}: HeroBlobShellProps) {
+export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
   const gradientId = useId();
   const outerEdgeGlowGradientId = useId();
   const outerEdgeGlowId = useId();
@@ -402,7 +402,7 @@ export function HeroBlobShell({children, className}: HeroBlobShellProps) {
 
   return (
     <>
-      <div className={cn("relative isolate w-full max-w-[980px]", className)}>
+      <div className={cn("relative isolate w-full max-w-[980px]", class_name)}>
         <div className="absolute inset-[-20%] z-0 pointer-events-none">
           <div
             className="absolute inset-0 pointer-events-none blur-[56px]"
@@ -528,7 +528,7 @@ export function HeroBlobShell({children, className}: HeroBlobShellProps) {
   );
 }
 
-export function HeroInputShell({children, className}: HeroInputShellProps) {
+export function HeroInputShell({ children, class_name }: HeroInputShellProps) {
   const inputGlowGradientId = useId();
   const inputGlowId = useId();
   const input = useEditableShape({
@@ -542,7 +542,7 @@ export function HeroInputShell({children, className}: HeroInputShellProps) {
 
   return (
     <>
-      <div className={cn("relative isolate w-full", className)}>
+      <div className={cn("relative isolate w-full", class_name)}>
         <div className="absolute inset-[-6%] z-0">
           <svg
             aria-hidden="true"
