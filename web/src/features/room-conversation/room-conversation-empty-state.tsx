@@ -3,11 +3,11 @@
 import { FolderKanban, MessageSquarePlus, Sparkles } from "lucide-react";
 
 interface RoomConversationEmptyStateProps {
-  onCreateConversation: () => void;
+  on_create_conversation: () => void;
 }
 
 export function RoomConversationEmptyState({
-  onCreateConversation,
+  on_create_conversation,
 }: RoomConversationEmptyStateProps) {
   return (
     <div className="flex flex-1 items-center justify-center p-8">
@@ -53,7 +53,7 @@ export function RoomConversationEmptyState({
 
         <button
           className="mt-8 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.94),rgba(102,217,143,0.90))] px-7 py-3.5 text-sm font-bold text-[#18653a] shadow-[0_20px_34px_rgba(102,217,143,0.22)] transition-transform hover:-translate-y-0.5"
-          onClick={onCreateConversation}
+          onClick={on_create_conversation}
         >
           <MessageSquarePlus className="h-5 w-5" />
           <span>创建新会话</span>

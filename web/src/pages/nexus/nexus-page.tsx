@@ -22,7 +22,7 @@ export function NexusPage() {
         ) : null
       }
     >
-      <NexusPlaceholder conversationId={params.conversationId} />
+      <NexusPlaceholder conversation_id={params.conversationId} />
     </RouteScaffold>
   );
 }

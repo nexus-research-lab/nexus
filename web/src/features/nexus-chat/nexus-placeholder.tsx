@@ -1,8 +1,8 @@
 interface NexusPlaceholderProps {
-  conversationId?: string;
+  conversation_id?: string;
 }
 
-export function NexusPlaceholder({ conversationId }: NexusPlaceholderProps) {
+export function NexusPlaceholder({ conversation_id }: NexusPlaceholderProps) {
   return (
     <div className="grid flex-1 gap-4 lg:grid-cols-[1.25fr_0.75fr]">
       <section className="workspace-card rounded-[28px] px-5 py-5">
@@ -22,7 +22,7 @@ export function NexusPlaceholder({ conversationId }: NexusPlaceholderProps) {
           <li>接入独立 Nexus controller</li>
           <li>建立系统动作历史与最近网络状态</li>
           <li>与 launcher 的 Ask Nexus 入口联通</li>
-          {conversationId ? <li>恢复指定 Nexus conversation：{conversationId}</li> : null}
+          {conversation_id ? <li>恢复指定 Nexus conversation：{conversation_id}</li> : null}
         </ul>
       </aside>
     </div>

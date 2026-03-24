@@ -1,8 +1,8 @@
 interface ContactsPlaceholderProps {
-  agentId?: string;
+  agent_id?: string;
 }
 
-export function ContactsPlaceholder({ agentId }: ContactsPlaceholderProps) {
+export function ContactsPlaceholder({ agent_id }: ContactsPlaceholderProps) {
   return (
     <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_0.9fr]">
       <section className="workspace-card rounded-[28px] px-5 py-5">
@@ -22,7 +22,7 @@ export function ContactsPlaceholder({ agentId }: ContactsPlaceholderProps) {
           <li>成员列表与技能筛选</li>
           <li>成员 profile 页面</li>
           <li>发起 1v1 与邀请入 room</li>
-          {agentId ? <li>优先展示成员资料：{agentId}</li> : null}
+          {agent_id ? <li>优先展示成员资料：{agent_id}</li> : null}
         </ul>
       </aside>
     </div>

@@ -275,7 +275,7 @@ export function RoomChatPanel({
       ) : null}
 
       {!external_session_key ? (
-        <RoomConversationEmptyState onCreateConversation={on_create_conversation} />
+        <RoomConversationEmptyState on_create_conversation={on_create_conversation} />
       ) : (
         <>
           {!is_mobile_layout ? (

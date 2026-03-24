@@ -22,7 +22,7 @@ export function ContactsPage() {
         ) : null
       }
     >
-      <ContactsPlaceholder agentId={params.agentId} />
+      <ContactsPlaceholder agent_id={params.agentId} />
     </RouteScaffold>
   );
 }
