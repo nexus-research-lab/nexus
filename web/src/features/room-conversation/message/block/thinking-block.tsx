@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ThinkingBlockProps } from "@/types/room-conversation";
 import { MarkdownRenderer } from "../markdown-renderer";
+
+interface ThinkingBlockProps {
+  thinking: string;
+  is_streaming?: boolean;
+}
 
 export function ThinkingBlock({ thinking, is_streaming }: ThinkingBlockProps) {
     // 默认展开思考过程，流式状态仅影响展示样式，不影响折叠状态。

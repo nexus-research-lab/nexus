@@ -1,5 +1,11 @@
 import { ShieldCheck } from "lucide-react";
-import { RoomWorkspaceContextSectionProps } from "@/types/room";
+
+interface RoomWorkspaceContextSectionProps {
+  allowed_tool_count: number;
+  localized_agent_skill: string;
+  permission_mode: string;
+  served_room_count: number;
+}
 
 export function RoomWorkspaceContextSection({
   allowed_tool_count,

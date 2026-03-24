@@ -1,5 +1,3 @@
-import { ToolUseContent } from "@/types/message";
-
 /**
  * AskUserQuestion 工具类型定义
  *
@@ -52,19 +50,4 @@ export interface UserQuestionResponse {
   tool_use_id: string;
   /** 所有问题的回答 */
   answers: UserQuestionAnswer[];
-}
-
-export interface AskUserQuestionBlockProps {
-  tool_use: ToolUseContent;
-  on_submit?: (tool_use_id: string, answers: UserQuestionAnswer[]) => void;
-  is_submitted?: boolean;
-}
-
-export interface AskUserQuestionCardProps {
-  question: UserQuestion;
-  question_index: number;
-  selected_options: Set<string>;
-  on_toggle_option: (question_index: number, option_label: string, multi_select: boolean) => void;
-  is_submitted: boolean;
-  default_expanded?: boolean;
 }

@@ -1,7 +1,23 @@
 import { Clock3, FilePlus2, FileText, FolderPlus, FolderTree } from "lucide-react";
 
+import { WorkspaceFileEntry } from "@/types/agent";
+import { Conversation } from "@/types/conversation";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
-import { RoomContextSectionProps } from "@/types/room";
+
+interface RoomContextSectionProps {
+  contextualFiles: WorkspaceFileEntry[];
+  current_conversation: Conversation | null;
+  file_explorer_content: React.ReactNode;
+  filesystem_error: string | null;
+  is_file_explorer_visible: boolean;
+  memory_file_count: number;
+  on_create_directory: () => void;
+  on_create_file: () => void;
+  on_open_workspace_file: (path: string) => void;
+  on_toggle_file_explorer: () => void;
+  total_conversation_count: number;
+  active_workspace_path: string | null;
+}
 
 export function RoomContextSection({
   contextualFiles,

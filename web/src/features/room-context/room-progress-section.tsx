@@ -1,7 +1,11 @@
 import { CheckSquare, LoaderCircle } from "lucide-react";
 
 import { LoadingOrb } from "@/shared/ui/loading-orb";
-import { RoomProgressSectionProps } from "@/types/room";
+import { TodoItem } from "@/types/todo";
+
+interface RoomProgressSectionProps {
+  todos: TodoItem[];
+}
 
 export function RoomProgressSection({ todos }: RoomProgressSectionProps) {
   const completedTodoCount = todos.filter((todo) => todo.status === "completed").length;

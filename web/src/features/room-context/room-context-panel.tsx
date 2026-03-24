@@ -1,14 +1,28 @@
 "use client";
 
 import { HOME_AGENT_INSPECTOR_WIDTH_CLASS } from "@/lib/home-layout";
+import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
-import { RoomContextPanelProps } from "@/types/room";
+import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
+import { Session } from "@/types/session";
+import { TodoItem } from "@/types/todo";
 
 import { RoomCollaborationStatusSection } from "./room-collaboration-status-section";
 import { RoomMemberSummaryCard } from "./room-member-summary-card";
 import { RoomProgressSection } from "./room-progress-section";
 import { RoomUsageSection } from "./room-usage-section";
 import { RoomWorkspaceContextSection } from "./room-workspace-context-section";
+
+interface RoomContextPanelProps {
+  agent: Agent;
+  sessions: Session[];
+  active_session: Session | null;
+  todos: TodoItem[];
+  is_session_busy: boolean;
+  session_cost_summary: SessionCostSummary;
+  agent_cost_summary: AgentCostSummary;
+  on_edit_agent: (agent_id: string) => void;
+}
 
 export function RoomContextPanel({
   agent,

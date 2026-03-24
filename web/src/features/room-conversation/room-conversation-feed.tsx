@@ -1,5 +1,20 @@
 import { MessageItem } from "@/features/room-conversation/message";
-import { RoomConversationFeedProps } from "@/types/room-conversation";
+import { Message } from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
+
+interface RoomConversationFeedProps {
+  bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
+  current_agent_name: string | null;
+  is_last_round_pending_permission: PendingPermission | null;
+  is_loading: boolean;
+  is_mobile_layout: boolean;
+  message_groups: Map<string, Message[]>;
+  on_delete_round: (round_id: string) => Promise<void>;
+  on_open_workspace_file?: (path: string) => void;
+  on_permission_response: (payload: PermissionDecisionPayload) => void;
+  on_regenerate_round?: (round_id: string) => Promise<void>;
+  round_ids: string[];
+}
 
 export function RoomConversationFeed({
   bottom_anchor_ref,

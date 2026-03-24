@@ -23,16 +23,59 @@ import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ANIMATIONS } from "@/shared/ui/animation-assets";
 import { LottiePlayer } from "@/shared/ui/lottie-player";
 import { Agent } from "@/types/agent";
+import { Conversation } from "@/types/conversation";
 import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
-import {
-  ContactsPopoverProps,
-  HeaderActionButtonProps,
-  HeroStageProps,
-  LauncherConsoleProps,
-  RecentRoomsPopoverProps,
-} from "@/types/launcher-ui";
 
 import { AgentPile } from "./launcher-agent-pile";
+
+interface LauncherConsoleProps {
+  agents: Agent[];
+  conversations: Conversation[];
+  current_agent_id: string | null;
+  on_open_contacts_page: () => void;
+  on_open_nexus: () => void;
+  on_select_agent: (agent_id: string) => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
+  on_create_agent: () => void;
+  on_edit_agent: (agent_id: string) => void;
+  on_delete_agent: (agent_id: string) => void;
+}
+
+interface HeaderActionButtonProps {
+  is_active?: boolean;
+  children: string;
+  on_click: () => void;
+}
+
+interface HeroStageProps {
+  current_agent_id: string | null;
+  decorative_tokens: SpotlightToken[];
+  on_open_nexus: () => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
+  on_query_change: (value: string) => void;
+  on_select_agent: (agent_id: string) => void;
+  on_submit: () => void;
+  query: string;
+  recent_agents: Agent[];
+  recent_rooms: ConversationWithOwner[];
+}
+
+interface ContactsPopoverProps {
+  agents: Agent[];
+  on_close: () => void;
+  on_create_agent: () => void;
+  on_delete_agent: (agent_id: string) => void;
+  on_edit_agent: (agent_id: string) => void;
+  on_open_contacts_page: () => void;
+  on_select_agent: (agent_id: string) => void;
+}
+
+interface RecentRoomsPopoverProps {
+  on_close: () => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
+  recent_rooms: ConversationWithOwner[];
+  conversations_with_owners: ConversationWithOwner[];
+}
 
 const TOKEN_SWATCHES = [
   { fill: "#5FA052", text: "#FFFFFF", ring: "#8DBA86" },

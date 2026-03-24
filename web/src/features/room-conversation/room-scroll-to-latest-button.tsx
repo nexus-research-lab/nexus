@@ -1,5 +1,10 @@
 import { ArrowDown } from "lucide-react";
-import { RoomScrollToLatestButtonProps } from "@/types/room-conversation";
+
+interface RoomScrollToLatestButtonProps {
+  is_loading: boolean;
+  is_mobile_layout: boolean;
+  on_click: () => void;
+}
 
 export function RoomScrollToLatestButton({
   is_loading,

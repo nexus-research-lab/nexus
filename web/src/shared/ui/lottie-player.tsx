@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import Lottie from "lottie-react";
 import type { DotLottie } from "@lottiefiles/dotlottie-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { LottiePlayerProps } from "@/types/shared-ui";
+import { CSSProperties } from "react";
+
+interface LottiePlayerProps {
+  src: string;
+  class_name?: string;
+  inline_style?: CSSProperties;
+}
 
 export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProps) {
   const [animationData, setAnimationData] = useState<object | null>(null);

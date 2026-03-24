@@ -1,7 +1,15 @@
 import { BrainCircuit, MessageSquarePlus, Trash2 } from "lucide-react";
 
+import { Conversation } from "@/types/conversation";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
-import { RoomConversationsSectionProps } from "@/types/room";
+
+interface RoomConversationsSectionProps {
+  conversations: Conversation[];
+  current_conversation_id: string | null;
+  on_create_conversation: () => void;
+  on_delete_conversation: (conversation_id: string) => void;
+  on_select_conversation: (conversation_id: string) => void;
+}
 
 export function RoomConversationsSection({
   conversations,

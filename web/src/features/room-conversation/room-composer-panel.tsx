@@ -5,7 +5,24 @@ import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X, Zap } fro
 
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/loading-orb";
-import { AttachmentFile, RoomComposerPanelProps } from "@/types/room-conversation";
+
+interface AttachmentFile {
+  id: string;
+  file: File;
+  preview?: string;
+  type: "image" | "document";
+}
+
+interface RoomComposerPanelProps {
+  compact: boolean;
+  current_agent_name: string | null;
+  is_loading: boolean;
+  on_send_message: (content: string) => void | Promise<void>;
+  on_stop: () => void;
+  disabled?: boolean;
+  placeholder?: string;
+  max_length?: number;
+}
 
 const RoomComposerPanelView = memo(({
   compact,

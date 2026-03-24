@@ -1,7 +1,15 @@
 import { Activity } from "lucide-react";
 
+import { Conversation } from "@/types/conversation";
 import { formatRelativeTime, truncate } from "@/lib/utils";
-import { RoomCollaborationStatusSectionProps } from "@/types/room";
+
+interface RoomCollaborationStatusSectionProps {
+  active_conversation: Conversation | null;
+  localized_agent_skill: string;
+  localized_runtime_status: string;
+  model_name: string;
+  total_room_count: number;
+}
 
 export function RoomCollaborationStatusSection({
   active_conversation,

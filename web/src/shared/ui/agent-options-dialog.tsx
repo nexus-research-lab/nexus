@@ -20,7 +20,24 @@ import { MessageSquare, Settings, Sparkles, Wrench, X, Zap } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { SessionOptions } from "@/types/session";
 import { AgentNameValidationResult } from "@/types/agent";
-import { AgentDialogInitialOptions, AgentOptionsProps } from "@/types/shared-ui";
+
+interface AgentOptionsProps {
+  mode: 'create' | 'edit';
+  is_open: boolean;
+  on_close: () => void;
+  on_save: (title: string, options: SessionOptions) => void;
+  on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
+  initial_title?: string;
+  initial_options?: Partial<SessionOptions>;
+}
+
+interface AgentDialogInitialOptions extends Partial<SessionOptions> {
+  permission_mode?: string;
+  allowed_tools?: string[];
+  disallowed_tools?: string[];
+  skills_enabled?: boolean;
+  setting_sources?: ('user' | 'project' | 'local')[];
+}
 
 type TabKey = 'basic' | 'prompt' | 'tools' | 'skills' | 'advanced';
 

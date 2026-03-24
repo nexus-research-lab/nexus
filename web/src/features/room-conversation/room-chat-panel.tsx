@@ -6,13 +6,27 @@ import { useAgentSession } from "@/hooks/agent";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useSessionLoader } from "@/hooks/use-session-loader";
 import { Message } from "@/types/message";
-import { RoomChatPanelProps } from "@/types/room";
+import { ConversationSnapshotPayload } from "@/types/conversation";
+import { TodoItem } from "@/types/todo";
 
 import { RoomComposerPanel } from "./room-composer-panel";
 import { RoomConversationEmptyState } from "./room-conversation-empty-state";
 import { RoomConversationFeed } from "./room-conversation-feed";
 import { RoomConversationHeader } from "./room-conversation-header";
 import { RoomScrollToLatestButton } from "./room-scroll-to-latest-button";
+
+interface RoomChatPanelProps {
+  agent_id: string | null;
+  current_agent_name?: string | null;
+  session_key: string | null;
+  session_title?: string | null;
+  on_create_conversation: () => void;
+  layout?: "desktop" | "mobile";
+  on_open_workspace_file?: (path: string) => void;
+  on_todos_change?: (todos: TodoItem[]) => void;
+  on_loading_change?: (is_loading: boolean) => void;
+  on_conversation_snapshot_change?: (snapshot: ConversationSnapshotPayload) => void;
+}
 
 const BOTTOM_THRESHOLD_PX = 80;
 

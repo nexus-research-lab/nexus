@@ -1,7 +1,14 @@
 import { Bot, MessageSquarePlus } from "lucide-react";
 
+import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
-import { RoomMembersSectionProps } from "@/types/room";
+
+interface RoomMembersSectionProps {
+  current_agent_id: string | null;
+  members: Agent[];
+  on_create_agent: () => void;
+  on_select_agent: (agent_id: string) => void;
+}
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

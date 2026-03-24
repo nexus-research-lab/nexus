@@ -9,9 +9,31 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Check, CheckCircle, ChevronDown, ChevronRight, Clock, Copy, Loader, Terminal, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ToolBlockProps } from '@/types/room-conversation';
 import { CodeBlock } from './code-block';
 import { PermissionDialog } from '@/shared/ui/permission-dialog';
+import { ToolResultContent, ToolUseContent } from '@/types/message';
+import { PermissionRiskLevel, PermissionUpdate } from '@/types/permission';
+
+interface ToolPermissionRequest {
+  request_id: string;
+  tool_input: Record<string, any>;
+  risk_level?: PermissionRiskLevel;
+  risk_label?: string;
+  summary?: string;
+  suggestions?: PermissionUpdate[];
+  expires_at?: string;
+  on_allow: (updated_permissions?: PermissionUpdate[]) => void;
+  on_deny: (updated_permissions?: PermissionUpdate[]) => void;
+}
+
+interface ToolBlockProps {
+  tool_use: ToolUseContent;
+  tool_result?: ToolResultContent;
+  status?: "pending" | "running" | "success" | "error" | "waiting_permission";
+  start_time?: number;
+  end_time?: number;
+  permission_request?: ToolPermissionRequest;
+}
 
 // ==================== 辅助函数 ====================
 

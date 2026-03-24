@@ -8,9 +8,16 @@ import {
   findNearestSegmentIndex,
   parsePoints,
 } from "@/features/launcher-search/launcher-blob-shape";
-import { BlobPoint, EditableShapeOptions } from "@/types/launcher";
+import { BlobPoint } from "@/types/launcher";
 
 export type BlobDebugTarget = "hero" | "input" | "panel";
+
+interface EditableShapeOptions {
+  defaultPoints: BlobPoint[];
+  storageKey: string;
+  viewBoxWidth: number;
+  viewBoxHeight: number;
+}
 
 const DEBUG_TARGET_STORAGE_KEY = "nexus-home-blob-debug-target";
 

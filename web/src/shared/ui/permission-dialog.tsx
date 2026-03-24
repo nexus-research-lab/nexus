@@ -10,7 +10,20 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
-import { PermissionDialogProps } from "@/types/shared-ui";
+
+interface PermissionDialogProps {
+  is_open: boolean;
+  tool_name: string;
+  tool_input: Record<string, any>;
+  risk_level?: PermissionRiskLevel;
+  risk_label?: string;
+  summary?: string;
+  suggestions?: PermissionUpdate[];
+  expires_at?: string;
+  on_allow: (updated_permissions?: PermissionUpdate[]) => void;
+  on_deny: (updated_permissions?: PermissionUpdate[]) => void;
+  on_close: () => void;
+}
 
 export function PermissionDialog(
   {

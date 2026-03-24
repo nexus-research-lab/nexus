@@ -6,7 +6,18 @@ import { AskUserQuestionBlock } from './block/ask-user-question-block';
 import { CodeBlock } from './block/code-block';
 import { ThinkingBlock } from './block/thinking-block';
 import { cn } from '@/lib/utils';
-import { ContentRendererProps } from '@/types/room-conversation';
+import { ContentBlock } from '@/types/message';
+import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
+
+interface ContentRendererProps {
+  content: string | ContentBlock[];
+  is_streaming?: boolean;
+  streaming_block_indexes?: Set<number>;
+  pending_permission?: PendingPermission | null;
+  on_permission_response?: (payload: PermissionDecisionPayload) => void;
+  on_open_workspace_file?: (path: string) => void;
+  hidden_tool_names?: string[];
+}
 
 export function ContentRenderer(
   {

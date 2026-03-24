@@ -6,7 +6,17 @@ import { GripVertical, LoaderCircle, Minimize2, Save } from "lucide-react";
 import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
-import { RoomEditorPanelProps } from "@/types/room";
+
+interface RoomEditorPanelProps {
+  agent_id: string;
+  path: string | null;
+  is_open: boolean;
+  width_percent: number;
+  embedded?: boolean;
+  class_name?: string;
+  on_close: () => void;
+  on_resize_start: () => void;
+}
 
 export function RoomEditorPanel({
   agent_id,

@@ -5,12 +5,48 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { BlobPoint } from "@/types/launcher";
-import {
-  BlobDebugControllerProps,
-  BlobDebugOverlayProps,
-  BlobDebugPanelProps,
-} from "@/types/launcher-ui";
 import { type BlobDebugTarget } from "@/features/launcher-search/launcher-blob-debug-hooks";
+
+interface BlobDebugPanelProps {
+  count_label?: string;
+  current_target: BlobDebugTarget;
+  description?: string;
+  on_copy: () => void;
+  on_reset: () => void;
+  panel_class_name: string;
+  points: BlobPoint[];
+  set_target: (target: BlobDebugTarget) => void;
+  target: BlobDebugTarget;
+  title: string;
+}
+
+interface BlobDebugOverlayProps {
+  color: string;
+  debug_enabled: boolean;
+  fill: string;
+  on_path_double_click: (event: ReactPointerEvent<SVGPathElement>) => void;
+  on_point_pointer_down: (index: number) => (event: ReactPointerEvent<Element>) => void;
+  on_point_pointer_up: (event: ReactPointerEvent<Element>) => void;
+  path: string;
+  points: BlobPoint[];
+  stroke: string;
+  stroke_width: number;
+  svg_ref: RefObject<SVGSVGElement | null>;
+  view_box_height: number;
+  view_box_width: number;
+}
+
+interface BlobDebugControllerProps extends BlobDebugOverlayProps {
+  is_active: boolean;
+  current_target: BlobDebugTarget;
+  on_copy: () => void;
+  on_reset: () => void;
+  panel_class_name: string;
+  set_target: (target: BlobDebugTarget) => void;
+  show_panel?: boolean;
+  target: BlobDebugTarget;
+  title: string;
+}
 
 function useDebugSvgRect(
   debug_enabled: boolean,

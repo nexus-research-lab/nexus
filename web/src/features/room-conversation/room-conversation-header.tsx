@@ -2,7 +2,13 @@
 
 import { memo } from "react";
 import { Activity, PanelTop } from "lucide-react";
-import { RoomConversationHeaderProps } from "@/types/room-conversation";
+
+interface RoomConversationHeaderProps {
+  current_agent_name: string | null;
+  current_conversation_id: string | null;
+  current_conversation_title: string | null;
+  is_loading: boolean;
+}
 
 function getInitials(name: string | null): string {
   if (!name) {

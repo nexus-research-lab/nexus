@@ -3,10 +3,45 @@
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { HOME_WORKSPACE_SECTION_GAP_CLASS } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
-import { RoomWorkspaceShellProps } from "@/types/room";
+import { Agent } from "@/types/agent";
+import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
+import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
+import { TodoItem } from "@/types/todo";
 
 import { RoomMobileWorkspace } from "./room-mobile-workspace";
 import { RoomWorkspaceLayout } from "./room-workspace-layout";
+
+interface RoomWorkspaceShellProps {
+  agents: Agent[];
+  current_agent: Agent;
+  current_agent_id: string | null;
+  recent_agents: Agent[];
+  current_conversation: Conversation | null;
+  current_conversation_id: string | null;
+  current_room_conversations: Conversation[];
+  active_workspace_path: string | null;
+  is_editor_open: boolean;
+  editor_width_percent: number;
+  is_resizing_editor: boolean;
+  is_session_busy: boolean;
+  current_todos: TodoItem[];
+  session_cost_summary: SessionCostSummary;
+  agent_cost_summary: AgentCostSummary;
+  workspace_split_ref: React.RefObject<HTMLElement | null>;
+  on_select_agent: (agent_id: string) => void;
+  on_open_create_agent: () => void;
+  on_back_to_directory: () => void;
+  on_edit_agent: (agent_id: string) => void;
+  on_create_conversation: () => void;
+  on_select_conversation: (conversation_id: string) => void;
+  on_delete_conversation: (conversation_id: string) => void;
+  on_open_workspace_file: (path: string | null) => void;
+  on_close_workspace_pane: () => void;
+  on_start_editor_resize: () => void;
+  on_loading_change: (is_loading: boolean) => void;
+  on_todos_change: (todos: TodoItem[]) => void;
+  on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
+}
 
 export function RoomWorkspaceShell({
   agents,

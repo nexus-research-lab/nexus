@@ -2,7 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { ConfirmDialogProps, PromptDialogProps } from "@/types/shared-ui";
+
+interface ConfirmDialogProps {
+  is_open: boolean;
+  title: string;
+  message: string;
+  confirm_text?: string;
+  cancel_text?: string;
+  on_confirm: () => void;
+  on_cancel: () => void;
+  variant?: "danger" | "default";
+}
+
+interface PromptDialogProps {
+  is_open: boolean;
+  title: string;
+  message?: string;
+  placeholder?: string;
+  default_value?: string;
+  on_confirm: (value: string) => void;
+  on_cancel: () => void;
+}
 
 export function ConfirmDialog({
   is_open,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { ReactNode, useId } from "react";
 
 import {
   createClosedSplinePath,
@@ -20,16 +20,59 @@ import {
 } from "@/features/launcher-search/launcher-blob-shape";
 import { cn } from "@/lib/utils";
 import { BlobPoint } from "@/types/launcher";
-import {
-  HeroActionOrbShellProps,
-  HeroActionPillShellProps,
-  HeroBlobShellProps,
-  HeroInputShellProps,
-  StaticGlassShellProps,
-} from "@/types/launcher-ui";
 
 import { BlobDebugController, BlobDebugPanel } from "./launcher-blob-debug";
 import { useBlobDebugTarget, useEditableShape } from "./launcher-blob-debug-hooks";
+
+interface GlassGradientStop {
+  color: string;
+  offset: string;
+}
+
+interface HeroBlobShellProps {
+  children: ReactNode;
+  class_name?: string;
+}
+
+interface HeroInputShellProps {
+  children: ReactNode;
+  class_name?: string;
+}
+
+interface StaticGlassShellProps {
+  aura_background?: string;
+  aura_blur_class_name?: string;
+  children: ReactNode;
+  class_name?: string;
+  content_class_name?: string;
+  fill: string;
+  fill_gradient_stops?: GlassGradientStop[];
+  glow_blur_deviation?: number;
+  inner_fill: string;
+  inner_fill_gradient_stops?: GlassGradientStop[];
+  inner_glow_opacity?: number;
+  inner_path: string;
+  inner_stroke: string;
+  outer_glow_opacity?: number;
+  outer_glow_width?: number;
+  path: string;
+  stroke: string;
+  svg_overlay?: ReactNode;
+  view_box_height: number;
+  view_box_width: number;
+}
+
+interface HeroActionPillShellProps {
+  is_active?: boolean;
+  children: ReactNode;
+  class_name?: string;
+}
+
+interface HeroActionOrbShellProps {
+  is_active?: boolean;
+  children: ReactNode;
+  class_name?: string;
+}
 
 const ACTION_PILL_VIEWBOX_WIDTH = 220;
 const ACTION_PILL_VIEWBOX_HEIGHT = 86;

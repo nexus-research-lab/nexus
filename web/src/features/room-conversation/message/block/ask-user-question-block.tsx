@@ -14,7 +14,23 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Check, CheckCircle, ChevronDown, ChevronRight, Circle, MessageSquare, Send, Square, CheckSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AskUserQuestionBlockProps, AskUserQuestionCardProps, AskUserQuestionInput, UserQuestionAnswer } from '@/types/ask-user-question';
+import { AskUserQuestionInput, UserQuestion, UserQuestionAnswer } from '@/types/ask-user-question';
+import { ToolUseContent } from '@/types/message';
+
+interface AskUserQuestionCardProps {
+  question: UserQuestion;
+  question_index: number;
+  selected_options: Set<string>;
+  on_toggle_option: (question_index: number, option_label: string, multi_select: boolean) => void;
+  is_submitted: boolean;
+  default_expanded?: boolean;
+}
+
+interface AskUserQuestionBlockProps {
+  tool_use: ToolUseContent;
+  on_submit?: (tool_use_id: string, answers: UserQuestionAnswer[]) => void;
+  is_submitted?: boolean;
+}
 
 // ==================== 子组件 ====================
 

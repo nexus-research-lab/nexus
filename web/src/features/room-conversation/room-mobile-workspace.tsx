@@ -6,9 +6,20 @@ import { ArrowLeft, Check, ChevronDown, MessageSquare, Plus, Search, X } from "l
 import { formatRelativeTime } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { RoomMobileWorkspaceProps } from "@/types/room";
 
 import { RoomChatPanel } from "./room-chat-panel";
+
+interface RoomMobileWorkspaceProps {
+  current_agent: Agent;
+  current_conversation: Conversation | null;
+  current_conversation_id: string | null;
+  current_room_conversations: Conversation[];
+  on_back_to_directory: () => void;
+  on_create_conversation: () => void;
+  on_select_conversation: (conversation_id: string) => void;
+  on_loading_change: (is_loading: boolean) => void;
+  on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
+}
 
 export function RoomMobileWorkspace({
   current_agent,

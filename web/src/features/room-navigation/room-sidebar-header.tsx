@@ -1,7 +1,14 @@
 import { Grid2X2, RefreshCw } from "lucide-react";
 
 import { cn, truncate } from "@/lib/utils";
-import { RoomSidebarHeaderProps } from "@/types/room";
+
+interface RoomSidebarHeaderProps {
+  active_room_title: string;
+  current_agent_name: string;
+  is_refreshing: boolean;
+  on_open_directory: () => void;
+  on_refresh: () => void;
+}
 
 export function RoomSidebarHeader({
   active_room_title,

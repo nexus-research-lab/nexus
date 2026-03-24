@@ -27,14 +27,35 @@ import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/confirm-dialog";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
-import { WorkspaceFileEntry } from "@/types/agent";
+import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
-import { FileTreeNode, RoomSidebarPanelProps } from "@/types/room";
 
 import { RoomContextSection } from "../room-context/room-context-section";
 import { RoomMembersSection } from "../room-members/room-members-section";
 import { RoomConversationsSection } from "./room-conversations-section";
 import { RoomSidebarHeader } from "./room-sidebar-header";
+
+interface FileTreeNode {
+  entry: WorkspaceFileEntry;
+  children: FileTreeNode[];
+}
+
+interface RoomSidebarPanelProps {
+  agents: Agent[];
+  agent: Agent;
+  current_agent_id: string | null;
+  recent_agents: Agent[];
+  conversations: Conversation[];
+  current_conversation_id: string | null;
+  active_workspace_path: string | null;
+  on_select_agent: (agent_id: string) => void;
+  on_open_directory: () => void;
+  on_create_agent: () => void;
+  on_select_conversation: (conversation_id: string) => void;
+  on_create_conversation: () => void;
+  on_delete_conversation: (conversation_id: string) => void;
+  on_open_workspace_file: (path: string | null) => void;
+}
 
 function getFileIcon(name: string) {
   const extension = name.includes(".") ? name.split(".").pop()?.toLowerCase() ?? "" : "";
