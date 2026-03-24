@@ -5,7 +5,7 @@ import { AgentConversationLifecycleContext } from '@/types/agent-conversation';
 import { sortMessages } from './message-helpers';
 
 /**
- * 重置当前会话视图状态。
+ * 重置当前对话视图状态。
  */
 export function resetConversationView(
   context: AgentConversationLifecycleContext,
@@ -18,18 +18,18 @@ export function resetConversationView(
 }
 
 /**
- * 启动一个新的会话。
+ * 启动一个新的对话。
  */
 export function startAgentConversation(context: AgentConversationLifecycleContext): void {
-  const new_session_key = generateUuid();
+  const new_conversation_key = generateUuid();
   context.load_request_id_ref.current += 1;
-  context.active_conversation_key_ref.current = new_session_key;
-  context.set_conversation_key(new_session_key);
+  context.active_conversation_key_ref.current = new_conversation_key;
+  context.set_conversation_key(new_conversation_key);
   resetConversationView(context);
 }
 
 /**
- * 加载现有会话消息。
+ * 加载现有对话消息。
  */
 export async function loadAgentConversation(
   session_key: string,
@@ -65,7 +65,7 @@ export async function loadAgentConversation(
 }
 
 /**
- * 清空当前会话选择。
+ * 清空当前对话选择。
  */
 export function clearAgentConversation(context: AgentConversationLifecycleContext): void {
   context.load_request_id_ref.current += 1;
@@ -75,7 +75,7 @@ export function clearAgentConversation(context: AgentConversationLifecycleContex
 }
 
 /**
- * 重置会话并创建新的会话键。
+ * 重置对话并创建新的对话键。
  */
 export function resetAgentConversation(context: AgentConversationLifecycleContext): void {
   startAgentConversation(context);
