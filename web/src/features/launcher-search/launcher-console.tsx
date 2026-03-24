@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 
 import { ANIMATIONS } from "@/components/animations/animations";
-import { LottiePlayer } from "@/components/animations/lottiePlayer";
 import {
   HeroActionOrbShell,
   HeroActionPillShell,
@@ -22,6 +21,7 @@ import {
 } from "@/features/launcher-search/launcher-glass-shell";
 import { DebugReferenceOverlay } from "@/features/launcher-search/launcher-reference-overlay-debug";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
+import { LottiePlayer } from "@/shared/ui/lottie-player";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 
