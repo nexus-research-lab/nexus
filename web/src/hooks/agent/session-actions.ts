@@ -2,7 +2,7 @@ import { WebSocketMessage } from '@/types/websocket';
 import { deleteRound as deleteRoundApi } from '@/lib/agent-api';
 import { generateUuid } from '@/lib/uuid';
 import { Message, UserMessage } from '@/types';
-import { AgentSessionActionContext } from '@/types/agent-session';
+import { AgentConversationActionContext } from '@/types/agent-conversation';
 import { PermissionDecisionPayload } from '@/types/permission';
 
 import { upsertMessage } from './message-helpers';
@@ -12,7 +12,7 @@ import { upsertMessage } from './message-helpers';
  */
 export async function sendConversationMessage(
   content: string,
-  context: AgentSessionActionContext,
+  context: AgentConversationActionContext,
 ): Promise<void> {
   const {
     agent_id,
@@ -67,7 +67,7 @@ export async function sendConversationMessage(
 /**
  * 中断当前会话生成。
  */
-export function stopConversationGeneration(context: AgentSessionActionContext): void {
+export function stopConversationGeneration(context: AgentConversationActionContext): void {
   const {
     agent_id,
     session_key,
@@ -103,7 +103,7 @@ export function stopConversationGeneration(context: AgentSessionActionContext): 
  */
 export function sendConversationPermissionResponse(
   payload: PermissionDecisionPayload,
-  context: AgentSessionActionContext,
+  context: AgentConversationActionContext,
 ): void {
   const {
     agent_id,
@@ -154,7 +154,7 @@ export function sendConversationPermissionResponse(
  */
 export async function deleteConversationRound(
   round_id: string,
-  context: AgentSessionActionContext,
+  context: AgentConversationActionContext,
 ): Promise<void> {
   const {
     session_key,
@@ -180,7 +180,7 @@ export async function deleteConversationRound(
  */
 export async function regenerateConversationRound(
   round_id: string,
-  context: AgentSessionActionContext,
+  context: AgentConversationActionContext,
 ): Promise<void> {
   const {
     session_key,

@@ -1,2 +1,2 @@
-export { useAgentSession } from './use-agent-session';
-export type { UseAgentSessionOptions, UseAgentSessionReturn } from '@/types/agent-session';
+export { useAgentConversation } from './use-agent-conversation';
+export type { UseAgentConversationOptions, UseAgentConversationReturn } from '@/types/agent-conversation';

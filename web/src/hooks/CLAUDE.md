@@ -4,7 +4,7 @@ L2 | 父级: web/CLAUDE.md
 
 ## 成员清单
 
-- `agent/use-agent-session.ts`: useAgentSession Hook 实现，负责装配 Agent 会话状态
+- `agent/use-agent-conversation.ts`: useAgentConversation Hook 实现，负责装配 Agent 对话状态
 - `agent/index.ts`: hooks/agent 目录导出入口
 - `agent/message-helpers.ts`: 消息归并与排序辅助
 - `agent/websocket-event-handler.ts`: WebSocket 事件分发

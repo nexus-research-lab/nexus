@@ -1,5 +1,5 @@
 import { EventMessage, Message, StreamMessage } from '@/types';
-import { HandleAgentWebSocketMessageParams } from '@/types/agent-session';
+import { HandleAgentConversationWebSocketMessageParams } from '@/types/agent-conversation';
 import { WorkspaceEventPayload } from '@/types/workspace-live';
 
 import { applyStreamMessage, upsertMessage } from './message-helpers';
@@ -7,7 +7,7 @@ import { applyStreamMessage, upsertMessage } from './message-helpers';
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
-export function handleAgentWebSocketMessage({
+export function handleAgentConversationWebSocketMessage({
   backend_message,
   apply_workspace_event,
   is_current_session_event,
@@ -15,7 +15,7 @@ export function handleAgentWebSocketMessage({
   set_is_loading,
   set_messages,
   set_pending_permission,
-}: HandleAgentWebSocketMessageParams): void {
+}: HandleAgentConversationWebSocketMessageParams): void {
   const event = backend_message as EventMessage;
   const incoming_session_key = event.session_key || null;
 

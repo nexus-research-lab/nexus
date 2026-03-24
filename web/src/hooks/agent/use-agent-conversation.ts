@@ -5,18 +5,18 @@ import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import { Message } from '@/types';
 import { PermissionDecisionPayload } from '@/types/permission';
 import {
-  AgentSessionActionContext,
-  AgentSessionLifecycleContext,
-  UseAgentSessionOptions,
-  UseAgentSessionReturn,
-} from '@/types/agent-session';
+  AgentConversationActionContext,
+  AgentConversationLifecycleContext,
+  UseAgentConversationOptions,
+  UseAgentConversationReturn,
+} from '@/types/agent-conversation';
 import {
   clearAgentConversation,
   loadAgentConversation,
   resetAgentConversation,
   startAgentConversation,
 } from './session-lifecycle';
-import { handleAgentWebSocketMessage } from './websocket-event-handler';
+import { handleAgentConversationWebSocketMessage } from './websocket-event-handler';
 import {
   deleteConversationRound,
   regenerateConversationRound,
@@ -25,7 +25,7 @@ import {
   stopConversationGeneration,
 } from './session-actions';
 
-export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
+export function useAgentConversation(options: UseAgentConversationOptions = {}): UseAgentConversationReturn {
   const ws_url = options.ws_url || getAgentWsUrl();
   const apply_workspace_event = useWorkspaceLiveStore((state) => state.apply_event);
 
@@ -33,11 +33,11 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   const [is_loading, set_is_loading] = useState(false);
   const [error, set_error] = useState<string | null>(null);
   const [session_key, set_session_key] = useState<string | null>(null);
-  const [pending_permission, set_pending_permission] = useState<UseAgentSessionReturn['pending_permission']>(null);
+  const [pending_permission, set_pending_permission] = useState<UseAgentConversationReturn['pending_permission']>(null);
 
   const active_session_key_ref = useRef<string | null>(null);
   const load_request_id_ref = useRef(0);
-  const lifecycle_context: AgentSessionLifecycleContext = {
+  const lifecycle_context: AgentConversationLifecycleContext = {
     active_session_key_ref,
     load_request_id_ref,
     set_session_key,
@@ -55,7 +55,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   }, []);
 
   const handle_websocket_message = useCallback((backend_message: unknown) => {
-    handleAgentWebSocketMessage({
+    handleAgentConversationWebSocketMessage({
       backend_message,
       apply_workspace_event,
       is_current_session_event,
@@ -78,12 +78,12 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       // 开发环境 StrictMode 会触发一次挂载后立即清理，
       // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
       if (!has_connected_ref.current) {
-        console.debug('[useAgentSession] Ignored transient WebSocket error before first successful connection', event);
+        console.debug('[useAgentConversation] Ignored transient WebSocket error before first successful connection', event);
         return;
       }
 
       const error_message = 'WebSocket error occurred';
-      console.error('[useAgentSession] WebSocket error:', event);
+      console.error('[useAgentConversation] WebSocket error:', event);
       set_error(error_message);
       options.on_error?.(new Error(error_message));
     },
@@ -115,7 +115,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     };
   }, [options.agent_id, ws_send, ws_state]);
 
-  const action_context: AgentSessionActionContext = {
+  const action_context: AgentConversationActionContext = {
     agent_id: options.agent_id,
     session_key,
     ws_state,
@@ -183,4 +183,4 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   };
 }
 
-export type { UseAgentSessionOptions, UseAgentSessionReturn } from '@/types/agent-session';
+export type { UseAgentConversationOptions, UseAgentConversationReturn } from '@/types/agent-conversation';

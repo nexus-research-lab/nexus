@@ -1,9 +1,9 @@
 /**
- * useAgentSession Hook 类型定义
+ * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖 @/types 的 Message
- * [OUTPUT]: 对外提供 UseAgentSessionOptions, UseAgentSessionReturn
- * [POS]: types 模块的会话交互类型
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn
+ * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -14,13 +14,13 @@ import { PendingPermission, PermissionDecisionPayload } from '@/types/permission
 import { WebSocketMessage, WebSocketState } from '@/types/websocket';
 import { WorkspaceEventPayload } from '@/types/workspace-live';
 
-export interface UseAgentSessionOptions {
+export interface UseAgentConversationOptions {
   ws_url?: string;
   agent_id?: string | null;
   on_error?: (error: Error) => void;
 }
 
-export interface UseAgentSessionReturn {
+export interface UseAgentConversationReturn {
   messages: Message[];
   session_key: string | null;
   is_loading: boolean;
@@ -37,14 +37,14 @@ export interface UseAgentSessionReturn {
   send_permission_response: (payload: PermissionDecisionPayload) => void;
 }
 
-export interface SessionSnapshot {
+export interface ConversationSnapshot {
   session_key: string;
   message_count: number;
   last_activity_at: number;
   session_id: string | null;
 }
 
-export interface AgentSessionActionContext {
+export interface AgentConversationActionContext {
   agent_id?: string | null;
   session_key: string | null;
   ws_state: WebSocketState;
@@ -58,7 +58,7 @@ export interface AgentSessionActionContext {
   set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
 }
 
-export interface AgentSessionLifecycleContext {
+export interface AgentConversationLifecycleContext {
   active_session_key_ref: RefObject<string | null>;
   load_request_id_ref: RefObject<number>;
   set_session_key: Dispatch<SetStateAction<string | null>>;
@@ -68,7 +68,7 @@ export interface AgentSessionLifecycleContext {
   set_error: Dispatch<SetStateAction<string | null>>;
 }
 
-export interface HandleAgentWebSocketMessageParams {
+export interface HandleAgentConversationWebSocketMessageParams {
   backend_message: unknown;
   apply_workspace_event: (payload: WorkspaceEventPayload) => void;
   is_current_session_event: (incoming_session_key?: string | null) => boolean;

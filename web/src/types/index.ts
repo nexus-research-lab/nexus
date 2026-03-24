@@ -19,8 +19,8 @@ export * from './session';
 // 对话相关类型
 export * from './conversation';
 
-// Agent 会话交互类型
-export * from './agent-session';
+// Agent 对话交互类型
+export * from './agent-conversation';
 
 // Agent相关类型
 export * from './agent';

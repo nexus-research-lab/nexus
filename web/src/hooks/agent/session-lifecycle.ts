@@ -1,6 +1,6 @@
 import { getConversationMessages } from '@/lib/agent-api';
 import { generateUuid } from '@/lib/uuid';
-import { AgentSessionLifecycleContext } from '@/types/agent-session';
+import { AgentConversationLifecycleContext } from '@/types/agent-conversation';
 
 import { sortMessages } from './message-helpers';
 
@@ -8,7 +8,7 @@ import { sortMessages } from './message-helpers';
  * 重置当前会话视图状态。
  */
 export function resetConversationView(
-  context: AgentSessionLifecycleContext,
+  context: AgentConversationLifecycleContext,
   next_error: string | null = null,
 ): void {
   context.set_messages([]);
@@ -20,7 +20,7 @@ export function resetConversationView(
 /**
  * 启动一个新的会话。
  */
-export function startAgentConversation(context: AgentSessionLifecycleContext): void {
+export function startAgentConversation(context: AgentConversationLifecycleContext): void {
   const new_session_key = generateUuid();
   context.load_request_id_ref.current += 1;
   context.active_session_key_ref.current = new_session_key;
@@ -33,7 +33,7 @@ export function startAgentConversation(context: AgentSessionLifecycleContext): v
  */
 export async function loadAgentConversation(
   session_key: string,
-  context: AgentSessionLifecycleContext,
+  context: AgentConversationLifecycleContext,
 ): Promise<void> {
   const request_id = context.load_request_id_ref.current + 1;
   context.load_request_id_ref.current = request_id;
@@ -67,7 +67,7 @@ export async function loadAgentConversation(
 /**
  * 清空当前会话选择。
  */
-export function clearAgentConversation(context: AgentSessionLifecycleContext): void {
+export function clearAgentConversation(context: AgentConversationLifecycleContext): void {
   context.load_request_id_ref.current += 1;
   context.active_session_key_ref.current = null;
   context.set_session_key(null);
@@ -77,6 +77,6 @@ export function clearAgentConversation(context: AgentSessionLifecycleContext): v
 /**
  * 重置会话并创建新的会话键。
  */
-export function resetAgentConversation(context: AgentSessionLifecycleContext): void {
+export function resetAgentConversation(context: AgentConversationLifecycleContext): void {
   startAgentConversation(context);
 }

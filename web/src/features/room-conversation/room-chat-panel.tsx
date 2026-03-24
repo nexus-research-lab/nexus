@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useAgentSession } from "@/hooks/agent";
+import { useAgentConversation } from "@/hooks/agent";
 import { useConversationLoader } from "@/hooks/use-conversation-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { Message } from "@/types/message";
@@ -78,7 +78,7 @@ export function RoomChatPanel({
     send_permission_response,
     delete_round,
     regenerate,
-  } = useAgentSession({
+  } = useAgentConversation({
     agent_id,
     on_error: (err) => {
       console.error("Session error:", err);

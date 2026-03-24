@@ -9,7 +9,7 @@ L2 | 父级: web/CLAUDE.md
 - `sdk.ts`: SDK 基础类型（UUID/SessionId/ToolInput/ToolOutput）
 - `message.ts`: 消息类型（Message/EventMessage 及内容块）
 - `session.ts`: 会话类型（Session/SessionOptions/ApiSession/CRUD 参数）
-- `agent-session.ts`: useAgentSession 相关类型
+- `agent-conversation.ts`: useAgentConversation 相关类型
 - `agent.ts`: Agent 类型（Agent/AgentOptions/Workspace 文件操作类型）
 - `cost.ts`: 成本统计类型（SessionCostSummary/AgentCostSummary）
 - `ask-user-question.ts`: AskUserQuestion 工具交互类型
