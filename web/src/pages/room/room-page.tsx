@@ -8,7 +8,7 @@ import { RouteScaffold } from "@/shared/ui/route-scaffold";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
-import { useSessionStore } from "@/store/session";
+import { getConversationStoreSnapshot } from "@/store/conversation";
 import { RoomRouteParams } from "@/types/route";
 
 export function RoomPage() {
@@ -40,7 +40,7 @@ export function RoomPage() {
   const handleCreateConversation = useCallback(async () => {
     await controller.handle_create_conversation();
     const route_room_id = controller.current_agent_id ?? params.room_id;
-    const next_session_key = useSessionStore.getState().current_session_key;
+    const next_session_key = getConversationStoreSnapshot().current_conversation_id;
     if (route_room_id && next_session_key) {
       navigate(AppRouteBuilders.room_conversation(route_room_id, next_session_key));
     }
