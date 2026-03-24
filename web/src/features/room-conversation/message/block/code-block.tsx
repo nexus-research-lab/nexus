@@ -4,11 +4,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-interface CodeBlockProps {
-  language: string;
-  value: string;
-}
+import { CodeBlockProps } from "@/types/room-conversation";
 
 export function CodeBlock({ language, value }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);

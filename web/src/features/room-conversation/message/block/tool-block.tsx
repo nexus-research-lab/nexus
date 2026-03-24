@@ -9,31 +9,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Check, CheckCircle, ChevronDown, ChevronRight, Clock, Copy, Loader, Terminal, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ToolResultContent, ToolUseContent } from '@/types/message';
-import { PermissionRiskLevel, PermissionUpdate } from '@/types/permission';
+import { ToolBlockProps } from '@/types/room-conversation';
 import { CodeBlock } from './code-block';
 import { PermissionDialog } from '@/shared/ui/permission-dialog';
-
-// ==================== 类型定义 ====================
-
-interface ToolExecutionBlockProps {
-  tool_use: ToolUseContent;
-  tool_result?: ToolResultContent;
-  status?: 'pending' | 'running' | 'success' | 'error' | 'waiting_permission';
-  start_time?: number;
-  end_time?: number;
-  permission_request?: {
-    request_id: string;
-    tool_input: Record<string, any>;
-    risk_level?: PermissionRiskLevel;
-    risk_label?: string;
-    summary?: string;
-    suggestions?: PermissionUpdate[];
-    expires_at?: string;
-    on_allow: (updated_permissions?: PermissionUpdate[]) => void;
-    on_deny: (updated_permissions?: PermissionUpdate[]) => void;
-  };
-}
 
 // ==================== 辅助函数 ====================
 
@@ -63,7 +41,7 @@ export function ToolBlock({
   start_time,
   end_time,
   permission_request,
-}: ToolExecutionBlockProps) {
+}: ToolBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [copied, setCopied] = useState(false);

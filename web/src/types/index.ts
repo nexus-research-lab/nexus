@@ -38,3 +38,4 @@ export * from './workspace';
 export * from './room';
 export * from './launcher-ui';
 export * from './shared-ui';
+export * from './room-conversation';

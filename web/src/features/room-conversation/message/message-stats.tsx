@@ -1,21 +1,6 @@
 import { Check, Copy, RefreshCw, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface MessageStatsProps {
-  stats?: {
-    duration: string;
-    tokens: string | null;
-    cost: string | null;
-    cache_hit: string | null;
-  };
-  show_cursor?: boolean;
-  copied_assistant?: boolean;
-  is_regenerating?: boolean;
-  is_deleting?: boolean;
-  on_copy_assistant?: () => void;
-  on_regenerate?: () => void;
-  on_delete?: () => void;
-}
+import { MessageStatsProps } from "@/types/room-conversation";
 
 export function MessageStats(
   {

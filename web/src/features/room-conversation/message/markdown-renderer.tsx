@@ -12,15 +12,9 @@ import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent";
+import { MarkdownRendererProps } from "@/types/room-conversation";
 
 import "katex/dist/katex.min.css";
-
-interface MarkdownRendererProps {
-  content: string;
-  class_name?: string;
-  is_streaming?: boolean;
-  on_open_workspace_file?: (path: string) => void;
-}
 
 type MarkdownNodeLike = {
   position?: {

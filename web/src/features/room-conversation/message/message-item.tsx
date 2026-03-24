@@ -11,26 +11,10 @@ import { Check, Copy, Edit2, Terminal, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContentBlock, Message, ResultMessage } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
+import { MessageItemProps } from "@/types/room-conversation";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
-
-interface MessageItemProps {
-  current_agent_name?: string | null;
-  round_id: string;
-  messages: Message[];
-  is_last_round?: boolean;
-  is_loading?: boolean;
-  pending_permission?: PendingPermission | null;
-  /** 权限响应回调（也用于 AskUserQuestion） */
-  on_permission_response?: (payload: PermissionDecisionPayload) => void;
-  hidden_tool_names?: string[];
-  on_delete?: (round_id: string) => Promise<void>;
-  on_regenerate?: (round_id: string) => Promise<void>;
-  on_edit_user_message?: (message_id: string, new_content: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  class_name?: string;
-}
 
 export function MessageItem(
   {

@@ -5,22 +5,8 @@ import { ToolBlock } from './block/tool-block';
 import { AskUserQuestionBlock } from './block/ask-user-question-block';
 import { CodeBlock } from './block/code-block';
 import { ThinkingBlock } from './block/thinking-block';
-import { ContentBlock } from '@/types/message';
-import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import { cn } from '@/lib/utils';
-
-interface ContentRendererProps {
-  content: string | ContentBlock[];
-  is_streaming?: boolean;
-  streaming_block_indexes?: Set<number>;
-  /** 当前工具的权限请求 */
-  pending_permission?: PendingPermission | null;
-  /** 权限响应回调（也用于 AskUserQuestion） */
-  on_permission_response?: (payload: PermissionDecisionPayload) => void;
-  on_open_workspace_file?: (path: string) => void;
-  /** 需要隐藏的工具名称列表 */
-  hidden_tool_names?: string[];
-}
+import { ContentRendererProps } from '@/types/room-conversation';
 
 export function ContentRenderer(
   {

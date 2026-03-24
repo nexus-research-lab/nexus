@@ -1,10 +1,7 @@
 "use client";
 
 import { FolderKanban, MessageSquarePlus, Sparkles } from "lucide-react";
-
-interface RoomConversationEmptyStateProps {
-  on_create_conversation: () => void;
-}
+import { RoomConversationEmptyStateProps } from "@/types/room-conversation";
 
 export function RoomConversationEmptyState({
   on_create_conversation,
