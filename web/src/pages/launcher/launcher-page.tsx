@@ -79,6 +79,8 @@ export function LauncherPage() {
           <div className="absolute inset-x-3 bottom-4 top-[96px] z-40 lg:static lg:inset-auto lg:block lg:w-[380px] lg:shrink-0 lg:pb-8 lg:pt-4">
             <LauncherAppConversationPanel
               app_conversation_draft={controller.app_conversation_draft}
+              app_conversation_messages={controller.app_conversation_messages}
+              on_clear_conversation={controller.clear_app_conversation}
               on_change_draft={controller.set_app_conversation_draft}
               on_close={controller.close_app_conversation}
               on_open_contacts_page={handleOpenContactsPage}

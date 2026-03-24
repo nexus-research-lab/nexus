@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Sparkles, Users, X } from "lucide-react";
+import { ArrowRight, RotateCcw, Sparkles, Users, X } from "lucide-react";
 
 import {
   HeroActionOrbShell,
@@ -9,90 +8,95 @@ import {
   HeroInputShell,
   HeroSidePanelShell,
 } from "@/features/launcher/launcher-glass-shell";
+import { AppConversationMessage } from "@/types/app-conversation";
 import { cn } from "@/lib/utils";
-
-interface AppConversationMessage {
-  body: string;
-  role: "app" | "user";
-}
 
 interface LauncherAppConversationPanelProps {
   app_conversation_draft: string;
+  app_conversation_messages: AppConversationMessage[];
+  on_clear_conversation: () => void;
   on_change_draft: (next_value: string) => void;
   on_close: () => void;
   on_open_contacts_page: () => void;
   on_submit: (next_prompt: string) => void;
 }
 
-function buildConversationMessages(app_conversation_draft: string): AppConversationMessage[] {
-  if (!app_conversation_draft.trim()) {
+function buildConversationMessages(app_conversation_messages: AppConversationMessage[]): AppConversationMessage[] {
+  if (!app_conversation_messages.length) {
     return [
       {
+        id: "welcome",
         role: "app",
+        created_at: Date.now(),
         body: "告诉我你想组织什么。我会帮你恢复已有协作、创建 room，或者把合适的成员拉进来。",
       },
     ];
   }
 
-  return [
-    {
-      role: "user",
-      body: app_conversation_draft,
-    },
-    {
-      role: "app",
-      body: "我已经收到这条系统级意图。下一步我会围绕这件事组织成员、整理上下文，并把你带到真正承载协作的 room。",
-    },
-  ];
+  return app_conversation_messages;
 }
 
 export function LauncherAppConversationPanel({
   app_conversation_draft,
+  app_conversation_messages,
+  on_clear_conversation,
   on_change_draft,
   on_close,
   on_open_contacts_page,
   on_submit,
 }: LauncherAppConversationPanelProps) {
-  const [draft, set_draft] = useState(app_conversation_draft);
-
-  useEffect(() => {
-    set_draft(app_conversation_draft);
-  }, [app_conversation_draft]);
-
-  const messages = useMemo(
-    () => buildConversationMessages(app_conversation_draft),
-    [app_conversation_draft],
-  );
+  const messages = buildConversationMessages(app_conversation_messages);
 
   return (
     <HeroSidePanelShell class_name="h-full min-h-[620px] w-full max-w-[380px]">
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <HeroActionPillShell class_name="w-fit">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
-                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
-                App Agent
-              </span>
-            </HeroActionPillShell>
+            <div className="flex flex-wrap items-center gap-2">
+              <HeroActionPillShell class_name="w-fit">
+                <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
+                  <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
+                  App Agent
+                </span>
+              </HeroActionPillShell>
+              <HeroActionPillShell class_name="w-fit">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/60">
+                  全局唯一对话
+                </span>
+              </HeroActionPillShell>
+            </div>
             <h2 className="mt-4 text-[28px] font-black tracking-[-0.04em] text-slate-950/88">
               真格 App
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-700/62">
-              这是首页里唯一的全局系统级对话。它负责组织协作，而不是替代 room 承载具体执行。
+              它负责组织协作，而不是替代 room 承载执行。你从首页、Contacts 或 Room 回来，接住的都会是同一条系统级对话。
             </p>
           </div>
 
-          <button
-            aria-label="关闭 App 对话"
-            className="shrink-0 transition-transform duration-300 hover:-translate-y-0.5"
-            onClick={on_close}
-            type="button"
-          >
-            <HeroActionOrbShell class_name="h-[54px] w-[54px]">
-              <X className="h-4 w-4 text-slate-900/76" />
-            </HeroActionOrbShell>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              aria-label="清空 App 对话"
+              className="transition-transform duration-300 hover:-translate-y-0.5"
+              onClick={on_clear_conversation}
+              type="button"
+            >
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
+                <HeroActionOrbShell class_name="h-[46px] w-[46px]">
+                  <RotateCcw className="h-4 w-4 text-slate-900/76" />
+                </HeroActionOrbShell>
+              </span>
+            </button>
+            <button
+              aria-label="关闭 App 对话"
+              className="transition-transform duration-300 hover:-translate-y-0.5"
+              onClick={on_close}
+              type="button"
+            >
+              <HeroActionOrbShell class_name="h-[54px] w-[54px]">
+                <X className="h-4 w-4 text-slate-900/76" />
+              </HeroActionOrbShell>
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -122,7 +126,7 @@ export function LauncherAppConversationPanel({
         <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-1">
           {messages.map((message, index) => (
             <div
-              key={`${message.role}-${index}`}
+              key={message.id || `${message.role}-${index}`}
               className={cn(
                 "rounded-[26px] px-4 py-4 text-sm leading-6 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
                 message.role === "app"
@@ -144,24 +148,21 @@ export function LauncherAppConversationPanel({
             <div className="flex min-w-0 items-center gap-3">
               <input
                 className="flex-1 bg-transparent text-sm text-slate-900/84 outline-none placeholder:text-slate-700/42"
-                onChange={(event) => {
-                  set_draft(event.target.value);
-                  on_change_draft(event.target.value);
-                }}
+                onChange={(event) => on_change_draft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") {
                     return;
                   }
 
                   event.preventDefault();
-                  on_submit(draft);
+                  on_submit(app_conversation_draft);
                 }}
                 placeholder="告诉 App 你要组织什么..."
-                value={draft}
+                value={app_conversation_draft}
               />
               <button
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/84 text-slate-900 shadow-[0_10px_20px_rgba(255,255,255,0.16)] transition-transform duration-300 hover:-translate-y-0.5"
-                onClick={() => on_submit(draft)}
+                onClick={() => on_submit(app_conversation_draft)}
                 type="button"
               >
                 <ArrowRight className="h-4 w-4" />
