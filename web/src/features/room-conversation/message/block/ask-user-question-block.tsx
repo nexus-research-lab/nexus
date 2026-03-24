@@ -14,19 +14,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Check, CheckCircle, ChevronDown, ChevronRight, Circle, MessageSquare, Send, Square, CheckSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ToolUseContent } from '@/types/message';
-import { AskUserQuestionInput, UserQuestion, UserQuestionAnswer } from '@/types/ask-user-question';
-
-// ==================== 类型定义 ====================
-
-interface AskUserQuestionBlockProps {
-    /** tool_use 块 */
-    tool_use: ToolUseContent;
-    /** 提交回答回调 */
-    on_submit?: (tool_use_id: string, answers: UserQuestionAnswer[]) => void;
-    /** 是否已提交 */
-    is_submitted?: boolean;
-}
+import { AskUserQuestionBlockProps, AskUserQuestionCardProps, AskUserQuestionInput, UserQuestionAnswer } from '@/types/ask-user-question';
 
 // ==================== 子组件 ====================
 
@@ -38,14 +26,7 @@ function QuestionCard({
     on_toggle_option,
     is_submitted,
     default_expanded = false,
-}: {
-    question: UserQuestion;
-    question_index: number;
-    selected_options: Set<string>;
-    on_toggle_option: (question_index: number, option_label: string, multi_select: boolean) => void;
-    is_submitted: boolean;
-    default_expanded?: boolean;
-}) {
+}: AskUserQuestionCardProps) {
     const [isExpanded, setIsExpanded] = useState(default_expanded);
     const isMultiSelect = question.multiSelect ?? false;
     const hasSelection = selected_options.size > 0;

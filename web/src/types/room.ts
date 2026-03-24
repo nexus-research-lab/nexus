@@ -63,6 +63,38 @@ export interface RoomWorkspaceShellProps {
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
 }
 
+export interface RoomWorkspaceLayoutProps {
+  agents: Agent[];
+  current_agent: Agent;
+  current_agent_id: string | null;
+  current_conversation: Conversation | null;
+  current_conversation_id: string | null;
+  current_room_conversations: Conversation[];
+  recent_agents: Agent[];
+  active_workspace_path: string | null;
+  is_editor_open: boolean;
+  editor_width_percent: number;
+  is_resizing_editor: boolean;
+  is_session_busy: boolean;
+  current_todos: TodoItem[];
+  session_cost_summary: SessionCostSummary;
+  agent_cost_summary: AgentCostSummary;
+  workspace_split_ref: RefObject<HTMLElement | null>;
+  on_select_agent: (agent_id: string) => void;
+  on_open_directory: () => void;
+  on_create_agent: () => void;
+  on_edit_agent: (agent_id: string) => void;
+  on_create_conversation: () => void;
+  on_select_conversation: (conversation_id: string) => void;
+  on_delete_conversation: (conversation_id: string) => void;
+  on_open_workspace_file: (path: string | null) => void;
+  on_close_workspace_pane: () => void;
+  on_start_editor_resize: () => void;
+  on_loading_change: (is_loading: boolean) => void;
+  on_todos_change: (todos: TodoItem[]) => void;
+  on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
+}
+
 export interface RoomSidebarPanelProps {
   agents: Agent[];
   agent: Agent;
