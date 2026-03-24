@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
+import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
 import { useRoomPageController } from "@/hooks/use-room-page-controller";
 import { RouteScaffold } from "@/shared/ui/route-scaffold";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
@@ -101,8 +102,8 @@ export function RoomPage() {
   return (
     <RouteScaffold
       badge="ROOM"
-      title="协作空间骨架"
-      description="这里会成为真正的 room 页面。下一阶段会把当前 workspace 逐步迁入这里，并把左侧从 Rooms 改成 Conversations，把成员、上下文和推进状态都按 room-first 组织。"
+      title="协作空间入口"
+      description="room 是实际协作发生的地方。如果当前 URL 还没找到对应 room，这里应提供明确的恢复、重选成员和重新编排入口，而不是只展示技术骨架。"
       meta={
         <div className="flex gap-3">
           <div className="workspace-card rounded-[20px] px-4 py-3 text-right">
@@ -122,34 +123,12 @@ export function RoomPage() {
         </div>
       }
     >
-      <div className="grid flex-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-        <aside className="workspace-card rounded-[28px] px-5 py-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-            Conversations
-          </p>
-          <p className="mt-3 text-sm leading-6 text-slate-700/60">
-            当前阶段先建立 room 路由入口。下一阶段这里会取代今天错误的 Rooms 列表，明确只展示当前 room 下的 conversations。
-          </p>
-        </aside>
-
-        <section className="workspace-card rounded-[28px] px-5 py-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-            Collaboration Flow
-          </p>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700/60">
-            下一阶段会把现在的 chat/workspace 内容迁入这里，并拆出 1v1 room 与多人 room 的差异化表达。输入区会收敛成真正的 room composer，不再包含 Agent / Room / Ask App 模式切换。
-          </p>
-        </section>
-
-        <aside className="workspace-card rounded-[28px] px-5 py-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-            Members & Context
-          </p>
-          <p className="mt-3 text-sm leading-6 text-slate-700/60">
-            右侧会根据单成员 room 和多成员 room 展示不同的信息层次，包括成员状态、任务推进和上下文边界。
-          </p>
-        </aside>
-      </div>
+      <RoomRouteEntry
+        agents={controller.agents}
+        conversations={controller.conversations}
+        conversation_id={params.conversation_id}
+        room_id={params.room_id}
+      />
     </RouteScaffold>
   );
 }

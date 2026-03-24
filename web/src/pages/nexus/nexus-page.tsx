@@ -1,17 +1,36 @@
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 
-import { NexusPlaceholder } from "@/features/nexus-chat/nexus-placeholder";
+import { NexusHubOverview } from "@/features/nexus-chat/nexus-hub-overview";
 import { RouteScaffold } from "@/shared/ui/route-scaffold";
+import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
+import { useAgentStore } from "@/store/agent";
+import { useConversationStore } from "@/store/conversation";
 import { NexusRouteParams } from "@/types/route";
 
 export function NexusPage() {
   const params = useParams<NexusRouteParams>();
+  const { agents, load_agents_from_server, loading: agents_loading } = useAgentStore();
+  const {
+    conversations,
+    load_conversations_from_server,
+    loading: conversations_loading,
+  } = useConversationStore();
+
+  useEffect(() => {
+    void load_agents_from_server();
+    void load_conversations_from_server();
+  }, [load_agents_from_server, load_conversations_from_server]);
+
+  if (agents_loading && conversations_loading && !agents.length && !conversations.length) {
+    return <AppLoadingScreen />;
+  }
 
   return (
     <RouteScaffold
       badge="NEXUS"
-      title="系统级协作入口"
-      description="这里会承接创建成员、创建 room、邀请成员、整理协作网络等系统级动作。当前阶段先建立独立页面边界，下一阶段再接入真实的 Nexus 对话流。"
+      title="系统级协作与编排"
+      description="Nexus 是系统级入口，不属于某个具体成员。它更适合负责创建 room、组织成员、恢复系统级对话，并决定协作如何开始。"
       meta={
         params.conversation_id ? (
           <div className="workspace-card rounded-[20px] px-4 py-3 text-right">
@@ -23,7 +42,11 @@ export function NexusPage() {
         ) : null
       }
     >
-      <NexusPlaceholder conversation_id={params.conversation_id} />
+      <NexusHubOverview
+        agents={agents}
+        conversations={conversations}
+        conversation_id={params.conversation_id}
+      />
     </RouteScaffold>
   );
 }
