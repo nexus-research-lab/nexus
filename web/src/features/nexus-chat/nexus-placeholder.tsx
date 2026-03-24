@@ -1,6 +1,4 @@
-interface NexusPlaceholderProps {
-  conversation_id?: string;
-}
+import { NexusPlaceholderProps } from "@/types/page";
 
 export function NexusPlaceholder({ conversation_id }: NexusPlaceholderProps) {
   return (

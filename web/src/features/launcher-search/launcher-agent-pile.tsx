@@ -4,13 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import Matter from "matter-js";
 
 import { cn } from "@/lib/utils";
-import { SpotlightToken } from "@/types/launcher";
-
-interface SpotlightTokenPileProps {
-  tokens: SpotlightToken[];
-  current_agent_id: string | null;
-  on_select_agent: (agent_id: string) => void;
-}
+import { SpotlightToken, SpotlightTokenPileProps } from "@/types/launcher";
 
 type TokenPhysicsConfig = {
   key: string;

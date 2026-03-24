@@ -3,7 +3,6 @@
 import { useId } from "react";
 
 import {
-  type BlobPoint,
   createClosedSplinePath,
   createInnerPoints,
   DEFAULT_INPUT_POINTS,
@@ -20,6 +19,7 @@ import {
   SIDE_PANEL_VIEWBOX_WIDTH,
 } from "@/features/launcher-search/launcher-blob-shape";
 import { cn } from "@/lib/utils";
+import { BlobPoint } from "@/types/launcher";
 import {
   HeroActionOrbShellProps,
   HeroActionPillShellProps,
