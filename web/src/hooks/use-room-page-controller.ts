@@ -14,20 +14,24 @@ export function useRoomPageController({
   roomId,
   conversationId,
 }: UseRoomPageControllerOptions) {
-  const agentSession = useHomeAgentSessionController();
+  const agent_session = useHomeAgentSessionController();
   const {
     agents,
-    currentAgentId,
-    currentConversation,
-    currentConversationId,
+    current_agent,
+    current_agent_id,
+    current_conversation,
+    current_conversation_id,
     handleAgentSelect,
     handleConversationSelect,
     isHydrated,
-    sessions,
-  } = agentSession;
+    conversations,
+    recent_agents,
+    dialog_initial_options,
+    dialog_initial_title,
+  } = agent_session;
   const workspace = useHomeWorkspaceController({
-    currentAgentId,
-    currentSession: currentConversation,
+    current_agent_id,
+    current_conversation,
   });
 
   useEffect(() => {
@@ -36,14 +40,14 @@ export function useRoomPageController({
     }
 
     if (conversationId) {
-      const targetSession = sessions.find((session) => session.session_key === conversationId);
-      if (targetSession?.agent_id && targetSession.agent_id !== currentAgentId) {
-        handleAgentSelect(targetSession.agent_id);
+      const target_conversation = conversations.find((conversation) => conversation.session_key === conversationId);
+      if (target_conversation?.agent_id && target_conversation.agent_id !== current_agent_id) {
+        handleAgentSelect(target_conversation.agent_id);
         return;
       }
 
-      if (targetSession && targetSession.session_key !== currentConversationId) {
-        handleConversationSelect(targetSession.session_key);
+      if (target_conversation && target_conversation.session_key !== current_conversation_id) {
+        handleConversationSelect(target_conversation.session_key);
         return;
       }
     }
@@ -53,7 +57,7 @@ export function useRoomPageController({
     }
 
     // 当前后端仍以 agent 维度承载 room 工作台，这里先做兼容路由映射。
-    if (roomId !== currentAgentId) {
+    if (roomId !== current_agent_id) {
       const matchedAgent = agents.find((agent) => agent.agent_id === roomId);
       if (matchedAgent) {
         handleAgentSelect(matchedAgent.agent_id);
@@ -62,19 +66,26 @@ export function useRoomPageController({
   }, [
     agents,
     conversationId,
-    currentAgentId,
-    currentConversationId,
+    conversations,
+    current_agent_id,
+    current_conversation_id,
     handleAgentSelect,
     handleConversationSelect,
     isHydrated,
     roomId,
-    sessions,
   ]);
 
   return {
-    ...agentSession,
+    ...agent_session,
     ...workspace,
-    routeConversationId: conversationId ?? null,
-    routeRoomId: roomId ?? null,
+    current_agent,
+    current_agent_id,
+    current_conversation,
+    current_conversation_id,
+    recent_agents,
+    dialog_initial_options,
+    dialog_initial_title,
+    route_conversation_id: conversationId ?? null,
+    route_room_id: roomId ?? null,
   };
 }

@@ -4,10 +4,10 @@ import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
 
 interface RoomMembersSectionProps {
-  currentAgentId: string | null;
+  current_agent_id: string | null;
   members: Agent[];
-  onCreateAgent: () => void;
-  onSelectAgent: (agentId: string) => void;
+  on_create_agent: () => void;
+  on_select_agent: (agent_id: string) => void;
 }
 
 function getInitials(name: string): string {
@@ -22,10 +22,10 @@ function getInitials(name: string): string {
 }
 
 export function RoomMembersSection({
-  currentAgentId,
+  current_agent_id,
   members,
-  onCreateAgent,
-  onSelectAgent,
+  on_create_agent,
+  on_select_agent,
 }: RoomMembersSectionProps) {
   return (
     <section className="border-t workspace-divider px-5 py-5">
@@ -36,7 +36,7 @@ export function RoomMembersSection({
         </div>
         <button
           className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,rgba(174,163,255,0.18),rgba(255,255,255,0.82))] px-3 py-1.5 text-[11px] font-semibold text-slate-900/82 shadow-[0_10px_20px_rgba(133,119,255,0.10)]"
-          onClick={onCreateAgent}
+          onClick={on_create_agent}
           type="button"
         >
           <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -46,7 +46,7 @@ export function RoomMembersSection({
 
       <div className="space-y-2">
         {members.map((member) => {
-          const isCurrentAgent = member.agent_id === currentAgentId;
+          const isCurrentAgent = member.agent_id === current_agent_id;
           return (
             <button
               key={member.agent_id}
@@ -54,7 +54,7 @@ export function RoomMembersSection({
                 "flex w-full items-center gap-3 rounded-[20px] px-3 py-3 text-left transition-all duration-300",
                 isCurrentAgent ? "workspace-card-strong" : "workspace-card hover:-translate-y-0.5",
               )}
-              onClick={() => onSelectAgent(member.agent_id)}
+              onClick={() => on_select_agent(member.agent_id)}
               type="button"
             >
               <div className="workspace-chip flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-slate-900/82">

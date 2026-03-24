@@ -19,11 +19,11 @@ export function LauncherPage() {
     navigate(AppRouteBuilders.room(agentId));
   }, [controller, navigate]);
 
-  const handleOpenSession = useCallback((sessionKey: string, agentId?: string) => {
-    controller.handleOpenConversationFromLauncher(sessionKey, agentId);
-    const routeRoomId = agentId ?? controller.currentAgentId;
+  const handleOpenConversation = useCallback((conversationId: string, agentId?: string) => {
+    controller.handleOpenConversationFromLauncher(conversationId, agentId);
+    const routeRoomId = agentId ?? controller.current_agent_id;
     if (routeRoomId) {
-      navigate(AppRouteBuilders.roomConversation(routeRoomId, sessionKey));
+      navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
     }
   }, [controller, navigate]);
 
@@ -58,11 +58,11 @@ export function LauncherPage() {
       <LauncherConsole
         agents={controller.agents}
         conversations={controller.conversations}
-        current_agent_id={controller.currentAgentId}
+        current_agent_id={controller.current_agent_id}
         on_open_contacts_page={handleOpenContactsPage}
         on_open_nexus={handleOpenNexus}
         on_select_agent={handleSelectAgent}
-        on_open_conversation={handleOpenSession}
+        on_open_conversation={handleOpenConversation}
         on_create_agent={controller.handleOpenCreateAgent}
         on_edit_agent={controller.handleEditAgent}
         on_delete_agent={controller.handleDeleteAgent}
@@ -74,8 +74,8 @@ export function LauncherPage() {
         onClose={() => controller.setIsDialogOpen(false)}
         onSave={handleSaveAgentOptions}
         onValidateName={controller.handleValidateAgentName}
-        initialTitle={controller.dialogInitialTitle}
-        initialOptions={controller.dialogInitialOptions}
+        initialTitle={controller.dialog_initial_title}
+        initialOptions={controller.dialog_initial_options}
       />
     </AppStage>
   );

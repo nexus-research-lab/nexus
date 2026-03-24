@@ -539,24 +539,24 @@ export function RoomSidebarPanel({
       <div className="soft-scrollbar flex-1 overflow-y-auto">
         <RoomConversationsSection
           conversations={conversations}
-          currentConversationId={current_conversation_id}
-          onCreateConversation={on_create_conversation}
-          onDeleteConversation={on_delete_conversation}
-          onSelectConversation={on_select_conversation}
+          current_conversation_id={current_conversation_id}
+          on_create_conversation={on_create_conversation}
+          on_delete_conversation={on_delete_conversation}
+          on_select_conversation={on_select_conversation}
         />
 
         <RoomMembersSection
-          currentAgentId={current_agent_id}
+          current_agent_id={current_agent_id}
           members={visible_agents}
-          onCreateAgent={on_create_agent}
-          onSelectAgent={on_select_agent}
+          on_create_agent={on_create_agent}
+          on_select_agent={on_select_agent}
         />
 
         <RoomContextSection
-          activeWorkspacePath={active_workspace_path}
+          active_workspace_path={active_workspace_path}
           contextualFiles={contextual_files}
-          currentConversation={selected_conversation}
-          fileExplorerContent={
+          current_conversation={selected_conversation}
+          file_explorer_content={
             directory_tree.length === 0 ? (
               <div className="workspace-card rounded-[22px] px-3 py-4 text-sm text-slate-700/58">
                 还没有文件
@@ -565,14 +565,14 @@ export function RoomSidebarPanel({
               render_tree(directory_tree)
             )
           }
-          filesystemError={filesystem_error}
-          isFileExplorerVisible={show_file_explorer}
-          memoryFileCount={memory_files.length}
-          onCreateDirectory={() => handle_create_entry("directory")}
-          onCreateFile={() => handle_create_entry("file")}
-          onOpenWorkspaceFile={on_open_workspace_file}
-          onToggleFileExplorer={() => setShowFileExplorer((current) => !current)}
-          totalConversationCount={conversations.length}
+          filesystem_error={filesystem_error}
+          is_file_explorer_visible={show_file_explorer}
+          memory_file_count={memory_files.length}
+          on_create_directory={() => handle_create_entry("directory")}
+          on_create_file={() => handle_create_entry("file")}
+          on_open_workspace_file={on_open_workspace_file}
+          on_toggle_file_explorer={() => setShowFileExplorer((current) => !current)}
+          total_conversation_count={conversations.length}
         />
       </div>
 

@@ -43,30 +43,30 @@ const EMPTY_AGENT_COST_SUMMARY: AgentCostSummary = {
 };
 
 interface UseHomeWorkspaceControllerOptions {
-  currentAgentId: string | null;
-  currentSession: Session | null;
+  current_agent_id: string | null;
+  current_conversation: Session | null;
 }
 
 export function useHomeWorkspaceController({
-  currentAgentId,
-  currentSession,
+  current_agent_id,
+  current_conversation,
 }: UseHomeWorkspaceControllerOptions) {
-  const [activeWorkspacePath, setActiveWorkspacePath] = useState<string | null>(null);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [editorWidthPercent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
-  const [isResizingEditor, setIsResizingEditor] = useState(false);
-  const [currentTodos, setCurrentTodos] = useState<TodoItem[]>([]);
-  const [isSessionBusy, setIsSessionBusy] = useState(false);
-  const [sessionCostSummary, setSessionCostSummary] = useState<SessionCostSummary>(
+  const [active_workspace_path, setActiveWorkspacePath] = useState<string | null>(null);
+  const [is_editor_open, setIsEditorOpen] = useState(false);
+  const [editor_width_percent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
+  const [is_resizing_editor, setIsResizingEditor] = useState(false);
+  const [current_todos, setCurrentTodos] = useState<TodoItem[]>([]);
+  const [is_session_busy, setIsSessionBusy] = useState(false);
+  const [session_cost_summary, setSessionCostSummary] = useState<SessionCostSummary>(
     EMPTY_SESSION_COST_SUMMARY,
   );
-  const [agentCostSummary, setAgentCostSummary] = useState<AgentCostSummary>(
+  const [agent_cost_summary, setAgentCostSummary] = useState<AgentCostSummary>(
     EMPTY_AGENT_COST_SUMMARY,
   );
-  const workspaceSplitRef = useRef<HTMLElement | null>(null);
+  const workspace_split_ref = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (currentAgentId) {
+    if (current_agent_id) {
       return;
     }
 
@@ -76,10 +76,10 @@ export function useHomeWorkspaceController({
     setIsSessionBusy(false);
     setSessionCostSummary(EMPTY_SESSION_COST_SUMMARY);
     setAgentCostSummary(EMPTY_AGENT_COST_SUMMARY);
-  }, [currentAgentId]);
+  }, [current_agent_id]);
 
   useEffect(() => {
-    if (!currentAgentId || isSessionBusy) {
+    if (!current_agent_id || is_session_busy) {
       return;
     }
 
@@ -87,7 +87,7 @@ export function useHomeWorkspaceController({
 
     const loadAgentCostSummary = async () => {
       try {
-        const nextSummary = await getAgentCostSummaryApi(currentAgentId);
+        const nextSummary = await getAgentCostSummaryApi(current_agent_id);
         if (!ignore) {
           setAgentCostSummary(nextSummary);
         }
@@ -96,7 +96,7 @@ export function useHomeWorkspaceController({
         if (!ignore) {
           setAgentCostSummary({
             ...EMPTY_AGENT_COST_SUMMARY,
-            agent_id: currentAgentId,
+            agent_id: current_agent_id,
           });
         }
       }
@@ -107,17 +107,17 @@ export function useHomeWorkspaceController({
     return () => {
       ignore = true;
     };
-  }, [currentAgentId, isSessionBusy]);
+  }, [current_agent_id, is_session_busy]);
 
   useEffect(() => {
-    if (!currentSession?.session_key) {
+    if (!current_conversation?.session_key) {
       setSessionCostSummary({
         ...EMPTY_SESSION_COST_SUMMARY,
-        agent_id: currentAgentId ?? "",
+        agent_id: current_agent_id ?? "",
       });
       return;
     }
-    if (isSessionBusy) {
+    if (is_session_busy) {
       return;
     }
 
@@ -125,7 +125,7 @@ export function useHomeWorkspaceController({
 
     const loadSessionCostSummary = async () => {
       try {
-        const nextSummary = await getSessionCostSummary(currentSession.session_key);
+        const nextSummary = await getSessionCostSummary(current_conversation.session_key);
         if (!ignore) {
           setSessionCostSummary(nextSummary);
         }
@@ -134,9 +134,9 @@ export function useHomeWorkspaceController({
         if (!ignore) {
           setSessionCostSummary({
             ...EMPTY_SESSION_COST_SUMMARY,
-            agent_id: currentAgentId ?? "",
-            session_key: currentSession.session_key,
-            session_id: currentSession.session_id ?? "",
+            agent_id: current_agent_id ?? "",
+            session_key: current_conversation.session_key,
+            session_id: current_conversation.session_id ?? "",
           });
         }
       }
@@ -147,11 +147,11 @@ export function useHomeWorkspaceController({
     return () => {
       ignore = true;
     };
-  }, [currentSession?.session_id, currentSession?.session_key, currentAgentId, isSessionBusy]);
+  }, [current_conversation?.session_id, current_conversation?.session_key, current_agent_id, is_session_busy]);
 
-  const handleOpenWorkspaceFile = useCallback((path: string | null) => {
+  const handle_open_workspace_file = useCallback((path: string | null) => {
     setActiveWorkspacePath((currentPath) => {
-      if (path && currentPath === path && isEditorOpen) {
+      if (path && currentPath === path && is_editor_open) {
         setIsEditorOpen(false);
         return null;
       }
@@ -159,23 +159,23 @@ export function useHomeWorkspaceController({
       setIsEditorOpen(Boolean(path));
       return path;
     });
-  }, [isEditorOpen]);
+  }, [is_editor_open]);
 
-  const handleStartEditorResize = useCallback(() => {
+  const handle_start_editor_resize = useCallback(() => {
     setIsResizingEditor(true);
   }, []);
 
-  const handleCloseWorkspacePane = useCallback(() => {
+  const handle_close_workspace_pane = useCallback(() => {
     setIsEditorOpen(false);
   }, []);
 
   useEffect(() => {
-    if (!isResizingEditor) {
+    if (!is_resizing_editor) {
       return;
     }
 
     const handleMouseMove = (event: MouseEvent) => {
-      const container = workspaceSplitRef.current;
+      const container = workspace_split_ref.current;
       if (!container) {
         return;
       }
@@ -196,22 +196,22 @@ export function useHomeWorkspaceController({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isResizingEditor]);
+  }, [is_resizing_editor]);
 
   return {
-    activeWorkspacePath,
-    isEditorOpen,
-    editorWidthPercent,
-    isResizingEditor,
-    currentTodos,
-    isSessionBusy,
-    sessionCostSummary,
-    agentCostSummary,
-    workspaceSplitRef,
+    active_workspace_path,
+    is_editor_open,
+    editor_width_percent,
+    is_resizing_editor,
+    current_todos,
+    is_session_busy,
+    session_cost_summary,
+    agent_cost_summary,
+    workspace_split_ref,
     setCurrentTodos,
     setIsSessionBusy,
-    handleOpenWorkspaceFile,
-    handleStartEditorResize,
-    handleCloseWorkspacePane,
+    handle_open_workspace_file,
+    handle_start_editor_resize,
+    handle_close_workspace_pane,
   };
 }

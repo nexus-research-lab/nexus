@@ -63,8 +63,8 @@ export function RoomContextPanel({
         <RoomProgressSection todos={todos} />
 
         <RoomUsageSection
-          agentCostSummary={agent_cost_summary}
-          sessionCostSummary={session_cost_summary}
+          agent_cost_summary={agent_cost_summary}
+          session_cost_summary={session_cost_summary}
         />
 
         <RoomWorkspaceContextSection

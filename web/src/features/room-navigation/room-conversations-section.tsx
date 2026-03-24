@@ -5,18 +5,18 @@ import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 
 interface RoomConversationsSectionProps {
   conversations: Conversation[];
-  currentConversationId: string | null;
-  onCreateConversation: () => void;
-  onDeleteConversation: (conversationId: string) => void;
-  onSelectConversation: (conversationId: string) => void;
+  current_conversation_id: string | null;
+  on_create_conversation: () => void;
+  on_delete_conversation: (conversation_id: string) => void;
+  on_select_conversation: (conversation_id: string) => void;
 }
 
 export function RoomConversationsSection({
   conversations,
-  currentConversationId,
-  onCreateConversation,
-  onDeleteConversation,
-  onSelectConversation,
+  current_conversation_id,
+  on_create_conversation,
+  on_delete_conversation,
+  on_select_conversation,
 }: RoomConversationsSectionProps) {
   return (
     <section className="px-5 py-5">
@@ -27,7 +27,7 @@ export function RoomConversationsSection({
         </div>
         <button
           className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] px-3 py-1.5 text-[11px] font-bold text-[#18653a] shadow-[0_14px_24px_rgba(102,217,143,0.24)]"
-          onClick={onCreateConversation}
+          onClick={on_create_conversation}
           type="button"
         >
           <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -37,7 +37,7 @@ export function RoomConversationsSection({
 
       <div className="space-y-2">
         {conversations.map((conversation) => {
-          const isActive = conversation.session_key === currentConversationId;
+          const isActive = conversation.session_key === current_conversation_id;
           return (
             <div
               key={conversation.session_key}
@@ -47,11 +47,11 @@ export function RoomConversationsSection({
                   ? "workspace-card-strong shadow-[0_16px_28px_rgba(111,126,162,0.14)]"
                   : "workspace-card hover:-translate-y-0.5",
               )}
-              onClick={() => onSelectConversation(conversation.session_key)}
+              onClick={() => on_select_conversation(conversation.session_key)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  onSelectConversation(conversation.session_key);
+                  on_select_conversation(conversation.session_key);
                 }
               }}
               role="button"
@@ -72,7 +72,7 @@ export function RoomConversationsSection({
                   className="workspace-chip rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
                   onClick={(event) => {
                     event.stopPropagation();
-                    onDeleteConversation(conversation.session_key);
+                    on_delete_conversation(conversation.session_key);
                   }}
                   type="button"
                 >

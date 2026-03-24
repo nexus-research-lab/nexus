@@ -28,17 +28,17 @@ export function RoomPage() {
     navigate(AppRouteBuilders.room(agentId));
   }, [controller, navigate]);
 
-  const handleSelectConversation = useCallback((sessionKey: string) => {
-    controller.handleConversationSelect(sessionKey);
-    const routeRoomId = controller.currentAgentId ?? params.roomId;
+  const handleSelectConversation = useCallback((conversationId: string) => {
+    controller.handleConversationSelect(conversationId);
+    const routeRoomId = controller.current_agent_id ?? params.roomId;
     if (routeRoomId) {
-      navigate(AppRouteBuilders.roomConversation(routeRoomId, sessionKey));
+      navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
     }
   }, [controller, navigate, params.roomId]);
 
   const handleCreateConversation = useCallback(async () => {
     await controller.handleCreateConversation();
-    const routeRoomId = controller.currentAgentId ?? params.roomId;
+    const routeRoomId = controller.current_agent_id ?? params.roomId;
     const nextSessionKey = useSessionStore.getState().current_session_key;
     if (routeRoomId && nextSessionKey) {
       navigate(AppRouteBuilders.roomConversation(routeRoomId, nextSessionKey));
@@ -49,39 +49,39 @@ export function RoomPage() {
     return <AppLoadingScreen />;
   }
 
-  if (controller.currentAgent) {
+  if (controller.current_agent) {
     return (
       <AppStage>
         <RoomWorkspaceShell
-          active_workspace_path={controller.activeWorkspacePath}
-          agent_cost_summary={controller.agentCostSummary}
+          active_workspace_path={controller.active_workspace_path}
+          agent_cost_summary={controller.agent_cost_summary}
           agents={controller.agents}
-          current_agent={controller.currentAgent}
-          current_agent_id={controller.currentAgentId}
-          current_room_conversations={controller.currentRoomConversations}
-          current_conversation={controller.currentConversation}
-          current_conversation_id={controller.currentConversationId}
-          current_todos={controller.currentTodos}
-          editor_width_percent={controller.editorWidthPercent}
-          is_editor_open={controller.isEditorOpen}
-          is_resizing_editor={controller.isResizingEditor}
-          is_session_busy={controller.isSessionBusy}
+          current_agent={controller.current_agent}
+          current_agent_id={controller.current_agent_id}
+          current_room_conversations={controller.current_room_conversations}
+          current_conversation={controller.current_conversation}
+          current_conversation_id={controller.current_conversation_id}
+          current_todos={controller.current_todos}
+          editor_width_percent={controller.editor_width_percent}
+          is_editor_open={controller.is_editor_open}
+          is_resizing_editor={controller.is_resizing_editor}
+          is_session_busy={controller.is_session_busy}
           on_back_to_directory={handleBackToLauncher}
-          on_close_workspace_pane={controller.handleCloseWorkspacePane}
+          on_close_workspace_pane={controller.handle_close_workspace_pane}
           on_delete_conversation={controller.handleDeleteConversation}
           on_edit_agent={controller.handleEditAgent}
           on_loading_change={controller.setIsSessionBusy}
           on_create_conversation={handleCreateConversation}
           on_open_create_agent={controller.handleOpenCreateAgent}
-          on_open_workspace_file={controller.handleOpenWorkspaceFile}
+          on_open_workspace_file={controller.handle_open_workspace_file}
           on_select_agent={handleSelectAgent}
           on_select_conversation={handleSelectConversation}
           on_conversation_snapshot_change={controller.handleConversationSnapshotChange}
-          on_start_editor_resize={controller.handleStartEditorResize}
+          on_start_editor_resize={controller.handle_start_editor_resize}
           on_todos_change={controller.setCurrentTodos}
-          recent_agents={controller.recentAgents}
-          session_cost_summary={controller.sessionCostSummary}
-          workspace_split_ref={controller.workspaceSplitRef}
+          recent_agents={controller.recent_agents}
+          session_cost_summary={controller.session_cost_summary}
+          workspace_split_ref={controller.workspace_split_ref}
         />
 
         <AgentOptions
@@ -90,8 +90,8 @@ export function RoomPage() {
           onClose={() => controller.setIsDialogOpen(false)}
           onSave={controller.handleSaveAgentOptions}
           onValidateName={controller.handleValidateAgentName}
-          initialTitle={controller.dialogInitialTitle}
-          initialOptions={controller.dialogInitialOptions}
+          initialTitle={controller.dialog_initial_title}
+          initialOptions={controller.dialog_initial_options}
         />
       </AppStage>
     );
