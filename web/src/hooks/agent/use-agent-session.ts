@@ -3,12 +3,13 @@ import { getAgentWsUrl } from '@/config/runtime-config';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import { Message } from '@/types';
-import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
-import { UseAgentSessionOptions, UseAgentSessionReturn } from '@/types/agent-session';
+import { PermissionDecisionPayload } from '@/types/permission';
 import {
   AgentSessionActionContext,
   AgentSessionLifecycleContext,
-} from './session-context';
+  UseAgentSessionOptions,
+  UseAgentSessionReturn,
+} from '@/types/agent-session';
 import {
   clearAgentSession,
   loadAgentSession,
@@ -25,160 +26,160 @@ import {
 } from './session-actions';
 
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
-  const wsUrl = options.ws_url || getAgentWsUrl();
-  const applyWorkspaceEvent = useWorkspaceLiveStore((state) => state.applyEvent);
+  const ws_url = options.ws_url || getAgentWsUrl();
+  const apply_workspace_event = useWorkspaceLiveStore((state) => state.applyEvent);
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sessionKey, setSessionKey] = useState<string | null>(null);
-  const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
+  const [messages, set_messages] = useState<Message[]>([]);
+  const [is_loading, set_is_loading] = useState(false);
+  const [error, set_error] = useState<string | null>(null);
+  const [session_key, set_session_key] = useState<string | null>(null);
+  const [pending_permission, set_pending_permission] = useState<UseAgentSessionReturn['pending_permission']>(null);
 
-  const activeSessionKeyRef = useRef<string | null>(null);
-  const loadRequestIdRef = useRef(0);
-  const lifecycleContext: AgentSessionLifecycleContext = {
-    activeSessionKeyRef,
-    loadRequestIdRef,
-    setSessionKey,
-    setMessages,
-    setPendingPermission,
-    setIsLoading,
-    setError,
+  const active_session_key_ref = useRef<string | null>(null);
+  const load_request_id_ref = useRef(0);
+  const lifecycle_context: AgentSessionLifecycleContext = {
+    active_session_key_ref,
+    load_request_id_ref,
+    set_session_key,
+    set_messages,
+    set_pending_permission,
+    set_is_loading,
+    set_error,
   };
 
-  const isCurrentSessionEvent = useCallback((incomingSessionKey?: string | null) => {
-    if (!incomingSessionKey) {
+  const is_current_session_event = useCallback((incoming_session_key?: string | null) => {
+    if (!incoming_session_key) {
       return false;
     }
-    return activeSessionKeyRef.current === incomingSessionKey;
+    return active_session_key_ref.current === incoming_session_key;
   }, []);
 
-  const handleWebSocketMessage = useCallback((backendMessage: unknown) => {
+  const handle_websocket_message = useCallback((backend_message: unknown) => {
     handleAgentWebSocketMessage({
-      backendMessage,
-      applyWorkspaceEvent,
-      isCurrentSessionEvent,
-      setError,
-      setIsLoading,
-      setMessages,
-      setPendingPermission,
+      backend_message,
+      apply_workspace_event,
+      is_current_session_event,
+      set_error,
+      set_is_loading,
+      set_messages,
+      set_pending_permission,
     });
-  }, [applyWorkspaceEvent, isCurrentSessionEvent]);
+  }, [apply_workspace_event, is_current_session_event]);
 
-  const hasConnectedRef = useRef(false);
+  const has_connected_ref = useRef(false);
 
-  const { state: wsState, send: wsSend } = useWebSocket({
-    url: wsUrl,
+  const { state: ws_state, send: ws_send } = useWebSocket({
+    url: ws_url,
     autoConnect: true,
     reconnect: true,
     heartbeat_interval: 30000,
-    onMessage: handleWebSocketMessage,
+    onMessage: handle_websocket_message,
     onError: (event) => {
       // 开发环境 StrictMode 会触发一次挂载后立即清理，
       // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
-      if (!hasConnectedRef.current) {
+      if (!has_connected_ref.current) {
         console.debug('[useAgentSession] Ignored transient WebSocket error before first successful connection', event);
         return;
       }
 
-      const errorMessage = 'WebSocket error occurred';
+      const error_message = 'WebSocket error occurred';
       console.error('[useAgentSession] WebSocket error:', event);
-      setError(errorMessage);
-      options.on_error?.(new Error(errorMessage));
+      set_error(error_message);
+      options.on_error?.(new Error(error_message));
     },
   });
 
   useEffect(() => {
-    if (wsState === 'connected') {
-      hasConnectedRef.current = true;
-      setError(null);
+    if (ws_state === 'connected') {
+      has_connected_ref.current = true;
+      set_error(null);
     }
-  }, [wsState]);
+  }, [ws_state]);
 
   useEffect(() => {
-    const agentId = options.agent_id;
-    if (!agentId || wsState !== 'connected') {
+    const agent_id = options.agent_id;
+    if (!agent_id || ws_state !== 'connected') {
       return;
     }
 
-    wsSend({
+    ws_send({
       type: 'subscribe_workspace',
-      agent_id: agentId,
+      agent_id,
     });
 
     return () => {
-      wsSend({
+      ws_send({
         type: 'unsubscribe_workspace',
-        agent_id: agentId,
+        agent_id,
       });
     };
-  }, [options.agent_id, wsSend, wsState]);
+  }, [options.agent_id, ws_send, ws_state]);
 
-  const actionContext: AgentSessionActionContext = {
-    agentId: options.agent_id,
-    sessionKey,
-    wsState,
-    wsSend,
-    activeSessionKeyRef,
-    pendingPermission,
+  const action_context: AgentSessionActionContext = {
+    agent_id: options.agent_id,
+    session_key,
+    ws_state,
+    ws_send,
+    active_session_key_ref,
+    pending_permission,
     messages,
-    setError,
-    setIsLoading,
-    setMessages,
-    setPendingPermission,
+    set_error,
+    set_is_loading,
+    set_messages,
+    set_pending_permission,
   };
 
-  const sendMessage = useCallback(async (content: string) => {
-    await sendSessionMessage(content, actionContext);
-  }, [actionContext]);
+  const send_message = useCallback(async (content: string) => {
+    await sendSessionMessage(content, action_context);
+  }, [action_context]);
 
-  const stopGeneration = useCallback(() => {
-    stopSessionGeneration(actionContext);
-  }, [actionContext]);
+  const stop_generation = useCallback(() => {
+    stopSessionGeneration(action_context);
+  }, [action_context]);
 
-  const sendPermissionResponse = useCallback((payload: PermissionDecisionPayload) => {
-    sendSessionPermissionResponse(payload, actionContext);
-  }, [actionContext]);
+  const send_permission_response = useCallback((payload: PermissionDecisionPayload) => {
+    sendSessionPermissionResponse(payload, action_context);
+  }, [action_context]);
 
-  const regenerate = useCallback(async (roundId: string) => {
-    await regenerateSessionRound(roundId, actionContext);
-  }, [actionContext]);
+  const regenerate = useCallback(async (round_id: string) => {
+    await regenerateSessionRound(round_id, action_context);
+  }, [action_context]);
 
-  const deleteRound = useCallback(async (roundId: string) => {
-    await deleteSessionRound(roundId, actionContext);
-  }, [actionContext]);
+  const delete_round = useCallback(async (round_id: string) => {
+    await deleteSessionRound(round_id, action_context);
+  }, [action_context]);
 
-  const startSession = useCallback(() => {
-    startAgentSession(lifecycleContext);
-  }, [lifecycleContext]);
+  const start_session = useCallback(() => {
+    startAgentSession(lifecycle_context);
+  }, [lifecycle_context]);
 
-  const loadSession = useCallback(async (id: string): Promise<void> => {
-    await loadAgentSession(id, lifecycleContext);
-  }, [lifecycleContext]);
+  const load_session = useCallback(async (id: string): Promise<void> => {
+    await loadAgentSession(id, lifecycle_context);
+  }, [lifecycle_context]);
 
-  const clearSession = useCallback(() => {
-    clearAgentSession(lifecycleContext);
-  }, [lifecycleContext]);
+  const clear_session = useCallback(() => {
+    clearAgentSession(lifecycle_context);
+  }, [lifecycle_context]);
 
-  const resetSession = useCallback(() => {
-    resetAgentSession(lifecycleContext);
-  }, [lifecycleContext]);
+  const reset_session = useCallback(() => {
+    resetAgentSession(lifecycle_context);
+  }, [lifecycle_context]);
 
   return {
     error,
     messages,
-    session_key: sessionKey,
-    is_loading: isLoading,
-    pending_permission: pendingPermission,
-    send_message: sendMessage,
-    start_session: startSession,
-    load_session: loadSession,
-    clear_session: clearSession,
-    reset_session: resetSession,
-    stop_generation: stopGeneration,
-    delete_round: deleteRound,
+    session_key,
+    is_loading,
+    pending_permission,
+    send_message,
+    start_session,
+    load_session,
+    clear_session,
+    reset_session,
+    stop_generation,
+    delete_round,
     regenerate,
-    send_permission_response: sendPermissionResponse,
+    send_permission_response,
   };
 }
 

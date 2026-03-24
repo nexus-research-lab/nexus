@@ -2,10 +2,10 @@ import { WebSocketMessage } from '@/types/websocket';
 import { deleteRound as deleteRoundApi } from '@/lib/agent-api';
 import { generateUuid } from '@/lib/uuid';
 import { Message, UserMessage } from '@/types';
+import { AgentSessionActionContext } from '@/types/agent-session';
 import { PermissionDecisionPayload } from '@/types/permission';
 
 import { upsertMessage } from './message-helpers';
-import { AgentSessionActionContext } from './session-context';
 
 /**
  * 发送用户消息并建立当前轮次的本地状态。
@@ -15,52 +15,52 @@ export async function sendSessionMessage(
   context: AgentSessionActionContext,
 ): Promise<void> {
   const {
-    agentId,
-    sessionKey,
-    wsState,
-    wsSend,
-    activeSessionKeyRef,
-    setError,
-    setIsLoading,
-    setMessages,
-    setPendingPermission,
+    agent_id,
+    session_key,
+    ws_state,
+    ws_send,
+    active_session_key_ref,
+    set_error,
+    set_is_loading,
+    set_messages,
+    set_pending_permission,
   } = context;
 
   if (!content.trim()) {
     return;
   }
-  if (!sessionKey) {
-    setError('请先选择或创建会话');
+  if (!session_key) {
+    set_error('请先选择或创建会话');
     return;
   }
-  if (wsState !== 'connected') {
-    setError('WebSocket未连接,请稍候重试');
+  if (ws_state !== 'connected') {
+    set_error('WebSocket未连接,请稍候重试');
     return;
   }
 
-  const roundId = generateUuid();
-  activeSessionKeyRef.current = sessionKey;
+  const round_id = generateUuid();
+  active_session_key_ref.current = session_key;
   const userMessage: Message = {
-    message_id: roundId,
-    session_key: sessionKey,
-    round_id: roundId,
-    agent_id: agentId || 'main',
+    message_id: round_id,
+    session_key,
+    round_id,
+    agent_id: agent_id || 'main',
     role: 'user',
     content,
     timestamp: Date.now(),
   };
 
-  setMessages((prev) => upsertMessage(prev, userMessage));
-  setPendingPermission(null);
-  setIsLoading(true);
-  setError(null);
+  set_messages((prev) => upsertMessage(prev, userMessage));
+  set_pending_permission(null);
+  set_is_loading(true);
+  set_error(null);
 
-  wsSend({
+  ws_send({
     type: 'chat',
     content,
-    session_key: sessionKey,
-    agent_id: agentId || 'main',
-    round_id: roundId,
+    session_key,
+    agent_id: agent_id || 'main',
+    round_id,
   });
 }
 
@@ -69,33 +69,33 @@ export async function sendSessionMessage(
  */
 export function stopSessionGeneration(context: AgentSessionActionContext): void {
   const {
-    agentId,
-    sessionKey,
-    wsState,
-    wsSend,
+    agent_id,
+    session_key,
+    ws_state,
+    ws_send,
     messages,
-    setIsLoading,
-    setPendingPermission,
+    set_is_loading,
+    set_pending_permission,
   } = context;
 
-  if (!sessionKey || wsState !== 'connected') {
-    setIsLoading(false);
+  if (!session_key || ws_state !== 'connected') {
+    set_is_loading(false);
     return;
   }
 
-  const latestUserRoundId = [...messages]
+  const latest_user_round_id = [...messages]
     .reverse()
     .find((message) => message.role === 'user')?.round_id;
 
-  wsSend({
+  ws_send({
     type: 'interrupt',
-    session_key: sessionKey,
-    agent_id: agentId || 'main',
-    round_id: latestUserRoundId,
+    session_key,
+    agent_id: agent_id || 'main',
+    round_id: latest_user_round_id,
   });
 
-  setIsLoading(false);
-  setPendingPermission(null);
+  set_is_loading(false);
+  set_pending_permission(null);
 }
 
 /**
@@ -106,33 +106,33 @@ export function sendSessionPermissionResponse(
   context: AgentSessionActionContext,
 ): void {
   const {
-    agentId,
-    sessionKey,
-    wsState,
-    wsSend,
-    activeSessionKeyRef,
-    pendingPermission,
-    setError,
-    setPendingPermission,
+    agent_id,
+    session_key,
+    ws_state,
+    ws_send,
+    active_session_key_ref,
+    pending_permission,
+    set_error,
+    set_pending_permission,
   } = context;
 
-  if (!pendingPermission) {
+  if (!pending_permission) {
     return;
   }
-  if (!sessionKey || activeSessionKeyRef.current !== sessionKey) {
-    setPendingPermission(null);
+  if (!session_key || active_session_key_ref.current !== session_key) {
+    set_pending_permission(null);
     return;
   }
-  if (wsState !== 'connected') {
-    setError('WebSocket未连接，无法提交权限决策');
+  if (ws_state !== 'connected') {
+    set_error('WebSocket未连接，无法提交权限决策');
     return;
   }
 
   const response: WebSocketMessage = {
     type: 'permission_response',
-    request_id: pendingPermission.request_id,
-    session_key: sessionKey,
-    agent_id: agentId || 'main',
+    request_id: pending_permission.request_id,
+    session_key,
+    agent_id: agent_id || 'main',
     decision: payload.decision,
     message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
     interrupt: payload.interrupt ?? false,
@@ -145,33 +145,33 @@ export function sendSessionPermissionResponse(
     response.updated_permissions = payload.updated_permissions;
   }
 
-  wsSend(response);
-  setPendingPermission(null);
+  ws_send(response);
+  set_pending_permission(null);
 }
 
 /**
  * 删除指定轮次的消息。
  */
 export async function deleteSessionRound(
-  roundId: string,
+  round_id: string,
   context: AgentSessionActionContext,
 ): Promise<void> {
   const {
-    sessionKey,
-    setError,
-    setMessages,
+    session_key,
+    set_error,
+    set_messages,
   } = context;
 
-  if (!sessionKey) {
+  if (!session_key) {
     return;
   }
 
   try {
-    await deleteRoundApi(sessionKey, roundId);
-    setMessages((prev) => prev.filter((message) => message.round_id !== roundId));
+    await deleteRoundApi(session_key, round_id);
+    set_messages((prev) => prev.filter((message) => message.round_id !== round_id));
   } catch (err) {
     console.error('[deleteRound] 删除失败:', err);
-    setError(err instanceof Error ? err.message : 'Failed to delete round');
+    set_error(err instanceof Error ? err.message : 'Failed to delete round');
   }
 }
 
@@ -179,33 +179,33 @@ export async function deleteSessionRound(
  * 基于指定轮次重新生成回复。
  */
 export async function regenerateSessionRound(
-  roundId: string,
+  round_id: string,
   context: AgentSessionActionContext,
 ): Promise<void> {
   const {
-    sessionKey,
+    session_key,
     messages,
-    setError,
-    setIsLoading,
+    set_error,
+    set_is_loading,
   } = context;
 
-  if (!sessionKey) {
+  if (!session_key) {
     return;
   }
 
-  const lastUserMessage = messages.findLast(
-    (message) => message.role === 'user' && message.message_id === roundId,
+  const last_user_message = messages.findLast(
+    (message) => message.role === 'user' && message.message_id === round_id,
   ) as UserMessage | undefined;
-  if (!lastUserMessage?.content) {
+  if (!last_user_message?.content) {
     return;
   }
 
   try {
-    await deleteSessionRound(roundId, context);
-    await sendSessionMessage(lastUserMessage.content, context);
+    await deleteSessionRound(round_id, context);
+    await sendSessionMessage(last_user_message.content, context);
   } catch (err) {
     console.error('[regenerate] 重新生成失败:', err);
-    setError(err instanceof Error ? err.message : 'Failed to regenerate');
-    setIsLoading(false);
+    set_error(err instanceof Error ? err.message : 'Failed to regenerate');
+    set_is_loading(false);
   }
 }

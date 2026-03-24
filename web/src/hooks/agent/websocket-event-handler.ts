@@ -1,51 +1,39 @@
-import { Dispatch, SetStateAction } from 'react';
-
 import { EventMessage, Message, StreamMessage } from '@/types';
-import { PendingPermission } from '@/types/permission';
+import { HandleAgentWebSocketMessageParams } from '@/types/agent-session';
 import { WorkspaceEventPayload } from '@/types/workspace-live';
 
 import { applyStreamMessage, upsertMessage } from './message-helpers';
-
-interface HandleAgentWebSocketMessageParams {
-  backendMessage: unknown;
-  applyWorkspaceEvent: (payload: WorkspaceEventPayload) => void;
-  isCurrentSessionEvent: (incomingSessionKey?: string | null) => boolean;
-  setError: Dispatch<SetStateAction<string | null>>;
-  setIsLoading: Dispatch<SetStateAction<boolean>>;
-  setMessages: Dispatch<SetStateAction<Message[]>>;
-  setPendingPermission: Dispatch<SetStateAction<PendingPermission | null>>;
-}
 
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
 export function handleAgentWebSocketMessage({
-  backendMessage,
-  applyWorkspaceEvent,
-  isCurrentSessionEvent,
-  setError,
-  setIsLoading,
-  setMessages,
-  setPendingPermission,
+  backend_message,
+  apply_workspace_event,
+  is_current_session_event,
+  set_error,
+  set_is_loading,
+  set_messages,
+  set_pending_permission,
 }: HandleAgentWebSocketMessageParams): void {
-  const event = backendMessage as EventMessage;
-  const incomingSessionKey = event.session_key || null;
+  const event = backend_message as EventMessage;
+  const incoming_session_key = event.session_key || null;
 
   if (event.event_type === 'error') {
-    if (incomingSessionKey && !isCurrentSessionEvent(incomingSessionKey)) {
+    if (incoming_session_key && !is_current_session_event(incoming_session_key)) {
       return;
     }
-    setError(event.data?.message || 'Unknown error');
-    setIsLoading(false);
+    set_error(event.data?.message || 'Unknown error');
+    set_is_loading(false);
     return;
   }
 
   if (event.event_type === 'permission_request') {
-    if (!isCurrentSessionEvent(incomingSessionKey)) {
+    if (!is_current_session_event(incoming_session_key)) {
       return;
     }
     const data = event.data || {};
-    setPendingPermission({
+    set_pending_permission({
       request_id: data.request_id,
       tool_name: data.tool_name,
       tool_input: data.tool_input || {},
@@ -61,7 +49,7 @@ export function handleAgentWebSocketMessage({
   if (event.event_type === 'workspace_event') {
     const payload = event.data as WorkspaceEventPayload;
     if (payload?.agent_id && payload?.path) {
-      applyWorkspaceEvent(payload);
+      apply_workspace_event(payload);
     }
     return;
   }
@@ -72,29 +60,29 @@ export function handleAgentWebSocketMessage({
     }
 
     const payload = event.data as StreamMessage;
-    const messageSessionKey = payload?.session_key || incomingSessionKey;
-    if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
+    const message_session_key = payload?.session_key || incoming_session_key;
+    if (!payload || !message_session_key || !is_current_session_event(message_session_key)) {
       return;
     }
 
-    setMessages((prev) => applyStreamMessage(prev, payload));
-    setIsLoading(true);
+    set_messages((prev) => applyStreamMessage(prev, payload));
+    set_is_loading(true);
     return;
   }
 
   const payload = event.data as Message;
-  const messageSessionKey = payload?.session_key || incomingSessionKey;
-  if (!payload || !messageSessionKey || !isCurrentSessionEvent(messageSessionKey)) {
+  const message_session_key = payload?.session_key || incoming_session_key;
+  if (!payload || !message_session_key || !is_current_session_event(message_session_key)) {
     return;
   }
 
-  setMessages((prev) => upsertMessage(prev, payload));
+  set_messages((prev) => upsertMessage(prev, payload));
   if (payload.role === 'result') {
-    setPendingPermission(null);
-    setIsLoading(false);
+    set_pending_permission(null);
+    set_is_loading(false);
     return;
   }
   if (payload.role === 'assistant') {
-    setIsLoading(true);
+    set_is_loading(true);
   }
 }

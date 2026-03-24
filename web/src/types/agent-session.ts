@@ -7,8 +7,12 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
+import { Dispatch, RefObject, SetStateAction } from 'react';
+
 import { Message } from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
+import { WebSocketMessage, WebSocketState } from '@/types/websocket';
+import { WorkspaceEventPayload } from '@/types/workspace-live';
 
 export interface UseAgentSessionOptions {
   ws_url?: string;
@@ -27,8 +31,8 @@ export interface UseAgentSessionReturn {
   clear_session: () => void;
   reset_session: () => void;
   stop_generation: () => void;
-  delete_round: (roundId: string) => Promise<void>;
-  regenerate: (roundId: string) => Promise<void>;
+  delete_round: (round_id: string) => Promise<void>;
+  regenerate: (round_id: string) => Promise<void>;
   pending_permission: PendingPermission | null;
   send_permission_response: (payload: PermissionDecisionPayload) => void;
 }
@@ -38,4 +42,38 @@ export interface SessionSnapshot {
   message_count: number;
   last_activity_at: number;
   session_id: string | null;
+}
+
+export interface AgentSessionActionContext {
+  agent_id?: string | null;
+  session_key: string | null;
+  ws_state: WebSocketState;
+  ws_send: (message: WebSocketMessage) => void;
+  active_session_key_ref: RefObject<string | null>;
+  pending_permission: PendingPermission | null;
+  messages: Message[];
+  set_error: Dispatch<SetStateAction<string | null>>;
+  set_is_loading: Dispatch<SetStateAction<boolean>>;
+  set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
+}
+
+export interface AgentSessionLifecycleContext {
+  active_session_key_ref: RefObject<string | null>;
+  load_request_id_ref: RefObject<number>;
+  set_session_key: Dispatch<SetStateAction<string | null>>;
+  set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
+  set_is_loading: Dispatch<SetStateAction<boolean>>;
+  set_error: Dispatch<SetStateAction<string | null>>;
+}
+
+export interface HandleAgentWebSocketMessageParams {
+  backend_message: unknown;
+  apply_workspace_event: (payload: WorkspaceEventPayload) => void;
+  is_current_session_event: (incoming_session_key?: string | null) => boolean;
+  set_error: Dispatch<SetStateAction<string | null>>;
+  set_is_loading: Dispatch<SetStateAction<boolean>>;
+  set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
 }
