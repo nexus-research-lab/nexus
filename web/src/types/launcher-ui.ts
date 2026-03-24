@@ -1,10 +1,9 @@
 import { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 
 import { BlobDebugTarget } from "@/features/launcher-search/launcher-blob-debug-hooks";
-import { BlobPoint } from "@/features/launcher-search/launcher-blob-shape";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
-import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
+import { BlobPoint, ConversationWithOwner, SpotlightToken } from "@/types/launcher";
 
 export interface GlassGradientStop {
   color: string;

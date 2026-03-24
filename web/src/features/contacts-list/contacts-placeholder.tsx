@@ -1,6 +1,4 @@
-interface ContactsPlaceholderProps {
-  agent_id?: string;
-}
+import { ContactsPlaceholderProps } from "@/types/page";
 
 export function ContactsPlaceholder({ agent_id }: ContactsPlaceholderProps) {
   return (

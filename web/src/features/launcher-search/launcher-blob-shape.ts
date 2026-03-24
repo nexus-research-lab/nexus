@@ -1,9 +1,6 @@
 "use client";
 
-export interface BlobPoint {
-  x: number;
-  y: number;
-}
+import { BlobPoint } from "@/types/launcher";
 
 export const OUTER_STORAGE_KEY = "nexus-home-blob-points";
 export const INPUT_STORAGE_KEY = "nexus-home-input-blob-points";

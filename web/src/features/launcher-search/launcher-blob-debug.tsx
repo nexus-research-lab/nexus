@@ -4,13 +4,12 @@ import { type PointerEvent as ReactPointerEvent, type RefObject, useEffect, useS
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+import { BlobPoint } from "@/types/launcher";
 import {
   BlobDebugControllerProps,
   BlobDebugOverlayProps,
   BlobDebugPanelProps,
 } from "@/types/launcher-ui";
-
-import { type BlobPoint } from "@/features/launcher-search/launcher-blob-shape";
 import { type BlobDebugTarget } from "@/features/launcher-search/launcher-blob-debug-hooks";
 
 function useDebugSvgRect(
