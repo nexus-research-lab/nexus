@@ -85,20 +85,20 @@ export function RoomWorkspaceLayout({
     <div className={cn("flex min-h-0 min-w-0 flex-1", HOME_WORKSPACE_MAIN_GAP_CLASS)}>
       <div className="hidden lg:flex lg:min-h-0 lg:shrink-0 lg:border-r lg:workspace-divider">
         <RoomSidebarPanel
-          activeWorkspacePath={active_workspace_path}
+          active_workspace_path={active_workspace_path}
           agent={current_agent}
           agents={agents}
-          currentAgentId={current_agent_id}
-          currentSessionKey={current_conversation_id}
-          onCreateAgent={on_create_agent}
-          onCreateSession={on_create_conversation}
-          onDeleteSession={on_delete_conversation}
-          onOpenDirectory={on_open_directory}
-          onOpenWorkspaceFile={on_open_workspace_file}
-          onSelectAgent={on_select_agent}
-          onSelectSession={on_select_conversation}
-          recentAgents={recent_agents}
-          sessions={current_room_conversations}
+          conversations={current_room_conversations}
+          current_agent_id={current_agent_id}
+          current_conversation_id={current_conversation_id}
+          on_create_agent={on_create_agent}
+          on_create_conversation={on_create_conversation}
+          on_delete_conversation={on_delete_conversation}
+          on_open_directory={on_open_directory}
+          on_open_workspace_file={on_open_workspace_file}
+          on_select_agent={on_select_agent}
+          on_select_conversation={on_select_conversation}
+          recent_agents={recent_agents}
         />
       </div>
 
@@ -110,34 +110,34 @@ export function RoomWorkspaceLayout({
         )}
       >
         <RoomEditorPanel
-          agentId={current_agent.agent_id}
-          className="hidden lg:flex"
-          isOpen={is_editor_open}
-          onClose={on_close_workspace_pane}
-          onResizeStart={on_start_editor_resize}
+          agent_id={current_agent.agent_id}
+          class_name="hidden lg:flex"
+          is_open={is_editor_open}
+          on_close={on_close_workspace_pane}
+          on_resize_start={on_start_editor_resize}
           path={active_workspace_path}
-          widthPercent={editor_width_percent}
+          width_percent={editor_width_percent}
         />
 
         <div className={cn(HOME_CHAT_PANEL_CLASS, !is_editor_open && "min-[1280px]:border-r min-[1280px]:workspace-divider")}>
           <div className="min-h-0 min-w-0 flex-1">
             <RoomChatPanel
-              agentId={current_agent.agent_id}
-              currentAgentName={current_agent.name}
-              onLoadingChange={on_loading_change}
-              onNewSession={on_create_conversation}
-              onOpenWorkspaceFile={on_open_workspace_file}
-              onSessionSnapshotChange={(snapshot) =>
+              agent_id={current_agent.agent_id}
+              current_agent_name={current_agent.name}
+              on_conversation_snapshot_change={(snapshot) =>
                 on_conversation_snapshot_change({
-                  conversation_id: snapshot.sessionKey,
-                  message_count: snapshot.messageCount,
-                  last_activity_at: snapshot.lastActivityAt,
-                  session_id: snapshot.sessionId,
+                  conversation_id: snapshot.session_key,
+                  message_count: snapshot.message_count,
+                  last_activity_at: snapshot.last_activity_at,
+                  session_id: snapshot.session_id,
                 })
               }
-              onTodosChange={on_todos_change}
-              sessionKey={current_conversation?.session_key ?? null}
-              sessionTitle={current_conversation?.title ?? null}
+              on_create_conversation={on_create_conversation}
+              on_loading_change={on_loading_change}
+              on_open_workspace_file={on_open_workspace_file}
+              on_todos_change={on_todos_change}
+              session_key={current_conversation?.session_key ?? null}
+              session_title={current_conversation?.title ?? null}
             />
           </div>
         </div>
@@ -146,12 +146,12 @@ export function RoomWorkspaceLayout({
       {!is_editor_open ? (
         <div className={HOME_AGENT_INSPECTOR_WRAPPER_CLASS}>
           <RoomContextPanel
-            activeSession={current_conversation}
+            active_session={current_conversation}
             agent={current_agent}
-            agentCostSummary={agent_cost_summary}
-            isSessionBusy={is_session_busy}
-            onEditAgent={on_edit_agent}
-            sessionCostSummary={session_cost_summary}
+            agent_cost_summary={agent_cost_summary}
+            is_session_busy={is_session_busy}
+            on_edit_agent={on_edit_agent}
+            session_cost_summary={session_cost_summary}
             sessions={current_room_conversations}
             todos={current_todos}
           />

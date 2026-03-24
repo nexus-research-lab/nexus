@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, MessageSquare, Plus, Search, X } from "lucide-react";
 
-import { ChatInterface } from "@/components/chat/chat-interface";
+import { RoomChatPanel } from "@/features/room-conversation/room-chat-panel";
 import { formatRelativeTime } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Session } from "@/types/session";
@@ -48,9 +48,9 @@ export function MobileAgentWorkspace({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <div className="px-2 pb-2 pt-2">
-        <div className="panel-surface soft-ring radius-shell-lg flex items-center gap-2 px-2 py-2">
+        <div className="workspace-shell radius-shell-lg flex items-center gap-2 px-2 py-2">
           <button
-            className="neo-pill inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-foreground transition hover:text-primary"
+            className="workspace-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-900/82 transition hover:text-slate-950"
             onClick={onBackToDirectory}
             type="button"
           >
@@ -58,24 +58,24 @@ export function MobileAgentWorkspace({
           </button>
 
           <button
-            className="neo-inset flex min-w-0 flex-1 items-center gap-3 rounded-[24px] px-3 py-2 text-left transition hover:bg-white/80"
+            className="workspace-card flex min-w-0 flex-1 items-center gap-3 rounded-[24px] px-3 py-2 text-left transition hover:bg-white/18"
             onClick={() => setIsSessionSheetOpen(true)}
             type="button"
           >
-            <div className="neo-pill flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground">
+            <div className="workspace-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-700/56">
               <Search className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{currentAgent.name}</p>
-              <p className="truncate text-[12px] text-muted-foreground">{currentSessionTitle}</p>
+              <p className="truncate text-sm font-semibold text-slate-900/84">{currentAgent.name}</p>
+              <p className="truncate text-[12px] text-slate-700/54">{currentSessionTitle}</p>
             </div>
 
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-slate-700/50" />
           </button>
 
           <button
-            className="neo-pill inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-foreground transition hover:text-primary"
+            className="workspace-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-900/82 transition hover:text-slate-950"
             onClick={() => {
               onNewSession();
               setIsSessionSheetOpen(false);
@@ -88,13 +88,22 @@ export function MobileAgentWorkspace({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1">
-        <ChatInterface
-          agentId={currentAgent.agent_id}
+        <RoomChatPanel
+          agent_id={currentAgent.agent_id}
+          current_agent_name={currentAgent.name}
           layout="mobile"
-          onLoadingChange={onLoadingChange}
-          onSessionSnapshotChange={onSessionSnapshotChange}
-          sessionKey={currentSessionKey}
-          onNewSession={onNewSession}
+          on_conversation_snapshot_change={(snapshot) =>
+            onSessionSnapshotChange({
+              sessionKey: snapshot.session_key,
+              messageCount: snapshot.message_count,
+              lastActivityAt: snapshot.last_activity_at,
+              sessionId: snapshot.session_id,
+            })
+          }
+          on_create_conversation={onNewSession}
+          on_loading_change={onLoadingChange}
+          session_key={currentSessionKey}
+          session_title={currentSession?.title ?? null}
         />
       </div>
 
@@ -107,19 +116,19 @@ export function MobileAgentWorkspace({
             type="button"
           />
 
-          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 bg-[rgba(244,241,236,0.96)] px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
+          <div className="workspace-shell absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-black/10" />
 
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">切换会话</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm font-semibold text-slate-900/84">切换会话</p>
+                <p className="text-xs text-slate-700/54">
                   {currentAgentSessions.length} 个会话
                 </p>
               </div>
 
               <button
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-black/5 hover:text-foreground"
+                className="workspace-chip inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-700/54 transition hover:text-slate-950"
                 onClick={() => setIsSessionSheetOpen(false)}
                 type="button"
               >
@@ -145,22 +154,22 @@ export function MobileAgentWorkspace({
                 return (
                   <button
                     key={session.session_key}
-                    className="flex w-full items-start gap-3 rounded-2xl border border-white/60 bg-white/50 px-3 py-3 text-left transition hover:bg-white/70"
+                    className="workspace-card flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/18"
                     onClick={() => {
                       onSelectSession(session.session_key);
                       setIsSessionSheetOpen(false);
                     }}
                     type="button"
                   >
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(174,163,255,0.12)] text-primary">
+                    <div className="workspace-chip mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
                       {isActive ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
+                      <p className="truncate text-sm font-medium text-slate-900/84">
                         {session.title?.trim() || "未命名会话"}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-slate-700/54">
                         {formatRelativeTime(session.last_activity_at)} · {session.message_count ?? 0} 条
                       </p>
                     </div>
