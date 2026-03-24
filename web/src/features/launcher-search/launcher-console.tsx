@@ -13,18 +13,19 @@ import {
 
 import { ANIMATIONS } from "@/components/animations/animations";
 import { LottiePlayer } from "@/components/animations/lottiePlayer";
-import { SpotlightToken, AgentPile } from "@/components/home/agent-pile";
 import {
   HeroActionOrbShell,
   HeroActionPillShell,
   HeroBlobShell,
   HeroInputShell,
   HeroSidePanelShell,
-} from "@/components/home/hero-blob-shell";
-import { DebugReferenceOverlay } from "@/components/home/reference-overlay-debug";
+} from "@/features/launcher-search/launcher-glass-shell";
+import { DebugReferenceOverlay } from "@/features/launcher-search/launcher-reference-overlay-debug";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
+
+import { SpotlightToken, AgentPile } from "./launcher-agent-pile";
 
 interface LauncherConsoleProps {
   agents: Agent[];

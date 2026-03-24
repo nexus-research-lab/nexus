@@ -5,8 +5,8 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 
-import { type BlobPoint } from "@/components/home/hero-blob-shape";
-import { type BlobDebugTarget } from "@/components/home/hero-blob-debug-hooks";
+import { type BlobPoint } from "@/features/launcher-search/launcher-blob-shape";
+import { type BlobDebugTarget } from "@/features/launcher-search/launcher-blob-debug-hooks";
 
 function useDebugSvgRect(
   debugEnabled: boolean,

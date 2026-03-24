@@ -4,7 +4,7 @@ import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef,
 
 import { cn } from "@/lib/utils";
 
-import { useBlobDebugEnabled } from "@/components/home/hero-blob-debug-hooks";
+import { useBlobDebugEnabled } from "@/features/launcher-search/launcher-blob-debug-hooks";
 
 const DEBUG_REFERENCE_IMAGE = "/debug/nexus-collaboration-hub-home.png";
 const DEBUG_REFERENCE_STORAGE_KEY = "nexus-home-reference-overlay";

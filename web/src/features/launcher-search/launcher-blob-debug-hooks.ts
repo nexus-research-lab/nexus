@@ -8,7 +8,7 @@ import {
   createClosedSplinePath,
   findNearestSegmentIndex,
   parsePoints,
-} from "@/components/home/hero-blob-shape";
+} from "@/features/launcher-search/launcher-blob-shape";
 
 export type BlobDebugTarget = "hero" | "input" | "panel";
 

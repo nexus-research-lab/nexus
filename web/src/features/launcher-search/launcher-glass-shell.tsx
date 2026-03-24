@@ -2,8 +2,6 @@
 
 import { type ReactNode, useId } from "react";
 
-import { BlobDebugController, BlobDebugPanel } from "@/components/home/hero-blob-debug";
-import { useBlobDebugTarget, useEditableShape } from "@/components/home/hero-blob-debug-hooks";
 import {
   type BlobPoint,
   createClosedSplinePath,
@@ -20,8 +18,11 @@ import {
   SIDE_PANEL_STORAGE_KEY,
   SIDE_PANEL_VIEWBOX_HEIGHT,
   SIDE_PANEL_VIEWBOX_WIDTH,
-} from "@/components/home/hero-blob-shape";
+} from "@/features/launcher-search/launcher-blob-shape";
 import { cn } from "@/lib/utils";
+
+import { BlobDebugController, BlobDebugPanel } from "./launcher-blob-debug";
+import { useBlobDebugTarget, useEditableShape } from "./launcher-blob-debug-hooks";
 
 interface HeroBlobShellProps {
   children: ReactNode;
