@@ -40,16 +40,16 @@ export function RoomConversationFeed({
         return (
           <MessageItem
             key={roundId}
-            currentAgentName={current_agent_name}
-            roundId={roundId}
+            current_agent_name={current_agent_name}
+            round_id={roundId}
             messages={roundMessages}
-            isLastRound={isLastRound}
-            isLoading={is_loading}
-            pendingPermission={isLastRound ? is_last_round_pending_permission : null}
-            onPermissionResponse={on_permission_response}
-            onOpenWorkspaceFile={on_open_workspace_file}
-            onDelete={on_delete_round}
-            onRegenerate={isLastRound ? on_regenerate_round : undefined}
+            is_last_round={isLastRound}
+            is_loading={is_loading}
+            pending_permission={isLastRound ? is_last_round_pending_permission : null}
+            on_permission_response={on_permission_response}
+            on_open_workspace_file={on_open_workspace_file}
+            on_delete={on_delete_round}
+            on_regenerate={isLastRound ? on_regenerate_round : undefined}
           />
         );
       })}

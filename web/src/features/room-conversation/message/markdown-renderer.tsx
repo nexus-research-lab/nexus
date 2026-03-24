@@ -17,9 +17,9 @@ import "katex/dist/katex.min.css";
 
 interface MarkdownRendererProps {
   content: string;
-  className?: string;
-  isStreaming?: boolean;
-  onOpenWorkspaceFile?: (path: string) => void;
+  class_name?: string;
+  is_streaming?: boolean;
+  on_open_workspace_file?: (path: string) => void;
 }
 
 type MarkdownNodeLike = {
@@ -84,18 +84,18 @@ function isBlockCode(node: MarkdownNodeLike | null | undefined, className: strin
 }
 
 function WorkspaceFileButton({
-                               label,
-                               path,
-                               onOpenWorkspaceFile,
-                             }: {
+  label,
+  path,
+  on_open_workspace_file,
+}: {
   label: ReactNode;
   path: string;
-  onOpenWorkspaceFile: (path: string) => void;
+  on_open_workspace_file: (path: string) => void;
 }) {
   return (
     <button
       className={FILE_TRIGGER_CLASS}
-      onClick={() => onOpenWorkspaceFile(path)}
+      onClick={() => on_open_workspace_file(path)}
       title={`Open ${path}`}
       type="button"
     >
@@ -106,7 +106,7 @@ function WorkspaceFileButton({
 
 function createMarkdownComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string) => void,
+  on_open_workspace_file?: (path: string) => void,
 ): Components {
   return {
     pre({children}) {
@@ -120,12 +120,12 @@ function createMarkdownComponents(
       }
 
       const resolvedPath = resolveFilePath(value);
-      if (resolvedPath && onOpenWorkspaceFile) {
+      if (resolvedPath && on_open_workspace_file) {
         return (
           <WorkspaceFileButton
             label={value}
             path={resolvedPath}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            on_open_workspace_file={on_open_workspace_file}
           />
         );
       }
@@ -249,11 +249,11 @@ function createMarkdownComponents(
 }
 
 export function MarkdownRenderer(props: MarkdownRendererProps) {
-  const {content, className, onOpenWorkspaceFile} = props;
-  const currentAgentId = useAgentStore((state) => state.current_agent_id);
-  const filesByAgent = useWorkspaceFilesStore((state) => state.filesByAgent);
-  const agentFiles = currentAgentId ? filesByAgent[currentAgentId] || [] : [];
-  const resolveFilePath = (value: string) => resolveWorkspaceFileReference(value, agentFiles);
+  const {content, class_name, on_open_workspace_file} = props;
+  const current_agent_id = useAgentStore((state) => state.current_agent_id);
+  const files_by_agent = useWorkspaceFilesStore((state) => state.filesByAgent);
+  const agent_files = current_agent_id ? files_by_agent[current_agent_id] || [] : [];
+  const resolveFilePath = (value: string) => resolveWorkspaceFileReference(value, agent_files);
 
   return (
     <div
@@ -262,11 +262,11 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
         "[&_strong]:font-semibold [&_strong]:text-foreground",
         "[&_em]:italic",
         "[&_hr]:my-4 [&_hr]:border-border/70",
-        className,
+        class_name,
       )}
     >
       <ReactMarkdown
-        components={createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile)}
+        components={createMarkdownComponents(resolveFilePath, on_open_workspace_file)}
         rehypePlugins={REHYPE_PLUGINS}
         remarkPlugins={MARKDOWN_PLUGINS}
       >
