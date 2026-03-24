@@ -23,59 +23,16 @@ import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ANIMATIONS } from "@/shared/ui/animation-assets";
 import { LottiePlayer } from "@/shared/ui/lottie-player";
 import { Agent } from "@/types/agent";
-import { Conversation } from "@/types/conversation";
 import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
+import {
+  ContactsPopoverProps,
+  HeaderActionButtonProps,
+  HeroStageProps,
+  LauncherConsoleProps,
+  RecentRoomsPopoverProps,
+} from "@/types/launcher-ui";
 
 import { AgentPile } from "./launcher-agent-pile";
-
-interface LauncherConsoleProps {
-  agents: Agent[];
-  conversations: Conversation[];
-  current_agent_id: string | null;
-  on_open_contacts_page: () => void;
-  on_open_nexus: () => void;
-  on_select_agent: (agent_id: string) => void;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
-  on_create_agent: () => void;
-  on_edit_agent: (agent_id: string) => void;
-  on_delete_agent: (agent_id: string) => void;
-}
-
-interface HeaderActionButtonProps {
-  active?: boolean;
-  children: string;
-  on_click: () => void;
-}
-
-interface HeroStageProps {
-  current_agent_id: string | null;
-  decorative_tokens: SpotlightToken[];
-  on_open_nexus: () => void;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
-  on_query_change: (value: string) => void;
-  on_select_agent: (agent_id: string) => void;
-  on_submit: () => void;
-  query: string;
-  recent_agents: Agent[];
-  recent_rooms: ConversationWithOwner[];
-}
-
-interface ContactsPopoverProps {
-  agents: Agent[];
-  on_close: () => void;
-  on_create_agent: () => void;
-  on_delete_agent: (agent_id: string) => void;
-  on_edit_agent: (agent_id: string) => void;
-  on_open_contacts_page: () => void;
-  on_select_agent: (agent_id: string) => void;
-}
-
-interface RecentRoomsPopoverProps {
-  on_close: () => void;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
-  recent_rooms: ConversationWithOwner[];
-  conversations_with_owners: ConversationWithOwner[];
-}
 
 const TOKEN_SWATCHES = [
   { fill: "#5FA052", text: "#FFFFFF", ring: "#8DBA86" },
@@ -164,7 +121,7 @@ function buildDecorativeTokens(
 const MemoAgentPile = memo(AgentPile);
 
 const HeaderActionButton = memo(function HeaderActionButton({
-  active = false,
+  is_active = false,
   children,
   on_click,
 }: HeaderActionButtonProps) {
@@ -174,11 +131,11 @@ const HeaderActionButton = memo(function HeaderActionButton({
       onClick={on_click}
       type="button"
     >
-      <HeroActionPillShell active={active}>
+      <HeroActionPillShell is_active={is_active}>
         <span
           className={cn(
             "text-sm font-medium transition-colors",
-            active ? "text-slate-900/88" : "text-slate-800/70",
+            is_active ? "text-slate-900/88" : "text-slate-800/70",
           )}
         >
           {children}
@@ -212,6 +169,7 @@ const HeroStage = memo(function HeroStage({
           <div className="relative inline-block">
             <LottiePlayer
               class_name="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
+              inline_style={undefined}
               src={ANIMATIONS.SPARKLES}
             />
             <h1 className="mb-10 text-[32px] font-extrabold tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
@@ -612,6 +570,7 @@ export function LauncherConsole({
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
             class_name="pointer-events-none absolute left-2 -top-12 h-24 w-24 opacity-[0.8] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
+            inline_style={undefined}
             src={ANIMATIONS.BOM}
           />
           <img alt="" className="h-10 w-10" src="/logo.webp" />
@@ -620,7 +579,7 @@ export function LauncherConsole({
 
         <div className="relative z-40 flex items-center gap-2">
           <HeaderActionButton
-            active={show_contacts}
+            is_active={show_contacts}
             on_click={() => {
               setShowContacts((current) => !current);
               setShowRooms(false);
@@ -629,7 +588,7 @@ export function LauncherConsole({
             Contacts
           </HeaderActionButton>
           <HeaderActionButton
-            active={show_rooms}
+            is_active={show_rooms}
             on_click={() => {
               setShowRooms((current) => !current);
               setShowContacts(false);
@@ -644,7 +603,7 @@ export function LauncherConsole({
             onClick={on_create_agent}
             type="button"
           >
-            <HeroActionOrbShell active>
+            <HeroActionOrbShell is_active>
               <Plus className="h-4 w-4 text-slate-900/80" />
             </HeroActionOrbShell>
           </button>

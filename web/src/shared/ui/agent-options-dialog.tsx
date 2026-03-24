@@ -20,33 +20,7 @@ import { MessageSquare, Settings, Sparkles, Wrench, X, Zap } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { SessionOptions } from "@/types/session";
 import { AgentNameValidationResult } from "@/types/agent";
-
-// ==================== 类型定义 ====================
-
-interface AgentOptionsProps {
-  /** 对话框模式：create 或 edit */
-  mode: 'create' | 'edit';
-  /** 是否打开对话框 */
-  is_open: boolean;
-  /** 关闭对话框回调 */
-  on_close: () => void;
-  /** 保存配置回调 */
-  on_save: (title: string, options: SessionOptions) => void;
-  /** 名称校验回调 */
-  on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
-  /** 初始标题（编辑模式） */
-  initial_title?: string;
-  /** 初始配置（编辑模式） */
-  initial_options?: Partial<SessionOptions>;
-}
-
-interface AgentDialogInitialOptions extends Partial<SessionOptions> {
-  permission_mode?: string;
-  allowed_tools?: string[];
-  disallowed_tools?: string[];
-  skills_enabled?: boolean;
-  setting_sources?: ('user' | 'project' | 'local')[];
-}
+import { AgentDialogInitialOptions, AgentOptionsProps } from "@/types/shared-ui";
 
 type TabKey = 'basic' | 'prompt' | 'tools' | 'skills' | 'advanced';
 

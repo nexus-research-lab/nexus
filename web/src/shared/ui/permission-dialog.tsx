@@ -10,31 +10,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
-
-interface PermissionDialogProps {
-  /** 是否显示对话框 */
-  is_open: boolean;
-  /** 工具名称 */
-  tool_name: string;
-  /** 工具输入参数 */
-  tool_input: Record<string, any>;
-  /** 风险级别 */
-  risk_level?: PermissionRiskLevel;
-  /** 风险标签 */
-  risk_label?: string;
-  /** 摘要 */
-  summary?: string;
-  /** SDK 建议的权限更新 */
-  suggestions?: PermissionUpdate[];
-  /** 过期时间 */
-  expires_at?: string;
-  /** 允许回调 */
-  on_allow: (updated_permissions?: PermissionUpdate[]) => void;
-  /** 拒绝回调 */
-  on_deny: (updated_permissions?: PermissionUpdate[]) => void;
-  /** 关闭弹窗 */
-  on_close: () => void;
-}
+import { PermissionDialogProps } from "@/types/shared-ui";
 
 export function PermissionDialog(
   {

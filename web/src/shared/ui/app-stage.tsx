@@ -1,10 +1,5 @@
-import { ReactNode } from "react";
-
 import { HOME_PAGE_PADDING_CLASS } from "@/lib/home-layout";
-
-interface AppStageProps {
-  children: ReactNode;
-}
+import { AppStageProps } from "@/types/shared-ui";
 
 export function AppStage({ children }: AppStageProps) {
   return (

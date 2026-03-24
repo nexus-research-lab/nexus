@@ -1,16 +1,6 @@
-import { ReactNode } from "react";
-
 import { cn } from "@/lib/utils";
 import { AppStage } from "@/shared/ui/app-stage";
-
-interface RouteScaffoldProps {
-  badge: string;
-  title: string;
-  description: string;
-  meta?: ReactNode;
-  children?: ReactNode;
-  class_name?: string;
-}
+import { RouteScaffoldProps } from "@/types/shared-ui";
 
 export function RouteScaffold({
   badge,

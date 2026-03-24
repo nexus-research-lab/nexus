@@ -2,17 +2,8 @@
 
 import { ChevronDown, Grid2X2, Plus } from "lucide-react";
 
-import { Agent } from "@/types/agent";
 import { cn, truncate } from "@/lib/utils";
-
-interface AgentSwitcherProps {
-  agents: Agent[];
-  current_agent_id: string | null;
-  recent_agents: Agent[];
-  on_select_agent: (agent_id: string) => void;
-  on_open_directory: () => void;
-  on_create_agent: () => void;
-}
+import { AgentSwitcherProps } from "@/types/shared-ui";
 
 export function AgentSwitcher({
   agents,

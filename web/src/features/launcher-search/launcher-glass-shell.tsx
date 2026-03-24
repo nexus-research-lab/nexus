@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useId } from "react";
+import { useId } from "react";
 
 import {
   type BlobPoint,
@@ -20,54 +20,16 @@ import {
   SIDE_PANEL_VIEWBOX_WIDTH,
 } from "@/features/launcher-search/launcher-blob-shape";
 import { cn } from "@/lib/utils";
+import {
+  HeroActionOrbShellProps,
+  HeroActionPillShellProps,
+  HeroBlobShellProps,
+  HeroInputShellProps,
+  StaticGlassShellProps,
+} from "@/types/launcher-ui";
 
 import { BlobDebugController, BlobDebugPanel } from "./launcher-blob-debug";
 import { useBlobDebugTarget, useEditableShape } from "./launcher-blob-debug-hooks";
-
-interface HeroBlobShellProps {
-  children: ReactNode;
-  class_name?: string;
-}
-
-interface HeroInputShellProps {
-  children: ReactNode;
-  class_name?: string;
-}
-
-interface StaticGlassShellProps {
-  aura_background?: string;
-  aura_blur_class_name?: string;
-  children: ReactNode;
-  class_name?: string;
-  content_class_name?: string;
-  fill: string;
-  fill_gradient_stops?: Array<{ color: string; offset: string }>;
-  glow_blur_deviation?: number;
-  inner_fill: string;
-  inner_fill_gradient_stops?: Array<{ color: string; offset: string }>;
-  inner_glow_opacity?: number;
-  inner_path: string;
-  inner_stroke: string;
-  outer_glow_opacity?: number;
-  outer_glow_width?: number;
-  path: string;
-  stroke: string;
-  svg_overlay?: ReactNode;
-  view_box_height: number;
-  view_box_width: number;
-}
-
-interface HeroActionPillShellProps {
-  active?: boolean;
-  children: ReactNode;
-  class_name?: string;
-}
-
-interface HeroActionOrbShellProps {
-  active?: boolean;
-  children: ReactNode;
-  class_name?: string;
-}
 
 const ACTION_PILL_VIEWBOX_WIDTH = 220;
 const ACTION_PILL_VIEWBOX_HEIGHT = 86;
@@ -261,33 +223,33 @@ export function HeroSidePanelShell({ children, class_name }: HeroBlobShellProps)
         stroke={panel.debugEnabled ? "rgba(170,226,255,0.42)" : "rgba(255,255,255,0.22)"}
         svg_overlay={panel.debugEnabled ? (
           <BlobDebugController
-            active={target === "panel"}
+            is_active={target === "panel"}
             color="rgba(170,226,255,0.92)"
-            currentTarget={target}
-            enabled={panel.debugEnabled}
+            current_target={target}
+            debug_enabled={panel.debugEnabled}
             fill="transparent"
-            onCopy={async () => {
+            on_copy={async () => {
               await navigator.clipboard.writeText(panel.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
             }}
-            onPathDoubleClick={panel.handlePathDoubleClick}
-            onPointPointerDown={panel.handlePointPointerDown}
-            onPointPointerUp={panel.handlePointPointerUp}
-            onReset={() => {
+            on_path_double_click={panel.handlePathDoubleClick}
+            on_point_pointer_down={panel.handlePointPointerDown}
+            on_point_pointer_up={panel.handlePointPointerUp}
+            on_reset={() => {
               localStorage.removeItem(SIDE_PANEL_STORAGE_KEY);
               panel.setPoints(DEFAULT_SIDE_PANEL_POINTS);
             }}
-            panelClassName="bottom-4 left-4"
+            panel_class_name="bottom-4 left-4"
             path={panel.path}
             points={panel.points}
-            setTarget={setTarget}
-            showPanel={false}
+            set_target={setTarget}
+            show_panel={false}
             stroke="transparent"
-            strokeWidth={10}
-            svgRef={panel.svgRef}
+            stroke_width={10}
+            svg_ref={panel.svgRef}
             target="panel"
             title="Panel Shape"
-            viewBoxHeight={SIDE_PANEL_VIEWBOX_HEIGHT}
-            viewBoxWidth={SIDE_PANEL_VIEWBOX_WIDTH}
+            view_box_height={SIDE_PANEL_VIEWBOX_HEIGHT}
+            view_box_width={SIDE_PANEL_VIEWBOX_WIDTH}
           />
         ) : null}
         view_box_height={SIDE_PANEL_VIEWBOX_HEIGHT}
@@ -298,17 +260,17 @@ export function HeroSidePanelShell({ children, class_name }: HeroBlobShellProps)
 
       {panel.debugEnabled && activeShape && (
         <BlobDebugPanel
-          currentTarget={target}
-          onCopy={async () => {
+          current_target={target}
+          on_copy={async () => {
             await navigator.clipboard.writeText(activeShape.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
           }}
-          onReset={() => {
+          on_reset={() => {
             localStorage.removeItem(SIDE_PANEL_STORAGE_KEY);
             panel.setPoints(DEFAULT_SIDE_PANEL_POINTS);
           }}
-          panelClassName="bottom-4 left-4"
+          panel_class_name="bottom-4 left-4"
           points={activeShape.points}
-          setTarget={setTarget}
+          set_target={setTarget}
           target={target}
           title="Blob Shape"
         />
@@ -318,7 +280,7 @@ export function HeroSidePanelShell({ children, class_name }: HeroBlobShellProps)
 }
 
 export function HeroActionPillShell({
-  active = false,
+  is_active = false,
   children,
   class_name,
 }: HeroActionPillShellProps) {
@@ -326,24 +288,24 @@ export function HeroActionPillShell({
     <StaticGlassShell
       class_name={cn("h-11 min-w-[108px]", class_name)}
       content_class_name="flex h-full items-center justify-center px-5"
-      aura_background={active
+      aura_background={is_active
         ? "radial-gradient(48% 38% at 50% 50%, rgba(255,255,255,0.12), rgba(255,255,255,0) 72%)"
         : ""}
       aura_blur_class_name="blur-[18px]"
-      fill={active ? "rgba(219,228,246,0.16)" : "rgba(204,216,239,0.12)"}
+      fill={is_active ? "rgba(219,228,246,0.16)" : "rgba(204,216,239,0.12)"}
       fill_gradient_stops={[
-        { offset: "0%", color: active ? "rgba(247,250,255,0.24)" : "rgba(238,244,255,0.18)" },
-        { offset: "100%", color: active ? "rgba(203,217,241,0.14)" : "rgba(188,204,233,0.12)" },
+        { offset: "0%", color: is_active ? "rgba(247,250,255,0.24)" : "rgba(238,244,255,0.18)" },
+        { offset: "100%", color: is_active ? "rgba(203,217,241,0.14)" : "rgba(188,204,233,0.12)" },
       ]}
       glow_blur_deviation={4}
-      inner_fill={active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"}
+      inner_fill={is_active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"}
       inner_path={ACTION_PILL_INNER_PATH}
-      inner_glow_opacity={active ? 0.3 : 0.22}
-      inner_stroke={active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)"}
-      outer_glow_opacity={active ? 0.44 : 0.28}
+      inner_glow_opacity={is_active ? 0.3 : 0.22}
+      inner_stroke={is_active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)"}
+      outer_glow_opacity={is_active ? 0.44 : 0.28}
       outer_glow_width={10}
       path={ACTION_PILL_PATH}
-      stroke={active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.14)"}
+      stroke={is_active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.14)"}
       view_box_height={ACTION_PILL_VIEWBOX_HEIGHT}
       view_box_width={ACTION_PILL_VIEWBOX_WIDTH}
     >
@@ -353,7 +315,7 @@ export function HeroActionPillShell({
 }
 
 export function HeroActionOrbShell({
-  active = false,
+  is_active = false,
   children,
   class_name,
 }: HeroActionOrbShellProps) {
@@ -361,24 +323,24 @@ export function HeroActionOrbShell({
     <StaticGlassShell
       class_name={cn("h-11 w-11", class_name)}
       content_class_name="flex h-full items-center justify-center"
-      aura_background={active
+      aura_background={is_active
         ? "radial-gradient(54% 54% at 50% 50%, rgba(171,238,194,0.22), rgba(171,238,194,0) 70%)"
         : ""}
       aura_blur_class_name="blur-[18px]"
-      fill={active ? "rgba(176,235,192,0.22)" : "rgba(204,216,239,0.12)"}
+      fill={is_active ? "rgba(176,235,192,0.22)" : "rgba(204,216,239,0.12)"}
       fill_gradient_stops={[
-        { offset: "0%", color: active ? "rgba(229,252,235,0.30)" : "rgba(238,244,255,0.18)" },
-        { offset: "100%", color: active ? "rgba(150,222,170,0.20)" : "rgba(188,204,233,0.12)" },
+        { offset: "0%", color: is_active ? "rgba(229,252,235,0.30)" : "rgba(238,244,255,0.18)" },
+        { offset: "100%", color: is_active ? "rgba(150,222,170,0.20)" : "rgba(188,204,233,0.12)" },
       ]}
       glow_blur_deviation={4}
-      inner_fill={active ? "rgba(191,240,202,0.10)" : "rgba(255,255,255,0.05)"}
+      inner_fill={is_active ? "rgba(191,240,202,0.10)" : "rgba(255,255,255,0.05)"}
       inner_path={ACTION_ORB_INNER_PATH}
-      inner_glow_opacity={active ? 0.3 : 0.2}
-      inner_stroke={active ? "rgba(180,235,194,0.18)" : "rgba(255,255,255,0.08)"}
-      outer_glow_opacity={active ? 0.46 : 0.28}
+      inner_glow_opacity={is_active ? 0.3 : 0.2}
+      inner_stroke={is_active ? "rgba(180,235,194,0.18)" : "rgba(255,255,255,0.08)"}
+      outer_glow_opacity={is_active ? 0.46 : 0.28}
       outer_glow_width={10}
       path={ACTION_ORB_PATH}
-      stroke={active ? "rgba(191,240,202,0.26)" : "rgba(255,255,255,0.14)"}
+      stroke={is_active ? "rgba(191,240,202,0.26)" : "rgba(255,255,255,0.14)"}
       view_box_height={ACTION_ORB_VIEWBOX_HEIGHT}
       view_box_width={ACTION_ORB_VIEWBOX_WIDTH}
     >
@@ -476,50 +438,50 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
 
         {outer.debugEnabled && (
           <BlobDebugController
-            active={target === "hero"}
+            is_active={target === "hero"}
             color="rgba(122,108,255,0.9)"
-            currentTarget={target}
-            enabled={outer.debugEnabled}
+            current_target={target}
+            debug_enabled={outer.debugEnabled}
             fill="transparent"
-            onCopy={async () => {
+            on_copy={async () => {
               await navigator.clipboard.writeText(outer.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
             }}
-            onPathDoubleClick={outer.handlePathDoubleClick}
-            onPointPointerDown={outer.handlePointPointerDown}
-            onPointPointerUp={outer.handlePointPointerUp}
-            onReset={() => {
+            on_path_double_click={outer.handlePathDoubleClick}
+            on_point_pointer_down={outer.handlePointPointerDown}
+            on_point_pointer_up={outer.handlePointPointerUp}
+            on_reset={() => {
               localStorage.removeItem(OUTER_STORAGE_KEY);
               outer.setPoints(DEFAULT_OUTER_POINTS);
             }}
-            panelClassName="bottom-4 left-4"
+            panel_class_name="bottom-4 left-4"
             path={outer.path}
             points={outer.points}
-            setTarget={setTarget}
-            showPanel={false}
+            set_target={setTarget}
+            show_panel={false}
             stroke="transparent"
-            strokeWidth={10}
-            svgRef={outer.svgRef}
+            stroke_width={10}
+            svg_ref={outer.svgRef}
             target="hero"
             title="Hero Shape"
-            viewBoxHeight={OUTER_VIEWBOX_HEIGHT}
-            viewBoxWidth={OUTER_VIEWBOX_WIDTH}
+            view_box_height={OUTER_VIEWBOX_HEIGHT}
+            view_box_width={OUTER_VIEWBOX_WIDTH}
           />
         )}
       </div>
 
       {outer.debugEnabled && activeShape && (
         <BlobDebugPanel
-          currentTarget={target}
-          onCopy={async () => {
+          current_target={target}
+          on_copy={async () => {
             await navigator.clipboard.writeText(activeShape.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
           }}
-          onReset={() => {
+          on_reset={() => {
             localStorage.removeItem(OUTER_STORAGE_KEY);
             outer.setPoints(DEFAULT_OUTER_POINTS);
           }}
-          panelClassName="bottom-4 left-4"
+          panel_class_name="bottom-4 left-4"
           points={activeShape.points}
-          setTarget={setTarget}
+          set_target={setTarget}
           target={target}
           title="Blob Shape"
         />
@@ -600,50 +562,50 @@ export function HeroInputShell({ children, class_name }: HeroInputShellProps) {
 
         {input.debugEnabled && (
           <BlobDebugController
-            active={target === "input"}
+            is_active={target === "input"}
             color="rgba(118,231,206,0.92)"
-            currentTarget={target}
-            enabled={input.debugEnabled}
+            current_target={target}
+            debug_enabled={input.debugEnabled}
             fill="transparent"
-            onCopy={async () => {
+            on_copy={async () => {
               await navigator.clipboard.writeText(input.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
             }}
-            onPathDoubleClick={input.handlePathDoubleClick}
-            onPointPointerDown={input.handlePointPointerDown}
-            onPointPointerUp={input.handlePointPointerUp}
-            onReset={() => {
+            on_path_double_click={input.handlePathDoubleClick}
+            on_point_pointer_down={input.handlePointPointerDown}
+            on_point_pointer_up={input.handlePointPointerUp}
+            on_reset={() => {
               localStorage.removeItem(INPUT_STORAGE_KEY);
               input.setPoints(DEFAULT_INPUT_POINTS);
             }}
-            panelClassName="bottom-4 right-4"
+            panel_class_name="bottom-4 right-4"
             path={input.path}
             points={input.points}
-            setTarget={setTarget}
-            showPanel={false}
+            set_target={setTarget}
+            show_panel={false}
             stroke="transparent"
-            strokeWidth={10}
-            svgRef={input.svgRef}
+            stroke_width={10}
+            svg_ref={input.svgRef}
             target="input"
             title="Input Shape"
-            viewBoxHeight={INPUT_VIEWBOX_HEIGHT}
-            viewBoxWidth={INPUT_VIEWBOX_WIDTH}
+            view_box_height={INPUT_VIEWBOX_HEIGHT}
+            view_box_width={INPUT_VIEWBOX_WIDTH}
           />
         )}
       </div>
 
       {input.debugEnabled && activeShape && (
         <BlobDebugPanel
-          currentTarget={target}
-          onCopy={async () => {
+          current_target={target}
+          on_copy={async () => {
             await navigator.clipboard.writeText(activeShape.points.map(p => `{\"x\":${p.x},\"y\":${p.y}}`).join(",\n"));
           }}
-          onReset={() => {
+          on_reset={() => {
             localStorage.removeItem(INPUT_STORAGE_KEY);
             input.setPoints(DEFAULT_INPUT_POINTS);
           }}
-          panelClassName="bottom-4 left-4"
+          panel_class_name="bottom-4 left-4"
           points={activeShape.points}
-          setTarget={setTarget}
+          set_target={setTarget}
           target={target}
           title="Blob Shape"
         />

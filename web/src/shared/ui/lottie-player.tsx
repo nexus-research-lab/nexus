@@ -1,17 +1,12 @@
 "use client";
 
-import { CSSProperties, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Lottie from "lottie-react";
 import type { DotLottie } from "@lottiefiles/dotlottie-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { LottiePlayerProps } from "@/types/shared-ui";
 
-interface HomeLottieProps {
-  src: string;
-  class_name?: string;
-  style?: CSSProperties;
-}
-
-export function LottiePlayer({ src, class_name, style }: HomeLottieProps) {
+export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProps) {
   const [animationData, setAnimationData] = useState<object | null>(null);
   const [dotLottieInstance, setDotLottieInstance] = useState<DotLottie | null>(null);
   const isDotLottie = src.endsWith(".lottie");
@@ -43,7 +38,7 @@ export function LottiePlayer({ src, class_name, style }: HomeLottieProps) {
 
   if (isDotLottie) {
     return (
-      <div className={class_name} style={style}>
+      <div className={class_name} style={inline_style}>
         <DotLottieReact
           autoplay
           dotLottieRefCallback={setDotLottieInstance}
@@ -55,7 +50,7 @@ export function LottiePlayer({ src, class_name, style }: HomeLottieProps) {
   }
 
   if (!animationData) {
-    return <div className={class_name} style={style} />;
+    return <div className={class_name} style={inline_style} />;
   }
 
   return (
@@ -67,7 +62,7 @@ export function LottiePlayer({ src, class_name, style }: HomeLottieProps) {
       rendererSettings={{
         preserveAspectRatio: "xMidYMid meet",
       }}
-      style={style}
+      style={inline_style}
     />
   );
 }

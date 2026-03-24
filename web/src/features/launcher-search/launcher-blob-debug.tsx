@@ -1,26 +1,31 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, useEffect, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+import {
+  BlobDebugControllerProps,
+  BlobDebugOverlayProps,
+  BlobDebugPanelProps,
+} from "@/types/launcher-ui";
 
 import { type BlobPoint } from "@/features/launcher-search/launcher-blob-shape";
 import { type BlobDebugTarget } from "@/features/launcher-search/launcher-blob-debug-hooks";
 
 function useDebugSvgRect(
-  debugEnabled: boolean,
-  svgRef: React.RefObject<SVGSVGElement | null>,
+  debug_enabled: boolean,
+  svg_ref: RefObject<SVGSVGElement | null>,
 ): DOMRect | null {
   const [svgRect, setSvgRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
-    if (!debugEnabled || !svgRef.current) {
+    if (!debug_enabled || !svg_ref.current) {
       setSvgRect(null);
       return;
     }
 
-    const svgElement = svgRef.current;
+    const svgElement = svg_ref.current;
     const updateRect = () => {
       setSvgRect(svgElement.getBoundingClientRect());
     };
@@ -36,31 +41,31 @@ function useDebugSvgRect(
       window.removeEventListener("resize", updateRect);
       window.removeEventListener("scroll", updateRect, true);
     };
-  }, [debugEnabled, svgRef]);
+  }, [debug_enabled, svg_ref]);
 
   return svgRect;
 }
 
 function DebugPortalHandles({
-  debugEnabled,
-  handleClassName,
-  onPointPointerDown,
-  onPointPointerUp,
+  debug_enabled,
+  handle_class_name,
+  on_point_pointer_down,
+  on_point_pointer_up,
   points,
   svgRect,
-  viewBoxHeight,
-  viewBoxWidth,
+  view_box_height,
+  view_box_width,
 }: {
-  debugEnabled: boolean;
-  handleClassName?: string;
-  onPointPointerDown: (index: number) => (event: ReactPointerEvent<Element>) => void;
-  onPointPointerUp: (event: ReactPointerEvent<Element>) => void;
+  debug_enabled: boolean;
+  handle_class_name?: string;
+  on_point_pointer_down: (index: number) => (event: ReactPointerEvent<Element>) => void;
+  on_point_pointer_up: (event: ReactPointerEvent<Element>) => void;
   points: BlobPoint[];
   svgRect: DOMRect | null;
-  viewBoxHeight: number;
-  viewBoxWidth: number;
+  view_box_height: number;
+  view_box_width: number;
 }) {
-  if (!debugEnabled || !svgRect) {
+  if (!debug_enabled || !svgRect) {
     return null;
   }
 
@@ -71,14 +76,14 @@ function DebugPortalHandles({
           key={`point-handle-${index}`}
           className={cn(
             "fixed z-[200] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent",
-            handleClassName,
+            handle_class_name,
           )}
-          onPointerDown={onPointPointerDown(index)}
-          onPointerUp={onPointPointerUp}
+          onPointerDown={on_point_pointer_down(index)}
+          onPointerUp={on_point_pointer_up}
           style={{
             cursor: "grab",
-            left: svgRect.left + (point.x / viewBoxWidth) * svgRect.width,
-            top: svgRect.top + (point.y / viewBoxHeight) * svgRect.height,
+            left: svgRect.left + (point.x / view_box_width) * svgRect.width,
+            top: svgRect.top + (point.y / view_box_height) * svgRect.height,
           }}
           type="button"
         />
@@ -89,28 +94,17 @@ function DebugPortalHandles({
 }
 
 export function BlobDebugPanel({
-  countLabel = "当前点数",
-  currentTarget,
+  count_label = "当前点数",
+  current_target,
   description = "直接拖点调轮廓，双击轮廓线新增点。",
-  onCopy,
-  onReset,
-  panelClassName,
+  on_copy,
+  on_reset,
+  panel_class_name,
   points,
-  setTarget,
+  set_target,
   target,
   title,
-}: {
-  countLabel?: string;
-  currentTarget: BlobDebugTarget;
-  description?: string;
-  onCopy: () => void;
-  onReset: () => void;
-  panelClassName: string;
-  points: BlobPoint[];
-  setTarget: (target: BlobDebugTarget) => void;
-  target: BlobDebugTarget;
-  title: string;
-}) {
+}: BlobDebugPanelProps) {
   const targetLabels: Record<BlobDebugTarget, string> = {
     hero: "Hero",
     input: "Input",
@@ -121,7 +115,7 @@ export function BlobDebugPanel({
     <div
       className={cn(
         "pointer-events-auto fixed z-[60] w-[300px] rounded-2xl border border-white/18 bg-black/55 p-4 text-white shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl",
-        panelClassName,
+        panel_class_name,
       )}
     >
       <div className="mb-3">
@@ -130,7 +124,7 @@ export function BlobDebugPanel({
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-[11px] text-white/42">
-        {countLabel}：{points.length}
+        {count_label}：{points.length}
       </div>
 
       <div className="mt-3 flex items-center gap-2">
@@ -141,7 +135,7 @@ export function BlobDebugPanel({
               ? "border-white/28 bg-white/12 text-white"
               : "border-white/14 text-white/62 hover:text-white",
           )}
-          onClick={() => setTarget("hero")}
+          onClick={() => set_target("hero")}
           type="button"
         >
           编辑 Hero
@@ -153,7 +147,7 @@ export function BlobDebugPanel({
               ? "border-white/28 bg-white/12 text-white"
               : "border-white/14 text-white/62 hover:text-white",
           )}
-          onClick={() => setTarget("input")}
+          onClick={() => set_target("input")}
           type="button"
         >
           编辑 Input
@@ -165,7 +159,7 @@ export function BlobDebugPanel({
               ? "border-white/28 bg-white/12 text-white"
               : "border-white/14 text-white/62 hover:text-white",
           )}
-          onClick={() => setTarget("panel")}
+          onClick={() => set_target("panel")}
           type="button"
         >
           编辑 Panel
@@ -175,14 +169,14 @@ export function BlobDebugPanel({
       <div className="mt-3 flex items-center gap-2">
         <button
           className="rounded-full border border-white/14 px-3 py-1.5 text-[11px] text-white/62 transition-colors hover:text-white"
-          onClick={onCopy}
+          onClick={on_copy}
           type="button"
         >
           复制点位 JSON
         </button>
         <button
           className="rounded-full border border-white/14 px-3 py-1.5 text-[11px] text-white/62 transition-colors hover:text-white"
-          onClick={onReset}
+          onClick={on_reset}
           type="button"
         >
           重置
@@ -190,7 +184,7 @@ export function BlobDebugPanel({
       </div>
 
       <p className="mt-3 text-[11px] leading-5 text-white/42">
-        当前激活层：{targetLabels[currentTarget]}
+        当前激活层：{targetLabels[current_target]}
       </p>
     </div>
   );
@@ -198,63 +192,49 @@ export function BlobDebugPanel({
 
 export function BlobDebugOverlay({
   color,
-  debugEnabled,
+  debug_enabled,
   fill,
-  onPathDoubleClick,
-  onPointPointerDown,
-  onPointPointerUp,
+  on_path_double_click,
+  on_point_pointer_down,
+  on_point_pointer_up,
   path,
   points,
   stroke,
-  strokeWidth,
-  svgRef,
-  viewBoxHeight,
-  viewBoxWidth,
-}: {
-  color: string;
-  debugEnabled: boolean;
-  fill: string;
-  onPathDoubleClick: (event: ReactPointerEvent<SVGPathElement>) => void;
-  onPointPointerDown: (index: number) => (event: ReactPointerEvent<Element>) => void;
-  onPointPointerUp: (event: ReactPointerEvent<Element>) => void;
-  path: string;
-  points: BlobPoint[];
-  stroke: string;
-  strokeWidth: number;
-  svgRef: React.RefObject<SVGSVGElement | null>;
-  viewBoxHeight: number;
-  viewBoxWidth: number;
-}) {
-  const debugAreaFill = debugEnabled ? color.replace(/0?\.\d+\)$/, "0.12)") : fill;
-  const debugStroke = debugEnabled ? color.replace(/0?\.\d+\)$/, "0.78)") : stroke;
-  const svgRect = useDebugSvgRect(debugEnabled, svgRef);
+  stroke_width,
+  svg_ref,
+  view_box_height,
+  view_box_width,
+}: BlobDebugOverlayProps) {
+  const debugAreaFill = debug_enabled ? color.replace(/0?\.\d+\)$/, "0.12)") : fill;
+  const debugStroke = debug_enabled ? color.replace(/0?\.\d+\)$/, "0.78)") : stroke;
+  const svgRect = useDebugSvgRect(debug_enabled, svg_ref);
 
   return (
     <>
       <svg
-        ref={svgRef}
+        ref={svg_ref}
         aria-hidden="true"
-        className={cn("absolute inset-0 h-full w-full", debugEnabled ? "pointer-events-auto z-20" : "pointer-events-none")}
+        className={cn("absolute inset-0 h-full w-full", debug_enabled ? "pointer-events-auto z-20" : "pointer-events-none")}
         preserveAspectRatio="none"
-        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        viewBox={`0 0 ${view_box_width} ${view_box_height}`}
       >
         <path
           d={path}
           fill={debugAreaFill}
           pointerEvents="none"
           stroke={debugStroke}
-          strokeWidth={debugEnabled ? Math.max(strokeWidth, 2.5) : strokeWidth}
+          strokeWidth={debug_enabled ? Math.max(stroke_width, 2.5) : stroke_width}
         />
         <path
           d={path}
           fill="none"
-          onDoubleClick={onPathDoubleClick}
-          pointerEvents={debugEnabled ? "stroke" : "none"}
-          stroke={debugEnabled ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.001)"}
-          strokeWidth={Math.max(strokeWidth, 18)}
+          onDoubleClick={on_path_double_click}
+          pointerEvents={debug_enabled ? "stroke" : "none"}
+          stroke={debug_enabled ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.001)"}
+          strokeWidth={Math.max(stroke_width, 18)}
         />
 
-        {debugEnabled && (
+        {debug_enabled && (
           <g>
             <path
               d={path}
@@ -292,91 +272,68 @@ export function BlobDebugOverlay({
       </svg>
 
       <DebugPortalHandles
-        debugEnabled={debugEnabled}
-        onPointPointerDown={onPointPointerDown}
-        onPointPointerUp={onPointPointerUp}
+        debug_enabled={debug_enabled}
+        on_point_pointer_down={on_point_pointer_down}
+        on_point_pointer_up={on_point_pointer_up}
         points={points}
         svgRect={svgRect}
-        viewBoxHeight={viewBoxHeight}
-        viewBoxWidth={viewBoxWidth}
+        view_box_height={view_box_height}
+        view_box_width={view_box_width}
       />
     </>
   );
 }
 
 export function BlobDebugController({
-  active,
+  is_active,
   color,
-  currentTarget,
-  enabled,
+  current_target,
+  debug_enabled,
   fill,
-  onCopy,
-  onPathDoubleClick,
-  onPointPointerDown,
-  onPointPointerUp,
-  onReset,
-  panelClassName,
+  on_copy,
+  on_path_double_click,
+  on_point_pointer_down,
+  on_point_pointer_up,
+  on_reset,
+  panel_class_name,
   path,
   points,
-  setTarget,
-  showPanel = true,
+  set_target,
+  show_panel = true,
   stroke,
-  strokeWidth,
-  svgRef,
+  stroke_width,
+  svg_ref,
   target,
   title,
-  viewBoxHeight,
-  viewBoxWidth,
-}: {
-  active: boolean;
-  color: string;
-  currentTarget: BlobDebugTarget;
-  enabled: boolean;
-  fill: string;
-  onCopy: () => void;
-  onPathDoubleClick: (event: ReactPointerEvent<SVGPathElement>) => void;
-  onPointPointerDown: (index: number) => (event: ReactPointerEvent<Element>) => void;
-  onPointPointerUp: (event: ReactPointerEvent<Element>) => void;
-  onReset: () => void;
-  panelClassName: string;
-  path: string;
-  points: BlobPoint[];
-  setTarget: (target: BlobDebugTarget) => void;
-  showPanel?: boolean;
-  stroke: string;
-  strokeWidth: number;
-  svgRef: React.RefObject<SVGSVGElement | null>;
-  target: BlobDebugTarget;
-  title: string;
-  viewBoxHeight: number;
-  viewBoxWidth: number;
-}) {
+  view_box_height,
+  view_box_width,
+}: BlobDebugControllerProps) {
   return (
     <>
       <BlobDebugOverlay
         color={color}
-        debugEnabled={enabled && active}
+        debug_enabled={debug_enabled && is_active}
         fill={fill}
-        onPathDoubleClick={onPathDoubleClick}
-        onPointPointerDown={onPointPointerDown}
-        onPointPointerUp={onPointPointerUp}
+        on_path_double_click={on_path_double_click}
+        on_point_pointer_down={on_point_pointer_down}
+        on_point_pointer_up={on_point_pointer_up}
         path={path}
         points={points}
         stroke={stroke}
-        strokeWidth={strokeWidth}
-        svgRef={svgRef}
-        viewBoxHeight={viewBoxHeight}
-        viewBoxWidth={viewBoxWidth}
+        stroke_width={stroke_width}
+        svg_ref={svg_ref}
+        view_box_height={view_box_height}
+        view_box_width={view_box_width}
       />
 
-      {enabled && showPanel && (
+      {debug_enabled && show_panel && (
         <BlobDebugPanel
-          currentTarget={currentTarget}
-          onCopy={onCopy}
-          onReset={onReset}
-          panelClassName={panelClassName}
+          current_target={current_target}
+          on_copy={on_copy}
+          on_reset={on_reset}
+          panel_class_name={panel_class_name}
           points={points}
-          setTarget={setTarget}
+          set_target={set_target}
           target={target}
           title={title}
         />
