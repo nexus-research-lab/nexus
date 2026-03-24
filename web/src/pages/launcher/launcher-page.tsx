@@ -33,6 +33,15 @@ export function LauncherPage() {
     navigate(AppRouteBuilders.contacts());
   }, [navigate]);
 
+  const conversations_with_owners = controller.conversations
+    .map((conversation) => ({
+      conversation,
+      owner: conversation.agent_id
+        ? controller.agents.find((agent) => agent.agent_id === conversation.agent_id) ?? null
+        : null,
+    }))
+    .sort((left, right) => right.conversation.last_activity_at - left.conversation.last_activity_at);
+
   const handleSaveAgentOptions = useCallback(async (title: string, options: AgentConfigOptions) => {
     const should_open_room_after_create = controller.dialog_mode === "create";
     await controller.handle_save_agent_options(title, options);
@@ -56,8 +65,18 @@ export function LauncherPage() {
       <div className="relative flex min-h-0 flex-1 gap-5 overflow-hidden">
         <div
           className={cn(
+            "pointer-events-none absolute inset-y-[8%] right-[22%] z-10 hidden w-[34%] rounded-full bg-[radial-gradient(circle,rgba(174,208,255,0.24),rgba(174,208,255,0.08)_36%,transparent_76%)] blur-3xl transition-all duration-500 lg:block",
+            controller.is_app_conversation_open
+              ? "translate-x-0 opacity-100"
+              : "translate-x-10 opacity-0",
+          )}
+        />
+
+        <div
+          className={cn(
             "min-w-0 flex-1 transition-all duration-500 ease-out",
-            controller.is_app_conversation_open && "lg:max-w-[calc(100%-390px)] lg:-translate-x-6",
+            controller.is_app_conversation_open &&
+              "lg:max-w-[calc(100%-390px)] lg:-translate-x-6 lg:scale-[0.985] lg:opacity-[0.96]",
           )}
         >
           <LauncherConsole
@@ -77,15 +96,21 @@ export function LauncherPage() {
 
         {controller.is_app_conversation_open ? (
           <div className="absolute inset-x-3 bottom-4 top-[96px] z-40 lg:static lg:inset-auto lg:block lg:w-[380px] lg:shrink-0 lg:pb-8 lg:pt-4">
+            <div className="h-full transition-all duration-500 ease-out lg:translate-x-0 lg:scale-100">
             <LauncherAppConversationPanel
+              agents={controller.agents}
               app_conversation_draft={controller.app_conversation_draft}
               app_conversation_messages={controller.app_conversation_messages}
+              conversations_with_owners={conversations_with_owners}
               on_clear_conversation={controller.clear_app_conversation}
               on_change_draft={controller.set_app_conversation_draft}
               on_close={controller.close_app_conversation}
+              on_open_agent_room={handleSelectAgent}
+              on_open_conversation={handleOpenConversation}
               on_open_contacts_page={handleOpenContactsPage}
               on_submit={controller.submit_app_conversation}
             />
+            </div>
           </div>
         ) : null}
       </div>

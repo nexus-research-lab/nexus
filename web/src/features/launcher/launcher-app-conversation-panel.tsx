@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { ArrowRight, RotateCcw, Sparkles, Users, X } from "lucide-react";
 
 import {
@@ -8,15 +9,28 @@ import {
   HeroInputShell,
   HeroSidePanelShell,
 } from "@/features/launcher/launcher-glass-shell";
+import { Agent } from "@/types/agent";
 import { AppConversationMessage } from "@/types/app-conversation";
 import { cn } from "@/lib/utils";
+import { ConversationWithOwner } from "@/types/launcher";
+
+interface AppConversationAction {
+  description: string;
+  key: string;
+  label: string;
+  on_click: () => void;
+}
 
 interface LauncherAppConversationPanelProps {
+  agents: Agent[];
   app_conversation_draft: string;
   app_conversation_messages: AppConversationMessage[];
+  conversations_with_owners: ConversationWithOwner[];
   on_clear_conversation: () => void;
   on_change_draft: (next_value: string) => void;
   on_close: () => void;
+  on_open_agent_room: (agent_id: string) => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_open_contacts_page: () => void;
   on_submit: (next_prompt: string) => void;
 }
@@ -37,15 +51,102 @@ function buildConversationMessages(app_conversation_messages: AppConversationMes
 }
 
 export function LauncherAppConversationPanel({
+  agents,
   app_conversation_draft,
   app_conversation_messages,
+  conversations_with_owners,
   on_clear_conversation,
   on_change_draft,
   on_close,
+  on_open_agent_room,
+  on_open_conversation,
   on_open_contacts_page,
   on_submit,
 }: LauncherAppConversationPanelProps) {
   const messages = buildConversationMessages(app_conversation_messages);
+  const latest_user_message = [...app_conversation_messages]
+    .reverse()
+    .find((message) => message.role === "user");
+
+  const suggested_actions = useMemo(() => {
+    const actions: AppConversationAction[] = [];
+    const prompt = latest_user_message?.body.trim().toLowerCase() ?? "";
+    const recent_room = conversations_with_owners[0];
+    const matched_agent = agents.find((agent) =>
+      prompt && agent.name.toLowerCase().includes(prompt),
+    ) ?? agents.find((agent) =>
+      prompt && prompt.includes(agent.name.toLowerCase()),
+    ) ?? null;
+
+    if ((prompt.includes("恢复") || prompt.includes("继续") || prompt.includes("最近")) && recent_room) {
+      actions.push({
+        key: `room-${recent_room.conversation.session_key}`,
+        label: "打开最近协作",
+        description: `${recent_room.owner?.name ?? "未知成员"} · ${recent_room.conversation.title || "未命名对话"}`,
+        on_click: () => on_open_conversation(
+          recent_room.conversation.session_key,
+          recent_room.conversation.agent_id,
+        ),
+      });
+    }
+
+    if (matched_agent) {
+      actions.push({
+        key: `agent-${matched_agent.agent_id}`,
+        label: `和 ${matched_agent.name} 开始协作`,
+        description: "直接进入这个成员对应的 room，继续 1v1 协作。",
+        on_click: () => on_open_agent_room(matched_agent.agent_id),
+      });
+    }
+
+    if (prompt.includes("成员") || prompt.includes("联系人") || prompt.includes("邀请")) {
+      actions.push({
+        key: "contacts",
+        label: "打开 Contacts",
+        description: "先筛选成员，再回到这里继续组织协作。",
+        on_click: on_open_contacts_page,
+      });
+    }
+
+    if (!actions.length && recent_room) {
+      actions.push({
+        key: `fallback-room-${recent_room.conversation.session_key}`,
+        label: "回到最近 room",
+        description: `${recent_room.owner?.name ?? "未知成员"} · ${recent_room.conversation.title || "未命名对话"}`,
+        on_click: () => on_open_conversation(
+          recent_room.conversation.session_key,
+          recent_room.conversation.agent_id,
+        ),
+      });
+    }
+
+    if (!actions.length && agents[0]) {
+      actions.push({
+        key: `fallback-agent-${agents[0].agent_id}`,
+        label: `和 ${agents[0].name} 开始 1v1`,
+        description: "如果你已经知道成员，就直接进入对应 room。",
+        on_click: () => on_open_agent_room(agents[0].agent_id),
+      });
+    }
+
+    if (!actions.some((action) => action.key === "contacts")) {
+      actions.push({
+        key: "contacts-fallback",
+        label: "浏览成员网络",
+        description: "去 Contacts 看看当前有哪些成员可用。",
+        on_click: on_open_contacts_page,
+      });
+    }
+
+    return actions.slice(0, 3);
+  }, [
+    agents,
+    conversations_with_owners,
+    latest_user_message?.body,
+    on_open_agent_room,
+    on_open_contacts_page,
+    on_open_conversation,
+  ]);
 
   return (
     <HeroSidePanelShell class_name="h-full min-h-[620px] w-full max-w-[380px]">
@@ -141,6 +242,28 @@ export function LauncherAppConversationPanel({
               <p>{message.body}</p>
             </div>
           ))}
+
+          <div className="space-y-2 pt-1">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/46">
+              下一步动作
+            </p>
+            {suggested_actions.map((action) => (
+              <button
+                key={action.key}
+                className="flex w-full items-center justify-between rounded-[22px] bg-white/8 px-4 py-4 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition hover:bg-white/14"
+                onClick={action.on_click}
+                type="button"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-950/84">{action.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-700/58">
+                    {action.description}
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-slate-700/44" />
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-6 space-y-3">
