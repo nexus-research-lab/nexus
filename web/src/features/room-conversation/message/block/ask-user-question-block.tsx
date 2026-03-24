@@ -235,8 +235,8 @@ export function AskUserQuestionBlock({
         if (!canSubmit || isSubmitted) return;
 
         const answers: UserQuestionAnswer[] = questions.map((_, index) => ({
-            questionIndex: index,
-            selectedOptions: Array.from(selections.get(index) || []),
+            question_index: index,
+            selected_options: Array.from(selections.get(index) || []),
         }));
 
         setIsSubmitted(true);

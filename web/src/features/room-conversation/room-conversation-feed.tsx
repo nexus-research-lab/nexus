@@ -1,6 +1,6 @@
 import { RefObject } from "react";
 
-import { MessageItem } from "@/components/message";
+import { MessageItem } from "@/features/room-conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { Message } from "@/types/message";
 

@@ -112,7 +112,7 @@ export function ContentRenderer(
                     // 发送 permission_response 并附带用户答案
                     onPermissionResponse?.({
                       decision: 'allow',
-                      userAnswers: answers,
+                      user_answers: answers,
                     });
                   }}
                 />
@@ -154,11 +154,11 @@ export function ContentRenderer(
                   expires_at: pendingPermission!.expires_at,
                   onAllow: (updatedPermissions) => onPermissionResponse?.({
                     decision: 'allow',
-                    updatedPermissions,
+                    updated_permissions: updatedPermissions,
                   }),
                   onDeny: (updatedPermissions) => onPermissionResponse?.({
                     decision: 'deny',
-                    updatedPermissions,
+                    updated_permissions: updatedPermissions,
                   }),
                 } : undefined}
               />
@@ -172,8 +172,8 @@ export function ContentRenderer(
             <div key={index} className={cn(
               "radius-shell-md my-2 p-4",
               block.is_error
-                ? "neo-card bg-red-500/5"
-                : "neo-card bg-green-500/5"
+                ? "workspace-card bg-red-500/5"
+                : "workspace-card bg-green-500/5"
             )}>
               <div className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
                 {block.is_error ? (
@@ -184,7 +184,7 @@ export function ContentRenderer(
               </div>
               <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                 {typeof block.content === 'string' ? (
-                  <pre className="neo-inset radius-shell-sm text-xs font-mono whitespace-pre-wrap break-all p-4 text-foreground/80">
+                  <pre className="workspace-card radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-slate-900/80">
                     {block.content}
                   </pre>
                 ) : (

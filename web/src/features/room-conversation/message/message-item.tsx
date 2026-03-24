@@ -16,6 +16,7 @@ import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
 
 interface MessageItemProps {
+  currentAgentName?: string | null;
   roundId: string;
   messages: Message[];
   isLastRound?: boolean;
@@ -33,6 +34,7 @@ interface MessageItemProps {
 
 export function MessageItem(
   {
+    currentAgentName,
     roundId,
     messages,
     isLastRound,
@@ -261,15 +263,14 @@ export function MessageItem(
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
       {userMessage && (
         <div className="w-full px-1 sm:px-4">
-          <div className="mx-auto w-full">
-            <div className="group flex min-w-0 items-end gap-3 ">
-
+          <div className="mx-auto w-full max-w-[980px]">
+            <div className="group flex min-w-0 items-end justify-end gap-3">
               <div className={cn(
-                "neo-card soft-ring radius-shell-lg relative min-w-0 flex-1 overflow-hidden transition-all duration-300 hover:-translate-y-0.5",
-                "bg-[linear-gradient(145deg,rgba(255,235,220,0.86),rgba(244,241,236,0.96))]"
+                "radius-shell-lg relative min-w-0 max-w-[78%] overflow-hidden transition-all duration-300",
+                "workspace-card px-4 sm:px-5"
               )}>
                 {/* 头部 */}
-                <div className="flex h-10 items-center gap-2 border-b border-white/55 px-3 sm:px-4">
+                <div className="flex h-10 items-center justify-end gap-2 border-b border-white/18">
                   <div className="flex-1" />
 
                   {/* 操作按钮 */}
@@ -301,18 +302,18 @@ export function MessageItem(
                   </div>
 
                   {/* 时间 */}
-                  <span className="text-[10px] font-mono text-muted-foreground/50 sm:inline">
+                  <span className="text-[10px] font-mono text-slate-700/42 sm:inline">
                     {userMessage.timestamp ? formatTime(userMessage.timestamp) : '--:--'} ｜
                   </span>
 
                   {/* 头像在右边 */}
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent/70">You</span>
-                  <User className="w-3 h-3 text-accent/70" />
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700/62">你</span>
+                  <User className="w-3 h-3 text-sky-700/62" />
                 </div>
 
                 {/* 内容 */}
-                <div className="px-4 py-4 sm:px-5">
-                  <p className="text-sm text-foreground leading-relaxed text-right whitespace-pre-wrap [overflow-wrap:anywhere]">
+                <div className="py-4">
+                  <p className="text-sm leading-relaxed text-right whitespace-pre-wrap text-slate-900/86 [overflow-wrap:anywhere]">
                     {userContent}
                   </p>
                 </div>
@@ -326,14 +327,13 @@ export function MessageItem(
       {/* 没有可见 assistant 内容时，仍渲染容器以提供删除/重试操作 */}
       {(!shouldHideAssistantContent || canOperateRound) && (
         <div className="w-full px-1 sm:px-4">
-          <div className="mx-auto w-full">
+          <div className="mx-auto w-full max-w-[980px]">
             <div className="group flex min-w-0 items-start gap-3">
 
               <div className={cn(
-                "neo-card soft-ring radius-shell-lg relative min-w-0 flex-1 overflow-hidden transition-all duration-500",
-                "bg-[linear-gradient(145deg,rgba(244,241,236,0.98),rgba(232,229,223,0.96))]",
-                showCursor && "shadow-[0_24px_44px_rgba(133,119,255,0.18)]",
-                isCompleted && "shadow-[0_24px_44px_rgba(102,217,143,0.16)]"
+                "radius-shell-lg relative min-w-0 flex-1 overflow-hidden workspace-card transition-all duration-500",
+                showCursor && "shadow-[0_24px_44px_rgba(133,119,255,0.16)]",
+                isCompleted && "shadow-[0_24px_44px_rgba(102,217,143,0.14)]"
               )}>
                 {/* 扫描线效果 */}
                 {showCursor && (
@@ -343,20 +343,22 @@ export function MessageItem(
                 )}
 
                 {/* 优雅的头部栏 */}
-                <div className="flex min-w-0 h-10 items-center gap-2 border-b border-white/55 px-3 sm:px-4">
-                  <div className="neo-pill flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-                    <Terminal className="w-3 h-3 text-primary/70" />
+                <div className="flex min-w-0 h-10 items-center gap-2 border-b border-white/28 px-3 sm:px-4">
+                  <div className="workspace-chip flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+                    <Terminal className="w-3 h-3 text-slate-800/70" />
                   </div>
-                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary/70">Assistant</span>
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-900/72">
+                    {currentAgentName || "协作成员"}
+                  </span>
 
                   {/* 时间 */}
-                  <span className="hidden shrink-0 text-[10px] font-mono text-muted-foreground/50 sm:inline">
+                  <span className="hidden shrink-0 text-[10px] font-mono text-slate-700/40 sm:inline">
                     | {timestamp ? formatTime(timestamp) : '--:--'} |
                   </span>
 
                   {/* 模型 */}
                   {model && (
-                    <span className="min-w-0 truncate text-[10px] text-muted-foreground/40">{model}</span>
+                    <span className="min-w-0 truncate text-[10px] text-slate-700/40">{model}</span>
                   )}
 
                 </div>
@@ -397,11 +399,11 @@ export function MessageItem(
                           expires_at: pendingPermission.expires_at,
                           onAllow: (updatedPermissions) => onPermissionResponse?.({
                             decision: 'allow',
-                            updatedPermissions,
+                            updated_permissions: updatedPermissions,
                           }),
                           onDeny: (updatedPermissions) => onPermissionResponse?.({
                             decision: 'deny',
-                            updatedPermissions,
+                            updated_permissions: updatedPermissions,
                           }),
                         }}
                       />
