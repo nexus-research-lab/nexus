@@ -1,23 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown } from "lucide-react";
 
 import { useAgentSession } from "@/hooks/agent";
-import { MessageItem } from "@/components/message";
+import { RoomComposerPanel } from "@/features/room-conversation/room-composer-panel";
+import { RoomConversationEmptyState } from "@/features/room-conversation/room-conversation-empty-state";
+import { RoomConversationFeed } from "@/features/room-conversation/room-conversation-feed";
+import { RoomConversationHeader } from "@/features/room-conversation/room-conversation-header";
+import { RoomScrollToLatestButton } from "@/features/room-conversation/room-scroll-to-latest-button";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useSessionLoader } from "@/hooks/use-session-loader";
 
-import ChatHeader from "./chat-header";
-import ChatInput from "./chat-input";
-import { EmptyState } from "./empty-state";
 import { Message } from "@/types/message";
 import { TodoItem } from "@/components/workspace/agent-task-widget";
 
 
 interface ChatInterfaceProps {
   agentId: string | null;
+  currentAgentName?: string | null;
   sessionKey: string | null;
+  sessionTitle?: string | null;
   onNewSession: () => void;
   layout?: "desktop" | "mobile";
   onOpenWorkspaceFile?: (path: string) => void;
@@ -53,7 +55,9 @@ function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
 
 export function ChatInterface({
   agentId,
+  currentAgentName,
   sessionKey: externalSessionKey,
+  sessionTitle,
   onNewSession: onNewSession,
   layout = "desktop",
   onOpenWorkspaceFile,
@@ -74,18 +78,18 @@ export function ChatInterface({
   const {
     error,
     messages,
-    sessionKey,
-    isLoading,
-    pendingPermission,
-    sendMessage,
-    stopGeneration,
-    loadSession,
-    sendPermissionResponse,
-    deleteRound,
+    session_key,
+    is_loading,
+    pending_permission,
+    send_message,
+    stop_generation,
+    load_session,
+    send_permission_response,
+    delete_round,
     regenerate,
   } = useAgentSession({
-    agentId,
-    onError: (err) => {
+    agent_id: agentId,
+    on_error: (err) => {
       console.error("Session error:", err);
     },
   });
@@ -98,8 +102,8 @@ export function ChatInterface({
   }, [onTodosChange, todos]);
 
   useEffect(() => {
-    onLoadingChange?.(isLoading);
-  }, [isLoading, onLoadingChange]);
+    onLoadingChange?.(is_loading);
+  }, [is_loading, onLoadingChange]);
 
   useEffect(() => {
     if (!externalSessionKey) {
@@ -116,7 +120,7 @@ export function ChatInterface({
   }, [externalSessionKey, messages, onSessionSnapshotChange]);
 
   // 响应式会话加载 - 统一处理外部 agentId 变化
-  useSessionLoader(externalSessionKey, loadSession, "ChatInterface");
+  useSessionLoader(externalSessionKey, load_session, "ChatInterface");
 
   // 按 roundId 分组消息
   const messageGroups = useMemo(() => {
@@ -174,8 +178,8 @@ export function ChatInterface({
       return;
     }
 
-    scheduleScrollToBottom(isLoading ? 'auto' : 'smooth');
-  }, [isLoading, messages, scheduleScrollToBottom, updateFollowState]);
+    scheduleScrollToBottom(is_loading ? 'auto' : 'smooth');
+  }, [is_loading, messages, scheduleScrollToBottom, updateFollowState]);
 
   useEffect(() => {
     updateFollowState();
@@ -234,15 +238,15 @@ export function ChatInterface({
   }, [scrollToBottom]);
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return;
+    if (!content.trim() || is_loading) return;
     shouldFollowLatestRef.current = true;
     setShowScrollToBottom(false);
-    await sendMessage(content);
+    await send_message(content);
     scrollToBottom('auto');
   };
 
   const handleStop = () => {
-    stopGeneration();
+    stop_generation();
   };
 
   // 获取所有 roundId 的有序列表
@@ -252,8 +256,10 @@ export function ChatInterface({
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
       {!isMobileLayout && (
         <>
-          <div className="pointer-events-none absolute left-8 top-10 h-24 w-24 rounded-full glow-lilac opacity-35" />
-          <div className="pointer-events-none absolute bottom-10 right-10 h-28 w-28 rounded-full glow-green opacity-30" />
+          <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-35" />
+          <div className="pointer-events-none absolute left-8 top-10 h-32 w-32 rounded-full glow-lilac opacity-30" />
+          <div className="pointer-events-none absolute right-[12%] top-[18%] h-32 w-32 rounded-full glow-peach opacity-25" />
+          <div className="pointer-events-none absolute bottom-10 right-10 h-36 w-36 rounded-full glow-green opacity-24" />
         </>
       )}
       {/* WebSocket连接错误提示 */}
@@ -279,11 +285,16 @@ export function ChatInterface({
 
       {/* 如果没有agentId,显示空状态 */}
       {!externalSessionKey ? (
-        <EmptyState onNewSession={onNewSession} />
+        <RoomConversationEmptyState onCreateConversation={onNewSession} />
       ) : (
         <>
           {!isMobileLayout && (
-            <ChatHeader sessionKey={sessionKey} isLoading={isLoading} />
+            <RoomConversationHeader
+              currentAgentName={currentAgentName ?? null}
+              currentConversationId={session_key}
+              currentConversationTitle={sessionTitle ?? null}
+              isLoading={is_loading}
+            />
           )}
 
           {/* Messages Area */}
@@ -297,50 +308,37 @@ export function ChatInterface({
             className={
               isMobileLayout
                 ? "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-1 py-2"
-                : "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-6 overflow-x-hidden overflow-y-auto px-2 py-3 sm:px-4 sm:py-5 xl:space-y-8 xl:px-6 xl:py-7"
+                : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-3 sm:px-4 sm:py-5 xl:px-6 xl:py-7"
             }
           >
-            {roundIds.map((roundId, idx) => {
-              const roundMessages = messageGroups.get(roundId) || [];
-              const isLastRound = idx === roundIds.length - 1;
-
-              return (
-                <MessageItem
-                  key={roundId}
-                  roundId={roundId}
-                  messages={roundMessages}
-                  isLastRound={isLastRound}
-                  isLoading={isLoading}
-                  pendingPermission={isLastRound ? pendingPermission : null}
-                  onPermissionResponse={sendPermissionResponse}
-                  onOpenWorkspaceFile={onOpenWorkspaceFile}
-                  onDelete={deleteRound}
-                  onRegenerate={isLastRound ? regenerate : undefined}
-                />
-              );
-            })}
-            <div ref={bottomAnchorRef} className="h-px w-full" />
+            <RoomConversationFeed
+              bottomAnchorRef={bottomAnchorRef}
+              currentAgentName={currentAgentName ?? null}
+              isLastRoundPendingPermission={pending_permission}
+              isLoading={is_loading}
+              isMobileLayout={isMobileLayout}
+              messageGroups={messageGroups}
+              onDeleteRound={delete_round}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onPermissionResponse={send_permission_response}
+              onRegenerateRound={regenerate}
+              roundIds={roundIds}
+            />
           </div>
 
           {showScrollToBottom && (
-            <button
-              type="button"
+            <RoomScrollToLatestButton
+              isLoading={is_loading}
+              isMobileLayout={isMobileLayout}
               onClick={handleJumpToBottom}
-              className={
-                isMobileLayout
-                  ? "neo-pill absolute bottom-24 right-2 z-20 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-foreground transition hover:-translate-y-0.5 hover:text-primary"
-                  : "neo-pill absolute bottom-24 right-3 z-20 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-foreground transition hover:-translate-y-0.5 hover:text-primary sm:bottom-30 sm:right-8 sm:px-4 sm:py-2.5"
-              }
-            >
-              <ArrowDown className={isLoading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
-              {!isMobileLayout && <span>回到底部</span>}
-            </button>
+            />
           )}
 
           {/* Input Area */}
-          <ChatInput
+          <RoomComposerPanel
             compact={isMobileLayout}
-            isLoading={isLoading}
+            currentAgentName={currentAgentName ?? null}
+            isLoading={is_loading}
             onSendMessage={handleSendMessage}
             onStop={handleStop}
           />

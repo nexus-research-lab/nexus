@@ -5,6 +5,7 @@
  */
 
 export { useSessionStore } from './session';
+export { useConversationStore } from './conversation';
 export { useAgentStore } from './agent';
 export { useWorkspaceLiveStore } from './workspace-live';
 export { useWorkspaceFilesStore } from './workspace-files';

@@ -11,12 +11,9 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { Agent } from "@/types/agent";
-import { Session } from "@/types/session";
-import { cn, formatRelativeTime, truncate } from "@/lib/utils";
-import { SpotlightToken, AgentPile } from "@/components/home/agent-pile";
 import { ANIMATIONS } from "@/components/animations/animations";
 import { LottiePlayer } from "@/components/animations/lottiePlayer";
+import { SpotlightToken, AgentPile } from "@/components/home/agent-pile";
 import {
   HeroActionOrbShell,
   HeroActionPillShell,
@@ -25,22 +22,63 @@ import {
   HeroSidePanelShell,
 } from "@/components/home/hero-blob-shell";
 import { DebugReferenceOverlay } from "@/components/home/reference-overlay-debug";
+import { cn, formatRelativeTime, truncate } from "@/lib/utils";
+import { Agent } from "@/types/agent";
+import { Conversation } from "@/types/conversation";
 
-interface AgentDirectoryProps {
+interface LauncherConsoleProps {
   agents: Agent[];
-  sessions: Session[];
-  currentAgentId: string | null;
-  onSelectAgent: (agentId: string) => void;
-  onOpenSession: (sessionKey: string, agentId?: string) => void;
-  onCreateAgent: () => void;
-  onEditAgent: (agentId: string) => void;
-  onDeleteAgent: (agentId: string) => void;
+  conversations: Conversation[];
+  current_agent_id: string | null;
+  on_open_contacts_page: () => void;
+  on_open_nexus: () => void;
+  on_select_agent: (agent_id: string) => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
+  on_create_agent: () => void;
+  on_edit_agent: (agent_id: string) => void;
+  on_delete_agent: (agent_id: string) => void;
 }
 
-type SessionWithOwner = {
+interface HeaderActionButtonProps {
+  active?: boolean;
+  children: string;
+  on_click: () => void;
+}
+
+interface HeroStageProps {
+  current_agent_id: string | null;
+  decorative_tokens: SpotlightToken[];
+  on_open_nexus: () => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
+  on_query_change: (value: string) => void;
+  on_select_agent: (agent_id: string) => void;
+  on_submit: () => void;
+  query: string;
+  recent_agents: Agent[];
+  recent_rooms: ConversationWithOwner[];
+}
+
+interface ContactsPopoverProps {
+  agents: Agent[];
+  on_close: () => void;
+  on_create_agent: () => void;
+  on_delete_agent: (agent_id: string) => void;
+  on_edit_agent: (agent_id: string) => void;
+  on_open_contacts_page: () => void;
+  on_select_agent: (agent_id: string) => void;
+}
+
+interface RecentRoomsPopoverProps {
+  on_close: () => void;
+  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
+  recent_rooms: ConversationWithOwner[];
+  conversations_with_owners: ConversationWithOwner[];
+}
+
+interface ConversationWithOwner {
   owner: Agent | null;
-  session: Session;
-};
+  conversation: Conversation;
+}
 
 const TOKEN_SWATCHES = [
   { fill: "#5FA052", text: "#FFFFFF", ring: "#8DBA86" },
@@ -70,9 +108,9 @@ function getInitials(name: string) {
 
 function buildDecorativeTokens(
   agents: Agent[],
-  sessions: SessionWithOwner[],
+  conversations_with_owners: ConversationWithOwner[],
 ): SpotlightToken[] {
-  const agentTokens: SpotlightToken[] =
+  const agent_tokens: SpotlightToken[] =
     agents.map((agent, index) => ({
       key: `agent-${agent.agent_id}`,
       label: getInitials(agent.name),
@@ -81,13 +119,13 @@ function buildDecorativeTokens(
       swatch: TOKEN_SWATCHES[index % TOKEN_SWATCHES.length],
     }));
 
-  const roomTokens: SpotlightToken[] =
-    sessions.slice(0, 8).map(({ session }, index) => ({
-      key: `room-${session.session_key}`,
-      label: getInitials(session.title || "Room"),
-      agentId: session.agent_id ?? null,
+  const room_tokens: SpotlightToken[] =
+    conversations_with_owners.slice(0, 8).map(({ conversation }, index) => ({
+      key: `room-${conversation.session_key}`,
+      label: getInitials(conversation.title || "Room"),
+      agentId: conversation.agent_id ?? null,
       kind: "room" as const,
-      swatch: TOKEN_SWATCHES[(agentTokens.length + index) % TOKEN_SWATCHES.length],
+      swatch: TOKEN_SWATCHES[(agent_tokens.length + index) % TOKEN_SWATCHES.length],
     }));
 
   const fallback = [
@@ -108,8 +146,8 @@ function buildDecorativeTokens(
   ];
 
   const source: SpotlightToken[] = [
-    ...agentTokens,
-    ...roomTokens,
+    ...agent_tokens,
+    ...room_tokens,
   ];
   fallback.forEach((item, index) => {
     if (source.length < 22) {
@@ -118,7 +156,7 @@ function buildDecorativeTokens(
         label: item.label,
         agentId: null,
         kind: item.kind,
-        swatch: TOKEN_SWATCHES[(agentTokens.length + roomTokens.length + index) % TOKEN_SWATCHES.length],
+        swatch: TOKEN_SWATCHES[(agent_tokens.length + room_tokens.length + index) % TOKEN_SWATCHES.length],
       });
     }
   });
@@ -131,23 +169,21 @@ const MemoAgentPile = memo(AgentPile);
 const HeaderActionButton = memo(function HeaderActionButton({
   active = false,
   children,
-  onClick,
-}: {
-  active?: boolean;
-  children: string;
-  onClick: () => void;
-}) {
+  on_click,
+}: HeaderActionButtonProps) {
   return (
     <button
       className="transition-transform duration-300 hover:-translate-y-0.5"
-      onClick={onClick}
+      onClick={on_click}
       type="button"
     >
       <HeroActionPillShell active={active}>
-        <span className={cn(
-          "text-sm font-medium transition-colors",
-          active ? "text-slate-900/88" : "text-slate-800/70",
-        )}>
+        <span
+          className={cn(
+            "text-sm font-medium transition-colors",
+            active ? "text-slate-900/88" : "text-slate-800/70",
+          )}
+        >
           {children}
         </span>
       </HeroActionPillShell>
@@ -156,28 +192,17 @@ const HeaderActionButton = memo(function HeaderActionButton({
 });
 
 const HeroStage = memo(function HeroStage({
-  currentAgentId,
-  decorativeTokens,
-  onOpenContacts,
-  onOpenSession,
-  onQueryChange,
-  onSelectAgent,
-  onSubmit,
+  current_agent_id,
+  decorative_tokens,
+  on_open_nexus,
+  on_open_conversation,
+  on_query_change,
+  on_select_agent,
+  on_submit,
   query,
-  recentAgents,
-  recentRooms,
-}: {
-  currentAgentId: string | null;
-  decorativeTokens: SpotlightToken[];
-  onOpenContacts: () => void;
-  onOpenSession: (sessionKey: string, agentId?: string) => void;
-  onQueryChange: (value: string) => void;
-  onSelectAgent: (agentId: string) => void;
-  onSubmit: () => void;
-  query: string;
-  recentAgents: Agent[];
-  recentRooms: SessionWithOwner[];
-}) {
+  recent_agents,
+  recent_rooms,
+}: HeroStageProps) {
   return (
     <div className="relative flex w-full max-w-[1180px] flex-col items-center">
       <DebugReferenceOverlay />
@@ -192,7 +217,7 @@ const HeroStage = memo(function HeroStage({
               className="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
               src={ANIMATIONS.SPARKLES}
             />
-            <h1 className="text-[32px] mb-10 font-extrabold text-foreground/96 tracking-[-0.05em] sm:text-[42px] sm:leading-[1.05]">
+            <h1 className="mb-10 text-[32px] font-extrabold tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
               和你的 agents 开始协作
             </h1>
           </div>
@@ -204,11 +229,11 @@ const HeroStage = memo(function HeroStage({
               <MessageSquare className="h-4.5 w-4.5 text-black/58" />
               <input
                 className="flex-1 bg-transparent text-[15px] text-white/92 outline-none placeholder:text-black/42"
-                onChange={(event) => onQueryChange(event.target.value)}
+                onChange={(event) => on_query_change(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    onSubmit();
+                    on_submit();
                   }
                 }}
                 placeholder="描述意图，@提及 Agent 或 #Room 来启动协作..."
@@ -216,7 +241,7 @@ const HeroStage = memo(function HeroStage({
               />
               <button
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/84 text-slate-900 shadow-[0_10px_20px_rgba(255,255,255,0.16)] transition-transform duration-300 hover:-translate-y-0.5"
-                onClick={onSubmit}
+                onClick={on_submit}
                 type="button"
               >
                 <ArrowUp className="h-4 w-4" />
@@ -225,11 +250,11 @@ const HeroStage = memo(function HeroStage({
           </HeroInputShell>
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            {recentAgents.map((agent, index) => (
+            {recent_agents.map((agent, index) => (
               <button
                 key={agent.agent_id}
                 className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white/84 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/18"
-                onClick={() => onSelectAgent(agent.agent_id)}
+                onClick={() => on_select_agent(agent.agent_id)}
                 type="button"
               >
                 <span
@@ -243,32 +268,32 @@ const HeroStage = memo(function HeroStage({
               </button>
             ))}
 
-            {recentRooms.map(({ session }) => (
+            {recent_rooms.map(({ conversation }) => (
               <button
-                key={session.session_key}
+                key={conversation.session_key}
                 className="rounded-full bg-white/8 px-3 py-1.5 text-sm font-medium text-white/76 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/16"
-                onClick={() => onOpenSession(session.session_key, session.agent_id)}
+                onClick={() => on_open_conversation(conversation.session_key, conversation.agent_id)}
                 type="button"
               >
-                #{truncate(session.title || "Untitled Room", 18)}
+                #{truncate(conversation.title || "Untitled Room", 18)}
               </button>
             ))}
 
             <button
               className="px-2 text-sm font-medium text-white/52 transition-colors hover:text-white/82"
-              onClick={onOpenContacts}
+              onClick={on_open_nexus}
               type="button"
             >
-              See all →
+              Ask Nexus →
             </button>
           </div>
         </div>
       </HeroBlobShell>
 
       <MemoAgentPile
-        currentAgentId={currentAgentId}
-        onSelectAgent={onSelectAgent}
-        tokens={decorativeTokens}
+        currentAgentId={current_agent_id}
+        onSelectAgent={on_select_agent}
+        tokens={decorative_tokens}
       />
     </div>
   );
@@ -276,23 +301,17 @@ const HeroStage = memo(function HeroStage({
 
 const ContactsPopover = memo(function ContactsPopover({
   agents,
-  onClose,
-  onCreateAgent,
-  onDeleteAgent,
-  onEditAgent,
-  onSelectAgent,
-}: {
-  agents: Agent[];
-  onClose: () => void;
-  onCreateAgent: () => void;
-  onDeleteAgent: (agentId: string) => void;
-  onEditAgent: (agentId: string) => void;
-  onSelectAgent: (agentId: string) => void;
-}) {
+  on_close,
+  on_create_agent,
+  on_delete_agent,
+  on_edit_agent,
+  on_open_contacts_page,
+  on_select_agent,
+}: ContactsPopoverProps) {
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
-  const filteredAgents = useMemo(() => {
-    const keyword = deferredQuery.trim().toLowerCase();
+  const deferred_query = useDeferredValue(query);
+  const filtered_agents = useMemo(() => {
+    const keyword = deferred_query.trim().toLowerCase();
     if (!keyword) {
       return agents;
     }
@@ -302,11 +321,11 @@ const ContactsPopover = memo(function ContactsPopover({
         field.toLowerCase().includes(keyword),
       ),
     );
-  }, [agents, deferredQuery]);
+  }, [agents, deferred_query]);
 
   return (
     <HeroSidePanelShell className="absolute right-0 top-[calc(100%+14px)] z-30">
-      <div className="space-y-4 mx-2">
+      <div className="mx-2 space-y-4">
         <HeroInputShell className="w-full opacity-[0.92]">
           <div className="flex min-w-0 items-center gap-3">
             <Search className="h-4 w-4 text-slate-700/50" />
@@ -320,7 +339,7 @@ const ContactsPopover = memo(function ContactsPopover({
         </HeroInputShell>
 
         <div className="space-y-2">
-          {filteredAgents.slice(0, 5).map((agent, index) => (
+          {filtered_agents.slice(0, 5).map((agent, index) => (
             <div
               key={agent.agent_id}
               className={cn(
@@ -331,8 +350,8 @@ const ContactsPopover = memo(function ContactsPopover({
               <button
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)] transition-colors hover:bg-white/16"
                 onClick={() => {
-                  onClose();
-                  onSelectAgent(agent.agent_id);
+                  on_close();
+                  on_select_agent(agent.agent_id);
                 }}
                 type="button"
               >
@@ -344,8 +363,8 @@ const ContactsPopover = memo(function ContactsPopover({
               <button
                 className="min-w-0 flex-1 text-left"
                 onClick={() => {
-                  onClose();
-                  onSelectAgent(agent.agent_id);
+                  on_close();
+                  on_select_agent(agent.agent_id);
                 }}
                 type="button"
               >
@@ -360,18 +379,18 @@ const ContactsPopover = memo(function ContactsPopover({
 
               <div className="flex items-center gap-1">
                 <button
-                  className="rounded-full p-2 text-slate-700/44 transition-colors hover:bg-white/10 hover:text-slate-900/80"
-                  onClick={() => onEditAgent(agent.agent_id)}
-                  type="button"
                   aria-label="编辑 Agent 设置"
+                  className="rounded-full p-2 text-slate-700/44 transition-colors hover:bg-white/10 hover:text-slate-900/80"
+                  onClick={() => on_edit_agent(agent.agent_id)}
+                  type="button"
                 >
                   <Settings className="h-4 w-4" />
                 </button>
                 <button
-                  className="rounded-full p-2 text-slate-700/44 transition-colors hover:bg-white/10 hover:text-slate-900/80"
-                  onClick={() => onDeleteAgent(agent.agent_id)}
-                  type="button"
                   aria-label="删除 Agent"
+                  className="rounded-full p-2 text-slate-700/44 transition-colors hover:bg-white/10 hover:text-slate-900/80"
+                  onClick={() => on_delete_agent(agent.agent_id)}
+                  type="button"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -384,46 +403,53 @@ const ContactsPopover = memo(function ContactsPopover({
 
         <button
           className="flex w-full items-center gap-2 rounded-[18px] bg-[rgba(255,255,255,0.05)] px-3 py-3 text-sm font-medium text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]"
-          onClick={onCreateAgent}
+          onClick={on_create_agent}
           type="button"
         >
           <Plus className="h-4 w-4" />
           New Agent
+        </button>
+
+        <button
+          className="flex w-full items-center justify-between rounded-[18px] bg-[rgba(255,255,255,0.04)] px-3 py-3 text-sm font-medium text-slate-800/74 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.08)]"
+          onClick={() => {
+            on_close();
+            on_open_contacts_page();
+          }}
+          type="button"
+        >
+          <span>Open Contacts</span>
+          <ChevronRight className="h-4 w-4 text-slate-700/42" />
         </button>
       </div>
     </HeroSidePanelShell>
   );
 });
 
-const RoomsPopover = memo(function RoomsPopover({
-  onClose,
-  onOpenSession,
-  recentRooms,
-  sessionsWithOwners,
-}: {
-  onClose: () => void;
-  onOpenSession: (sessionKey: string, agentId?: string) => void;
-  recentRooms: SessionWithOwner[];
-  sessionsWithOwners: SessionWithOwner[];
-}) {
+const RecentRoomsPopover = memo(function RecentRoomsPopover({
+  on_close,
+  on_open_conversation,
+  recent_rooms,
+  conversations_with_owners,
+}: RecentRoomsPopoverProps) {
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
-  const filteredRooms = useMemo(() => {
-    const keyword = deferredQuery.trim().toLowerCase();
+  const deferred_query = useDeferredValue(query);
+  const filtered_rooms = useMemo(() => {
+    const keyword = deferred_query.trim().toLowerCase();
     if (!keyword) {
-      return sessionsWithOwners;
+      return conversations_with_owners;
     }
 
-    return sessionsWithOwners.filter(({ session, owner }) =>
-      [session.title, owner?.name ?? ""].some((field) =>
+    return conversations_with_owners.filter(({ conversation, owner }) =>
+      [conversation.title, owner?.name ?? ""].some((field) =>
         field.toLowerCase().includes(keyword),
       ),
     );
-  }, [deferredQuery, sessionsWithOwners]);
+  }, [conversations_with_owners, deferred_query]);
 
   return (
     <HeroSidePanelShell className="absolute right-0 top-[calc(100%+14px)] z-30">
-      <div className="space-y-4 mx-2">
+      <div className="mx-2 space-y-4">
         <HeroInputShell className="w-full opacity-[0.92]">
           <div className="flex min-w-0 items-center gap-3">
             <Search className="h-4 w-4 text-slate-700/50" />
@@ -437,34 +463,34 @@ const RoomsPopover = memo(function RoomsPopover({
         </HeroInputShell>
 
         <div className="space-y-2">
-          {filteredRooms.slice(0, 4).map(({ session, owner }, index) => (
+          {filtered_rooms.slice(0, 4).map(({ conversation, owner }, index) => (
             <button
-              key={session.session_key}
+              key={conversation.session_key}
               className={cn(
                 "flex w-full items-center justify-between rounded-[18px] bg-[rgba(255,255,255,0.05)] px-2 py-2 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]",
                 index === 0 && "bg-[rgba(255,255,255,0.10)]",
               )}
               onClick={() => {
-                onClose();
-                onOpenSession(session.session_key, session.agent_id);
+                on_close();
+                on_open_conversation(conversation.session_key, conversation.agent_id);
               }}
               type="button"
             >
               <div>
                 <p className="text-sm font-semibold text-slate-900/84">
-                  {truncate(session.title || "Untitled Room", 26)}
+                  {truncate(conversation.title || "Untitled Room", 26)}
                 </p>
                 <p className="max-w-[210px] truncate text-xs text-slate-700/54">
-                  {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(session.last_activity_at)}
+                  {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(conversation.last_activity_at)}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[11px] text-slate-700/42">
-                  {formatRelativeTime(session.last_activity_at)}
+                  {formatRelativeTime(conversation.last_activity_at)}
                 </span>
-                {(session.message_count ?? 0) > 0 && (
+                {(conversation.message_count ?? 0) > 0 && (
                   <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/14 px-1.5 text-[9px] font-bold text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                    {Math.min(session.message_count ?? 0, 9)}
+                    {Math.min(conversation.message_count ?? 0, 9)}
                   </span>
                 )}
                 <ChevronRight className="h-4 w-4 text-slate-700/40" />
@@ -478,9 +504,12 @@ const RoomsPopover = memo(function RoomsPopover({
         <button
           className="flex w-full items-center gap-2 rounded-[18px] bg-[rgba(255,255,255,0.05)] px-3 py-3 text-sm font-medium text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]"
           onClick={() => {
-            onClose();
-            if (recentRooms[0]) {
-              onOpenSession(recentRooms[0].session.session_key, recentRooms[0].session.agent_id);
+            on_close();
+            if (recent_rooms[0]) {
+              on_open_conversation(
+                recent_rooms[0].conversation.session_key,
+                recent_rooms[0].conversation.agent_id,
+              );
             }
           }}
           type="button"
@@ -493,109 +522,109 @@ const RoomsPopover = memo(function RoomsPopover({
   );
 });
 
-export function Console({
+export function LauncherConsole({
   agents,
-  sessions,
-  currentAgentId,
-  onSelectAgent,
-  onOpenSession,
-  onCreateAgent,
-  onEditAgent,
-  onDeleteAgent,
-}: AgentDirectoryProps) {
+  conversations,
+  current_agent_id,
+  on_open_contacts_page,
+  on_open_nexus,
+  on_select_agent,
+  on_open_conversation,
+  on_create_agent,
+  on_edit_agent,
+  on_delete_agent,
+}: LauncherConsoleProps) {
   const [query, setQuery] = useState("");
-  const [showContacts, setShowContacts] = useState(false);
-  const [showRooms, setShowRooms] = useState(false);
+  const [show_contacts, setShowContacts] = useState(false);
+  const [show_rooms, setShowRooms] = useState(false);
 
-  const agentsById = useMemo(
+  const agents_by_id = useMemo(
     () => new Map(agents.map((agent) => [agent.agent_id, agent])),
     [agents],
   );
 
-  const sessionsWithOwners = useMemo(() => {
-    return sessions
-      .map((session) => ({
-        session,
-        owner: session.agent_id ? agentsById.get(session.agent_id) ?? null : null,
+  const conversations_with_owners = useMemo(() => {
+    return conversations
+      .map((conversation) => ({
+        conversation,
+        owner: conversation.agent_id ? agents_by_id.get(conversation.agent_id) ?? null : null,
       }))
-      .sort((left, right) => right.session.last_activity_at - left.session.last_activity_at);
-  }, [agentsById, sessions]);
+      .sort((left, right) => right.conversation.last_activity_at - left.conversation.last_activity_at);
+  }, [agents_by_id, conversations]);
 
-  const recentAgents = useMemo(() => agents.slice(0, 2), [agents]);
-  const recentRooms = useMemo(() => sessionsWithOwners.slice(0, 3), [sessionsWithOwners]);
-  const decorativeTokens = useMemo(
-    () => buildDecorativeTokens(agents, sessionsWithOwners),
-    [agents, sessionsWithOwners],
+  const recent_agents = useMemo(() => agents.slice(0, 2), [agents]);
+  const recent_rooms = useMemo(() => conversations_with_owners.slice(0, 3), [conversations_with_owners]);
+  const decorative_tokens = useMemo(
+    () => buildDecorativeTokens(agents, conversations_with_owners),
+    [agents, conversations_with_owners],
   );
 
-  const handleSubmit = useCallback(() => {
+  const handle_submit = useCallback(() => {
     const trimmed = query.trim();
     if (!trimmed) {
       return;
     }
 
-    const mentionMatch = trimmed.match(/@([^\s#]+)/);
-    const roomMatch = trimmed.match(/#([^\s@]+)/);
+    const mention_match = trimmed.match(/@([^\s#]+)/);
+    const room_match = trimmed.match(/#([^\s@]+)/);
 
-    if (mentionMatch) {
-      const keyword = mentionMatch[1].toLowerCase();
-      const matchedAgent = agents.find((agent) => agent.name.toLowerCase().includes(keyword));
-      if (matchedAgent) {
-        onSelectAgent(matchedAgent.agent_id);
+    if (mention_match) {
+      const keyword = mention_match[1].toLowerCase();
+      const matched_agent = agents.find((agent) => agent.name.toLowerCase().includes(keyword));
+      if (matched_agent) {
+        on_select_agent(matched_agent.agent_id);
         return;
       }
     }
 
-    if (roomMatch) {
-      const keyword = roomMatch[1].toLowerCase();
-      const matchedRoom = sessionsWithOwners.find(({ session }) =>
-        session.title.toLowerCase().includes(keyword),
+    if (room_match) {
+      const keyword = room_match[1].toLowerCase();
+      const matched_room = conversations_with_owners.find(({ conversation }) =>
+        conversation.title.toLowerCase().includes(keyword),
       );
-      if (matchedRoom) {
-        onOpenSession(matchedRoom.session.session_key, matchedRoom.session.agent_id);
+      if (matched_room) {
+        on_open_conversation(
+          matched_room.conversation.session_key,
+          matched_room.conversation.agent_id,
+        );
         return;
       }
     }
 
-    const roomFirst = sessionsWithOwners.find(({ session }) =>
-      session.title.toLowerCase().includes(trimmed.toLowerCase()),
+    const room_first = conversations_with_owners.find(({ conversation }) =>
+      conversation.title.toLowerCase().includes(trimmed.toLowerCase()),
     );
-    if (roomFirst) {
-      onOpenSession(roomFirst.session.session_key, roomFirst.session.agent_id);
+    if (room_first) {
+      on_open_conversation(room_first.conversation.session_key, room_first.conversation.agent_id);
       return;
     }
 
-    const agentFirst = agents.find((agent) =>
+    const agent_first = agents.find((agent) =>
       agent.name.toLowerCase().includes(trimmed.toLowerCase()),
     );
-    if (agentFirst) {
-      onSelectAgent(agentFirst.agent_id);
+    if (agent_first) {
+      on_select_agent(agent_first.agent_id);
     }
-  }, [agents, onOpenSession, onSelectAgent, query, sessionsWithOwners]);
-
-  const handleOpenContacts = useCallback(() => {
-    setShowContacts(true);
-    setShowRooms(false);
-  }, []);
+  }, [agents, conversations_with_owners, on_open_conversation, on_select_agent, query]);
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-0" />
 
-      <div className="relative z-30 flex items-center justify-between px-7 pt-6">
-        <div className="relative flex items-center gap-3 px-1 py-1">
+      <div className="relative z-30 flex items-center justify-between px-7 pt-1">
+        <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
-            className="pointer-events-none absolute left-7.5 -top-10 h-20 w-24 opacity-[0.8] sm:left-7.5 sm:-top-13 sm:h-24 sm:w-24"
-            src={ANIMATIONS.PRIDE}
+            className="pointer-events-none absolute left-2 -top-12 h-24 w-24 opacity-[0.8] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
+            src={ANIMATIONS.BOM}
           />
-          <span className="h-7 w-7 rounded-full bg-[#171917]" />
+          <img alt="" className="h-10 w-10" src="/logo.webp" />
           <span className="text-base font-semibold text-foreground">Nexus</span>
         </div>
 
         <div className="relative z-40 flex items-center gap-2">
           <HeaderActionButton
-            active={showContacts}
-            onClick={() => {
+            active={show_contacts}
+            on_click={() => {
               setShowContacts((current) => !current);
               setShowRooms(false);
             }}
@@ -603,59 +632,61 @@ export function Console({
             Contacts
           </HeaderActionButton>
           <HeaderActionButton
-            active={showRooms}
-            onClick={() => {
+            active={show_rooms}
+            on_click={() => {
               setShowRooms((current) => !current);
               setShowContacts(false);
             }}
           >
-            Rooms
+            Recent Rooms
           </HeaderActionButton>
+          <HeaderActionButton on_click={on_open_nexus}>Nexus</HeaderActionButton>
           <button
-            className="transition-transform duration-300 hover:-translate-y-0.5"
-            onClick={onCreateAgent}
-            type="button"
             aria-label="创建 Agent"
+            className="transition-transform duration-300 hover:-translate-y-0.5"
+            onClick={on_create_agent}
+            type="button"
           >
             <HeroActionOrbShell active>
               <Plus className="h-4 w-4 text-slate-900/80" />
             </HeroActionOrbShell>
           </button>
 
-          {showContacts && (
+          {show_contacts ? (
             <ContactsPopover
               agents={agents}
-              onClose={() => setShowContacts(false)}
-              onCreateAgent={onCreateAgent}
-              onDeleteAgent={onDeleteAgent}
-              onEditAgent={onEditAgent}
-              onSelectAgent={onSelectAgent}
+              on_close={() => setShowContacts(false)}
+              on_create_agent={on_create_agent}
+              on_delete_agent={on_delete_agent}
+              on_edit_agent={on_edit_agent}
+              on_open_contacts_page={on_open_contacts_page}
+              on_select_agent={on_select_agent}
             />
-          )}
+          ) : null}
 
-          {showRooms && (
-            <RoomsPopover
-              onClose={() => setShowRooms(false)}
-              onOpenSession={onOpenSession}
-              recentRooms={recentRooms}
-              sessionsWithOwners={sessionsWithOwners}
+          {show_rooms ? (
+            <RecentRoomsPopover
+              conversations_with_owners={conversations_with_owners}
+              on_close={() => setShowRooms(false)}
+              on_open_conversation={on_open_conversation}
+              recent_rooms={recent_rooms}
             />
-          )}
+          ) : null}
         </div>
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-8 pb-8 pt-6">
         <HeroStage
-          currentAgentId={currentAgentId}
-          decorativeTokens={decorativeTokens}
-          onOpenContacts={handleOpenContacts}
-          onOpenSession={onOpenSession}
-          onQueryChange={setQuery}
-          onSelectAgent={onSelectAgent}
-          onSubmit={handleSubmit}
+          current_agent_id={current_agent_id}
+          decorative_tokens={decorative_tokens}
+          on_open_conversation={on_open_conversation}
+          on_open_nexus={on_open_nexus}
+          on_query_change={setQuery}
+          on_select_agent={on_select_agent}
+          on_submit={handle_submit}
           query={query}
-          recentAgents={recentAgents}
-          recentRooms={recentRooms}
+          recent_agents={recent_agents}
+          recent_rooms={recent_rooms}
         />
       </div>
     </section>

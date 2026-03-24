@@ -34,35 +34,35 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
     const nextUpdatedAt = Date.parse(event.timestamp) || Date.now();
 
     set((state) => {
-      const nextLiveContent = resolveLiveContent(state.fileStates[key]?.liveContent, event);
+      const nextLiveContent = resolveLiveContent(state.fileStates[key]?.live_content, event);
 
       return {
         recentEvents: [
           {
             id: `${key}:${event.type}:${event.version}:${nextUpdatedAt}`,
-            eventType: event.type,
-            agentId: event.agent_id,
+            event_type: event.type,
+            agent_id: event.agent_id,
             path: event.path,
             status: nextStatus,
             version: event.version,
             source: event.source,
-            liveContent: nextLiveContent,
-            diffStats: event.diff_stats,
-            updatedAt: nextUpdatedAt,
+            live_content: nextLiveContent,
+            diff_stats: event.diff_stats,
+            updated_at: nextUpdatedAt,
           },
           ...state.recentEvents,
         ].slice(0, 24),
         fileStates: {
           ...state.fileStates,
           [key]: {
-            agentId: event.agent_id,
+            agent_id: event.agent_id,
             path: event.path,
             status: nextStatus,
             version: event.version,
             source: event.source,
-            liveContent: nextLiveContent,
-            diffStats: event.diff_stats,
-            updatedAt: nextUpdatedAt,
+            live_content: nextLiveContent,
+            diff_stats: event.diff_stats,
+            updated_at: nextUpdatedAt,
           },
         },
       };
@@ -78,7 +78,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
 
       return {
         recentEvents: [
-          ...state.recentEvents.filter((item) => !(item.agentId === agentId && item.path === path)),
+          ...state.recentEvents.filter((item) => !(item.agent_id === agentId && item.path === path)),
         ],
         fileStates: nextFileStates,
       };
@@ -87,9 +87,9 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
 
   clearAgent: (agentId) => {
     set((state) => ({
-      recentEvents: state.recentEvents.filter((item) => item.agentId !== agentId),
+      recentEvents: state.recentEvents.filter((item) => item.agent_id !== agentId),
       fileStates: Object.fromEntries(
-        Object.entries(state.fileStates).filter(([, value]) => value.agentId !== agentId),
+        Object.entries(state.fileStates).filter(([, value]) => value.agent_id !== agentId),
       ),
     }));
   },

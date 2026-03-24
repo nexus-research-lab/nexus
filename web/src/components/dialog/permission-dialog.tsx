@@ -66,7 +66,7 @@ export function PermissionDialog(
       };
       const destination = suggestion.destination ? destinationMap[suggestion.destination] || suggestion.destination : '当前会话';
       const behavior = suggestion.behavior ? behaviorMap[suggestion.behavior] || suggestion.behavior : '更新规则';
-      const ruleSummary = suggestion.rules?.map((rule) => rule.ruleContent || rule.toolName).filter(Boolean).join('，');
+      const ruleSummary = suggestion.rules?.map((rule) => rule.rule_content || rule.tool_name).filter(Boolean).join('，');
       return {
         index,
         label: `${behavior}并写入${destination}`,

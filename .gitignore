@@ -125,6 +125,9 @@ logs
 cache
 playground
 docs
+!docs/
+docs/*
+!docs/nexus-frontend-room-first-refactor-plan.md
 
 # Python
 __pycache__/

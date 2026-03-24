@@ -3,17 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { initialOptions } from "@/config/options";
-import { useInitializeSessions } from "@/hooks/use-initialize-sessions";
+import { useInitializeConversations } from "@/hooks/use-initialize-conversations";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
+import { useConversationStore } from "@/store/conversation";
 import { useAgentStore } from "@/store/agent";
-import { useSessionStore } from "@/store/session";
+import { ConversationSnapshotPayload } from "@/types/conversation";
 import { SessionOptions } from "@/types/session";
 
 interface SessionSnapshotPayload {
-  sessionKey: string;
-  messageCount: number;
-  lastActivityAt: number;
-  sessionId: string | null;
+  session_key: string;
+  message_count: number;
+  last_activity_at: number;
+  session_id: string | null;
 }
 
 export function useHomeAgentSessionController() {
@@ -27,14 +28,14 @@ export function useHomeAgentSessionController() {
     load_agents_from_server,
   } = useAgentStore();
   const {
-    sessions,
-    current_session_key,
-    createSession,
-    setCurrentSession,
-    syncSessionSnapshot,
-    deleteSession,
-    loadSessionsFromServer,
-  } = useSessionStore();
+    conversations,
+    current_conversation_id,
+    createConversation,
+    setCurrentConversation,
+    syncConversationSnapshot,
+    deleteConversation,
+    loadConversationsFromServer,
+  } = useConversationStore();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
@@ -44,9 +45,9 @@ export function useHomeAgentSessionController() {
     load_agents_from_server();
   }, [load_agents_from_server]);
 
-  const isHydrated = useInitializeSessions({
-    loadSessionsFromServer,
-    setCurrentSession,
+  const isHydrated = useInitializeConversations({
+    loadConversationsFromServer,
+    setCurrentConversation,
     autoSelectFirst: false,
     debugName: "Page",
   });
@@ -57,11 +58,11 @@ export function useHomeAgentSessionController() {
   );
 
   const sessionsByAgent = useMemo(() => {
-    const grouped = new Map<string, typeof sessions>();
-    sessions.forEach((session) => {
-      const owner = session.agent_id ?? "main";
+    const grouped = new Map<string, typeof conversations>();
+    conversations.forEach((conversation) => {
+      const owner = conversation.agent_id ?? "main";
       const currentList = grouped.get(owner) ?? [];
-      currentList.push(session);
+      currentList.push(conversation);
       grouped.set(owner, currentList);
     });
 
@@ -70,7 +71,7 @@ export function useHomeAgentSessionController() {
     });
 
     return grouped;
-  }, [sessions]);
+  }, [conversations]);
 
   const currentAgentSessions = useMemo(() => {
     if (!current_agent_id) {
@@ -80,9 +81,12 @@ export function useHomeAgentSessionController() {
   }, [current_agent_id, sessionsByAgent]);
 
   const currentSession = useMemo(
-    () => currentAgentSessions.find((session) => session.session_key === current_session_key) ?? null,
-    [currentAgentSessions, current_session_key],
+    () => currentAgentSessions.find((session) => session.session_key === current_conversation_id) ?? null,
+    [currentAgentSessions, current_conversation_id],
   );
+  const currentConversation = currentSession;
+  const currentConversationId = current_conversation_id;
+  const currentRoomConversations = currentAgentSessions;
 
   const recentAgents = useMemo(() => agents.slice(0, 4), [agents]);
   const editingAgent = useMemo(
@@ -112,19 +116,19 @@ export function useHomeAgentSessionController() {
 
   useEffect(() => {
     if (!current_agent_id) {
-      if (current_session_key !== null) {
-        setCurrentSession(null);
+      if (current_conversation_id !== null) {
+        setCurrentConversation(null);
       }
       return;
     }
 
     const hasSelectedSession = currentAgentSessions.some(
-      (session) => session.session_key === current_session_key,
+      (conversation) => conversation.session_key === current_conversation_id,
     );
     if (!hasSelectedSession) {
-      setCurrentSession(currentAgentSessions[0]?.session_key ?? null);
+      setCurrentConversation(currentAgentSessions[0]?.session_key ?? null);
     }
-  }, [current_agent_id, current_session_key, currentAgentSessions, setCurrentSession]);
+  }, [current_agent_id, current_conversation_id, currentAgentSessions, setCurrentConversation]);
 
   const handleOpenCreateAgent = useCallback(() => {
     setDialogMode("create");
@@ -155,21 +159,21 @@ export function useHomeAgentSessionController() {
       return;
     }
 
-    const key = await createSession({
+    const key = await createConversation({
       title: "New Chat",
       agent_id: current_agent_id,
     });
-    setCurrentSession(key);
-  }, [createSession, current_agent_id, setCurrentSession]);
+    setCurrentConversation(key);
+  }, [createConversation, current_agent_id, setCurrentConversation]);
 
   const handleSaveAgentOptions = useCallback(async (title: string, options: SessionOptions) => {
     const agentOptions = {
       model: options.model,
-      permission_mode: options.permissionMode,
-      allowed_tools: options.allowedTools,
-      disallowed_tools: options.disallowedTools,
-      skills_enabled: options.skillsEnabled,
-      setting_sources: options.settingSources,
+      permission_mode: options.permission_mode,
+      allowed_tools: options.allowed_tools,
+      disallowed_tools: options.disallowed_tools,
+      skills_enabled: options.skills_enabled,
+      setting_sources: options.setting_sources,
     };
 
     if (dialogMode === "create") {
@@ -195,44 +199,61 @@ export function useHomeAgentSessionController() {
   }, [dialogMode, editingAgentId]);
 
   const handleSessionSelect = useCallback((sessionKey: string) => {
-    setCurrentSession(sessionKey);
-  }, [setCurrentSession]);
+    setCurrentConversation(sessionKey);
+  }, [setCurrentConversation]);
 
   const handleOpenSessionFromDirectory = useCallback((sessionKey: string, agentId?: string) => {
     if (agentId) {
       set_current_agent(agentId);
     }
-    setCurrentSession(sessionKey);
-  }, [setCurrentSession, set_current_agent]);
+    setCurrentConversation(sessionKey);
+  }, [setCurrentConversation, set_current_agent]);
 
   const handleSessionSnapshotChange = useCallback((snapshot: SessionSnapshotPayload) => {
-    if (!snapshot.sessionKey) {
+    if (!snapshot.session_key) {
       return;
     }
 
-    syncSessionSnapshot(snapshot.sessionKey, {
-      message_count: snapshot.messageCount,
-      last_activity_at: snapshot.lastActivityAt,
-      session_id: snapshot.sessionId,
+    syncConversationSnapshot(snapshot.session_key, {
+      message_count: snapshot.message_count,
+      last_activity_at: snapshot.last_activity_at,
+      session_id: snapshot.session_id,
     });
-  }, [syncSessionSnapshot]);
+  }, [syncConversationSnapshot]);
 
   const handleDeleteSession = useCallback(async (sessionKey: string) => {
-    await deleteSession(sessionKey);
-    if (current_session_key === sessionKey) {
-      const remaining = currentAgentSessions.filter((session) => session.session_key !== sessionKey);
-      setCurrentSession(remaining[0]?.session_key ?? null);
+    await deleteConversation(sessionKey);
+    if (current_conversation_id === sessionKey) {
+      const remaining = currentAgentSessions.filter((conversation) => conversation.session_key !== sessionKey);
+      setCurrentConversation(remaining[0]?.session_key ?? null);
     }
-  }, [current_session_key, currentAgentSessions, deleteSession, setCurrentSession]);
+  }, [current_conversation_id, currentAgentSessions, deleteConversation, setCurrentConversation]);
+
+  const handleCreateConversation = handleNewSession;
+  const handleConversationSelect = handleSessionSelect;
+  const handleOpenConversationFromLauncher = handleOpenSessionFromDirectory;
+  const handleConversationSnapshotChange = useCallback((snapshot: ConversationSnapshotPayload) => {
+    handleSessionSnapshotChange({
+      session_key: snapshot.conversation_id,
+      message_count: snapshot.message_count,
+      last_activity_at: snapshot.last_activity_at,
+      session_id: snapshot.session_id,
+    });
+  }, [handleSessionSnapshotChange]);
+  const handleDeleteConversation = handleDeleteSession;
 
   return {
     agents,
     currentAgent,
     currentAgentId: current_agent_id,
     currentAgentSessions,
+    currentRoomConversations,
     currentSession,
-    currentSessionKey: current_session_key,
-    sessions,
+    currentSessionKey: current_conversation_id,
+    currentConversation,
+    currentConversationId,
+    conversations,
+    sessions: conversations,
     recentAgents,
     isHydrated,
     isDialogOpen,
@@ -246,11 +267,16 @@ export function useHomeAgentSessionController() {
     handleBackToDirectory,
     handleDeleteAgent,
     handleNewSession,
+    handleCreateConversation,
     handleSaveAgentOptions,
     handleValidateAgentName,
     handleSessionSelect,
+    handleConversationSelect,
     handleOpenSessionFromDirectory,
+    handleOpenConversationFromLauncher,
     handleSessionSnapshotChange,
+    handleConversationSnapshotChange,
     handleDeleteSession,
+    handleDeleteConversation,
   };
 }

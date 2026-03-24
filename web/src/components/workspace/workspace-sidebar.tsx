@@ -2,12 +2,9 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BrainCircuit,
   ChevronDown,
   ChevronRight,
-  Clock3,
   File,
-  FilePlus2,
   FileCode2,
   FileImage,
   FileJson,
@@ -15,14 +12,14 @@ import {
   FileText,
   FileType2,
   Folder,
-  FolderPlus,
-  FolderTree,
-  MessageSquarePlus,
   Pencil,
-  RefreshCw,
   Trash2,
 } from "lucide-react";
 
+import { RoomContextSection } from "@/features/room-context/room-context-section";
+import { RoomMembersSection } from "@/features/room-members/room-members-section";
+import { RoomConversationsSection } from "@/features/room-navigation/room-conversations-section";
+import { RoomSidebarHeader } from "@/features/room-navigation/room-sidebar-header";
 import {
   createWorkspaceEntryApi,
   deleteWorkspaceEntryApi,
@@ -30,6 +27,7 @@ import {
   renameWorkspaceEntryApi,
 } from "@/lib/agent-manage-api";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
+import { Conversation } from "@/types/conversation";
 import { Session } from "@/types/session";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -113,10 +111,16 @@ function getFileIcon(name: string) {
 }
 
 interface WorkspaceSidebarProps {
+  agents: Agent[];
   agent: Agent;
+  currentAgentId: string | null;
+  recentAgents: Agent[];
   sessions: Session[];
   currentSessionKey: string | null;
   activeWorkspacePath: string | null;
+  onSelectAgent: (agentId: string) => void;
+  onOpenDirectory: () => void;
+  onCreateAgent: () => void;
   onSelectSession: (sessionKey: string) => void;
   onCreateSession: () => void;
   onDeleteSession: (sessionKey: string) => void;
@@ -124,10 +128,16 @@ interface WorkspaceSidebarProps {
 }
 
 export function WorkspaceSidebar({
+  agents,
   agent,
+  currentAgentId,
+  recentAgents,
   sessions,
   currentSessionKey,
   activeWorkspacePath,
+  onSelectAgent,
+  onOpenDirectory,
+  onCreateAgent,
   onSelectSession,
   onCreateSession,
   onDeleteSession,
@@ -137,6 +147,7 @@ export function WorkspaceSidebar({
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [filesystemError, setFilesystemError] = useState<string | null>(null);
   const [expandedDirectories, setExpandedDirectories] = useState<Record<string, boolean>>({});
+  const [showFileExplorer, setShowFileExplorer] = useState(false);
 
   // 对话框状态
   const [promptDialog, setPromptDialog] = useState<{
@@ -160,6 +171,18 @@ export function WorkspaceSidebar({
     () => visibleFiles.filter((file) => /memory|context|summary|skill/i.test(file.path)),
     [visibleFiles],
   );
+  const contextualFiles = useMemo(() => {
+    const quick = [...memoryFiles];
+    const activeFile = activeWorkspacePath
+      ? visibleFiles.find((file) => file.path === activeWorkspacePath)
+      : null;
+
+    if (activeFile && !quick.some((file) => file.path === activeFile.path)) {
+      quick.unshift(activeFile);
+    }
+
+    return quick.slice(0, 4);
+  }, [activeWorkspacePath, memoryFiles, visibleFiles]);
   const directoryTree = useMemo(() => {
     const nodeMap = new Map<string, FileTreeNode>();
     const roots: FileTreeNode[] = [];
@@ -203,6 +226,9 @@ export function WorkspaceSidebar({
   }, [files]);
   const selectedSession = sessions.find((session) => session.session_key === currentSessionKey) ?? null;
   const latestSession = selectedSession ?? sessions[0] ?? null;
+  const activeRoomTitle = selectedSession?.title?.trim() || latestSession?.title?.trim() || "未命名 room";
+  const conversations = sessions as Conversation[];
+  const currentConversation = selectedSession as Conversation | null;
 
   const loadFiles = useCallback(async () => {
     setIsLoadingFiles(true);
@@ -223,13 +249,24 @@ export function WorkspaceSidebar({
   }, [agent.agent_id]);
 
   const latestAgentEvent = useMemo(
-    () => recentEvents.find((item) => item.agentId === agent.agent_id) ?? null,
+    () => recentEvents.find((item) => item.agent_id === agent.agent_id) ?? null,
     [agent.agent_id, recentEvents],
   );
   const knownFilePaths = useMemo(() => new Set(files.map((entry) => entry.path)), [files]);
+  const visibleAgents = useMemo(() => {
+    const seen = new Set<string>();
+    const merged = [agent, ...recentAgents, ...agents];
+    return merged.filter((item) => {
+      if (!item?.agent_id || seen.has(item.agent_id)) {
+        return false;
+      }
+      seen.add(item.agent_id);
+      return true;
+    }).slice(0, 5);
+  }, [agent, agents, recentAgents]);
 
   useEffect(() => {
-    if (!latestAgentEvent || latestAgentEvent.eventType !== "file_write_end") {
+    if (!latestAgentEvent || latestAgentEvent.event_type !== "file_write_end") {
       return;
     }
 
@@ -254,7 +291,7 @@ export function WorkspaceSidebar({
     }, 240);
 
     return () => window.clearTimeout(timer);
-  }, [knownFilePaths, latestAgentEvent?.id, latestAgentEvent?.eventType, latestAgentEvent?.path, loadFiles]);
+  }, [knownFilePaths, latestAgentEvent?.id, latestAgentEvent?.event_type, latestAgentEvent?.path, loadFiles]);
 
   useEffect(() => {
     setExpandedDirectories((current) => {
@@ -390,7 +427,7 @@ export function WorkspaceSidebar({
       const FileIcon = isDirectory ? Folder : getFileIcon(node.entry.name);
       const liveState = !isDirectory ? fileStates[`${agent.agent_id}:${node.entry.path}`] : undefined;
       const isWriting = liveState?.status === "writing";
-      const isUpdated = liveState?.status === "updated" && Date.now() - liveState.updatedAt < 6000;
+      const isUpdated = liveState?.status === "updated" && Date.now() - liveState.updated_at < 6000;
 
       const row = (
         <div
@@ -401,12 +438,12 @@ export function WorkspaceSidebar({
           className={cn(
             "group flex items-center gap-2 rounded-[18px] pr-2 transition-all duration-300",
             isActive
-              ? "neo-card-flat text-primary shadow-[0_10px_20px_rgba(133,119,255,0.12)]"
+              ? "workspace-card-strong text-slate-950 shadow-[0_10px_20px_rgba(111,126,162,0.12)]"
               : isWriting
-                ? "neo-card-flat text-primary"
+                ? "workspace-card text-slate-950"
                 : isUpdated
-                  ? "bg-[linear-gradient(135deg,rgba(166,255,194,0.32),rgba(244,241,236,0.94))] text-emerald-700 dark:text-emerald-300"
-                  : "text-foreground hover:bg-white/40",
+                  ? "workspace-card bg-[linear-gradient(135deg,rgba(166,255,194,0.26),rgba(242,250,245,0.24))] text-emerald-700"
+                  : "text-slate-900/82 hover:bg-white/18",
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
@@ -424,11 +461,11 @@ export function WorkspaceSidebar({
             {isDirectory ? (
               <>
                 {isExpanded ? (
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-700/50" />
                 ) : (
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-700/50" />
                 )}
-                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Folder className="h-4 w-4 shrink-0 text-slate-700/54" />
               </>
             ) : (
               <>
@@ -467,7 +504,7 @@ export function WorkspaceSidebar({
           <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               aria-label="重命名"
-              className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+              className="workspace-chip rounded-xl p-1.5 text-slate-700/54 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
               onClick={() => handleRenameEntry(node.entry)}
               type="button"
             >
@@ -475,7 +512,7 @@ export function WorkspaceSidebar({
             </button>
             <button
               aria-label="删除"
-              className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+              className="workspace-chip rounded-xl p-1.5 text-slate-700/54 transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
               onClick={() => handleDeleteEntry(node.entry)}
               type="button"
             >
@@ -495,166 +532,54 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className={`soft-ring radius-shell-lg flex min-h-0 flex-col panel-surface ${HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS}`}
+      className={`flex min-h-0 flex-col bg-transparent ${HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS}`}
     >
-      <div className="flex h-14 items-center justify-between border-b border-white/55 px-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Workspace
-        </p>
-        <button
-          aria-label="刷新文件列表"
-          className="neo-pill flex h-9 w-9 items-center justify-center rounded-2xl text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
-          onClick={() => void loadFiles()}
-          type="button"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", isLoadingFiles && "animate-spin")} />
-        </button>
-      </div>
+      <RoomSidebarHeader
+        activeRoomTitle={activeRoomTitle}
+        currentAgentName={agent.name}
+        isRefreshing={isLoadingFiles}
+        onOpenDirectory={onOpenDirectory}
+        onRefresh={() => void loadFiles()}
+      />
 
       <div className="soft-scrollbar flex-1 overflow-y-auto">
-        <section className="border-b border-white/55 px-4 py-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              <FolderTree className="h-3.5 w-3.5" />
-              文件
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                aria-label="创建文件"
-                className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
-                onClick={() => handleCreateEntry("file")}
-                type="button"
-              >
-                <FilePlus2 className="h-3.5 w-3.5" />
-              </button>
-              <button
-                aria-label="创建目录"
-                className="neo-pill rounded-xl p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
-                onClick={() => handleCreateEntry("directory")}
-                type="button"
-              >
-                <FolderPlus className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+        <RoomConversationsSection
+          conversations={conversations}
+          currentConversationId={currentSessionKey}
+          onCreateConversation={onCreateSession}
+          onDeleteConversation={onDeleteSession}
+          onSelectConversation={onSelectSession}
+        />
 
-          {filesystemError && (
-            <div className="radius-shell-sm mb-3 border border-destructive/20 bg-destructive/6 px-3 py-2 text-xs text-destructive">
-              {filesystemError}
-            </div>
-          )}
+        <RoomMembersSection
+          currentAgentId={currentAgentId}
+          members={visibleAgents}
+          onCreateAgent={onCreateAgent}
+          onSelectAgent={onSelectAgent}
+        />
 
-          <div className="space-y-1">
-            {directoryTree.length === 0 ? (
-              <div className="neo-inset rounded-[22px] px-3 py-4 text-sm text-muted-foreground">
+        <RoomContextSection
+          activeWorkspacePath={activeWorkspacePath}
+          contextualFiles={contextualFiles}
+          currentConversation={currentConversation}
+          fileExplorerContent={
+            directoryTree.length === 0 ? (
+              <div className="workspace-card rounded-[22px] px-3 py-4 text-sm text-slate-700/58">
                 还没有文件
               </div>
             ) : (
               renderTree(directoryTree)
-            )}
-          </div>
-        </section>
-
-        <section className="px-4 py-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              <BrainCircuit className="h-3.5 w-3.5" />
-              会话与记忆
-            </div>
-            <button
-              className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] px-3 py-1.5 text-[11px] font-bold text-[#18653a] shadow-[0_14px_24px_rgba(102,217,143,0.24)]"
-              onClick={onCreateSession}
-              type="button"
-            >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
-              新会话
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="rounded-[28px] neo-card-flat px-4 py-4">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                <FileText className="h-3.5 w-3.5" />
-                记忆与上下文
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="neo-inset radius-shell-sm px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">会话数</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{sessions.length}</p>
-                </div>
-                <div className="neo-inset radius-shell-sm px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">记忆文件</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{memoryFiles.length}</p>
-                </div>
-              </div>
-              <div className="neo-inset radius-shell-sm mt-3 flex items-center justify-between px-3 py-2">
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  <span>当前会话</span>
-                </div>
-                <div className="text-right">
-                  <p className="text-[11px] font-medium text-foreground">{latestSession?.message_count ?? 0} 条消息</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {latestSession ? formatRelativeTime(latestSession.last_activity_at) : "idle"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {(sessions || [])
-                .filter((s): s is Session => s != null && !!s.session_key)
-                .map((session) => {
-                const isActive = session.session_key === currentSessionKey;
-                return (
-                  <div
-                    key={session.session_key}
-                    className={cn(
-                      "group cursor-pointer radius-shell-md px-4 py-3 text-left transition-all duration-300",
-                      isActive
-                        ? "bg-[linear-gradient(145deg,rgba(170,161,255,0.24),rgba(244,241,236,0.96))] shadow-[0_16px_28px_rgba(133,119,255,0.16)]"
-                        : "neo-card-flat hover:-translate-y-0.5",
-                    )}
-                    onClick={() => onSelectSession(session.session_key)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onSelectSession(session.session_key);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold text-foreground">
-                          {truncate(session.title || "未命名会话", 22)}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {formatRelativeTime(session.last_activity_at)} · {session.message_count ?? 0} 条
-                        </p>
-                      </div>
-
-                      <button
-                        aria-label="删除会话"
-                        className="neo-pill rounded-xl p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (session.session_key) {
-                            onDeleteSession(session.session_key);
-                          }
-                        }}
-                        type="button"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+            )
+          }
+          filesystemError={filesystemError}
+          isFileExplorerVisible={showFileExplorer}
+          memoryFileCount={memoryFiles.length}
+          onCreateDirectory={() => handleCreateEntry("directory")}
+          onCreateFile={() => handleCreateEntry("file")}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onToggleFileExplorer={() => setShowFileExplorer((current) => !current)}
+          totalConversationCount={conversations.length}
+        />
       </div>
 
       {/* 创建/重命名对话框 */}
