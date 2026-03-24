@@ -177,7 +177,7 @@ const HeaderActionButton = memo(function HeaderActionButton({
       <HeroActionPillShell is_active={is_active}>
         <span
           className={cn(
-            "text-sm font-medium transition-colors",
+            "text-xs font-medium transition-colors sm:text-sm",
             is_active ? "text-slate-900/88" : "text-slate-800/70",
           )}
         >
@@ -211,22 +211,22 @@ const HeroStage = memo(function HeroStage({
           </p>
           <div className="relative inline-block">
             <LottiePlayer
-              class_name="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
+              class_name="pointer-events-none absolute -right-4 -top-5 h-12 w-12 opacity-[0.46] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
               inline_style={undefined}
               src={ANIMATIONS.SPARKLES}
             />
-            <h1 className="mb-10 text-[32px] font-extrabold tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
+            <h1 className="mb-7 text-[24px] font-extrabold leading-[1.12] tracking-[-0.05em] text-foreground/96 sm:mb-10 sm:text-[42px] sm:leading-[1.05]">
               和你的 agents 开始协作
             </h1>
           </div>
         </div>
 
-        <div className="mt-4">
-          <HeroInputShell class_name="mx-auto w-full max-w-[480px]">
-            <div className="flex min-w-0 items-center gap-3">
+        <div className="mt-3 sm:mt-4">
+          <HeroInputShell class_name="mx-auto w-full max-w-[326px] sm:max-w-[480px]">
+            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <MessageSquare className="h-4.5 w-4.5 text-black/58" />
               <input
-                className="flex-1 bg-transparent text-[15px] text-white/92 outline-none placeholder:text-black/42"
+                className="flex-1 bg-transparent text-[14px] text-white/92 outline-none placeholder:text-black/42 sm:text-[15px]"
                 onChange={(event) => on_query_change(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -238,7 +238,7 @@ const HeroStage = memo(function HeroStage({
                 value={query}
               />
               <button
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/84 text-slate-900 shadow-[0_10px_20px_rgba(255,255,255,0.16)] transition-transform duration-300 hover:-translate-y-0.5"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/84 text-slate-900 shadow-[0_10px_20px_rgba(255,255,255,0.16)] transition-transform duration-300 hover:-translate-y-0.5"
                 onClick={on_submit}
                 type="button"
               >
@@ -247,11 +247,11 @@ const HeroStage = memo(function HeroStage({
             </div>
           </HeroInputShell>
 
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:mt-4">
             {recent_agents.map((agent, index) => (
               <button
                 key={agent.agent_id}
-                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white/84 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/18"
+                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/84 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/18 sm:text-sm"
                 onClick={() => on_select_agent(agent.agent_id)}
                 type="button"
               >
@@ -269,7 +269,7 @@ const HeroStage = memo(function HeroStage({
             {recent_rooms.map(({ conversation }) => (
               <button
                 key={conversation.session_key}
-                className="rounded-full bg-white/8 px-3 py-1.5 text-sm font-medium text-white/76 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/16"
+                className="rounded-full bg-white/8 px-3 py-1.5 text-xs font-medium text-white/76 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/16 sm:text-sm"
                 onClick={() => on_open_conversation(conversation.session_key, conversation.agent_id)}
                 type="button"
               >
@@ -278,7 +278,7 @@ const HeroStage = memo(function HeroStage({
             ))}
 
             <button
-              className="px-2 text-sm font-medium text-white/52 transition-colors hover:text-white/82"
+              className="px-2 text-xs font-medium text-white/52 transition-colors hover:text-white/82 sm:text-sm"
               onClick={on_open_nexus}
               type="button"
             >
@@ -289,6 +289,7 @@ const HeroStage = memo(function HeroStage({
       </HeroBlobShell>
 
       <MemoAgentPile
+        class_name="hidden min-[400px]:block"
         current_agent_id={current_agent_id}
         on_select_agent={on_select_agent}
         tokens={decorative_tokens}
@@ -609,18 +610,18 @@ export function LauncherConsole({
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-0" />
 
-      <div className="relative z-30 flex items-center justify-between px-7 pt-1">
+      <div className="relative z-30 flex items-center justify-between gap-3 px-3 pt-3 sm:px-7 sm:pt-1">
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
-            class_name="pointer-events-none absolute left-2 -top-12 h-24 w-24 opacity-[0.8] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
+            class_name="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
             inline_style={undefined}
             src={ANIMATIONS.BOM}
           />
-          <img alt="" className="h-10 w-10" src="/logo.webp" />
-          <span className="text-base font-semibold text-foreground">Nexus</span>
+          <img alt="" className="h-9 w-9 sm:h-10 sm:w-10" src="/logo.webp" />
+          <span className="text-sm font-semibold text-foreground sm:text-base">Nexus</span>
         </div>
 
-        <div className="relative z-40 flex items-center gap-2">
+        <div className="relative z-40 flex items-center gap-1.5 sm:gap-2">
           <HeaderActionButton
             is_active={show_contacts}
             on_click={() => {
@@ -639,7 +640,6 @@ export function LauncherConsole({
           >
             Rooms
           </HeaderActionButton>
-          <HeaderActionButton on_click={on_open_nexus}>Nexus</HeaderActionButton>
           <button
             aria-label="创建 Agent"
             className="transition-transform duration-300 hover:-translate-y-0.5"
@@ -647,7 +647,7 @@ export function LauncherConsole({
             type="button"
           >
             <HeroActionOrbShell is_active>
-              <Plus className="h-4 w-4 text-slate-900/80" />
+              <Plus className="h-3.5 w-3.5 text-slate-900/80 sm:h-4 sm:w-4" />
             </HeroActionOrbShell>
           </button>
 

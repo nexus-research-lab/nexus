@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { SpotlightToken } from "@/types/launcher";
 
 interface SpotlightTokenPileProps {
+  class_name?: string;
   tokens: SpotlightToken[];
   current_agent_id: string | null;
   on_select_agent: (agent_id: string) => void;
@@ -186,6 +187,7 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
 }
 
 export function AgentPile({
+  class_name,
   tokens,
   current_agent_id,
   on_select_agent,
@@ -386,7 +388,10 @@ export function AgentPile({
   return (
     <div
       ref={containerRef}
-      className="relative mt-14 h-[286px] w-full max-w-[640px] overflow-hidden [mask-image:linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]"
+      className={cn(
+        "relative mt-14 h-[286px] w-full max-w-[640px] overflow-hidden [mask-image:linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]",
+        class_name,
+      )}
     >
       <div className="pointer-events-none absolute inset-x-[10%] top-[64px] h-28 rounded-full bg-[radial-gradient(circle,rgba(154,127,255,0.18),rgba(154,127,255,0)_72%)] blur-3xl" />
       <div className="pointer-events-none absolute inset-x-[18%] bottom-[58px] h-24 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.18),rgba(255,255,255,0)_76%)] blur-2xl" />

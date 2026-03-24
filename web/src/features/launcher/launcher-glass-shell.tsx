@@ -329,8 +329,8 @@ export function HeroActionPillShell({
 }: HeroActionPillShellProps) {
   return (
     <StaticGlassShell
-      class_name={cn("h-11 min-w-[108px]", class_name)}
-      content_class_name="flex h-full items-center justify-center px-5"
+      class_name={cn("h-9 min-w-[74px] sm:h-11 sm:min-w-[108px]", class_name)}
+      content_class_name="flex h-full items-center justify-center px-3 sm:px-5"
       aura_background={is_active
         ? "radial-gradient(48% 38% at 50% 50%, rgba(255,255,255,0.12), rgba(255,255,255,0) 72%)"
         : ""}
@@ -364,7 +364,7 @@ export function HeroActionOrbShell({
 }: HeroActionOrbShellProps) {
   return (
     <StaticGlassShell
-      class_name={cn("h-11 w-11", class_name)}
+      class_name={cn("h-9 w-9 sm:h-11 sm:w-11", class_name)}
       content_class_name="flex h-full items-center justify-center"
       aura_background={is_active
         ? "radial-gradient(54% 54% at 50% 50%, rgba(171,238,194,0.22), rgba(171,238,194,0) 70%)"
@@ -407,8 +407,9 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
 
   return (
     <>
-      <div className={cn("relative isolate w-full max-w-[980px]", class_name)}>
-        <div className="absolute inset-[-20%] z-0 pointer-events-none">
+      <div className={cn("relative isolate w-full max-w-[404px] sm:max-w-[980px]", class_name)}>
+        <div className="absolute inset-[-24%] z-0 pointer-events-none sm:inset-[-20%]">
+          <div className="h-full w-full origin-center scale-x-[1.7] scale-y-[0.96] sm:scale-x-[1.4] sm:scale-y-[1.2] lg:scale-x-100 lg:scale-y-100  ">
           <div
             className="absolute inset-0 pointer-events-none blur-[56px]"
             style={{
@@ -473,9 +474,10 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
               strokeWidth="4"
             />
           </svg>
+          </div>
         </div>
 
-        <div className="relative z-10 px-14 py-12 text-center sm:px-18 sm:py-16">
+        <div className="relative z-10 px-5 py-11 text-center sm:px-14 sm:py-12 lg:px-18 lg:py-16">
           {children}
         </div>
 
@@ -548,7 +550,7 @@ export function HeroInputShell({ children, class_name }: HeroInputShellProps) {
   return (
     <>
       <div className={cn("relative isolate w-full", class_name)}>
-        <div className="absolute inset-[-6%] z-0">
+        <div className="absolute inset-[-4%] z-0 sm:inset-[-6%]">
           <svg
             aria-hidden="true"
             className="absolute inset-0 h-full w-full pointer-events-none"
@@ -599,7 +601,7 @@ export function HeroInputShell({ children, class_name }: HeroInputShellProps) {
           </svg>
         </div>
 
-        <div className="relative z-10 px-6 py-5">
+        <div className="relative z-10 px-4 py-4 sm:px-6 sm:py-5">
           {children}
         </div>
 

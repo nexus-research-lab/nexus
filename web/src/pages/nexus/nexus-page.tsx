@@ -10,7 +10,7 @@ import { NexusRouteParams } from "@/types/route";
 
 export function NexusPage() {
   const params = useParams<NexusRouteParams>();
-  const { agents, load_agents_from_server, loading: agents_loading } = useAgentStore();
+  const {agents, load_agents_from_server, loading: agents_loading} = useAgentStore();
   const {
     conversations,
     load_conversations_from_server,
@@ -23,7 +23,7 @@ export function NexusPage() {
   }, [load_agents_from_server, load_conversations_from_server]);
 
   if (agents_loading && conversations_loading && !agents.length && !conversations.length) {
-    return <AppLoadingScreen />;
+    return <AppLoadingScreen/>;
   }
 
   return (
