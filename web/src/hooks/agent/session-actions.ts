@@ -10,7 +10,7 @@ import { upsertMessage } from './message-helpers';
 /**
  * 发送用户消息并建立当前轮次的本地状态。
  */
-export async function sendSessionMessage(
+export async function sendConversationMessage(
   content: string,
   context: AgentSessionActionContext,
 ): Promise<void> {
@@ -67,7 +67,7 @@ export async function sendSessionMessage(
 /**
  * 中断当前会话生成。
  */
-export function stopSessionGeneration(context: AgentSessionActionContext): void {
+export function stopConversationGeneration(context: AgentSessionActionContext): void {
   const {
     agent_id,
     session_key,
@@ -101,7 +101,7 @@ export function stopSessionGeneration(context: AgentSessionActionContext): void 
 /**
  * 提交权限决策。
  */
-export function sendSessionPermissionResponse(
+export function sendConversationPermissionResponse(
   payload: PermissionDecisionPayload,
   context: AgentSessionActionContext,
 ): void {
@@ -152,7 +152,7 @@ export function sendSessionPermissionResponse(
 /**
  * 删除指定轮次的消息。
  */
-export async function deleteSessionRound(
+export async function deleteConversationRound(
   round_id: string,
   context: AgentSessionActionContext,
 ): Promise<void> {
@@ -178,7 +178,7 @@ export async function deleteSessionRound(
 /**
  * 基于指定轮次重新生成回复。
  */
-export async function regenerateSessionRound(
+export async function regenerateConversationRound(
   round_id: string,
   context: AgentSessionActionContext,
 ): Promise<void> {
@@ -201,8 +201,8 @@ export async function regenerateSessionRound(
   }
 
   try {
-    await deleteSessionRound(round_id, context);
-    await sendSessionMessage(last_user_message.content, context);
+    await deleteConversationRound(round_id, context);
+    await sendConversationMessage(last_user_message.content, context);
   } catch (err) {
     console.error('[regenerate] 重新生成失败:', err);
     set_error(err instanceof Error ? err.message : 'Failed to regenerate');

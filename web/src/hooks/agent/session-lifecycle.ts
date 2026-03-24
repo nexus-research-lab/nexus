@@ -1,4 +1,4 @@
-import { getSessionMessages } from '@/lib/agent-api';
+import { getConversationMessages } from '@/lib/agent-api';
 import { generateUuid } from '@/lib/uuid';
 import { AgentSessionLifecycleContext } from '@/types/agent-session';
 
@@ -7,7 +7,7 @@ import { sortMessages } from './message-helpers';
 /**
  * 重置当前会话视图状态。
  */
-export function resetSessionView(
+export function resetConversationView(
   context: AgentSessionLifecycleContext,
   next_error: string | null = null,
 ): void {
@@ -20,18 +20,18 @@ export function resetSessionView(
 /**
  * 启动一个新的会话。
  */
-export function startAgentSession(context: AgentSessionLifecycleContext): void {
+export function startAgentConversation(context: AgentSessionLifecycleContext): void {
   const new_session_key = generateUuid();
   context.load_request_id_ref.current += 1;
   context.active_session_key_ref.current = new_session_key;
   context.set_session_key(new_session_key);
-  resetSessionView(context);
+  resetConversationView(context);
 }
 
 /**
  * 加载现有会话消息。
  */
-export async function loadAgentSession(
+export async function loadAgentConversation(
   session_key: string,
   context: AgentSessionLifecycleContext,
 ): Promise<void> {
@@ -39,10 +39,10 @@ export async function loadAgentSession(
   context.load_request_id_ref.current = request_id;
   context.active_session_key_ref.current = session_key;
   context.set_session_key(session_key);
-  resetSessionView(context);
+  resetConversationView(context);
 
   try {
-    const data = await getSessionMessages(session_key);
+    const data = await getConversationMessages(session_key);
     if (
       context.load_request_id_ref.current !== request_id ||
       context.active_session_key_ref.current !== session_key
@@ -59,7 +59,7 @@ export async function loadAgentSession(
     ) {
       return;
     }
-    console.error('[loadSession] 加载session失败:', err);
+    console.error('[loadConversation] 加载 conversation 失败:', err);
     context.set_error(err instanceof Error ? err.message : 'Failed to load session');
   }
 }
@@ -67,16 +67,16 @@ export async function loadAgentSession(
 /**
  * 清空当前会话选择。
  */
-export function clearAgentSession(context: AgentSessionLifecycleContext): void {
+export function clearAgentConversation(context: AgentSessionLifecycleContext): void {
   context.load_request_id_ref.current += 1;
   context.active_session_key_ref.current = null;
   context.set_session_key(null);
-  resetSessionView(context);
+  resetConversationView(context);
 }
 
 /**
  * 重置会话并创建新的会话键。
  */
-export function resetAgentSession(context: AgentSessionLifecycleContext): void {
-  startAgentSession(context);
+export function resetAgentConversation(context: AgentSessionLifecycleContext): void {
+  startAgentConversation(context);
 }

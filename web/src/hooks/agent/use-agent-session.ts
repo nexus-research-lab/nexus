@@ -11,18 +11,18 @@ import {
   UseAgentSessionReturn,
 } from '@/types/agent-session';
 import {
-  clearAgentSession,
-  loadAgentSession,
-  resetAgentSession,
-  startAgentSession,
+  clearAgentConversation,
+  loadAgentConversation,
+  resetAgentConversation,
+  startAgentConversation,
 } from './session-lifecycle';
 import { handleAgentWebSocketMessage } from './websocket-event-handler';
 import {
-  deleteSessionRound,
-  regenerateSessionRound,
-  sendSessionMessage,
-  sendSessionPermissionResponse,
-  stopSessionGeneration,
+  deleteConversationRound,
+  regenerateConversationRound,
+  sendConversationMessage,
+  sendConversationPermissionResponse,
+  stopConversationGeneration,
 } from './session-actions';
 
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
@@ -130,39 +130,39 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   };
 
   const send_message = useCallback(async (content: string) => {
-    await sendSessionMessage(content, action_context);
+    await sendConversationMessage(content, action_context);
   }, [action_context]);
 
   const stop_generation = useCallback(() => {
-    stopSessionGeneration(action_context);
+    stopConversationGeneration(action_context);
   }, [action_context]);
 
   const send_permission_response = useCallback((payload: PermissionDecisionPayload) => {
-    sendSessionPermissionResponse(payload, action_context);
+    sendConversationPermissionResponse(payload, action_context);
   }, [action_context]);
 
   const regenerate = useCallback(async (round_id: string) => {
-    await regenerateSessionRound(round_id, action_context);
+    await regenerateConversationRound(round_id, action_context);
   }, [action_context]);
 
   const delete_round = useCallback(async (round_id: string) => {
-    await deleteSessionRound(round_id, action_context);
+    await deleteConversationRound(round_id, action_context);
   }, [action_context]);
 
   const start_session = useCallback(() => {
-    startAgentSession(lifecycle_context);
+    startAgentConversation(lifecycle_context);
   }, [lifecycle_context]);
 
   const load_session = useCallback(async (id: string): Promise<void> => {
-    await loadAgentSession(id, lifecycle_context);
+    await loadAgentConversation(id, lifecycle_context);
   }, [lifecycle_context]);
 
   const clear_session = useCallback(() => {
-    clearAgentSession(lifecycle_context);
+    clearAgentConversation(lifecycle_context);
   }, [lifecycle_context]);
 
   const reset_session = useCallback(() => {
-    resetAgentSession(lifecycle_context);
+    resetAgentConversation(lifecycle_context);
   }, [lifecycle_context]);
 
   return {
