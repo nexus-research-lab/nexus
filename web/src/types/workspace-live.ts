@@ -28,17 +28,17 @@ export interface WorkspaceLiveEvent {
 }
 
 export interface WorkspaceLiveFileState {
-  agentId: string;
+  agent_id: string;
   path: string;
   status: 'idle' | 'writing' | 'updated';
   version: number;
   source: WorkspaceLiveEvent['source'];
-  liveContent?: string | null;
-  diffStats?: WorkspaceDiffStats | null;
-  updatedAt: number;
+  live_content?: string | null;
+  diff_stats?: WorkspaceDiffStats | null;
+  updated_at: number;
 }
 
 export interface WorkspaceActivityItem extends WorkspaceLiveFileState {
-  eventType: WorkspaceLiveEvent['type'];
+  event_type: WorkspaceLiveEvent['type'];
   id: string;
 }

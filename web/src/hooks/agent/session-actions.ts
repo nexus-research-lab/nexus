@@ -138,11 +138,11 @@ export function sendSessionPermissionResponse(
     interrupt: payload.interrupt ?? false,
   };
 
-  if (payload.userAnswers?.length) {
-    response.user_answers = payload.userAnswers;
+  if (payload.user_answers?.length) {
+    response.user_answers = payload.user_answers;
   }
-  if (payload.updatedPermissions?.length) {
-    response.updated_permissions = payload.updatedPermissions;
+  if (payload.updated_permissions?.length) {
+    response.updated_permissions = payload.updated_permissions;
   }
 
   wsSend(response);

@@ -22,8 +22,8 @@ export type PermissionBehavior = 'allow' | 'deny' | 'ask';
 export type PermissionDestination = 'userSettings' | 'projectSettings' | 'localSettings' | 'session';
 
 export interface PermissionRule {
-  toolName: string;
-  ruleContent?: string | null;
+  tool_name: string;
+  rule_content?: string | null;
 }
 
 export interface PermissionUpdate {
@@ -48,8 +48,8 @@ export interface PendingPermission {
 
 export interface PermissionDecisionPayload {
   decision: PermissionDecision;
-  userAnswers?: UserQuestionAnswer[];
-  updatedPermissions?: PermissionUpdate[];
+  user_answers?: UserQuestionAnswer[];
+  updated_permissions?: PermissionUpdate[];
   message?: string;
   interrupt?: boolean;
 }

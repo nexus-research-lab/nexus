@@ -25,7 +25,7 @@ import {
 } from './session-actions';
 
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
-  const wsUrl = options.wsUrl || getAgentWsUrl();
+  const wsUrl = options.ws_url || getAgentWsUrl();
   const applyWorkspaceEvent = useWorkspaceLiveStore((state) => state.applyEvent);
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -71,7 +71,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
     url: wsUrl,
     autoConnect: true,
     reconnect: true,
-    heartbeatInterval: 30000,
+    heartbeat_interval: 30000,
     onMessage: handleWebSocketMessage,
     onError: (event) => {
       // 开发环境 StrictMode 会触发一次挂载后立即清理，
@@ -84,7 +84,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
       const errorMessage = 'WebSocket error occurred';
       console.error('[useAgentSession] WebSocket error:', event);
       setError(errorMessage);
-      options.onError?.(new Error(errorMessage));
+      options.on_error?.(new Error(errorMessage));
     },
   });
 
@@ -96,7 +96,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   }, [wsState]);
 
   useEffect(() => {
-    const agentId = options.agentId;
+    const agentId = options.agent_id;
     if (!agentId || wsState !== 'connected') {
       return;
     }
@@ -112,10 +112,10 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
         agent_id: agentId,
       });
     };
-  }, [options.agentId, wsSend, wsState]);
+  }, [options.agent_id, wsSend, wsState]);
 
   const actionContext: AgentSessionActionContext = {
-    agentId: options.agentId,
+    agentId: options.agent_id,
     sessionKey,
     wsState,
     wsSend,
@@ -167,18 +167,18 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
   return {
     error,
     messages,
-    sessionKey,
-    isLoading,
-    pendingPermission,
-    sendMessage,
-    startSession,
-    loadSession,
-    clearSession,
-    resetSession,
-    stopGeneration,
-    deleteRound,
+    session_key: sessionKey,
+    is_loading: isLoading,
+    pending_permission: pendingPermission,
+    send_message: sendMessage,
+    start_session: startSession,
+    load_session: loadSession,
+    clear_session: clearSession,
+    reset_session: resetSession,
+    stop_generation: stopGeneration,
+    delete_round: deleteRound,
     regenerate,
-    sendPermissionResponse,
+    send_permission_response: sendPermissionResponse,
   };
 }
 

@@ -11,31 +11,31 @@ import { Message } from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 
 export interface UseAgentSessionOptions {
-  wsUrl?: string;
-  agentId?: string | null;
-  onError?: (error: Error) => void;
+  ws_url?: string;
+  agent_id?: string | null;
+  on_error?: (error: Error) => void;
 }
 
 export interface UseAgentSessionReturn {
   messages: Message[];
-  sessionKey: string | null;
-  isLoading: boolean;
+  session_key: string | null;
+  is_loading: boolean;
   error: string | null;
-  sendMessage: (content: string) => Promise<void>;
-  startSession: () => void;
-  loadSession: (key: string) => Promise<void>;
-  clearSession: () => void;
-  resetSession: () => void;
-  stopGeneration: () => void;
-  deleteRound: (roundId: string) => Promise<void>;
+  send_message: (content: string) => Promise<void>;
+  start_session: () => void;
+  load_session: (key: string) => Promise<void>;
+  clear_session: () => void;
+  reset_session: () => void;
+  stop_generation: () => void;
+  delete_round: (roundId: string) => Promise<void>;
   regenerate: (roundId: string) => Promise<void>;
-  pendingPermission: PendingPermission | null;
-  sendPermissionResponse: (payload: PermissionDecisionPayload) => void;
+  pending_permission: PendingPermission | null;
+  send_permission_response: (payload: PermissionDecisionPayload) => void;
 }
 
 export interface SessionSnapshot {
-  sessionKey: string;
-  messageCount: number;
-  lastActivityAt: number;
-  sessionId: string | null;
+  session_key: string;
+  message_count: number;
+  last_activity_at: number;
+  session_id: string | null;
 }
