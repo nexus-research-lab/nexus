@@ -13,9 +13,6 @@ export * from './sdk';
 // 消息相关类型
 export * from './message';
 
-// 会话相关类型
-export * from './session';
-
 // 对话相关类型
 export * from './conversation';
 

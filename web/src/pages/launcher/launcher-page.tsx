@@ -8,7 +8,7 @@ import { AppStage } from "@/shared/ui/app-stage";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
-import { SessionOptions } from "@/types/session";
+import { AgentOptions as AgentConfigOptions } from "@/types/agent";
 
 export function LauncherPage() {
   const controller = useLauncherPageController();
@@ -35,7 +35,7 @@ export function LauncherPage() {
     navigate(AppRouteBuilders.nexus());
   }, [navigate]);
 
-  const handleSaveAgentOptions = useCallback(async (title: string, options: SessionOptions) => {
+  const handleSaveAgentOptions = useCallback(async (title: string, options: AgentConfigOptions) => {
     const should_open_room_after_create = controller.dialog_mode === "create";
     await controller.handle_save_agent_options(title, options);
 

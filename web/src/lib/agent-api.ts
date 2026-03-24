@@ -1,13 +1,18 @@
 /**
- * Session API 服务模块
+ * Conversation API 服务模块
  *
- * [INPUT]: 依赖 @/types/session, @/types/message, @/types/cost, @/types/api
- * [OUTPUT]: 对外提供 getSessions、createSession、updateSession、deleteSession 等 API 函数
- * [POS]: lib 模块的 Session API 层
+ * [INPUT]: 依赖 @/types/conversation, @/types/message, @/types/cost, @/types/api
+ * [OUTPUT]: 对外提供 conversation CRUD、消息、成本等 API 函数
+ * [POS]: lib 模块的 Conversation API 层
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { ApiSession, CreateSessionParams, Session, UpdateSessionParams } from '@/types/session';
+import {
+  ApiConversation,
+  Conversation,
+  CreateConversationParams,
+  UpdateConversationParams,
+} from '@/types/conversation';
 import { Message as ChatMessage } from '@/types/message';
 import { SessionCostSummary } from '@/types/cost';
 import { ApiResponse } from '@/types/api';
@@ -18,7 +23,7 @@ const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 // ==================== 类型转换 ====================
 
 /** 将 API 响应转换为前端标准格式 */
-export function transformApiSession(api: ApiSession): Session {
+export function transformApiConversation(api: ApiConversation): Conversation {
   return {
     session_key: api.session_key,
     agent_id: api.agent_id,
@@ -32,9 +37,9 @@ export function transformApiSession(api: ApiSession): Session {
   };
 }
 
-// ==================== 会话 API ====================
+// ==================== 对话 API ====================
 
-export const getSessions = async (): Promise<Session[]> => {
+export const getConversations = async (): Promise<Conversation[]> => {
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
@@ -42,8 +47,8 @@ export const getSessions = async (): Promise<Session[]> => {
   if (!response.ok) {
     throw new Error(`获取会话列表失败: ${response.statusText}`);
   }
-  const result: ApiResponse<ApiSession[]> = await response.json();
-  return result.data.map(transformApiSession);
+  const result: ApiResponse<ApiConversation[]> = await response.json();
+  return result.data.map(transformApiConversation);
 };
 
 export const getConversationMessages = async (session_key: string): Promise<ChatMessage[]> => {
@@ -70,7 +75,7 @@ export const getConversationCostSummary = async (session_key: string): Promise<S
   return result.data;
 };
 
-export const deleteSession = async (session_key: string): Promise<{ success: boolean }> => {
+export const deleteConversation = async (session_key: string): Promise<{ success: boolean }> => {
   if (!session_key) {
     throw new Error('session_key 不能为空');
   }
@@ -97,7 +102,10 @@ export const deleteRound = async (session_key: string, roundId: string): Promise
   return result.data;
 };
 
-export const createSession = async (session_key: string, params: CreateSessionParams): Promise<Session> => {
+export const createConversation = async (
+  session_key: string,
+  params: CreateConversationParams,
+): Promise<Conversation> => {
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -110,11 +118,14 @@ export const createSession = async (session_key: string, params: CreateSessionPa
   if (!response.ok) {
     throw new Error(`创建会话失败: ${response.statusText}`);
   }
-  const result: ApiResponse<ApiSession> = await response.json();
-  return transformApiSession(result.data);
+  const result: ApiResponse<ApiConversation> = await response.json();
+  return transformApiConversation(result.data);
 };
 
-export const updateSession = async (session_key: string, params: UpdateSessionParams): Promise<Session> => {
+export const updateConversation = async (
+  session_key: string,
+  params: UpdateConversationParams,
+): Promise<Conversation> => {
   const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${session_key}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -125,6 +136,6 @@ export const updateSession = async (session_key: string, params: UpdateSessionPa
   if (!response.ok) {
     throw new Error(`更新会话失败: ${response.statusText}`);
   }
-  const result: ApiResponse<ApiSession> = await response.json();
-  return transformApiSession(result.data);
+  const result: ApiResponse<ApiConversation> = await response.json();
+  return transformApiConversation(result.data);
 };

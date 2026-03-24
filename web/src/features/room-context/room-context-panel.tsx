@@ -4,7 +4,6 @@ import { HOME_AGENT_INSPECTOR_WIDTH_CLASS } from "@/lib/home-layout";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
-import { Session } from "@/types/session";
 import { TodoItem } from "@/types/todo";
 
 import { RoomCollaborationStatusSection } from "./room-collaboration-status-section";
@@ -15,8 +14,8 @@ import { RoomWorkspaceContextSection } from "./room-workspace-context-section";
 
 interface RoomContextPanelProps {
   agent: Agent;
-  sessions: Session[];
-  active_session: Session | null;
+  sessions: Conversation[];
+  active_session: Conversation | null;
   todos: TodoItem[];
   is_session_busy: boolean;
   session_cost_summary: SessionCostSummary;
@@ -39,7 +38,7 @@ export function RoomContextPanel({
   const localized_runtime_status =
     runtime_status === "Running" ? "协作中" : runtime_status === "Idle" ? "待命" : "在线";
   const localized_agent_skill = agent.options.skills_enabled ? "技能已启用" : "通用成员";
-  const current_conversation = (active_session as Conversation | null) ?? null;
+  const current_conversation = active_session;
 
   return (
     <aside className={`flex min-h-0 flex-col bg-transparent ${HOME_AGENT_INSPECTOR_WIDTH_CLASS}`}>

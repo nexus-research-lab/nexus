@@ -18,20 +18,19 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, Settings, Sparkles, Wrench, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SessionOptions } from "@/types/session";
-import { AgentNameValidationResult } from "@/types/agent";
+import { AgentNameValidationResult, AgentOptions as AgentConfigOptions } from "@/types/agent";
 
 interface AgentOptionsProps {
   mode: 'create' | 'edit';
   is_open: boolean;
   on_close: () => void;
-  on_save: (title: string, options: SessionOptions) => void;
+  on_save: (title: string, options: AgentConfigOptions) => void;
   on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   initial_title?: string;
-  initial_options?: Partial<SessionOptions>;
+  initial_options?: Partial<AgentConfigOptions>;
 }
 
-interface AgentDialogInitialOptions extends Partial<SessionOptions> {
+interface AgentDialogInitialOptions extends Partial<AgentConfigOptions> {
   permission_mode?: string;
   allowed_tools?: string[];
   disallowed_tools?: string[];
@@ -232,7 +231,7 @@ export function AgentOptions(
       finalAllowedTools.push('Skill');
     }
 
-    const options: SessionOptions = {
+    const options: AgentConfigOptions = {
       model,
       permission_mode: permissionMode,
       allowed_tools: finalAllowedTools,

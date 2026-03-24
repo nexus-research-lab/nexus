@@ -1,12 +1,37 @@
-import {
-  CreateSessionParams,
-  Session,
-  UpdateSessionParams,
-} from "@/types/session";
+import { SessionId } from "@/types/sdk";
 
-export type Conversation = Session;
-export type CreateConversationParams = CreateSessionParams;
-export type UpdateConversationParams = UpdateSessionParams;
+export interface Conversation {
+  session_key: string;
+  agent_id?: string;
+  session_id: SessionId | null;
+  title: string;
+  options: Record<string, unknown>;
+  created_at: number;
+  last_activity_at: number;
+  is_active?: boolean;
+  message_count?: number;
+}
+
+export interface ApiConversation {
+  session_key: string;
+  agent_id: string;
+  session_id: string | null;
+  created_at: string;
+  last_activity: string;
+  is_active: boolean;
+  title: string | null;
+  message_count: number;
+  options: Record<string, unknown> | null;
+}
+
+export interface CreateConversationParams {
+  title?: string;
+  agent_id?: string;
+}
+
+export interface UpdateConversationParams {
+  title?: string;
+}
 
 export interface ConversationSnapshotPayload {
   conversation_id: string;

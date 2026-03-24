@@ -8,7 +8,7 @@ L2 | 父级: web/CLAUDE.md
 - `api.ts`: API 通用响应类型 `ApiResponse<T>`
 - `sdk.ts`: SDK 基础类型（UUID/SessionId/ToolInput/ToolOutput）
 - `message.ts`: 消息类型（Message/EventMessage 及内容块）
-- `session.ts`: 会话类型（Session/SessionOptions/ApiSession/CRUD 参数）
+- `conversation.ts`: 对话类型（Conversation/ApiConversation/CRUD 参数）
 - `agent-conversation.ts`: useAgentConversation 相关类型
 - `agent.ts`: Agent 类型（Agent/AgentOptions/Workspace 文件操作类型）
 - `cost.ts`: 成本统计类型（SessionCostSummary/AgentCostSummary）

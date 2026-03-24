@@ -7,8 +7,8 @@ import { useInitializeConversations } from "@/hooks/use-initialize-conversations
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
 import { useConversationStore } from "@/store/conversation";
 import { useAgentStore } from "@/store/agent";
+import { AgentOptions } from "@/types/agent";
 import { ConversationSnapshotPayload } from "@/types/conversation";
-import { SessionOptions } from "@/types/session";
 
 export function useHomeAgentSessionController() {
   const {
@@ -156,7 +156,7 @@ export function useHomeAgentSessionController() {
     set_current_conversation(key);
   }, [create_conversation, current_agent_id, set_current_conversation]);
 
-  const handle_save_agent_options = useCallback(async (title: string, options: SessionOptions) => {
+  const handle_save_agent_options = useCallback(async (title: string, options: AgentOptions) => {
     const agentOptions = {
       model: options.model,
       permission_mode: options.permission_mode,

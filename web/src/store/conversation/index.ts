@@ -1,32 +1,41 @@
-import { useMemo } from "react";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-import { useSessionStore } from "@/store/session";
+import { createBrowserJSONStorage } from "@/lib/browser-storage";
 import { ConversationStoreState } from "@/types/conversation";
 
-function mapConversationStoreState(
-  state: ReturnType<typeof useSessionStore.getState>,
-): ConversationStoreState {
-  return {
-    conversations: state.sessions,
-    current_conversation_id: state.current_session_key,
-    loading: state.loading,
-    error: state.error,
-    create_conversation: state.create_session,
-    delete_conversation: state.delete_session,
-    update_conversation: state.update_session,
-    set_current_conversation: state.set_current_session,
-    sync_conversation_snapshot: state.sync_session_snapshot,
-    get_conversation: state.get_session,
-    load_conversations_from_server: state.load_sessions_from_server,
-    clear_all_conversations: state.clear_all_sessions,
-  };
-}
+import * as actions from "./actions";
 
-export function useConversationStore(): ConversationStoreState {
-  const sessionStore = useSessionStore();
-  return useMemo(() => mapConversationStoreState(sessionStore), [sessionStore]);
-}
+export const useConversationStore = create<ConversationStoreState>()(
+  persist(
+    (set, get) => ({
+      conversations: [],
+      current_conversation_id: null,
+      loading: false,
+      error: null,
+
+      create_conversation: actions.createConversationAction(set),
+      delete_conversation: actions.deleteConversationAction(set),
+      update_conversation: actions.updateConversationAction(set),
+      set_current_conversation: actions.setCurrentConversationAction(set),
+      sync_conversation_snapshot: actions.syncConversationSnapshotAction(set),
+      get_conversation: actions.getConversationAction(get),
+      load_conversations_from_server: actions.loadConversationsFromServerAction(set),
+      clear_all_conversations: actions.clearAllConversationsAction(set),
+    }),
+    {
+      name: "agent-ui-conversations",
+      storage: createBrowserJSONStorage(),
+      partialize: (state) => ({
+        conversations: state.conversations,
+        current_conversation_id: state.current_conversation_id,
+      }),
+    },
+  ),
+);
 
 export function getConversationStoreSnapshot(): ConversationStoreState {
-  return mapConversationStoreState(useSessionStore.getState());
+  return useConversationStore.getState();
 }
+
+export { generateConversationKey, createDefaultConversation } from "./utils";

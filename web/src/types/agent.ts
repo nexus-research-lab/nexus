@@ -15,6 +15,8 @@ export interface AgentOptions {
     permission_mode?: string;
     allowed_tools?: string[];
     disallowed_tools?: string[];
+    system_prompt?: string;
+    cwd?: string;
     max_turns?: number;
     max_thinking_tokens?: number;
     mcp_servers?: Record<string, any>;
