@@ -27,7 +27,7 @@ import {
 
 export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentSessionReturn {
   const ws_url = options.ws_url || getAgentWsUrl();
-  const apply_workspace_event = useWorkspaceLiveStore((state) => state.applyEvent);
+  const apply_workspace_event = useWorkspaceLiveStore((state) => state.apply_event);
 
   const [messages, set_messages] = useState<Message[]>([]);
   const [is_loading, set_is_loading] = useState(false);
@@ -70,11 +70,11 @@ export function useAgentSession(options: UseAgentSessionOptions = {}): UseAgentS
 
   const { state: ws_state, send: ws_send } = useWebSocket({
     url: ws_url,
-    autoConnect: true,
+    auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,
-    onMessage: handle_websocket_message,
-    onError: (event) => {
+    on_message: handle_websocket_message,
+    on_error: (event) => {
       // 开发环境 StrictMode 会触发一次挂载后立即清理，
       // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
       if (!has_connected_ref.current) {

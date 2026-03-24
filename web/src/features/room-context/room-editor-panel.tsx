@@ -33,7 +33,7 @@ export function RoomEditorPanel({
   const [is_loading, setIsLoading] = useState(false);
   const [is_saving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const file_states = useWorkspaceLiveStore((state) => state.fileStates);
+  const file_states = useWorkspaceLiveStore((state) => state.file_states);
 
   const live_state = path ? file_states[`${agent_id}:${path}`] : undefined;
   const is_external_writing = !!live_state && live_state.source !== "api" && live_state.status === "writing";

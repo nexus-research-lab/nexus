@@ -152,10 +152,10 @@ export function RoomSidebarPanel({
     entry?: WorkspaceFileEntry;
   }>({ is_open: false });
 
-  const file_states = useWorkspaceLiveStore((state) => state.fileStates);
-  const recent_events = useWorkspaceLiveStore((state) => state.recentEvents);
-  const mark_file_seen = useWorkspaceLiveStore((state) => state.markFileSeen);
-  const set_workspace_files = useWorkspaceFilesStore((state) => state.setFiles);
+  const file_states = useWorkspaceLiveStore((state) => state.file_states);
+  const recent_events = useWorkspaceLiveStore((state) => state.recent_events);
+  const mark_file_seen = useWorkspaceLiveStore((state) => state.mark_file_seen);
+  const set_workspace_files = useWorkspaceFilesStore((state) => state.set_files);
   const row_refs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const visible_files = useMemo(() => files.filter((file) => !file.is_dir), [files]);

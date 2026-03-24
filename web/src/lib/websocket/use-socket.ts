@@ -9,45 +9,45 @@ import { WebSocketClient } from './socket-client';
 import { WebSocketConfig, WebSocketState, WebSocketMessage } from '@/types/websocket';
 
 export interface UseWebSocketOptions extends Omit<WebSocketConfig, 'protocols'> {
-  onMessage?: (message: any) => void;
-  onError?: (error: Event) => void;
-  onStateChange?: (state: WebSocketState) => void;
-  autoConnect?: boolean;
+  on_message?: (message: any) => void;
+  on_error?: (error: Event) => void;
+  on_state_change?: (state: WebSocketState) => void;
+  auto_connect?: boolean;
 }
 
 export function useWebSocket(options: UseWebSocketOptions) {
   const [state, setState] = useState<WebSocketState>('disconnected');
   const [error, setError] = useState<Event | null>(null);
   const clientRef = useRef<WebSocketClient | null>(null);
-  const onMessageRef = useRef(options.onMessage);
-  const onErrorRef = useRef(options.onError);
-  const onStateChangeRef = useRef(options.onStateChange);
+  const on_message_ref = useRef(options.on_message);
+  const on_error_ref = useRef(options.on_error);
+  const on_state_change_ref = useRef(options.on_state_change);
 
   useEffect(() => {
-    onMessageRef.current = options.onMessage;
-  }, [options.onMessage]);
+    on_message_ref.current = options.on_message;
+  }, [options.on_message]);
 
   useEffect(() => {
-    onErrorRef.current = options.onError;
-  }, [options.onError]);
+    on_error_ref.current = options.on_error;
+  }, [options.on_error]);
 
   useEffect(() => {
-    onStateChangeRef.current = options.onStateChange;
-  }, [options.onStateChange]);
+    on_state_change_ref.current = options.on_state_change;
+  }, [options.on_state_change]);
 
   // 使用useCallback稳定化回调函数
-  const onMessageCallback = useCallback((msg: any) => {
-    onMessageRef.current?.(msg);
+  const on_message_callback = useCallback((msg: any) => {
+    on_message_ref.current?.(msg);
   }, []);
 
-  const onErrorCallback = useCallback((err: Event) => {
+  const on_error_callback = useCallback((err: Event) => {
     setError(err);
-    onErrorRef.current?.(err);
+    on_error_ref.current?.(err);
   }, []);
 
-  const onStateChangeCallback = useCallback((newState: WebSocketState) => {
-    setState(newState);
-    onStateChangeRef.current?.(newState);
+  const on_state_change_callback = useCallback((new_state: WebSocketState) => {
+    setState(new_state);
+    on_state_change_ref.current?.(new_state);
   }, []);
 
   useEffect(() => {
@@ -60,15 +60,15 @@ export function useWebSocket(options: UseWebSocketOptions) {
       max_reconnect_delay: options.max_reconnect_delay ?? 30000,
       heartbeat_interval: options.heartbeat_interval ?? 30000, // 支持外部配置心跳间隔
     }, {
-      on_message: onMessageCallback,
-      on_error: onErrorCallback,
-      on_state_change: onStateChangeCallback,
+      on_message: on_message_callback,
+      on_error: on_error_callback,
+      on_state_change: on_state_change_callback,
     });
 
     clientRef.current = client;
 
     // 自动连接
-    if (options.autoConnect !== false) {
+    if (options.auto_connect !== false) {
       client.connect();
     }
 

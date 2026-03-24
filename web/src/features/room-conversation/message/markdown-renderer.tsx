@@ -251,7 +251,7 @@ function createMarkdownComponents(
 export function MarkdownRenderer(props: MarkdownRendererProps) {
   const {content, class_name, on_open_workspace_file} = props;
   const current_agent_id = useAgentStore((state) => state.current_agent_id);
-  const files_by_agent = useWorkspaceFilesStore((state) => state.filesByAgent);
+  const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
   const agent_files = current_agent_id ? files_by_agent[current_agent_id] || [] : [];
   const resolveFilePath = (value: string) => resolveWorkspaceFileReference(value, agent_files);
 

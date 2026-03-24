@@ -12,28 +12,28 @@ import { create } from 'zustand';
 import { WorkspaceFileEntry } from '@/types/agent';
 
 interface WorkspaceFilesStoreState {
-  filesByAgent: Record<string, WorkspaceFileEntry[]>;
-  setFiles: (agentId: string, files: WorkspaceFileEntry[]) => void;
-  clearAgent: (agentId: string) => void;
+  files_by_agent: Record<string, WorkspaceFileEntry[]>;
+  set_files: (agent_id: string, files: WorkspaceFileEntry[]) => void;
+  clear_agent: (agent_id: string) => void;
 }
 
 export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) => ({
-  filesByAgent: {},
+  files_by_agent: {},
 
-  setFiles: (agentId, files) => {
+  set_files: (agent_id, files) => {
     set((state) => ({
-      filesByAgent: {
-        ...state.filesByAgent,
-        [agentId]: files,
+      files_by_agent: {
+        ...state.files_by_agent,
+        [agent_id]: files,
       },
     }));
   },
 
-  clearAgent: (agentId) => {
+  clear_agent: (agent_id) => {
     set((state) => {
-      const next = { ...state.filesByAgent };
-      delete next[agentId];
-      return { filesByAgent: next };
+      const next = { ...state.files_by_agent };
+      delete next[agent_id];
+      return { files_by_agent: next };
     });
   },
 }));
