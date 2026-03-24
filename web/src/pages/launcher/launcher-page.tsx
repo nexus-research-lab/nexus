@@ -42,6 +42,10 @@ export function LauncherPage() {
     }))
     .sort((left, right) => right.conversation.last_activity_at - left.conversation.last_activity_at);
 
+  const handleCreateRoom = useCallback(() => {
+    controller.handle_open_create_agent();
+  }, [controller]);
+
   const handleSaveAgentOptions = useCallback(async (title: string, options: AgentConfigOptions) => {
     const should_open_room_after_create = controller.dialog_mode === "create";
     await controller.handle_save_agent_options(title, options);
@@ -102,6 +106,7 @@ export function LauncherPage() {
               app_conversation_draft={controller.app_conversation_draft}
               app_conversation_messages={controller.app_conversation_messages}
               conversations_with_owners={conversations_with_owners}
+              on_create_room={handleCreateRoom}
               on_clear_conversation={controller.clear_app_conversation}
               on_change_draft={controller.set_app_conversation_draft}
               on_close={controller.close_app_conversation}

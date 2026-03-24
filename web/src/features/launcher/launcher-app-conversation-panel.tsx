@@ -26,6 +26,7 @@ interface LauncherAppConversationPanelProps {
   app_conversation_draft: string;
   app_conversation_messages: AppConversationMessage[];
   conversations_with_owners: ConversationWithOwner[];
+  on_create_room: () => void;
   on_clear_conversation: () => void;
   on_change_draft: (next_value: string) => void;
   on_close: () => void;
@@ -55,6 +56,7 @@ export function LauncherAppConversationPanel({
   app_conversation_draft,
   app_conversation_messages,
   conversations_with_owners,
+  on_create_room,
   on_clear_conversation,
   on_change_draft,
   on_close,
@@ -64,6 +66,7 @@ export function LauncherAppConversationPanel({
   on_submit,
 }: LauncherAppConversationPanelProps) {
   const messages = buildConversationMessages(app_conversation_messages);
+  const recent_room = conversations_with_owners[0] ?? null;
   const latest_user_message = [...app_conversation_messages]
     .reverse()
     .find((message) => message.role === "user");
@@ -71,7 +74,6 @@ export function LauncherAppConversationPanel({
   const suggested_actions = useMemo(() => {
     const actions: AppConversationAction[] = [];
     const prompt = latest_user_message?.body.trim().toLowerCase() ?? "";
-    const recent_room = conversations_with_owners[0];
     const matched_agent = agents.find((agent) =>
       prompt && agent.name.toLowerCase().includes(prompt),
     ) ?? agents.find((agent) =>
@@ -108,6 +110,15 @@ export function LauncherAppConversationPanel({
       });
     }
 
+    if (prompt.includes("创建") || prompt.includes("新建") || prompt.includes("开始")) {
+      actions.push({
+        key: "create-room",
+        label: "创建新的协作 room",
+        description: "直接进入创建流程，先把协作单元建立起来。",
+        on_click: on_create_room,
+      });
+    }
+
     if (!actions.length && recent_room) {
       actions.push({
         key: `fallback-room-${recent_room.conversation.session_key}`,
@@ -141,8 +152,9 @@ export function LauncherAppConversationPanel({
     return actions.slice(0, 3);
   }, [
     agents,
-    conversations_with_owners,
     latest_user_message?.body,
+    recent_room,
+    on_create_room,
     on_open_agent_room,
     on_open_contacts_page,
     on_open_conversation,
@@ -203,23 +215,30 @@ export function LauncherAppConversationPanel({
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button
             className="rounded-[22px] bg-white/8 px-4 py-4 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition hover:bg-white/14"
-            onClick={() => on_submit("帮我恢复最近的协作 room")}
+            onClick={() => {
+              if (!recent_room) {
+                return;
+              }
+              on_open_conversation(recent_room.conversation.session_key, recent_room.conversation.agent_id);
+            }}
             type="button"
           >
             <p className="text-sm font-semibold text-slate-950/84">恢复最近协作</p>
             <p className="mt-1 text-xs leading-5 text-slate-700/58">
-              从最近的 room 和对话里继续，而不是重新开始。
+              {recent_room
+                ? `直接回到 ${recent_room.owner?.name ?? "最近成员"} 的最新协作。`
+                : "当前还没有最近协作可恢复。"}
             </p>
           </button>
 
           <button
             className="rounded-[22px] bg-white/8 px-4 py-4 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition hover:bg-white/14"
-            onClick={() => on_submit("帮我创建一个新的协作 room")}
+            onClick={on_create_room}
             type="button"
           >
             <p className="text-sm font-semibold text-slate-950/84">创建新协作</p>
             <p className="mt-1 text-xs leading-5 text-slate-700/58">
-              先整理任务，再决定需要哪些成员和上下文。
+              直接进入创建流程，再把成员和上下文逐步补齐。
             </p>
           </button>
         </div>
