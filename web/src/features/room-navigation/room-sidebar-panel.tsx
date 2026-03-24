@@ -16,7 +16,6 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { ConfirmDialog, PromptDialog } from "@/components/dialog/confirm-dialog";
 import {
   createWorkspaceEntryApi,
   deleteWorkspaceEntryApi,
@@ -25,6 +24,7 @@ import {
 } from "@/lib/agent-manage-api";
 import { HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS } from "@/lib/home-layout";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
+import { ConfirmDialog, PromptDialog } from "@/shared/ui/confirm-dialog";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";

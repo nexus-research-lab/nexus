@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { ToolResultContent, ToolUseContent } from '@/types/message';
 import { PermissionRiskLevel, PermissionUpdate } from '@/types/permission';
 import { CodeBlock } from './code-block';
-import { PermissionDialog } from '@/components/dialog/permission-dialog';
+import { PermissionDialog } from '@/shared/ui/permission-dialog';
 
 // ==================== 类型定义 ====================
 
@@ -110,11 +110,11 @@ export function ToolBlock({
 
   // 状态配色
   const statusColors = {
-    pending: 'neo-card-flat',
-    running: 'neo-card shadow-[0_18px_30px_rgba(133,119,255,0.14)]',
-    success: 'neo-card shadow-[0_18px_30px_rgba(102,217,143,0.12)]',
-    error: 'neo-card shadow-[0_18px_30px_rgba(235,90,81,0.12)]',
-    waiting_permission: 'neo-card shadow-[0_18px_30px_rgba(255,157,86,0.14)]',
+    pending: 'workspace-card',
+    running: 'workspace-card shadow-[0_18px_30px_rgba(133,119,255,0.12)]',
+    success: 'workspace-card shadow-[0_18px_30px_rgba(102,217,143,0.10)]',
+    error: 'workspace-card shadow-[0_18px_30px_rgba(235,90,81,0.10)]',
+    waiting_permission: 'workspace-card shadow-[0_18px_30px_rgba(255,157,86,0.12)]',
   };
 
   return (
@@ -126,14 +126,14 @@ export function ToolBlock({
       <div
         className={cn(
           "flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 px-3 py-2 font-mono text-xs transition-colors sm:h-10 sm:flex-nowrap",
-          "hover:bg-white/20",
+          "hover:bg-white/18",
           isRunning && "animate-pulse"
         )}
         onClick={() => hasResult && setIsExpanded(!isExpanded)}
       >
         {/* 工具图标 */}
         <div className={cn(
-          "neo-pill radius-shell-sm flex h-6 w-6 items-center justify-center",
+          "workspace-chip radius-shell-sm flex h-6 w-6 items-center justify-center",
           isSuccess && "text-green-500",
           isError && "text-red-500",
           isRunning && "text-primary",
@@ -190,13 +190,13 @@ export function ToolBlock({
             onClick={handleCopyResult}
             className={cn(
               "ml-auto sm:ml-0",
-              "neo-pill radius-shell-sm px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
+              "workspace-chip radius-shell-sm px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
               copied
                 ? "text-green-500 bg-green-500/10"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                : "text-slate-700/58 hover:text-slate-950 hover:bg-white/18"
             )}
           >
-            {copied ? '✓' : 'copy'}
+            {copied ? '✓' : '复制'}
           </button>
         )}
 
@@ -223,10 +223,10 @@ export function ToolBlock({
 
       {/* ═══════════ 展开的结果内容 ═══════════ */}
       {hasResult && isExpanded && (
-        <div className="border-t border-white/50">
+        <div className="border-t workspace-divider">
           <div className="max-h-[300px] overflow-y-auto p-3 custom-scrollbar">
             {typeof toolResult.content === 'string' ? (
-              <pre className="neo-inset radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-foreground/80">
+              <pre className="workspace-card radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-slate-900/80">
                 {toolResult.content}
               </pre>
             ) : (
@@ -238,13 +238,13 @@ export function ToolBlock({
 
       {/* ═══════════ 运行中指示 ═══════════ */}
       {!hasResult && isRunning && (
-        <div className="flex h-8 items-center gap-2 border-t border-white/50 px-3 text-xs text-muted-foreground">
+        <div className="flex h-8 items-center gap-2 border-t workspace-divider px-3 text-xs text-slate-700/56">
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.4s_infinite]" />
           </div>
-          <span className="font-mono text-[10px] uppercase tracking-wider">executing...</span>
+          <span className="font-mono text-[10px] uppercase tracking-wider">处理中…</span>
         </div>
       )}
 
@@ -261,7 +261,7 @@ export function ToolBlock({
                 <span className="truncate">{permissionRequest.summary}</span>
               </div>
             )}
-            <pre className="neo-inset radius-shell-sm p-3 text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-all">
+            <pre className="workspace-card radius-shell-sm p-3 text-[11px] font-mono whitespace-pre-wrap break-all text-slate-900/74">
               {JSON.stringify(permissionRequest.tool_input, null, 2)}
             </pre>
           </div>
@@ -270,12 +270,12 @@ export function ToolBlock({
           <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:h-11 sm:flex-nowrap sm:py-0">
             <span className="flex items-center gap-1.5 text-xs font-medium text-orange-500">
               <Clock className="w-3 h-3" />
-              AWAITING_PERMISSION
+              等待确认
             </span>
             <div className="hidden flex-1 sm:block" />
             <button
               onClick={() => permissionRequest.onDeny()}
-              className="neo-pill radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-foreground"
+              className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
             >
               拒绝
             </button>
@@ -287,7 +287,7 @@ export function ToolBlock({
             </button>
             <button
               onClick={() => setShowDetailModal(true)}
-              className="neo-pill radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-foreground"
+              className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
             >
               查看详情
             </button>
