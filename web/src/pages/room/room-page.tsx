@@ -19,17 +19,17 @@ export function RoomPage() {
   });
 
   const handleBackToLauncher = useCallback(() => {
-    controller.handleBackToDirectory();
+    controller.handle_back_to_directory();
     navigate(AppRouteBuilders.launcher());
   }, [controller, navigate]);
 
   const handleSelectAgent = useCallback((agentId: string) => {
-    controller.handleAgentSelect(agentId);
+    controller.handle_select_agent(agentId);
     navigate(AppRouteBuilders.room(agentId));
   }, [controller, navigate]);
 
   const handleSelectConversation = useCallback((conversationId: string) => {
-    controller.handleConversationSelect(conversationId);
+    controller.handle_select_conversation(conversationId);
     const routeRoomId = controller.current_agent_id ?? params.roomId;
     if (routeRoomId) {
       navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
@@ -37,7 +37,7 @@ export function RoomPage() {
   }, [controller, navigate, params.roomId]);
 
   const handleCreateConversation = useCallback(async () => {
-    await controller.handleCreateConversation();
+    await controller.handle_create_conversation();
     const routeRoomId = controller.current_agent_id ?? params.roomId;
     const nextSessionKey = useSessionStore.getState().current_session_key;
     if (routeRoomId && nextSessionKey) {
@@ -68,15 +68,15 @@ export function RoomPage() {
           is_session_busy={controller.is_session_busy}
           on_back_to_directory={handleBackToLauncher}
           on_close_workspace_pane={controller.handle_close_workspace_pane}
-          on_delete_conversation={controller.handleDeleteConversation}
-          on_edit_agent={controller.handleEditAgent}
+          on_delete_conversation={controller.handle_delete_conversation}
+          on_edit_agent={controller.handle_edit_agent}
           on_loading_change={controller.setIsSessionBusy}
           on_create_conversation={handleCreateConversation}
-          on_open_create_agent={controller.handleOpenCreateAgent}
+          on_open_create_agent={controller.handle_open_create_agent}
           on_open_workspace_file={controller.handle_open_workspace_file}
           on_select_agent={handleSelectAgent}
           on_select_conversation={handleSelectConversation}
-          on_conversation_snapshot_change={controller.handleConversationSnapshotChange}
+          on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
           on_start_editor_resize={controller.handle_start_editor_resize}
           on_todos_change={controller.setCurrentTodos}
           recent_agents={controller.recent_agents}
@@ -85,11 +85,11 @@ export function RoomPage() {
         />
 
         <AgentOptions
-          mode={controller.dialogMode}
+        mode={controller.dialogMode}
           isOpen={controller.isDialogOpen}
           onClose={() => controller.setIsDialogOpen(false)}
-          onSave={controller.handleSaveAgentOptions}
-          onValidateName={controller.handleValidateAgentName}
+          onSave={controller.handle_save_agent_options}
+          onValidateName={controller.handle_validate_agent_name}
           initialTitle={controller.dialog_initial_title}
           initialOptions={controller.dialog_initial_options}
         />

@@ -127,31 +127,31 @@ export function useHomeAgentSessionController() {
     }
   }, [current_agent_id, current_conversation_id, current_room_conversations, setCurrentConversation]);
 
-  const handleOpenCreateAgent = useCallback(() => {
+  const handle_open_create_agent = useCallback(() => {
     setDialogMode("create");
     setEditingAgentId(null);
     setIsDialogOpen(true);
   }, []);
 
-  const handleEditAgent = useCallback((agentId: string) => {
+  const handle_edit_agent = useCallback((agentId: string) => {
     setDialogMode("edit");
     setEditingAgentId(agentId);
     setIsDialogOpen(true);
   }, []);
 
-  const handleAgentSelect = useCallback((agentId: string) => {
+  const handle_select_agent = useCallback((agentId: string) => {
     set_current_agent(agentId);
   }, [set_current_agent]);
 
-  const handleBackToDirectory = useCallback(() => {
+  const handle_back_to_directory = useCallback(() => {
     set_current_agent(null);
   }, [set_current_agent]);
 
-  const handleDeleteAgent = useCallback(async (agentId: string) => {
+  const handle_delete_agent = useCallback(async (agentId: string) => {
     await delete_agent(agentId);
   }, [delete_agent]);
 
-  const handleNewSession = useCallback(async () => {
+  const handle_create_conversation = useCallback(async () => {
     if (!current_agent_id) {
       return;
     }
@@ -163,7 +163,7 @@ export function useHomeAgentSessionController() {
     setCurrentConversation(key);
   }, [createConversation, current_agent_id, setCurrentConversation]);
 
-  const handleSaveAgentOptions = useCallback(async (title: string, options: SessionOptions) => {
+  const handle_save_agent_options = useCallback(async (title: string, options: SessionOptions) => {
     const agentOptions = {
       model: options.model,
       permission_mode: options.permission_mode,
@@ -190,23 +190,23 @@ export function useHomeAgentSessionController() {
     }
   }, [create_agent, dialogMode, editingAgentId, set_current_agent, update_agent]);
 
-  const handleValidateAgentName = useCallback(async (name: string) => {
+  const handle_validate_agent_name = useCallback(async (name: string) => {
     const excludeAgentId = dialogMode === "edit" ? (editingAgentId ?? undefined) : undefined;
     return validateAgentNameApi(name, excludeAgentId);
   }, [dialogMode, editingAgentId]);
 
-  const handleSessionSelect = useCallback((sessionKey: string) => {
+  const handle_select_conversation = useCallback((sessionKey: string) => {
     setCurrentConversation(sessionKey);
   }, [setCurrentConversation]);
 
-  const handleOpenSessionFromDirectory = useCallback((sessionKey: string, agentId?: string) => {
+  const handle_open_conversation_from_launcher = useCallback((sessionKey: string, agentId?: string) => {
     if (agentId) {
       set_current_agent(agentId);
     }
     setCurrentConversation(sessionKey);
   }, [setCurrentConversation, set_current_agent]);
 
-  const handleSessionSnapshotChange = useCallback((snapshot: SessionSnapshotPayload) => {
+  const handle_conversation_snapshot_change = useCallback((snapshot: SessionSnapshotPayload) => {
     if (!snapshot.session_key) {
       return;
     }
@@ -218,7 +218,7 @@ export function useHomeAgentSessionController() {
     });
   }, [syncConversationSnapshot]);
 
-  const handleDeleteSession = useCallback(async (sessionKey: string) => {
+  const handle_delete_conversation = useCallback(async (sessionKey: string) => {
     await deleteConversation(sessionKey);
     if (current_conversation_id === sessionKey) {
       const remaining = current_room_conversations.filter((conversation) => conversation.session_key !== sessionKey);
@@ -226,18 +226,14 @@ export function useHomeAgentSessionController() {
     }
   }, [current_conversation_id, current_room_conversations, deleteConversation, setCurrentConversation]);
 
-  const handleCreateConversation = handleNewSession;
-  const handleConversationSelect = handleSessionSelect;
-  const handleOpenConversationFromLauncher = handleOpenSessionFromDirectory;
-  const handleConversationSnapshotChange = useCallback((snapshot: ConversationSnapshotPayload) => {
-    handleSessionSnapshotChange({
+  const handle_conversation_snapshot_payload = useCallback((snapshot: ConversationSnapshotPayload) => {
+    handle_conversation_snapshot_change({
       session_key: snapshot.conversation_id,
       message_count: snapshot.message_count,
       last_activity_at: snapshot.last_activity_at,
       session_id: snapshot.session_id,
     });
-  }, [handleSessionSnapshotChange]);
-  const handleDeleteConversation = handleDeleteSession;
+  }, [handle_conversation_snapshot_change]);
 
   return {
     agents,
@@ -254,17 +250,17 @@ export function useHomeAgentSessionController() {
     dialog_initial_title,
     dialog_initial_options,
     setIsDialogOpen,
-    handleOpenCreateAgent,
-    handleEditAgent,
-    handleAgentSelect,
-    handleBackToDirectory,
-    handleDeleteAgent,
-    handleCreateConversation,
-    handleSaveAgentOptions,
-    handleValidateAgentName,
-    handleConversationSelect,
-    handleOpenConversationFromLauncher,
-    handleConversationSnapshotChange,
-    handleDeleteConversation,
+    handle_open_create_agent,
+    handle_edit_agent,
+    handle_select_agent,
+    handle_back_to_directory,
+    handle_delete_agent,
+    handle_create_conversation,
+    handle_save_agent_options,
+    handle_validate_agent_name,
+    handle_select_conversation,
+    handle_open_conversation_from_launcher,
+    handle_conversation_snapshot_change: handle_conversation_snapshot_payload,
+    handle_delete_conversation,
   };
 }

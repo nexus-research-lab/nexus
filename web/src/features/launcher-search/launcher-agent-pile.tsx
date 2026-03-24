@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export type SpotlightToken = {
   key: string;
   label: string;
-  agentId: string | null;
+  agent_id: string | null;
   kind: "agent" | "room";
   swatch: {
     fill: string;
@@ -19,8 +19,8 @@ export type SpotlightToken = {
 
 interface SpotlightTokenPileProps {
   tokens: SpotlightToken[];
-  currentAgentId: string | null;
-  onSelectAgent: (agentId: string) => void;
+  current_agent_id: string | null;
+  on_select_agent: (agent_id: string) => void;
 }
 
 type TokenPhysicsConfig = {
@@ -198,8 +198,8 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
 
 export function AgentPile({
   tokens,
-  currentAgentId,
-  onSelectAgent,
+  current_agent_id,
+  on_select_agent,
 }: SpotlightTokenPileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -411,7 +411,7 @@ export function AgentPile({
           return null;
         }
 
-        const isActive = token.agentId && token.agentId === currentAgentId;
+        const isActive = token.agent_id && token.agent_id === current_agent_id;
         const brandStyle = getTokenBrandStyle(token);
 
         return (
@@ -426,7 +426,7 @@ export function AgentPile({
               isActive && "ring-2 ring-white/80",
             )}
             data-token-kind={token.kind}
-            onClick={() => token.agentId && onSelectAgent(token.agentId)}
+            onClick={() => token.agent_id && on_select_agent(token.agent_id)}
             style={{
               width: config.size,
               height: config.size,

@@ -21,8 +21,8 @@ export function useRoomPageController({
     current_agent_id,
     current_conversation,
     current_conversation_id,
-    handleAgentSelect,
-    handleConversationSelect,
+    handle_select_agent,
+    handle_select_conversation,
     isHydrated,
     conversations,
     recent_agents,
@@ -42,12 +42,12 @@ export function useRoomPageController({
     if (conversationId) {
       const target_conversation = conversations.find((conversation) => conversation.session_key === conversationId);
       if (target_conversation?.agent_id && target_conversation.agent_id !== current_agent_id) {
-        handleAgentSelect(target_conversation.agent_id);
+        handle_select_agent(target_conversation.agent_id);
         return;
       }
 
       if (target_conversation && target_conversation.session_key !== current_conversation_id) {
-        handleConversationSelect(target_conversation.session_key);
+        handle_select_conversation(target_conversation.session_key);
         return;
       }
     }
@@ -60,7 +60,7 @@ export function useRoomPageController({
     if (roomId !== current_agent_id) {
       const matchedAgent = agents.find((agent) => agent.agent_id === roomId);
       if (matchedAgent) {
-        handleAgentSelect(matchedAgent.agent_id);
+        handle_select_agent(matchedAgent.agent_id);
       }
     }
   }, [
@@ -69,8 +69,8 @@ export function useRoomPageController({
     conversations,
     current_agent_id,
     current_conversation_id,
-    handleAgentSelect,
-    handleConversationSelect,
+    handle_select_agent,
+    handle_select_conversation,
     isHydrated,
     roomId,
   ]);

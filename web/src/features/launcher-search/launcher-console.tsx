@@ -115,7 +115,7 @@ function buildDecorativeTokens(
     agents.map((agent, index) => ({
       key: `agent-${agent.agent_id}`,
       label: getInitials(agent.name),
-      agentId: agent.agent_id,
+      agent_id: agent.agent_id,
       kind: "agent" as const,
       swatch: TOKEN_SWATCHES[index % TOKEN_SWATCHES.length],
     }));
@@ -124,7 +124,7 @@ function buildDecorativeTokens(
     conversations_with_owners.slice(0, 8).map(({ conversation }, index) => ({
       key: `room-${conversation.session_key}`,
       label: getInitials(conversation.title || "Room"),
-      agentId: conversation.agent_id ?? null,
+      agent_id: conversation.agent_id ?? null,
       kind: "room" as const,
       swatch: TOKEN_SWATCHES[(agent_tokens.length + index) % TOKEN_SWATCHES.length],
     }));
@@ -155,7 +155,7 @@ function buildDecorativeTokens(
       source.push({
         key: `fallback-${item.label}-${index}`,
         label: item.label,
-        agentId: null,
+        agent_id: null,
         kind: item.kind,
         swatch: TOKEN_SWATCHES[(agent_tokens.length + room_tokens.length + index) % TOKEN_SWATCHES.length],
       });
@@ -292,8 +292,8 @@ const HeroStage = memo(function HeroStage({
       </HeroBlobShell>
 
       <MemoAgentPile
-        currentAgentId={current_agent_id}
-        onSelectAgent={on_select_agent}
+        current_agent_id={current_agent_id}
+        on_select_agent={on_select_agent}
         tokens={decorative_tokens}
       />
     </div>

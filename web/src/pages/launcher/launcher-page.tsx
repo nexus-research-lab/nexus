@@ -15,12 +15,12 @@ export function LauncherPage() {
   const navigate = useNavigate();
 
   const handleSelectAgent = useCallback((agentId: string) => {
-    controller.handleAgentSelect(agentId);
+    controller.handle_select_agent(agentId);
     navigate(AppRouteBuilders.room(agentId));
   }, [controller, navigate]);
 
   const handleOpenConversation = useCallback((conversationId: string, agentId?: string) => {
-    controller.handleOpenConversationFromLauncher(conversationId, agentId);
+    controller.handle_open_conversation_from_launcher(conversationId, agentId);
     const routeRoomId = agentId ?? controller.current_agent_id;
     if (routeRoomId) {
       navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
@@ -37,7 +37,7 @@ export function LauncherPage() {
 
   const handleSaveAgentOptions = useCallback(async (title: string, options: SessionOptions) => {
     const shouldOpenRoomAfterCreate = controller.dialogMode === "create";
-    await controller.handleSaveAgentOptions(title, options);
+    await controller.handle_save_agent_options(title, options);
 
     if (!shouldOpenRoomAfterCreate) {
       return;
@@ -63,9 +63,9 @@ export function LauncherPage() {
         on_open_nexus={handleOpenNexus}
         on_select_agent={handleSelectAgent}
         on_open_conversation={handleOpenConversation}
-        on_create_agent={controller.handleOpenCreateAgent}
-        on_edit_agent={controller.handleEditAgent}
-        on_delete_agent={controller.handleDeleteAgent}
+        on_create_agent={controller.handle_open_create_agent}
+        on_edit_agent={controller.handle_edit_agent}
+        on_delete_agent={controller.handle_delete_agent}
       />
 
       <AgentOptions
@@ -73,7 +73,7 @@ export function LauncherPage() {
         isOpen={controller.isDialogOpen}
         onClose={() => controller.setIsDialogOpen(false)}
         onSave={handleSaveAgentOptions}
-        onValidateName={controller.handleValidateAgentName}
+        onValidateName={controller.handle_validate_agent_name}
         initialTitle={controller.dialog_initial_title}
         initialOptions={controller.dialog_initial_options}
       />

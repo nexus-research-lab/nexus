@@ -280,10 +280,10 @@ export function RoomChatPanel({
         <>
           {!is_mobile_layout ? (
             <RoomConversationHeader
-              currentAgentName={current_agent_name ?? null}
-              currentConversationId={session_key}
-              currentConversationTitle={session_title ?? null}
-              isLoading={is_loading}
+              current_agent_name={current_agent_name ?? null}
+              current_conversation_id={session_key}
+              current_conversation_title={session_title ?? null}
+              is_loading={is_loading}
             />
           ) : null}
 
