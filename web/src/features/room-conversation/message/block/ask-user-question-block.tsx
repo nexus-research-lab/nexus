@@ -44,7 +44,7 @@ function QuestionCard({
     default_expanded = false,
 }: AskUserQuestionCardProps) {
     const [isExpanded, setIsExpanded] = useState(default_expanded);
-    const isMultiSelect = question.multiSelect ?? false;
+    const isMultiSelect = question.multi_select ?? false;
     const hasSelection = selected_options.size > 0;
 
     // 选中摘要（收起时显示）

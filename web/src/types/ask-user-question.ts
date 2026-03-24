@@ -24,7 +24,7 @@ export interface UserQuestion {
   /** 问题标题/分类 */
   header?: string;
   /** 是否多选，默认 false */
-  multiSelect?: boolean;
+  multi_select?: boolean;
   /** 选项列表 */
   options: QuestionOption[];
 }
