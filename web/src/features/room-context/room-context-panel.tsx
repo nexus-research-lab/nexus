@@ -1,11 +1,11 @@
 "use client";
 
-import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { HOME_AGENT_INSPECTOR_WIDTH_CLASS } from "@/lib/home-layout";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
 import { Session } from "@/types/session";
+import { TodoItem } from "@/types/todo";
 
 import { RoomCollaborationStatusSection } from "./room-collaboration-status-section";
 import { RoomMemberSummaryCard } from "./room-member-summary-card";

@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { useAgentSession } from "@/hooks/agent";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useSessionLoader } from "@/hooks/use-session-loader";
 import { Message } from "@/types/message";
+import { TodoItem } from "@/types/todo";
 
 import { RoomComposerPanel } from "./room-composer-panel";
 import { RoomConversationEmptyState } from "./room-conversation-empty-state";

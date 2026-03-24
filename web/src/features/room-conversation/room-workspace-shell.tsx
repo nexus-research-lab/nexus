@@ -2,13 +2,13 @@
 
 import { RefObject } from "react";
 
-import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { HOME_WORKSPACE_SECTION_GAP_CLASS } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
 import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
+import { TodoItem } from "@/types/todo";
 
 import { RoomMobileWorkspace } from "./room-mobile-workspace";
 import { RoomWorkspaceLayout } from "./room-workspace-layout";

@@ -8,9 +8,9 @@ import {
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/home-layout";
 import { getAgentCostSummaryApi } from "@/lib/agent-manage-api";
-import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
 import { Session } from "@/types/session";
+import { TodoItem } from "@/types/todo";
 
 const EMPTY_SESSION_COST_SUMMARY: SessionCostSummary = {
   agent_id: "",

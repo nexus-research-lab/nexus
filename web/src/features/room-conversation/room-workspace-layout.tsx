@@ -2,7 +2,6 @@
 
 import { RefObject } from "react";
 
-import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { RoomContextPanel } from "@/features/room-context/room-context-panel";
 import { RoomEditorPanel } from "@/features/room-context/room-editor-panel";
 import { RoomSidebarPanel } from "@/features/room-navigation/room-sidebar-panel";
@@ -15,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
 import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
+import { TodoItem } from "@/types/todo";
 
 import { RoomChatPanel } from "./room-chat-panel";
 

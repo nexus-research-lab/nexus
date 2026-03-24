@@ -1,7 +1,7 @@
 import { CheckSquare, LoaderCircle } from "lucide-react";
 
-import { LoadingOrb } from "@/components/loading";
-import { TodoItem } from "@/components/workspace/agent-task-widget";
+import { LoadingOrb } from "@/shared/ui/loading-orb";
+import { TodoItem } from "@/types/todo";
 
 interface RoomProgressSectionProps {
   todos: TodoItem[];
@@ -28,8 +28,8 @@ export function RoomProgressSection({ todos }: RoomProgressSectionProps) {
           <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
           <div className="min-w-0">
             <p className="truncate font-medium">{activeTodo.content}</p>
-            {activeTodo.activeForm && (
-              <p className="mt-0.5 text-[11px] text-slate-700/52">{activeTodo.activeForm}</p>
+            {activeTodo.active_form && (
+              <p className="mt-0.5 text-[11px] text-slate-700/52">{activeTodo.active_form}</p>
             )}
           </div>
         </div>

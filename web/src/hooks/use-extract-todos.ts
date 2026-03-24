@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { TodoItem } from "@/components/workspace/agent-task-widget";
 import { Message, ResultMessage } from "@/types/message";
+import { TodoItem } from "@/types/todo";
 
 function isSameSessionMessage(message: Message, externalSessionKey: string): boolean {
   return !message.session_key || message.session_key === externalSessionKey;
