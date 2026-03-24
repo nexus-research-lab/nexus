@@ -18,20 +18,20 @@ export interface WebSocketConfig {
   url: string;
   protocols?: string | string[];
   reconnect?: boolean;
-  maxReconnectAttempts?: number;
-  reconnectDelay?: number;
-  maxReconnectDelay?: number;
-  heartbeatInterval?: number;
-  heartbeatTimeout?: number;
+  max_reconnect_attempts?: number;
+  reconnect_delay?: number;
+  max_reconnect_delay?: number;
+  heartbeat_interval?: number;
+  heartbeat_timeout?: number;
 }
 
 export interface WebSocketClientCallbacks {
-  onOpen?: (event: Event) => void;
-  onMessage?: (data: any) => void;
-  onClose?: (event: CloseEvent) => void;
-  onError?: (event: Event) => void;
-  onReconnecting?: (attempt: number) => void;
-  onReconnected?: () => void;
-  onMaxRetriesReached?: () => void;
-  onStateChange?: (state: WebSocketState) => void;
+  on_open?: (event: Event) => void;
+  on_message?: (data: any) => void;
+  on_close?: (event: CloseEvent) => void;
+  on_error?: (event: Event) => void;
+  on_reconnecting?: (attempt: number) => void;
+  on_reconnected?: () => void;
+  on_max_retries_reached?: () => void;
+  on_state_change?: (state: WebSocketState) => void;
 }

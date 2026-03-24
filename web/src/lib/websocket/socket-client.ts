@@ -26,11 +26,11 @@ export class WebSocketClient {
     url: '',
     protocols: [],
     reconnect: true,
-    maxReconnectAttempts: 5,
-    reconnectDelay: 1000,
-    maxReconnectDelay: 30000,
-    heartbeatInterval: 30000,
-    heartbeatTimeout: 10000,
+    max_reconnect_attempts: 5,
+    reconnect_delay: 1000,
+    max_reconnect_delay: 30000,
+    heartbeat_interval: 30000,
+    heartbeat_timeout: 10000,
   };
 
   constructor(config: WebSocketConfig, callbacks: WebSocketClientCallbacks = {}) {
@@ -128,9 +128,9 @@ export class WebSocketClient {
     this.flushMessageQueue();
 
     // 回调
-    this.callbacks.onOpen?.(event);
+    this.callbacks.on_open?.(event);
     if (this.reconnectAttempts > 0) {
-      this.callbacks.onReconnected?.();
+      this.callbacks.on_reconnected?.();
     }
   }
 
@@ -148,7 +148,7 @@ export class WebSocketClient {
         return;
       }
 
-      this.callbacks.onMessage?.(data);
+      this.callbacks.on_message?.(data);
     } catch (error) {
       console.error('[WebSocketClient] Message parse error:', error);
     }
@@ -164,7 +164,7 @@ export class WebSocketClient {
     }
 
     console.error('[WebSocketClient] WebSocket error:', event);
-    this.callbacks.onError?.(event);
+    this.callbacks.on_error?.(event);
   }
 
   /**
@@ -174,7 +174,7 @@ export class WebSocketClient {
     console.debug('[WebSocketClient] Disconnected:', event.code, event.reason);
 
     this.cleanup();
-    this.callbacks.onClose?.(event);
+    this.callbacks.on_close?.(event);
 
     if (this.isIntentionalDisconnect) {
       this.ws = null;
@@ -196,24 +196,24 @@ export class WebSocketClient {
    * 尝试重连
    */
   private attemptReconnect(): void {
-    if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
+    if (this.reconnectAttempts >= this.config.max_reconnect_attempts) {
       console.error('[WebSocketClient] Max reconnect attempts reached');
       this.setState('failed');
-      this.callbacks.onMaxRetriesReached?.();
+      this.callbacks.on_max_retries_reached?.();
       return;
     }
 
     this.reconnectAttempts++;
     this.setState('reconnecting');
-    this.callbacks.onReconnecting?.(this.reconnectAttempts);
+    this.callbacks.on_reconnecting?.(this.reconnectAttempts);
 
     // 指数退避
     const delay = Math.min(
-      this.config.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
-      this.config.maxReconnectDelay
+      this.config.reconnect_delay * Math.pow(2, this.reconnectAttempts - 1),
+      this.config.max_reconnect_delay
     );
 
-    console.debug(`[WebSocketClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.maxReconnectAttempts})`);
+    console.debug(`[WebSocketClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.max_reconnect_attempts})`);
 
     this.reconnectTimer = setTimeout(() => {
       this.createConnection();
@@ -238,7 +238,7 @@ export class WebSocketClient {
     this.stopHeartbeat();
 
     // 如果heartbeatInterval为0,则禁用心跳
-    if (this.config.heartbeatInterval === 0) {
+    if (this.config.heartbeat_interval === 0) {
       return;
     }
 
@@ -250,9 +250,9 @@ export class WebSocketClient {
         this.heartbeatTimeoutTimer = setTimeout(() => {
           console.warn('[WebSocketClient] Heartbeat timeout, reconnecting...');
           this.ws?.close(4000, 'Heartbeat timeout');
-        }, this.config.heartbeatTimeout);
+        }, this.config.heartbeat_timeout);
       }
-    }, this.config.heartbeatInterval);
+    }, this.config.heartbeat_interval);
   }
 
   /**
@@ -309,7 +309,7 @@ export class WebSocketClient {
     if (this.state !== newState) {
       console.debug(`[WebSocketClient] State: ${this.state} -> ${newState}`);
       this.state = newState;
-      this.callbacks.onStateChange?.(newState);
+      this.callbacks.on_state_change?.(newState);
     }
   }
 }

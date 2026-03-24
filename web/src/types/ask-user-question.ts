@@ -39,15 +39,15 @@ export interface AskUserQuestionInput {
 /** 单个问题的回答 */
 export interface UserQuestionAnswer {
     /** 问题索引 */
-    questionIndex: number;
+    question_index: number;
     /** 选中的选项 label 列表 */
-    selectedOptions: string[];
+    selected_options: string[];
 }
 
 /** 完整回答 */
 export interface UserQuestionResponse {
     /** tool_use 的 id */
-    toolUseId: string;
+    tool_use_id: string;
     /** 所有问题的回答 */
     answers: UserQuestionAnswer[];
 }

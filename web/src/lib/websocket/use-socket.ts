@@ -55,14 +55,14 @@ export function useWebSocket(options: UseWebSocketOptions) {
     const client = new WebSocketClient({
       url: options.url,
       reconnect: options.reconnect ?? true,
-      maxReconnectAttempts: options.maxReconnectAttempts ?? 5,
-      reconnectDelay: options.reconnectDelay ?? 1000,
-      maxReconnectDelay: options.maxReconnectDelay ?? 30000,
-      heartbeatInterval: options.heartbeatInterval ?? 30000, // 支持外部配置心跳间隔
+      max_reconnect_attempts: options.max_reconnect_attempts ?? 5,
+      reconnect_delay: options.reconnect_delay ?? 1000,
+      max_reconnect_delay: options.max_reconnect_delay ?? 30000,
+      heartbeat_interval: options.heartbeat_interval ?? 30000, // 支持外部配置心跳间隔
     }, {
-      onMessage: onMessageCallback,
-      onError: onErrorCallback,
-      onStateChange: onStateChangeCallback,
+      on_message: onMessageCallback,
+      on_error: onErrorCallback,
+      on_state_change: onStateChangeCallback,
     });
 
     clientRef.current = client;

@@ -14,13 +14,13 @@ import { SessionId } from "@/types/sdk";
 /** 会话配置选项 */
 export interface SessionOptions {
   model?: string;
-  permissionMode?: string;
-  allowedTools?: string[];
-  disallowedTools?: string[];
-  systemPrompt?: string;
+  permission_mode?: string;
+  allowed_tools?: string[];
+  disallowed_tools?: string[];
+  system_prompt?: string;
   cwd?: string;
-  settingSources?: ('user' | 'project' | 'local')[];
-  skillsEnabled?: boolean;
+  setting_sources?: ('user' | 'project' | 'local')[];
+  skills_enabled?: boolean;
 }
 
 // ==================== 会话数据结构 ====================
