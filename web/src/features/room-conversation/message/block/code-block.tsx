@@ -10,7 +10,7 @@ interface CodeBlockProps {
   value: string;
 }
 
-export function CodeBlock({language, value}: CodeBlockProps) {
+export function CodeBlock({ language, value }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {

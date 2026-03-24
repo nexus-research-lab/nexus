@@ -6,27 +6,27 @@ interface MessageStatsProps {
     duration: string;
     tokens: string | null;
     cost: string | null;
-    cacheHit: string | null;
+    cache_hit: string | null;
   };
-  showCursor?: boolean;
-  copiedAssistant?: boolean;
-  isRegenerating?: boolean;
-  isDeleting?: boolean;
-  onCopyAssistant?: () => void;
-  onRegenerate?: () => void;
-  onDelete?: () => void;
+  show_cursor?: boolean;
+  copied_assistant?: boolean;
+  is_regenerating?: boolean;
+  is_deleting?: boolean;
+  on_copy_assistant?: () => void;
+  on_regenerate?: () => void;
+  on_delete?: () => void;
 }
 
 export function MessageStats(
   {
     stats,
-    showCursor,
-    copiedAssistant,
-    isRegenerating,
-    isDeleting,
-    onCopyAssistant,
-    onRegenerate,
-    onDelete,
+    show_cursor,
+    copied_assistant,
+    is_regenerating,
+    is_deleting,
+    on_copy_assistant,
+    on_regenerate,
+    on_delete,
   }: MessageStatsProps) {
   return (
     <div
@@ -44,17 +44,17 @@ export function MessageStats(
           <span className="shrink-0 tabular-nums">成本 {stats.cost}</span>
         </>
       )}
-      {stats?.cacheHit && (
+      {stats?.cache_hit && (
         <>
           <span className="hidden text-slate-700/20 sm:inline">•</span>
-          <span className="shrink-0">缓存 {stats.cacheHit}</span>
+          <span className="shrink-0">缓存 {stats.cache_hit}</span>
         </>
       )}
 
       <div className="hidden flex-1 sm:block" />
 
       {/* 状态/操作 */}
-      {showCursor ? (
+      {show_cursor ? (
         <div className="ml-auto flex items-center gap-1">
           <Zap className="w-3 h-3 text-primary animate-pulse"/>
         </div>
@@ -62,31 +62,31 @@ export function MessageStats(
         <div className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
           {/* 复制 */}
           <button
-            onClick={onCopyAssistant}
+            onClick={on_copy_assistant}
             className={cn(
               "workspace-chip radius-shell-sm p-1 transition-colors",
-              copiedAssistant ? "text-green-500" : "text-slate-700/50 hover:text-slate-950"
+              copied_assistant ? "text-green-500" : "text-slate-700/50 hover:text-slate-950"
             )}
             title="复制回答"
           >
-            {copiedAssistant ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}
+            {copied_assistant ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}
           </button>
           {/* 重新生成 */}
-          {onRegenerate && (
+          {on_regenerate && (
             <button
-              onClick={onRegenerate}
-              disabled={isRegenerating}
+              onClick={on_regenerate}
+              disabled={is_regenerating}
               className="workspace-chip radius-shell-sm p-1 text-slate-700/50 transition-colors hover:text-slate-950 disabled:opacity-50"
               title="重新生成"
             >
-              <RefreshCw className={cn("w-3 h-3", isRegenerating && "animate-spin")}/>
+              <RefreshCw className={cn("w-3 h-3", is_regenerating && "animate-spin")}/>
             </button>
           )}
           {/* 删除 */}
-          {onDelete && (
+          {on_delete && (
             <button
-              onClick={onDelete}
-              disabled={isDeleting}
+              onClick={on_delete}
+              disabled={is_deleting}
               className="workspace-chip radius-shell-sm p-1 text-slate-700/50 transition-colors hover:text-red-500 disabled:opacity-50"
               title="删除"
             >

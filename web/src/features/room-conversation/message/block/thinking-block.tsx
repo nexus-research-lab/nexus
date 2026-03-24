@@ -7,10 +7,10 @@ import { MarkdownRenderer } from "../markdown-renderer";
 
 interface ThinkingBlockProps {
     thinking: string;
-    isStreaming?: boolean;
+    is_streaming?: boolean;
 }
 
-export function ThinkingBlock({ thinking, isStreaming }: ThinkingBlockProps) {
+export function ThinkingBlock({ thinking, is_streaming }: ThinkingBlockProps) {
     // 默认展开思考过程，流式状态仅影响展示样式，不影响折叠状态。
     const [isExpanded, setIsExpanded] = useState(true);
 
@@ -24,10 +24,10 @@ export function ThinkingBlock({ thinking, isStreaming }: ThinkingBlockProps) {
             >
                 <div className="flex items-center gap-2">
                     <div className="workspace-chip radius-shell-sm flex h-7 w-7 items-center justify-center">
-                        <Brain className={cn("h-3.5 w-3.5", isStreaming ? "animate-pulse text-sky-600" : "text-slate-800/70")} />
+                        <Brain className={cn("h-3.5 w-3.5", is_streaming ? "animate-pulse text-sky-600" : "text-slate-800/70")} />
                     </div>
                     <span className="font-medium uppercase tracking-[0.14em]">
-                        {isStreaming ? "整理思路中" : "协作思路"}
+                        {is_streaming ? "整理思路中" : "协作思路"}
                     </span>
                 </div>
                 {isExpanded ? (
@@ -39,7 +39,7 @@ export function ThinkingBlock({ thinking, isStreaming }: ThinkingBlockProps) {
 
             {isExpanded && (
                 <div className="border-t workspace-divider px-4 py-3 font-mono text-xs text-slate-700/78">
-                    <MarkdownRenderer content={thinking} isStreaming={isStreaming} />
+                    <MarkdownRenderer content={thinking} is_streaming={is_streaming} />
                 </div>
             )}
         </div>

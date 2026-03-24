@@ -11,35 +11,35 @@ import { cn } from '@/lib/utils';
 
 interface ContentRendererProps {
   content: string | ContentBlock[];
-  isStreaming?: boolean;
-  streamingBlockIndexes?: Set<number>;
+  is_streaming?: boolean;
+  streaming_block_indexes?: Set<number>;
   /** 当前工具的权限请求 */
-  pendingPermission?: PendingPermission | null;
+  pending_permission?: PendingPermission | null;
   /** 权限响应回调（也用于 AskUserQuestion） */
-  onPermissionResponse?: (payload: PermissionDecisionPayload) => void;
-  onOpenWorkspaceFile?: (path: string) => void;
+  on_permission_response?: (payload: PermissionDecisionPayload) => void;
+  on_open_workspace_file?: (path: string) => void;
   /** 需要隐藏的工具名称列表 */
-  hiddenToolNames?: string[];
+  hidden_tool_names?: string[];
 }
 
 export function ContentRenderer(
   {
     content,
-    isStreaming = false,
-    streamingBlockIndexes,
-    pendingPermission,
-    onPermissionResponse,
-    onOpenWorkspaceFile,
-    hiddenToolNames = [],
+    is_streaming = false,
+    streaming_block_indexes,
+    pending_permission,
+    on_permission_response,
+    on_open_workspace_file,
+    hidden_tool_names = [],
   }: ContentRendererProps) {
   // Handle string content (Markdown)
   if (typeof content === 'string') {
     return (
-      <MarkdownRenderer
-        content={content}
-        isStreaming={isStreaming}
-        onOpenWorkspaceFile={onOpenWorkspaceFile}
-      />
+        <MarkdownRenderer
+          content={content}
+          is_streaming={is_streaming}
+          on_open_workspace_file={on_open_workspace_file}
+        />
     );
   }
 
@@ -69,7 +69,7 @@ export function ContentRenderer(
   return (
     <div className="min-w-0 space-y-4">
       {content.map((block, index) => {
-        const blockIsStreaming = streamingBlockIndexes?.has(index) ?? isStreaming;
+        const blockIsStreaming = streaming_block_indexes?.has(index) ?? is_streaming;
 
         // 跳过已经被组合渲染的 tool_result
         if (renderedIndices.has(index)) {
@@ -81,8 +81,8 @@ export function ContentRenderer(
             <div key={index}>
               <ContentRenderer
                 content={block.text}
-                isStreaming={blockIsStreaming}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                is_streaming={blockIsStreaming}
+                on_open_workspace_file={on_open_workspace_file}
               />
             </div>
           );
@@ -91,7 +91,7 @@ export function ContentRenderer(
         if (block.type === 'thinking') {
           return (
             <div key={index}>
-              <ThinkingBlock thinking={block.thinking || ''} isStreaming={blockIsStreaming} />
+              <ThinkingBlock thinking={block.thinking || ''} is_streaming={blockIsStreaming} />
             </div>
           );
         }
@@ -102,15 +102,15 @@ export function ContentRenderer(
             const toolData = toolUseMap.get(block.id);
             const hasResult = !!toolData?.result;
             // 检查是否正在等待此工具的权限请求
-            const isThisToolPending = pendingPermission && pendingPermission.tool_name === 'AskUserQuestion' && !hasResult;
+            const isThisToolPending = pending_permission && pending_permission.tool_name === 'AskUserQuestion' && !hasResult;
             return (
               <div key={index}>
                 <AskUserQuestionBlock
-                  toolUse={block}
-                  isSubmitted={hasResult}
-                  onSubmit={(_, answers) => {
+                  tool_use={block}
+                  is_submitted={hasResult}
+                  on_submit={(_, answers) => {
                     // 发送 permission_response 并附带用户答案
-                    onPermissionResponse?.({
+                    on_permission_response?.({
                       decision: 'allow',
                       user_answers: answers,
                     });
@@ -121,14 +121,14 @@ export function ContentRenderer(
           }
 
           // 如果工具在隐藏列表中，则不渲染
-          if (hiddenToolNames.includes(block.name)) {
+          if (hidden_tool_names.includes(block.name)) {
             return null;
           }
 
           const toolData = toolUseMap.get(block.id);
           // 判断权限匹配：匹配 + 无结果检查
-          const isThisToolPendingPermission = pendingPermission &&
-            pendingPermission.tool_name === block.name && !toolData?.result;
+          const isThisToolPendingPermission = pending_permission &&
+            pending_permission.tool_name === block.name && !toolData?.result;
 
           // 确定状态
           let toolStatus: 'pending' | 'running' | 'success' | 'error' | 'waiting_permission' = 'running';
@@ -141,24 +141,24 @@ export function ContentRenderer(
           return (
             <div key={index} className="min-w-0">
               <ToolBlock
-                toolUse={block}
-                toolResult={toolData?.result}
+                tool_use={block}
+                tool_result={toolData?.result}
                 status={toolStatus}
-                permissionRequest={isThisToolPendingPermission ? {
-                  request_id: pendingPermission!.request_id,
-                  tool_input: pendingPermission!.tool_input,
-                  risk_level: pendingPermission!.risk_level,
-                  risk_label: pendingPermission!.risk_label,
-                  summary: pendingPermission!.summary,
-                  suggestions: pendingPermission!.suggestions,
-                  expires_at: pendingPermission!.expires_at,
-                  onAllow: (updatedPermissions) => onPermissionResponse?.({
+                permission_request={isThisToolPendingPermission ? {
+                  request_id: pending_permission!.request_id,
+                  tool_input: pending_permission!.tool_input,
+                  risk_level: pending_permission!.risk_level,
+                  risk_label: pending_permission!.risk_label,
+                  summary: pending_permission!.summary,
+                  suggestions: pending_permission!.suggestions,
+                  expires_at: pending_permission!.expires_at,
+                  on_allow: (updated_permissions) => on_permission_response?.({
                     decision: 'allow',
-                    updated_permissions: updatedPermissions,
+                    updated_permissions,
                   }),
-                  onDeny: (updatedPermissions) => onPermissionResponse?.({
+                  on_deny: (updated_permissions) => on_permission_response?.({
                     decision: 'deny',
-                    updated_permissions: updatedPermissions,
+                    updated_permissions,
                   }),
                 } : undefined}
               />

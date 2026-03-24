@@ -17,12 +17,12 @@ import { PermissionDialog } from '@/shared/ui/permission-dialog';
 // ==================== 类型定义 ====================
 
 interface ToolExecutionBlockProps {
-  toolUse: ToolUseContent;
-  toolResult?: ToolResultContent;
+  tool_use: ToolUseContent;
+  tool_result?: ToolResultContent;
   status?: 'pending' | 'running' | 'success' | 'error' | 'waiting_permission';
-  startTime?: number;
-  endTime?: number;
-  permissionRequest?: {
+  start_time?: number;
+  end_time?: number;
+  permission_request?: {
     request_id: string;
     tool_input: Record<string, any>;
     risk_level?: PermissionRiskLevel;
@@ -30,8 +30,8 @@ interface ToolExecutionBlockProps {
     summary?: string;
     suggestions?: PermissionUpdate[];
     expires_at?: string;
-    onAllow: (updatedPermissions?: PermissionUpdate[]) => void;
-    onDeny: (updatedPermissions?: PermissionUpdate[]) => void;
+    on_allow: (updated_permissions?: PermissionUpdate[]) => void;
+    on_deny: (updated_permissions?: PermissionUpdate[]) => void;
   };
 }
 
@@ -57,12 +57,12 @@ const getResultSummary = (content: any): string => {
 // ==================== 主组件 ====================
 
 export function ToolBlock({
-  toolUse,
-  toolResult,
+  tool_use,
+  tool_result,
   status = 'success',
-  startTime,
-  endTime,
-  permissionRequest,
+  start_time,
+  end_time,
+  permission_request,
 }: ToolExecutionBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -71,10 +71,10 @@ export function ToolBlock({
   // 复制工具执行结果
   const handleCopyResult = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!toolResult) return;
-    const contentToCopy = typeof toolResult.content === 'string'
-      ? toolResult.content
-      : JSON.stringify(toolResult.content, null, 2);
+    if (!tool_result) return;
+    const contentToCopy = typeof tool_result.content === 'string'
+      ? tool_result.content
+      : JSON.stringify(tool_result.content, null, 2);
     try {
       await navigator.clipboard.writeText(contentToCopy);
       setCopied(true);
@@ -82,14 +82,14 @@ export function ToolBlock({
     } catch (error) {
       console.error('Failed to copy:', error);
     }
-  }, [toolResult]);
+  }, [tool_result]);
 
   // 计算执行时间
   const duration = useMemo(() => {
-    if (endTime && startTime) return endTime - startTime;
-    if (startTime) return Date.now() - startTime;
+    if (end_time && start_time) return end_time - start_time;
+    if (start_time) return Date.now() - start_time;
     return 0;
-  }, [endTime, startTime]);
+  }, [end_time, start_time]);
 
   // 格式化时间
   const durationText = useMemo(() => {
@@ -98,11 +98,11 @@ export function ToolBlock({
   }, [duration]);
 
   // 路径显示
-  const pathDisplay = useMemo(() => getPathDisplay(toolUse.input), [toolUse.input]);
+  const pathDisplay = useMemo(() => getPathDisplay(tool_use.input), [tool_use.input]);
 
   // 最终状态
-  const finalStatus = toolResult?.is_error ? 'error' : status;
-  const hasResult = !!toolResult;
+  const finalStatus = tool_result?.is_error ? 'error' : status;
+  const hasResult = !!tool_result;
   const isRunning = finalStatus === 'running';
   const isSuccess = finalStatus === 'success';
   const isError = finalStatus === 'error';
@@ -161,7 +161,7 @@ export function ToolBlock({
           isRunning && "text-primary",
           isWaiting && "text-orange-500"
         )}>
-          {toolUse.name}
+          {tool_use.name}
         </span>
 
         {/* 分隔符 */}
@@ -225,12 +225,12 @@ export function ToolBlock({
       {hasResult && isExpanded && (
         <div className="border-t workspace-divider">
           <div className="max-h-[300px] overflow-y-auto p-3 custom-scrollbar">
-            {typeof toolResult.content === 'string' ? (
+            {typeof tool_result.content === 'string' ? (
               <pre className="workspace-card radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-slate-900/80">
-                {toolResult.content}
+                {tool_result.content}
               </pre>
             ) : (
-              <CodeBlock language="json" value={JSON.stringify(toolResult.content, null, 2)} />
+              <CodeBlock language="json" value={JSON.stringify(tool_result.content, null, 2)} />
             )}
           </div>
         </div>
@@ -249,20 +249,20 @@ export function ToolBlock({
       )}
 
       {/* ═══════════ 权限确认 ═══════════ */}
-      {permissionRequest && isWaiting && (
+      {permission_request && isWaiting && (
         <div className="border-t border-orange-500/20 bg-orange-500/5">
           {/* 参数预览 */}
           <div className="max-h-[120px] overflow-y-auto border-b border-orange-500/10 px-3 py-3 custom-scrollbar">
-            {permissionRequest.summary && (
+            {permission_request.summary && (
               <div className="mb-2 text-[11px] text-orange-500 flex items-center gap-2">
                 <span className="font-semibold uppercase tracking-wider">
-                  {permissionRequest.risk_label || '待确认'}
+                  {permission_request.risk_label || '待确认'}
                 </span>
-                <span className="truncate">{permissionRequest.summary}</span>
+                <span className="truncate">{permission_request.summary}</span>
               </div>
             )}
             <pre className="workspace-card radius-shell-sm p-3 text-[11px] font-mono whitespace-pre-wrap break-all text-slate-900/74">
-              {JSON.stringify(permissionRequest.tool_input, null, 2)}
+              {JSON.stringify(permission_request.tool_input, null, 2)}
             </pre>
           </div>
 
@@ -274,13 +274,13 @@ export function ToolBlock({
             </span>
             <div className="hidden flex-1 sm:block" />
             <button
-              onClick={() => permissionRequest.onDeny()}
+              onClick={() => permission_request.on_deny()}
               className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
             >
               拒绝
             </button>
             <button
-              onClick={() => permissionRequest.onAllow()}
+              onClick={() => permission_request.on_allow()}
               className="radius-shell-sm bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-[0_14px_24px_rgba(133,119,255,0.18)] transition-colors hover:bg-primary/90"
             >
               允许执行
@@ -296,23 +296,23 @@ export function ToolBlock({
       )}
 
       {/* 详情弹窗 */}
-      {permissionRequest && showDetailModal && (
+      {permission_request && showDetailModal && (
         <PermissionDialog
           isOpen={showDetailModal}
-          toolName={toolUse.name}
-          toolInput={toolUse.input}
-          riskLevel={permissionRequest.risk_level}
-          riskLabel={permissionRequest.risk_label}
-          summary={permissionRequest.summary}
-          suggestions={permissionRequest.suggestions}
-          expiresAt={permissionRequest.expires_at}
-          onAllow={(updatedPermissions) => {
+          toolName={tool_use.name}
+          toolInput={tool_use.input}
+          riskLevel={permission_request.risk_level}
+          riskLabel={permission_request.risk_label}
+          summary={permission_request.summary}
+          suggestions={permission_request.suggestions}
+          expiresAt={permission_request.expires_at}
+          onAllow={(updated_permissions) => {
             setShowDetailModal(false);
-            permissionRequest.onAllow(updatedPermissions);
+            permission_request.on_allow(updated_permissions);
           }}
-          onDeny={(updatedPermissions) => {
+          onDeny={(updated_permissions) => {
             setShowDetailModal(false);
-            permissionRequest.onDeny(updatedPermissions);
+            permission_request.on_deny(updated_permissions);
           }}
           onClose={() => setShowDetailModal(false)}
         />

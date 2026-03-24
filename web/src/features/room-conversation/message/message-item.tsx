@@ -16,37 +16,37 @@ import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
 
 interface MessageItemProps {
-  currentAgentName?: string | null;
-  roundId: string;
+  current_agent_name?: string | null;
+  round_id: string;
   messages: Message[];
-  isLastRound?: boolean;
-  isLoading?: boolean;
-  pendingPermission?: PendingPermission | null;
+  is_last_round?: boolean;
+  is_loading?: boolean;
+  pending_permission?: PendingPermission | null;
   /** 权限响应回调（也用于 AskUserQuestion） */
-  onPermissionResponse?: (payload: PermissionDecisionPayload) => void;
-  hiddenToolNames?: string[];
-  onDelete?: (roundId: string) => Promise<void>;
-  onRegenerate?: (roundId: string) => Promise<void>;
-  onEditUserMessage?: (messageId: string, newContent: string) => void;
-  onOpenWorkspaceFile?: (path: string) => void;
-  className?: string;
+  on_permission_response?: (payload: PermissionDecisionPayload) => void;
+  hidden_tool_names?: string[];
+  on_delete?: (round_id: string) => Promise<void>;
+  on_regenerate?: (round_id: string) => Promise<void>;
+  on_edit_user_message?: (message_id: string, new_content: string) => void;
+  on_open_workspace_file?: (path: string) => void;
+  class_name?: string;
 }
 
 export function MessageItem(
   {
-    currentAgentName,
-    roundId,
+    current_agent_name,
+    round_id,
     messages,
-    isLastRound,
-    isLoading,
-    pendingPermission,
-    onPermissionResponse,
-    hiddenToolNames = ['TodoWrite'],
-    onDelete,
-    onRegenerate,
-    onEditUserMessage,
-    onOpenWorkspaceFile,
-    className,
+    is_last_round,
+    is_loading,
+    pending_permission,
+    on_permission_response,
+    hidden_tool_names = ['TodoWrite'],
+    on_delete,
+    on_regenerate,
+    on_edit_user_message,
+    on_open_workspace_file,
+    class_name,
   }: MessageItemProps) {
   const roundRef = useRef<HTMLDivElement>(null);
   const [copiedUser, setCopiedUser] = useState(false);
@@ -63,7 +63,7 @@ export function MessageItem(
   }, [messages]);
 
   const streamingAssistantMessageId = useMemo(() => {
-    if (!isLastRound || !isLoading) {
+    if (!is_last_round || !is_loading) {
       return null;
     }
 
@@ -75,7 +75,7 @@ export function MessageItem(
     }
 
     return null;
-  }, [assistantMessages, isLastRound, isLoading]);
+  }, [assistantMessages, is_last_round, is_loading]);
 
   // 合并并去重 assistant 内容
   const { mergedContent, streamingBlockIndexes } = useMemo(() => {
@@ -150,7 +150,7 @@ export function MessageItem(
       cost: resultMessage.total_cost_usd !== undefined
         ? `$ ${resultMessage.total_cost_usd ? resultMessage.total_cost_usd.toFixed(4) : null}`
         : null,
-      cacheHit: cacheHit && cacheHit > 0 ? `💾 ${cacheHit}` : null,
+      cache_hit: cacheHit && cacheHit > 0 ? `💾 ${cacheHit}` : null,
     };
   }, [resultMessage]);
 
@@ -165,13 +165,13 @@ export function MessageItem(
     if (mergedContent.length === 0) return true;
     return mergedContent.every(block => {
       if (block.type === 'text') return !block.text?.trim();
-      if (block.type === 'tool_use') return hiddenToolNames.includes(block.name);
+      if (block.type === 'tool_use') return hidden_tool_names.includes(block.name);
       return block.type === 'tool_result';
     });
-  }, [mergedContent, hiddenToolNames]);
+  }, [mergedContent, hidden_tool_names]);
 
   const hasInlinePendingTool = useMemo(() => {
-    if (!pendingPermission) {
+    if (!pending_permission) {
       return false;
     }
 
@@ -179,7 +179,7 @@ export function MessageItem(
     const resolvedToolUseIds = new Set<string>();
 
     for (const block of mergedContent) {
-      if (block.type === 'tool_use' && block.name === pendingPermission.tool_name) {
+      if (block.type === 'tool_use' && block.name === pending_permission.tool_name) {
         pendingToolUseIds.add(block.id);
       }
       if (block.type === 'tool_result') {
@@ -194,14 +194,14 @@ export function MessageItem(
     }
 
     return false;
-  }, [mergedContent, pendingPermission]);
+  }, [mergedContent, pending_permission]);
 
   // 滚动
   useEffect(() => {
-    if (isLastRound && roundRef.current) {
+    if (is_last_round && roundRef.current) {
       roundRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [isLastRound]);
+  }, [is_last_round]);
 
   // 操作
   const handleCopyUser = useCallback(async () => {
@@ -227,28 +227,28 @@ export function MessageItem(
   }, [assistantTextContent]);
 
   const handleDelete = useCallback(async () => {
-    if (!onDelete || isDeleting) return;
+    if (!on_delete || isDeleting) return;
     setIsDeleting(true);
     try {
-      await onDelete(roundId);
+      await on_delete(round_id);
     } finally {
       setIsDeleting(false);
     }
-  }, [onDelete, roundId, isDeleting]);
+  }, [on_delete, round_id, isDeleting]);
 
   const handleRegenerate = useCallback(async () => {
-    if (!onRegenerate || isRegenerating) return;
+    if (!on_regenerate || isRegenerating) return;
     setIsRegenerating(true);
     try {
-      await onRegenerate(roundId);
+      await on_regenerate(round_id);
     } finally {
       setIsRegenerating(false);
     }
-  }, [onRegenerate, roundId, isRegenerating]);
+  }, [on_regenerate, round_id, isRegenerating]);
 
-  const showCursor = isLastRound && isLoading && streamingBlockIndexes.size > 0;
-  const isCompleted = hasFinalAnswer && !isLoading;
-  const canOperateRound = !!userMessage && !isLoading;
+  const showCursor = is_last_round && is_loading && streamingBlockIndexes.size > 0;
+  const isCompleted = hasFinalAnswer && !is_loading;
+  const canOperateRound = !!userMessage && !is_loading;
 
   // 格式化时间
   const formatTime = (ts: number) => {
@@ -258,7 +258,7 @@ export function MessageItem(
 
   return (
     <div ref={roundRef}
-      className={cn("w-full min-w-0 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300", className)}>
+      className={cn("w-full min-w-0 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300", class_name)}>
 
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
       {userMessage && (
@@ -285,13 +285,13 @@ export function MessageItem(
                     >
                       {copiedUser ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     </button>
-                    {onEditUserMessage && (
+                    {on_edit_user_message && (
                       <button
                         aria-label="编辑消息"
                         onClick={() => {
                           const newContent = prompt('编辑消息:', userContent);
                           if (newContent && newContent !== userContent) {
-                            onEditUserMessage(userMessage.message_id, newContent);
+                            on_edit_user_message(userMessage.message_id, newContent);
                           }
                         }}
                         className="p-1 rounded text-muted-foreground/50 hover:text-foreground transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -348,7 +348,7 @@ export function MessageItem(
                     <Terminal className="w-3 h-3 text-slate-800/70" />
                   </div>
                   <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-900/72">
-                    {currentAgentName || "协作成员"}
+                    {current_agent_name || "协作成员"}
                   </span>
 
                   {/* 时间 */}
@@ -371,39 +371,39 @@ export function MessageItem(
 
                   <ContentRenderer
                     content={mergedContent}
-                    isStreaming={showCursor}
-                    streamingBlockIndexes={streamingBlockIndexes}
-                    pendingPermission={pendingPermission}
-                    onPermissionResponse={onPermissionResponse}
-                    onOpenWorkspaceFile={onOpenWorkspaceFile}
-                    hiddenToolNames={hiddenToolNames}
+                    is_streaming={showCursor}
+                    streaming_block_indexes={streamingBlockIndexes}
+                    pending_permission={pending_permission}
+                    on_permission_response={on_permission_response}
+                    on_open_workspace_file={on_open_workspace_file}
+                    hidden_tool_names={hidden_tool_names}
                   />
 
-                  {pendingPermission && !hasInlinePendingTool && (
+                  {pending_permission && !hasInlinePendingTool && (
                     <div className="mt-4">
                       <ToolBlock
-                        toolUse={{
+                        tool_use={{
                           type: 'tool_use',
-                          id: `pending_${pendingPermission.request_id}`,
-                          name: pendingPermission.tool_name,
-                          input: pendingPermission.tool_input,
+                          id: `pending_${pending_permission.request_id}`,
+                          name: pending_permission.tool_name,
+                          input: pending_permission.tool_input,
                         }}
                         status="waiting_permission"
-                        permissionRequest={{
-                          request_id: pendingPermission.request_id,
-                          tool_input: pendingPermission.tool_input,
-                          risk_level: pendingPermission.risk_level,
-                          risk_label: pendingPermission.risk_label,
-                          summary: pendingPermission.summary,
-                          suggestions: pendingPermission.suggestions,
-                          expires_at: pendingPermission.expires_at,
-                          onAllow: (updatedPermissions) => onPermissionResponse?.({
+                        permission_request={{
+                          request_id: pending_permission.request_id,
+                          tool_input: pending_permission.tool_input,
+                          risk_level: pending_permission.risk_level,
+                          risk_label: pending_permission.risk_label,
+                          summary: pending_permission.summary,
+                          suggestions: pending_permission.suggestions,
+                          expires_at: pending_permission.expires_at,
+                          on_allow: (updated_permissions) => on_permission_response?.({
                             decision: 'allow',
-                            updated_permissions: updatedPermissions,
+                            updated_permissions,
                           }),
-                          onDeny: (updatedPermissions) => onPermissionResponse?.({
+                          on_deny: (updated_permissions) => on_permission_response?.({
                             decision: 'deny',
-                            updated_permissions: updatedPermissions,
+                            updated_permissions,
                           }),
                         }}
                       />
@@ -415,13 +415,13 @@ export function MessageItem(
                 {canOperateRound && (
                   <MessageStats
                     stats={stats || undefined}
-                    showCursor={showCursor}
-                    copiedAssistant={copiedAssistant}
-                    isRegenerating={isRegenerating}
-                    isDeleting={isDeleting}
-                    onCopyAssistant={handleCopyAssistant}
-                    onRegenerate={onRegenerate ? handleRegenerate : undefined}
-                    onDelete={onDelete ? handleDelete : undefined}
+                    show_cursor={showCursor}
+                    copied_assistant={copiedAssistant}
+                    is_regenerating={isRegenerating}
+                    is_deleting={isDeleting}
+                    on_copy_assistant={handleCopyAssistant}
+                    on_regenerate={on_regenerate ? handleRegenerate : undefined}
+                    on_delete={on_delete ? handleDelete : undefined}
                   />
                 )}
 

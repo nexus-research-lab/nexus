@@ -21,11 +21,11 @@ import { AskUserQuestionInput, UserQuestion, UserQuestionAnswer } from '@/types/
 
 interface AskUserQuestionBlockProps {
     /** tool_use 块 */
-    toolUse: ToolUseContent;
+    tool_use: ToolUseContent;
     /** 提交回答回调 */
-    onSubmit?: (toolUseId: string, answers: UserQuestionAnswer[]) => void;
+    on_submit?: (tool_use_id: string, answers: UserQuestionAnswer[]) => void;
     /** 是否已提交 */
-    isSubmitted?: boolean;
+    is_submitted?: boolean;
 }
 
 // ==================== 子组件 ====================
@@ -33,26 +33,26 @@ interface AskUserQuestionBlockProps {
 /** 单个问题卡片（支持独立收起） */
 function QuestionCard({
     question,
-    questionIndex,
-    selectedOptions,
-    onToggleOption,
-    isSubmitted,
-    defaultExpanded = false,
+    question_index,
+    selected_options,
+    on_toggle_option,
+    is_submitted,
+    default_expanded = false,
 }: {
     question: UserQuestion;
-    questionIndex: number;
-    selectedOptions: Set<string>;
-    onToggleOption: (questionIndex: number, optionLabel: string, multiSelect: boolean) => void;
-    isSubmitted: boolean;
-    defaultExpanded?: boolean;
+    question_index: number;
+    selected_options: Set<string>;
+    on_toggle_option: (question_index: number, option_label: string, multi_select: boolean) => void;
+    is_submitted: boolean;
+    default_expanded?: boolean;
 }) {
-    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+    const [isExpanded, setIsExpanded] = useState(default_expanded);
     const isMultiSelect = question.multiSelect ?? false;
-    const hasSelection = selectedOptions.size > 0;
+    const hasSelection = selected_options.size > 0;
 
     // 选中摘要（收起时显示）
-    const selectionSummary = Array.from(selectedOptions).slice(0, 2).join('、') +
-        (selectedOptions.size > 2 ? '...' : '');
+    const selectionSummary = Array.from(selected_options).slice(0, 2).join('、') +
+        (selected_options.size > 2 ? '...' : '');
 
     return (
         <div className={cn(
@@ -73,7 +73,7 @@ function QuestionCard({
                     "w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold",
                     hasSelection ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
                 )}>
-                    {questionIndex + 1}
+                    {question_index + 1}
                 </span>
 
                 {/* header 标签 */}
@@ -102,7 +102,7 @@ function QuestionCard({
                 {/* 选中数量 */}
                 {hasSelection && (
                     <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary rounded font-medium">
-                        {selectedOptions.size}
+                        {selected_options.size}
                     </span>
                 )}
 
@@ -120,7 +120,7 @@ function QuestionCard({
             {isExpanded && (
                 <div className="p-3 space-y-2">
                     {question.options.map((option, optIndex) => {
-                        const isSelected = selectedOptions.has(option.label);
+                        const isSelected = selected_options.has(option.label);
                         const Icon = isMultiSelect
                             ? (isSelected ? CheckSquare : Square)
                             : (isSelected ? CheckCircle : Circle);
@@ -128,10 +128,10 @@ function QuestionCard({
                         return (
                             <button
                                 key={optIndex}
-                                disabled={isSubmitted}
+                                disabled={is_submitted}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onToggleOption(questionIndex, option.label, isMultiSelect);
+                                    on_toggle_option(question_index, option.label, isMultiSelect);
                                 }}
                                 className={cn(
                                     "radius-shell-sm w-full text-left p-3 transition-all duration-200",
@@ -139,7 +139,7 @@ function QuestionCard({
                                     isSelected
                                         ? "neo-card bg-primary/10 shadow-[0_12px_20px_rgba(133,119,255,0.12)]"
                                         : "neo-card-flat",
-                                    isSubmitted && "opacity-60 cursor-not-allowed"
+                                    is_submitted && "opacity-60 cursor-not-allowed"
                                 )}
                             >
                                 <div className="flex items-start gap-3">
@@ -178,12 +178,12 @@ function QuestionCard({
 // ==================== 主组件 ====================
 
 export function AskUserQuestionBlock({
-    toolUse,
-    onSubmit,
-    isSubmitted: initialSubmitted = false,
+    tool_use,
+    on_submit,
+    is_submitted: initialSubmitted = false,
 }: AskUserQuestionBlockProps) {
     // 解析输入
-    const input = toolUse.input as AskUserQuestionInput;
+    const input = tool_use.input as AskUserQuestionInput;
     const questions = input?.questions || [];
 
     // 状态：每个问题的选中选项
@@ -241,8 +241,8 @@ export function AskUserQuestionBlock({
 
         setIsSubmitted(true);
         setIsExpanded(false); // 提交后收起
-        onSubmit?.(toolUse.id, answers);
-    }, [canSubmit, isSubmitted, questions, selections, toolUse.id, onSubmit]);
+        on_submit?.(tool_use.id, answers);
+    }, [canSubmit, isSubmitted, questions, selections, tool_use.id, on_submit]);
 
     // 计算已选数量
     const totalSelected = useMemo(() => {
@@ -341,10 +341,10 @@ export function AskUserQuestionBlock({
                         <QuestionCard
                             key={index}
                             question={question}
-                            questionIndex={index}
-                            selectedOptions={selections.get(index) || new Set()}
-                            onToggleOption={handleToggleOption}
-                            isSubmitted={isSubmitted}
+                            question_index={index}
+                            selected_options={selections.get(index) || new Set()}
+                            on_toggle_option={handleToggleOption}
+                            is_submitted={isSubmitted}
                         />
                     ))}
                 </div>
