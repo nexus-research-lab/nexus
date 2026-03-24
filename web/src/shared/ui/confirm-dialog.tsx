@@ -4,47 +4,47 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 interface ConfirmDialogProps {
-  isOpen: boolean;
+  is_open: boolean;
   title: string;
   message: string;
-  confirmText?: string;
-  cancelText?: string;
-  onConfirm: () => void;
-  onCancel: () => void;
+  confirm_text?: string;
+  cancel_text?: string;
+  on_confirm: () => void;
+  on_cancel: () => void;
   variant?: "danger" | "default";
 }
 
 export function ConfirmDialog({
-  isOpen,
+  is_open,
   title,
   message,
-  confirmText = "确认",
-  cancelText = "取消",
-  onConfirm,
-  onCancel,
+  confirm_text = "确认",
+  cancel_text = "取消",
+  on_confirm,
+  on_cancel,
   variant = "default",
 }: ConfirmDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (isOpen && confirmButtonRef.current) {
+    if (is_open && confirmButtonRef.current) {
       confirmButtonRef.current.focus();
     }
-  }, [isOpen]);
+  }, [is_open]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
+      if (!is_open) return;
       if (e.key === "Escape") {
         e.preventDefault();
-        onCancel();
+        on_cancel();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onCancel]);
+  }, [is_open, on_cancel]);
 
-  if (!isOpen) return null;
+  if (!is_open) return null;
 
   return (
     <div
@@ -62,7 +62,7 @@ export function ConfirmDialog({
           <button
             aria-label="关闭"
             className="neo-pill radius-shell-sm p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
-            onClick={onCancel}
+            onClick={on_cancel}
           >
             <X className="h-4 w-4" />
           </button>
@@ -75,9 +75,9 @@ export function ConfirmDialog({
         <div className="mt-4 flex justify-end gap-2">
           <button
             className="neo-pill radius-shell-sm px-4 py-2 text-sm font-medium text-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
-            onClick={onCancel}
+            onClick={on_cancel}
           >
-            {cancelText}
+            {cancel_text}
           </button>
           <button
             ref={confirmButtonRef}
@@ -86,9 +86,9 @@ export function ConfirmDialog({
                 ? "bg-destructive shadow-[0_16px_28px_rgba(235,90,81,0.22)] hover:bg-destructive/90"
                 : "bg-primary shadow-[0_16px_28px_rgba(133,119,255,0.22)] hover:bg-primary/90"
             }`}
-            onClick={onConfirm}
+            onClick={on_confirm}
           >
-            {confirmText}
+            {confirm_text}
           </button>
         </div>
       </div>
@@ -98,59 +98,59 @@ export function ConfirmDialog({
 
 // 简单的 prompt 对话框
 interface PromptDialogProps {
-  isOpen: boolean;
+  is_open: boolean;
   title: string;
   message?: string;
   placeholder?: string;
-  defaultValue?: string;
-  onConfirm: (value: string) => void;
-  onCancel: () => void;
+  default_value?: string;
+  on_confirm: (value: string) => void;
+  on_cancel: () => void;
 }
 
 export function PromptDialog({
-  isOpen,
+  is_open,
   title,
   message,
   placeholder = "",
-  defaultValue = "",
-  onConfirm,
-  onCancel,
+  default_value = "",
+  on_confirm,
+  on_cancel,
 }: PromptDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState(defaultValue);
+  const [value, setValue] = useState(default_value);
 
   // 当对话框打开时重置值
   useEffect(() => {
-    if (isOpen) {
-      setValue(defaultValue);
+    if (is_open) {
+      setValue(default_value);
     }
-  }, [isOpen, defaultValue]);
+  }, [is_open, default_value]);
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (is_open && inputRef.current) {
       inputRef.current.focus();
       inputRef.current.select();
     }
-  }, [isOpen]);
+  }, [is_open]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-    if (!isOpen) return;
+    if (!is_open) return;
     if (e.key === "Escape") {
       e.preventDefault();
-      onCancel();
-      setValue(defaultValue);
+      on_cancel();
+      setValue(default_value);
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      onConfirm(value);
+      on_confirm(value);
     }
   };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onCancel, onConfirm, value, defaultValue]);
+  }, [is_open, on_cancel, on_confirm, value, default_value]);
 
-  if (!isOpen) return null;
+  if (!is_open) return null;
 
   return (
     <div
@@ -168,8 +168,8 @@ export function PromptDialog({
             aria-label="关闭"
             className="neo-pill radius-shell-sm p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={() => {
-              setValue(defaultValue);
-              onCancel();
+              setValue(default_value);
+              on_cancel();
             }}
           >
             <X className="h-4 w-4" />
@@ -193,15 +193,15 @@ export function PromptDialog({
           <button
             className="neo-pill radius-shell-sm px-4 py-2 text-sm font-medium text-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
             onClick={() => {
-              setValue(defaultValue);
-              onCancel();
+              setValue(default_value);
+              on_cancel();
             }}
           >
             取消
           </button>
           <button
             className="radius-shell-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[0_16px_28px_rgba(133,119,255,0.22)] transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary/50"
-            onClick={() => onConfirm(value)}
+            onClick={() => on_confirm(value)}
           >
             确认
           </button>

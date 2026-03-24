@@ -298,23 +298,23 @@ export function ToolBlock({
       {/* 详情弹窗 */}
       {permission_request && showDetailModal && (
         <PermissionDialog
-          isOpen={showDetailModal}
-          toolName={tool_use.name}
-          toolInput={tool_use.input}
-          riskLevel={permission_request.risk_level}
-          riskLabel={permission_request.risk_label}
+          is_open={showDetailModal}
+          tool_name={tool_use.name}
+          tool_input={tool_use.input}
+          risk_level={permission_request.risk_level}
+          risk_label={permission_request.risk_label}
           summary={permission_request.summary}
           suggestions={permission_request.suggestions}
-          expiresAt={permission_request.expires_at}
-          onAllow={(updated_permissions) => {
+          expires_at={permission_request.expires_at}
+          on_allow={(updated_permissions) => {
             setShowDetailModal(false);
             permission_request.on_allow(updated_permissions);
           }}
-          onDeny={(updated_permissions) => {
+          on_deny={(updated_permissions) => {
             setShowDetailModal(false);
             permission_request.on_deny(updated_permissions);
           }}
-          onClose={() => setShowDetailModal(false)}
+          on_close={() => setShowDetailModal(false)}
         />
       )}
     </div>

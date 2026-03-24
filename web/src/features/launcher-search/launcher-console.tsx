@@ -215,7 +215,7 @@ const HeroStage = memo(function HeroStage({
           </p>
           <div className="relative inline-block">
             <LottiePlayer
-              className="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
+              class_name="pointer-events-none absolute -right-8 -top-7 h-18 w-18 opacity-[0.5] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
               src={ANIMATIONS.SPARKLES}
             />
             <h1 className="mb-10 text-[32px] font-extrabold tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
@@ -615,7 +615,7 @@ export function LauncherConsole({
       <div className="relative z-30 flex items-center justify-between px-7 pt-1">
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
-            className="pointer-events-none absolute left-2 -top-12 h-24 w-24 opacity-[0.8] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
+            class_name="pointer-events-none absolute left-2 -top-12 h-24 w-24 opacity-[0.8] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
             src={ANIMATIONS.BOM}
           />
           <img alt="" className="h-10 w-10" src="/logo.webp" />

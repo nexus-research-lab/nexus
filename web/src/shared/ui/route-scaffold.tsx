@@ -9,7 +9,7 @@ interface RouteScaffoldProps {
   description: string;
   meta?: ReactNode;
   children?: ReactNode;
-  className?: string;
+  class_name?: string;
 }
 
 export function RouteScaffold({
@@ -18,7 +18,7 @@ export function RouteScaffold({
   description,
   meta,
   children,
-  className,
+  class_name,
 }: RouteScaffoldProps) {
   return (
     <AppStage>
@@ -26,7 +26,7 @@ export function RouteScaffold({
         <section
           className={cn(
             "workspace-shell relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px]",
-            className,
+            class_name,
           )}
         >
           <div className="border-b workspace-divider px-8 py-6">

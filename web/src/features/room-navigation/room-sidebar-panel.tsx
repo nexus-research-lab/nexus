@@ -577,8 +577,8 @@ export function RoomSidebarPanel({
       </div>
 
       <PromptDialog
-        defaultValue={prompt_dialog.type === "rename" && prompt_dialog.entry ? prompt_dialog.entry.path : ""}
-        isOpen={prompt_dialog.is_open}
+        default_value={prompt_dialog.type === "rename" && prompt_dialog.entry ? prompt_dialog.entry.path : ""}
+        is_open={prompt_dialog.is_open}
         message={
           prompt_dialog.type === "create"
             ? prompt_dialog.entry_type === "file"
@@ -586,8 +586,8 @@ export function RoomSidebarPanel({
               : "输入目录的名称"
             : "输入新的名称"
         }
-        onCancel={() => setPromptDialog({ is_open: false, type: "create", entry_type: "file" })}
-        onConfirm={prompt_dialog.type === "create" ? handle_create_entry_confirm : handle_rename_entry_confirm}
+        on_cancel={() => setPromptDialog({ is_open: false, type: "create", entry_type: "file" })}
+        on_confirm={prompt_dialog.type === "create" ? handle_create_entry_confirm : handle_rename_entry_confirm}
         placeholder={prompt_dialog.entry_type === "file" ? "notes/todo.md" : "notes"}
         title={
           prompt_dialog.type === "create"
@@ -599,12 +599,12 @@ export function RoomSidebarPanel({
       />
 
       <ConfirmDialog
-        cancelText="取消"
-        confirmText="删除"
-        isOpen={confirm_dialog.is_open}
+        cancel_text="取消"
+        confirm_text="删除"
+        is_open={confirm_dialog.is_open}
         message={`确定要删除 ${confirm_dialog.entry?.path ?? ""} 吗？删除后无法恢复。`}
-        onCancel={() => setConfirmDialog({ is_open: false })}
-        onConfirm={handle_delete_entry_confirm}
+        on_cancel={() => setConfirmDialog({ is_open: false })}
+        on_confirm={handle_delete_entry_confirm}
         title="确认删除"
         variant="danger"
       />

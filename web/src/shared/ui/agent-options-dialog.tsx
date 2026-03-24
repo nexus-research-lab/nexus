@@ -27,17 +27,17 @@ interface AgentOptionsProps {
   /** 对话框模式：create 或 edit */
   mode: 'create' | 'edit';
   /** 是否打开对话框 */
-  isOpen: boolean;
+  is_open: boolean;
   /** 关闭对话框回调 */
-  onClose: () => void;
+  on_close: () => void;
   /** 保存配置回调 */
-  onSave: (title: string, options: SessionOptions) => void;
+  on_save: (title: string, options: SessionOptions) => void;
   /** 名称校验回调 */
-  onValidateName?: (name: string) => Promise<AgentNameValidationResult>;
+  on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   /** 初始标题（编辑模式） */
-  initialTitle?: string;
+  initial_title?: string;
   /** 初始配置（编辑模式） */
-  initialOptions?: Partial<SessionOptions>;
+  initial_options?: Partial<SessionOptions>;
 }
 
 interface AgentDialogInitialOptions extends Partial<SessionOptions> {
@@ -94,18 +94,18 @@ const AVAILABLE_TOOLS = [
 export function AgentOptions(
   {
     mode,
-    isOpen,
-    onClose,
-    onSave,
-    onValidateName,
-    initialTitle = '',
-    initialOptions = {},
+    is_open,
+    on_close,
+    on_save,
+    on_validate_name,
+    initial_title = '',
+    initial_options = {},
   }: AgentOptionsProps) {
-  const sourceOptions = initialOptions as AgentDialogInitialOptions;
+  const sourceOptions = initial_options as AgentDialogInitialOptions;
 
   // 状态管理
   const [activeTab, setActiveTab] = useState<TabKey>('basic');
-  const [title, setTitle] = useState(initialTitle || 'Agent');
+  const [title, setTitle] = useState(initial_title || 'Agent');
   const [model, setModel] = useState(sourceOptions.model || 'glm-5');
   const [permissionMode, setPermissionMode] = useState(
     sourceOptions.permission_mode || sourceOptions.permission_mode || 'default'
@@ -129,10 +129,10 @@ export function AgentOptions(
   const [isValidatingName, setIsValidatingName] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
-    const nextOptions = initialOptions as AgentDialogInitialOptions;
+    if (!is_open) return;
+    const nextOptions = initial_options as AgentDialogInitialOptions;
     setActiveTab('basic');
-    setTitle(initialTitle || 'Agent');
+    setTitle(initial_title || 'Agent');
     setModel(nextOptions.model || 'glm-5');
     setPermissionMode(nextOptions.permission_mode || nextOptions.permission_mode || 'default');
     setAllowedTools(nextOptions.allowed_tools || nextOptions.allowed_tools || []);
@@ -144,7 +144,7 @@ export function AgentOptions(
     );
     setNameValidation(null);
     setIsValidatingName(false);
-  }, [isOpen, initialTitle, initialOptions]);
+  }, [is_open, initial_title, initial_options]);
 
   // 切换技能来源
   const toggleSettingSource = (source: 'user' | 'project' | 'local') => {
@@ -165,9 +165,9 @@ export function AgentOptions(
   ];
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!is_open) return;
 
-    if (!onValidateName) {
+    if (!on_validate_name) {
       setNameValidation(null);
       return;
     }
@@ -183,7 +183,7 @@ export function AgentOptions(
     const timer = window.setTimeout(async () => {
       try {
         setIsValidatingName(true);
-        const result = await onValidateName(trimmed);
+        const result = await on_validate_name(trimmed);
         if (!cancelled) {
           setNameValidation(result);
         }
@@ -209,7 +209,7 @@ export function AgentOptions(
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [title, isOpen, onValidateName]);
+  }, [title, is_open, on_validate_name]);
 
   // 处理工具选择
   const toggleTool = (toolName: string, type: 'allowed' | 'disallowed') => {
@@ -251,14 +251,14 @@ export function AgentOptions(
       skills_enabled: skillsEnabled,
       setting_sources: settingSources.length > 0 ? settingSources : undefined,
     };
-    onSave(trimmedTitle, options);
-    onClose();
+    on_save(trimmedTitle, options);
+    on_close();
   };
 
   const isNameInvalid = !!(nameValidation && (!nameValidation.is_valid || !nameValidation.is_available));
   const canSave = !!title.trim() && !isValidatingName && !isNameInvalid;
 
-  if (!isOpen) return null;
+  if (!is_open) return null;
 
   return (
     <div
@@ -282,7 +282,7 @@ export function AgentOptions(
           </div>
           <button
             aria-label="关闭对话框"
-            onClick={onClose}
+            onClick={on_close}
             className="neo-pill radius-shell-sm p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             <X className="w-5 h-5"/>
@@ -656,7 +656,7 @@ export function AgentOptions(
         {/* 底部按钮 */}
         <div className="flex items-center justify-end gap-3 border-t border-white/55 px-6 py-5">
           <button
-            onClick={onClose}
+            onClick={on_close}
             className="neo-pill radius-shell-sm px-5 py-2.5 text-sm font-medium transition-colors hover:text-accent"
           >
             取消

@@ -7,11 +7,11 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 interface HomeLottieProps {
   src: string;
-  className?: string;
+  class_name?: string;
   style?: CSSProperties;
 }
 
-export function LottiePlayer({ src, className, style }: HomeLottieProps) {
+export function LottiePlayer({ src, class_name, style }: HomeLottieProps) {
   const [animationData, setAnimationData] = useState<object | null>(null);
   const [dotLottieInstance, setDotLottieInstance] = useState<DotLottie | null>(null);
   const isDotLottie = src.endsWith(".lottie");
@@ -43,7 +43,7 @@ export function LottiePlayer({ src, className, style }: HomeLottieProps) {
 
   if (isDotLottie) {
     return (
-      <div className={className} style={style}>
+      <div className={class_name} style={style}>
         <DotLottieReact
           autoplay
           dotLottieRefCallback={setDotLottieInstance}
@@ -55,14 +55,14 @@ export function LottiePlayer({ src, className, style }: HomeLottieProps) {
   }
 
   if (!animationData) {
-    return <div className={className} style={style} />;
+    return <div className={class_name} style={style} />;
   }
 
   return (
     <Lottie
       animationData={animationData}
       autoplay
-      className={className}
+      className={class_name}
       loop
       rendererSettings={{
         preserveAspectRatio: "xMidYMid meet",

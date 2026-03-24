@@ -13,42 +13,42 @@ import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
 
 interface PermissionDialogProps {
   /** 是否显示对话框 */
-  isOpen: boolean;
+  is_open: boolean;
   /** 工具名称 */
-  toolName: string;
+  tool_name: string;
   /** 工具输入参数 */
-  toolInput: Record<string, any>;
+  tool_input: Record<string, any>;
   /** 风险级别 */
-  riskLevel?: PermissionRiskLevel;
+  risk_level?: PermissionRiskLevel;
   /** 风险标签 */
-  riskLabel?: string;
+  risk_label?: string;
   /** 摘要 */
   summary?: string;
   /** SDK 建议的权限更新 */
   suggestions?: PermissionUpdate[];
   /** 过期时间 */
-  expiresAt?: string;
+  expires_at?: string;
   /** 允许回调 */
-  onAllow: (updatedPermissions?: PermissionUpdate[]) => void;
+  on_allow: (updated_permissions?: PermissionUpdate[]) => void;
   /** 拒绝回调 */
-  onDeny: (updatedPermissions?: PermissionUpdate[]) => void;
+  on_deny: (updated_permissions?: PermissionUpdate[]) => void;
   /** 关闭弹窗 */
-  onClose: () => void;
+  on_close: () => void;
 }
 
 export function PermissionDialog(
   {
-    isOpen,
-    toolName,
-    toolInput,
-    riskLevel,
-    riskLabel,
+    is_open,
+    tool_name,
+    tool_input,
+    risk_level,
+    risk_label,
     summary,
     suggestions = [],
-    expiresAt,
-    onAllow,
-    onDeny,
-    onClose
+    expires_at,
+    on_allow,
+    on_deny,
+    on_close
   }: PermissionDialogProps) {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
 
@@ -83,7 +83,7 @@ export function PermissionDialog(
 
   // 格式化显示工具输入参数
   const formatToolInput = () => {
-    const entries = Object.entries(toolInput);
+    const entries = Object.entries(tool_input);
     if (entries.length === 0) return null;
 
     return (
@@ -102,7 +102,7 @@ export function PermissionDialog(
     );
   };
 
-  if (!isOpen) return null;
+  if (!is_open) return null;
 
   // 使用 Portal 渲染到 body
   if (typeof document === 'undefined') return null;
@@ -128,7 +128,7 @@ export function PermissionDialog(
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={on_close}
             className="neo-pill radius-shell-sm p-2 text-muted-foreground transition-colors hover:text-foreground"
           >
             <X className="w-4 h-4" />
@@ -139,12 +139,12 @@ export function PermissionDialog(
         <div className="p-5 space-y-4 max-h-[60vh] overflow-auto">
           <div className="radius-shell-md border border-orange-500/20 bg-orange-500/10 p-4">
             <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
-              Agent 想要使用「{toolName}」工具
+              Agent 想要使用「{tool_name}」工具
             </p>
             <p className="text-xs text-orange-600/90 dark:text-orange-300/90 mt-1.5 leading-relaxed">
               允许后，Agent 将执行此工具对应的操作。请检查下方参数是否正确。
             </p>
-            {(summary || riskLabel || expiresAt) && (
+            {(summary || risk_label || expires_at) && (
               <div className="mt-3 space-y-1 text-xs">
                 {summary && (
                   <p className="text-foreground/80 break-all">
@@ -152,16 +152,16 @@ export function PermissionDialog(
                     {summary}
                   </p>
                 )}
-                {riskLabel && (
-                  <p className={riskLevel ? riskColorMap[riskLevel] : 'text-foreground/80'}>
+                {risk_label && (
+                  <p className={risk_level ? riskColorMap[risk_level] : 'text-foreground/80'}>
                     <span className="font-medium text-foreground">风险：</span>
-                    {riskLabel}
+                    {risk_label}
                   </p>
                 )}
-                {expiresAt && (
+                {expires_at && (
                   <p className="text-foreground/70">
                     <span className="font-medium text-foreground">过期：</span>
-                    {new Date(expiresAt).toLocaleString()}
+                    {new Date(expires_at).toLocaleString()}
                   </p>
                 )}
               </div>
@@ -210,7 +210,7 @@ export function PermissionDialog(
         {/* 底部按钮 */}
         <div className="flex items-center justify-end gap-3 border-t border-white/55 px-5 py-4">
           <button
-            onClick={() => onDeny()}
+            onClick={() => on_deny()}
             className="neo-pill radius-shell-sm px-4 py-2 text-sm font-medium transition-colors hover:text-accent"
           >
             拒绝
@@ -220,7 +220,7 @@ export function PermissionDialog(
               const selectedUpdate = selectedSuggestionIndex >= 0
                 ? [suggestions[selectedSuggestionIndex]]
                 : undefined;
-              onAllow(selectedUpdate);
+              on_allow(selectedUpdate);
             }}
             className="radius-shell-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[0_16px_28px_rgba(133,119,255,0.22)] transition-colors hover:bg-primary/90"
           >

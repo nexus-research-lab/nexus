@@ -70,12 +70,12 @@ export function LauncherPage() {
 
       <AgentOptions
         mode={controller.dialogMode}
-        isOpen={controller.isDialogOpen}
-        onClose={() => controller.setIsDialogOpen(false)}
-        onSave={handleSaveAgentOptions}
-        onValidateName={controller.handle_validate_agent_name}
-        initialTitle={controller.dialog_initial_title}
-        initialOptions={controller.dialog_initial_options}
+        is_open={controller.isDialogOpen}
+        on_close={() => controller.setIsDialogOpen(false)}
+        on_save={handleSaveAgentOptions}
+        on_validate_name={controller.handle_validate_agent_name}
+        initial_title={controller.dialog_initial_title}
+        initial_options={controller.dialog_initial_options}
       />
     </AppStage>
   );
