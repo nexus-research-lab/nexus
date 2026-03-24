@@ -1,12 +1,7 @@
 import { Cpu } from "lucide-react";
 
-import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
 import { formatCost, formatTokens } from "@/lib/utils";
-
-interface RoomUsageSectionProps {
-  agent_cost_summary: AgentCostSummary;
-  session_cost_summary: SessionCostSummary;
-}
+import { RoomUsageSectionProps } from "@/types/room";
 
 export function RoomUsageSection({
   agent_cost_summary,
