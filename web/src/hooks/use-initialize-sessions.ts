@@ -9,41 +9,35 @@
 
 import { useEffect, useState } from "react";
 import { useSessionStore } from "@/store/session";
-
-interface UseInitializeSessionsOptions {
-  loadSessionsFromServer: () => Promise<void>;
-  setCurrentSession: (key: string) => void;
-  autoSelectFirst?: boolean;
-  debugName?: string;
-}
+import { InitializeSessionsOptions } from "@/types/session";
 
 export const useInitializeSessions = ({
-  loadSessionsFromServer,
-  setCurrentSession,
-  autoSelectFirst = true,
-  debugName = "useInitializeSessions"
-}: UseInitializeSessionsOptions) => {
-  const [isHydrated, setIsHydrated] = useState(false);
+  load_sessions_from_server,
+  set_current_session,
+  auto_select_first = true,
+  debug_name = "useInitializeSessions",
+}: InitializeSessionsOptions) => {
+  const [is_hydrated, set_is_hydrated] = useState(false);
 
   useEffect(() => {
-    setIsHydrated(true);
+    set_is_hydrated(true);
 
-    const currentState = useSessionStore.getState();
-    if (currentState.sessions.length > 0) {
+    const current_state = useSessionStore.getState();
+    if (current_state.sessions.length > 0) {
       return;
     }
 
-    loadSessionsFromServer()
+    load_sessions_from_server()
       .then(() => {
         const state = useSessionStore.getState();
-        if (autoSelectFirst && !state.current_session_key && state.sessions.length > 0) {
-          setCurrentSession(state.sessions[0].session_key);
+        if (auto_select_first && !state.current_session_key && state.sessions.length > 0) {
+          set_current_session(state.sessions[0].session_key);
         }
       })
       .catch((err) => {
-        console.error(`[${debugName}] Failed to load sessions:`, err);
+        console.error(`[${debug_name}] Failed to load sessions:`, err);
       });
-  }, [loadSessionsFromServer, setCurrentSession, autoSelectFirst, debugName]);
+  }, [auto_select_first, debug_name, load_sessions_from_server, set_current_session]);
 
-  return isHydrated;
+  return is_hydrated;
 };

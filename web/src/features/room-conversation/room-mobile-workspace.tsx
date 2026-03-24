@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, MessageSquare, Plus, Search, X } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/utils";
-import { Conversation } from "@/types/conversation";
 import { Agent } from "@/types/agent";
+import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
 
 import { RoomChatPanel } from "./room-chat-panel";
 
@@ -18,12 +18,7 @@ export interface RoomMobileWorkspaceProps {
   on_create_conversation: () => void;
   on_select_conversation: (conversation_id: string) => void;
   on_loading_change: (is_loading: boolean) => void;
-  on_conversation_snapshot_change: (snapshot: {
-    conversation_id: string;
-    message_count: number;
-    last_activity_at: number;
-    session_id: string | null;
-  }) => void;
+  on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
 }
 
 export function RoomMobileWorkspace({
@@ -93,14 +88,7 @@ export function RoomMobileWorkspace({
           agent_id={current_agent.agent_id}
           current_agent_name={current_agent.name}
           layout="mobile"
-          on_conversation_snapshot_change={(snapshot) =>
-            on_conversation_snapshot_change({
-              conversation_id: snapshot.session_key,
-              message_count: snapshot.message_count,
-              last_activity_at: snapshot.last_activity_at,
-              session_id: snapshot.session_id,
-            })
-          }
+          on_conversation_snapshot_change={on_conversation_snapshot_change}
           on_create_conversation={on_create_conversation}
           on_loading_change={on_loading_change}
           session_key={current_conversation_id}

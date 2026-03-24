@@ -124,14 +124,7 @@ export function RoomWorkspaceLayout({
             <RoomChatPanel
               agent_id={current_agent.agent_id}
               current_agent_name={current_agent.name}
-              on_conversation_snapshot_change={(snapshot) =>
-                on_conversation_snapshot_change({
-                  conversation_id: snapshot.session_key,
-                  message_count: snapshot.message_count,
-                  last_activity_at: snapshot.last_activity_at,
-                  session_id: snapshot.session_id,
-                })
-              }
+              on_conversation_snapshot_change={on_conversation_snapshot_change}
               on_create_conversation={on_create_conversation}
               on_loading_change={on_loading_change}
               on_open_workspace_file={on_open_workspace_file}

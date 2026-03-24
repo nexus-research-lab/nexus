@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { SessionLoaderOptions } from "@/types/session";
 
 /**
  * Session 加载器 — 监听 session_key 变化并触发加载
@@ -9,19 +10,21 @@ import { useEffect, useRef } from "react";
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 export const useSessionLoader = (
-  sessionKey: string | null,
-  loadSession: (key: string) => void,
-  debugName = "useSessionLoader"
+  {
+    session_key,
+    load_session,
+    debug_name = "useSessionLoader",
+  }: SessionLoaderOptions,
 ) => {
-  const prevKey = useRef<string | null>(null);
+  const prev_key = useRef<string | null>(null);
 
   useEffect(() => {
-    if (prevKey.current === sessionKey) return;
-    prevKey.current = sessionKey;
+    if (prev_key.current === session_key) return;
+    prev_key.current = session_key;
 
-    if (sessionKey) {
-      console.debug(`[${debugName}] Loading session:`, sessionKey);
-      loadSession(sessionKey);
+    if (session_key) {
+      console.debug(`[${debug_name}] Loading session:`, session_key);
+      load_session(session_key);
     }
-  }, [sessionKey, loadSession, debugName]);
+  }, [debug_name, load_session, session_key]);
 };

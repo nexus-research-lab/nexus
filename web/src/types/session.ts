@@ -74,3 +74,16 @@ export interface CreateSessionParams {
 export interface UpdateSessionParams {
   title?: string;
 }
+
+export interface InitializeSessionsOptions {
+  load_sessions_from_server: () => Promise<void>;
+  set_current_session: (key: string) => void;
+  auto_select_first?: boolean;
+  debug_name?: string;
+}
+
+export interface SessionLoaderOptions {
+  session_key: string | null;
+  load_session: (key: string) => void;
+  debug_name?: string;
+}

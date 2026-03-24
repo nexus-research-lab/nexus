@@ -2,26 +2,9 @@ import { Dispatch, SetStateAction } from 'react';
 
 import { EventMessage, Message, StreamMessage } from '@/types';
 import { PendingPermission } from '@/types/permission';
+import { WorkspaceEventPayload } from '@/types/workspace-live';
 
 import { applyStreamMessage, upsertMessage } from './message-helpers';
-
-interface WorkspaceEventPayload {
-  type: 'file_write_start' | 'file_write_delta' | 'file_write_end';
-  agent_id: string;
-  path: string;
-  version: number;
-  source: 'agent' | 'api' | 'system' | 'unknown';
-  session_key?: string | null;
-  tool_use_id?: string | null;
-  content_snapshot?: string | null;
-  appended_text?: string | null;
-  diff_stats?: {
-    additions: number;
-    deletions: number;
-    changed_lines: number;
-  } | null;
-  timestamp: string;
-}
 
 interface HandleAgentWebSocketMessageParams {
   backendMessage: unknown;

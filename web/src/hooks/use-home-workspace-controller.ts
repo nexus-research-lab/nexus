@@ -9,8 +9,8 @@ import {
 } from "@/lib/home-layout";
 import { getAgentCostSummaryApi } from "@/lib/agent-manage-api";
 import { AgentCostSummary, SessionCostSummary } from "@/types/cost";
-import { Session } from "@/types/session";
 import { TodoItem } from "@/types/todo";
+import { HomeWorkspaceControllerOptions } from "@/types/workspace";
 
 const EMPTY_SESSION_COST_SUMMARY: SessionCostSummary = {
   agent_id: "",
@@ -42,15 +42,10 @@ const EMPTY_AGENT_COST_SUMMARY: AgentCostSummary = {
   cost_sessions: 0,
 };
 
-interface UseHomeWorkspaceControllerOptions {
-  current_agent_id: string | null;
-  current_conversation: Session | null;
-}
-
 export function useHomeWorkspaceController({
   current_agent_id,
   current_conversation,
-}: UseHomeWorkspaceControllerOptions) {
+}: HomeWorkspaceControllerOptions) {
   const [active_workspace_path, setActiveWorkspacePath] = useState<string | null>(null);
   const [is_editor_open, setIsEditorOpen] = useState(false);
   const [editor_width_percent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
@@ -208,8 +203,8 @@ export function useHomeWorkspaceController({
     session_cost_summary,
     agent_cost_summary,
     workspace_split_ref,
-    setCurrentTodos,
-    setIsSessionBusy,
+    set_current_todos: setCurrentTodos,
+    set_is_session_busy: setIsSessionBusy,
     handle_open_workspace_file,
     handle_start_editor_resize,
     handle_close_workspace_pane,

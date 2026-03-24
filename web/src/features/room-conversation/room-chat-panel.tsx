@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAgentSession } from "@/hooks/agent";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useSessionLoader } from "@/hooks/use-session-loader";
+import { ConversationSnapshotPayload } from "@/types/conversation";
 import { Message } from "@/types/message";
 import { TodoItem } from "@/types/todo";
 
@@ -24,12 +25,7 @@ export interface RoomChatPanelProps {
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
-  on_conversation_snapshot_change?: (snapshot: {
-    session_key: string;
-    message_count: number;
-    last_activity_at: number;
-    session_id: string | null;
-  }) => void;
+  on_conversation_snapshot_change?: (snapshot: ConversationSnapshotPayload) => void;
 }
 
 const BOTTOM_THRESHOLD_PX = 80;
@@ -106,14 +102,18 @@ export function RoomChatPanel({
 
     const last_message = messages[messages.length - 1];
     on_conversation_snapshot_change?.({
-      session_key: external_session_key,
+      conversation_id: external_session_key,
       message_count: messages.length,
       last_activity_at: last_message?.timestamp ?? Date.now(),
       session_id: last_message?.session_id ?? null,
     });
   }, [external_session_key, messages, on_conversation_snapshot_change]);
 
-  useSessionLoader(external_session_key, load_session, "RoomChatPanel");
+  useSessionLoader({
+    session_key: external_session_key,
+    load_session,
+    debug_name: "RoomChatPanel",
+  });
 
   const message_groups = useMemo(() => groupMessagesByRound(messages), [messages]);
 

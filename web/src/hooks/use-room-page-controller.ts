@@ -4,16 +4,12 @@ import { useEffect } from "react";
 
 import { useHomeAgentSessionController } from "@/hooks/use-home-agent-session-controller";
 import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
-
-interface UseRoomPageControllerOptions {
-  roomId?: string | null;
-  conversationId?: string | null;
-}
+import { RoomPageControllerOptions } from "@/types/route";
 
 export function useRoomPageController({
-  roomId,
-  conversationId,
-}: UseRoomPageControllerOptions) {
+  room_id,
+  conversation_id,
+}: RoomPageControllerOptions) {
   const agent_session = useHomeAgentSessionController();
   const {
     agents,
@@ -23,7 +19,7 @@ export function useRoomPageController({
     current_conversation_id,
     handle_select_agent,
     handle_select_conversation,
-    isHydrated,
+    is_hydrated,
     conversations,
     recent_agents,
     dialog_initial_options,
@@ -35,12 +31,12 @@ export function useRoomPageController({
   });
 
   useEffect(() => {
-    if (!isHydrated) {
+    if (!is_hydrated) {
       return;
     }
 
-    if (conversationId) {
-      const target_conversation = conversations.find((conversation) => conversation.session_key === conversationId);
+    if (conversation_id) {
+      const target_conversation = conversations.find((conversation) => conversation.session_key === conversation_id);
       if (target_conversation?.agent_id && target_conversation.agent_id !== current_agent_id) {
         handle_select_agent(target_conversation.agent_id);
         return;
@@ -52,27 +48,27 @@ export function useRoomPageController({
       }
     }
 
-    if (!roomId) {
+    if (!room_id) {
       return;
     }
 
     // 当前后端仍以 agent 维度承载 room 工作台，这里先做兼容路由映射。
-    if (roomId !== current_agent_id) {
-      const matchedAgent = agents.find((agent) => agent.agent_id === roomId);
-      if (matchedAgent) {
-        handle_select_agent(matchedAgent.agent_id);
+    if (room_id !== current_agent_id) {
+      const matched_agent = agents.find((agent) => agent.agent_id === room_id);
+      if (matched_agent) {
+        handle_select_agent(matched_agent.agent_id);
       }
     }
   }, [
     agents,
-    conversationId,
+    conversation_id,
     conversations,
     current_agent_id,
     current_conversation_id,
     handle_select_agent,
     handle_select_conversation,
-    isHydrated,
-    roomId,
+    is_hydrated,
+    room_id,
   ]);
 
   return {
@@ -85,7 +81,7 @@ export function useRoomPageController({
     recent_agents,
     dialog_initial_options,
     dialog_initial_title,
-    route_conversation_id: conversationId ?? null,
-    route_room_id: roomId ?? null,
+    route_conversation_id: conversation_id ?? null,
+    route_room_id: room_id ?? null,
   };
 }

@@ -6,24 +6,18 @@
  */
 
 import { useInitializeSessions } from "@/hooks/use-initialize-sessions";
-
-interface UseInitializeConversationsOptions {
-  loadConversationsFromServer: () => Promise<void>;
-  setCurrentConversation: (key: string) => void;
-  autoSelectFirst?: boolean;
-  debugName?: string;
-}
+import { InitializeConversationsOptions } from "@/types/conversation";
 
 export const useInitializeConversations = ({
-  loadConversationsFromServer,
-  setCurrentConversation,
-  autoSelectFirst = true,
-  debugName = "useInitializeConversations",
-}: UseInitializeConversationsOptions) => {
+  load_conversations_from_server,
+  set_current_conversation,
+  auto_select_first = true,
+  debug_name = "useInitializeConversations",
+}: InitializeConversationsOptions) => {
   return useInitializeSessions({
-    loadSessionsFromServer: loadConversationsFromServer,
-    setCurrentSession: setCurrentConversation,
-    autoSelectFirst,
-    debugName,
+    load_sessions_from_server: load_conversations_from_server,
+    set_current_session: set_current_conversation,
+    auto_select_first,
+    debug_name,
   });
 };

@@ -9,13 +9,14 @@ import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useSessionStore } from "@/store/session";
+import { RoomRouteParams } from "@/types/route";
 
 export function RoomPage() {
-  const params = useParams<{ roomId?: string; conversationId?: string }>();
+  const params = useParams<RoomRouteParams>();
   const navigate = useNavigate();
   const controller = useRoomPageController({
-    roomId: params.roomId,
-    conversationId: params.conversationId,
+    room_id: params.room_id,
+    conversation_id: params.conversation_id,
   });
 
   const handleBackToLauncher = useCallback(() => {
@@ -23,29 +24,29 @@ export function RoomPage() {
     navigate(AppRouteBuilders.launcher());
   }, [controller, navigate]);
 
-  const handleSelectAgent = useCallback((agentId: string) => {
-    controller.handle_select_agent(agentId);
-    navigate(AppRouteBuilders.room(agentId));
+  const handleSelectAgent = useCallback((agent_id: string) => {
+    controller.handle_select_agent(agent_id);
+    navigate(AppRouteBuilders.room(agent_id));
   }, [controller, navigate]);
 
-  const handleSelectConversation = useCallback((conversationId: string) => {
-    controller.handle_select_conversation(conversationId);
-    const routeRoomId = controller.current_agent_id ?? params.roomId;
-    if (routeRoomId) {
-      navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
+  const handleSelectConversation = useCallback((conversation_id: string) => {
+    controller.handle_select_conversation(conversation_id);
+    const route_room_id = controller.current_agent_id ?? params.room_id;
+    if (route_room_id) {
+      navigate(AppRouteBuilders.room_conversation(route_room_id, conversation_id));
     }
-  }, [controller, navigate, params.roomId]);
+  }, [controller, navigate, params.room_id]);
 
   const handleCreateConversation = useCallback(async () => {
     await controller.handle_create_conversation();
-    const routeRoomId = controller.current_agent_id ?? params.roomId;
-    const nextSessionKey = useSessionStore.getState().current_session_key;
-    if (routeRoomId && nextSessionKey) {
-      navigate(AppRouteBuilders.roomConversation(routeRoomId, nextSessionKey));
+    const route_room_id = controller.current_agent_id ?? params.room_id;
+    const next_session_key = useSessionStore.getState().current_session_key;
+    if (route_room_id && next_session_key) {
+      navigate(AppRouteBuilders.room_conversation(route_room_id, next_session_key));
     }
-  }, [controller, navigate, params.roomId]);
+  }, [controller, navigate, params.room_id]);
 
-  if (!controller.isHydrated) {
+  if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
   }
 
@@ -70,7 +71,7 @@ export function RoomPage() {
           on_close_workspace_pane={controller.handle_close_workspace_pane}
           on_delete_conversation={controller.handle_delete_conversation}
           on_edit_agent={controller.handle_edit_agent}
-          on_loading_change={controller.setIsSessionBusy}
+          on_loading_change={controller.set_is_session_busy}
           on_create_conversation={handleCreateConversation}
           on_open_create_agent={controller.handle_open_create_agent}
           on_open_workspace_file={controller.handle_open_workspace_file}
@@ -78,16 +79,16 @@ export function RoomPage() {
           on_select_conversation={handleSelectConversation}
           on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
           on_start_editor_resize={controller.handle_start_editor_resize}
-          on_todos_change={controller.setCurrentTodos}
+          on_todos_change={controller.set_current_todos}
           recent_agents={controller.recent_agents}
           session_cost_summary={controller.session_cost_summary}
           workspace_split_ref={controller.workspace_split_ref}
         />
 
         <AgentOptions
-          mode={controller.dialogMode}
-          is_open={controller.isDialogOpen}
-          on_close={() => controller.setIsDialogOpen(false)}
+          mode={controller.dialog_mode}
+          is_open={controller.is_dialog_open}
+          on_close={() => controller.set_is_dialog_open(false)}
           on_save={controller.handle_save_agent_options}
           on_validate_name={controller.handle_validate_agent_name}
           initial_title={controller.dialog_initial_title}
@@ -108,14 +109,14 @@ export function RoomPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
               Room
             </p>
-            <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.roomId ?? "-"}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.room_id ?? "-"}</p>
           </div>
-          {params.conversationId ? (
+          {params.conversation_id ? (
             <div className="workspace-card rounded-[20px] px-4 py-3 text-right">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
                 Conversation
               </p>
-              <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.conversationId}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.conversation_id}</p>
             </div>
           ) : null}
         </div>

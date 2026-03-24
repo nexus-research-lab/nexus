@@ -27,6 +27,8 @@ export interface WorkspaceLiveEvent {
   timestamp: string;
 }
 
+export type WorkspaceEventPayload = WorkspaceLiveEvent;
+
 export interface WorkspaceLiveFileState {
   agent_id: string;
   path: string;

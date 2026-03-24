@@ -33,3 +33,5 @@ export * from './websocket';
 
 // Launcher 相关类型
 export * from './launcher';
+export * from './route';
+export * from './workspace';

@@ -14,16 +14,16 @@ export function LauncherPage() {
   const controller = useLauncherPageController();
   const navigate = useNavigate();
 
-  const handleSelectAgent = useCallback((agentId: string) => {
-    controller.handle_select_agent(agentId);
-    navigate(AppRouteBuilders.room(agentId));
+  const handleSelectAgent = useCallback((agent_id: string) => {
+    controller.handle_select_agent(agent_id);
+    navigate(AppRouteBuilders.room(agent_id));
   }, [controller, navigate]);
 
-  const handleOpenConversation = useCallback((conversationId: string, agentId?: string) => {
-    controller.handle_open_conversation_from_launcher(conversationId, agentId);
-    const routeRoomId = agentId ?? controller.current_agent_id;
-    if (routeRoomId) {
-      navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
+  const handleOpenConversation = useCallback((conversation_id: string, agent_id?: string) => {
+    controller.handle_open_conversation_from_launcher(conversation_id, agent_id);
+    const route_room_id = agent_id ?? controller.current_agent_id;
+    if (route_room_id) {
+      navigate(AppRouteBuilders.room_conversation(route_room_id, conversation_id));
     }
   }, [controller, navigate]);
 
@@ -36,20 +36,20 @@ export function LauncherPage() {
   }, [navigate]);
 
   const handleSaveAgentOptions = useCallback(async (title: string, options: SessionOptions) => {
-    const shouldOpenRoomAfterCreate = controller.dialogMode === "create";
+    const should_open_room_after_create = controller.dialog_mode === "create";
     await controller.handle_save_agent_options(title, options);
 
-    if (!shouldOpenRoomAfterCreate) {
+    if (!should_open_room_after_create) {
       return;
     }
 
-    const nextAgentId = useAgentStore.getState().current_agent_id;
-    if (nextAgentId) {
-      navigate(AppRouteBuilders.room(nextAgentId));
+    const next_agent_id = useAgentStore.getState().current_agent_id;
+    if (next_agent_id) {
+      navigate(AppRouteBuilders.room(next_agent_id));
     }
   }, [controller, navigate]);
 
-  if (!controller.isHydrated) {
+  if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
   }
 
@@ -69,9 +69,9 @@ export function LauncherPage() {
       />
 
       <AgentOptions
-        mode={controller.dialogMode}
-        is_open={controller.isDialogOpen}
-        on_close={() => controller.setIsDialogOpen(false)}
+        mode={controller.dialog_mode}
+        is_open={controller.is_dialog_open}
+        on_close={() => controller.set_is_dialog_open(false)}
         on_save={handleSaveAgentOptions}
         on_validate_name={controller.handle_validate_agent_name}
         initial_title={controller.dialog_initial_title}

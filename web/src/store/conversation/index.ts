@@ -1,22 +1,7 @@
 import { useMemo } from "react";
 
 import { useSessionStore } from "@/store/session";
-import { Conversation } from "@/types/conversation";
-
-export interface ConversationStoreState {
-  conversations: Conversation[];
-  current_conversation_id: string | null;
-  loading: boolean;
-  error: string | null;
-  createConversation: ReturnType<typeof useSessionStore.getState>["createSession"];
-  deleteConversation: ReturnType<typeof useSessionStore.getState>["deleteSession"];
-  updateConversation: ReturnType<typeof useSessionStore.getState>["updateSession"];
-  setCurrentConversation: ReturnType<typeof useSessionStore.getState>["setCurrentSession"];
-  syncConversationSnapshot: ReturnType<typeof useSessionStore.getState>["syncSessionSnapshot"];
-  getConversation: ReturnType<typeof useSessionStore.getState>["getSession"];
-  loadConversationsFromServer: ReturnType<typeof useSessionStore.getState>["loadSessionsFromServer"];
-  clearAllConversations: ReturnType<typeof useSessionStore.getState>["clearAllSessions"];
-}
+import { ConversationStoreState } from "@/types/conversation";
 
 function mapConversationStoreState(
   state: ReturnType<typeof useSessionStore.getState>,
@@ -26,14 +11,14 @@ function mapConversationStoreState(
     current_conversation_id: state.current_session_key,
     loading: state.loading,
     error: state.error,
-    createConversation: state.createSession,
-    deleteConversation: state.deleteSession,
-    updateConversation: state.updateSession,
-    setCurrentConversation: state.setCurrentSession,
-    syncConversationSnapshot: state.syncSessionSnapshot,
-    getConversation: state.getSession,
-    loadConversationsFromServer: state.loadSessionsFromServer,
-    clearAllConversations: state.clearAllSessions,
+    create_conversation: state.create_session,
+    delete_conversation: state.delete_session,
+    update_conversation: state.update_session,
+    set_current_conversation: state.set_current_session,
+    sync_conversation_snapshot: state.sync_session_snapshot,
+    get_conversation: state.get_session,
+    load_conversations_from_server: state.load_sessions_from_server,
+    clear_all_conversations: state.clear_all_sessions,
   };
 }
 
