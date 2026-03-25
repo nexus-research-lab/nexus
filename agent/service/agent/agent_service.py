@@ -11,6 +11,11 @@
 
 from typing import List, Optional
 
+from agent.config.config import settings
+from agent.schema.model_agent import AAgent, ValidateAgentNameResponse
+from agent.schema.model_cost import AgentCostSummary
+from agent.schema.model_session import ASession
+from agent.service.agent.agent_manager import agent_manager
 from agent.service.persistence.agent_persistence_service import (
     agent_persistence_service,
 )
@@ -18,10 +23,6 @@ from agent.service.persistence.legacy_sync_bridge import (
     build_agent_aggregate_from_legacy,
 )
 from agent.service.session.session_manager import session_manager
-from agent.schema.model_agent import AAgent, ValidateAgentNameResponse
-from agent.service.agent.agent_manager import agent_manager
-from agent.schema.model_cost import AgentCostSummary
-from agent.schema.model_session import ASession
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -94,6 +95,13 @@ class AgentService:
         """获取 Agent 成本汇总。"""
         await self.get_agent(agent_id)
         return await session_store.get_agent_cost_summary(agent_id)
+
+    async def ensure_main_agent_ready(self) -> None:
+        """确保 main agent 已同步到新持久化层。"""
+        main_agent = await agent_manager.get_agent(settings.DEFAULT_AGENT_ID)
+        if not main_agent:
+            raise RuntimeError("main agent 初始化失败")
+        await self._sync_agent_to_sql(main_agent)
 
     async def _sync_agent_to_sql(self, agent: AAgent) -> None:
         """将旧 Agent 模型同步写入新数据库。"""

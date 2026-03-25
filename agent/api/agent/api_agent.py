@@ -85,6 +85,8 @@ async def delete_agent(agent_id: str):
         await agent_service.delete_agent(agent_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data={"success": True}))
 
 
