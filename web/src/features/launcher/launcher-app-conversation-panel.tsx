@@ -236,11 +236,24 @@ export function LauncherAppConversationPanel({
   }, []);
 
   const scroll_to_bottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = scroll_ref.current;
+    if (!container) {
+      return;
+    }
+
     should_follow_latest_ref.current = true;
     set_show_scroll_to_bottom(false);
-    bottom_anchor_ref.current?.scrollIntoView({
-      behavior,
-      block: "end",
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior,
+        });
+        bottom_anchor_ref.current?.scrollIntoView({
+          behavior,
+          block: "end",
+        });
+      });
     });
   }, []);
 
@@ -267,6 +280,8 @@ export function LauncherAppConversationPanel({
     if (!can_send_message) {
       return;
     }
+    should_follow_latest_ref.current = true;
+    set_show_scroll_to_bottom(false);
     on_submit(app_conversation_draft);
   }, [app_conversation_draft, can_send_message, on_submit]);
 
