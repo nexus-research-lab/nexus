@@ -20,6 +20,21 @@ class MainAgentProfile:
 
     AGENT_ID = "main"
     AGENT_NAME = "main"
+    ALLOWED_TOOLS = [
+        "AskUserQuestion",
+        "Bash",
+        "Edit",
+        "Glob",
+        "Grep",
+        "LS",
+        "Read",
+        "Skill",
+        "TodoWrite",
+        "WebFetch",
+        "WebSearch",
+        "Write",
+    ]
+    SETTING_SOURCES = ["user", "project", "local"]
 
     @classmethod
     def is_main_agent(cls, agent_id: str) -> bool:
@@ -30,9 +45,10 @@ class MainAgentProfile:
     def build_default_options(cls) -> Dict[str, Any]:
         """构建 main agent 的默认运行参数。"""
         options: Dict[str, Any] = {
+            "allowed_tools": cls.ALLOWED_TOOLS,
             "permission_mode": "default",
             "skills_enabled": True,
-            "setting_sources": ["user", "project"],
+            "setting_sources": cls.SETTING_SOURCES,
         }
         if settings.MAIN_AGENT_MODEL:
             options["model"] = settings.MAIN_AGENT_MODEL
@@ -53,6 +69,11 @@ class MainAgentProfile:
     def merge_options(cls, current_options: Any) -> Dict[str, Any]:
         """为 main agent 补齐缺失的默认运行参数。"""
         merged_options = dict(current_options) if isinstance(current_options, dict) else {}
-        for key, value in cls.build_default_options().items():
-            merged_options.setdefault(key, value)
+        default_options = cls.build_default_options()
+        merged_options["allowed_tools"] = default_options["allowed_tools"]
+        merged_options["permission_mode"] = default_options["permission_mode"]
+        merged_options["skills_enabled"] = True
+        merged_options["setting_sources"] = default_options["setting_sources"]
+        if "model" in default_options:
+            merged_options["model"] = default_options["model"]
         return merged_options

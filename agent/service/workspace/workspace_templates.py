@@ -115,6 +115,7 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 - 用户意图明确时，优先组织结构并推进到 room
 - 用户需要找成员时，引导去 Contacts 或直接建议合适成员
 - 回复默认使用中文，保持简洁、明确、可执行
+- 当需要创建 agent、创建 room、追加 room 成员时，优先使用 `main-agent-orchestration` skill
 """,
     "user": """# USER.md
 
@@ -148,6 +149,57 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 - 优先给动作
 - 优先给下一步
 - 不解释产品结构
+- 需要执行协作编排时，先调用 `main-agent-orchestration` skill
+""",
+}
+
+MAIN_AGENT_SKILL_TEMPLATES = {
+    ".claude/skills/main-agent-orchestration/SKILL.md": """# main-agent-orchestration
+
+当用户要求你创建 agent、创建 room、邀请成员、查看最近 room 或校验成员命名时，优先使用这个 skill，而不是只给口头建议。
+
+## 可用命令
+
+命令行工具路径：
+`python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py"`
+
+### 1. 列出当前成员
+```bash
+python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py" list_agents
+```
+
+### 2. 校验成员名称
+```bash
+python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py" validate_agent_name --name "Research"
+```
+
+### 3. 创建成员
+```bash
+python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py" create_agent --name "Research"
+```
+
+### 4. 查看最近 room
+```bash
+python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py" list_rooms --limit 10
+```
+
+### 5. 创建 room
+```bash
+python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py" create_room --agent_ids "agent_a,agent_b" --name "市场研究" --title "Kickoff"
+```
+
+### 6. 向已有 room 追加成员
+```bash
+python3 "{project_root}/agent/scripts/main_agent_orchestration_cli.py" add_room_member --room_id "room_id" --agent_id "agent_id"
+```
+
+## 使用规则
+
+- `main` 不能作为 room 成员。
+- 创建成员前，优先先校验名称。
+- 创建多人 room 时，先确认成员列表，再创建。
+- 工具返回 JSON，先读 `ok`，再读取 `data`。
+- 工具执行失败时，不要假装成功，直接根据 `error` 给用户明确反馈。
 """,
 }
 
@@ -157,3 +209,10 @@ def get_workspace_templates(agent_id: str) -> dict[str, str]:
     if agent_id == "main":
         return MAIN_AGENT_WORKSPACE_TEMPLATES
     return WORKSPACE_TEMPLATES
+
+
+def get_workspace_skill_templates(agent_id: str) -> dict[str, str]:
+    """按 agent_id 返回需要初始化的 skill 模板。"""
+    if agent_id == "main":
+        return MAIN_AGENT_SKILL_TEMPLATES
+    return {}

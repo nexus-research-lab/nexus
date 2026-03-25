@@ -12,7 +12,12 @@
 from datetime import datetime
 from pathlib import Path
 
-from agent.service.workspace.workspace_templates import DEFAULT_DIR, WORKSPACE_FILES, get_workspace_templates
+from agent.service.workspace.workspace_templates import (
+    DEFAULT_DIR,
+    WORKSPACE_FILES,
+    get_workspace_skill_templates,
+    get_workspace_templates,
+)
 from agent.utils.logger import logger
 
 
@@ -61,10 +66,12 @@ class WorkspaceTemplateInitializer:
     def _seed_templates(self, agent_name: str) -> None:
         """写入缺失的模板文件，不覆盖用户已有内容。"""
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        project_root = Path(__file__).resolve().parents[3].as_posix()
         context = {
             "agent_id": self._agent_id,
             "agent_name": agent_name,
             "created_at": created_at,
+            "project_root": project_root,
             "workspace": self._workspace_path.resolve().as_posix(),
         }
         template_map = get_workspace_templates(self._agent_id)
@@ -80,6 +87,20 @@ class WorkspaceTemplateInitializer:
 
             filepath.write_text(template + "\n", encoding="utf-8")
             logger.info(f"🧩 初始化模板: {filepath}")
+
+        skill_template_map = get_workspace_skill_templates(self._agent_id)
+        for relative_path, raw_template in skill_template_map.items():
+            filepath = self._workspace_path / relative_path
+            if filepath.exists():
+                continue
+
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            template = raw_template.format(**context).strip()
+            if not template:
+                continue
+
+            filepath.write_text(template + "\n", encoding="utf-8")
+            logger.info(f"🧩 初始化 skill 模板: {filepath}")
 
         memory_readme = self._workspace_path / "memory" / "README.md"
         if not memory_readme.exists():

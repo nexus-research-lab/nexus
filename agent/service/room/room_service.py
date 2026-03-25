@@ -23,6 +23,7 @@ from agent.schema.model_chat_persistence import (
     RoomRecord,
     SessionRecord,
 )
+from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.agent.agent_manager import agent_manager
 from agent.service.persistence.agent_persistence_service import (
     agent_persistence_service,
@@ -125,6 +126,9 @@ class RoomService:
         agent_id: str,
     ) -> ConversationContextAggregate:
         """向群房间追加 Agent 成员，并为其创建运行时会话。"""
+        if MainAgentProfile.is_main_agent(agent_id):
+            raise ValueError("main agent 不能加入 room")
+
         agent_aggregate = await self._ensure_agent_aggregate(agent_id)
 
         async with self._db.session() as session:
@@ -192,10 +196,12 @@ class RoomService:
         normalized_ids: list[str] = []
         for agent_id in agent_ids:
             cleaned = agent_id.strip()
+            if MainAgentProfile.is_main_agent(cleaned):
+                continue
             if cleaned and cleaned not in normalized_ids:
                 normalized_ids.append(cleaned)
         if not normalized_ids:
-            raise ValueError("At least one agent is required")
+            raise ValueError("room 至少需要一个普通成员 agent，main agent 不能作为 room 成员")
         return normalized_ids
 
     async def _load_agent_aggregates(
