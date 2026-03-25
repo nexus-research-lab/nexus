@@ -30,13 +30,10 @@ class FileStoragePaths:
     def __init__(self) -> None:
         self.home_root = Path.home() / ".nexus-core"
         self.workspace_base = get_workspace_base_path()
-        self.agents_dir = self.home_root / "agents"
-        self.agents_index_path = self.agents_dir / "index.json"
 
     def ensure_directories(self) -> None:
         """确保基础目录存在。"""
         self.home_root.mkdir(parents=True, exist_ok=True)
-        self.agents_dir.mkdir(parents=True, exist_ok=True)
         self.workspace_base.mkdir(parents=True, exist_ok=True)
 
     def get_runtime_dir(self, workspace_path: str | Path) -> Path:
