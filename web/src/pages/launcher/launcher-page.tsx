@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { CreateRoomDialog } from "@/features/launcher/create-room-dialog";
 import { useAgentConversation } from "@/hooks/agent";
 import { LauncherAppConversationPanel } from "@/features/launcher/launcher-app-conversation-panel";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
@@ -41,6 +42,8 @@ export function LauncherPage() {
   const navigate = useNavigate();
   const [should_bootstrap_room_after_create, set_should_bootstrap_room_after_create] = useState(false);
   const [pending_room_title, set_pending_room_title] = useState<string>("");
+  const [is_create_room_dialog_open, set_is_create_room_dialog_open] = useState(false);
+  const [is_creating_room, set_is_creating_room] = useState(false);
   const consumed_route_prompt_ref = useRef<string | null>(null);
   const skip_app_conversation_load_ref = useRef<string | null>(null);
   const hydrated_app_conversation_key_ref = useRef<string | null>(null);
@@ -177,15 +180,42 @@ export function LauncherPage() {
   const handle_create_room = useCallback(() => {
     const next_room_title = build_room_title_from_prompt(latest_user_prompt);
     set_pending_room_title(next_room_title);
-    set_should_bootstrap_room_after_create(true);
-    controller.handle_open_create_agent();
-  }, [controller, latest_user_prompt]);
+    set_is_create_room_dialog_open(true);
+  }, [latest_user_prompt]);
 
   const handle_create_agent = useCallback(() => {
     set_pending_room_title("");
     set_should_bootstrap_room_after_create(false);
     controller.handle_open_create_agent();
   }, [controller]);
+
+  const available_room_agents = useMemo(
+    () => controller.agents.filter((agent) => agent.agent_id !== DEFAULT_AGENT_ID),
+    [controller.agents],
+  );
+
+  const handle_confirm_create_room = useCallback(async ({
+    title,
+    agent_ids,
+  }: {
+    title: string;
+    agent_ids: string[];
+  }) => {
+    set_is_creating_room(true);
+    try {
+      const created_room = await createRoom({
+        agent_ids,
+        name: title,
+        title,
+        description: "Created from Launcher room dialog.",
+      });
+      set_is_create_room_dialog_open(false);
+      set_pending_room_title("");
+      navigate(AppRouteBuilders.room(created_room.room.id));
+    } finally {
+      set_is_creating_room(false);
+    }
+  }, [navigate]);
 
   const handle_clear_app_conversation = useCallback(async () => {
     if (controller.app_conversation_key) {
@@ -326,6 +356,20 @@ export function LauncherPage() {
             : controller.dialog_initial_title
         }
         initial_options={controller.dialog_initial_options}
+      />
+
+      <CreateRoomDialog
+        agents={available_room_agents}
+        default_title={pending_room_title || "新协作"}
+        is_open={is_create_room_dialog_open}
+        is_submitting={is_creating_room}
+        on_cancel={() => {
+          if (is_creating_room) {
+            return;
+          }
+          set_is_create_room_dialog_open(false);
+        }}
+        on_confirm={handle_confirm_create_room}
       />
     </AppStage>
   );
