@@ -8,12 +8,14 @@
 # =====================================================
 
 """Agent 系统提示词构建器。"""
-import os
-from pathlib import Path
 from typing import Optional
 
 from agent.config.config import settings
 from agent.service.agent.main_agent_profile import MainAgentProfile
+from agent.service.workspace.workspace_templates import (
+    BASE_SYSTEM_PROMPT,
+    MAIN_AGENT_SYSTEM_PROMPT,
+)
 
 
 class AgentPromptBuilder:
@@ -24,44 +26,18 @@ class AgentPromptBuilder:
     @staticmethod
     def load_base_system_prompt() -> Optional[str]:
         """加载独立于 workspace 的基础 system prompt。"""
-
         if settings.BASE_SYSTEM_PROMPT:
             return settings.BASE_SYSTEM_PROMPT.strip() or None
-
-        if settings.BASE_SYSTEM_PROMPT_FILE:
-            prompt_path = Path(settings.BASE_SYSTEM_PROMPT_FILE).expanduser()
-            if prompt_path.exists() and prompt_path.is_file():
-                content = prompt_path.read_text(encoding="utf-8").strip()
-                return content or None
-
-        default_prompt_path = Path(os.getcwd()) / "SYSTEM_PROMPT.md"
-        if default_prompt_path.exists() and default_prompt_path.is_file():
-            content = default_prompt_path.read_text(encoding="utf-8").strip()
-            return content or None
-
-        return None
+        return BASE_SYSTEM_PROMPT.strip() or None
 
     @staticmethod
     def load_main_agent_system_prompt(agent_id: str) -> Optional[str]:
         """加载 main agent 的独立 system prompt。"""
         if not MainAgentProfile.is_main_agent(agent_id):
             return None
-
         if settings.MAIN_AGENT_SYSTEM_PROMPT:
             return settings.MAIN_AGENT_SYSTEM_PROMPT.strip() or None
-
-        if settings.MAIN_AGENT_SYSTEM_PROMPT_FILE:
-            prompt_path = Path(settings.MAIN_AGENT_SYSTEM_PROMPT_FILE).expanduser()
-            if prompt_path.exists() and prompt_path.is_file():
-                content = prompt_path.read_text(encoding="utf-8").strip()
-                return content or None
-
-        main_prompt_path = Path(os.getcwd()) / "MAIN_AGENT_SYSTEM_PROMPT.md"
-        if main_prompt_path.exists() and main_prompt_path.is_file():
-            content = main_prompt_path.read_text(encoding="utf-8").strip()
-            return content or None
-
-        return None
+        return MAIN_AGENT_SYSTEM_PROMPT.strip() or None
 
     def build(self, workspace, agent_id: str) -> Optional[str]:
         """构建最终 system prompt。"""
