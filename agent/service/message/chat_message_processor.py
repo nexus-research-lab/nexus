@@ -18,6 +18,7 @@ from claude_agent_sdk import Message as SDKMessage
 from claude_agent_sdk import ResultMessage, SystemMessage
 from claude_agent_sdk.types import AssistantMessage, StreamEvent, UserMessage
 
+from agent.config.config import settings
 from agent.schema.model_message import Message, StreamMessage
 from agent.service.message.assistant_segment import AssistantSegment
 from agent.service.message.sdk_message_mapper import SdkMessageMapper
@@ -34,12 +35,12 @@ class ChatMessageProcessor:
         session_key: str,
         query: str,
         round_id: Optional[str] = None,
-        agent_id: str = "main",
+        agent_id: str = None,
         session_id: Optional[str] = None,
     ) -> None:
         self.query = query
         self.session_key = session_key
-        self.agent_id = agent_id or "main"
+        self.agent_id = agent_id or  settings.DEFAULT_AGENT_ID
         self.round_id = round_id or str(uuid.uuid4())
         self.session_id = session_id
         self.subtype: Optional[str] = None

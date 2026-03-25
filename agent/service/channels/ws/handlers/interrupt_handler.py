@@ -13,6 +13,7 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional
 
+from agent.config.config import settings
 from agent.service.channels.ws.handlers.base_handler import BaseHandler
 from agent.service.session.session_manager import session_manager
 from agent.schema.model_message import Message
@@ -87,7 +88,7 @@ class InterruptHandler(BaseHandler):
 
         result_message = Message(
             session_key=session_key,
-            agent_id=session_info.agent_id if session_info else "main",
+            agent_id=session_info.agent_id if session_info else settings.DEFAULT_AGENT_ID,
             round_id=round_id,
             session_id=session_id,
             message_id=str(uuid.uuid4()),

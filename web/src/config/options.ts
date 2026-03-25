@@ -10,6 +10,8 @@ export const initialOptions = {
   permissionMode: 'default',
 }
 
+export const DEFAULT_AGENT_ID = import.meta.env.VITE_DEFAULT_AGENT_ID || 'nexus'
+
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 
 function isLocalHost(hostname: string): boolean {

@@ -29,8 +29,8 @@ pids/
 *.pid
 *.seed
 *.pid.lock
-.agent/
-**/.agent/
+.agents/
+**/.agents/
 
 # Coverage directory used by tools like istanbul
 coverage/

@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     # 消息通道配置
     # =====================================================
     WEBSOCKET_ENABLED: bool = True
-    DEFAULT_AGENT_ID: str = "main"
+    DEFAULT_AGENT_ID: str = "nexus"
     PERMISSION_REQUEST_TIMEOUT_SECONDS: int = 90
 
     DISCORD_ENABLED: bool = False

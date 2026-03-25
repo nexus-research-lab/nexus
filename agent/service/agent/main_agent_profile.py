@@ -18,8 +18,7 @@ from agent.config.config import settings
 class MainAgentProfile:
     """负责描述系统保留 main agent 的固定身份与默认运行参数。"""
 
-    AGENT_ID = "main"
-    AGENT_NAME = "nexus"
+    AGENT_ID = settings.DEFAULT_AGENT_ID
     ALLOWED_TOOLS = [
         "AskUserQuestion",
         "Bash",
@@ -59,7 +58,7 @@ class MainAgentProfile:
         """构建 main agent 的存储记录。"""
         return {
             "agent_id": cls.AGENT_ID,
-            "name": cls.AGENT_NAME,
+            "name": cls.AGENT_ID,
             "workspace_path": str(workspace_path),
             "options": cls.build_default_options(),
             "status": "active",

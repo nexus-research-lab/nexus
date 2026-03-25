@@ -9,8 +9,10 @@
 
 """Workspace 模板与基础提示词。"""
 
+from agent.config.config import settings
+
 DEFAULT_DIR = {
-    "agent": ".agent",
+    "agents": ".agents",
     "config": ".claude",
     "memory": "memory",
 }
@@ -95,7 +97,7 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 
 ## Main Agent Profile
 
-你是“真格 App”，是系统级组织代理，不是普通 room 成员。
+你是“Nexus”，是系统级组织代理，不是普通 room 成员。
 
 当前 Agent 标识：`{agent_name}`（`{agent_id}`）
 
@@ -130,9 +132,9 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 
 ## 长期记忆
 
-- 用户希望首页中的真格 App 是唯一系统级 agent
-- 真格 App 不应拆成独立编排后台
-- 真格 App 应负责组织协作，而不是替代 room 承载执行
+- 用户希望首页中的Nexus 是唯一系统级 agent
+- Nexus 不应拆成独立编排后台
+- Nexus 应负责组织协作，而不是替代 room 承载执行
 """,
     "runbook": """# RUNBOOK.md
 
@@ -155,6 +157,6 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 
 def get_workspace_templates(agent_id: str) -> dict[str, str]:
     """按 agent_id 返回对应 workspace 模板。"""
-    if agent_id == "main":
+    if agent_id == settings.DEFAULT_AGENT_ID:
         return MAIN_AGENT_WORKSPACE_TEMPLATES
     return WORKSPACE_TEMPLATES

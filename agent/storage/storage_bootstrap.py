@@ -20,6 +20,7 @@ from datetime import datetime
 from threading import Lock
 from typing import Any, Dict, List
 
+from agent.config.config import settings
 from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.workspace.workspace_template_initializer import WorkspaceTemplateInitializer
 from agent.storage.config_store import ConfigStore
@@ -49,7 +50,7 @@ class FileStorageBootstrap:
 
     def _ensure_main_agent(self) -> None:
         """确保 main agent 与其工作区模板存在。"""
-        workspace_path = self.paths.workspace_base / "main"
+        workspace_path = self.paths.workspace_base / settings.DEFAULT_AGENT_ID
         record = MainAgentProfile.build_storage_record(workspace_path)
         record["created_at"] = datetime.now().isoformat()
         records = ConfigStore.read(self.paths.agents_index_path, [])
@@ -69,7 +70,7 @@ class FileStorageBootstrap:
         else:
             existing_record = records[main_index]
             existing_record["agent_id"] = MainAgentProfile.AGENT_ID
-            existing_record["name"] = MainAgentProfile.AGENT_NAME
+            existing_record["name"] = MainAgentProfile.AGENT_ID
             existing_record["workspace_path"] = str(workspace_path)
             existing_record["status"] = "active"
             if not existing_record.get("created_at"):
@@ -85,7 +86,7 @@ class FileStorageBootstrap:
         WorkspaceTemplateInitializer(
             MainAgentProfile.AGENT_ID,
             workspace_path,
-        ).ensure_initialized(MainAgentProfile.AGENT_NAME)
+        ).ensure_initialized(MainAgentProfile.AGENT_ID)
         logger.info(f"🧩 已初始化 main Agent 存储: {workspace_path}")
 
     @staticmethod

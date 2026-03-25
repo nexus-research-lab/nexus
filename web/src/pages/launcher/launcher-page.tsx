@@ -14,9 +14,10 @@ import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { getConversationStoreSnapshot } from "@/store/conversation";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
+import { DEFAULT_AGENT_ID } from "@/config/options";
 import { UserMessage } from "@/types/message";
 
-const APP_AGENT_ID = "main";
+const APP_AGENT_ID = DEFAULT_AGENT_ID;
 const APP_CONVERSATION_SEED_KEY = "launcher-app-main";
 
 function build_room_title_from_prompt(prompt: string | undefined) {
@@ -116,7 +117,7 @@ export function LauncherPage() {
 
     const created_conversation = await createConversation(APP_CONVERSATION_SEED_KEY, {
       agent_id: APP_AGENT_ID,
-      title: "真格 App",
+      title: "Nexus",
     });
     skip_app_conversation_load_ref.current = created_conversation.session_key;
     controller.set_app_conversation_key(created_conversation.session_key);
