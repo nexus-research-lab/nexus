@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { getAgentWsUrl } from "@/config/options";
+import { useWebSocket } from "@/lib/websocket";
 import {
   controlProtocolRun,
   createRoomProtocolRun,
@@ -12,6 +14,7 @@ import {
 } from "@/lib/room-api";
 import {
   CreateProtocolRunParams,
+  EventMessage,
   ProtocolRunControlOperation,
   ProtocolRunDetail,
   ProtocolRunListItem,
@@ -52,6 +55,26 @@ export function useProtocolRoomController({ room_id }: UseProtocolRoomController
       set_is_run_loading(false);
     }
   }, [viewer_agent_id]);
+
+  const handle_room_socket_message = useCallback((backend_message: unknown) => {
+    const event = backend_message as EventMessage;
+    if (!event || event.event_type !== "room_state") {
+      return;
+    }
+    const incoming_run_id = event.protocol_run_id || event.data?.run_id || null;
+    if (!incoming_run_id || incoming_run_id !== active_run_id) {
+      return;
+    }
+    void load_run_detail(incoming_run_id, viewer_agent_id);
+  }, [active_run_id, load_run_detail, viewer_agent_id]);
+
+  const { state: ws_state, send: ws_send } = useWebSocket({
+    url: getAgentWsUrl(),
+    auto_connect: true,
+    reconnect: true,
+    heartbeat_interval: 30000,
+    on_message: handle_room_socket_message,
+  });
 
   const load_room = useCallback(async () => {
     if (!room_id) {
@@ -104,7 +127,13 @@ export function useProtocolRoomController({ room_id }: UseProtocolRoomController
   }, [active_run_id, is_protocol_room, load_run_detail, viewer_agent_id]);
 
   useEffect(() => {
-    if (!is_protocol_room || !active_run_id || !detail || detail.run.status !== "running") {
+    if (
+      !is_protocol_room
+      || !active_run_id
+      || !detail
+      || detail.run.status !== "running"
+      || ws_state === "connected"
+    ) {
       return;
     }
 
@@ -115,7 +144,25 @@ export function useProtocolRoomController({ room_id }: UseProtocolRoomController
     return () => {
       window.clearInterval(timer);
     };
-  }, [active_run_id, detail, is_protocol_room, load_run_detail, viewer_agent_id]);
+  }, [active_run_id, detail, is_protocol_room, load_run_detail, viewer_agent_id, ws_state]);
+
+  useEffect(() => {
+    if (!active_run_id || ws_state !== "connected") {
+      return;
+    }
+
+    ws_send({
+      type: "subscribe_protocol_run",
+      protocol_run_id: active_run_id,
+    });
+
+    return () => {
+      ws_send({
+        type: "unsubscribe_protocol_run",
+        protocol_run_id: active_run_id,
+      });
+    };
+  }, [active_run_id, ws_send, ws_state]);
 
   useEffect(() => {
     if (!detail?.channels?.length) {
@@ -295,6 +342,7 @@ export function useProtocolRoomController({ room_id }: UseProtocolRoomController
     pending_requests,
     room_agent_members,
     selected_channel_events,
+    ws_state,
     is_protocol_room,
     is_room_loading,
     is_run_loading,

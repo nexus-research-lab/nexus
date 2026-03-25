@@ -70,6 +70,18 @@ class ChannelDispatcher:
                 self._sender.unsubscribe_workspace(agent_id)
             return
 
+        if msg_type == "subscribe_protocol_run":
+            run_id = message.get("protocol_run_id", "")
+            if run_id:
+                self._sender.subscribe_protocol_run(run_id)
+            return
+
+        if msg_type == "unsubscribe_protocol_run":
+            run_id = message.get("protocol_run_id", "")
+            if run_id:
+                self._sender.unsubscribe_protocol_run(run_id)
+            return
+
         if msg_type == "ping":
             await self._ping_handler.handle_ping(message)
             return

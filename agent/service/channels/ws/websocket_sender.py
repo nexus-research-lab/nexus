@@ -14,6 +14,7 @@ from typing import Any, Dict
 from fastapi import WebSocket
 
 from agent.service.channels.message_sender import MessageSender
+from agent.service.protocol.protocol_event_bus import protocol_event_bus
 from agent.service.workspace.workspace_event_bus import workspace_event_bus
 from agent.service.workspace.workspace_observer import workspace_observer
 from agent.schema.model_message import EventMessage, Message, StreamMessage
@@ -27,6 +28,7 @@ class WebSocketSender(MessageSender):
     def __init__(self, websocket: WebSocket):
         self.websocket = websocket
         self._workspace_subscriptions: Dict[str, str] = {}
+        self._protocol_run_subscriptions: Dict[str, str] = {}
         self._is_closed = False
 
     async def _safe_send_json(self, payload: Dict[str, Any]) -> None:
@@ -81,6 +83,33 @@ class WebSocketSender(MessageSender):
         )
         await self._safe_send_json(message.model_dump(mode="json", exclude_none=True))
 
+    def subscribe_protocol_run(self, run_id: str) -> None:
+        """订阅指定协议运行的实时事件。"""
+        if not run_id or run_id in self._protocol_run_subscriptions:
+            return
+
+        token_holder: Dict[str, str] = {}
+
+        async def _listener(event: EventMessage) -> None:
+            try:
+                await self.send_event_message(event)
+            except Exception as exc:
+                logger.warning(f"⚠️ protocol 事件推送失败: {exc}")
+                token = token_holder.get("token")
+                if token:
+                    protocol_event_bus.unsubscribe(token)
+
+        token = protocol_event_bus.subscribe(run_id, _listener)
+        token_holder["token"] = token
+        self._protocol_run_subscriptions[run_id] = token
+
+    def unsubscribe_protocol_run(self, run_id: str) -> None:
+        """取消订阅指定协议运行。"""
+        token = self._protocol_run_subscriptions.pop(run_id, None)
+        if not token:
+            return
+        protocol_event_bus.unsubscribe(token)
+
     def subscribe_workspace(self, agent_id: str) -> None:
         """订阅指定 Agent 的 workspace 事件。"""
         if not agent_id or agent_id in self._workspace_subscriptions:
@@ -115,6 +144,8 @@ class WebSocketSender(MessageSender):
         self._is_closed = True
         for agent_id in list(self._workspace_subscriptions.keys()):
             self.unsubscribe_workspace(agent_id)
+        for run_id in list(self._protocol_run_subscriptions.keys()):
+            self.unsubscribe_protocol_run(run_id)
 
     @property
     def is_closed(self) -> bool:

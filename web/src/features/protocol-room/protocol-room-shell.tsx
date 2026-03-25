@@ -16,6 +16,7 @@ import {
   Shield,
   Skull,
   Sparkles,
+  TimerReset,
   Users,
   Vote,
   WandSparkles,
@@ -31,6 +32,7 @@ import {
   ProtocolSnapshotRecord,
   RoomAggregate,
   RoomMemberRecord,
+  WebSocketState,
 } from "@/types";
 
 interface ProtocolRoomShellProps {
@@ -44,6 +46,7 @@ interface ProtocolRoomShellProps {
   selected_channel_events: ProtocolSnapshotRecord[];
   viewer_agent_id: string | null;
   is_loading: boolean;
+  ws_state: WebSocketState;
   error: string | null;
   on_create_run: (params?: { definition_slug?: string; title?: string }) => Promise<unknown>;
   on_select_run: (run_id: string) => void;
@@ -123,6 +126,7 @@ export function ProtocolRoomShell({
   selected_channel_events,
   viewer_agent_id,
   is_loading,
+  ws_state,
   error,
   on_create_run,
   on_select_run,
@@ -149,6 +153,14 @@ export function ProtocolRoomShell({
     [detail?.run.state],
   );
   const roles_by_agent_id = detail?.run.state?.roles ?? {};
+  const resolved_request_ids = useMemo(
+    () => new Set(
+      detail?.action_submissions
+        .filter((submission) => submission.status === "submitted" || submission.status === "overridden")
+        .map((submission) => submission.request_id) ?? [],
+    ),
+    [detail?.action_submissions],
+  );
 
   useEffect(() => {
     if (!detail?.channels?.length) {
@@ -179,6 +191,24 @@ export function ProtocolRoomShell({
     () => pending_requests.filter((request) => request.phase_name === detail?.run.current_phase),
     [detail?.run.current_phase, pending_requests],
   );
+  const member_request_status = useMemo(() => {
+    const status_map = new Map<string, "pending" | "submitted" | "idle">();
+    room_agent_members.forEach((member) => {
+      if (member.member_agent_id) {
+        status_map.set(member.member_agent_id, "idle");
+      }
+    });
+
+    pending_current_phase_requests.forEach((request) => {
+      request.allowed_actor_agent_ids.forEach((agent_id) => {
+        status_map.set(
+          agent_id,
+          resolved_request_ids.has(request.id) ? "submitted" : "pending",
+        );
+      });
+    });
+    return status_map;
+  }, [pending_current_phase_requests, resolved_request_ids, room_agent_members]);
 
   const remaining_phases = useMemo(() => {
     if (!detail) {
@@ -240,12 +270,13 @@ export function ProtocolRoomShell({
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.22),transparent_52%)]" />
 
         <header className="relative z-10 flex flex-col gap-4 border-b border-white/55 pb-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-700/52">
-              <span className="neo-pill rounded-full px-3 py-1">Protocol Room</span>
-              <span>{room.room.room_type === "room" ? "Multi-member" : "DM"}</span>
-              {detail ? <span>{renderStatusLabel(detail.run.status)}</span> : null}
-            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-700/52">
+                <span className="neo-pill rounded-full px-3 py-1">Protocol Room</span>
+                <span>{room.room.room_type === "room" ? "Multi-member" : "DM"}</span>
+                {detail ? <span>{renderStatusLabel(detail.run.status)}</span> : null}
+                <span>{ws_state === "connected" ? "Live" : "Polling fallback"}</span>
+              </div>
             <h1 className="mt-3 text-[30px] font-black tracking-[-0.05em] text-slate-950/92">
               {room.room.name || room.room.id}
             </h1>
@@ -399,6 +430,9 @@ export function ProtocolRoomShell({
                               </span>
                               <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700/60">
                                 {is_alive ? "alive" : is_eliminated ? "out" : "idle"}
+                              </span>
+                              <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700/60">
+                                {member_request_status.get(agent_id) || "idle"}
                               </span>
                             </div>
                           </div>
@@ -614,6 +648,28 @@ export function ProtocolRoomShell({
                       Current phase blockers
                     </p>
                   </div>
+                  <div className="rounded-[22px] border border-white/60 bg-white/40 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-700/48">
+                      Day / Winner
+                    </p>
+                    <p className="mt-2 text-lg font-black tracking-[-0.04em] text-slate-950/90">
+                      Day {detail.run.state?.day ?? 1}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-700/54">
+                      {detail.run.state?.winner ? `Winner: ${detail.run.state.winner}` : "No winner yet"}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/60 bg-white/40 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-700/48">
+                      Sync Mode
+                    </p>
+                    <p className="mt-2 text-lg font-black tracking-[-0.04em] text-slate-950/90">
+                      {ws_state === "connected" ? "Live" : "Fallback"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-700/54">
+                      {ws_state === "connected" ? "Realtime room events" : "Polling every 4 seconds"}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -663,6 +719,35 @@ export function ProtocolRoomShell({
 
               <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-hide">
                 <div className="space-y-4">
+                  <section className="rounded-[24px] border border-white/60 bg-white/40 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/48">
+                        Ruleset
+                      </p>
+                      <div className="rounded-full bg-white/74 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700/56">
+                        {detail.definition.slug}
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700/64">
+                      {detail.definition.description}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {detail.definition.phases.map((phase_name) => (
+                        <span
+                          key={phase_name}
+                          className={cn(
+                            "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                            phase_name === detail.run.current_phase
+                              ? "bg-slate-950 text-white"
+                              : "bg-white/74 text-slate-700/60",
+                          )}
+                        >
+                          {phase_name}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+
                   <section>
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/48">
@@ -847,6 +932,33 @@ export function ProtocolRoomShell({
                       <Send className="h-4 w-4" />
                       发送注入消息
                     </button>
+                  </section>
+
+                  <section className="rounded-[24px] border border-white/60 bg-white/40 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/48">
+                        Last Resolution
+                      </p>
+                      <TimerReset className="h-4 w-4 text-slate-600/60" />
+                    </div>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700/64">
+                      <div>
+                        <p className="font-semibold text-slate-950/84">Night</p>
+                        <p>
+                          {detail.run.state?.last_night_result?.deaths?.length
+                            ? `Deaths: ${detail.run.state.last_night_result.deaths.join(", ")}`
+                            : "No visible night elimination yet."}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-950/84">Vote</p>
+                        <p>
+                          {detail.run.state?.last_vote_result?.target
+                            ? `Eliminated by vote: ${detail.run.state.last_vote_result.target}`
+                            : "No completed public vote yet."}
+                        </p>
+                      </div>
+                    </div>
                   </section>
                 </div>
               </div>

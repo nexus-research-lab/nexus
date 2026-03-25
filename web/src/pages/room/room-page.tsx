@@ -73,6 +73,7 @@ export function RoomPage() {
           selected_channel_events={controller.selected_channel_events}
           selected_channel_id={controller.selected_channel_id}
           viewer_agent_id={controller.viewer_agent_id}
+          ws_state={controller.ws_state}
         />
       </AppStage>
     );

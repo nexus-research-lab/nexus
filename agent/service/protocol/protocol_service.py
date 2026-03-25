@@ -35,6 +35,7 @@ from agent.service.protocol.protocol_definition import (
     SnapshotBlueprint,
     protocol_definition_registry,
 )
+from agent.service.protocol.protocol_event_bus import protocol_event_bus
 from agent.storage.sqlite.protocol_sql_repository import ProtocolSqlRepository
 from agent.storage.sqlite.room_sql_repository import RoomSqlRepository
 from agent.utils.utils import random_uuid
@@ -201,7 +202,13 @@ class ProtocolRoomService:
             )
             await session.commit()
 
-        return await self.get_run_detail(run.id)
+        detail = await self.get_run_detail(run.id)
+        self._publish_run_event(
+            detail.run,
+            reason="run_created",
+            headline="Protocol run created",
+        )
+        return detail
 
     async def get_run_detail(
         self,
@@ -307,7 +314,13 @@ class ProtocolRoomService:
             )
             await session.commit()
 
-        return await self.get_run_detail(run_id)
+        detail = await self.get_run_detail(run_id)
+        self._publish_run_event(
+            detail.run,
+            reason="action_submitted",
+            headline="Protocol action submitted",
+        )
+        return detail
 
     async def control_run(
         self,
@@ -488,7 +501,13 @@ class ProtocolRoomService:
 
             await session.commit()
 
-        return await self.get_run_detail(run_id)
+        detail = await self.get_run_detail(run_id)
+        self._publish_run_event(
+            detail.run,
+            reason=operation,
+            headline="Protocol control applied",
+        )
+        return detail
 
     async def _apply_submission(
         self,
@@ -887,6 +906,33 @@ class ProtocolRoomService:
         if index + 1 >= len(definition.phases):
             return None
         return definition.phases[index + 1]
+
+    def _publish_run_event(
+        self,
+        run: ProtocolRunRecord,
+        *,
+        reason: str,
+        headline: str,
+    ) -> None:
+        protocol_event_bus.publish(
+            run.id,
+            EventMessage(
+                event_type="room_state",
+                room_id=run.room_id,
+                protocol_run_id=run.id,
+                visibility="system",
+                message_kind="room_state",
+                data={
+                    "run_id": run.id,
+                    "room_id": run.room_id,
+                    "status": run.status,
+                    "current_phase": run.current_phase,
+                    "headline": headline,
+                    "reason": reason,
+                    "updated_at": run.updated_at.isoformat() if run.updated_at else None,
+                },
+            ),
+        )
 
 
 protocol_room_service = ProtocolRoomService()
