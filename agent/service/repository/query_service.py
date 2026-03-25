@@ -22,8 +22,8 @@ from agent.schema.model_chat_persistence import (
     RoundRecord,
     SessionRecord,
 )
-from agent.service.persistence.agent_persistence_service import agent_persistence_service
-from agent.service.persistence.conversation_persistence_service import (
+from agent.service.repository.agent_repository_service import agent_persistence_service
+from agent.service.repository.conversation_repository_service import (
     conversation_persistence_service,
 )
 from agent.storage.sqlite.room_sql_repository import RoomSqlRepository

@@ -14,7 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from agent.infra.server.common import resp
-from agent.service.persistence.persistence_service import persistence_service
+from agent.service.repository.repository_service import persistence_service
 
 router = APIRouter(tags=["persistence"])
 

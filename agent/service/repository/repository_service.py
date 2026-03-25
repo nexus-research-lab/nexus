@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 # =====================================================
-# @File   ：persistence_service.py
+# @File   ：repository_service.py
 # @Date   ：2026/3/19 00:34
 # @Author ：leemysw
 # 2026/3/19 00:34   Create
@@ -20,7 +20,7 @@ from agent.schema.model_chat_persistence import (
     RoomAggregate,
     RoundRecord,
 )
-from agent.service.persistence.query_service import persistence_query_service
+from agent.service.repository.query_service import persistence_query_service
 
 
 class PersistenceService:
