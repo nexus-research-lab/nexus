@@ -41,10 +41,10 @@ interface FileTreeNode {
 }
 
 interface RoomSidebarPanelProps {
-  agents: Agent[];
+  members: Agent[];
   agent: Agent;
+  room_name: string;
   current_agent_id: string | null;
-  recent_agents: Agent[];
   conversations: Conversation[];
   current_conversation_id: string | null;
   active_workspace_path: string | null;
@@ -121,10 +121,10 @@ function getFileIcon(name: string) {
 }
 
 export function RoomSidebarPanel({
-  agents,
+  members,
   agent,
+  room_name,
   current_agent_id,
-  recent_agents,
   conversations,
   current_conversation_id,
   active_workspace_path,
@@ -222,7 +222,7 @@ export function RoomSidebarPanel({
     conversations.find((conversation) => conversation.session_key === current_conversation_id) ?? null;
   const latest_conversation = selected_conversation ?? conversations[0] ?? null;
   const active_room_title =
-    selected_conversation?.title?.trim() || latest_conversation?.title?.trim() || "未命名 room";
+    room_name || selected_conversation?.title?.trim() || latest_conversation?.title?.trim() || "未命名 room";
 
   const load_files = useCallback(async () => {
     setIsLoadingFiles(true);
@@ -249,7 +249,7 @@ export function RoomSidebarPanel({
   const known_file_paths = useMemo(() => new Set(files.map((entry) => entry.path)), [files]);
   const visible_agents = useMemo(() => {
     const seen = new Set<string>();
-    const merged = [agent, ...recent_agents, ...agents];
+    const merged = [agent, ...members];
     return merged.filter((item) => {
       if (!item?.agent_id || seen.has(item.agent_id)) {
         return false;
@@ -257,7 +257,7 @@ export function RoomSidebarPanel({
       seen.add(item.agent_id);
       return true;
     }).slice(0, 5);
-  }, [agent, agents, recent_agents]);
+  }, [agent, members]);
 
   useEffect(() => {
     if (!latest_agent_event || latest_agent_event.event_type !== "file_write_end") {
@@ -538,6 +538,7 @@ export function RoomSidebarPanel({
 
       <div className="soft-scrollbar flex-1 overflow-y-auto">
         <RoomConversationsSection
+          can_manage_conversations={false}
           conversations={conversations}
           current_conversation_id={current_conversation_id}
           on_create_conversation={on_create_conversation}

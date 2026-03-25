@@ -7,12 +7,12 @@ import { LauncherAppConversationPanel } from "@/features/launcher/launcher-app-c
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
 import { createConversation, deleteConversation } from "@/lib/agent-api";
+import { createRoom, ensureDirectRoom } from "@/lib/room-api";
 import { cn } from "@/lib/utils";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
-import { getConversationStoreSnapshot } from "@/store/conversation";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
 import { DEFAULT_AGENT_ID } from "@/config/options";
 import { UserMessage } from "@/types/message";
@@ -158,15 +158,43 @@ export function LauncherPage() {
   ]);
 
   const handle_select_agent = useCallback((agent_id: string) => {
-    controller.handle_select_agent(agent_id);
-    navigate(AppRouteBuilders.room(agent_id));
+    void ensureDirectRoom(agent_id).then((context) => {
+      controller.handle_select_agent(agent_id);
+      navigate(
+        AppRouteBuilders.room_conversation(
+          context.room.id,
+          context.conversation.id,
+        ),
+      );
+    });
   }, [controller, navigate]);
 
   const handle_open_conversation = useCallback((conversation_id: string, agent_id?: string) => {
-    controller.handle_open_conversation_from_launcher(conversation_id, agent_id);
-    const route_room_id = agent_id ?? controller.current_agent_id;
-    if (route_room_id) {
-      navigate(AppRouteBuilders.room_conversation(route_room_id, conversation_id));
+    const matched_conversation = controller.conversations.find(
+      (conversation) => conversation.session_key === conversation_id,
+    );
+
+    if (matched_conversation?.room_id && matched_conversation.conversation_id) {
+      controller.handle_open_conversation_from_launcher(conversation_id, agent_id);
+      navigate(
+        AppRouteBuilders.room_conversation(
+          matched_conversation.room_id,
+          matched_conversation.conversation_id,
+        ),
+      );
+      return;
+    }
+
+    if (agent_id) {
+      void ensureDirectRoom(agent_id).then((context) => {
+        controller.handle_open_conversation_from_launcher(conversation_id, agent_id);
+        navigate(
+          AppRouteBuilders.room_conversation(
+            context.room.id,
+            context.conversation.id,
+          ),
+        );
+      });
     }
   }, [controller, navigate]);
 
@@ -218,20 +246,30 @@ export function LauncherPage() {
     if (!should_bootstrap_room_after_create) {
       set_pending_room_title("");
       set_should_bootstrap_room_after_create(false);
-      navigate(AppRouteBuilders.room(next_agent_id));
+      const context = await ensureDirectRoom(next_agent_id);
+      navigate(
+        AppRouteBuilders.room_conversation(
+          context.room.id,
+          context.conversation.id,
+        ),
+      );
       return;
     }
 
-    const conversation_store = getConversationStoreSnapshot();
-    const next_conversation_id = await conversation_store.create_conversation({
-      title: "New Chat",
-      agent_id: next_agent_id,
+    const room_context = await createRoom({
+      agent_ids: [next_agent_id],
+      title: pending_room_title || title || "新协作",
+      name: pending_room_title || title || "新协作",
     });
-    conversation_store.set_current_conversation(next_conversation_id);
     set_pending_room_title("");
     set_should_bootstrap_room_after_create(false);
-    navigate(AppRouteBuilders.room_conversation(next_agent_id, next_conversation_id));
-  }, [controller, navigate, should_bootstrap_room_after_create]);
+    navigate(
+      AppRouteBuilders.room_conversation(
+        room_context.room.id,
+        room_context.conversation.id,
+      ),
+    );
+  }, [controller, navigate, pending_room_title, should_bootstrap_room_after_create]);
 
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;

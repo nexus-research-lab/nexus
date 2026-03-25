@@ -8,6 +8,8 @@ interface RoomCollaborationStatusSectionProps {
   localized_agent_skill: string;
   localized_runtime_status: string;
   model_name: string;
+  room_name: string;
+  total_member_count: number;
   total_room_count: number;
 }
 
@@ -16,9 +18,11 @@ export function RoomCollaborationStatusSection({
   localized_agent_skill,
   localized_runtime_status,
   model_name,
+  room_name,
+  total_member_count,
   total_room_count,
 }: RoomCollaborationStatusSectionProps) {
-  const current_room_name = active_conversation?.title?.trim() || "未命名房间";
+  const current_room_name = room_name?.trim() || "未命名房间";
 
   return (
     <section className="border-b workspace-divider px-4 py-4">
@@ -30,6 +34,10 @@ export function RoomCollaborationStatusSection({
         <div className="workspace-card rounded-[22px] px-3 py-2">
           <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/50">参与房间</p>
           <p className="mt-1 text-sm font-semibold text-slate-900/86">{total_room_count}</p>
+        </div>
+        <div className="workspace-card rounded-[22px] px-3 py-2">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/50">成员数量</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900/86">{total_member_count}</p>
         </div>
         <div className="workspace-card rounded-[22px] px-3 py-2">
           <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/50">当前状态</p>

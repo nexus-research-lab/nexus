@@ -6,6 +6,7 @@ import { Activity, PanelTop } from "lucide-react";
 interface RoomConversationHeaderProps {
   current_agent_name: string | null;
   current_conversation_id: string | null;
+  current_room_title: string | null;
   current_conversation_title: string | null;
   is_loading: boolean;
 }
@@ -28,6 +29,7 @@ function getInitials(name: string | null): string {
 const RoomConversationHeaderView = memo(({
   current_agent_name,
   current_conversation_id,
+  current_room_title,
   current_conversation_title,
   is_loading,
 }: RoomConversationHeaderProps) => {
@@ -42,10 +44,14 @@ const RoomConversationHeaderView = memo(({
             Active Room
           </p>
           <div className="mt-1 truncate text-[32px] font-black tracking-[-0.04em] text-slate-950/90">
-            {current_conversation_title?.trim() || (current_conversation_id ? current_conversation_id.split(":").at(-1) : "新会话")}
+            {current_room_title?.trim() || "未命名 room"}
           </div>
           <p className="mt-1 truncate text-[12px] text-slate-700/52">
-            围绕这个 room 协作，按上下文调度成员与动作
+            {current_conversation_title?.trim()
+              ? `当前对话：${current_conversation_title}`
+              : current_conversation_id
+                ? `当前对话：${current_conversation_id}`
+                : "围绕这个 room 协作，按上下文调度成员与动作"}
           </p>
         </div>
       </div>

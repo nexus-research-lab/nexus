@@ -4,6 +4,7 @@ import { Conversation } from "@/types/conversation";
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 
 interface RoomConversationsSectionProps {
+  can_manage_conversations?: boolean;
   conversations: Conversation[];
   current_conversation_id: string | null;
   on_create_conversation: () => void;
@@ -12,6 +13,7 @@ interface RoomConversationsSectionProps {
 }
 
 export function RoomConversationsSection({
+  can_manage_conversations = true,
   conversations,
   current_conversation_id,
   on_create_conversation,
@@ -25,14 +27,16 @@ export function RoomConversationsSection({
           <BrainCircuit className="h-3.5 w-3.5" />
           Conversations
         </div>
-        <button
-          className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] px-3 py-1.5 text-[11px] font-bold text-[#18653a] shadow-[0_14px_24px_rgba(102,217,143,0.24)]"
-          onClick={on_create_conversation}
-          type="button"
-        >
-          <MessageSquarePlus className="h-3.5 w-3.5" />
-          新建对话
-        </button>
+        {can_manage_conversations ? (
+          <button
+            className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.92),rgba(102,217,143,0.88))] px-3 py-1.5 text-[11px] font-bold text-[#18653a] shadow-[0_14px_24px_rgba(102,217,143,0.24)]"
+            onClick={on_create_conversation}
+            type="button"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            新建对话
+          </button>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -67,17 +71,19 @@ export function RoomConversationsSection({
                   </p>
                 </div>
 
-                <button
-                  aria-label="删除对话"
-                  className="workspace-chip rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    on_delete_conversation(conversation.session_key);
-                  }}
-                  type="button"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {can_manage_conversations ? (
+                  <button
+                    aria-label="删除对话"
+                    className="workspace-chip rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      on_delete_conversation(conversation.session_key);
+                    }}
+                    type="button"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
               </div>
             </div>
           );

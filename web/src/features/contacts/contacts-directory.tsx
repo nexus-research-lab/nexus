@@ -9,6 +9,7 @@ import { Conversation } from "@/types/conversation";
 interface ContactsDirectoryProps {
   agents: Agent[];
   conversations: Conversation[];
+  on_open_direct_room: (agent_id: string) => void;
   selected_agent_id?: string;
 }
 
@@ -19,6 +20,7 @@ function formatModelName(agent: Agent): string {
 export function ContactsDirectory({
   agents,
   conversations,
+  on_open_direct_room,
   selected_agent_id,
 }: ContactsDirectoryProps) {
   const navigate = useNavigate();
@@ -136,7 +138,7 @@ export function ContactsDirectory({
             <div className="mt-4 grid gap-3">
               <button
                 className="workspace-card rounded-[24px] px-4 py-4 text-left transition hover:bg-white/20"
-                onClick={() => navigate(AppRouteBuilders.room(selected_agent.agent_id))}
+                onClick={() => on_open_direct_room(selected_agent.agent_id)}
                 type="button"
               >
                 <p className="text-sm font-semibold text-slate-950/86">发起 1v1 协作</p>

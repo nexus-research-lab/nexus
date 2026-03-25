@@ -31,6 +31,8 @@ class ASession(BaseModel):
     session_key: str = Field(..., description="结构化路由键")
     agent_id: str = Field(default=settings.DEFAULT_AGENT_ID, description="智能体 ID")
     session_id: Optional[str] = Field(default=None, description="SDK会话ID")
+    room_id: Optional[str] = Field(default=None, description="所属 room ID")
+    conversation_id: Optional[str] = Field(default=None, description="所属 conversation ID")
     channel_type: str = Field(default="websocket", description="通道类型")
     chat_type: str = Field(default="dm", description="会话类型")
     status: str = Field(default="active", description="会话状态")

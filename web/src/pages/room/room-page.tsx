@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -8,7 +8,6 @@ import { useRoomPageController } from "@/hooks/use-room-page-controller";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
-import { getConversationStoreSnapshot } from "@/store/conversation";
 import { RoomRouteParams } from "@/types/route";
 
 export function RoomPage() {
@@ -26,39 +25,53 @@ export function RoomPage() {
 
   const handleSelectAgent = useCallback((agent_id: string) => {
     controller.handle_select_agent(agent_id);
-    navigate(AppRouteBuilders.room(agent_id));
-  }, [controller, navigate]);
+  }, [controller]);
 
   const handleSelectConversation = useCallback((conversation_id: string) => {
     controller.handle_select_conversation(conversation_id);
-    const route_room_id = controller.current_agent_id ?? params.room_id;
+    const route_room_id = params.room_id;
     if (route_room_id) {
       navigate(AppRouteBuilders.room_conversation(route_room_id, conversation_id));
     }
   }, [controller, navigate, params.room_id]);
 
-  const handleCreateConversation = useCallback(async () => {
-    await controller.handle_create_conversation();
-    const route_room_id = controller.current_agent_id ?? params.room_id;
-    const next_session_key = getConversationStoreSnapshot().current_conversation_id;
-    if (route_room_id && next_session_key) {
-      navigate(AppRouteBuilders.room_conversation(route_room_id, next_session_key));
+  useEffect(() => {
+    if (
+      controller.is_hydrated &&
+      params.room_id &&
+      !params.conversation_id &&
+      controller.current_conversation_id
+    ) {
+      navigate(
+        AppRouteBuilders.room_conversation(
+          params.room_id,
+          controller.current_conversation_id,
+        ),
+        {replace: true},
+      );
     }
-  }, [controller, navigate, params.room_id]);
+  }, [
+    controller.current_conversation_id,
+    controller.is_hydrated,
+    navigate,
+    params.conversation_id,
+    params.room_id,
+  ]);
 
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
   }
 
-  if (controller.current_agent) {
+  if (controller.current_room && controller.current_agent) {
     return (
       <AppStage>
         <RoomWorkspaceShell
           active_workspace_path={controller.active_workspace_path}
           agent_cost_summary={controller.agent_cost_summary}
-          agents={controller.agents}
           current_agent={controller.current_agent}
           current_agent_id={controller.current_agent_id}
+          room_members={controller.room_members}
+          current_room_title={controller.current_room_title}
           current_room_conversations={controller.current_room_conversations}
           current_conversation={controller.current_conversation}
           current_conversation_id={controller.current_conversation_id}
@@ -72,7 +85,7 @@ export function RoomPage() {
           on_delete_conversation={controller.handle_delete_conversation}
           on_edit_agent={controller.handle_edit_agent}
           on_loading_change={controller.set_is_conversation_busy}
-          on_create_conversation={handleCreateConversation}
+          on_create_conversation={controller.handle_create_conversation}
           on_open_create_agent={controller.handle_open_create_agent}
           on_open_workspace_file={controller.handle_open_workspace_file}
           on_select_agent={handleSelectAgent}
@@ -80,7 +93,6 @@ export function RoomPage() {
           on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
           on_start_editor_resize={controller.handle_start_editor_resize}
           on_todos_change={controller.set_current_todos}
-          recent_agents={controller.recent_agents}
           conversation_cost_summary={controller.conversation_cost_summary}
           workspace_split_ref={controller.workspace_split_ref}
         />

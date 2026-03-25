@@ -28,6 +28,8 @@ export function transformApiConversation(api: ApiConversation): Conversation {
     session_key: api.session_key,
     agent_id: api.agent_id,
     session_id: api.session_id,
+    room_id: api.room_id ?? null,
+    conversation_id: api.conversation_id ?? null,
     title: api.title || '未命名会话',
     options: api.options || {},
     created_at: new Date(api.created_at).getTime(),

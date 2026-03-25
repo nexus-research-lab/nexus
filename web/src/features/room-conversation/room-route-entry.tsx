@@ -21,7 +21,7 @@ export function RoomRouteEntry({
   const navigate = useNavigate();
   const room_agent = agents.find((agent) => agent.agent_id === room_id) ?? null;
   const recent_room_conversations = conversations
-    .filter((conversation) => conversation.agent_id === room_id)
+    .filter((conversation) => conversation.room_id === room_id)
     .sort((left, right) => right.last_activity_at - left.last_activity_at)
     .slice(0, 4);
 
@@ -93,8 +93,8 @@ export function RoomRouteEntry({
                     onClick={() =>
                       navigate(
                         AppRouteBuilders.room_conversation(
-                          conversation.agent_id ?? room_id ?? "",
-                          conversation.session_key,
+                          conversation.room_id ?? room_id ?? "",
+                          conversation.conversation_id ?? conversation.session_key,
                         ),
                       )
                     }

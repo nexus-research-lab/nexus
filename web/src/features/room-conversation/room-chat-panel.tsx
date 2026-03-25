@@ -18,9 +18,10 @@ import { RoomScrollToLatestButton } from "./room-scroll-to-latest-button";
 interface RoomChatPanelProps {
   agent_id: string | null;
   current_agent_name?: string | null;
+  current_room_title?: string | null;
   session_key: string | null;
   session_title?: string | null;
-  on_create_conversation: () => void;
+  on_create_conversation?: () => void;
   layout?: "desktop" | "mobile";
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
@@ -47,6 +48,7 @@ function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
+  current_room_title,
   session_key: external_session_key,
   session_title,
   on_create_conversation,
@@ -275,13 +277,14 @@ export function RoomChatPanel({
       ) : null}
 
       {!external_session_key ? (
-        <RoomConversationEmptyState on_create_conversation={on_create_conversation} />
+        <RoomConversationEmptyState on_create_conversation={on_create_conversation ?? (() => {})} />
       ) : (
         <>
           {!is_mobile_layout ? (
             <RoomConversationHeader
               current_agent_name={current_agent_name ?? null}
               current_conversation_id={session_key}
+              current_room_title={current_room_title ?? null}
               current_conversation_title={session_title ?? null}
               is_loading={is_loading}
             />

@@ -19,13 +19,13 @@ import { TodoItem } from "@/types/todo";
 import { RoomChatPanel } from "./room-chat-panel";
 
 interface RoomWorkspaceLayoutProps {
-  agents: Agent[];
   current_agent: Agent;
   current_agent_id: string | null;
+  room_members: Agent[];
+  current_room_title: string;
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
-  recent_agents: Agent[];
   active_workspace_path: string | null;
   is_editor_open: boolean;
   editor_width_percent: number;
@@ -51,13 +51,13 @@ interface RoomWorkspaceLayoutProps {
 }
 
 export function RoomWorkspaceLayout({
-  agents,
   current_agent,
   current_agent_id,
+  room_members,
+  current_room_title,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
-  recent_agents,
   active_workspace_path,
   is_editor_open,
   editor_width_percent,
@@ -87,10 +87,11 @@ export function RoomWorkspaceLayout({
         <RoomSidebarPanel
           active_workspace_path={active_workspace_path}
           agent={current_agent}
-          agents={agents}
+          members={room_members}
           conversations={current_room_conversations}
           current_agent_id={current_agent_id}
           current_conversation_id={current_conversation_id}
+          room_name={current_room_title}
           on_create_agent={on_create_agent}
           on_create_conversation={on_create_conversation}
           on_delete_conversation={on_delete_conversation}
@@ -98,7 +99,6 @@ export function RoomWorkspaceLayout({
           on_open_workspace_file={on_open_workspace_file}
           on_select_agent={on_select_agent}
           on_select_conversation={on_select_conversation}
-          recent_agents={recent_agents}
         />
       </div>
 
@@ -124,6 +124,7 @@ export function RoomWorkspaceLayout({
             <RoomChatPanel
               agent_id={current_agent.agent_id}
               current_agent_name={current_agent.name}
+              current_room_title={current_room_title}
               on_conversation_snapshot_change={on_conversation_snapshot_change}
               on_create_conversation={on_create_conversation}
               on_loading_change={on_loading_change}
@@ -145,7 +146,9 @@ export function RoomWorkspaceLayout({
             is_conversation_busy={is_conversation_busy}
             on_edit_agent={on_edit_agent}
             conversation_cost_summary={conversation_cost_summary}
-            sessions={current_room_conversations}
+            room_conversations={current_room_conversations}
+            room_members={room_members}
+            room_name={current_room_title}
             todos={current_todos}
           />
         </div>

@@ -14,7 +14,9 @@ import { RoomWorkspaceContextSection } from "./room-workspace-context-section";
 
 interface RoomContextPanelProps {
   agent: Agent;
-  sessions: Conversation[];
+  room_name: string;
+  room_members: Agent[];
+  room_conversations: Conversation[];
   active_conversation: Conversation | null;
   todos: TodoItem[];
   is_conversation_busy: boolean;
@@ -25,7 +27,9 @@ interface RoomContextPanelProps {
 
 export function RoomContextPanel({
   agent,
-  sessions,
+  room_name,
+  room_members,
+  room_conversations,
   active_conversation,
   todos,
   is_conversation_busy,
@@ -54,7 +58,9 @@ export function RoomContextPanel({
           localized_agent_skill={localized_agent_skill}
           localized_runtime_status={localized_runtime_status}
           model_name={model_name}
-          total_room_count={sessions.length}
+          room_name={room_name}
+          total_member_count={room_members.length}
+          total_room_count={room_conversations.length}
         />
 
         <RoomProgressSection todos={todos} />
@@ -68,7 +74,7 @@ export function RoomContextPanel({
           allowed_tool_count={agent.options.allowed_tools?.length ?? 0}
           localized_agent_skill={localized_agent_skill}
           permission_mode={agent.options.permission_mode || "default"}
-          served_room_count={sessions.length}
+          served_room_count={room_conversations.length}
         />
       </div>
     </aside>

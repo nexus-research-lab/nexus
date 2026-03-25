@@ -12,10 +12,10 @@ import { RoomMobileWorkspace } from "./room-mobile-workspace";
 import { RoomWorkspaceLayout } from "./room-workspace-layout";
 
 interface RoomWorkspaceShellProps {
-  agents: Agent[];
   current_agent: Agent;
   current_agent_id: string | null;
-  recent_agents: Agent[];
+  room_members: Agent[];
+  current_room_title: string;
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
@@ -44,10 +44,10 @@ interface RoomWorkspaceShellProps {
 }
 
 export function RoomWorkspaceShell({
-  agents,
   current_agent,
   current_agent_id,
-  recent_agents,
+  room_members,
+  current_room_title,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
@@ -78,13 +78,14 @@ export function RoomWorkspaceShell({
 
   if (is_mobile) {
     return (
-      <RoomMobileWorkspace
-        current_agent={current_agent}
-        current_conversation={current_conversation}
-        current_conversation_id={current_conversation_id}
-        current_room_conversations={current_room_conversations}
-        on_back_to_directory={on_back_to_directory}
-        on_conversation_snapshot_change={on_conversation_snapshot_change}
+        <RoomMobileWorkspace
+          current_agent={current_agent}
+          current_conversation={current_conversation}
+          current_conversation_id={current_conversation_id}
+          current_room_conversations={current_room_conversations}
+          current_room_title={current_room_title}
+          on_back_to_directory={on_back_to_directory}
+          on_conversation_snapshot_change={on_conversation_snapshot_change}
         on_create_conversation={on_create_conversation}
         on_loading_change={on_loading_change}
         on_select_conversation={on_select_conversation}
@@ -98,9 +99,10 @@ export function RoomWorkspaceShell({
         <RoomWorkspaceLayout
           active_workspace_path={active_workspace_path}
           agent_cost_summary={agent_cost_summary}
-          agents={agents}
           current_agent={current_agent}
           current_agent_id={current_agent_id}
+          room_members={room_members}
+          current_room_title={current_room_title}
           current_conversation={current_conversation}
           current_conversation_id={current_conversation_id}
           current_room_conversations={current_room_conversations}
@@ -122,7 +124,6 @@ export function RoomWorkspaceShell({
           on_select_conversation={on_select_conversation}
           on_start_editor_resize={on_start_editor_resize}
           on_todos_change={on_todos_change}
-          recent_agents={recent_agents}
           conversation_cost_summary={conversation_cost_summary}
           workspace_split_ref={workspace_split_ref}
         />
