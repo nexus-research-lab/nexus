@@ -63,7 +63,7 @@ export function RoomRouteEntry({
             type="button"
           >
             <Sparkles className="h-5 w-5 text-slate-900/78" />
-            <p className="mt-3 text-sm font-semibold text-slate-950/86">交给真格 App</p>
+            <p className="mt-3 text-sm font-semibold text-slate-950/86">交给Nexus</p>
           </button>
         </div>
       </section>

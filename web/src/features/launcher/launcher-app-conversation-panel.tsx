@@ -64,28 +64,28 @@ function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
 }
 
 export function LauncherAppConversationPanel({
-  agents,
-  app_conversation_draft,
-  app_conversation_messages,
-  conversations_with_owners,
-  error,
-  is_loading,
-  ws_state,
-  on_create_room,
-  on_clear_conversation,
-  on_change_draft,
-  on_close,
-  on_delete_round,
-  on_open_agent_room,
-  on_open_conversation,
-  on_open_contacts_page,
-  on_permission_response,
-  on_regenerate_round,
-  on_stop_generation,
-  on_submit,
-  pending_permission,
-  suggested_room_title,
-}: LauncherAppConversationPanelProps) {
+                                               agents,
+                                               app_conversation_draft,
+                                               app_conversation_messages,
+                                               conversations_with_owners,
+                                               error,
+                                               is_loading,
+                                               ws_state,
+                                               on_create_room,
+                                               on_clear_conversation,
+                                               on_change_draft,
+                                               on_close,
+                                               on_delete_round,
+                                               on_open_agent_room,
+                                               on_open_conversation,
+                                               on_open_contacts_page,
+                                               on_permission_response,
+                                               on_regenerate_round,
+                                               on_stop_generation,
+                                               on_submit,
+                                               pending_permission,
+                                               suggested_room_title,
+                                             }: LauncherAppConversationPanelProps) {
   const scroll_ref = useRef<HTMLDivElement>(null);
   const bottom_anchor_ref = useRef<HTMLDivElement>(null);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
@@ -291,17 +291,15 @@ export function LauncherAppConversationPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <HeroActionPillShell class_name="w-fit">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
-                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
-                真格 App
+              <span
+                className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
+                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]"/>
+                Nexus | ·
               </span>
-            </HeroActionPillShell>
-            <div className="mt-3 flex items-center gap-2 px-1">
-              <span className="text-sm font-semibold text-slate-950/84">系统级主对话</span>
               <span className={`text-[11px] font-medium ${connection_meta.tone_class_name}`}>
                 {connection_meta.label}
               </span>
-            </div>
+            </HeroActionPillShell>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -312,7 +310,7 @@ export function LauncherAppConversationPanel({
               type="button"
             >
               <HeroActionOrbShell class_name="h-[46px] w-[46px]">
-                <RotateCcw className="h-4 w-4 text-slate-900/76" />
+                <RotateCcw className="h-4 w-4 text-slate-900/76"/>
               </HeroActionOrbShell>
             </button>
             <button
@@ -322,16 +320,18 @@ export function LauncherAppConversationPanel({
               type="button"
             >
               <HeroActionOrbShell class_name="h-[54px] w-[54px]">
-                <X className="h-4 w-4 text-slate-900/76" />
+                <X className="h-4 w-4 text-slate-900/76"/>
               </HeroActionOrbShell>
             </button>
           </div>
         </div>
 
-        <div className="relative mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[rgba(255,255,255,0.05)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+        <div
+          className="relative mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[rgba(255,255,255,0.05)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
           {error ? (
-            <div className="mx-3 mt-3 flex items-start gap-2 rounded-[20px] bg-[rgba(255,120,120,0.12)] px-3 py-2 text-xs leading-5 text-red-900/84 shadow-[inset_0_0_0_1px_rgba(255,120,120,0.14)]">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div
+              className="mx-3 mt-3 flex items-start gap-2 rounded-[20px] bg-[rgba(255,120,120,0.12)] px-3 py-2 text-xs leading-5 text-red-900/84 shadow-[inset_0_0_0_1px_rgba(255,120,120,0.14)]">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0"/>
               <span>{error}</span>
             </div>
           ) : null}
@@ -345,7 +345,7 @@ export function LauncherAppConversationPanel({
               <RoomConversationFeed
                 bottom_anchor_ref={bottom_anchor_ref}
                 compact
-                current_agent_name="真格 App"
+                current_agent_name="Nexus"
                 is_last_round_pending_permission={pending_permission}
                 is_loading={is_loading}
                 is_mobile_layout
@@ -362,7 +362,7 @@ export function LauncherAppConversationPanel({
                     Ready
                   </p>
                   <p className="mt-3 text-base font-semibold text-slate-950/84">
-                    告诉真格 App，你接下来要推进什么。
+                    告诉Nexus，你接下来要推进什么。
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-700/58">
                     它会帮你恢复协作、找成员，或者先把新的协作入口搭起来。
@@ -436,7 +436,7 @@ export function LauncherAppConversationPanel({
                       type="button"
                     >
                       <span className="truncate">{action.label}</span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0"/>
                     </button>
                   ))}
                 </div>
@@ -460,7 +460,7 @@ export function LauncherAppConversationPanel({
                     event.preventDefault();
                     handle_submit();
                   }}
-                  placeholder="告诉真格 App 你要推进什么..."
+                  placeholder="告诉Nexus 你要推进什么..."
                   rows={1}
                   value={app_conversation_draft}
                 />
@@ -471,18 +471,18 @@ export function LauncherAppConversationPanel({
                   type="button"
                 >
                   {is_loading ? (
-                    <RotateCcw className="h-4 w-4" />
+                    <RotateCcw className="h-4 w-4"/>
                   ) : ws_state === "connected" ? (
-                    <ArrowRight className="h-4 w-4" />
+                    <ArrowRight className="h-4 w-4"/>
                   ) : (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className="h-4 w-4 animate-spin"/>
                   )}
                 </button>
               </div>
 
               <div className="flex items-center justify-between gap-3 px-1 text-[11px] text-slate-700/44">
                 <span>{ws_state === "connected" ? "Enter 发送，Shift + Enter 换行" : "正在建立主对话连接..."}</span>
-                <span>{app_conversation_messages.length ? `${app_conversation_messages.length} 条消息` : "全局唯一对话"}</span>
+                <span>{app_conversation_messages.length ? `${app_conversation_messages.length} 条消息` : ""}</span>
               </div>
             </div>
           </HeroInputShell>

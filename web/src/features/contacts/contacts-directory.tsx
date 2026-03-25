@@ -149,7 +149,7 @@ export function ContactsDirectory({
               >
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-950/86">
                   <Sparkles className="h-4 w-4" />
-                  交给真格 App
+                  交给Nexus
                 </p>
               </button>
             </div>

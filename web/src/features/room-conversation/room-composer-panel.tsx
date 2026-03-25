@@ -166,7 +166,7 @@ const RoomComposerPanelView = memo(({
   const is_over_limit = char_count > max_length;
   const effective_placeholder =
     mode === "app"
-      ? "让真格 App 帮你建 room、拉成员，或调整协作结构…"
+      ? "让Nexus 帮你建 room、拉成员，或调整协作结构…"
       : mode === "room"
         ? "继续这个 room 的任务，@ 成员、补充上下文或推进下一步…"
         : placeholder;
