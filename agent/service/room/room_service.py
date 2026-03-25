@@ -11,10 +11,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Optional
 
 from agent.infra.database.get_db import get_db
-from agent.schema.model_agent_persistence import AgentAggregate
+from agent.schema.model_agent_persistence import (
+    AgentAggregate,
+    AgentRecord,
+    CreateAgentAggregate,
+    ProfileRecord,
+    RuntimeRecord,
+)
 from agent.schema.model_chat_persistence import (
     ConversationContextAggregate,
     ConversationRecord,
@@ -23,20 +31,25 @@ from agent.schema.model_chat_persistence import (
     RoomRecord,
     SessionRecord,
 )
+from agent.service.agent.agent_name_policy import AgentNamePolicy
 from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.agent.agent_manager import agent_manager
-from agent.service.persistence.agent_persistence_service import (
+from agent.service.repository.agent_repository_service import (
     agent_persistence_service,
 )
-from agent.service.persistence.legacy_sync_bridge import (
-    LOCAL_USER_ID,
-    build_agent_aggregate_from_legacy,
-)
-from agent.service.persistence.persistence_service import persistence_service
+from agent.service.repository.repository_service import persistence_service
 from agent.storage.sqlite.conversation_sql_repository import ConversationSqlRepository
 from agent.storage.sqlite.room_sql_repository import RoomSqlRepository
 from agent.storage.sqlite.session_sql_repository import SessionSqlRepository
 from agent.utils.utils import random_uuid
+
+_LOCAL_USER_ID = "local-user"
+
+
+def _stable_id(prefix: str, raw_value: str) -> str:
+    """基于稳定输入生成短 ID。"""
+    digest = hashlib.sha1(raw_value.encode("utf-8")).hexdigest()[:20]
+    return f"{prefix}_{digest}"
 
 
 class RoomService:
@@ -223,9 +236,42 @@ class RoomService:
         aggregate = await agent_persistence_service.get_agent_aggregate(agent_id)
         if aggregate is not None:
             return aggregate
-        return await agent_persistence_service.create_agent_aggregate(
-            build_agent_aggregate_from_legacy(agent)
+
+        options = agent.options.model_dump(exclude_none=True)
+        slug = AgentNamePolicy.build_workspace_dir_name(agent.name)
+        create_payload = CreateAgentAggregate(
+            agent=AgentRecord(
+                id=agent.agent_id,
+                slug=slug,
+                name=agent.name,
+                description="",
+                definition="",
+                status=agent.status,
+                workspace_path=agent.workspace_path,
+            ),
+            profile=ProfileRecord(
+                id=_stable_id("profile", agent.agent_id),
+                agent_id=agent.agent_id,
+                display_name=agent.name,
+                headline="",
+                profile_markdown="",
+            ),
+            runtime=RuntimeRecord(
+                id=_stable_id("runtime", agent.agent_id),
+                agent_id=agent.agent_id,
+                model=options.get("model"),
+                permission_mode=options.get("permission_mode"),
+                allowed_tools_json=json.dumps(options.get("allowed_tools") or [], ensure_ascii=False),
+                disallowed_tools_json=json.dumps(options.get("disallowed_tools") or [], ensure_ascii=False),
+                mcp_servers_json=json.dumps(options.get("mcp_servers") or {}, ensure_ascii=False),
+                max_turns=options.get("max_turns"),
+                max_thinking_tokens=options.get("max_thinking_tokens"),
+                skills_enabled=bool(options.get("skills_enabled", False)),
+                setting_sources_json=json.dumps(options.get("setting_sources") or [], ensure_ascii=False),
+                runtime_version=1,
+            ),
         )
+        return await agent_persistence_service.create_agent_aggregate(create_payload)
 
     def _build_room_name(
         self,
@@ -244,7 +290,7 @@ class RoomService:
                 id=random_uuid(),
                 room_id=room_id,
                 member_type="user",
-                member_user_id=LOCAL_USER_ID,
+                member_user_id=_LOCAL_USER_ID,
             )
         ]
         for agent_id in agent_ids:
