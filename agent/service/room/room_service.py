@@ -76,6 +76,49 @@ class RoomService:
             raise LookupError("Room not found")
         return contexts
 
+    async def update_room(
+        self,
+        room_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> ConversationContextAggregate:
+        """更新房间与主对话信息。"""
+        async with self._db.session() as session:
+            room_repository = RoomSqlRepository(session)
+            conversation_repository = ConversationSqlRepository(session)
+
+            room_aggregate = await room_repository.get(room_id)
+            if room_aggregate is None:
+                raise LookupError("Room not found")
+
+            updated_room = await room_repository.update_room(
+                room_id=room_id,
+                name=name,
+                description=description,
+            )
+            if updated_room is None:
+                raise LookupError("Room not found")
+
+            conversations = await conversation_repository.list_by_room(room_id)
+            main_conversation = self._pick_main_conversation(conversations)
+            if main_conversation is None:
+                raise ValueError("Room conversation not found")
+            if title is not None:
+                updated_conversation = await conversation_repository.update_title(
+                    conversation_id=main_conversation.id,
+                    title=title,
+                )
+                if updated_conversation is not None:
+                    main_conversation = updated_conversation
+
+            await session.commit()
+
+        contexts = await persistence_service.get_room_contexts(room_id)
+        if not contexts:
+            raise LookupError("Room not found")
+        return self._pick_context_by_conversation(contexts, main_conversation.id)
+
     async def create_room(
         self,
         agent_ids: list[str],
@@ -204,6 +247,76 @@ class RoomService:
             sessions=[primary_session],
         )
 
+    async def remove_agent_member(
+        self,
+        room_id: str,
+        agent_id: str,
+    ) -> ConversationContextAggregate:
+        """移除房间中的 Agent 成员。"""
+        if MainAgentProfile.is_main_agent(agent_id):
+            raise ValueError("main agent 不能作为 room 成员")
+
+        async with self._db.session() as session:
+            room_repository = RoomSqlRepository(session)
+            conversation_repository = ConversationSqlRepository(session)
+            session_repository = SessionSqlRepository(session)
+
+            room_aggregate = await room_repository.get(room_id)
+            if room_aggregate is None:
+                raise LookupError("Room not found")
+            if room_aggregate.room.room_type != "room":
+                raise ValueError("DM room does not support removing members")
+
+            agent_members = [
+                member
+                for member in room_aggregate.members
+                if member.member_type == "agent" and member.member_agent_id
+            ]
+            if len(agent_members) <= 1:
+                raise ValueError("Room 至少保留一个 agent 成员")
+
+            removed_member = await room_repository.remove_agent_member(
+                room_id=room_id,
+                agent_id=agent_id,
+            )
+            if removed_member is None:
+                raise LookupError("Room member not found")
+
+            conversations = await conversation_repository.list_by_room(room_id)
+            main_conversation = self._pick_main_conversation(conversations)
+            if main_conversation is None:
+                raise ValueError("Room conversation not found")
+
+            primary_session = await session_repository.get_primary(
+                conversation_id=main_conversation.id,
+                agent_id=agent_id,
+            )
+            if primary_session is not None:
+                await session_repository.delete(primary_session.id)
+
+            await session.commit()
+
+        contexts = await persistence_service.get_room_contexts(room_id)
+        if not contexts:
+            raise LookupError("Room not found")
+        context = self._pick_context_by_conversation(contexts, main_conversation.id)
+        context.members = [
+            member for member in context.members if member.id != removed_member.id
+        ]
+        context.sessions = [
+            session for session in context.sessions if session.agent_id != agent_id
+        ]
+        return context
+
+    async def delete_room(self, room_id: str) -> None:
+        """删除房间。"""
+        async with self._db.session() as session:
+            room_repository = RoomSqlRepository(session)
+            deleted = await room_repository.delete_room(room_id)
+            if not deleted:
+                raise LookupError("Room not found")
+            await session.commit()
+
     def _normalize_agent_ids(self, agent_ids: list[str]) -> list[str]:
         """去重并保持输入顺序。"""
         normalized_ids: list[str] = []
@@ -330,6 +443,17 @@ class RoomService:
             if conversation.conversation_type == "room_main":
                 return conversation
         return conversations[0] if conversations else None
+
+    def _pick_context_by_conversation(
+        self,
+        contexts: list[ConversationContextAggregate],
+        conversation_id: str,
+    ) -> ConversationContextAggregate:
+        """根据对话 ID 选中上下文。"""
+        for context in contexts:
+            if context.conversation.id == conversation_id:
+                return context
+        return contexts[0]
 
 
 room_service = RoomService()

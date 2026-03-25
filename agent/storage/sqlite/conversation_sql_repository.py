@@ -52,3 +52,17 @@ class ConversationSqlRepository(BaseSqlRepository):
             ConversationRecord.model_validate(entity)
             for entity in result.scalars().all()
         ]
+
+    async def update_title(
+        self,
+        conversation_id: str,
+        title: Optional[str],
+    ) -> Optional[ConversationRecord]:
+        """更新对话标题。"""
+        entity = await self._session.get(Conversation, conversation_id)
+        if entity is None:
+            return None
+        entity.title = title
+        await self.flush()
+        await self.refresh(entity)
+        return ConversationRecord.model_validate(entity)
