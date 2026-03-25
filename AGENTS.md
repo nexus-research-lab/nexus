@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`agent/` contains the FastAPI backend, WebSocket flow, session management, and persistence (`service/`, `api/`, `shared/`, `utils/`).  
+`agent/` contains the FastAPI backend, WebSocket flow, session management, and persistence. Key sub-modules: `api/` (routes), `service/` (business logic: agent, channels, chat, message, permission, persistence, room, session, workspace), `infra/` (database, cacher, http_client, server), `schema/` (Pydantic models), `storage/` (repositories), `config/`, `utils/`.  
 `web/` is the Next.js frontend (`src/components`, `src/hooks`, `src/lib`, `src/store`).  
 `alembic/` stores database migrations; keep schema changes and migration files in the same PR.  
 `tests/` currently holds integration-style scripts and runtime logs (for example, interrupt/session behavior).  

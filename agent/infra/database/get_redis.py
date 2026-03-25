@@ -19,7 +19,7 @@ from redis import asyncio as aioredis
 from redis.asyncio.cluster import RedisCluster as AioRedisCluster
 from redis.cluster import ClusterNode, RedisCluster
 
-from agent.core.config import settings
+from agent.config.config import settings
 
 
 @lru_cache(maxsize=32)
