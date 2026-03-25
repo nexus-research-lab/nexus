@@ -294,6 +294,7 @@ export function LauncherPage() {
           <LauncherConsole
             agents={controller.agents}
             conversations={controller.conversations}
+            on_create_room={handle_create_room}
             current_agent_id={controller.current_agent_id}
             on_open_contacts_page={handle_open_contacts_page}
             on_open_app_conversation={controller.open_app_conversation}

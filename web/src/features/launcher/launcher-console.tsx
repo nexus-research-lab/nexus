@@ -32,6 +32,7 @@ interface LauncherConsoleProps {
   agents: Agent[];
   conversations: Conversation[];
   current_agent_id: string | null;
+  on_create_room: () => void;
   on_open_contacts_page: () => void;
   on_open_app_conversation: (initial_prompt?: string) => void;
   on_select_agent: (agent_id: string) => void;
@@ -73,6 +74,7 @@ interface ContactsPopoverProps {
 }
 
 interface RecentRoomsPopoverProps {
+  on_create_room: () => void;
   on_close: () => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   recent_rooms: ConversationWithOwner[];
@@ -434,6 +436,7 @@ const ContactsPopover = memo(function ContactsPopover({
 });
 
 const RecentRoomsPopover = memo(function RecentRoomsPopover({
+  on_create_room,
   on_close,
   on_open_conversation,
   recent_rooms,
@@ -512,12 +515,7 @@ const RecentRoomsPopover = memo(function RecentRoomsPopover({
           className="flex w-full items-center gap-2 rounded-[18px] bg-[rgba(255,255,255,0.05)] px-3 py-3 text-sm font-medium text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]"
           onClick={() => {
             on_close();
-            if (recent_rooms[0]) {
-              on_open_conversation(
-                recent_rooms[0].conversation.session_key,
-                recent_rooms[0].conversation.agent_id,
-              );
-            }
+            on_create_room();
           }}
           type="button"
         >
@@ -533,6 +531,7 @@ export function LauncherConsole({
   agents,
   conversations,
   current_agent_id,
+  on_create_room,
   on_open_contacts_page,
   on_open_app_conversation,
   on_select_agent,
@@ -678,6 +677,7 @@ export function LauncherConsole({
           {show_rooms ? (
             <RecentRoomsPopover
               conversations_with_owners={conversations_with_owners}
+              on_create_room={on_create_room}
               on_close={() => setShowRooms(false)}
               on_open_conversation={on_open_conversation}
               recent_rooms={recent_rooms}
