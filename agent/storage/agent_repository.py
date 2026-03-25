@@ -2,68 +2,41 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：agent_repository.py
-# @Date   ：2026/3/9 22:31
+# @Date   ：2026/03/25 23:59
 # @Author ：leemysw
-# 2026/3/9 22:31   Create
+# 2026/03/25 23:59   Create
 # =====================================================
 
-"""
-Agent 数据仓库
+"""Agent SQLite 数据仓库。"""
 
-[INPUT]: 依赖文件存储层和 schema/model_agent 的 AAgent
-[OUTPUT]: 对外提供 AgentRepository（Agent CRUD）
-[POS]: db 模块的 Agent 持久化层，被 agent_manager 消费
-[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
-"""
+from __future__ import annotations
 
-from datetime import datetime
+import asyncio
 from pathlib import Path
-from threading import Lock
 from typing import Dict, List, Optional
 
-from agent.storage.config_store import ConfigStore
+from agent.infra.database.get_db import get_db
+from agent.schema.model_agent import AAgent
+from agent.schema.model_agent_persistence import AgentAggregate
+from agent.service.agent.main_agent_profile import MainAgentProfile
+from agent.service.workspace.workspace_template_initializer import (
+    WorkspaceTemplateInitializer,
+)
+from agent.storage.agent_sql_mapper import AgentSqlMapper
+from agent.storage.sqlite.agent_sql_repository import AgentSqlRepository
 from agent.storage.storage_bootstrap import FileStorageBootstrap
 from agent.storage.storage_paths import FileStoragePaths
-from agent.schema.model_agent import AAgent, AgentOptions
 from agent.utils.logger import logger
 
-
 class AgentRepository:
-    """Agent 文件数据仓库。"""
+    """以 SQLite 为主真相源的 Agent 仓库。"""
 
     def __init__(self) -> None:
         self._bootstrap = FileStorageBootstrap()
         self._paths = FileStoragePaths()
-        self._lock = Lock()
-        self._bootstrap.ensure_ready()
-
-    def _load_records(self) -> List[Dict]:
-        """读取 Agent 索引。"""
-        self._bootstrap.ensure_ready()
-        records = ConfigStore.read(self._paths.agents_index_path, [])
-        return records if isinstance(records, list) else []
-
-    def _write_records(self, records: List[Dict]) -> None:
-        """写回 Agent 索引。"""
-        ConfigStore.write(self._paths.agents_index_path, records)
-
-    def _write_agent_snapshot(self, record: Dict) -> None:
-        """将 Agent 快照同步到各自 workspace。"""
-        workspace_path = Path(record["workspace_path"]).expanduser()
-        workspace_path.mkdir(parents=True, exist_ok=True)
-        ConfigStore.write(self._paths.get_agent_file_path(workspace_path), record)
-
-    @staticmethod
-    def _to_model(record: Dict) -> AAgent:
-        """将字典记录转换为 AAgent。"""
-        return AAgent(
-            agent_id=record["agent_id"],
-            name=record["name"],
-            workspace_path=record["workspace_path"],
-            options=AgentOptions(**(record.get("options") or {})),
-            created_at=record.get("created_at") or datetime.now().isoformat(),
-            status=record.get("status") or "active",
-        )
+        self._db = get_db("async_sqlite")
+        self._init_lock = asyncio.Lock()
+        self._initialized = False
 
     async def create_agent(
         self,
@@ -73,40 +46,40 @@ class AgentRepository:
         options: Optional[Dict] = None,
     ) -> Optional[str]:
         """创建 Agent，返回 agent_id。"""
-        with self._lock:
-            records = self._load_records()
-            if any(record.get("agent_id") == agent_id for record in records):
+        await self._ensure_ready()
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            if await repository.get(agent_id):
                 logger.warning(f"⚠️ Agent 已存在，跳过创建: {agent_id}")
                 return None
 
-            record = {
-                "agent_id": agent_id,
-                "name": name,
-                "workspace_path": str(Path(workspace_path).expanduser()),
-                "options": options or {},
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-            }
-            records.append(record)
-            self._write_records(records)
-            self._write_agent_snapshot(record)
+            payload = AgentSqlMapper.build_create_payload(
+                agent_id=agent_id,
+                name=name,
+                workspace_path=workspace_path,
+                options=options,
+                status="active",
+            )
+            await repository.create(payload)
+            await session.commit()
             logger.info(f"✅ Agent 创建成功: {agent_id} ({name})")
             return agent_id
 
     async def get_agent(self, agent_id: str) -> Optional[AAgent]:
-        """按 agent_id 获取 Agent。"""
-        records = self._load_records()
-        for record in records:
-            if record.get("agent_id") == agent_id:
-                return self._to_model(record)
-        return None
+        """按 agent_id 获取活跃 Agent。"""
+        await self._ensure_ready()
+        aggregate = await self._get_aggregate(agent_id)
+        if aggregate is None or aggregate.agent.status != "active":
+            return None
+        return AgentSqlMapper.to_model(aggregate)
 
     async def get_all_agents(self) -> List[AAgent]:
         """获取所有活跃 Agent。"""
-        records = self._load_records()
-        active_records = [record for record in records if record.get("status", "active") == "active"]
-        active_records.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
-        return [self._to_model(record) for record in active_records]
+        await self._ensure_ready()
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            aggregates = await repository.list_active()
+        return [AgentSqlMapper.to_model(item) for item in aggregates]
 
     async def exists_active_agent_name(
         self,
@@ -115,12 +88,10 @@ class AgentRepository:
     ) -> bool:
         """检查活跃 Agent 名称是否已存在。"""
         normalized = name.lower()
-        for record in self._load_records():
-            if record.get("status", "active") != "active":
+        for agent in await self.get_all_agents():
+            if exclude_agent_id and agent.agent_id == exclude_agent_id:
                 continue
-            if exclude_agent_id and record.get("agent_id") == exclude_agent_id:
-                continue
-            if str(record.get("name", "")).lower() == normalized:
+            if agent.name.lower() == normalized:
                 return True
         return False
 
@@ -130,58 +101,143 @@ class AgentRepository:
         name: Optional[str] = None,
         options: Optional[Dict] = None,
     ) -> bool:
-        """更新 Agent。"""
-        with self._lock:
-            records = self._load_records()
-            for record in records:
-                if record.get("agent_id") != agent_id:
-                    continue
+        """更新 Agent 基础信息与运行参数。"""
+        await self._ensure_ready()
+        aggregate = await self._get_aggregate(agent_id)
+        if aggregate is None or aggregate.agent.status != "active":
+            return False
 
-                if name is not None:
-                    record["name"] = name
-                if options is not None:
-                    merged_options = dict(record.get("options") or {})
-                    merged_options.update(options)
-                    record["options"] = merged_options
+        merged_options = AgentSqlMapper.merge_options(aggregate, options)
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            updated = await repository.update_agent_fields(
+                agent_id,
+                name=name,
+            )
+            if updated is None:
+                return False
 
-                self._write_records(records)
-                self._write_agent_snapshot(record)
-                logger.info(f"✅ Agent 更新成功: {agent_id}")
-                return True
+            display_name = name or aggregate.profile.display_name
+            updated = await repository.update_profile_fields(
+                agent_id,
+                display_name=display_name,
+            )
+            if updated is None:
+                return False
 
-        return False
+            updated = await repository.update_runtime_fields(
+                agent_id,
+                model=merged_options.get("model"),
+                permission_mode=merged_options.get("permission_mode"),
+                allowed_tools_json=AgentSqlMapper.to_json(
+                    merged_options.get("allowed_tools") or []
+                ),
+                disallowed_tools_json=AgentSqlMapper.to_json(
+                    merged_options.get("disallowed_tools") or []
+                ),
+                mcp_servers_json=AgentSqlMapper.to_json(
+                    merged_options.get("mcp_servers") or {}
+                ),
+                max_turns=merged_options.get("max_turns"),
+                max_thinking_tokens=merged_options.get("max_thinking_tokens"),
+                skills_enabled=bool(merged_options.get("skills_enabled", False)),
+                setting_sources_json=AgentSqlMapper.to_json(
+                    merged_options.get("setting_sources") or []
+                ),
+            )
+            if updated is None:
+                return False
+            await session.commit()
+
+        logger.info(f"✅ Agent 更新成功: {agent_id}")
+        return True
 
     async def update_agent_workspace_path(self, agent_id: str, workspace_path: str) -> bool:
         """更新 Agent 的工作空间路径。"""
+        await self._ensure_ready()
         target_path = str(Path(workspace_path).expanduser())
-        with self._lock:
-            records = self._load_records()
-            for record in records:
-                if record.get("agent_id") != agent_id:
-                    continue
-
-                record["workspace_path"] = target_path
-                self._write_records(records)
-                self._write_agent_snapshot(record)
-                logger.info(f"✅ Agent workspace_path 已更新: {agent_id} -> {target_path}")
-                return True
-
-        return False
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            updated = await repository.update_agent_fields(agent_id, workspace_path=target_path)
+            if updated is None:
+                return False
+            await session.commit()
+        logger.info(f"✅ Agent workspace_path 已更新: {agent_id} -> {target_path}")
+        return True
 
     async def delete_agent(self, agent_id: str) -> bool:
-        """软删除 Agent。"""
-        with self._lock:
-            records = self._load_records()
-            for record in records:
-                if record.get("agent_id") != agent_id:
-                    continue
+        """归档 Agent。"""
+        await self._ensure_ready()
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            updated = await repository.update_agent_fields(agent_id, status="archived")
+            if updated is None:
+                return False
+            await session.commit()
+        logger.info(f"🗑️ Agent 已归档: {agent_id}")
+        return True
 
-                record["status"] = "archived"
-                self._write_records(records)
-                logger.info(f"🗑️ Agent 已归档: {agent_id}")
-                return True
+    async def _ensure_ready(self) -> None:
+        """确保文件系统与 SQLite Agent 数据已完成初始化。"""
+        if self._initialized:
+            return
+        async with self._init_lock:
+            if self._initialized:
+                return
+            self._bootstrap.ensure_ready()
+            await self._ensure_main_agent()
+            self._initialized = True
 
-        return False
+    async def _ensure_main_agent(self) -> None:
+        """确保 main agent 已存在于 SQLite。"""
+        aggregate = await self._get_aggregate(MainAgentProfile.AGENT_ID)
+        workspace_path = self._paths.workspace_base / MainAgentProfile.AGENT_ID
+        WorkspaceTemplateInitializer(
+            MainAgentProfile.AGENT_ID,
+            workspace_path,
+        ).ensure_initialized(MainAgentProfile.AGENT_ID)
+
+        if aggregate is not None:
+            if aggregate.agent.status != "active":
+                async with self._db.session() as session:
+                    repository = AgentSqlRepository(session)
+                    await repository.update_agent_fields(
+                        MainAgentProfile.AGENT_ID,
+                        name=MainAgentProfile.AGENT_ID,
+                        status="active",
+                        workspace_path=str(workspace_path),
+                    )
+                    await repository.update_profile_fields(
+                        MainAgentProfile.AGENT_ID,
+                        display_name=MainAgentProfile.AGENT_ID,
+                    )
+                    await repository.update_runtime_fields(
+                        MainAgentProfile.AGENT_ID,
+                        **AgentSqlMapper.build_runtime_fields(
+                            MainAgentProfile.build_default_options()
+                        ),
+                    )
+                    await session.commit()
+            return
+
+        payload = AgentSqlMapper.build_create_payload(
+            agent_id=MainAgentProfile.AGENT_ID,
+            name=MainAgentProfile.AGENT_ID,
+            workspace_path=str(workspace_path),
+            options=MainAgentProfile.build_default_options(),
+            status="active",
+        )
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            await repository.create(payload)
+            await session.commit()
+        logger.info(f"🧩 已初始化 main Agent 数据: {workspace_path}")
+
+    async def _get_aggregate(self, agent_id: str) -> Optional[AgentAggregate]:
+        """读取 Agent 聚合。"""
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            return await repository.get(agent_id)
 
 
 agent_repository = AgentRepository()

@@ -17,8 +17,6 @@ from agent.schema.model_agent import AAgent
 from agent.service.workspace.agent_workspace import AgentWorkspace
 from agent.service.workspace.workspace_paths import get_workspace_base_path
 from agent.storage.agent_repository import agent_repository
-from agent.storage.config_store import ConfigStore
-from agent.storage.storage_paths import FileStoragePaths
 from agent.utils.logger import logger
 
 
@@ -27,7 +25,6 @@ class AgentWorkspaceRegistry:
 
     def __init__(self):
         self._workspaces: Dict[str, AgentWorkspace] = {}
-        self._storage_paths = FileStoragePaths()
 
     async def get_agent_workspace(self, agent: AAgent) -> AgentWorkspace:
         """按 Agent 当前配置获取 workspace 实例。"""
@@ -102,11 +99,9 @@ class AgentWorkspaceRegistry:
         """校验工作区目录是否归属于当前 Agent。"""
         if not workspace_path.is_dir():
             return False
-        if self._is_path_under_workspace_base(workspace_path):
-            return True
-        agent_file = self._storage_paths.get_agent_file_path(workspace_path)
-        snapshot = ConfigStore.read(agent_file, {})
-        return snapshot.get("agent_id") == agent.agent_id
+        if not self._is_path_under_workspace_base(workspace_path):
+            return False
+        return workspace_path == Path(agent.workspace_path).expanduser()
 
     @staticmethod
     def _is_path_under_workspace_base(workspace_path: Path) -> bool:
