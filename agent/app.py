@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from agent.api.router import api_router
 from agent.config.config import settings
 from agent.service.channels.channel_register import ChannelRegister
+from agent.service.agent.agent_service import agent_service
 from agent.infra.server.register import register_exception, register_hook, register_middleware
 from agent.utils.logger import logger
 
@@ -27,6 +28,7 @@ channel_manager = ChannelRegister()
 async def lifespan(app: FastAPI):
     try:
         logger.info("📁 使用 workspace 文件存储模式启动")
+        await agent_service.ensure_main_agent_ready()
 
         # 注册并启动消息通道
         await _register_channels()
