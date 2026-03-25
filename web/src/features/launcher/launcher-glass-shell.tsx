@@ -236,9 +236,9 @@ export function HeroSidePanelShell({ children, class_name }: HeroBlobShellProps)
 
   return (
     <>
-        <StaticGlassShell
+      <StaticGlassShell
         class_name={cn("w-[280px]", class_name)}
-        content_class_name="px-6 py-7"
+        content_class_name="flex h-full min-h-0 flex-col px-6 py-7"
         aura_background={`radial-gradient(24% 20% at 18% 28%, rgba(255,184,124,0.10), rgba(255,184,124,0) 78%),
           radial-gradient(24% 20% at 80% 18%, rgba(110,228,214,0.10), rgba(110,228,214,0) 78%),
           radial-gradient(32% 18% at 46% 92%, rgba(128,118,255,0.12), rgba(128,118,255,0) 76%),
