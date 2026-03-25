@@ -5,7 +5,6 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
 import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
 import { useRoomPageController } from "@/hooks/use-room-page-controller";
-import { RouteScaffold } from "@/shared/ui/route-scaffold";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
@@ -100,35 +99,17 @@ export function RoomPage() {
   }
 
   return (
-    <RouteScaffold
-      badge="ROOM"
-      title="协作空间入口"
-      description="room 是实际协作发生的地方。如果当前 URL 还没找到对应 room，这里应提供明确的恢复、重选成员和重新编排入口，而不是只展示技术骨架。"
-      meta={
-        <div className="flex gap-3">
-          <div className="workspace-card rounded-[20px] px-4 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-              Room
-            </p>
-            <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.room_id ?? "-"}</p>
-          </div>
-          {params.conversation_id ? (
-            <div className="workspace-card rounded-[20px] px-4 py-3 text-right">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-                Conversation
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.conversation_id}</p>
-            </div>
-          ) : null}
-        </div>
-      }
-    >
-      <RoomRouteEntry
-        agents={controller.agents}
-        conversations={controller.conversations}
-        conversation_id={params.conversation_id}
-        room_id={params.room_id}
-      />
-    </RouteScaffold>
+    <AppStage>
+      <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
+        <section className="workspace-shell relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
+          <RoomRouteEntry
+            agents={controller.agents}
+            conversations={controller.conversations}
+            conversation_id={params.conversation_id}
+            room_id={params.room_id}
+          />
+        </section>
+      </div>
+    </AppStage>
   );
 }

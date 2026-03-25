@@ -51,14 +51,11 @@ export function ContactsDirectory({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-              Members Network
+              Contacts
             </p>
             <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-slate-950/90">
-              Contacts 负责发现成员，不负责承载协作流
+              选择成员
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700/62">
-              这里更像成员目录和协作网络。你可以浏览成员、查看能力、直接发起 1v1，或者把成员交给首页里的 App Agent 继续组织协作。
-            </p>
           </div>
 
           <div className="workspace-chip rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700/56">
@@ -107,13 +104,12 @@ export function ContactsDirectory({
       </section>
 
       <aside className="workspace-card flex flex-col rounded-[30px] px-6 py-6">
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-          <Users className="h-4 w-4" />
-          Profile & Actions
-        </div>
-
         {selected_agent ? (
           <>
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
+              <Users className="h-4 w-4" />
+              成员资料
+            </div>
             <div className="mt-4 workspace-card rounded-[26px] px-5 py-5">
               <p className="text-xl font-semibold text-slate-950/88">{selected_agent.name}</p>
               <p className="mt-2 text-sm text-slate-700/58">{formatModelName(selected_agent)}</p>
@@ -144,9 +140,6 @@ export function ContactsDirectory({
                 type="button"
               >
                 <p className="text-sm font-semibold text-slate-950/86">发起 1v1 协作</p>
-                <p className="mt-1 text-xs leading-5 text-slate-700/58">
-                  直接进入这个成员对应的 room，开始一条新的或已有的协作对话。
-                </p>
               </button>
 
               <button
@@ -156,10 +149,7 @@ export function ContactsDirectory({
               >
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-950/86">
                   <Sparkles className="h-4 w-4" />
-                  交给 App Agent 组织
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-700/58">
-                  当你需要把这个成员拉入一个多人 room，或者先整理协作结构时，应回到首页唤起 App Agent。
+                  交给真格 App
                 </p>
               </button>
             </div>

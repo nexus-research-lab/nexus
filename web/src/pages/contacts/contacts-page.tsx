@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
-import { RouteScaffold } from "@/shared/ui/route-scaffold";
+import { AppStage } from "@/shared/ui/app-stage";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
@@ -23,26 +23,16 @@ export function ContactsPage() {
   }
 
   return (
-    <RouteScaffold
-      badge="CONTACTS"
-      title="成员与联系人网络"
-      description="Contacts 负责发现成员、查看能力、发起 1v1，以及把成员带回首页交给 App Agent 继续组织协作。它不应该继续混在 room 页面里承担联系人管理职责。"
-      meta={
-        params.agent_id ? (
-          <div className="workspace-card rounded-[20px] px-4 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-              Agent
-            </p>
-            <p className="mt-1 text-sm font-semibold text-slate-950/84">{params.agent_id}</p>
-          </div>
-        ) : null
-      }
-    >
-      <ContactsDirectory
-        agents={agents}
-        conversations={conversations}
-        selected_agent_id={params.agent_id}
-      />
-    </RouteScaffold>
+    <AppStage>
+      <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
+        <section className="workspace-shell relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
+          <ContactsDirectory
+            agents={agents}
+            conversations={conversations}
+            selected_agent_id={params.agent_id}
+          />
+        </section>
+      </div>
+    </AppStage>
   );
 }
