@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { initialOptions } from "@/config/options";
+import { DEFAULT_AGENT_ID, initialOptions } from "@/config/options";
 import { useInitializeConversations } from "@/hooks/use-initialize-conversations";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
 import { useConversationStore } from "@/store/conversation";
@@ -53,7 +53,7 @@ export function useHomeAgentConversationController() {
   const conversations_by_agent = useMemo(() => {
     const grouped = new Map<string, typeof conversations>();
     conversations.forEach((conversation) => {
-      const owner = conversation.agent_id ?? "main";
+      const owner = conversation.agent_id ?? DEFAULT_AGENT_ID;
       const currentList = grouped.get(owner) ?? [];
       currentList.push(conversation);
       grouped.set(owner, currentList);

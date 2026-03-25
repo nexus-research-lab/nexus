@@ -226,8 +226,6 @@ class WorkspaceFileManager:
         normalized = (relative_path or "").strip().lstrip("/").replace("\\", "/")
         if not normalized:
             raise ValueError("文件路径不能为空")
-        if normalized == ".agent" or normalized.startswith(".agent/"):
-            raise ValueError("不能直接操作内部运行目录")
         if normalized == ".agents" or normalized.startswith(".agents/"):
             raise ValueError("不能直接操作内部技能目录")
 
@@ -240,7 +238,7 @@ class WorkspaceFileManager:
     @staticmethod
     def _is_visible_workspace_path(path: Path) -> bool:
         """过滤运行时数据，避免把会话日志暴露到 workspace 编辑面板。"""
-        hidden_parts = {".agent", ".agents", ".git", "__pycache__", ".DS_Store", ".claude"}
+        hidden_parts = {".agents", ".git", "__pycache__", ".DS_Store", ".claude"}
         return not any(part in hidden_parts for part in path.parts)
 
     @classmethod

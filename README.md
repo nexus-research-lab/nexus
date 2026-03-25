@@ -183,7 +183,7 @@ Nexus Core 默认把运行数据保存在用户目录下：
 
 - Agent 索引：`~/.nexus-core/agents/index.json`
 - Workspace 根目录：`~/.nexus-core/workspace/`
-- 单个 Agent 的运行态目录：`<workspace>/.agent/`
+- 单个 Agent 的运行态目录：`<workspace>/.agents/`
 
 每个新 Agent 初始化时会自动创建这些上下文文件：
 
@@ -197,7 +197,7 @@ Nexus Core 默认把运行数据保存在用户目录下：
 
 - `SYSTEM_PROMPT.md` 用于定义全局基础提示词
 - `AGENTS.md` / `USER.md` / `MEMORY.md` / `RUNBOOK.md` 会参与 Agent system prompt 组装
-- `.agent/` 目录保存 Agent 快照、Session 元数据、消息日志和成本账本
+- `.agents/` 目录保存 Agent 快照、Session 元数据、消息日志和成本账本
 
 ## API 与实时通信
 

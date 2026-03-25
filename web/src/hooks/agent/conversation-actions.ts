@@ -1,3 +1,4 @@
+import { DEFAULT_AGENT_ID } from '@/config/options';
 import { WebSocketMessage } from '@/types/websocket';
 import { deleteRound as deleteRoundApi } from '@/lib/agent-api';
 import { generateUuid } from '@/lib/uuid';
@@ -45,7 +46,7 @@ export async function sendConversationMessage(
     message_id: round_id,
     session_key: resolved_session_key,
     round_id,
-    agent_id: agent_id || 'main',
+    agent_id: agent_id || DEFAULT_AGENT_ID,
     role: 'user',
     content,
     timestamp: Date.now(),
@@ -60,7 +61,7 @@ export async function sendConversationMessage(
     type: 'chat',
     content,
     session_key: resolved_session_key,
-    agent_id: agent_id || 'main',
+    agent_id: agent_id || DEFAULT_AGENT_ID,
     round_id,
   });
 }
@@ -93,7 +94,7 @@ export function stopConversationGeneration(context: AgentConversationActionConte
   ws_send({
     type: 'interrupt',
     session_key: resolved_session_key,
-    agent_id: agent_id || 'main',
+    agent_id: agent_id || DEFAULT_AGENT_ID,
     round_id: latest_user_round_id,
   });
 
@@ -136,7 +137,7 @@ export function sendConversationPermissionResponse(
     type: 'permission_response',
     request_id: pending_permission.request_id,
     session_key: resolved_session_key,
-    agent_id: agent_id || 'main',
+    agent_id: agent_id || DEFAULT_AGENT_ID,
     decision: payload.decision,
     message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
     interrupt: payload.interrupt ?? false,

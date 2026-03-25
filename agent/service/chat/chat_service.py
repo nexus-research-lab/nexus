@@ -66,7 +66,7 @@ class ChatService:
         real_agent_id = (
             existing_session.agent_id
             if existing_session and existing_session.agent_id
-            else requested_agent_id or "main"
+            else requested_agent_id or  settings.DEFAULT_AGENT_ID
         )
 
         try:

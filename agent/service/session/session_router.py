@@ -28,7 +28,7 @@ from agent.utils.logger import logger
 
 def get_default_agent_id() -> str:
     """返回默认 Agent ID。"""
-    return getattr(settings, "DEFAULT_AGENT_ID", "main") or "main"
+    return settings.DEFAULT_AGENT_ID
 
 
 # =====================================================

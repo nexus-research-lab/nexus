@@ -29,7 +29,7 @@ from agent.config.config import settings
 class ASession(BaseModel):
     """会话模型"""
     session_key: str = Field(..., description="结构化路由键")
-    agent_id: str = Field(default=settings.DEFAULT_AGENT_ID or "main", description="智能体 ID")
+    agent_id: str = Field(default=settings.DEFAULT_AGENT_ID, description="智能体 ID")
     session_id: Optional[str] = Field(default=None, description="SDK会话ID")
     channel_type: str = Field(default="websocket", description="通道类型")
     chat_type: str = Field(default="dm", description="会话类型")
