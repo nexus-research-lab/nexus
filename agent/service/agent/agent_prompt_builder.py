@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 from agent.config.config import settings
+from agent.service.agent.main_agent_profile import MainAgentProfile
 
 
 class AgentPromptBuilder:
@@ -43,7 +44,7 @@ class AgentPromptBuilder:
     @staticmethod
     def load_main_agent_system_prompt(agent_id: str) -> Optional[str]:
         """加载 main agent 的独立 system prompt。"""
-        if agent_id != (settings.DEFAULT_AGENT_ID or "main"):
+        if not MainAgentProfile.is_main_agent(agent_id):
             return None
 
         if settings.MAIN_AGENT_SYSTEM_PROMPT:

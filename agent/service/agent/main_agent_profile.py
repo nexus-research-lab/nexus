@@ -39,7 +39,7 @@ class MainAgentProfile:
     @classmethod
     def is_main_agent(cls, agent_id: str) -> bool:
         """判断是否为系统保留的 main agent。"""
-        return agent_id == (settings.DEFAULT_AGENT_ID or cls.AGENT_ID)
+        return agent_id == cls.AGENT_ID
 
     @classmethod
     def build_default_options(cls) -> Dict[str, Any]:
