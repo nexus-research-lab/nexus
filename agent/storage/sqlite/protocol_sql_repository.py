@@ -40,6 +40,14 @@ from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
 class ProtocolSqlRepository(BaseSqlRepository):
     """Protocol Room 持久化仓储。"""
 
+    @staticmethod
+    def _to_orm_payload(payload: dict) -> dict:
+        """将 schema 字段映射为 ORM 安全属性。"""
+        mapped = dict(payload)
+        if "metadata" in mapped:
+            mapped["metadata_json"] = mapped.pop("metadata")
+        return mapped
+
     async def upsert_definition(
         self,
         definition: ProtocolDefinitionRecord,
@@ -90,7 +98,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
 
     async def create_run(self, run: ProtocolRunRecord) -> ProtocolRunRecord:
         """创建协议运行。"""
-        entity = ProtocolRun(**run.model_dump(exclude={"created_at", "updated_at"}))
+        entity = ProtocolRun(**self._to_orm_payload(run.model_dump(exclude={"created_at", "updated_at"})))
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)
@@ -101,7 +109,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         entity = await self._session.get(ProtocolRun, run.id)
         if entity is None:
             raise LookupError("Protocol run not found")
-        payload = run.model_dump(exclude={"created_at", "updated_at"})
+        payload = self._to_orm_payload(run.model_dump(exclude={"created_at", "updated_at"}))
         for field_name, value in payload.items():
             setattr(entity, field_name, value)
         await self.flush()
@@ -136,7 +144,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         members: list[ChannelMemberRecord],
     ) -> ChannelAggregate:
         """创建频道及其成员。"""
-        entity = Channel(**channel.model_dump(exclude={"created_at", "updated_at"}))
+        entity = Channel(**self._to_orm_payload(channel.model_dump(exclude={"created_at", "updated_at"})))
         self._session.add(entity)
         for member in members:
             self._session.add(
@@ -204,7 +212,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         request: ActionRequestRecord,
     ) -> ActionRequestRecord:
         """创建动作请求。"""
-        entity = ActionRequest(**request.model_dump(exclude={"created_at", "updated_at"}))
+        entity = ActionRequest(**self._to_orm_payload(request.model_dump(exclude={"created_at", "updated_at"})))
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)
@@ -218,7 +226,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         entity = await self._session.get(ActionRequest, request.id)
         if entity is None:
             raise LookupError("Action request not found")
-        payload = request.model_dump(exclude={"created_at", "updated_at"})
+        payload = self._to_orm_payload(request.model_dump(exclude={"created_at", "updated_at"}))
         for field_name, value in payload.items():
             setattr(entity, field_name, value)
         await self.flush()
@@ -247,7 +255,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         submission: ActionSubmissionRecord,
     ) -> ActionSubmissionRecord:
         """创建动作提交。"""
-        entity = ActionSubmission(**submission.model_dump(exclude={"created_at", "updated_at"}))
+        entity = ActionSubmission(**self._to_orm_payload(submission.model_dump(exclude={"created_at", "updated_at"})))
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)
@@ -277,7 +285,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         snapshot: RunStateSnapshotRecord,
     ) -> RunStateSnapshotRecord:
         """创建运行态快照。"""
-        entity = RunStateSnapshot(**snapshot.model_dump(exclude={"created_at", "updated_at"}))
+        entity = RunStateSnapshot(**self._to_orm_payload(snapshot.model_dump(exclude={"created_at", "updated_at"})))
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)

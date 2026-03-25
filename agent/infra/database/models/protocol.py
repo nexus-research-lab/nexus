@@ -131,7 +131,7 @@ class Channel(TimestampMixin, Base):
     visibility: Mapped[str] = mapped_column(String(32), default="public", nullable=False)
     topic: Mapped[str] = mapped_column(Text, default="", nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)
 
     protocol_run: Mapped["ProtocolRun"] = relationship(back_populates="channels")
     members: Mapped[list["ChannelMember"]] = relationship(
@@ -213,7 +213,7 @@ class ActionRequest(TimestampMixin, Base):
     input_schema: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     target_scope: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     prompt_text: Mapped[str | None] = mapped_column(Text)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     protocol_run: Mapped["ProtocolRun"] = relationship(back_populates="action_requests")
@@ -261,7 +261,7 @@ class ActionSubmission(TimestampMixin, Base):
     action_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="submitted", nullable=False)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)
 
     request: Mapped["ActionRequest"] = relationship(back_populates="submissions")
     protocol_run: Mapped["ProtocolRun"] = relationship(back_populates="action_submissions")
@@ -299,6 +299,6 @@ class RunStateSnapshot(TimestampMixin, Base):
     headline: Mapped[str | None] = mapped_column(String(255))
     body: Mapped[str | None] = mapped_column(Text)
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict, nullable=False)
 
     protocol_run: Mapped["ProtocolRun"] = relationship(back_populates="snapshots")

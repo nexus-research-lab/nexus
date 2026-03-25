@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from agent.schema.model_chat_persistence import MemberRecord, RoomRecord
 
@@ -74,7 +74,11 @@ class ChannelRecord(PersistenceModel):
     visibility: str = Field(..., description="可见性类型")
     topic: str = Field(default="", description="频道主题")
     position: int = Field(default=0, description="排序位置")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="频道元数据")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="频道元数据",
+        validation_alias=AliasChoices("metadata", "metadata_json"),
+    )
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 
@@ -115,7 +119,11 @@ class ActionRequestRecord(PersistenceModel):
     input_schema: dict[str, Any] = Field(default_factory=dict, description="动作 schema")
     target_scope: dict[str, Any] = Field(default_factory=dict, description="目标范围")
     prompt_text: Optional[str] = Field(default=None, description="请求提示文案")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="请求元数据")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="请求元数据",
+        validation_alias=AliasChoices("metadata", "metadata_json"),
+    )
     resolved_at: Optional[datetime] = Field(default=None, description="结束时间")
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
@@ -134,7 +142,11 @@ class ActionSubmissionRecord(PersistenceModel):
     action_type: str = Field(..., description="动作类型")
     payload: dict[str, Any] = Field(default_factory=dict, description="提交载荷")
     status: str = Field(default="submitted", description="提交状态")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="提交元数据")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="提交元数据",
+        validation_alias=AliasChoices("metadata", "metadata_json"),
+    )
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 
@@ -154,7 +166,11 @@ class RunStateSnapshotRecord(PersistenceModel):
     headline: Optional[str] = Field(default=None, description="事件标题")
     body: Optional[str] = Field(default=None, description="事件正文")
     state: dict[str, Any] = Field(default_factory=dict, description="状态片段")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="事件元数据")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="事件元数据",
+        validation_alias=AliasChoices("metadata", "metadata_json"),
+    )
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 
