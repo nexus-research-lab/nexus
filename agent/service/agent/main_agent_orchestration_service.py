@@ -49,7 +49,6 @@ class MainAgentOrchestrationService:
         """创建新的普通成员 agent。"""
         created_agent = await agent_service.create_agent(
             name=name,
-            workspace_path=None,
             options=AgentOptions(
                 model=model,
                 permission_mode="default",

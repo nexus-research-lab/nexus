@@ -68,7 +68,6 @@ class AAgent(BaseModel):
 class CreateAgentRequest(BaseModel):
     """创建 Agent 请求"""
     name: str = Field(..., description="Agent 名称")
-    workspace_path: Optional[str] = Field(default=None, description="兼容字段，当前由后端自动管理")
     options: Optional[AgentOptions] = Field(default=None, description="初始配置")
 
 

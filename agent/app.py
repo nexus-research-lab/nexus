@@ -28,7 +28,6 @@ channel_manager = ChannelRegister()
 async def lifespan(app: FastAPI):
     try:
         logger.info("📁 使用 workspace 文件存储模式启动")
-        await agent_service.ensure_main_agent_ready()
 
         # 注册并启动消息通道
         await _register_channels()

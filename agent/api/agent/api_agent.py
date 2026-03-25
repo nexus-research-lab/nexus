@@ -39,7 +39,6 @@ async def create_agent(request: CreateAgentRequest):
     try:
         agent = await agent_service.create_agent(
             name=request.name,
-            workspace_path=request.workspace_path,
             options=request.options,
         )
     except ValueError as exc:
