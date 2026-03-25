@@ -86,3 +86,12 @@ class SessionSqlRepository(BaseSqlRepository):
         await self.flush()
         await self.refresh(entity)
         return SessionRecord.model_validate(entity)
+
+    async def delete(self, session_id: str) -> bool:
+        """删除会话。"""
+        entity = await self._session.get(Session, session_id)
+        if entity is None:
+            return False
+        await self._session.delete(entity)
+        await self.flush()
+        return True

@@ -37,6 +37,14 @@ class AddRoomMemberRequest(BaseModel):
     agent_id: str = Field(..., description="要邀请的 Agent")
 
 
+class UpdateRoomRequest(BaseModel):
+    """更新 Room 请求。"""
+
+    name: Optional[str] = Field(default=None, description="房间名称")
+    description: Optional[str] = Field(default=None, description="房间描述")
+    title: Optional[str] = Field(default=None, description="主对话标题")
+
+
 @router.get("/rooms")
 async def list_rooms(limit: int = 20):
     """读取最近房间列表。"""
@@ -72,6 +80,23 @@ async def get_room(room_id: str):
     return resp.ok(resp.Resp(data=room.model_dump(mode="json")))
 
 
+@router.patch("/rooms/{room_id}")
+async def update_room(room_id: str, request: UpdateRoomRequest):
+    """更新房间信息。"""
+    try:
+        context = await room_service.update_room(
+            room_id=room_id,
+            name=request.name,
+            description=request.description,
+            title=request.title,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
+
+
 @router.get("/rooms/{room_id}/contexts")
 async def get_room_contexts(room_id: str):
     """读取房间下的全部上下文。"""
@@ -92,3 +117,25 @@ async def add_room_member(room_id: str, request: AddRoomMemberRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
+
+
+@router.delete("/rooms/{room_id}/members/{agent_id}")
+async def remove_room_member(room_id: str, agent_id: str):
+    """移除房间中的 Agent 成员。"""
+    try:
+        context = await room_service.remove_agent_member(room_id=room_id, agent_id=agent_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
+
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(room_id: str):
+    """删除房间。"""
+    try:
+        await room_service.delete_room(room_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data={"success": True}))
