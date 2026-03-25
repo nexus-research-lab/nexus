@@ -15,9 +15,9 @@ from pathlib import Path
 from agent.service.workspace.workspace_templates import (
     DEFAULT_DIR,
     WORKSPACE_FILES,
-    get_workspace_skill_templates,
     get_workspace_templates,
 )
+from agent.service.workspace.workspace_skill_deployer import WorkspaceSkillDeployer
 from agent.utils.logger import logger
 
 
@@ -27,6 +27,7 @@ class WorkspaceTemplateInitializer:
     def __init__(self, agent_id: str, workspace_path: Path):
         self._agent_id = agent_id
         self._workspace_path = workspace_path
+        self._skill_deployer = WorkspaceSkillDeployer(agent_id, workspace_path)
         self._exists_ensured = False
         self._initialized = False
 
@@ -87,20 +88,7 @@ class WorkspaceTemplateInitializer:
 
             filepath.write_text(template + "\n", encoding="utf-8")
             logger.info(f"🧩 初始化模板: {filepath}")
-
-        skill_template_map = get_workspace_skill_templates(self._agent_id)
-        for relative_path, raw_template in skill_template_map.items():
-            filepath = self._workspace_path / relative_path
-            if filepath.exists():
-                continue
-
-            filepath.parent.mkdir(parents=True, exist_ok=True)
-            template = raw_template.format(**context).strip()
-            if not template:
-                continue
-
-            filepath.write_text(template + "\n", encoding="utf-8")
-            logger.info(f"🧩 初始化 skill 模板: {filepath}")
+        self._skill_deployer.ensure_deployed(context)
 
         memory_readme = self._workspace_path / "memory" / "README.md"
         if not memory_readme.exists():
