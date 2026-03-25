@@ -60,7 +60,7 @@ export function CreateRoomDialog({
         <div className="flex items-start justify-between gap-3 border-b border-white/55 pb-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-              Create Room
+              创建房间
             </p>
             <h3 id="create-room-dialog-title" className="mt-2 text-xl font-black tracking-[-0.04em] text-slate-950/92">
               创建新的协作 room
@@ -85,7 +85,7 @@ export function CreateRoomDialog({
 
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-              Room Title
+              房间标题
             </label>
             <input
               className="neo-inset mt-2 w-full rounded-[18px] px-4 py-3 text-sm text-slate-950/86 outline-none"
@@ -99,7 +99,7 @@ export function CreateRoomDialog({
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-slate-700/54" />
               <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
-                Members
+                成员
               </label>
             </div>
             <div className="mt-3 grid max-h-[320px] gap-3 overflow-y-auto pr-1 scrollbar-hide">
@@ -134,7 +134,7 @@ export function CreateRoomDialog({
                             : "bg-white/70 text-slate-700/58"
                         }`}
                       >
-                        {is_selected ? "selected" : "tap to add"}
+                        {is_selected ? "已选择" : "点击加入"}
                       </div>
                     </div>
                   </button>
