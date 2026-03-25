@@ -28,6 +28,18 @@ from agent.schema.model_chat_persistence import (
     RoundRecord,
     SessionRecord,
 )
+from agent.schema.model_protocol import (
+    ActionRequestRecord,
+    ActionSubmissionRecord,
+    ChannelAggregate,
+    ChannelMemberRecord,
+    ChannelRecord,
+    ProtocolDefinitionRecord,
+    ProtocolRunDetail,
+    ProtocolRunListItem,
+    ProtocolRunRecord,
+    RunStateSnapshotRecord,
+)
 
 __all__ = [
     "AAgent",
@@ -45,4 +57,14 @@ __all__ = [
     "SessionRecord",
     "MessageRecord",
     "RoundRecord",
+    "ProtocolDefinitionRecord",
+    "ProtocolRunRecord",
+    "ChannelRecord",
+    "ChannelMemberRecord",
+    "ChannelAggregate",
+    "ActionRequestRecord",
+    "ActionSubmissionRecord",
+    "RunStateSnapshotRecord",
+    "ProtocolRunListItem",
+    "ProtocolRunDetail",
 ]

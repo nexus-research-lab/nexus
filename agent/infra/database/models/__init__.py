@@ -15,6 +15,15 @@ from agent.infra.database.models.conversation import Conversation
 from agent.infra.database.models.member import Member
 from agent.infra.database.models.message import Message
 from agent.infra.database.models.profile import Profile
+from agent.infra.database.models.protocol import (
+    ActionRequest,
+    ActionSubmission,
+    Channel,
+    ChannelMember,
+    ProtocolDefinition,
+    ProtocolRun,
+    RunStateSnapshot,
+)
 from agent.infra.database.models.room import Room
 from agent.infra.database.models.round import Round
 from agent.infra.database.models.runtime import Runtime
@@ -27,6 +36,13 @@ __all__ = [
     "Contact",
     "Room",
     "Member",
+    "ProtocolDefinition",
+    "ProtocolRun",
+    "Channel",
+    "ChannelMember",
+    "ActionRequest",
+    "ActionSubmission",
+    "RunStateSnapshot",
     "Conversation",
     "Session",
     "Message",
@@ -44,6 +60,13 @@ def load_models() -> tuple[type, ...]:
         Contact,
         Room,
         Member,
+        ProtocolDefinition,
+        ProtocolRun,
+        Channel,
+        ChannelMember,
+        ActionRequest,
+        ActionSubmission,
+        RunStateSnapshot,
         Conversation,
         Session,
         Message,
