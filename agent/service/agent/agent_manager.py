@@ -45,7 +45,6 @@ class AgentManager:
     async def create_agent(
         self,
         name: str,
-        workspace_path: Optional[str] = None,
         options: Optional[AgentOptions] = None,
     ) -> Optional[AAgent]:
         """创建 Agent，自动初始化 workspace 目录"""
@@ -60,13 +59,6 @@ class AgentManager:
 
         from uuid import uuid4
         agent_id = uuid4().hex[:12]
-
-        # workspace_path 由系统托管，前端传值仅保留兼容
-        if workspace_path and str(Path(workspace_path).expanduser()) != resolved_path_str:
-            logger.warning(
-                "⚠️ workspace_path 参数已忽略，统一使用: "
-                f"{resolved_path_str}"
-            )
 
         options_dict = options.model_dump(exclude_none=True) if options else None
 

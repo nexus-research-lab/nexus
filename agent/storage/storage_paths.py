@@ -17,7 +17,6 @@
 """
 
 import base64
-import shutil
 from pathlib import Path
 
 from agent.service.workspace.workspace_paths import get_workspace_base_path
@@ -26,14 +25,13 @@ from agent.service.workspace.workspace_paths import get_workspace_base_path
 class FileStoragePaths:
     """统一管理文件存储路径。"""
 
-    INTERNAL_DIR_NAME = ".agent"
+    INTERNAL_DIR_NAME = ".agents"
 
     def __init__(self) -> None:
         self.home_root = Path.home() / ".nexus-core"
         self.workspace_base = get_workspace_base_path()
         self.agents_dir = self.home_root / "agents"
         self.agents_index_path = self.agents_dir / "index.json"
-        self.legacy_db_path = Path.cwd() / "cache" / "data" / "nexus-core.db"
 
     def ensure_directories(self) -> None:
         """确保基础目录存在。"""
@@ -46,36 +44,6 @@ class FileStoragePaths:
         runtime_dir = Path(workspace_path).expanduser() / self.INTERNAL_DIR_NAME
         runtime_dir.mkdir(parents=True, exist_ok=True)
         return runtime_dir
-
-    def migrate_workspace_runtime_layout(self, workspace_path: str | Path) -> None:
-        """将旧版运行时文件迁移到 `.agent/` 目录。"""
-        workspace_root = Path(workspace_path).expanduser()
-        if not workspace_root.exists():
-            return
-
-        runtime_dir = self.get_runtime_dir(workspace_root)
-        migrations = [
-            (workspace_root / "agent.json", runtime_dir / "agent.json"),
-            (workspace_root / "telemetry_cost_summary.json", runtime_dir / "telemetry_cost_summary.json"),
-            (workspace_root / "sessions", runtime_dir / "sessions"),
-        ]
-
-        for source, target in migrations:
-            if not source.exists():
-                continue
-
-            if target.exists():
-                if source.is_dir():
-                    shutil.rmtree(source, ignore_errors=True)
-                else:
-                    try:
-                        source.unlink()
-                    except FileNotFoundError:
-                        pass
-                continue
-
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(source), str(target))
 
     @staticmethod
     def build_session_dir_name(session_key: str) -> str:

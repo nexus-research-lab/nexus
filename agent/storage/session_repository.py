@@ -18,6 +18,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
+from agent.config.config import settings
 from agent.storage.agent_repository import agent_repository
 from agent.storage.config_store import ConfigStore
 from agent.storage.jsonl_store import JsonlStore
@@ -44,7 +45,6 @@ class SessionRepository:
             workspace_path = Path(agent.workspace_path).expanduser()
         else:
             workspace_path = self._paths.workspace_base / agent_id
-        self._paths.migrate_workspace_runtime_layout(workspace_path)
         return workspace_path
 
     def _iter_known_workspace_paths(self) -> List[Path]:
@@ -70,12 +70,10 @@ class SessionRepository:
     ) -> Optional[Path]:
         """定位会话 meta.json。"""
         if workspace_path is not None:
-            self._paths.migrate_workspace_runtime_layout(workspace_path)
             candidate = self._paths.get_session_meta_path(workspace_path, session_key)
             return candidate if candidate.exists() else None
 
         for root_path in self._iter_known_workspace_paths():
-            self._paths.migrate_workspace_runtime_layout(root_path)
             candidate = self._paths.get_session_meta_path(root_path, session_key)
             if candidate.exists():
                 return candidate
@@ -98,7 +96,7 @@ class SessionRepository:
         now = datetime.now(timezone.utc).isoformat()
         return ASession(
             session_key=meta["session_key"],
-            agent_id=meta.get("agent_id") or "main",
+            agent_id=meta.get("agent_id") or  settings.DEFAULT_AGENT_ID,
             session_id=meta.get("session_id"),
             channel_type=meta.get("channel_type") or "websocket",
             chat_type=meta.get("chat_type") or "dm",
@@ -236,7 +234,7 @@ class SessionRepository:
                     "message_id": f"interrupted_result_{round_id}_{uuid.uuid4().hex[:8]}",
                     "parent_id": last_row.get("message_id"),
                     "session_key": session_key,
-                    "agent_id": last_row.get("agent_id") or meta.get("agent_id") or "main",
+                    "agent_id": last_row.get("agent_id") or meta.get("agent_id") or  settings.DEFAULT_AGENT_ID,
                     "round_id": round_id,
                     "session_id": last_row.get("session_id") or meta.get("session_id") or "",
                     "role": "result",
@@ -257,17 +255,9 @@ class SessionRepository:
                 }
             )
 
-        # 处理时间戳排序：支持 ISO 字符串或整数毫秒戳
         def parse_timestamp(ts: Any) -> int:
             if isinstance(ts, (int, float)):
                 return int(ts)
-            if isinstance(ts, str):
-                try:
-                    # 尝试解析为 ISO 格式时间字符串
-                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                    return int(dt.timestamp() * 1000)
-                except (ValueError, AttributeError):
-                    pass
             return 0
 
         rows.sort(key=lambda item: parse_timestamp(item.get("timestamp")))
@@ -278,7 +268,7 @@ class SessionRepository:
         session_key: str,
         channel_type: str = "websocket",
         chat_type: str = "dm",
-        agent_id: str = "main",
+        agent_id: str = settings.DEFAULT_AGENT_ID,
         session_id: Optional[str] = None,
         title: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -376,7 +366,6 @@ class SessionRepository:
         try:
             seen_paths: set[Path] = set()
             for workspace_path in self._iter_known_workspace_paths():
-                self._paths.migrate_workspace_runtime_layout(workspace_path)
                 runtime_dir = self._paths.get_runtime_dir(workspace_path)
                 for meta_path in runtime_dir.glob("sessions/*/meta.json"):
                     if meta_path in seen_paths:

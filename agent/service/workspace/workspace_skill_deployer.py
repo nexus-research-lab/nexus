@@ -20,7 +20,6 @@ class WorkspaceSkillDeployer:
     """负责把仓库内 skill 部署到主智能体 workspace。"""
 
     MAIN_AGENT_SKILL_NAMES = ("nexus-manager",)
-    LEGACY_MAIN_AGENT_SKILL_NAMES = ("main-agent-orchestration",)
 
     def __init__(self, agent_id: str, workspace_path: Path):
         self._agent_id = agent_id
@@ -35,7 +34,6 @@ class WorkspaceSkillDeployer:
         if not MainAgentProfile.is_main_agent(self._agent_id):
             return
 
-        self._remove_legacy_skills()
         for skill_name in self.MAIN_AGENT_SKILL_NAMES:
             self._deploy_skill(skill_name, context)
 
@@ -98,20 +96,4 @@ class WorkspaceSkillDeployer:
         link_path.symlink_to(relative_target, target_is_directory=target_dir.is_dir())
         logger.info(f"🔗 已映射 Claude skill: {link_path} -> {relative_target}")
 
-    def _remove_legacy_skills(self) -> None:
-        """清理已废弃的主智能体 skill，避免新旧目录并存。"""
-        for skill_name in self.LEGACY_MAIN_AGENT_SKILL_NAMES:
-            self._remove_skill_entry(self._workspace_agents_skills_root / skill_name)
-            self._remove_skill_entry(self._workspace_claude_skills_root / skill_name)
 
-    @staticmethod
-    def _remove_skill_entry(path: Path) -> None:
-        """删除废弃的 skill 目录或软链接。"""
-        if path.is_symlink() or path.is_file():
-            path.unlink()
-            logger.info(f"🧹 已移除废弃 skill 入口: {path}")
-            return
-
-        if path.is_dir():
-            shutil.rmtree(path)
-            logger.info(f"🧹 已移除废弃 skill 目录: {path}")
