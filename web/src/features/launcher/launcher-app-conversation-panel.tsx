@@ -293,7 +293,7 @@ export function LauncherAppConversationPanel({
             <HeroActionPillShell class_name="w-fit">
               <span
                 className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
-                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]"/>
+                <span className="h-3 w-3 rounded-full bg-[#7fe3a8]"/>
                 Nexus | ·
               </span>
               <span className={`text-[11px] font-medium ${connection_meta.tone_class_name}`}>
@@ -327,7 +327,7 @@ export function LauncherAppConversationPanel({
         </div>
 
         <div
-          className="relative mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[rgba(255,255,255,0.05)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+          className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[rgba(255,255,255,0.05)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
           {error ? (
             <div
               className="mx-3 mt-3 flex items-start gap-2 rounded-[20px] bg-[rgba(255,120,120,0.12)] px-3 py-2 text-xs leading-5 text-red-900/84 shadow-[inset_0_0_0_1px_rgba(255,120,120,0.14)]">
@@ -338,7 +338,7 @@ export function LauncherAppConversationPanel({
 
           <div
             ref={scroll_ref}
-            className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-3"
+            className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-1 pb-2 pt-3"
             onScroll={update_follow_state}
           >
             {app_conversation_messages.length ? (
@@ -424,24 +424,23 @@ export function LauncherAppConversationPanel({
         </div>
 
         <div className="mt-4">
+          {app_conversation_messages.length && suggested_actions.length ? (
+            <div className="flex flex-wrap gap-1 px-4 pb-1">
+              {suggested_actions.map((action) => (
+                <button
+                  key={action.key}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-medium w-25 truncate text-slate-800/78 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition hover:bg-white/16"
+                  onClick={action.on_click}
+                  type="button"
+                >
+                  <span className="truncate">{action.label}</span>
+                  <ArrowRight className="h-2.5 w-2.5 shrink-0"/>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <HeroInputShell class_name="w-full">
             <div className="flex min-w-0 flex-col gap-3">
-              {app_conversation_messages.length && suggested_actions.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {suggested_actions.map((action) => (
-                    <button
-                      key={action.key}
-                      className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-slate-800/78 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition hover:bg-white/16"
-                      onClick={action.on_click}
-                      type="button"
-                    >
-                      <span className="truncate">{action.label}</span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0"/>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
               <div className="flex min-w-0 items-end gap-3">
                 <textarea
                   ref={textarea_ref}
@@ -465,7 +464,7 @@ export function LauncherAppConversationPanel({
                   value={app_conversation_draft}
                 />
                 <button
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/84 text-slate-900 shadow-[0_10px_20px_rgba(255,255,255,0.16)] transition-transform duration-300 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/84 text-slate-900 shadow-[0_10px_20px_rgba(255,255,255,0.16)] transition-transform duration-300 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
                   disabled={!is_loading && !can_send_message}
                   onClick={is_loading ? on_stop_generation : handle_submit}
                   type="button"
@@ -479,13 +478,12 @@ export function LauncherAppConversationPanel({
                   )}
                 </button>
               </div>
-
-              <div className="flex items-center justify-between gap-3 px-1 text-[11px] text-slate-700/44">
-                <span>{ws_state === "connected" ? "Enter 发送，Shift + Enter 换行" : "正在建立主对话连接..."}</span>
-                <span>{app_conversation_messages.length ? `${app_conversation_messages.length} 条消息` : ""}</span>
-              </div>
             </div>
           </HeroInputShell>
+          <div className="flex items-center justify-between px-8 pb-1 gap-2 text-[11px] text-slate-700/44">
+            <span>{ws_state === "connected" ? "Enter 发送，Shift + Enter 换行" : "正在建立主对话连接..."}</span>
+            <span>{app_conversation_messages.length ? `${app_conversation_messages.length} 条消息` : ""}</span>
+          </div>
         </div>
       </div>
     </HeroSidePanelShell>
