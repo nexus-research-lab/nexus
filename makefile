@@ -40,7 +40,7 @@ install: ## Install all dependencies
 		PYTHON=.venv/bin/python; \
 		$$PYTHON -m pip install -r agent/requirements.txt; \
 	elif command -v uv >/dev/null 2>&1; then \
-		uv sync; \
+		uv pip install -r agent/requirements.txt --index-url https://mirrors.aliyun.com/pypi/simple; \
 	elif command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then \
 		PYTHON=$$(command -v python3); \
 		$$PYTHON -m pip install -r agent/requirements.txt; \

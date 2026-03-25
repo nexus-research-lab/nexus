@@ -19,12 +19,12 @@ from agent.config.config import settings
 @lru_cache(maxsize=32)
 def get_db(db_type=None, **kwargs):
     if db_type == 'redis':
-        from agent.shared.database.get_redis import get_redis_client
+        from agent.infra.database.get_redis import get_redis_client
         redis_client = get_redis_client(**kwargs)
         return redis_client
 
     elif db_type == 'aioredis':
-        from agent.shared.database.get_redis import get_aioredis_client
+        from agent.infra.database.get_redis import get_aioredis_client
         aioredis_client = get_aioredis_client(**kwargs)
         return aioredis_client
 
