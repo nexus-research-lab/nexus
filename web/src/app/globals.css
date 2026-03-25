@@ -460,7 +460,7 @@
   }
 
   .launcher-surface-left[data-surface="app"] {
-    filter: saturate(0.96) blur(1.5px);
+    filter: saturate(0.96);
   }
 
   .launcher-surface-bridge {

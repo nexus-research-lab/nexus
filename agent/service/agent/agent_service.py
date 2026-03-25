@@ -15,6 +15,7 @@ from agent.schema.model_agent import AAgent, ValidateAgentNameResponse
 from agent.schema.model_cost import AgentCostSummary
 from agent.schema.model_session import ASession
 from agent.service.agent.agent_manager import agent_manager
+from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.session.session_manager import session_manager
 from agent.service.session.session_store import session_store
 
@@ -22,9 +23,12 @@ from agent.service.session.session_store import session_store
 class AgentService:
     """负责编排 Agent 相关用例。"""
 
-    async def get_agents(self) -> List[AAgent]:
+    async def get_agents(self, include_main: bool = False) -> List[AAgent]:
         """获取所有 Agent。"""
-        return await agent_manager.get_all_agents()
+        agents = await agent_manager.get_all_agents()
+        if not include_main:
+            agents = [a for a in agents if not MainAgentProfile.is_main_agent(a.agent_id)]
+        return agents
 
     async def create_agent(self, name: str, options) -> AAgent:
         """创建 Agent。"""

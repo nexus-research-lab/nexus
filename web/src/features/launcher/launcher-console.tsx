@@ -34,6 +34,8 @@ interface LauncherConsoleProps {
   current_agent_id: string | null;
   on_open_contacts_page: () => void;
   on_open_app_conversation: (initial_prompt?: string) => void;
+  on_close_app_conversation: () => void;
+  is_app_conversation_open: boolean;
   on_select_agent: (agent_id: string) => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_create_agent: () => void;
@@ -52,6 +54,8 @@ interface HeroStageProps {
   current_agent_id: string | null;
   decorative_tokens: SpotlightToken[];
   on_open_app_conversation: (initial_prompt?: string) => void;
+  on_close_app_conversation: () => void;
+  is_app_conversation_open: boolean;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_query_change: (value: string) => void;
   on_select_agent: (agent_id: string) => void;
@@ -194,6 +198,8 @@ const HeroStage = memo(function HeroStage({
   current_agent_id,
   decorative_tokens,
   on_open_app_conversation,
+  on_close_app_conversation,
+  is_app_conversation_open,
   on_open_conversation,
   on_query_change,
   on_select_agent,
@@ -204,7 +210,7 @@ const HeroStage = memo(function HeroStage({
   surface,
 }: HeroStageProps) {
   return (
-    <div className="relative flex w-full max-w-[1180px] flex-col items-center">
+    <div className="relative flex w-full max-w-[1180px] flex-col items-center" onClick={(e) => e.stopPropagation()}>
       <DebugReferenceOverlay />
 
       <HeroBlobShell
@@ -278,7 +284,7 @@ const HeroStage = memo(function HeroStage({
               <button
                 key={conversation.session_key}
                 className="rounded-full bg-white/8 px-3 py-1.5 text-xs font-medium text-white/76 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/16 sm:text-sm"
-                onClick={() => on_open_conversation(conversation.session_key, conversation.agent_id)}
+                onClick={(e) => { e.stopPropagation(); on_open_conversation(conversation.session_key, conversation.agent_id); }}
                 type="button"
               >
                 #{truncate(conversation.title || "Untitled Room", 18)}
@@ -286,11 +292,11 @@ const HeroStage = memo(function HeroStage({
             ))}
 
             <button
-              className="px-2 text-xs font-medium text-white/52 transition-colors hover:text-white/82 sm:text-sm"
-              onClick={() => on_open_app_conversation(query)}
+              className="px-2 text-xs font-medium text-purple-700/52 transition-colors hover:text-purple-700/82 sm:text-sm"
+              onClick={() => is_app_conversation_open ? on_close_app_conversation() : on_open_app_conversation(query)}
               type="button"
             >
-              交给 App →
+              交给 Nexus →
             </button>
           </div>
         </div>
@@ -535,6 +541,8 @@ export function LauncherConsole({
   current_agent_id,
   on_open_contacts_page,
   on_open_app_conversation,
+  on_close_app_conversation,
+  is_app_conversation_open,
   on_select_agent,
   on_open_conversation,
   on_create_agent,
@@ -622,7 +630,7 @@ export function LauncherConsole({
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-0" />
 
-      <div className="relative z-30 flex items-center justify-between gap-3 px-3 pt-3 sm:px-7 sm:pt-1">
+      <div className="relative z-30 flex items-center justify-between gap-3 px-3 pt-3 sm:px-7 sm:pt-1" onClick={(e) => e.stopPropagation()}>
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
             class_name="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
@@ -650,7 +658,7 @@ export function LauncherConsole({
               setShowContacts(false);
             }}
           >
-            Recent Rooms
+            Rooms
           </HeaderActionButton>
           <button
             aria-label="创建 Agent"
@@ -692,6 +700,8 @@ export function LauncherConsole({
           decorative_tokens={decorative_tokens}
           on_open_conversation={on_open_conversation}
           on_open_app_conversation={on_open_app_conversation}
+          on_close_app_conversation={on_close_app_conversation}
+          is_app_conversation_open={is_app_conversation_open}
           on_query_change={setQuery}
           on_select_agent={on_select_agent}
           on_submit={handle_submit}

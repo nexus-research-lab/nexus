@@ -239,7 +239,7 @@ export function LauncherPage() {
 
   return (
     <AppStage>
-      <div className="relative flex min-h-0 flex-1 gap-5 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 gap-1 overflow-hidden">
         <div
           className={cn(
             "pointer-events-none absolute inset-y-[8%] right-[22%] z-10 hidden w-[34%] rounded-full bg-[radial-gradient(circle,rgba(174,208,255,0.24),rgba(174,208,255,0.08)_36%,transparent_76%)] blur-3xl transition-all duration-500 lg:block",
@@ -257,16 +257,19 @@ export function LauncherPage() {
           className={cn(
             "launcher-surface-left min-w-0 flex-1",
             controller.is_app_conversation_open &&
-              "lg:max-w-[calc(100%-390px)] lg:-translate-x-6 lg:scale-[0.985] lg:opacity-[0.96]",
+              "lg:max-w-[calc(100%-430px)] lg:scale-[0.985] lg:opacity-[0.96]",
           )}
           data-surface={controller.surface}
+          onClick={() => controller.is_app_conversation_open && controller.close_app_conversation()}
         >
           <LauncherConsole
             agents={controller.agents}
             conversations={controller.conversations}
             current_agent_id={controller.current_agent_id}
+            is_app_conversation_open={controller.is_app_conversation_open}
             on_open_contacts_page={handle_open_contacts_page}
             on_open_app_conversation={controller.open_app_conversation}
+            on_close_app_conversation={controller.close_app_conversation}
             on_select_agent={handle_select_agent}
             on_open_conversation={handle_open_conversation}
             on_create_agent={handle_create_agent}
@@ -277,7 +280,7 @@ export function LauncherPage() {
         </div>
 
         {controller.is_app_conversation_open ? (
-          <div className="absolute inset-x-3 bottom-4 top-[96px] z-40 lg:static lg:inset-auto lg:block lg:w-[420px] lg:shrink-0 lg:pb-8 lg:pt-4">
+          <div className="absolute inset-x-3 bottom-4 top-[96px] z-40 lg:static lg:inset-auto lg:block lg:w-[420px] lg:shrink-0 lg:pb-8">
             <div
               className="launcher-app-panel-shell h-full"
               data-open={controller.is_app_conversation_open ? "true" : "false"}
