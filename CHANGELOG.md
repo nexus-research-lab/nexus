@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- 主智能体 ID 与名称统一为 `nexus`，移除 `main` 硬编码，后端通过 `settings.DEFAULT_AGENT_ID` 统一引用，前端新增 `DEFAULT_AGENT_ID` 常量。
+- 前端品牌文案从"真格 App"更新为"Nexus"。
+- `persistence` 包重命名为 `repository`（`agent/service/persistence` → `agent/service/repository`，`agent/api/persistence` → `agent/api/repository`）。
+- 前端配置文件合并 `options.ts` + `runtime-config.ts` 为统一的 `options.ts`。
+
+### Removed
+- 删除 `backfill_service` 旧数据回填服务及全部回填调用链。
+- 删除 `legacy_sync_bridge` 旧模型到新数据库的桥接模块。
+- 删除 `migrate_workspace_runtime_layout` 工作区布局迁移逻辑及 6 处调用。
+- 删除成本账本从 `messages.jsonl` 回填重建的防御逻辑。
+- 删除 `cache_creation_tokens` 旧字段名兜底、ISO 时间戳双格式解析。
+- 删除 `CreateAgentRequest.workspace_path` 兼容字段，workspace 路径完全由后端管理。
+- 删除 `legacy_db_path` 死属性、`LEGACY_MAIN_AGENT_SKILL_NAMES` 空操作。
+- 删除 `agent_service` 中向 SQL 双写同步的 `ensure_main_agent_ready` / `_sync_agent_to_sql` 路径。
+- 删除 `session_store` 中向 SQL 双写同步的 `_sync_session_to_sql` / `_sync_message_to_sql` 路径。
+
+### Added
+- 新增 main agent 编排 CLI（`agent/cli.py`），支持 `list_agents`、`create_agent`、`validate_agent_name`、`list_rooms`、`create_room`、`add_room_member` 命令。
+- 新增 main agent 编排服务层，对外暴露多 Agent 与 Room 管理能力。
+- 新增 `nexus-manager` skill，规范化 YAML frontmatter、命令参考、Workspace 规则与操作流程文档。
+- 首页 App 对话交互完整打通：双态过渡、消息收发、权限决策、中断/重试、创建协作直达首条对话。
+- 支持 `AskUserQuestion` 自定义回答选项。
+
+### Fixed
+- 修复首页主对话长内容溢出与自动贴底滚动问题。
+- 修复 `AskUserQuestion` 回答后被中断的问题。
+
 ## [0.0.3] - 2026-03-18
 
 ### Fixed
