@@ -39,7 +39,7 @@ export function ContactsPage() {
   return (
     <AppStage>
       <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
-        <section className="workspace-shell relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
           <ContactsDirectory
             agents={agents}
             conversations={conversations}

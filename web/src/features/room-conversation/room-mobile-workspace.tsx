@@ -45,7 +45,7 @@ export function RoomMobileWorkspace({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <div className="px-2 pb-2 pt-2">
-        <div className="workspace-shell radius-shell-lg flex items-center gap-2 px-2 py-2">
+        <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
           <button
             className="workspace-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-900/82 transition hover:text-slate-950"
             onClick={on_back_to_directory}
@@ -101,7 +101,7 @@ export function RoomMobileWorkspace({
             type="button"
           />
 
-          <div className="workspace-shell absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
+          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-black/10" />
 
             <div className="mb-4 flex items-center justify-between gap-3">

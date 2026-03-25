@@ -11,7 +11,7 @@ export function RoomConversationEmptyState({
 }: RoomConversationEmptyStateProps) {
   return (
     <div className="flex flex-1 items-center justify-center p-8">
-      <div className="workspace-shell radius-shell-xl relative w-full max-w-2xl overflow-hidden p-10 text-center">
+      <div className="radius-shell-xl relative w-full max-w-2xl overflow-hidden p-10 text-center">
         <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-16" />
         <div className="pointer-events-none absolute left-12 top-12 h-28 w-28 rounded-full glow-lilac opacity-32" />
         <div className="pointer-events-none absolute bottom-10 right-12 h-28 w-28 rounded-full glow-green opacity-28" />

@@ -390,18 +390,6 @@
     background-size: 38px 38px;
   }
 
-  .workspace-shell {
-    background:
-      radial-gradient(circle at 12% 16%, rgba(181, 170, 255, 0.12), transparent 24%),
-      radial-gradient(circle at 86% 78%, rgba(136, 255, 169, 0.10), transparent 26%),
-      radial-gradient(circle at 72% 18%, rgba(255, 187, 128, 0.08), transparent 24%),
-      linear-gradient(180deg, rgba(255, 251, 246, 0.74), rgba(250, 248, 244, 0.68));
-    border: 1px solid rgba(255, 255, 255, 0.34);
-    box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.42),
-      0 24px 60px rgba(108, 116, 141, 0.10);
-    backdrop-filter: blur(24px) saturate(118%);
-  }
 
   .workspace-divider {
     border-color: rgba(40, 52, 87, 0.08);
