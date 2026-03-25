@@ -7,6 +7,7 @@ import {
   ProtocolRunDetail,
   ProtocolRunListItem,
   RoomAggregate,
+  RoomConversationContext,
   SubmitProtocolActionParams,
 } from "@/types";
 
@@ -21,6 +22,29 @@ export async function getRoom(room_id: string): Promise<RoomAggregate> {
     throw new Error(`读取 room 失败: ${response.statusText}`);
   }
   const result: ApiResponse<RoomAggregate> = await response.json();
+  return result.data;
+}
+
+export async function createRoom(params: {
+  agent_ids: string[];
+  name?: string;
+  description?: string;
+  title?: string;
+}): Promise<RoomConversationContext> {
+  const response = await fetch(`${AGENT_API_BASE_URL}/rooms`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      agent_ids: params.agent_ids,
+      name: params.name,
+      description: params.description ?? "",
+      title: params.title,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`创建 room 失败: ${response.statusText}`);
+  }
+  const result: ApiResponse<RoomConversationContext> = await response.json();
   return result.data;
 }
 

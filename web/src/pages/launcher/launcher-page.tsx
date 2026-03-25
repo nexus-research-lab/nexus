@@ -7,12 +7,12 @@ import { LauncherAppConversationPanel } from "@/features/launcher/launcher-app-c
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
 import { createConversation, deleteConversation } from "@/lib/agent-api";
+import { createRoom } from "@/lib/room-api";
 import { cn } from "@/lib/utils";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AgentOptions } from "@/shared/ui/agent-options-dialog";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
-import { getConversationStoreSnapshot } from "@/store/conversation";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
 import { DEFAULT_AGENT_ID } from "@/config/options";
 import { UserMessage } from "@/types/message";
@@ -222,16 +222,16 @@ export function LauncherPage() {
       return;
     }
 
-    const conversation_store = getConversationStoreSnapshot();
-    const next_conversation_id = await conversation_store.create_conversation({
-      title: "New Chat",
-      agent_id: next_agent_id,
+    const created_room = await createRoom({
+      agent_ids: [next_agent_id],
+      name: pending_room_title || title,
+      title: pending_room_title || title,
+      description: "Created from Launcher app conversation bootstrap flow.",
     });
-    conversation_store.set_current_conversation(next_conversation_id);
     set_pending_room_title("");
     set_should_bootstrap_room_after_create(false);
-    navigate(AppRouteBuilders.room_conversation(next_agent_id, next_conversation_id));
-  }, [controller, navigate, should_bootstrap_room_after_create]);
+    navigate(AppRouteBuilders.room(created_room.room.id));
+  }, [controller, navigate, pending_room_title, should_bootstrap_room_after_create]);
 
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
