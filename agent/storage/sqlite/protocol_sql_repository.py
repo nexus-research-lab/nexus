@@ -48,6 +48,87 @@ class ProtocolSqlRepository(BaseSqlRepository):
             mapped["metadata_json"] = mapped.pop("metadata")
         return mapped
 
+    @staticmethod
+    def _to_channel_record(entity: Channel) -> ChannelRecord:
+        """将 ORM Channel 转为 Pydantic Record。"""
+        return ChannelRecord.model_validate({
+            "id": entity.id,
+            "room_id": entity.room_id,
+            "protocol_run_id": entity.protocol_run_id,
+            "slug": entity.slug,
+            "name": entity.name,
+            "channel_type": entity.channel_type,
+            "visibility": entity.visibility,
+            "topic": entity.topic,
+            "position": entity.position,
+            "metadata": entity.metadata_json,
+            "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
+        })
+
+    @staticmethod
+    def _to_action_request_record(entity: ActionRequest) -> ActionRequestRecord:
+        """将 ORM ActionRequest 转为 Pydantic Record。"""
+        return ActionRequestRecord.model_validate({
+            "id": entity.id,
+            "protocol_run_id": entity.protocol_run_id,
+            "channel_id": entity.channel_id,
+            "phase_name": entity.phase_name,
+            "turn_key": entity.turn_key,
+            "action_type": entity.action_type,
+            "status": entity.status,
+            "requested_by_agent_id": entity.requested_by_agent_id,
+            "allowed_actor_agent_ids": entity.allowed_actor_agent_ids,
+            "audience_agent_ids": entity.audience_agent_ids,
+            "input_schema": entity.input_schema,
+            "target_scope": entity.target_scope,
+            "prompt_text": entity.prompt_text,
+            "metadata": entity.metadata_json,
+            "resolved_at": entity.resolved_at,
+            "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
+        })
+
+    @staticmethod
+    def _to_action_submission_record(entity: ActionSubmission) -> ActionSubmissionRecord:
+        """将 ORM ActionSubmission 转为 Pydantic Record。"""
+        return ActionSubmissionRecord.model_validate({
+            "id": entity.id,
+            "request_id": entity.request_id,
+            "protocol_run_id": entity.protocol_run_id,
+            "channel_id": entity.channel_id,
+            "actor_type": entity.actor_type,
+            "actor_agent_id": entity.actor_agent_id,
+            "actor_user_id": entity.actor_user_id,
+            "action_type": entity.action_type,
+            "payload": entity.payload,
+            "status": entity.status,
+            "metadata": entity.metadata_json,
+            "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
+        })
+
+    @staticmethod
+    def _to_snapshot_record(entity: RunStateSnapshot) -> RunStateSnapshotRecord:
+        """将 ORM RunStateSnapshot 转为 Pydantic Record。"""
+        return RunStateSnapshotRecord.model_validate({
+            "id": entity.id,
+            "protocol_run_id": entity.protocol_run_id,
+            "event_seq": entity.event_seq,
+            "phase_name": entity.phase_name,
+            "event_type": entity.event_type,
+            "channel_id": entity.channel_id,
+            "actor_agent_id": entity.actor_agent_id,
+            "visibility": entity.visibility,
+            "audience_agent_ids": entity.audience_agent_ids,
+            "headline": entity.headline,
+            "body": entity.body,
+            "state": entity.state,
+            "metadata": entity.metadata_json,
+            "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
+        })
+
     async def upsert_definition(
         self,
         definition: ProtocolDefinitionRecord,
@@ -165,7 +246,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         if entity is None:
             return None
         return ChannelAggregate(
-            channel=ChannelRecord.model_validate(entity),
+            channel=self._to_channel_record(entity),
             members=[ChannelMemberRecord.model_validate(member) for member in entity.members],
         )
 
@@ -185,7 +266,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         if entity is None:
             return None
         return ChannelAggregate(
-            channel=ChannelRecord.model_validate(entity),
+            channel=self._to_channel_record(entity),
             members=[ChannelMemberRecord.model_validate(member) for member in entity.members],
         )
 
@@ -201,7 +282,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         entities = result.scalars().unique().all()
         return [
             ChannelAggregate(
-                channel=ChannelRecord.model_validate(entity),
+                channel=self._to_channel_record(entity),
                 members=[ChannelMemberRecord.model_validate(member) for member in entity.members],
             )
             for entity in entities
@@ -216,7 +297,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)
-        return ActionRequestRecord.model_validate(entity)
+        return self._to_action_request_record(entity)
 
     async def update_action_request(
         self,
@@ -231,14 +312,14 @@ class ProtocolSqlRepository(BaseSqlRepository):
             setattr(entity, field_name, value)
         await self.flush()
         await self.refresh(entity)
-        return ActionRequestRecord.model_validate(entity)
+        return self._to_action_request_record(entity)
 
     async def get_action_request(self, request_id: str) -> Optional[ActionRequestRecord]:
         """读取动作请求。"""
         entity = await self._session.get(ActionRequest, request_id)
         if entity is None:
             return None
-        return ActionRequestRecord.model_validate(entity)
+        return self._to_action_request_record(entity)
 
     async def list_action_requests(self, run_id: str) -> list[ActionRequestRecord]:
         """列出协议运行下的动作请求。"""
@@ -248,7 +329,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
             .order_by(ActionRequest.created_at.asc())
         )
         result = await self._session.execute(stmt)
-        return [ActionRequestRecord.model_validate(entity) for entity in result.scalars().all()]
+        return [self._to_action_request_record(entity) for entity in result.scalars().all()]
 
     async def create_action_submission(
         self,
@@ -259,7 +340,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)
-        return ActionSubmissionRecord.model_validate(entity)
+        return self._to_action_submission_record(entity)
 
     async def list_action_submissions(self, run_id: str) -> list[ActionSubmissionRecord]:
         """列出协议运行下的动作提交。"""
@@ -269,7 +350,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
             .order_by(ActionSubmission.created_at.asc())
         )
         result = await self._session.execute(stmt)
-        return [ActionSubmissionRecord.model_validate(entity) for entity in result.scalars().all()]
+        return [self._to_action_submission_record(entity) for entity in result.scalars().all()]
 
     async def get_latest_snapshot_seq(self, run_id: str) -> int:
         """读取当前 run 的最大事件序号。"""
@@ -289,7 +370,7 @@ class ProtocolSqlRepository(BaseSqlRepository):
         self._session.add(entity)
         await self.flush()
         await self.refresh(entity)
-        return RunStateSnapshotRecord.model_validate(entity)
+        return self._to_snapshot_record(entity)
 
     async def list_snapshots(
         self,
@@ -304,4 +385,4 @@ class ProtocolSqlRepository(BaseSqlRepository):
             .limit(limit)
         )
         result = await self._session.execute(stmt)
-        return [RunStateSnapshotRecord.model_validate(entity) for entity in result.scalars().all()]
+        return [self._to_snapshot_record(entity) for entity in result.scalars().all()]

@@ -13,13 +13,26 @@ import {
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
+async function extractApiError(response: Response, fallback_message: string): Promise<never> {
+  try {
+    const payload = await response.json();
+    const detail = payload?.data?.detail || payload?.message || response.statusText;
+    throw new Error(`${fallback_message}: ${detail}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`${fallback_message}: ${response.statusText}`);
+  }
+}
+
 export async function getRoom(room_id: string): Promise<RoomAggregate> {
   const response = await fetch(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
   if (!response.ok) {
-    throw new Error(`读取 room 失败: ${response.statusText}`);
+    return await extractApiError(response, "读取 room 失败");
   }
   const result: ApiResponse<RoomAggregate> = await response.json();
   return result.data;
@@ -42,7 +55,7 @@ export async function createRoom(params: {
     }),
   });
   if (!response.ok) {
-    throw new Error(`创建 room 失败: ${response.statusText}`);
+    return await extractApiError(response, "创建 room 失败");
   }
   const result: ApiResponse<RoomConversationContext> = await response.json();
   return result.data;
@@ -57,7 +70,7 @@ export async function listRoomProtocolRuns(room_id: string): Promise<ProtocolRun
     },
   );
   if (!response.ok) {
-    throw new Error(`读取 protocol runs 失败: ${response.statusText}`);
+    return await extractApiError(response, "读取 protocol runs 失败");
   }
   const result: ApiResponse<ProtocolRunListItem[]> = await response.json();
   return result.data;
@@ -80,7 +93,7 @@ export async function createRoomProtocolRun(
     },
   );
   if (!response.ok) {
-    throw new Error(`创建 protocol run 失败: ${response.statusText}`);
+    return await extractApiError(response, "创建 protocol run 失败");
   }
   const result: ApiResponse<ProtocolRunDetail> = await response.json();
   return result.data;
@@ -103,7 +116,7 @@ export async function getProtocolRun(
     },
   );
   if (!response.ok) {
-    throw new Error(`读取 protocol run 失败: ${response.statusText}`);
+    return await extractApiError(response, "读取 protocol run 失败");
   }
   const result: ApiResponse<ProtocolRunDetail> = await response.json();
   return result.data;
@@ -126,7 +139,7 @@ export async function listProtocolRunChannels(
     },
   );
   if (!response.ok) {
-    throw new Error(`读取 protocol channels 失败: ${response.statusText}`);
+    return await extractApiError(response, "读取 protocol channels 失败");
   }
   const result: ApiResponse<ProtocolChannelAggregate[]> = await response.json();
   return result.data;
@@ -145,7 +158,7 @@ export async function submitProtocolAction(
     },
   );
   if (!response.ok) {
-    throw new Error(`提交 protocol action 失败: ${response.statusText}`);
+    return await extractApiError(response, "提交 protocol action 失败");
   }
   const result: ApiResponse<ProtocolRunDetail> = await response.json();
   return result.data;
@@ -167,7 +180,7 @@ export async function controlProtocolRun(
     },
   );
   if (!response.ok) {
-    throw new Error(`执行 protocol control 失败: ${response.statusText}`);
+    return await extractApiError(response, "执行 protocol control 失败");
   }
   const result: ApiResponse<ProtocolRunDetail> = await response.json();
   return result.data;

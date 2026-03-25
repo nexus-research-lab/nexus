@@ -16,6 +16,7 @@ from typing import Any, Optional
 
 from agent.infra.database.get_db import get_db
 from agent.schema.model_chat_persistence import MemberRecord
+from agent.schema.model_message import EventMessage
 from agent.schema.model_protocol import (
     ActionRequestRecord,
     ActionSubmissionRecord,
