@@ -58,3 +58,17 @@ export interface CreateRoomParams {
   description?: string;
   title?: string;
 }
+
+export interface UpdateRoomParams {
+  name?: string;
+  description?: string;
+  title?: string;
+}
+
+export interface CreateRoomConversationParams {
+  title?: string;
+}
+
+export interface UpdateRoomConversationParams {
+  title?: string;
+}

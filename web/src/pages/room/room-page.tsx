@@ -35,6 +35,34 @@ export function RoomPage() {
     }
   }, [controller, navigate, params.room_id]);
 
+  const handleCreateConversation = useCallback(async (title?: string) => {
+    const route_room_id = params.room_id;
+    const next_conversation_id = await controller.handle_create_conversation(title);
+    if (route_room_id && next_conversation_id) {
+      navigate(AppRouteBuilders.room_conversation(route_room_id, next_conversation_id));
+    }
+    return next_conversation_id;
+  }, [controller, navigate, params.room_id]);
+
+  const handleDeleteConversation = useCallback(async (conversation_id: string) => {
+    const route_room_id = params.room_id;
+    const next_conversation_id = await controller.handle_delete_conversation(conversation_id);
+    if (!route_room_id) {
+      return next_conversation_id;
+    }
+    if (next_conversation_id) {
+      navigate(AppRouteBuilders.room_conversation(route_room_id, next_conversation_id));
+      return next_conversation_id;
+    }
+    navigate(AppRouteBuilders.room(route_room_id));
+    return null;
+  }, [controller, navigate, params.room_id]);
+
+  const handleDeleteRoom = useCallback(async () => {
+    await controller.handle_delete_room();
+    navigate(AppRouteBuilders.launcher());
+  }, [controller, navigate]);
+
   useEffect(() => {
     if (
       controller.is_hydrated &&
@@ -68,8 +96,10 @@ export function RoomPage() {
         <RoomWorkspaceShell
           active_workspace_path={controller.active_workspace_path}
           agent_cost_summary={controller.agent_cost_summary}
+          available_room_agents={controller.available_room_agents}
           current_agent={controller.current_agent}
           current_agent_id={controller.current_agent_id}
+          current_room_type={controller.current_room_type}
           room_members={controller.room_members}
           current_room_title={controller.current_room_title}
           current_room_conversations={controller.current_room_conversations}
@@ -80,19 +110,22 @@ export function RoomPage() {
           is_editor_open={controller.is_editor_open}
           is_resizing_editor={controller.is_resizing_editor}
           is_conversation_busy={controller.is_conversation_busy}
+          on_add_room_member={controller.handle_add_room_member}
           on_back_to_directory={handleBackToLauncher}
           on_close_workspace_pane={controller.handle_close_workspace_pane}
-          on_delete_conversation={controller.handle_delete_conversation}
+          on_delete_conversation={handleDeleteConversation}
+          on_delete_room={handleDeleteRoom}
           on_edit_agent={controller.handle_edit_agent}
           on_loading_change={controller.set_is_conversation_busy}
-          on_create_conversation={controller.handle_create_conversation}
-          on_open_create_agent={controller.handle_open_create_agent}
+          on_create_conversation={handleCreateConversation}
           on_open_workspace_file={controller.handle_open_workspace_file}
+          on_remove_room_member={controller.handle_remove_room_member}
           on_select_agent={handleSelectAgent}
           on_select_conversation={handleSelectConversation}
           on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
           on_start_editor_resize={controller.handle_start_editor_resize}
           on_todos_change={controller.set_current_todos}
+          on_update_room={controller.handle_update_room}
           conversation_cost_summary={controller.conversation_cost_summary}
           workspace_split_ref={controller.workspace_split_ref}
         />
@@ -113,7 +146,7 @@ export function RoomPage() {
   return (
     <AppStage>
       <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
-        <section className="workspace-shell relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
           <RoomRouteEntry
             agents={controller.agents}
             conversations={controller.conversations}

@@ -9,6 +9,7 @@
 
 """Room 服务导出。"""
 
+from agent.service.room.room_conversation_service import room_conversation_service
 from agent.service.room.room_service import room_service
 
-__all__ = ["room_service"]
+__all__ = ["room_service", "room_conversation_service"]

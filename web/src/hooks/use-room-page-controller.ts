@@ -2,15 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { initialOptions } from "@/config/options";
+import { DEFAULT_AGENT_ID, initialOptions } from "@/config/options";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
-import { getRoom, getRoomContexts } from "@/lib/room-api";
+import {
+  addRoomMember,
+  createRoomConversation,
+  deleteRoom,
+  deleteRoomConversation,
+  getRoom,
+  getRoomContexts,
+  removeRoomMember,
+  updateRoom,
+} from "@/lib/room-api";
 import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import { Agent, AgentOptions } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { RoomContextAggregate } from "@/types/room";
+import { RoomContextAggregate, UpdateRoomParams } from "@/types/room";
 import { RoomPageControllerOptions } from "@/types/route";
 
 function to_timestamp(value?: string | null): number {
@@ -70,6 +79,35 @@ export function useRoomPageController({
     };
   }, [load_agents_from_server, load_conversations_from_server]);
 
+  const load_room_contexts = useCallback(async (next_room_id: string): Promise<RoomContextAggregate[]> => {
+    const [room, contexts] = await Promise.all([
+      getRoom(next_room_id),
+      getRoomContexts(next_room_id),
+    ]);
+
+    return contexts.length
+      ? contexts
+      : [
+        {
+          room: room.room,
+          members: room.members,
+          conversation: {
+            id: "",
+            room_id: room.room.id,
+            conversation_type: "room_main",
+            title: room.room.name ?? "",
+          },
+          sessions: [],
+        },
+      ];
+  }, []);
+
+  const refresh_room_contexts = useCallback(async (next_room_id: string) => {
+    const contexts = await load_room_contexts(next_room_id);
+    set_room_contexts(contexts);
+    return contexts;
+  }, [load_room_contexts]);
+
   useEffect(() => {
     if (!room_id) {
       set_room_contexts([]);
@@ -84,32 +122,11 @@ export function useRoomPageController({
 
     const load_room_context = async () => {
       try {
-        const [room, contexts] = await Promise.all([
-          getRoom(room_id),
-          getRoomContexts(room_id),
-        ]);
-
+        const contexts = await load_room_contexts(room_id);
         if (cancelled) {
           return;
         }
-
-        set_room_contexts(
-          contexts.length
-            ? contexts
-            : [
-              {
-                room: room.room,
-                members: room.members,
-                conversation: {
-                  id: "",
-                  room_id: room.room.id,
-                  conversation_type: "room_main",
-                  title: room.room.name ?? "",
-                },
-                sessions: [],
-              },
-            ],
-        );
+        set_room_contexts(contexts);
       } catch (error) {
         if (cancelled) {
           return;
@@ -128,7 +145,7 @@ export function useRoomPageController({
     return () => {
       cancelled = true;
     };
-  }, [room_id]);
+  }, [load_room_contexts, room_id]);
 
   const current_room = useMemo(
     () => room_contexts[0]?.room ?? null,
@@ -163,6 +180,7 @@ export function useRoomPageController({
           session_key: context.conversation.id,
           room_id: context.room.id,
           conversation_id: context.conversation.id,
+          conversation_type: context.conversation.conversation_type,
           session_id: latest_conversation?.session_id ?? null,
           agent_id: latest_conversation?.agent_id ?? context.sessions[0]?.agent_id,
           title: context.conversation.title?.trim() || context.room.name || "未命名对话",
@@ -245,6 +263,14 @@ export function useRoomPageController({
     () => agents.find((agent) => agent.agent_id === editing_agent_id) ?? null,
     [agents, editing_agent_id],
   );
+
+  const available_room_agents = useMemo(() => {
+    const joined_agent_ids = new Set(room_member_agents.map((agent) => agent.agent_id));
+    return agents.filter((agent) => (
+      !joined_agent_ids.has(agent.agent_id) &&
+      agent.agent_id !== DEFAULT_AGENT_ID
+    ));
+  }, [agents, room_member_agents]);
 
   const dialog_initial_title = useMemo(
     () => (dialog_mode === "edit" ? editing_agent?.name : undefined),
@@ -336,6 +362,60 @@ export function useRoomPageController({
     // room 页当前直接依赖后端 room 上下文与真实 session 列表，不再在本地伪造 thread 快照。
   }, []);
 
+  const handle_update_room = useCallback(async (params: UpdateRoomParams) => {
+    if (!room_id) {
+      return;
+    }
+    await updateRoom(room_id, params);
+    await refresh_room_contexts(room_id);
+    await load_conversations_from_server();
+  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+
+  const handle_delete_room = useCallback(async () => {
+    if (!room_id) {
+      return;
+    }
+    await deleteRoom(room_id);
+  }, [room_id]);
+
+  const handle_create_conversation = useCallback(async (title?: string) => {
+    if (!room_id) {
+      return null;
+    }
+    const context = await createRoomConversation(room_id, {title});
+    await refresh_room_contexts(room_id);
+    await load_conversations_from_server();
+    return context.conversation.id;
+  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+
+  const handle_delete_conversation = useCallback(async (conversation_id: string) => {
+    if (!room_id) {
+      return null;
+    }
+    const fallback_context = await deleteRoomConversation(room_id, conversation_id);
+    await refresh_room_contexts(room_id);
+    await load_conversations_from_server();
+    return fallback_context.conversation.id;
+  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+
+  const handle_add_room_member = useCallback(async (agent_id: string) => {
+    if (!room_id) {
+      return;
+    }
+    await addRoomMember(room_id, agent_id);
+    await refresh_room_contexts(room_id);
+    await load_conversations_from_server();
+  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+
+  const handle_remove_room_member = useCallback(async (agent_id: string) => {
+    if (!room_id) {
+      return;
+    }
+    await removeRoomMember(room_id, agent_id);
+    await refresh_room_contexts(room_id);
+    await load_conversations_from_server();
+  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+
   const is_hydrated = is_bootstrapped && !is_room_loading;
 
   return {
@@ -343,9 +423,11 @@ export function useRoomPageController({
     conversations,
     room_error,
     current_room,
+    current_room_type: current_room?.room_type ?? "room",
     current_room_title: current_room?.name?.trim() || current_agent?.name || "未命名 room",
     current_room_description: current_room?.description ?? "",
     room_members: room_member_agents,
+    available_room_agents,
     current_agent,
     current_agent_id: current_agent?.agent_id ?? null,
     current_room_conversations: room_conversations,
@@ -364,12 +446,16 @@ export function useRoomPageController({
     handle_select_conversation,
     handle_back_to_directory,
     handle_delete_agent,
-    handle_create_conversation: async () => {},
+    handle_create_conversation,
     handle_save_agent_options,
     handle_validate_agent_name,
     handle_open_conversation_from_launcher: () => {},
     handle_conversation_snapshot_change,
-    handle_delete_conversation: async () => {},
+    handle_delete_conversation,
+    handle_update_room,
+    handle_delete_room,
+    handle_add_room_member,
+    handle_remove_room_member,
     route_conversation_id: conversation_id ?? null,
     route_room_id: room_id ?? null,
     ...workspace,

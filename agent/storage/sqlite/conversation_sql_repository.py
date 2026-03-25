@@ -66,3 +66,12 @@ class ConversationSqlRepository(BaseSqlRepository):
         await self.flush()
         await self.refresh(entity)
         return ConversationRecord.model_validate(entity)
+
+    async def delete(self, conversation_id: str) -> bool:
+        """删除对话。"""
+        entity = await self._session.get(Conversation, conversation_id)
+        if entity is None:
+            return False
+        await self._session.delete(entity)
+        await self.flush()
+        return True

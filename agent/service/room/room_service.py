@@ -215,36 +215,50 @@ class RoomService:
             created_member = await room_repository.add_member(member_record)
 
             conversations = await conversation_repository.list_by_room(room_id)
-            main_conversation = self._pick_main_conversation(conversations)
-            if main_conversation is None:
-                main_conversation = await conversation_repository.create(
-                    ConversationRecord(
-                        id=random_uuid(),
-                        room_id=room_id,
-                        conversation_type="room_main",
-                        title=room_aggregate.room.name,
+            if not conversations:
+                conversations = [
+                    await conversation_repository.create(
+                        ConversationRecord(
+                            id=random_uuid(),
+                            room_id=room_id,
+                            conversation_type="room_main",
+                            title=room_aggregate.room.name,
+                        )
                     )
-                )
+                ]
 
-            primary_session = await session_repository.get_primary(
-                conversation_id=main_conversation.id,
-                agent_id=agent_id,
-            )
-            if primary_session is None:
-                primary_session = await session_repository.create(
-                    self._build_session_record(
-                        conversation_id=main_conversation.id,
-                        agent=agent_aggregate,
+            created_sessions: list[SessionRecord] = []
+            for conversation in conversations:
+                primary_session = await session_repository.get_primary(
+                    conversation_id=conversation.id,
+                    agent_id=agent_id,
+                )
+                if primary_session is not None:
+                    created_sessions.append(primary_session)
+                    continue
+                created_sessions.append(
+                    await session_repository.create(
+                        self._build_session_record(
+                            conversation_id=conversation.id,
+                            agent=agent_aggregate,
+                        )
                     )
                 )
 
             await session.commit()
 
+        main_conversation = self._pick_main_conversation(conversations)
+        if main_conversation is None:
+            raise ValueError("Room conversation not found")
         return ConversationContextAggregate(
             room=room_aggregate.room,
             members=[*room_aggregate.members, created_member],
             conversation=main_conversation,
-            sessions=[primary_session],
+            sessions=[
+                session
+                for session in created_sessions
+                if session.conversation_id == main_conversation.id
+            ],
         )
 
     async def remove_agent_member(
@@ -287,12 +301,13 @@ class RoomService:
             if main_conversation is None:
                 raise ValueError("Room conversation not found")
 
-            primary_session = await session_repository.get_primary(
-                conversation_id=main_conversation.id,
-                agent_id=agent_id,
-            )
-            if primary_session is not None:
-                await session_repository.delete(primary_session.id)
+            for conversation in conversations:
+                primary_session = await session_repository.get_primary(
+                    conversation_id=conversation.id,
+                    agent_id=agent_id,
+                )
+                if primary_session is not None:
+                    await session_repository.delete(primary_session.id)
 
             await session.commit()
 

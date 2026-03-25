@@ -6,6 +6,7 @@ export interface Conversation {
   session_id: SessionId | null;
   room_id?: string | null;
   conversation_id?: string | null;
+  conversation_type?: string;
   title: string;
   options: Record<string, unknown>;
   created_at: number;
