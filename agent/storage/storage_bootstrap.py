@@ -20,6 +20,7 @@ from datetime import datetime
 from threading import Lock
 from typing import Any, Dict, List
 
+from agent.service.workspace.workspace_template_initializer import WorkspaceTemplateInitializer
 from agent.storage.config_store import ConfigStore
 from agent.storage.storage_paths import FileStoragePaths
 from agent.utils.logger import logger
@@ -41,14 +42,12 @@ class FileStorageBootstrap:
                 return
 
             self.paths.ensure_directories()
-
-            if not self.paths.agents_index_path.exists():
-                self._bootstrap_default_agent()
+            self._ensure_main_agent()
 
             self.__class__._initialized = True
 
-    def _bootstrap_default_agent(self) -> None:
-        """在全新环境下创建默认 Agent。"""
+    def _ensure_main_agent(self) -> None:
+        """确保 main agent 与其工作区模板存在。"""
         workspace_path = self.paths.workspace_base / "main"
         record = {
             "agent_id": "main",
@@ -58,10 +57,33 @@ class FileStorageBootstrap:
             "created_at": datetime.now().isoformat(),
             "status": "active",
         }
+        records = ConfigStore.read(self.paths.agents_index_path, [])
+        if not isinstance(records, list):
+            records = []
+
+        main_index = next(
+            (index for index, item in enumerate(records) if item.get("agent_id") == "main"),
+            None,
+        )
+        if main_index is None:
+            records.insert(0, record)
+        else:
+            existing_record = records[main_index]
+            existing_record["agent_id"] = "main"
+            existing_record["name"] = "main"
+            existing_record["workspace_path"] = str(workspace_path)
+            existing_record["status"] = "active"
+            if not existing_record.get("created_at"):
+                existing_record["created_at"] = record["created_at"]
+            if not isinstance(existing_record.get("options"), dict):
+                existing_record["options"] = {}
+            record = existing_record
+
         workspace_path.mkdir(parents=True, exist_ok=True)
-        ConfigStore.write(self.paths.agents_index_path, [record])
+        ConfigStore.write(self.paths.agents_index_path, records)
         ConfigStore.write(self.paths.get_agent_file_path(workspace_path), record)
-        logger.info(f"🧩 已初始化默认 Agent 存储: {workspace_path}")
+        WorkspaceTemplateInitializer("main", workspace_path).ensure_initialized("main")
+        logger.info(f"🧩 已初始化 main Agent 存储: {workspace_path}")
 
     @staticmethod
     def compact_messages(message_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

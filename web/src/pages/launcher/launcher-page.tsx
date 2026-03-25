@@ -58,7 +58,7 @@ export function LauncherPage() {
   }, [navigate]);
 
   const handleOpenContactsPageFromApp = useCallback(() => {
-    push_app_message("正在为你打开 Contacts，你可以先筛选成员，再回到这里继续组织协作。");
+    push_app_message("正在打开 Contacts。");
     handleOpenContactsPage();
   }, [handleOpenContactsPage, push_app_message]);
 

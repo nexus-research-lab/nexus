@@ -12,7 +12,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from agent.service.workspace.workspace_templates import DEFAULT_DIR, WORKSPACE_FILES, WORKSPACE_TEMPLATES
+from agent.service.workspace.workspace_templates import DEFAULT_DIR, WORKSPACE_FILES, get_workspace_templates
 from agent.utils.logger import logger
 
 
@@ -67,13 +67,14 @@ class WorkspaceTemplateInitializer:
             "created_at": created_at,
             "workspace": self._workspace_path.resolve().as_posix(),
         }
+        template_map = get_workspace_templates(self._agent_id)
 
         for key, filename in WORKSPACE_FILES.items():
             filepath = self._workspace_path / filename
             if filepath.exists():
                 continue
 
-            template = WORKSPACE_TEMPLATES.get(key, "").format(**context).strip()
+            template = template_map.get(key, "").format(**context).strip()
             if not template:
                 continue
 

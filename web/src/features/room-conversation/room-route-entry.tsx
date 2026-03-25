@@ -28,15 +28,9 @@ export function RoomRouteEntry({
   return (
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
       <section className="workspace-card rounded-[30px] px-6 py-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-          Room Entry
-        </p>
         <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-slate-950/90">
           {room_agent ? room_agent.name : "这个协作空间还没有对应成员"}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700/62">
-          room 是协作单元，不是成员目录。如果当前 URL 还没有找到可进入的 room，可以先回到首页继续已有协作，或者去 Contacts / 首页 App Agent 重新组织成员。
-        </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
           <button
@@ -69,18 +63,12 @@ export function RoomRouteEntry({
             type="button"
           >
             <Sparkles className="h-5 w-5 text-slate-900/78" />
-            <p className="mt-3 text-sm font-semibold text-slate-950/86">交给 App Agent</p>
-            <p className="mt-1 text-xs leading-5 text-slate-700/58">
-              当你需要组织成员、创建新 room 或整理结构时，应回到首页唤起 App Agent。
-            </p>
+            <p className="mt-3 text-sm font-semibold text-slate-950/86">交给真格 App</p>
           </button>
         </div>
       </section>
 
       <aside className="workspace-card rounded-[30px] px-6 py-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-          Route Context
-        </p>
         <div className="mt-4 grid gap-3">
           <div className="workspace-card rounded-[24px] px-4 py-4">
             <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/46">Room</p>
@@ -96,9 +84,7 @@ export function RoomRouteEntry({
 
           {recent_room_conversations.length ? (
             <div className="workspace-card rounded-[24px] px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/46">
-                Recent Conversations
-              </p>
+              <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/46">Recent</p>
               <div className="mt-3 space-y-2">
                 {recent_room_conversations.map((conversation) => (
                   <button

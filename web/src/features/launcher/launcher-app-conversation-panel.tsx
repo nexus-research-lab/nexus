@@ -107,7 +107,7 @@ export function LauncherAppConversationPanel({
       actions.push({
         key: "contacts",
         label: "打开 Contacts",
-        description: "先筛选成员，再回到这里继续组织协作。",
+        description: "先选成员。",
         on_click: on_open_contacts_page,
       });
     }
@@ -167,25 +167,15 @@ export function LauncherAppConversationPanel({
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <HeroActionPillShell class_name="w-fit">
-                <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
-                  <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
-                  App Agent
-                </span>
-              </HeroActionPillShell>
-              <HeroActionPillShell class_name="w-fit">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/60">
-                  全局唯一对话
-                </span>
-              </HeroActionPillShell>
-            </div>
+            <HeroActionPillShell class_name="w-fit">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
+                <span className="h-2 w-2 rounded-full bg-[#7fe3a8]" />
+                真格 App
+              </span>
+            </HeroActionPillShell>
             <h2 className="mt-4 text-[28px] font-black tracking-[-0.04em] text-slate-950/88">
               真格 App
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-700/62">
-              它负责组织协作，而不是替代 room 承载执行。你从首页、Contacts 或 Room 回来，接住的都会是同一条系统级对话。
-            </p>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -258,7 +248,7 @@ export function LauncherAppConversationPanel({
             >
               <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
                 {message.role === "app" ? <Sparkles className="h-3.5 w-3.5" /> : null}
-                {message.role === "app" ? "App Agent" : "You"}
+                {message.role === "app" ? "真格 App" : "你"}
               </div>
               <p>{message.body}</p>
             </div>
@@ -326,7 +316,7 @@ export function LauncherAppConversationPanel({
               <div>
                 <p className="text-sm font-semibold text-slate-950/84">去 Contacts 选择成员</p>
                 <p className="mt-1 text-xs leading-5 text-slate-700/58">
-                  先看成员能力，再回到首页让 App 组织协作。
+                  先选成员，再继续。
                 </p>
               </div>
             </div>

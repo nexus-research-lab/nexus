@@ -167,7 +167,7 @@ class AgentManager:
 
         workspace = await self._workspace_registry.get_agent_workspace(agent)
         base_options = {"include_partial_messages": True, "cwd": str(workspace.path)}
-        system_prompt = self._prompt_builder.build(workspace)
+        system_prompt = self._prompt_builder.build(workspace, agent.agent_id)
         if system_prompt:
             base_options["system_prompt"] = system_prompt
 
