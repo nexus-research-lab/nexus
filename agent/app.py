@@ -15,6 +15,7 @@ from fastapi import FastAPI
 
 from agent.api.router import api_router
 from agent.config.config import settings
+from agent.infra.database.get_db import get_db
 from agent.service.channels.channel_register import ChannelRegister
 from agent.service.agent.agent_service import agent_service
 from agent.infra.server.register import register_exception, register_hook, register_middleware
@@ -28,6 +29,7 @@ channel_manager = ChannelRegister()
 async def lifespan(app: FastAPI):
     try:
         logger.info("📁 使用 workspace 文件存储模式启动")
+        await _ensure_database_ready()
 
         # 注册并启动消息通道
         await _register_channels()
@@ -40,6 +42,14 @@ async def lifespan(app: FastAPI):
     finally:
         await channel_manager.stop_all()
         logger.info("Model shutdown complete.")
+
+
+async def _ensure_database_ready() -> None:
+    """确保异步 SQLite 数据库与表结构已准备好。"""
+    database = get_db("async_sqlite")
+    if database is None:
+        return
+    await database.create_tables()
 
 
 async def _register_channels() -> None:

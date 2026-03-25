@@ -8,6 +8,7 @@
 # =====================================================
 
 import json
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -40,6 +41,8 @@ class AsyncDatabase:
             # 默认使用SQLite，可以配置为其他数据库
             database_url = settings.DATABASE_URL
 
+        self._ensure_sqlite_directory(database_url)
+
         self.engine = create_async_engine(
             database_url,
             # echo=settings.DEBUG if hasattr(settings, 'DEBUG') else False,
@@ -57,9 +60,23 @@ class AsyncDatabase:
 
         logger.info(f"Database initialized: {database_url}")
 
+    @staticmethod
+    def _ensure_sqlite_directory(database_url: str) -> None:
+        """确保 SQLite 数据文件目录存在。"""
+        sqlite_prefix = "sqlite+aiosqlite:///"
+        if not database_url.startswith(sqlite_prefix):
+            return
+
+        db_path = database_url.replace(sqlite_prefix, "", 1)
+        db_dir = Path(db_path).expanduser().resolve().parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+
 
     async def create_tables(self):
         """创建所有表"""
+        from agent.infra.database.models import load_models
+
+        load_models()
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 

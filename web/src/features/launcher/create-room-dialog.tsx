@@ -8,6 +8,7 @@ import { Agent } from "@/types/agent";
 interface CreateRoomDialogProps {
   agents: Agent[];
   default_title: string;
+  error?: string | null;
   is_open: boolean;
   is_submitting?: boolean;
   on_cancel: () => void;
@@ -17,6 +18,7 @@ interface CreateRoomDialogProps {
 export function CreateRoomDialog({
   agents,
   default_title,
+  error = null,
   is_open,
   is_submitting = false,
   on_cancel,
@@ -75,6 +77,12 @@ export function CreateRoomDialog({
         </div>
 
         <div className="mt-4 grid gap-4">
+          {error ? (
+            <div className="rounded-[18px] border border-rose-400/28 bg-rose-500/10 px-4 py-3 text-sm text-rose-900/84">
+              {error}
+            </div>
+          ) : null}
+
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
               Room Title

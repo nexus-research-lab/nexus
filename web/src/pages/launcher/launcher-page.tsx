@@ -44,6 +44,7 @@ export function LauncherPage() {
   const [pending_room_title, set_pending_room_title] = useState<string>("");
   const [is_create_room_dialog_open, set_is_create_room_dialog_open] = useState(false);
   const [is_creating_room, set_is_creating_room] = useState(false);
+  const [create_room_error, set_create_room_error] = useState<string | null>(null);
   const consumed_route_prompt_ref = useRef<string | null>(null);
   const skip_app_conversation_load_ref = useRef<string | null>(null);
   const hydrated_app_conversation_key_ref = useRef<string | null>(null);
@@ -180,6 +181,7 @@ export function LauncherPage() {
   const handle_create_room = useCallback(() => {
     const next_room_title = build_room_title_from_prompt(latest_user_prompt);
     set_pending_room_title(next_room_title);
+    set_create_room_error(null);
     set_is_create_room_dialog_open(true);
   }, [latest_user_prompt]);
 
@@ -202,6 +204,7 @@ export function LauncherPage() {
     agent_ids: string[];
   }) => {
     set_is_creating_room(true);
+    set_create_room_error(null);
     try {
       const created_room = await createRoom({
         agent_ids,
@@ -212,6 +215,8 @@ export function LauncherPage() {
       set_is_create_room_dialog_open(false);
       set_pending_room_title("");
       navigate(AppRouteBuilders.room(created_room.room.id));
+    } catch (error) {
+      set_create_room_error(error instanceof Error ? error.message : "创建 room 失败");
     } finally {
       set_is_creating_room(false);
     }
@@ -364,10 +369,12 @@ export function LauncherPage() {
         default_title={pending_room_title || "新协作"}
         is_open={is_create_room_dialog_open}
         is_submitting={is_creating_room}
+        error={create_room_error}
         on_cancel={() => {
           if (is_creating_room) {
             return;
           }
+          set_create_room_error(null);
           set_is_create_room_dialog_open(false);
         }}
         on_confirm={handle_confirm_create_room}
