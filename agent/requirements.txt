@@ -13,6 +13,7 @@ typing_inspect
 psutil>=5.9.4
 sqlalchemy>=2.0.0
 aiosqlite>=0.20.0
+greenlet>=3.1.1
 
 # agent requirements
 
