@@ -91,7 +91,7 @@ export function RoomObjectListPanel({
         return {
           room_id: room.room.id,
           room_name,
-          room_subtitle: active_space === "dm" ? "直接协作" : `${member_count} 位成员`,
+          room_subtitle: active_space === "dm" ? "1v1 协作" : `${member_count} 位成员`,
           last_activity_at: last_activity_by_room.get(room.room.id) ?? 0,
           member_count,
         };
@@ -112,10 +112,10 @@ export function RoomObjectListPanel({
                 {active_space === "dm" ? "DMs" : "Rooms"}
               </p>
               <p className="mt-1 text-[20px] font-black tracking-[-0.04em] text-slate-950/90">
-                {active_space === "dm" ? "直接协作" : "协作空间"}
+                {active_space === "dm" ? "Direct Messages" : "Rooms"}
               </p>
               <p className="mt-1 text-[12px] text-slate-700/54">
-                {room_items.length} 个{active_space === "dm" ? "对象" : "空间"}
+                {room_items.length} 个{active_space === "dm" ? "DM" : "协作空间"}
               </p>
             </div>
 
@@ -126,7 +126,7 @@ export function RoomObjectListPanel({
                 type="button"
               >
                 <Users className="h-3.5 w-3.5" />
-                成员
+                成员网络
               </button>
             ) : (
               <button
@@ -197,7 +197,7 @@ export function RoomObjectListPanel({
             {!room_items.length ? (
               <div className="workspace-card rounded-[22px] px-4 py-4 text-sm leading-6 text-slate-700/60">
                 {active_space === "dm"
-                  ? "还没有可直接协作的成员对话。"
+                  ? "还没有可打开的直接协作。"
                   : "还没有可切换的协作空间。"}
               </div>
             ) : null}
