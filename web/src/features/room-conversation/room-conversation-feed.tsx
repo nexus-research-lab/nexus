@@ -1,9 +1,12 @@
+import type { RefObject } from "react";
+
 import { MessageItem } from "@/features/room-conversation/message";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 
 interface RoomConversationFeedProps {
   bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
+  feed_ref?: RefObject<HTMLDivElement | null>;
   compact?: boolean;
   current_agent_name: string | null;
   is_last_round_pending_permission: PendingPermission | null;
@@ -19,6 +22,7 @@ interface RoomConversationFeedProps {
 
 export function RoomConversationFeed({
   bottom_anchor_ref,
+  feed_ref,
   compact = false,
   current_agent_name,
   is_last_round_pending_permission,
@@ -32,7 +36,10 @@ export function RoomConversationFeed({
   round_ids,
 }: RoomConversationFeedProps) {
   return (
-    <div className={is_mobile_layout ? "space-y-4" : "mx-auto flex w-full max-w-[920px] flex-col gap-5 xl:gap-6"}>
+    <div
+      ref={feed_ref}
+      className={is_mobile_layout ? "space-y-4" : "mx-auto flex w-full max-w-[980px] flex-col gap-1"}
+    >
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;

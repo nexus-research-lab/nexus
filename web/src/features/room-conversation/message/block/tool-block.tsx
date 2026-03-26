@@ -130,66 +130,53 @@ export function ToolBlock({
   const isError = finalStatus === 'error';
   const isWaiting = finalStatus === 'waiting_permission';
 
-  // 状态配色
-  const statusColors = {
-    pending: 'border-white/24 bg-white/12',
-    running: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(133,119,255,0.08)]',
-    success: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(102,217,143,0.08)]',
-    error: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(235,90,81,0.08)]',
-    waiting_permission: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(255,157,86,0.1)]',
-  };
-
   return (
-    <div className={cn(
-      "my-2 overflow-hidden rounded-[20px] border transition-all duration-300",
-      statusColors[finalStatus]
-    )}>
-      {/* ═══════════ 头部栏：工具名+路径+状态+时间 ═══════════ */}
+    <div className="border-l border-slate-200/90 pl-4">
       <div
         className={cn(
-          "flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 px-3 py-2 text-xs transition-colors sm:min-h-11 sm:flex-nowrap",
-          "hover:bg-white/12",
+          "flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 py-1 text-xs transition-colors sm:flex-nowrap",
           isRunning && "animate-pulse"
         )}
         onClick={() => hasResult && setIsExpanded(!isExpanded)}
       >
         {/* 工具图标 */}
         <div className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-full border border-white/28 bg-white/24",
+          "flex h-5 w-5 items-center justify-center rounded-full",
           isSuccess && "text-green-500",
           isError && "text-red-500",
-          isRunning && "text-primary",
-          isWaiting && "text-orange-500"
+          isRunning && "text-sky-500",
+          isWaiting && "text-orange-500",
+          !isSuccess && !isError && !isRunning && !isWaiting && "text-slate-400",
         )}>
           {isRunning ? (
-            <Loader className="w-3.5 h-3.5 animate-spin" />
+            <Loader className="h-3.5 w-3.5 animate-spin" />
           ) : isSuccess ? (
-            <CheckCircle className="w-3.5 h-3.5" />
+            <CheckCircle className="h-3.5 w-3.5" />
           ) : isError ? (
-            <XCircle className="w-3.5 h-3.5" />
+            <XCircle className="h-3.5 w-3.5" />
           ) : isWaiting ? (
-            <Clock className="w-3.5 h-3.5 animate-pulse" />
+            <Clock className="h-3.5 w-3.5 animate-pulse" />
           ) : (
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="h-3.5 w-3.5" />
           )}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn(
-              "shrink-0 font-medium uppercase tracking-[0.14em]",
+              "shrink-0 text-[11px] font-medium",
               isSuccess && "text-green-600",
               isError && "text-red-500",
-              isRunning && "text-primary",
+              isRunning && "text-sky-500",
               isWaiting && "text-orange-500"
             )}>
               {toolTitle}
             </span>
             {durationText ? (
-              <span className="shrink-0 text-[11px] text-slate-700/46">{durationText}</span>
+              <span className="shrink-0 text-[11px] text-slate-400">{durationText}</span>
             ) : null}
           </div>
-          <div className="mt-0.5 min-w-0 text-[12px] text-slate-700/60">
+          <div className="mt-0.5 min-w-0 text-[12px] text-slate-500">
             {hasResult && !isExpanded && resultSummary ? (
               <span className="block truncate">{resultSummary}</span>
             ) : pathDisplay ? (
@@ -208,10 +195,10 @@ export function ToolBlock({
             onClick={handleCopyResult}
             className={cn(
               "ml-auto sm:ml-0",
-              "rounded-full border border-white/28 bg-white/18 px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
+              "rounded px-1.5 py-0.5 text-[10px] transition-all",
               copied
-                ? "text-green-500 bg-green-500/10"
-                : "text-slate-700/58 hover:text-slate-950 hover:bg-white/18"
+                ? "bg-green-50 text-green-500"
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             )}
           >
             {copied ? '✓' : '复制'}
@@ -220,43 +207,30 @@ export function ToolBlock({
 
         {/* 展开指示器 */}
         {hasResult && (
-          <div className="shrink-0 text-muted-foreground/40">
-            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <div className="shrink-0 text-slate-300">
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </div>
         )}
       </div>
 
-      {/* ═══════════ 进度条（运行时） ═══════════ */}
       {isRunning && (
-        <div className="h-px bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse" />
+        <div className="ml-7 h-px bg-slate-200/80" />
       )}
 
-      {/* ═══════════ 展开的结果内容 ═══════════ */}
       {hasResult && isExpanded && (
-        <div className="border-t border-white/18">
-          <div className="max-h-[300px] overflow-y-auto p-3 custom-scrollbar">
-            {pathDisplay ? (
-              <div className="mb-3 rounded-[14px] border border-white/24 bg-white/18 px-3 py-2 text-[11px] text-slate-700/62">
-                <div className="mb-1 font-semibold uppercase tracking-[0.12em] text-slate-700/48">
-                  执行详情
-                </div>
-                <div className="break-all">{pathDisplay}</div>
-              </div>
-            ) : null}
+        <div className="ml-7 mt-2 max-h-[300px] overflow-y-auto custom-scrollbar">
             {typeof tool_result.content === 'string' ? (
-              <pre className="rounded-[16px] border border-white/24 bg-white/22 p-4 text-xs whitespace-pre-wrap break-all text-slate-900/80">
+              <pre className="bg-slate-100/80 p-3 text-xs whitespace-pre-wrap break-all text-slate-800">
                 {tool_result.content}
               </pre>
             ) : (
               <CodeBlock language="json" value={JSON.stringify(tool_result.content, null, 2)} />
             )}
-          </div>
         </div>
       )}
 
-      {/* ═══════════ 运行中指示 ═══════════ */}
       {!hasResult && isRunning && (
-        <div className="flex h-8 items-center gap-2 border-t border-white/18 px-3 text-xs text-slate-700/56">
+        <div className="ml-7 mt-2 flex items-center gap-2 text-xs text-slate-500">
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
@@ -266,11 +240,9 @@ export function ToolBlock({
         </div>
       )}
 
-      {/* ═══════════ 权限确认 ═══════════ */}
       {permission_request && isWaiting && (
-        <div className="border-t border-orange-500/20 bg-orange-500/5">
-          {/* 参数预览 */}
-          <div className="max-h-[120px] overflow-y-auto border-b border-orange-500/10 px-3 py-3 custom-scrollbar">
+        <div className="ml-7 mt-2 rounded-md bg-orange-50/70 p-3">
+          <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
             {permission_request.summary && (
               <div className="mb-2 flex items-center gap-2 text-[11px] text-orange-500">
                 <span className="font-semibold uppercase tracking-wider">
@@ -279,13 +251,12 @@ export function ToolBlock({
                 <span className="truncate">{permission_request.summary}</span>
               </div>
             )}
-            <pre className="rounded-[16px] border border-white/24 bg-white/18 p-3 text-[11px] whitespace-pre-wrap break-all text-slate-900/74">
+            <pre className="rounded-md bg-white/80 p-3 text-[11px] whitespace-pre-wrap break-all text-slate-900/74">
               {JSON.stringify(permission_request.tool_input, null, 2)}
             </pre>
           </div>
 
-          {/* 操作栏 */}
-          <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:h-11 sm:flex-nowrap sm:py-0">
+          <div className="mt-3 flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <span className="flex items-center gap-1.5 text-xs font-medium text-orange-500">
               <Clock className="w-3 h-3" />
               等你确认后继续

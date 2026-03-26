@@ -64,7 +64,7 @@ export function ContentRenderer(
   });
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 space-y-2.5">
       {content.map((block, index) => {
         const blockIsStreaming = streaming_block_indexes?.has(index) ?? is_streaming;
 
@@ -167,13 +167,8 @@ export function ContentRenderer(
         // 独立的 tool_result（没有对应的 tool_use）
         if (block.type === 'tool_result') {
           return (
-            <div key={index} className={cn(
-              "radius-shell-md my-2 p-4",
-              block.is_error
-                ? "workspace-card bg-red-500/5"
-                : "workspace-card bg-green-500/5"
-            )}>
-              <div className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+            <div key={index} className="border-l border-slate-200/90 pl-4">
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-medium">
                 {block.is_error ? (
                   <span className="text-red-500">Error</span>
                 ) : (
@@ -182,7 +177,7 @@ export function ContentRenderer(
               </div>
               <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                 {typeof block.content === 'string' ? (
-                  <pre className="workspace-card radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-slate-900/80">
+                  <pre className="rounded-md bg-slate-100/80 p-3 text-xs font-mono whitespace-pre-wrap break-all text-slate-800">
                     {block.content}
                   </pre>
                 ) : (

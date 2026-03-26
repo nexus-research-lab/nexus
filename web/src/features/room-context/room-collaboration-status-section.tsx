@@ -24,7 +24,7 @@ export function RoomCollaborationStatusSection({
         <Activity className="h-3.5 w-3.5" />
         Details
       </div>
-      <div className="workspace-card rounded-[22px] px-4 py-3">
+      <div className="rounded-[22px] bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.08))] px-4 py-3 ring-1 ring-white/10 backdrop-blur-[14px]">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/50">当前状态</p>

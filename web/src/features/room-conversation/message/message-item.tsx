@@ -7,7 +7,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Edit2, Sparkles, User } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, Copy, Edit2, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContentBlock, Message, ResultMessage } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
@@ -49,11 +49,11 @@ export function MessageItem(
     on_open_workspace_file,
     class_name,
   }: MessageItemProps) {
-  const roundRef = useRef<HTMLDivElement>(null);
   const [copiedUser, setCopiedUser] = useState(false);
   const [copiedAssistant, setCopiedAssistant] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isProcessExpanded, setIsProcessExpanded] = useState(false);
 
   // 分离消息
   const { userMessage, assistantMessages, resultMessage } = useMemo(() => {
@@ -117,20 +117,38 @@ export function MessageItem(
     };
   }, [assistantMessages, streamingAssistantMessageId]);
 
+  const visibleAssistantTextContent = useMemo(() => {
+    return mergedContent.filter((block) => (
+      block.type === "text" && Boolean(block.text.trim())
+    ));
+  }, [mergedContent]);
+
+  const assistantTextStreamingIndexes = useMemo(() => {
+    const nextIndexes = new Set<number>();
+    let textIndex = 0;
+
+    mergedContent.forEach((block, index) => {
+      if (block.type === "text" && Boolean(block.text.trim())) {
+        if (streamingBlockIndexes.has(index)) {
+          nextIndexes.add(textIndex);
+        }
+        textIndex += 1;
+      }
+    });
+
+    return nextIndexes;
+  }, [mergedContent, streamingBlockIndexes]);
+
   // 获取纯文本内容用于复制
   const assistantTextContent = useMemo(() => {
     const texts: string[] = [];
-    for (const block of mergedContent) {
-      if (block.type === 'text' && block.text) {
+    for (const block of visibleAssistantTextContent) {
+      if (block.type === "text" && block.text) {
         texts.push(block.text);
       }
     }
-    // 如果有最终回答，也加入
-    if (resultMessage?.result) {
-      texts.push(resultMessage.result);
-    }
-    return texts.join('\n\n');
-  }, [mergedContent, resultMessage]);
+    return texts.join("\n\n");
+  }, [visibleAssistantTextContent]);
 
   // 元数据
   const firstAssistant = assistantMessages[0];
@@ -197,12 +215,99 @@ export function MessageItem(
     return false;
   }, [mergedContent, pending_permission]);
 
-  // 滚动
-  useEffect(() => {
-    if (is_last_round && roundRef.current) {
-      roundRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  const hiddenToolUseIds = useMemo(() => {
+    const nextIds = new Set<string>();
+    for (const block of mergedContent) {
+      if (block.type === "tool_use" && hidden_tool_names.includes(block.name)) {
+        nextIds.add(block.id);
+      }
     }
-  }, [is_last_round]);
+    return nextIds;
+  }, [mergedContent, hidden_tool_names]);
+
+  const visibleProcessContent = useMemo(() => {
+    return mergedContent.filter((block) => {
+      if (block.type === "thinking") {
+        return Boolean(block.thinking?.trim());
+      }
+      if (block.type === "tool_use") {
+        return !hidden_tool_names.includes(block.name);
+      }
+      if (block.type === "tool_result") {
+        return !hiddenToolUseIds.has(block.tool_use_id);
+      }
+      return false;
+    });
+  }, [hiddenToolUseIds, hidden_tool_names, mergedContent]);
+
+  const processStreamingIndexes = useMemo(() => {
+    const nextIndexes = new Set<number>();
+    let processIndex = 0;
+
+    mergedContent.forEach((block, index) => {
+      const isVisibleThinking = block.type === "thinking" && Boolean(block.thinking?.trim());
+      const isVisibleToolUse = block.type === "tool_use" && !hidden_tool_names.includes(block.name);
+      const isVisibleToolResult = block.type === "tool_result" && !hiddenToolUseIds.has(block.tool_use_id);
+
+      if (isVisibleThinking || isVisibleToolUse || isVisibleToolResult) {
+        if (streamingBlockIndexes.has(index)) {
+          nextIndexes.add(processIndex);
+        }
+        processIndex += 1;
+      }
+    });
+
+    return nextIndexes;
+  }, [hiddenToolUseIds, hidden_tool_names, mergedContent, streamingBlockIndexes]);
+
+  const processSummary = useMemo(() => {
+    let toolCount = 0;
+    let thinkingCount = 0;
+    let errorCount = 0;
+
+    for (const block of visibleProcessContent) {
+      if (block.type === "thinking") {
+        thinkingCount += 1;
+        continue;
+      }
+      if (block.type === "tool_use") {
+        toolCount += 1;
+        continue;
+      }
+      if (block.type === "tool_result" && block.is_error) {
+        errorCount += 1;
+      }
+    }
+
+    if (pending_permission) {
+      return "等待你的确认后继续";
+    }
+    if (is_last_round && is_loading) {
+      return toolCount > 0 ? `正在处理 ${toolCount} 个动作` : "正在整理过程";
+    }
+
+    const summaryParts: string[] = [];
+    if (thinkingCount > 0) {
+      summaryParts.push(`${thinkingCount} 段思路`);
+    }
+    if (toolCount > 0) {
+      summaryParts.push(`${toolCount} 次动作`);
+    }
+    if (errorCount > 0) {
+      summaryParts.push(`${errorCount} 个异常`);
+    }
+
+    return summaryParts.length > 0 ? summaryParts.join(" · ") : "查看过程";
+  }, [is_last_round, is_loading, pending_permission, visibleProcessContent]);
+
+  const hasVisibleProcess = visibleProcessContent.length > 0 || (pending_permission && !hasInlinePendingTool);
+  const shouldRenderAssistantText = visibleAssistantTextContent.length > 0;
+
+  useEffect(() => {
+    if (pending_permission || (is_last_round && is_loading)) {
+      setIsProcessExpanded(true);
+    }
+  }, [is_last_round, is_loading, pending_permission]);
 
   // 操作
   const handleCopyUser = useCallback(async () => {
@@ -258,27 +363,32 @@ export function MessageItem(
   };
 
   return (
-    <div ref={roundRef}
+    <div
       className={cn(
         "w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300",
-        compact ? "space-y-2.5" : "space-y-3",
+        "space-y-2 py-3",
+        !compact && "border-b border-slate-200/75",
         class_name,
       )}>
 
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
       {userMessage && (
-        <div className={cn("w-full", compact ? "px-0.5" : "px-1 sm:px-4")}>
-          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[920px]")}>
-            <div className="group flex min-w-0 items-end justify-end gap-3">
-              <div className={cn(
-                "relative min-w-0 overflow-hidden rounded-[22px] border border-white/45 bg-white/60 transition-all duration-300",
-                compact ? "max-w-[88%] px-3.5" : "max-w-[72%] px-4 sm:px-5",
-              )}>
+        <div className={cn("w-full", compact ? "px-0.5" : "px-2 sm:px-3")}>
+          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
+            <div className="group grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
+                <User className="h-4 w-4" />
+              </div>
+              <div className="relative min-w-0 transition-all duration-300">
                 {/* 头部 */}
                 <div className={cn(
-                  "flex items-center justify-end gap-2 border-b border-white/18",
-                  compact ? "h-8" : "h-10",
+                  "flex items-center gap-2",
+                  compact ? "h-[26px]" : "h-7",
                 )}>
+                  <span className="shrink-0 text-sm font-bold text-slate-900">你</span>
+                  <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">
+                    {userMessage.timestamp ? formatTime(userMessage.timestamp) : "--:--"}
+                  </span>
                   <div className="flex-1" />
 
                   {/* 操作按钮 */}
@@ -309,21 +419,13 @@ export function MessageItem(
                     )}
                   </div>
 
-                  {/* 时间 */}
-                  <span className="text-[10px] font-mono text-slate-700/42 sm:inline">
-                    {userMessage.timestamp ? formatTime(userMessage.timestamp) : '--:--'} ｜
-                  </span>
-
-                  {/* 头像在右边 */}
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700/62">你</span>
-                  <User className="w-3 h-3 text-sky-700/62" />
                 </div>
 
                 {/* 内容 */}
-                <div className={cn(compact ? "py-3" : "py-4")}>
+                <div className="pb-1 pt-1">
                   <p className={cn(
-                    "text-right whitespace-pre-wrap text-slate-900/86 [overflow-wrap:anywhere]",
-                    compact ? "text-[13px] leading-6" : "text-sm leading-relaxed",
+                    "whitespace-pre-wrap text-slate-900 [overflow-wrap:anywhere]",
+                    compact ? "text-[13px] leading-6" : "text-[15px] leading-7",
                   )}>
                     {userContent}
                   </p>
@@ -337,15 +439,14 @@ export function MessageItem(
       {/* ═══════════════════════ 助手消息 ═══════════════════════ */}
       {/* 没有可见 assistant 内容时，仍渲染容器以提供删除/重试操作 */}
       {(!shouldHideAssistantContent || canOperateRound) && (
-        <div className={cn("w-full", compact ? "px-0.5" : "px-1 sm:px-4")}>
-          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[920px]")}>
-            <div className={cn("group flex min-w-0 items-start", compact ? "gap-2" : "gap-3")}>
+        <div className={cn("w-full", compact ? "px-0.5" : "px-2 sm:px-3")}>
+          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
+            <div className={cn("group grid min-w-0 grid-cols-[40px_minmax(0,1fr)]", compact ? "gap-2" : "gap-3")}>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
+                <Bot className="h-4 w-4" />
+              </div>
 
-              <div className={cn(
-                "relative min-w-0 flex-1 overflow-hidden rounded-[20px] border border-white/38 bg-white/52 transition-all duration-500",
-                showCursor && "shadow-[0_18px_32px_rgba(133,119,255,0.12)]",
-                isCompleted && "shadow-[0_18px_32px_rgba(102,217,143,0.10)]"
-              )}>
+              <div className="relative min-w-0 transition-all duration-500">
                 {/* 扫描线效果 */}
                 {showCursor && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -355,72 +456,102 @@ export function MessageItem(
 
                 {/* 优雅的头部栏 */}
                 <div className={cn(
-                  "flex min-w-0 items-center gap-2 border-b border-white/28",
-                  compact ? "h-8 px-3" : "h-10 px-3 sm:px-4",
+                  "flex min-w-0 items-center gap-2",
+                  compact ? "h-7 pb-0.5" : "h-7 pb-0.5",
                 )}>
-                  <div className="workspace-chip flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-                    <Sparkles className="w-3 h-3 text-slate-800/70" />
-                  </div>
-                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-900/72">
+                  <span className="shrink-0 text-sm font-bold text-slate-900">
                     {current_agent_name || "协作成员"}
                   </span>
 
                   {/* 时间 */}
-                  <span className="hidden shrink-0 text-[10px] font-mono text-slate-700/40 sm:inline">
-                    | {timestamp ? formatTime(timestamp) : '--:--'} |
+                  <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">
+                    {timestamp ? formatTime(timestamp) : "--:--"}
                   </span>
 
                   {/* 模型 */}
-                  {model ? <span className="min-w-0 truncate text-[10px] text-slate-700/34">{model}</span> : null}
+                  {model ? <span className="min-w-0 truncate text-xs text-slate-400">{model}</span> : null}
 
                 </div>
 
                 {/* 内容区 */}
                 <div className={cn(
-                  compact ? "min-w-0 p-3.5 text-[13px] leading-6" : "min-w-0 p-4 text-sm leading-7 sm:p-5",
+                  compact ? "min-w-0 pb-2 pt-1 text-[13px] leading-6" : "min-w-0 pb-2 pt-1 text-[15px] leading-7",
                   showCursor && "min-h-[60px]"
                 )}>
 
-                  <ContentRenderer
-                    content={mergedContent}
-                    is_streaming={showCursor}
-                    streaming_block_indexes={streamingBlockIndexes}
-                    pending_permission={pending_permission}
-                    on_permission_response={on_permission_response}
-                    on_open_workspace_file={on_open_workspace_file}
-                    hidden_tool_names={hidden_tool_names}
-                  />
+                  {hasVisibleProcess ? (
+                    <div>
+                      <button
+                        className="flex w-full items-center gap-2 px-0 py-1.5 text-left transition-colors hover:text-slate-700"
+                        onClick={() => setIsProcessExpanded((previous) => !previous)}
+                        type="button"
+                      >
+                        <Wrench className="h-3 w-3 shrink-0 text-slate-300" />
+                        <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-slate-500">
+                          {processSummary}
+                        </div>
+                        <div className="text-slate-300">
+                          {isProcessExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </div>
+                      </button>
 
-                  {pending_permission && !hasInlinePendingTool && (
-                    <div className="mt-4">
-                      <ToolBlock
-                        tool_use={{
-                          type: 'tool_use',
-                          id: `pending_${pending_permission.request_id}`,
-                          name: pending_permission.tool_name,
-                          input: pending_permission.tool_input,
-                        }}
-                        status="waiting_permission"
-                        permission_request={{
-                          request_id: pending_permission.request_id,
-                          tool_input: pending_permission.tool_input,
-                          risk_level: pending_permission.risk_level,
-                          risk_label: pending_permission.risk_label,
-                          summary: pending_permission.summary,
-                          suggestions: pending_permission.suggestions,
-                          expires_at: pending_permission.expires_at,
-                          on_allow: (updated_permissions) => on_permission_response?.({
-                            decision: 'allow',
-                            updated_permissions,
-                          }),
-                          on_deny: (updated_permissions) => on_permission_response?.({
-                            decision: 'deny',
-                            updated_permissions,
-                          }),
-                        }}
+                      {isProcessExpanded ? (
+                        <div className="pt-1">
+                          <ContentRenderer
+                            content={visibleProcessContent}
+                            is_streaming={showCursor}
+                            streaming_block_indexes={processStreamingIndexes}
+                            pending_permission={pending_permission}
+                            on_permission_response={on_permission_response}
+                            on_open_workspace_file={on_open_workspace_file}
+                            hidden_tool_names={hidden_tool_names}
+                          />
+
+                          {pending_permission && !hasInlinePendingTool ? (
+                            <div className="mt-3 rounded-xl bg-slate-50/70 p-3">
+                              <ToolBlock
+                                tool_use={{
+                                  type: "tool_use",
+                                  id: `pending_${pending_permission.request_id}`,
+                                  name: pending_permission.tool_name,
+                                  input: pending_permission.tool_input,
+                                }}
+                                status="waiting_permission"
+                                permission_request={{
+                                  request_id: pending_permission.request_id,
+                                  tool_input: pending_permission.tool_input,
+                                  risk_level: pending_permission.risk_level,
+                                  risk_label: pending_permission.risk_label,
+                                  summary: pending_permission.summary,
+                                  suggestions: pending_permission.suggestions,
+                                  expires_at: pending_permission.expires_at,
+                                  on_allow: (updated_permissions) => on_permission_response?.({
+                                    decision: "allow",
+                                    updated_permissions,
+                                  }),
+                                  on_deny: (updated_permissions) => on_permission_response?.({
+                                    decision: "deny",
+                                    updated_permissions,
+                                  }),
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {shouldRenderAssistantText ? (
+                    <div className={cn(hasVisibleProcess)}>
+                      <ContentRenderer
+                        content={visibleAssistantTextContent}
+                        is_streaming={showCursor}
+                        streaming_block_indexes={assistantTextStreamingIndexes}
+                        on_open_workspace_file={on_open_workspace_file}
                       />
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* 底部统计栏（完成后显示） */}

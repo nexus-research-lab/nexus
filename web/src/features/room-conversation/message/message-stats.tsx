@@ -32,7 +32,7 @@ export function MessageStats(
   }: MessageStatsProps) {
   return (
     <div
-      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-t workspace-divider px-3 py-2 text-[10px] font-mono text-slate-700/50 sm:h-8 sm:flex-nowrap sm:gap-3 sm:px-4 sm:py-0">
+      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-2 text-[11px] text-slate-400 sm:flex-nowrap sm:gap-3">
       <span className="shrink-0 tabular-nums">耗时 {stats?.duration}</span>
       {stats?.tokens && (
         <>
@@ -66,7 +66,7 @@ export function MessageStats(
           <button
             onClick={on_copy_assistant}
             className={cn(
-              "workspace-chip radius-shell-sm p-1 transition-colors",
+              "rounded p-1 text-slate-500 transition-colors hover:bg-slate-100",
               copied_assistant ? "text-green-500" : "text-slate-700/50 hover:text-slate-950"
             )}
             title="复制回答"
@@ -78,7 +78,7 @@ export function MessageStats(
             <button
               onClick={on_regenerate}
               disabled={is_regenerating}
-              className="workspace-chip radius-shell-sm p-1 text-slate-700/50 transition-colors hover:text-slate-950 disabled:opacity-50"
+              className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 disabled:opacity-50"
               title="重新生成"
             >
               <RefreshCw className={cn("w-3 h-3", is_regenerating && "animate-spin")}/>
@@ -89,7 +89,7 @@ export function MessageStats(
             <button
               onClick={on_delete}
               disabled={is_deleting}
-              className="workspace-chip radius-shell-sm p-1 text-slate-700/50 transition-colors hover:text-red-500 disabled:opacity-50"
+              className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-500 disabled:opacity-50"
               title="删除"
             >
               <Trash2 className="w-3 h-3"/>

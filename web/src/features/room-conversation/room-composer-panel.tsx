@@ -47,7 +47,7 @@ const RoomComposerPanelView = memo(({
   useEffect(() => {
     if (textarea_ref.current) {
       textarea_ref.current.style.height = "auto";
-      textarea_ref.current.style.height = `${Math.min(textarea_ref.current.scrollHeight, 160)}px`;
+      textarea_ref.current.style.height = `${Math.min(textarea_ref.current.scrollHeight, 128)}px`;
     }
   }, [input]);
 
@@ -167,11 +167,11 @@ const RoomComposerPanelView = memo(({
   return (
     <div
       className={cn(
-        "w-full border-t workspace-divider bg-transparent",
-        compact ? "px-2 pb-2 pt-2" : "px-2 pb-2 pt-2 sm:px-6 xl:px-8",
+        "w-full border-t border-slate-200/80 bg-[#f8fafc]",
+        compact ? "px-2 pb-2 pt-2" : "px-3 pb-3 pt-3 sm:px-5 xl:px-6",
       )}
     >
-      <div className="relative mx-auto w-full max-w-[980px] py-2">
+      <div className="relative mx-auto w-full max-w-[1020px]">
         {attachments.length > 0 ? (
           <div className="workspace-card radius-shell-md mb-3 flex flex-wrap gap-2 p-3">
             {attachments.map((attachment) => (
@@ -212,25 +212,24 @@ const RoomComposerPanelView = memo(({
 
         <div
           className={cn(
-            "workspace-input-shell radius-shell-lg relative overflow-hidden transition-all duration-300",
-            is_focused ? "shadow-[0_30px_58px_rgba(111,126,162,0.18)]" : "",
+            "relative overflow-hidden rounded-[18px] border border-slate-300 bg-white transition-all duration-300",
+            is_focused ? "shadow-[0_8px_18px_rgba(15,23,42,0.08)]" : "shadow-sm",
             disabled && "cursor-not-allowed opacity-50",
-            compact && "radius-shell-md shadow-none",
+            compact && "shadow-none",
           )}
         >
-          <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-14" />
-          <div className={cn("border-b workspace-divider px-4", compact ? "py-2" : "py-2.5")}>
-            <div className="flex items-center justify-between gap-3 text-[11px] text-slate-700/50">
+          <div className={cn("border-b border-slate-200 px-4", compact ? "py-1.5" : "py-2")}>
+            <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
               <span className="font-semibold uppercase tracking-[0.14em]">Message</span>
               {!compact ? (
-                <span className="truncate">
+                <span className="truncate text-slate-400">
                   {current_agent_name ? `@${current_agent_name} 正在这个协作中` : "继续推进当前协作"}
                 </span>
               ) : null}
             </div>
           </div>
 
-          <div className={cn("flex items-end gap-2", compact ? "p-2.5" : "p-3")}>
+          <div className={cn("flex items-end gap-2", compact ? "p-2.5" : "px-3 py-2.5")}>
             <div className="flex items-center gap-1 pb-1">
               <input
                 ref={file_input_ref}
@@ -244,11 +243,10 @@ const RoomComposerPanelView = memo(({
               <button
                 aria-label="添加附件"
                 className={cn(
-                  "workspace-chip rounded-2xl p-2 transition-all duration-200",
-                  "text-slate-700/62 hover:-translate-y-0.5 hover:text-slate-950",
+                  "rounded-md p-2 transition-all duration-200",
+                  "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
                   "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground",
                   "focus-visible:ring-2 focus-visible:ring-primary/40",
-                  "hover:shadow-[0_12px_22px_rgba(111,126,162,0.14)]",
                 )}
                 disabled={disabled || is_loading}
                 onClick={() => file_input_ref.current?.click()}
@@ -262,8 +260,8 @@ const RoomComposerPanelView = memo(({
               <textarea
                 ref={textarea_ref}
                 className={cn(
-                  "multiline-cursor min-h-[24px] max-h-[160px] w-full resize-none bg-transparent text-sm leading-relaxed text-slate-900/82 outline-none",
-                  "placeholder:text-slate-700/42",
+                  "multiline-cursor min-h-[24px] max-h-[128px] w-full resize-none bg-transparent text-[15px] leading-6 text-slate-900 outline-none",
+                  "placeholder:text-slate-400",
                   "disabled:cursor-not-allowed disabled:opacity-50",
                   "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
                 )}
@@ -299,7 +297,7 @@ const RoomComposerPanelView = memo(({
                   >
                     {char_count}
                   </span>
-                  <span className="text-slate-700/28">/{max_length}</span>
+                  <span className="text-slate-300">/{max_length}</span>
                 </div>
               ) : null}
 
@@ -310,7 +308,7 @@ const RoomComposerPanelView = memo(({
                     "relative overflow-hidden rounded-2xl p-2",
                     "bg-[linear-gradient(135deg,rgba(255,224,224,0.98),rgba(247,173,173,0.92))] text-destructive",
                     "transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/40",
-                    "group hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(239,68,68,0.22)]",
+                    "group hover:-translate-y-0.5 hover:shadow-[0_12px_20px_rgba(239,68,68,0.18)]",
                   )}
                   onClick={on_stop}
                 >
@@ -324,7 +322,7 @@ const RoomComposerPanelView = memo(({
                     "relative overflow-hidden rounded-2xl p-2",
                     "bg-[linear-gradient(135deg,rgba(166,255,194,0.94),rgba(102,217,143,0.90))] text-[#18653a]",
                     "transition-all duration-200",
-                    "hover:-translate-y-0.5 hover:shadow-[0_18px_28px_rgba(102,217,143,0.22)]",
+                    "hover:-translate-y-0.5 hover:shadow-[0_14px_22px_rgba(102,217,143,0.18)]",
                     "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-primary/20 disabled:hover:shadow-none",
                     "focus-visible:ring-2 focus-visible:ring-primary/40",
                     "group",
@@ -339,8 +337,8 @@ const RoomComposerPanelView = memo(({
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t workspace-divider px-4 py-2.5">
-            <div className="flex items-center gap-3 text-[10px] text-slate-700/48">
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2">
+            <div className="flex items-center gap-3 text-[10px] text-slate-400">
               {is_loading ? (
                 <span className="flex items-center gap-2 text-emerald-700/72">
                   <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />

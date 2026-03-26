@@ -67,7 +67,7 @@ export function RoomContextPanel({
                   Members
                 </div>
                 <button
-                  className="workspace-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
+                  className="home-glass-pill inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
                   onClick={() => set_is_member_picker_open(true)}
                   type="button"
                 >
@@ -83,12 +83,12 @@ export function RoomContextPanel({
                     <button
                       key={member.agent_id}
                       className={`group flex w-full items-center gap-3 rounded-[16px] px-3 py-2 text-left transition-all duration-300 ${
-                        is_active ? "bg-white/20" : "hover:bg-white/12"
+                        is_active ? "bg-white/14" : "hover:bg-white/10"
                       }`}
                       onClick={() => on_select_agent(member.agent_id)}
                       type="button"
                     >
-                      <div className="workspace-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
+                      <div className="home-glass-pill flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
                         {member.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -102,7 +102,7 @@ export function RoomContextPanel({
                       <span className={`h-2 w-2 shrink-0 rounded-full ${is_active ? "bg-emerald-400" : "bg-slate-300"}`} />
                       <button
                         aria-label={`移除 ${member.name}`}
-                        className="workspace-chip rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive"
+                        className="rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-destructive"
                         onClick={(event) => {
                           event.stopPropagation();
                           set_pending_remove_agent_id(member.agent_id);

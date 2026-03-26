@@ -62,6 +62,7 @@ export function RoomChatPanel({
 }: RoomChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
   const scroll_ref = useRef<HTMLDivElement>(null);
+  const feed_ref = useRef<HTMLDivElement>(null);
   const bottom_anchor_ref = useRef<HTMLDivElement>(null);
   const should_follow_latest_ref = useRef(true);
   const last_scroll_top_ref = useRef(0);
@@ -149,10 +150,18 @@ export function RoomChatPanel({
 
     pending_scroll_frame_ref.current = requestAnimationFrame(() => {
       pending_scroll_inner_frame_ref.current = requestAnimationFrame(() => {
-        bottom_anchor_ref.current?.scrollIntoView({
-          block: "end",
+        const container = scroll_ref.current;
+        if (!container) {
+          return;
+        }
+
+        // 直接滚动容器自身，避免 scrollIntoView 在嵌套滚动场景下停在半路。
+        container.scrollTo({
+          top: container.scrollHeight,
           behavior,
         });
+
+        last_scroll_top_ref.current = container.scrollTop;
       });
     });
   }, [cancel_pending_scroll]);
@@ -171,6 +180,28 @@ export function RoomChatPanel({
 
     schedule_scroll_to_bottom(is_loading ? "auto" : "smooth");
   }, [is_loading, messages, schedule_scroll_to_bottom, update_follow_state]);
+
+  useEffect(() => {
+    const feed = feed_ref.current;
+    if (!feed || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      if (!should_follow_latest_ref.current) {
+        update_follow_state();
+        return;
+      }
+
+      schedule_scroll_to_bottom("auto");
+    });
+
+    observer.observe(feed);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [schedule_scroll_to_bottom, update_follow_state]);
 
   useEffect(() => {
     update_follow_state();
@@ -246,7 +277,6 @@ export function RoomChatPanel({
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-      {!is_mobile_layout ? <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-15" /> : null}
 
       {error && error.includes("服务器") ? (
         <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2">
@@ -295,7 +325,7 @@ export function RoomChatPanel({
             className={
               is_mobile_layout
                 ? "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-1 py-2"
-                : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-white/10 px-2 py-2 sm:px-4 sm:py-4 xl:px-6 xl:py-5"
+                : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfcfd] px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
             }
             onScroll={handle_scroll}
             onTouchEnd={handle_touch_end}
@@ -305,6 +335,7 @@ export function RoomChatPanel({
           >
             <RoomConversationFeed
               bottom_anchor_ref={bottom_anchor_ref}
+              feed_ref={feed_ref}
               current_agent_name={current_agent_name ?? null}
               is_last_round_pending_permission={pending_permission}
               is_loading={is_loading}

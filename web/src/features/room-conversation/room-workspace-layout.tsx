@@ -103,9 +103,12 @@ export function RoomWorkspaceLayout({
   on_conversation_snapshot_change,
 }: RoomWorkspaceLayoutProps) {
   const show_detail_panel = !is_editor_open && active_surface_tab === "chat";
+  const main_panel_radius_class = show_detail_panel
+    ? "rounded-l-[32px] rounded-r-[24px]"
+    : "radius-shell-xl";
 
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1", HOME_WORKSPACE_MAIN_GAP_CLASS)}>
+    <div className={cn("flex min-h-0 min-w-0 flex-1 gap-2 lg:gap-2.5 xl:gap-3")}>
       <RoomObjectListPanel
         active_space={current_room_type === "dm" ? "dm" : "room"}
         agents={available_room_agents.concat(room_members.filter((member) => (
@@ -124,7 +127,7 @@ export function RoomWorkspaceLayout({
       <section
         ref={workspace_split_ref}
         className={cn(
-          "flex min-h-0 min-w-0 flex-1",
+          "flex min-h-0 min-w-0 flex-1 gap-3",
           is_resizing_editor && "cursor-col-resize select-none",
         )}
       >
@@ -138,7 +141,13 @@ export function RoomWorkspaceLayout({
           width_percent={editor_width_percent}
         />
 
-        <div className={cn(HOME_CHAT_PANEL_CLASS, "bg-[rgba(252,252,255,0.72)]", !is_editor_open && "min-[1280px]:border-r min-[1280px]:border-slate-300/50")}>
+        <div
+          className={cn(
+            HOME_CHAT_PANEL_CLASS,
+            "overflow-hidden border border-white/28 bg-[linear-gradient(180deg,rgba(252,253,255,0.94),rgba(245,247,251,0.92))] shadow-[inset_1px_1px_0_rgba(255,255,255,0.40),0_18px_34px_rgba(77,91,124,0.06)] backdrop-blur-[16px]",
+            main_panel_radius_class,
+          )}
+        >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <RoomConversationHeader
               active_tab={active_surface_tab}
@@ -198,7 +207,12 @@ export function RoomWorkspaceLayout({
       </section>
 
       {show_detail_panel ? (
-        <div className={cn(HOME_AGENT_INSPECTOR_WRAPPER_CLASS, "border-l border-slate-300/45 bg-[rgba(247,248,252,0.82)]")}>
+        <div
+          className={cn(
+            HOME_AGENT_INSPECTOR_WRAPPER_CLASS,
+            "overflow-hidden rounded-r-[32px] rounded-l-[24px] border-l home-glass-divider bg-[linear-gradient(180deg,rgba(248,251,255,0.16),rgba(223,233,250,0.10))] backdrop-blur-[22px]",
+          )}
+        >
           <RoomContextPanel
             active_conversation={current_conversation}
             agent={current_agent}

@@ -9,6 +9,7 @@ interface AppStageProps {
   active_rail_item?: AppGlobalRailKey;
   dm_href?: string;
   room_href?: string;
+  show_global_rail?: boolean;
 }
 
 export function AppStage({
@@ -16,6 +17,7 @@ export function AppStage({
   active_rail_item = "home",
   dm_href,
   room_href,
+  show_global_rail = true,
 }: AppStageProps) {
   return (
     <main className="relative flex h-screen w-full overflow-hidden bg-background text-foreground bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.36),transparent_38%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.24),transparent_32%)]">
@@ -24,11 +26,13 @@ export function AppStage({
       <div className="pointer-events-none absolute right-[8%] top-[18%] h-72 w-72 rounded-full glow-peach opacity-35" />
       <div className="pointer-events-none absolute right-[12%] bottom-[8%] h-80 w-80 rounded-full glow-green opacity-40" />
 
-      <AppGlobalRail
-        active_item={active_rail_item}
-        dm_href={dm_href}
-        room_href={room_href}
-      />
+      {show_global_rail ? (
+        <AppGlobalRail
+          active_item={active_rail_item}
+          dm_href={dm_href}
+          room_href={room_href}
+        />
+      ) : null}
 
       <div className={`relative flex min-h-0 flex-1 flex-col ${HOME_PAGE_PADDING_CLASS}`}>{children}</div>
     </main>

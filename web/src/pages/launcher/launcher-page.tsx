@@ -276,7 +276,10 @@ export function LauncherPage() {
   }
 
   return (
-    <AppStage active_rail_item={controller.is_app_conversation_open ? "nexus" : "home"}>
+    <AppStage
+      active_rail_item={controller.is_app_conversation_open ? "nexus" : "home"}
+      show_global_rail={false}
+    >
       <div className="relative flex min-h-0 flex-1 gap-1 overflow-hidden">
         <div
           className={cn(
