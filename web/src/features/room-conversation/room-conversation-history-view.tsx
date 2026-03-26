@@ -26,19 +26,19 @@ export function RoomConversationHistoryView({
 }: RoomConversationHistoryViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
-      <div className="border-b workspace-divider px-5 py-3 xl:px-6">
-        <div className="mx-auto flex w-full max-w-[920px] items-center justify-between gap-3">
+      <div className="border-b workspace-divider px-5 py-2.5 xl:px-6">
+        <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
               History
             </p>
-            <h2 className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950/88">
+            <h2 className="mt-1 text-[16px] font-black tracking-[-0.04em] text-slate-950/88">
               {current_room_type === "dm" ? "历史对话" : "对话历史"}
             </h2>
           </div>
           {can_manage_conversations ? (
             <button
-              className="workspace-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-slate-900/78"
+              className="workspace-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
               onClick={() => {
                 void on_create_conversation();
               }}
@@ -52,26 +52,26 @@ export function RoomConversationHistoryView({
       </div>
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 xl:px-6">
-        <div className="mx-auto w-full max-w-[920px] space-y-2">
+        <div className="mx-auto w-full max-w-[760px] space-y-2">
           {conversations.map((conversation) => {
             const is_active = conversation.session_key === current_conversation_id;
             const can_delete = conversation.conversation_type === "topic";
             return (
               <button
                 key={conversation.session_key}
-                className={`group flex w-full items-center justify-between gap-4 rounded-[16px] border px-4 py-3 text-left transition-all duration-300 ${
+                className={`group flex w-full items-center justify-between gap-4 rounded-[14px] border px-4 py-2.5 text-left transition-all duration-300 ${
                   is_active
-                    ? "border-white/30 bg-white/20 shadow-[0_10px_18px_rgba(111,126,162,0.08)]"
-                    : "border-white/16 bg-white/8 hover:bg-white/12"
+                    ? "border-white/32 bg-white/22 shadow-[0_10px_18px_rgba(111,126,162,0.08)]"
+                    : "border-white/14 bg-white/8 hover:bg-white/12"
                 }`}
                 onClick={() => on_select_conversation(conversation.session_key)}
                 type="button"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-950/86">
+                  <p className="truncate text-[13px] font-semibold text-slate-950/86">
                     {conversation.title?.trim() || "未命名对话"}
                   </p>
-                  <div className="mt-1.5 flex items-center gap-2 text-[12px] text-slate-700/52">
+                  <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-700/52">
                     <Clock3 className="h-3.5 w-3.5" />
                     <span>{formatRelativeTime(conversation.last_activity_at)}</span>
                     <span>·</span>

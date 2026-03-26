@@ -138,7 +138,7 @@ export function RoomWorkspaceLayout({
           width_percent={editor_width_percent}
         />
 
-        <div className={cn(HOME_CHAT_PANEL_CLASS, !is_editor_open && "min-[1280px]:border-r min-[1280px]:workspace-divider")}>
+        <div className={cn(HOME_CHAT_PANEL_CLASS, "bg-[rgba(252,252,255,0.72)]", !is_editor_open && "min-[1280px]:border-r min-[1280px]:border-slate-300/50")}>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <RoomConversationHeader
               active_tab={active_surface_tab}
@@ -198,7 +198,7 @@ export function RoomWorkspaceLayout({
       </section>
 
       {show_detail_panel ? (
-        <div className={HOME_AGENT_INSPECTOR_WRAPPER_CLASS}>
+        <div className={cn(HOME_AGENT_INSPECTOR_WRAPPER_CLASS, "border-l border-slate-300/45 bg-[rgba(247,248,252,0.82)]")}>
           <RoomContextPanel
             active_conversation={current_conversation}
             agent={current_agent}
