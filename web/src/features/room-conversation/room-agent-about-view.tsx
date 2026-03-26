@@ -11,17 +11,19 @@ interface RoomAgentAboutViewProps {
 export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
-      <div className="border-b workspace-divider px-6 py-4 xl:px-8">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
-          About
-        </p>
-        <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-slate-950/88">
-          {agent.name}
-        </h2>
+      <div className="border-b workspace-divider px-5 py-3 xl:px-6">
+        <div className="mx-auto w-full max-w-[920px]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
+            About
+          </p>
+          <h2 className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950/88">
+            {agent.name}
+          </h2>
+        </div>
       </div>
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 xl:px-8">
-        <div className="rounded-[26px] border border-white/22 bg-white/10 px-5 py-5">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 xl:px-6">
+        <div className="mx-auto w-full max-w-[920px] rounded-[20px] border border-white/22 bg-white/10 px-5 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/28 bg-white/18 text-slate-900/78">
               <Bot className="h-5 w-5" />

@@ -13,7 +13,7 @@ export const HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS =
   "w-[220px] shrink-0 lg:w-[240px] xl:w-[clamp(248px,18vw,300px)] 2xl:w-[clamp(264px,18vw,340px)]";
 
 export const HOME_WORKSPACE_OBJECT_LIST_WIDTH_CLASS =
-  "w-[220px] shrink-0 lg:w-[236px] xl:w-[clamp(244px,17vw,296px)] 2xl:w-[clamp(252px,17vw,320px)]";
+  "w-[208px] shrink-0 lg:w-[220px] xl:w-[clamp(224px,16vw,272px)] 2xl:w-[clamp(232px,16vw,296px)]";
 
 export const HOME_AGENT_INSPECTOR_WIDTH_CLASS =
   "w-[208px] shrink-0 xl:w-[clamp(224px,16vw,296px)] 2xl:w-[clamp(248px,17vw,336px)]";

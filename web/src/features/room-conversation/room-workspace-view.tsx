@@ -24,16 +24,19 @@ export function RoomWorkspaceView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
-      <div className="border-b workspace-divider px-6 py-4 xl:px-8">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
-          Workspace
-        </p>
-        <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-slate-950/88">
-          共享资源
-        </h2>
+      <div className="border-b workspace-divider px-5 py-3 xl:px-6">
+        <div className="mx-auto w-full max-w-[920px]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
+            Workspace
+          </p>
+          <h2 className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950/88">
+            共享资源
+          </h2>
+        </div>
       </div>
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 xl:px-8">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 xl:px-6">
+        <div className="mx-auto w-full max-w-[920px]">
         {visible_files.length ? (
           <div className="grid gap-2 xl:grid-cols-2">
             {visible_files.map((file) => {
@@ -41,9 +44,9 @@ export function RoomWorkspaceView({
               return (
                 <button
                   key={file.path}
-                  className={`flex items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition-all duration-300 ${
+                  className={`flex items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition-all duration-300 ${
                     is_active
-                      ? "border-white/30 bg-white/20 shadow-[0_14px_24px_rgba(111,126,162,0.10)]"
+                      ? "border-white/30 bg-white/20 shadow-[0_10px_18px_rgba(111,126,162,0.08)]"
                       : "border-white/16 bg-white/8 hover:bg-white/12"
                   }`}
                   onClick={() => on_open_workspace_file(file.path)}
@@ -61,7 +64,7 @@ export function RoomWorkspaceView({
             })}
           </div>
         ) : (
-          <div className="rounded-[22px] border border-white/20 bg-white/10 px-5 py-5 text-sm leading-7 text-slate-700/60">
+          <div className="rounded-[18px] border border-white/20 bg-white/10 px-5 py-5 text-sm leading-7 text-slate-700/60">
             <div className="mb-3 flex items-center gap-2 text-slate-900/74">
               <FolderTree className="h-4 w-4" />
               当前还没有共享资源。
@@ -69,6 +72,7 @@ export function RoomWorkspaceView({
             在左侧 Context 中创建或打开文件后，这里会成为当前协作的资源视图。
           </div>
         )}
+        </div>
       </div>
     </div>
   );
