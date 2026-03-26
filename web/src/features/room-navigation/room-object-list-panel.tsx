@@ -105,13 +105,13 @@ export function RoomObjectListPanel({
         "hidden min-h-0 shrink-0 border-r border-white/18 bg-white/8 lg:flex lg:flex-col",
         HOME_WORKSPACE_OBJECT_LIST_WIDTH_CLASS,
       )}>
-        <div className="px-4 pb-4 pt-4">
+        <div className="px-3.5 pb-3 pt-3.5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700/44">
                 {active_space === "dm" ? "DMs" : "Rooms"}
               </p>
-              <p className="mt-1 text-[20px] font-black tracking-[-0.04em] text-slate-950/90">
+              <p className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950/90">
                 {active_space === "dm" ? "Direct Messages" : "Rooms"}
               </p>
               <p className="mt-1 text-[12px] text-slate-700/54">
@@ -154,7 +154,7 @@ export function RoomObjectListPanel({
           ) : null}
         </div>
 
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           <div className="space-y-1.5">
             {room_items.map((room) => {
               const is_active = room.room_id === current_room_id;
@@ -162,19 +162,19 @@ export function RoomObjectListPanel({
                 <button
                   key={room.room_id}
                   className={cn(
-                    "group flex w-full items-start gap-3 rounded-[18px] px-3 py-3 text-left transition-all duration-300",
+                    "group flex w-full items-start gap-3 rounded-[16px] px-3 py-2.5 text-left transition-all duration-300",
                     is_active
-                      ? "border border-white/28 bg-white/20 shadow-[0_14px_24px_rgba(111,126,162,0.08)]"
+                      ? "border border-white/28 bg-white/20 shadow-[0_10px_18px_rgba(111,126,162,0.08)]"
                       : "border border-transparent hover:bg-white/12",
                   )}
                   onClick={() => on_open_room(room.room_id)}
                   type="button"
                 >
-                  <div className="workspace-chip mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-900/76">
+                  <div className="workspace-chip mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
                     {active_space === "dm" ? (
-                      <MessageCircleMore className="h-4 w-4" />
+                      <MessageCircleMore className="h-3.5 w-3.5" />
                     ) : (
-                      <Waypoints className="h-4 w-4" />
+                      <Waypoints className="h-3.5 w-3.5" />
                     )}
                   </div>
 

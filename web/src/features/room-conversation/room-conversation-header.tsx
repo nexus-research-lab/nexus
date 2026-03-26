@@ -72,9 +72,9 @@ const RoomConversationHeaderView = memo(({
 
   return (
     <div className="z-10 overflow-hidden border-b workspace-divider bg-transparent">
-      <div className="flex min-w-0 items-center justify-between px-6 py-4 xl:px-8">
+      <div className="flex min-w-0 items-center justify-between px-5 py-3 xl:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="workspace-chip flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl">
+          <div className="workspace-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl">
             {current_room_type === "dm" ? (
               <Bot size={14} className="text-slate-800/72" />
             ) : (
@@ -82,7 +82,7 @@ const RoomConversationHeaderView = memo(({
             )}
           </div>
           <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="truncate text-[22px] font-black tracking-[-0.04em] text-slate-950/90">
+            <div className="truncate text-[20px] font-black tracking-[-0.04em] text-slate-950/90">
               {header_title}
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-2 text-[12px] text-slate-700/52">
@@ -96,28 +96,28 @@ const RoomConversationHeaderView = memo(({
 
         <div className="ml-3 flex shrink-0 items-center gap-2">
           <div className="hidden items-center -space-x-2 lg:flex">
-            <div className="workspace-chip flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold text-slate-900/82">
+            <div className="workspace-chip flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold text-slate-900/82">
               YOU
             </div>
-            <div className="workspace-chip flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold text-slate-900/82">
+            <div className="workspace-chip flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold text-slate-900/82">
               {getInitials(current_agent_name)}
             </div>
           </div>
-          <div className="workspace-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-700/60">
+          <div className="workspace-chip inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-700/60">
             <span className={is_loading ? "text-emerald-500" : "text-sky-600"}>●</span>
             {is_loading ? "协作中" : "在线"}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 px-6 pb-3 xl:px-8">
+      <div className="flex items-center gap-1 px-5 pb-2 xl:px-6">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const is_active = active_tab === tab.key;
           return (
             <button
               key={tab.key}
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all ${
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold transition-all ${
                 is_active
                   ? "bg-white/22 text-slate-950 shadow-[0_10px_20px_rgba(111,126,162,0.08)]"
                   : "text-slate-700/56 hover:bg-white/12 hover:text-slate-950"
