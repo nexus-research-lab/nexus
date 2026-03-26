@@ -11,6 +11,7 @@ interface RoomConversationHeaderProps {
   current_room_title: string | null;
   current_conversation_title: string | null;
   current_room_type: string;
+  conversation_count: number;
   is_loading: boolean;
   member_count: number;
   active_tab: RoomSurfaceTabKey;
@@ -38,6 +39,7 @@ const RoomConversationHeaderView = memo(({
   current_room_title,
   current_conversation_title,
   current_room_type,
+  conversation_count,
   is_loading,
   member_count,
   active_tab,
@@ -57,6 +59,17 @@ const RoomConversationHeaderView = memo(({
         { key: "workspace", label: "Workspace", icon: FolderTree },
       ];
 
+  const header_title = current_room_type === "dm"
+    ? current_agent_name?.trim() || current_room_title?.trim() || "未命名 DM"
+    : current_room_title?.trim() || "未命名协作";
+
+  const header_subtitle = current_room_type === "dm"
+    ? `${conversation_count} 条历史协作 · ${
+      current_conversation_title?.trim() ||
+      (current_conversation_id ? "当前会话已连接" : "等待开始对话")
+    }`
+    : `${member_count} 位成员 · ${conversation_count} 条对话`;
+
   return (
     <div className="z-10 overflow-hidden border-b workspace-divider bg-transparent">
       <div className="flex min-w-0 items-center justify-between px-6 py-4 xl:px-8">
@@ -70,17 +83,12 @@ const RoomConversationHeaderView = memo(({
           </div>
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="truncate text-[22px] font-black tracking-[-0.04em] text-slate-950/90">
-              {current_room_title?.trim() || "未命名协作"}
+              {header_title}
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-2 text-[12px] text-slate-700/52">
               <Users className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">
-                {current_room_type === "dm"
-                  ? "单成员持续协作"
-                  : `${member_count} 位成员 · ${
-                    current_conversation_title?.trim() ||
-                    (current_conversation_id ? "当前对话已连接" : "还没有对话")
-                  }`}
+                {header_subtitle}
               </span>
             </div>
           </div>

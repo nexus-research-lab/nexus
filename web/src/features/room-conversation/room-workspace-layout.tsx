@@ -142,6 +142,7 @@ export function RoomWorkspaceLayout({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <RoomConversationHeader
               active_tab={active_surface_tab}
+              conversation_count={current_room_conversations.length}
               current_agent_name={current_agent.name}
               current_conversation_id={current_conversation_id}
               current_conversation_title={current_conversation?.title ?? null}

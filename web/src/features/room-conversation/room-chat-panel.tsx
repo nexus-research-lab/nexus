@@ -278,6 +278,7 @@ export function RoomChatPanel({
           {!is_mobile_layout && !hide_header ? (
             <RoomConversationHeader
               active_tab="chat"
+              conversation_count={1}
               current_agent_name={current_agent_name ?? null}
               current_conversation_id={session_key}
               current_room_type="room"
