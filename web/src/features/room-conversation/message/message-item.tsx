@@ -379,7 +379,7 @@ export function MessageItem(
               <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
                 <User className="h-4 w-4" />
               </div>
-              <div className="relative min-w-0 transition-all duration-300">
+              <div className="relative min-w-0">
                 {/* 头部 */}
                 <div className={cn(
                   "flex items-center gap-2",
@@ -446,7 +446,7 @@ export function MessageItem(
                 <Bot className="h-4 w-4" />
               </div>
 
-              <div className="relative min-w-0 transition-all duration-500">
+              <div className="relative min-w-0">
                 {/* 扫描线效果 */}
                 {showCursor && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden">
