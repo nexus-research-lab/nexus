@@ -102,26 +102,31 @@ export function RoomObjectListPanel({
   return (
     <>
       <aside className={cn(
-        "hidden min-h-0 shrink-0 border-r border-white/18 bg-white/8 lg:flex lg:flex-col",
+        "hidden min-h-0 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,rgba(57,70,103,0.96),rgba(41,51,81,0.94))] text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.06)] lg:flex lg:flex-col",
         HOME_WORKSPACE_OBJECT_LIST_WIDTH_CLASS,
       )}>
-        <div className="px-3.5 pb-3 pt-3.5">
+        <div className="border-b border-white/8 px-3.5 pb-2.5 pt-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700/44">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">
                 {active_space === "dm" ? "DMs" : "Rooms"}
               </p>
-              <p className="mt-1 text-[18px] font-black tracking-[-0.04em] text-slate-950/90">
-                {active_space === "dm" ? "Direct Messages" : "Rooms"}
-              </p>
-              <p className="mt-1 text-[12px] text-slate-700/54">
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-[16px] font-black tracking-[-0.04em] text-white/96">
+                  {active_space === "dm" ? "Direct Messages" : "Rooms"}
+                </p>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/52">
+                  {room_items.length}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-white/44">
                 {room_items.length} 个{active_space === "dm" ? "DM" : "协作空间"}
               </p>
             </div>
 
             {active_space === "dm" ? (
               <button
-                className="workspace-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/88 transition hover:bg-white/14"
                 onClick={on_open_contacts}
                 type="button"
               >
@@ -130,7 +135,7 @@ export function RoomObjectListPanel({
               </button>
             ) : (
               <button
-                className="workspace-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/88 transition hover:bg-white/14"
                 onClick={() => set_is_rename_dialog_open(true)}
                 type="button"
               >
@@ -141,9 +146,9 @@ export function RoomObjectListPanel({
           </div>
 
           {active_space === "room" ? (
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2">
               <button
-                className="workspace-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/88 transition hover:bg-white/14"
                 onClick={() => set_is_delete_dialog_open(true)}
                 type="button"
               >
@@ -154,7 +159,7 @@ export function RoomObjectListPanel({
           ) : null}
         </div>
 
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
           <div className="space-y-1.5">
             {room_items.map((room) => {
               const is_active = room.room_id === current_room_id;
@@ -162,15 +167,15 @@ export function RoomObjectListPanel({
                 <button
                   key={room.room_id}
                   className={cn(
-                    "group flex w-full items-start gap-3 rounded-[16px] px-3 py-2.5 text-left transition-all duration-300",
+                    "group flex w-full items-start gap-3 rounded-[14px] px-3 py-2 text-left transition-all duration-300",
                     is_active
-                      ? "border border-white/28 bg-white/20 shadow-[0_10px_18px_rgba(111,126,162,0.08)]"
-                      : "border border-transparent hover:bg-white/12",
+                      ? "border border-white/18 bg-white/16 shadow-[0_10px_18px_rgba(8,12,24,0.22)]"
+                      : "border border-transparent hover:bg-white/10",
                   )}
                   onClick={() => on_open_room(room.room_id)}
                   type="button"
                 >
-                  <div className="workspace-chip mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/84">
                     {active_space === "dm" ? (
                       <MessageCircleMore className="h-3.5 w-3.5" />
                     ) : (
@@ -179,11 +184,11 @@ export function RoomObjectListPanel({
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-950/86">
+                    <p className="truncate text-[13px] font-semibold text-white/94">
                       {truncate(room.room_name, 22)}
                     </p>
-                    <p className="mt-1 text-[12px] text-slate-700/56">{room.room_subtitle}</p>
-                    <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-700/48">
+                    <p className="mt-0.5 text-[11px] text-white/56">{room.room_subtitle}</p>
+                    <div className="mt-1.5 flex items-center gap-2 text-[10px] text-white/42">
                       <Clock3 className="h-3.5 w-3.5" />
                       <span>
                         {room.last_activity_at > 0 ? formatRelativeTime(room.last_activity_at) : "刚刚创建"}
@@ -195,7 +200,7 @@ export function RoomObjectListPanel({
             })}
 
             {!room_items.length ? (
-              <div className="workspace-card rounded-[22px] px-4 py-4 text-sm leading-6 text-slate-700/60">
+              <div className="rounded-[16px] border border-white/10 bg-white/8 px-4 py-4 text-sm leading-6 text-white/62">
                 {active_space === "dm"
                   ? "还没有可打开的直接协作。"
                   : "还没有可切换的协作空间。"}

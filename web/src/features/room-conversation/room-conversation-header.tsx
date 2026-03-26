@@ -72,7 +72,7 @@ const RoomConversationHeaderView = memo(({
 
   return (
     <div className="z-10 overflow-hidden border-b workspace-divider bg-transparent">
-      <div className="flex min-w-0 items-center justify-between px-5 py-3 xl:px-6">
+      <div className="flex min-w-0 items-center justify-between px-5 py-2.5 xl:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="workspace-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl">
             {current_room_type === "dm" ? (
@@ -82,10 +82,15 @@ const RoomConversationHeaderView = memo(({
             )}
           </div>
           <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="truncate text-[20px] font-black tracking-[-0.04em] text-slate-950/90">
-              {header_title}
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="truncate text-[18px] font-black tracking-[-0.04em] text-slate-950/90">
+                {header_title}
+              </div>
+              <span className="hidden rounded-full bg-slate-900/6 px-2 py-0.5 text-[10px] font-semibold text-slate-700/54 md:inline-flex">
+                {current_room_type === "dm" ? "DM" : "ROOM"}
+              </span>
             </div>
-            <div className="mt-1 flex min-w-0 items-center gap-2 text-[12px] text-slate-700/52">
+            <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] text-slate-700/52">
               <Users className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">
                 {header_subtitle}
@@ -96,14 +101,14 @@ const RoomConversationHeaderView = memo(({
 
         <div className="ml-3 flex shrink-0 items-center gap-2">
           <div className="hidden items-center -space-x-2 lg:flex">
-            <div className="workspace-chip flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold text-slate-900/82">
+            <div className="workspace-chip flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold text-slate-900/82">
               YOU
             </div>
-            <div className="workspace-chip flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-bold text-slate-900/82">
+            <div className="workspace-chip flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold text-slate-900/82">
               {getInitials(current_agent_name)}
             </div>
           </div>
-          <div className="workspace-chip inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-700/60">
+          <div className="workspace-chip inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold text-slate-700/60">
             <span className={is_loading ? "text-emerald-500" : "text-sky-600"}>●</span>
             {is_loading ? "协作中" : "在线"}
           </div>
@@ -117,7 +122,7 @@ const RoomConversationHeaderView = memo(({
           return (
             <button
               key={tab.key}
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-semibold transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
                 is_active
                   ? "bg-white/22 text-slate-950 shadow-[0_10px_20px_rgba(111,126,162,0.08)]"
                   : "text-slate-700/56 hover:bg-white/12 hover:text-slate-950"
