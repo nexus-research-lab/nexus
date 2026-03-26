@@ -40,6 +40,13 @@ from agent.schema.model_protocol import (
     ProtocolRunRecord,
     RunStateSnapshotRecord,
 )
+from agent.schema.model_room_runtime import (
+    RoomArtifactRecord,
+    RoomEventRecord,
+    RoomMemberSpec,
+    RoomRuntimeView,
+    RoomTaskRecord,
+)
 
 __all__ = [
     "AAgent",
@@ -67,4 +74,9 @@ __all__ = [
     "RunStateSnapshotRecord",
     "ProtocolRunListItem",
     "ProtocolRunDetail",
+    "RoomMemberSpec",
+    "RoomEventRecord",
+    "RoomArtifactRecord",
+    "RoomTaskRecord",
+    "RoomRuntimeView",
 ]

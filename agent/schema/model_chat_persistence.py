@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class PersistenceModel(BaseModel):
@@ -31,6 +31,11 @@ class MemberRecord(PersistenceModel):
     member_type: str = Field(..., description="成员类型")
     member_user_id: Optional[str] = Field(default=None, description="用户成员")
     member_agent_id: Optional[str] = Field(default=None, description="Agent 成员")
+    member_source: str = Field(default="existing", description="成员来源")
+    member_role: Optional[str] = Field(default=None, description="成员角色")
+    member_status: str = Field(default="listening", description="成员状态")
+    member_visibility_scope: list[str] = Field(default_factory=list, description="成员可见范围")
+    workspace_binding: bool = Field(default=False, description="是否绑定 workspace")
     joined_at: Optional[datetime] = Field(default=None, description="加入时间")
 
 
@@ -41,6 +46,18 @@ class RoomRecord(PersistenceModel):
     room_type: str = Field(..., description="房间类型")
     name: Optional[str] = Field(default=None, description="房间名称")
     description: str = Field(default="", description="房间描述")
+    mode: str = Field(default="open", description="房间模式")
+    runtime_status: str = Field(default="created", description="运行时状态")
+    active_run_id: Optional[str] = Field(default=None, description="当前运行实例 ID")
+    orchestrator_agent_id: str = Field(default="", description="主持 agent ID")
+    ruleset_slug: Optional[str] = Field(default=None, description="规则集标识")
+    goal: str = Field(default="", description="房间目标")
+    runtime_state: dict = Field(default_factory=dict, description="运行时状态")
+    capabilities: dict = Field(
+        default_factory=dict,
+        description="能力开关",
+        validation_alias=AliasChoices("capabilities", "capabilities_json"),
+    )
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 

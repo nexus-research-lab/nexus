@@ -651,6 +651,15 @@ export function LauncherConsole({
           >
             Recent Rooms
           </HeaderActionButton>
+          <HeaderActionButton
+            on_click={() => {
+              setShowContacts(false);
+              setShowRooms(false);
+              on_create_room();
+            }}
+          >
+            New Meeting Room
+          </HeaderActionButton>
           <button
             aria-label="创建 Agent"
             className="transition-transform duration-300 hover:-translate-y-0.5"

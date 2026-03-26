@@ -81,12 +81,20 @@ export function ProtocolRoomShell({
   const [is_busy_control, set_is_busy_control] = useState(false);
 
   const alive_agent_ids = useMemo(
-    () => new Set(detail?.run.state?.alive_agent_ids ?? []),
-    [detail?.run.state],
+    () => new Set<string>(
+      Array.isArray(detail?.run.state?.alive_agent_ids)
+        ? detail.run.state.alive_agent_ids.filter((item): item is string => typeof item === "string")
+        : [],
+    ),
+    [detail?.run.state?.alive_agent_ids],
   );
   const eliminated_agent_ids = useMemo(
-    () => new Set(detail?.run.state?.eliminated_agent_ids ?? []),
-    [detail?.run.state],
+    () => new Set<string>(
+      Array.isArray(detail?.run.state?.eliminated_agent_ids)
+        ? detail.run.state.eliminated_agent_ids.filter((item): item is string => typeof item === "string")
+        : [],
+    ),
+    [detail?.run.state?.eliminated_agent_ids],
   );
   const roles_by_agent_id = detail?.run.state?.roles ?? {};
 

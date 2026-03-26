@@ -1,6 +1,6 @@
 "use client";
 
-import { Send } from "lucide-react";
+import { Send, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { ProtocolActionRequestRecord, ProtocolChannelAggregate, ProtocolSnapshotRecord } from "@/types";

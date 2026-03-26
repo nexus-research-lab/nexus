@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { useHomeAgentConversationController } from "@/hooks/use-home-agent-conversation-controller";
+import { listRooms } from "@/lib/room-api";
 import { useAppConversationStore } from "@/store/app-conversation";
+import { RuntimeRoomListItem } from "@/types/launcher";
 import { LauncherSearchParams } from "@/types/route";
 
 type LauncherSurface = NonNullable<LauncherSearchParams["surface"]>;
@@ -42,6 +44,16 @@ export function useLauncherPageController() {
   const surface: LauncherSurface = search_params.get("surface") === "app" ? "app" : "launcher";
   const route_app_prompt = search_params.get("app_prompt")?.trim() ?? "";
   const [app_conversation_draft, set_app_conversation_draft] = useState(route_app_prompt);
+  const [runtime_rooms, set_runtime_rooms] = useState<RuntimeRoomListItem[]>([]);
+
+  const refresh_runtime_rooms = useCallback(async () => {
+    try {
+      const rooms = await listRooms(20);
+      set_runtime_rooms(rooms.map((item) => ({ room: item.room, members: item.members })));
+    } catch {
+      set_runtime_rooms([]);
+    }
+  }, []);
 
   useEffect(() => {
     set_app_conversation_draft(route_app_prompt);
@@ -56,6 +68,19 @@ export function useLauncherPageController() {
     next_search_params.set("surface", "app");
     set_search_params(next_search_params, { replace: true });
   }, [search_params, set_search_params, surface]);
+
+  useEffect(() => {
+    let is_cancelled = false;
+    void refresh_runtime_rooms().catch(() => {
+      if (!is_cancelled) {
+        set_runtime_rooms([]);
+      }
+    });
+
+    return () => {
+      is_cancelled = true;
+    };
+  }, [refresh_runtime_rooms]);
 
   const is_app_conversation_open = surface === "app";
 
@@ -87,6 +112,7 @@ export function useLauncherPageController() {
   return useMemo(() => ({
     ...agent_conversation,
     surface,
+    runtime_rooms,
     route_app_prompt,
     is_app_conversation_open,
     app_conversation_key,
@@ -94,12 +120,14 @@ export function useLauncherPageController() {
     open_app_conversation,
     close_app_conversation,
     clear_route_app_prompt,
+    refresh_runtime_rooms,
     set_app_conversation_key,
     clear_app_conversation_key,
     set_app_conversation_draft,
   }), [
     agent_conversation,
     surface,
+    runtime_rooms,
     route_app_prompt,
     is_app_conversation_open,
     app_conversation_key,
@@ -107,6 +135,7 @@ export function useLauncherPageController() {
     open_app_conversation,
     close_app_conversation,
     clear_route_app_prompt,
+    refresh_runtime_rooms,
     set_app_conversation_key,
     clear_app_conversation_key,
   ]);

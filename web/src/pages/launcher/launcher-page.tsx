@@ -199,18 +199,23 @@ export function LauncherPage() {
   const handle_confirm_create_room = useCallback(async ({
     title,
     agent_ids,
+    goal,
   }: {
     title: string;
     agent_ids: string[];
+    mode: "open";
+    goal?: string;
   }) => {
     set_is_creating_room(true);
     set_create_room_error(null);
     try {
       const created_room = await createRoom({
+        mode: "open",
         agent_ids,
         name: title,
         title,
         description: "Created from Launcher room dialog.",
+        goal,
       });
       set_is_create_room_dialog_open(false);
       set_pending_room_title("");

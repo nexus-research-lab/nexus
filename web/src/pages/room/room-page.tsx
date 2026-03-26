@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { OpenRoomShell } from "@/features/open-room/open-room-shell";
 import { ProtocolRoomShell } from "@/features/protocol-room/protocol-room-shell";
 import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
 import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
@@ -47,7 +48,10 @@ export function RoomPage() {
     }
   }, [controller, navigate, params.room_id]);
 
-  if (!controller.is_hydrated || (params.room_id && !controller.is_checked)) {
+  if (
+    !controller.is_hydrated
+    || (params.room_id && (!controller.is_checked || !controller.is_open_room_checked))
+  ) {
     return <AppLoadingScreen />;
   }
 
@@ -74,6 +78,25 @@ export function RoomPage() {
           selected_channel_id={controller.selected_channel_id}
           viewer_agent_id={controller.viewer_agent_id}
           ws_state={controller.ws_state}
+        />
+      </AppStage>
+    );
+  }
+
+  if (controller.is_open_room && controller.open_room_view) {
+    return (
+      <AppStage>
+        <OpenRoomShell
+          error={controller.open_room_error}
+          is_loading={controller.is_open_room_loading}
+          on_post_action={controller.handle_open_room_action}
+          on_post_message={controller.handle_open_room_message}
+          on_refresh={controller.handle_open_room_refresh}
+          on_run_phase={controller.handle_open_room_run_phase}
+          on_run_until_finished={controller.handle_open_room_run_until_finished}
+          on_start={controller.handle_open_room_start}
+          on_tick={controller.handle_open_room_tick}
+          view={controller.open_room_view}
         />
       </AppStage>
     );

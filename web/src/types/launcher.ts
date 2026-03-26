@@ -1,5 +1,6 @@
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
+import { RoomAggregate } from "@/types/room";
 
 export interface BlobPoint {
   x: number;
@@ -23,4 +24,9 @@ export interface SpotlightToken {
 export interface ConversationWithOwner {
   owner: Agent | null;
   conversation: Conversation;
+}
+
+export interface RuntimeRoomListItem {
+  room: RoomAggregate["room"];
+  members: RoomAggregate["members"];
 }

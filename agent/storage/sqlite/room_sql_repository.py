@@ -76,6 +76,39 @@ class RoomSqlRepository(BaseSqlRepository):
         await self.refresh(entity)
         return MemberRecord.model_validate(entity)
 
+    async def update_room(self, room: RoomRecord) -> RoomRecord:
+        """更新房间实体。"""
+        entity = await self._session.get(Room, room.id)
+        if entity is None:
+            raise LookupError("Room not found")
+
+        payload = room.model_dump(exclude={"created_at", "updated_at"})
+        if "capabilities" in payload:
+            payload["capabilities_json"] = payload.pop("capabilities")
+        for field_name, value in payload.items():
+            setattr(entity, field_name, value)
+
+        await self.flush()
+        await self.refresh(entity)
+        return RoomRecord.model_validate({
+            **RoomRecord.model_validate(entity).model_dump(),
+            "capabilities": entity.capabilities_json,
+        })
+
+    async def update_member(self, member: MemberRecord) -> MemberRecord:
+        """更新房间成员。"""
+        entity = await self._session.get(Member, member.id)
+        if entity is None:
+            raise LookupError("Member not found")
+
+        payload = member.model_dump(exclude={"joined_at"})
+        for field_name, value in payload.items():
+            setattr(entity, field_name, value)
+
+        await self.flush()
+        await self.refresh(entity)
+        return MemberRecord.model_validate(entity)
+
     async def list_members(self, room_id: str) -> list[MemberRecord]:
         """列出房间成员。"""
         stmt = select(Member).where(Member.room_id == room_id).order_by(Member.joined_at.asc())

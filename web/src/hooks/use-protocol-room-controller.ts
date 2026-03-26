@@ -90,10 +90,20 @@ export function useProtocolRoomController({ room_id }: UseProtocolRoomController
     set_is_room_loading(true);
     try {
       const next_room = await getRoom(room_id);
+      set_room(next_room);
+
+      if (next_room.room.mode !== "protocol") {
+        set_runs([]);
+        set_detail(null);
+        set_active_run_id(null);
+        set_is_protocol_room(false);
+        set_error(null);
+        return;
+      }
+
       const next_runs = await listRoomProtocolRuns(room_id);
       const next_active_run_id = next_runs[0]?.run.id ?? null;
 
-      set_room(next_room);
       set_runs(next_runs);
       set_active_run_id(next_active_run_id);
       set_is_protocol_room(true);

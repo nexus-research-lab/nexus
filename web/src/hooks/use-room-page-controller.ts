@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { useHomeAgentConversationController } from "@/hooks/use-home-agent-conversation-controller";
+import { useOpenRoomController } from "@/hooks/use-open-room-controller";
 import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
 import { useProtocolRoomController } from "@/hooks/use-protocol-room-controller";
 import { RoomPageControllerOptions } from "@/types/route";
@@ -12,6 +13,7 @@ export function useRoomPageController({
   conversation_id,
 }: RoomPageControllerOptions) {
   const protocol_room = useProtocolRoomController({ room_id });
+  const open_room = useOpenRoomController({ room_id });
   const agent_conversation = useHomeAgentConversationController();
   const {
     agents,
@@ -37,7 +39,11 @@ export function useRoomPageController({
       return;
     }
 
-    if (protocol_room.is_protocol_room) {
+    if (room_id && (!protocol_room.is_checked || !open_room.is_open_room_checked)) {
+      return;
+    }
+
+    if (protocol_room.is_protocol_room || open_room.is_open_room) {
       return;
     }
 
@@ -74,12 +80,16 @@ export function useRoomPageController({
     handle_select_agent,
     handle_select_conversation,
     is_hydrated,
+    open_room.is_open_room_checked,
+    open_room.is_open_room,
+    protocol_room.is_checked,
     protocol_room.is_protocol_room,
     room_id,
   ]);
 
   return {
     ...protocol_room,
+    ...open_room,
     ...agent_conversation,
     ...workspace,
     current_agent,

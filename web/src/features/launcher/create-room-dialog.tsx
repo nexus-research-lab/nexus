@@ -12,7 +12,13 @@ interface CreateRoomDialogProps {
   is_open: boolean;
   is_submitting?: boolean;
   on_cancel: () => void;
-  on_confirm: (payload: { title: string; agent_ids: string[] }) => Promise<void> | void;
+  on_confirm: (payload: {
+    title: string;
+    agent_ids: string[];
+    mode: "open";
+    goal?: string;
+    ruleset_slug?: string;
+  }) => Promise<void> | void;
 }
 
 export function CreateRoomDialog({
@@ -26,6 +32,7 @@ export function CreateRoomDialog({
 }: CreateRoomDialogProps) {
   const [title, set_title] = useState(default_title);
   const [selected_agent_ids, set_selected_agent_ids] = useState<string[]>([]);
+  const [goal, set_goal] = useState("");
 
   useEffect(() => {
     if (!is_open) {
@@ -38,6 +45,7 @@ export function CreateRoomDialog({
       }
       return agents[0]?.agent_id ? [agents[0].agent_id] : [];
     });
+    set_goal("");
   }, [agents, default_title, is_open]);
 
   const can_submit = useMemo(
@@ -60,10 +68,10 @@ export function CreateRoomDialog({
         <div className="flex items-start justify-between gap-3 border-b border-white/55 pb-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/46">
-              创建房间
+              Meeting Room
             </p>
             <h3 id="create-room-dialog-title" className="mt-2 text-xl font-black tracking-[-0.04em] text-slate-950/92">
-              创建新的协作 room
+              创建会议室式协作房间
             </h3>
           </div>
           <button
@@ -92,6 +100,30 @@ export function CreateRoomDialog({
               onChange={(event) => set_title(event.target.value)}
               placeholder="输入 room 标题"
               value={title}
+            />
+          </div>
+
+          <div className="rounded-[20px] border border-white/60 bg-white/38 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
+              房间模式
+            </p>
+            <div className="mt-2 rounded-[18px] border border-slate-950/16 bg-slate-950/7 px-4 py-4">
+              <p className="text-sm font-semibold text-slate-950/90">开放协作会议室</p>
+              <p className="mt-2 text-xs leading-5 text-slate-700/60">
+                当前公开入口只保留真实可用的会议室协作模式，支持广播、@成员、任务分配和 workspace 回流。
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
+              协作目标
+            </label>
+            <textarea
+              className="neo-inset mt-2 min-h-[108px] w-full rounded-[18px] px-4 py-3 text-sm leading-6 text-slate-950/86 outline-none"
+              onChange={(event) => set_goal(event.target.value)}
+              placeholder="例如：帮我拉 3 个智能体一起重构 room runtime，并把关键实现推进到可运行。"
+              value={goal}
             />
           </div>
 
@@ -168,6 +200,8 @@ export function CreateRoomDialog({
               onClick={() => void on_confirm({
                 title: title.trim(),
                 agent_ids: selected_agent_ids,
+                mode: "open",
+                goal: goal.trim(),
               })}
               type="button"
             >
