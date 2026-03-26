@@ -42,13 +42,13 @@ export function AppGlobalRail({
     {
       key: "dms",
       label: "DMs",
-      to: dm_href || AppRouteBuilders.launcher(),
+      to: dm_href || AppRouteBuilders.dm_directory(),
       icon: MessageCircleMore,
     },
     {
       key: "rooms",
       label: "Rooms",
-      to: room_href || AppRouteBuilders.launcher(),
+      to: room_href || AppRouteBuilders.room_directory(),
       icon: Waypoints,
     },
     {
