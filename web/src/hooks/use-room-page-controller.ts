@@ -11,6 +11,7 @@ import {
   deleteRoomConversation,
   getRoom,
   getRoomContexts,
+  listRooms,
   removeRoomMember,
   updateRoom,
 } from "@/lib/room-api";
@@ -19,7 +20,7 @@ import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import { Agent, AgentOptions } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { RoomContextAggregate, UpdateRoomParams } from "@/types/room";
+import { RoomAggregate, RoomContextAggregate, UpdateRoomParams } from "@/types/room";
 import { RoomPageControllerOptions } from "@/types/route";
 
 function to_timestamp(value?: string | null): number {
@@ -49,6 +50,7 @@ export function useRoomPageController({
 
   const [is_bootstrapped, set_is_bootstrapped] = useState(false);
   const [room_contexts, set_room_contexts] = useState<RoomContextAggregate[]>([]);
+  const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const [is_room_loading, set_is_room_loading] = useState(false);
   const [room_error, set_room_error] = useState<string | null>(null);
   const [selected_member_agent_id, set_selected_member_agent_id] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export function useRoomPageController({
         await Promise.all([
           load_agents_from_server(),
           load_conversations_from_server(),
+          listRooms(200).then(set_rooms),
         ]);
       } finally {
         if (!cancelled) {
@@ -78,6 +81,12 @@ export function useRoomPageController({
       cancelled = true;
     };
   }, [load_agents_from_server, load_conversations_from_server]);
+
+  const refresh_rooms = useCallback(async () => {
+    const next_rooms = await listRooms(200);
+    set_rooms(next_rooms);
+    return next_rooms;
+  }, []);
 
   const load_room_contexts = useCallback(async (next_room_id: string): Promise<RoomContextAggregate[]> => {
     const [room, contexts] = await Promise.all([
@@ -367,16 +376,18 @@ export function useRoomPageController({
       return;
     }
     await updateRoom(room_id, params);
+    await refresh_rooms();
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
-  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+  }, [load_conversations_from_server, refresh_room_contexts, refresh_rooms, room_id]);
 
   const handle_delete_room = useCallback(async () => {
     if (!room_id) {
       return;
     }
     await deleteRoom(room_id);
-  }, [room_id]);
+    await refresh_rooms();
+  }, [refresh_rooms, room_id]);
 
   const handle_create_conversation = useCallback(async (title?: string) => {
     if (!room_id) {
@@ -403,24 +414,27 @@ export function useRoomPageController({
       return;
     }
     await addRoomMember(room_id, agent_id);
+    await refresh_rooms();
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
-  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+  }, [load_conversations_from_server, refresh_room_contexts, refresh_rooms, room_id]);
 
   const handle_remove_room_member = useCallback(async (agent_id: string) => {
     if (!room_id) {
       return;
     }
     await removeRoomMember(room_id, agent_id);
+    await refresh_rooms();
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
-  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+  }, [load_conversations_from_server, refresh_room_contexts, refresh_rooms, room_id]);
 
   const is_hydrated = is_bootstrapped && !is_room_loading;
 
   return {
     agents,
     conversations,
+    rooms,
     room_error,
     current_room,
     current_room_type: current_room?.room_type ?? "room",

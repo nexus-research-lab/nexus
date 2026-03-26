@@ -4,7 +4,7 @@ import { RefObject } from "react";
 
 import { RoomContextPanel } from "@/features/room-context/room-context-panel";
 import { RoomEditorPanel } from "@/features/room-context/room-editor-panel";
-import { RoomSidebarPanel } from "@/features/room-navigation/room-sidebar-panel";
+import { RoomObjectListPanel } from "@/features/room-navigation/room-object-list-panel";
 import {
   HOME_AGENT_INSPECTOR_WRAPPER_CLASS,
   HOME_CHAT_PANEL_CLASS,
@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
+import { RoomAggregate } from "@/types/room";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 import { TodoItem } from "@/types/todo";
 
@@ -29,9 +30,11 @@ interface RoomWorkspaceLayoutProps {
   room_members: Agent[];
   available_room_agents: Agent[];
   current_room_title: string;
+  current_room_id: string | null;
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
+  rooms: RoomAggregate[];
   active_workspace_path: string | null;
   active_surface_tab: RoomSurfaceTabKey;
   is_editor_open: boolean;
@@ -42,7 +45,8 @@ interface RoomWorkspaceLayoutProps {
   workspace_split_ref: RefObject<HTMLElement | null>;
   on_change_surface_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_agent: (agent_id: string) => void;
-  on_open_directory: () => void;
+  on_open_contacts: () => void;
+  on_open_room: (room_id: string) => void;
   on_edit_agent: (agent_id: string) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
@@ -66,9 +70,11 @@ export function RoomWorkspaceLayout({
   room_members,
   available_room_agents,
   current_room_title,
+  current_room_id,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
+  rooms,
   active_workspace_path,
   active_surface_tab,
   is_editor_open,
@@ -79,7 +85,8 @@ export function RoomWorkspaceLayout({
   workspace_split_ref,
   on_change_surface_tab,
   on_select_agent,
-  on_open_directory,
+  on_open_contacts,
+  on_open_room,
   on_edit_agent,
   on_create_conversation,
   on_select_conversation,
@@ -95,36 +102,24 @@ export function RoomWorkspaceLayout({
   on_todos_change,
   on_conversation_snapshot_change,
 }: RoomWorkspaceLayoutProps) {
-  const show_members = current_room_type !== "dm";
   const show_detail_panel = !is_editor_open && active_surface_tab === "chat";
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1", HOME_WORKSPACE_MAIN_GAP_CLASS)}>
-      <div className="hidden lg:flex lg:min-h-0 lg:shrink-0 lg:border-r lg:workspace-divider">
-        <RoomSidebarPanel
-          active_workspace_path={active_workspace_path}
-          agent={current_agent}
-          available_room_agents={available_room_agents}
-          members={room_members}
-          conversations={current_room_conversations}
-          current_agent_id={current_agent_id}
-          current_conversation_id={current_conversation_id}
-          room_name={current_room_title}
-          room_type={current_room_type}
-          show_conversations={false}
-          show_members={show_members}
-          on_add_room_member={on_add_room_member}
-          on_create_conversation={on_create_conversation}
-          on_delete_conversation={on_delete_conversation}
-          on_delete_room={on_delete_room}
-          on_open_directory={on_open_directory}
-          on_open_workspace_file={on_open_workspace_file}
-          on_remove_room_member={on_remove_room_member}
-          on_select_agent={on_select_agent}
-          on_select_conversation={on_select_conversation}
-          on_update_room={on_update_room}
-        />
-      </div>
+      <RoomObjectListPanel
+        active_space={current_room_type === "dm" ? "dm" : "room"}
+        agents={available_room_agents.concat(room_members.filter((member) => (
+          !available_room_agents.some((agent) => agent.agent_id === member.agent_id)
+        )))}
+        conversations={current_room_conversations}
+        current_room_id={current_room_id}
+        current_room_title={current_room_title}
+        on_delete_room={on_delete_room}
+        on_open_contacts={on_open_contacts}
+        on_open_room={on_open_room}
+        on_update_room={on_update_room}
+        rooms={rooms}
+      />
 
       <section
         ref={workspace_split_ref}
@@ -206,8 +201,14 @@ export function RoomWorkspaceLayout({
           <RoomContextPanel
             active_conversation={current_conversation}
             agent={current_agent}
+            available_room_agents={available_room_agents}
+            current_agent_id={current_agent_id}
+            current_room_type={current_room_type}
             is_conversation_busy={is_conversation_busy}
+            on_add_room_member={on_add_room_member}
             on_edit_agent={on_edit_agent}
+            on_remove_room_member={on_remove_room_member}
+            on_select_agent={on_select_agent}
             room_conversations={current_room_conversations}
             room_members={room_members}
             room_name={current_room_title}

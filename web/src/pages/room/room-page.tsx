@@ -63,6 +63,14 @@ export function RoomPage() {
     navigate(AppRouteBuilders.launcher());
   }, [controller, navigate]);
 
+  const handleOpenRoom = useCallback((next_room_id: string) => {
+    navigate(AppRouteBuilders.room(next_room_id));
+  }, [navigate]);
+
+  const handleOpenContacts = useCallback(() => {
+    navigate(AppRouteBuilders.contacts());
+  }, [navigate]);
+
   useEffect(() => {
     if (
       controller.is_hydrated &&
@@ -109,6 +117,7 @@ export function RoomPage() {
           available_room_agents={controller.available_room_agents}
           current_agent={controller.current_agent}
           current_agent_id={controller.current_agent_id}
+          current_room_id={controller.current_room?.id ?? null}
           current_room_type={controller.current_room_type}
           room_members={controller.room_members}
           current_room_title={controller.current_room_title}
@@ -116,6 +125,7 @@ export function RoomPage() {
           current_conversation={controller.current_conversation}
           current_conversation_id={controller.current_conversation_id}
           current_todos={controller.current_todos}
+          rooms={controller.rooms}
           editor_width_percent={controller.editor_width_percent}
           is_editor_open={controller.is_editor_open}
           is_resizing_editor={controller.is_resizing_editor}
@@ -128,6 +138,8 @@ export function RoomPage() {
           on_edit_agent={controller.handle_edit_agent}
           on_loading_change={controller.set_is_conversation_busy}
           on_create_conversation={handleCreateConversation}
+          on_open_contacts={handleOpenContacts}
+          on_open_room={handleOpenRoom}
           on_open_workspace_file={controller.handle_open_workspace_file}
           on_remove_room_member={controller.handle_remove_room_member}
           on_select_agent={handleSelectAgent}
