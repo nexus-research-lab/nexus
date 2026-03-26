@@ -91,8 +91,19 @@ export function RoomPage() {
   }
 
   if (controller.current_room && controller.current_agent) {
+    const current_conversation_route = controller.current_conversation_id
+      ? AppRouteBuilders.room_conversation(
+        controller.current_room.id,
+        controller.current_conversation_id,
+      )
+      : AppRouteBuilders.room(controller.current_room.id);
+
     return (
-      <AppStage>
+      <AppStage
+        active_rail_item={controller.current_room_type === "dm" ? "dms" : "rooms"}
+        dm_href={controller.current_room_type === "dm" ? current_conversation_route : undefined}
+        room_href={controller.current_room_type === "room" ? current_conversation_route : undefined}
+      >
         <RoomWorkspaceShell
           active_workspace_path={controller.active_workspace_path}
           available_room_agents={controller.available_room_agents}
@@ -142,7 +153,7 @@ export function RoomPage() {
   }
 
   return (
-    <AppStage>
+    <AppStage active_rail_item="rooms">
       <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
         <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] p-4 sm:p-6">
           <RoomRouteEntry
