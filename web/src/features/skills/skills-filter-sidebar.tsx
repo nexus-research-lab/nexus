@@ -1,54 +1,40 @@
 "use client";
 
-import { Plus } from "lucide-react";
-
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import { WorkspaceSidebarItem } from "@/shared/ui/workspace-sidebar-item";
 import { WorkspaceSidebarShell } from "@/shared/ui/workspace-sidebar-shell";
 
-import { ContactsFilterKey } from "./contacts-directory-helpers";
+export type SkillsFilterKey = "all" | "installed" | "available" | "system";
 
-interface ContactsFilterItem {
-  key: ContactsFilterKey;
+interface SkillsFilterItem {
+  key: SkillsFilterKey;
   label: string;
   count: number;
   dot_class_name?: string;
 }
 
-interface ContactsFilterSection {
+interface SkillsFilterSection {
   title: string;
-  items: ContactsFilterItem[];
+  items: SkillsFilterItem[];
 }
 
-interface ContactsFilterSidebarProps {
-  sections: ContactsFilterSection[];
-  active_filter: ContactsFilterKey;
+interface SkillsFilterSidebarProps {
+  sections: SkillsFilterSection[];
+  active_filter: SkillsFilterKey;
   total_count: number;
-  on_change_filter: (filter: ContactsFilterKey) => void;
-  on_create_agent: () => void;
+  on_change_filter: (filter: SkillsFilterKey) => void;
 }
 
-export function ContactsFilterSidebar({
+export function SkillsFilterSidebar({
   sections,
   active_filter,
   total_count,
   on_change_filter,
-  on_create_agent,
-}: ContactsFilterSidebarProps) {
+}: SkillsFilterSidebarProps) {
   return (
     <WorkspaceSidebarShell
       class_name="w-[248px]"
-      header_action={(
-        <WorkspacePillButton
-          aria-label="新建成员"
-          onClick={on_create_agent}
-          size="icon"
-        >
-          <Plus className="h-5 w-5" />
-        </WorkspacePillButton>
-      )}
-      subtitle={`${total_count} 个成员`}
-      title="成员网络"
+      subtitle={`${total_count} 个技能`}
+      title="技能中心"
     >
       {sections.map((section) => (
         <div key={section.title} className="px-1 py-2">
@@ -72,12 +58,6 @@ export function ContactsFilterSidebar({
           </div>
         </div>
       ))}
-
-      <div className="px-1 pt-3">
-        <WorkspacePillButton class_name="w-full" onClick={on_create_agent}>
-          新建成员
-        </WorkspacePillButton>
-      </div>
     </WorkspaceSidebarShell>
   );
 }

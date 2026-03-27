@@ -37,6 +37,7 @@ class AgentOptions(BaseModel):
     max_thinking_tokens: Optional[int] = Field(default=None, description="思考 token 上限")
     mcp_servers: Optional[dict] = Field(default=None, description="MCP 服务器配置")
     skills_enabled: bool = Field(default=False, description="是否启用技能")
+    installed_skills: Optional[list[str]] = Field(default=None, description="已手动安装的 skill 名称列表")
     setting_sources: Optional[list[Literal["user", "project", "local"]]] = Field(
         default=None,
         description="Claude 设置加载源",
@@ -181,3 +182,30 @@ class WorkspaceEntryRenameResponse(BaseModel):
     """Workspace 条目重命名响应。"""
     path: str = Field(..., description="旧路径")
     new_path: str = Field(..., description="新路径")
+
+
+# =====================================================
+# Skill 模型
+# =====================================================
+
+class SkillInfo(BaseModel):
+    """Skill 元信息 — 从 SKILL.md frontmatter 解析。"""
+    name: str = Field(..., description="skill 唯一标识")
+    description: str = Field(default="", description="skill 功能描述")
+    scope: str = Field(default="any", description="skill 适用范围: main | any")
+    tags: list[str] = Field(default_factory=list, description="分类标签")
+
+
+class AgentSkillEntry(BaseModel):
+    """Agent 已安装 skill 条目。"""
+    name: str = Field(..., description="skill 名称")
+    description: str = Field(default="", description="skill 描述")
+    scope: str = Field(default="any", description="适用范围")
+    tags: list[str] = Field(default_factory=list, description="分类标签")
+    installed: bool = Field(default=True, description="是否已安装")
+    locked: bool = Field(default=False, description="是否为系统锁定(不可卸载)")
+
+
+class InstallSkillRequest(BaseModel):
+    """安装 Skill 请求。"""
+    skill_name: str = Field(..., description="要安装的 skill 名称")

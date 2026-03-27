@@ -5,9 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { listRooms, getRoomContexts } from "@/lib/room-api";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
-import { AppStage } from "@/shared/ui/app-stage";
-import { WorkspaceEmptyState } from "@/shared/ui/workspace-empty-state";
-import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
+import { WorkspaceEntryPage } from "@/shared/ui/workspace-entry-page";
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import { RoomAggregate } from "@/types/room";
 
 function sort_rooms_desc(rooms: RoomAggregate[]) {
@@ -91,34 +90,23 @@ export function DmsPage() {
   }
 
   return (
-    <AppStage active_rail_item="dms">
-      <WorkspacePageFrame>
-        <WorkspaceEmptyState
-          actions={(
-            <>
-              <button
-                className="workspace-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-900/82"
-                onClick={() => navigate(AppRouteBuilders.contacts())}
-                type="button"
-              >
-                <Users className="h-4 w-4" />
-                成员网络
-              </button>
-              <button
-                className="workspace-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-900/82"
-                onClick={() => navigate(AppRouteBuilders.launcher())}
-                type="button"
-              >
-                回到首页
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </>
-          )}
-          description="当前还没有可恢复的 1v1 协作。先去成员网络选择成员，或者从首页唤起新的系统协作。"
-          icon={<MessageCircleMore className="h-6 w-6 text-slate-900/78" />}
-          title="Direct Messages"
-        />
-      </WorkspacePageFrame>
-    </AppStage>
+    <WorkspaceEntryPage
+      actions={(
+        <>
+          <WorkspacePillButton onClick={() => navigate(AppRouteBuilders.contacts())}>
+            <Users className="h-4 w-4" />
+            成员网络
+          </WorkspacePillButton>
+          <WorkspacePillButton onClick={() => navigate(AppRouteBuilders.launcher())}>
+            回到首页
+            <ArrowRight className="h-4 w-4" />
+          </WorkspacePillButton>
+        </>
+      )}
+      active_rail_item="dms"
+      description="当前还没有可恢复的 1v1 协作。先去成员网络选择成员，或者从首页唤起新的系统协作。"
+      icon={<MessageCircleMore className="h-6 w-6 text-slate-900/78" />}
+      title="Direct Messages"
+    />
   );
 }

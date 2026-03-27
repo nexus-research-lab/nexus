@@ -44,6 +44,7 @@ class Runtime(TimestampMixin, Base):
     max_turns: Mapped[int | None] = mapped_column(Integer)
     max_thinking_tokens: Mapped[int | None] = mapped_column(Integer)
     skills_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    installed_skills_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     setting_sources_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     runtime_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 

@@ -17,7 +17,7 @@ from agent.utils.logger import logger
 
 
 class WorkspaceSkillDeployer:
-    """负责把仓库内 skill 部署到主智能体 workspace。"""
+    """负责把仓库内 skill 部署到 agent workspace。"""
 
     MAIN_AGENT_SKILL_NAMES = ("nexus-manager",)
 
@@ -36,6 +36,36 @@ class WorkspaceSkillDeployer:
 
         for skill_name in self.MAIN_AGENT_SKILL_NAMES:
             self._deploy_skill(skill_name, context)
+
+    # =====================================================
+    # 公共安装/卸载接口
+    # =====================================================
+
+    def deploy_skill(self, skill_name: str, context: dict[str, str] | None = None) -> None:
+        """安装单个 skill 到 workspace。"""
+        self._deploy_skill(skill_name, context or {})
+
+    def undeploy_skill(self, skill_name: str) -> None:
+        """从 workspace 移除单个 skill。"""
+        target_dir = self._workspace_agents_skills_root / skill_name
+        link_path = self._workspace_claude_skills_root / skill_name
+
+        if link_path.is_symlink() or link_path.exists():
+            link_path.unlink()
+            logger.info(f"🔗 已移除 Claude skill 链接: {link_path}")
+
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
+            logger.info(f"🗑️ 已移除 skill 目录: {target_dir}")
+
+    def list_deployed(self) -> list[str]:
+        """列出 workspace 内已部署的 skill 名称。"""
+        if not self._workspace_agents_skills_root.exists():
+            return []
+        return sorted(
+            d.name for d in self._workspace_agents_skills_root.iterdir()
+            if d.is_dir()
+        )
 
     def _deploy_skill(self, skill_name: str, context: dict[str, str]) -> None:
         """部署单个 skill，并把 Claude 目录映射到内部 skill 目录。"""

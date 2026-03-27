@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Bot, FolderTree, Hash, History, Info, MessageSquare, Users } from "lucide-react";
 
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace-surface-header";
+import { WorkspaceStatusBadge } from "@/shared/ui/workspace-status-badge";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 
 interface RoomConversationHeaderProps {
@@ -85,10 +86,11 @@ const RoomConversationHeaderView = memo(({
           {getInitials(current_agent_name)}
         </div>
       </div>
-      <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm">
-        <span className={is_loading ? "text-emerald-500" : "text-sky-600"}>●</span>
-        {is_loading ? "协作中" : "在线"}
-      </div>
+      <WorkspaceStatusBadge
+        icon={<span className="text-current">●</span>}
+        label={is_loading ? "协作中" : "在线"}
+        tone={is_loading ? "running" : "active"}
+      />
     </>
   );
 

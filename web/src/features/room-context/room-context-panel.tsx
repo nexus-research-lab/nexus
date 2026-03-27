@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { WorkspaceInspectorSection } from "@/shared/ui/workspace-inspector-section";
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
@@ -61,14 +62,13 @@ export function RoomContextPanel({
         {current_room_type === "room" ? (
           <WorkspaceInspectorSection
             action={(
-              <button
-                className="home-glass-pill inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
+              <WorkspacePillButton
                 onClick={() => set_is_member_picker_open(true)}
-                type="button"
+                size="sm"
               >
                 <UserPlus className="h-3.5 w-3.5" />
                 添加
-              </button>
+              </WorkspacePillButton>
             )}
             icon={Bot}
             title="Members"

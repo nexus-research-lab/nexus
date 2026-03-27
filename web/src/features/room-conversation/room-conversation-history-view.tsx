@@ -3,6 +3,7 @@
 import { Clock3, MessageSquarePlus, Trash2 } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/utils";
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace-surface-view";
 import { Conversation } from "@/types/conversation";
 
@@ -26,16 +27,15 @@ export function RoomConversationHistoryView({
   on_select_conversation,
 }: RoomConversationHistoryViewProps) {
   const action = can_manage_conversations ? (
-    <button
-      className="workspace-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900/78"
+    <WorkspacePillButton
       onClick={() => {
         void on_create_conversation();
       }}
-      type="button"
+      size="sm"
     >
       <MessageSquarePlus className="h-3.5 w-3.5" />
       新建对话
-    </button>
+    </WorkspacePillButton>
   ) : null;
 
   return (
@@ -72,17 +72,17 @@ export function RoomConversationHistoryView({
             </div>
 
             {can_manage_conversations && can_delete ? (
-              <button
+              <WorkspacePillButton
                 aria-label="删除对话"
-                className="workspace-chip rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:text-destructive"
+                class_name="rounded-xl p-1.5 opacity-0 group-hover:opacity-100 hover:text-destructive"
                 onClick={(event) => {
                   event.stopPropagation();
                   void on_delete_conversation(conversation.session_key);
                 }}
-                type="button"
+                size="icon"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              </WorkspacePillButton>
             ) : null}
           </button>
         );

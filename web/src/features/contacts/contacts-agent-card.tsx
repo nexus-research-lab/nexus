@@ -2,12 +2,15 @@
 
 import { ArrowRight, Bot, MessageSquareText } from "lucide-react";
 
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
+import { WorkspaceStatusBadge } from "@/shared/ui/workspace-status-badge";
+
 interface ContactsAgentCardProps {
   description: string;
   is_selected: boolean;
   model_label: string;
   name: string;
-  status_class_name: string;
+  status_tone: "active" | "running" | "idle";
   status_label: string;
   on_open_profile: () => void;
   on_open_room: () => void;
@@ -18,7 +21,7 @@ export function ContactsAgentCard({
   is_selected,
   model_label,
   name,
-  status_class_name,
+  status_tone,
   status_label,
   on_open_profile,
   on_open_room,
@@ -44,10 +47,7 @@ export function ContactsAgentCard({
           </div>
         </div>
 
-        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${status_class_name}`}>
-          <span className="h-2 w-2 rounded-full bg-current" />
-          {status_label}
-        </span>
+        <WorkspaceStatusBadge label={status_label} tone={status_tone} />
       </div>
 
       <p className="mt-5 min-h-[72px] text-[15px] leading-7 text-slate-700/78">
@@ -55,22 +55,14 @@ export function ContactsAgentCard({
       </p>
 
       <div className="mt-6 flex items-center gap-3">
-        <button
-          className="workspace-chip inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-slate-900/82 transition hover:text-slate-950"
-          onClick={on_open_profile}
-          type="button"
-        >
+        <WorkspacePillButton onClick={on_open_profile}>
           View Details
-        </button>
-        <button
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600"
-          onClick={on_open_room}
-          type="button"
-        >
+        </WorkspacePillButton>
+        <WorkspacePillButton onClick={on_open_room} variant="strong">
           <MessageSquareText className="h-4 w-4" />
           Message
           <ArrowRight className="h-4 w-4" />
-        </button>
+        </WorkspacePillButton>
       </div>
     </article>
   );

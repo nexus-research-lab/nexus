@@ -3,7 +3,6 @@
 import {
   Grid2X2,
   List,
-  Search,
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -11,6 +10,9 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { WorkspaceCanvasShell } from "@/shared/ui/workspace-canvas-shell";
+import { WorkspaceIconToggleButton } from "@/shared/ui/workspace-icon-toggle-button";
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
+import { WorkspaceSearchInput } from "@/shared/ui/workspace-search-input";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace-surface-header";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
@@ -23,6 +25,7 @@ import {
   get_contacts_model_label,
   get_contacts_runtime_label,
   get_contacts_runtime_status,
+  get_contacts_runtime_tone,
   matches_contacts_filter,
   matches_contacts_search,
 } from "./contacts-directory-helpers";
@@ -37,16 +40,6 @@ interface ContactsDirectoryProps {
   on_edit_agent: (agent_id: string) => void;
   on_delete_agent: (agent_id: string) => void;
   selected_agent_id?: string;
-}
-
-function get_status_class_name(status: string): string {
-  if (status === "协作中") {
-    return "bg-emerald-100 text-emerald-700";
-  }
-  if (status === "待命") {
-    return "bg-slate-200 text-slate-700";
-  }
-  return "bg-sky-100 text-sky-700";
 }
 
 export function ContactsDirectory({
@@ -121,48 +114,30 @@ export function ContactsDirectory({
 
   const header_trailing = (
     <>
-      <label className="home-glass-input hidden items-center gap-2 rounded-full px-4 py-2.5 text-sm text-slate-700/62 xl:flex">
-        <Search className="h-4 w-4" />
-        <input
-          className="w-[220px] bg-transparent text-sm text-slate-950/86 outline-none placeholder:text-slate-500"
-          onChange={(event) => set_search_query(event.target.value)}
-          placeholder="搜索成员、模型或路径"
-          value={search_query}
-        />
-      </label>
+      <WorkspaceSearchInput
+        class_name="hidden xl:inline-flex"
+        input_class_name="w-[220px]"
+        on_change={set_search_query}
+        placeholder="搜索成员、模型或路径"
+        value={search_query}
+      />
 
       <div className="hidden items-center gap-2 lg:flex">
-        <button
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-            view_mode === "grid"
-              ? "workspace-card-strong text-slate-950"
-              : "workspace-chip text-slate-700/60 hover:text-slate-950"
-          }`}
+        <WorkspaceIconToggleButton
+          icon={<Grid2X2 className="h-4 w-4" />}
+          is_active={view_mode === "grid"}
           onClick={() => set_view_mode("grid")}
-          type="button"
-        >
-          <Grid2X2 className="h-4 w-4" />
-        </button>
-        <button
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-            view_mode === "list"
-              ? "workspace-card-strong text-slate-950"
-              : "workspace-chip text-slate-700/60 hover:text-slate-950"
-          }`}
+        />
+        <WorkspaceIconToggleButton
+          icon={<List className="h-4 w-4" />}
+          is_active={view_mode === "list"}
           onClick={() => set_view_mode("list")}
-          type="button"
-        >
-          <List className="h-4 w-4" />
-        </button>
+        />
       </div>
 
-      <button
-        className="workspace-chip inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold text-slate-900/82 transition hover:text-slate-950"
-        onClick={on_create_agent}
-        type="button"
-      >
+      <WorkspacePillButton onClick={on_create_agent}>
         新建成员
-      </button>
+      </WorkspacePillButton>
     </>
   );
 
@@ -200,7 +175,6 @@ export function ContactsDirectory({
                 {filtered_agents.map((agent) => {
                   const runtime_status = get_contacts_runtime_status(agent);
                   const status_label = get_contacts_runtime_label(runtime_status);
-                  const status_class_name = get_status_class_name(status_label);
                   const is_selected = selected_agent?.agent_id === agent.agent_id;
 
                   return (
@@ -212,8 +186,8 @@ export function ContactsDirectory({
                       name={agent.name}
                       on_open_profile={() => navigate(AppRouteBuilders.contact_profile(agent.agent_id))}
                       on_open_room={() => on_open_direct_room(agent.agent_id)}
-                      status_class_name={status_class_name}
                       status_label={status_label}
+                      status_tone={get_contacts_runtime_tone(runtime_status)}
                     />
                   );
                 })}
@@ -225,13 +199,9 @@ export function ContactsDirectory({
                   <p className="mt-3 text-sm leading-7 text-slate-700/60">
                     换一个筛选条件，或者直接创建一个新的成员继续配置。
                   </p>
-                  <button
-                    className="workspace-chip mt-6 inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-slate-900/84 transition hover:text-slate-950"
-                    onClick={on_create_agent}
-                    type="button"
-                  >
+                  <WorkspacePillButton class_name="mt-6" onClick={on_create_agent}>
                     新建成员
-                  </button>
+                  </WorkspacePillButton>
                 </div>
               </div>
             )}
@@ -245,12 +215,12 @@ export function ContactsDirectory({
         on_delete_agent={on_delete_agent}
         on_edit_agent={on_edit_agent}
         on_open_room={on_open_direct_room}
-        status_class_name={selected_agent ? get_status_class_name(
-          get_contacts_runtime_label(get_contacts_runtime_status(selected_agent)),
-        ) : "bg-slate-400/14 text-slate-300"}
         status_label={selected_agent
           ? get_contacts_runtime_label(get_contacts_runtime_status(selected_agent))
           : "未选择"}
+        status_tone={selected_agent
+          ? get_contacts_runtime_tone(get_contacts_runtime_status(selected_agent))
+          : "default"}
       />
     </div>
   );

@@ -63,6 +63,7 @@ class RuntimeRecord(PersistenceModel):
     max_turns: Optional[int] = Field(default=None, description="最大轮次")
     max_thinking_tokens: Optional[int] = Field(default=None, description="思考 token 上限")
     skills_enabled: bool = Field(default=False, description="是否启用本地 skill 加载")
+    installed_skills_json: str = Field(default="[]", description="已安装 skill 列表")
     setting_sources_json: str = Field(default="[]", description="配置来源")
     runtime_version: int = Field(default=1, description="运行时版本")
     created_at: Optional[datetime] = Field(default=None, description="创建时间")

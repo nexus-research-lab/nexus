@@ -10,6 +10,7 @@ import {
 
 import { cn, formatRelativeTime, truncate } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/confirm-dialog";
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import { WorkspaceSidebarItem } from "@/shared/ui/workspace-sidebar-item";
 import { WorkspaceSidebarShell } from "@/shared/ui/workspace-sidebar-shell";
 import { Agent } from "@/types/agent";
@@ -109,14 +110,13 @@ export function RoomObjectListPanel({
           </div>
         ) : null}
         header_action={active_space === "room" ? (
-          <button
-            className="workspace-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-700/72 transition hover:text-slate-950"
+          <WorkspacePillButton
             onClick={() => set_is_delete_dialog_open(true)}
-            type="button"
+            size="sm"
           >
             <Trash2 className="h-3.5 w-3.5" />
             删除
-          </button>
+          </WorkspacePillButton>
         ) : null}
         title={active_space === "dm" ? "Direct Messages" : "Rooms"}
       >

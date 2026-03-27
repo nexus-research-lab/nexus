@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { cn } from "@/lib/utils";
 
-export type AppGlobalRailKey = "home" | "nexus" | "dms" | "rooms" | "contacts";
+export type AppGlobalRailKey = "home" | "nexus" | "dms" | "rooms" | "contacts" | "skills";
 
 interface AppGlobalRailProps {
   active_item: AppGlobalRailKey;
@@ -50,6 +50,12 @@ export function AppGlobalRail({
       label: "Contacts",
       to: AppRouteBuilders.contacts(),
       icon: Users,
+    },
+    {
+      key: "skills",
+      label: "Skills",
+      to: AppRouteBuilders.skills(),
+      icon: Sparkles,
     },
   ];
 

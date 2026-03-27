@@ -4,6 +4,7 @@ import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 
 export type ContactsRuntimeStatus = "Running" | "Idle" | "Active";
+export type ContactsRuntimeTone = "running" | "idle" | "active";
 export type ContactsFilterKey =
   | "all"
   | "recent"
@@ -33,6 +34,16 @@ export function get_contacts_runtime_label(status: ContactsRuntimeStatus): strin
     return "待命";
   }
   return "在线";
+}
+
+export function get_contacts_runtime_tone(status: ContactsRuntimeStatus): ContactsRuntimeTone {
+  if (status === "Running") {
+    return "running";
+  }
+  if (status === "Idle") {
+    return "idle";
+  }
+  return "active";
 }
 
 export function get_contacts_model_label(agent: Agent): string {

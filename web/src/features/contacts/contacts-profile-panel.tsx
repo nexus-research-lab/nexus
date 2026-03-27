@@ -12,14 +12,17 @@ import {
 import { formatRelativeTime } from "@/lib/utils";
 import { WorkspaceInspectorSection } from "@/shared/ui/workspace-inspector-section";
 import { WorkspaceInspectorShell } from "@/shared/ui/workspace-inspector-shell";
+import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
+import { WorkspaceStatusBadge } from "@/shared/ui/workspace-status-badge";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
+import { ContactsSkillsSection } from "@/features/contacts/contacts-skills-section";
 
 interface ContactsProfilePanelProps {
   agent: Agent | null;
   conversations: Conversation[];
-  status_class_name: string;
   status_label: string;
+  status_tone: "active" | "running" | "idle" | "default";
   on_delete_agent: (agent_id: string) => void;
   on_edit_agent: (agent_id: string) => void;
   on_open_room: (agent_id: string) => void;
@@ -28,8 +31,8 @@ interface ContactsProfilePanelProps {
 export function ContactsProfilePanel({
   agent,
   conversations,
-  status_class_name,
   status_label,
+  status_tone,
   on_delete_agent,
   on_edit_agent,
   on_open_room,
@@ -53,10 +56,7 @@ export function ContactsProfilePanel({
         <div className="workspace-card rounded-[24px] px-5 py-5 text-center">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[13px] font-semibold text-slate-700/60">当前成员</p>
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${status_class_name}`}>
-              <span className="h-2 w-2 rounded-full bg-current" />
-              {status_label}
-            </span>
+            <WorkspaceStatusBadge label={status_label} tone={status_tone} />
           </div>
 
           <div className="workspace-chip mx-auto mt-5 flex h-24 w-24 items-center justify-center rounded-[26px] text-slate-950/92 shadow-[0_14px_28px_rgba(102,112,145,0.12)]">
@@ -135,7 +135,11 @@ export function ContactsProfilePanel({
           <div className="workspace-card rounded-[18px] px-4 py-3">
             <div className="flex items-center gap-3 text-[13px] text-slate-700/78">
               <Sparkles className="h-4 w-4 text-sky-500" />
-              <span>{agent.options.skills_enabled ? "技能已启用" : "技能未启用"}</span>
+              <span>
+                {agent.options.skills_enabled
+                  ? `技能已启用 (${agent.options.installed_skills?.length ?? 0} 个自定义)`
+                  : "技能未启用"}
+              </span>
             </div>
           </div>
           <div className="workspace-card rounded-[18px] px-4 py-3">
@@ -151,33 +155,25 @@ export function ContactsProfilePanel({
         </div>
       </WorkspaceInspectorSection>
 
+      {agent.options.skills_enabled && (
+        <ContactsSkillsSection agent_id={agent.agent_id} />
+      )}
+
       <section className="border-t workspace-divider px-5 py-5">
         <div className="flex flex-col gap-3">
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-400 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500"
-            onClick={() => on_open_room(agent.agent_id)}
-            type="button"
-          >
+          <WorkspacePillButton onClick={() => on_open_room(agent.agent_id)} variant="success">
             <MessageSquareText className="h-4 w-4" />
             发起协作
-          </button>
+          </WorkspacePillButton>
           <div className="grid grid-cols-2 gap-3">
-            <button
-              className="workspace-chip inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-slate-900/82 transition hover:text-slate-950"
-              onClick={() => on_edit_agent(agent.agent_id)}
-              type="button"
-            >
+            <WorkspacePillButton onClick={() => on_edit_agent(agent.agent_id)}>
               <PencilLine className="h-4 w-4" />
               编辑
-            </button>
-            <button
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-300/26 bg-rose-50/72 px-4 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-100/80"
-              onClick={() => on_delete_agent(agent.agent_id)}
-              type="button"
-            >
+            </WorkspacePillButton>
+            <WorkspacePillButton onClick={() => on_delete_agent(agent.agent_id)} variant="danger">
               <Trash2 className="h-4 w-4" />
               删除
-            </button>
+            </WorkspacePillButton>
           </div>
         </div>
       </section>

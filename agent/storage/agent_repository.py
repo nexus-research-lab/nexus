@@ -141,6 +141,9 @@ class AgentRepository:
                 max_turns=merged_options.get("max_turns"),
                 max_thinking_tokens=merged_options.get("max_thinking_tokens"),
                 skills_enabled=bool(merged_options.get("skills_enabled", False)),
+                installed_skills_json=AgentSqlMapper.to_json(
+                    merged_options.get("installed_skills") or []
+                ),
                 setting_sources_json=AgentSqlMapper.to_json(
                     merged_options.get("setting_sources") or []
                 ),

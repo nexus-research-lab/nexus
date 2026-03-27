@@ -6,6 +6,7 @@ import { DmsPage } from "@/pages/dms/dms-page";
 import { LauncherPage } from "@/pages/launcher/launcher-page";
 import { RoomPage } from "@/pages/room/room-page";
 import { RoomsPage } from "@/pages/rooms/rooms-page";
+import { SkillsPage } from "@/pages/skills/skills-page";
 
 export function AppRouter() {
   return (
@@ -18,6 +19,8 @@ export function AppRouter() {
         <Route path={APP_ROUTE_PATHS.room_conversation} element={<RoomPage />} />
         <Route path={APP_ROUTE_PATHS.contacts} element={<ContactsPage />} />
         <Route path={APP_ROUTE_PATHS.contact_profile} element={<ContactsPage />} />
+        <Route path={APP_ROUTE_PATHS.skills} element={<SkillsPage />} />
+        <Route path={APP_ROUTE_PATHS.skill_detail} element={<SkillsPage />} />
         <Route path="*" element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} />
       </Routes>
     </BrowserRouter>

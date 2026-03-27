@@ -6,6 +6,8 @@ export const APP_ROUTE_PATHS = {
   room_conversation: "/rooms/:room_id/conversations/:conversation_id",
   contacts: "/contacts",
   contact_profile: "/contacts/:agent_id",
+  skills: "/skills",
+  skill_detail: "/skills/:skill_name",
 } as const;
 
 function createLauncherSearchParams(params: Record<string, string | null | undefined>) {
@@ -36,6 +38,8 @@ export const AppRouteBuilders = {
     `/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
   contacts: () => APP_ROUTE_PATHS.contacts,
   contact_profile: (agent_id: string) => `/contacts/${encodeURIComponent(agent_id)}`,
+  skills: () => APP_ROUTE_PATHS.skills,
+  skill_detail: (skill_name: string) => `/skills/${encodeURIComponent(skill_name)}`,
 } as const;
 
 export type AppRoutePathKey = keyof typeof APP_ROUTE_PATHS;
