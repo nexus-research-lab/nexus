@@ -24,17 +24,19 @@ import { ANIMATIONS } from "@/config/animation-assets";
 import { LottiePlayer } from "@/shared/ui/lottie-player";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
-import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
+import { ConversationWithOwner, RuntimeRoomListItem, SpotlightToken } from "@/types/launcher";
 
 import { AgentPile } from "./launcher-agent-pile";
 
 interface LauncherConsoleProps {
   agents: Agent[];
   conversations: Conversation[];
+  runtime_rooms: RuntimeRoomListItem[];
   current_agent_id: string | null;
   on_create_room: () => void;
   on_open_contacts_page: () => void;
   on_open_app_conversation: (initial_prompt?: string) => void;
+  on_open_room: (room_id: string) => void;
   on_select_agent: (agent_id: string) => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_create_agent: () => void;
@@ -53,13 +55,14 @@ interface HeroStageProps {
   current_agent_id: string | null;
   decorative_tokens: SpotlightToken[];
   on_open_app_conversation: (initial_prompt?: string) => void;
+  on_open_room: (room_id: string) => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_query_change: (value: string) => void;
   on_select_agent: (agent_id: string) => void;
   on_submit: () => void;
   query: string;
   recent_agents: Agent[];
-  recent_rooms: ConversationWithOwner[];
+  recent_rooms: RuntimeRoomListItem[];
   surface: "launcher" | "app";
 }
 
@@ -76,9 +79,9 @@ interface ContactsPopoverProps {
 interface RecentRoomsPopoverProps {
   on_create_room: () => void;
   on_close: () => void;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
-  recent_rooms: ConversationWithOwner[];
-  conversations_with_owners: ConversationWithOwner[];
+  on_open_room: (room_id: string) => void;
+  recent_rooms: RuntimeRoomListItem[];
+  runtime_rooms: RuntimeRoomListItem[];
 }
 
 const TOKEN_SWATCHES = [
@@ -109,7 +112,7 @@ function getInitials(name: string) {
 
 function buildDecorativeTokens(
   agents: Agent[],
-  conversations_with_owners: ConversationWithOwner[],
+  runtime_rooms: RuntimeRoomListItem[],
 ): SpotlightToken[] {
   const agent_tokens: SpotlightToken[] =
     agents.map((agent, index) => ({
@@ -121,10 +124,10 @@ function buildDecorativeTokens(
     }));
 
   const room_tokens: SpotlightToken[] =
-    conversations_with_owners.slice(0, 8).map(({ conversation }, index) => ({
-      key: `room-${conversation.session_key}`,
-      label: getInitials(conversation.title || "Room"),
-      agent_id: conversation.agent_id ?? null,
+    runtime_rooms.slice(0, 8).map(({ room }, index) => ({
+      key: `room-${room.id}`,
+      label: getInitials(room.name || "Room"),
+      agent_id: null,
       kind: "room" as const,
       swatch: TOKEN_SWATCHES[(agent_tokens.length + index) % TOKEN_SWATCHES.length],
     }));
@@ -196,6 +199,7 @@ const HeroStage = memo(function HeroStage({
   current_agent_id,
   decorative_tokens,
   on_open_app_conversation,
+  on_open_room,
   on_open_conversation,
   on_query_change,
   on_select_agent,
@@ -276,14 +280,14 @@ const HeroStage = memo(function HeroStage({
               </button>
             ))}
 
-            {recent_rooms.map(({ conversation }) => (
+            {recent_rooms.map(({ room }) => (
               <button
-                key={conversation.session_key}
+                key={room.id}
                 className="rounded-full bg-white/8 px-3 py-1.5 text-xs font-medium text-white/76 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/16 sm:text-sm"
-                onClick={() => on_open_conversation(conversation.session_key, conversation.agent_id)}
+                onClick={() => on_open_room(room.id)}
                 type="button"
               >
-                #{truncate(conversation.title || "Untitled Room", 18)}
+                #{truncate(room.name || "Untitled Room", 18)}
               </button>
             ))}
 
@@ -438,24 +442,24 @@ const ContactsPopover = memo(function ContactsPopover({
 const RecentRoomsPopover = memo(function RecentRoomsPopover({
   on_create_room,
   on_close,
-  on_open_conversation,
+  on_open_room,
   recent_rooms,
-  conversations_with_owners,
+  runtime_rooms,
 }: RecentRoomsPopoverProps) {
   const [query, setQuery] = useState("");
   const deferred_query = useDeferredValue(query);
   const filtered_rooms = useMemo(() => {
     const keyword = deferred_query.trim().toLowerCase();
     if (!keyword) {
-      return conversations_with_owners;
+      return runtime_rooms;
     }
 
-    return conversations_with_owners.filter(({ conversation, owner }) =>
-      [conversation.title, owner?.name ?? ""].some((field) =>
+    return runtime_rooms.filter(({ room }) =>
+      [room.name ?? "", room.mode, room.runtime_status].some((field) =>
         field.toLowerCase().includes(keyword),
       ),
     );
-  }, [conversations_with_owners, deferred_query]);
+  }, [deferred_query, runtime_rooms]);
 
   return (
     <HeroSidePanelShell class_name="absolute right-0 top-[calc(100%+14px)] z-30">
@@ -473,36 +477,31 @@ const RecentRoomsPopover = memo(function RecentRoomsPopover({
         </HeroInputShell>
 
         <div className="space-y-2">
-          {filtered_rooms.slice(0, 4).map(({ conversation, owner }, index) => (
+          {filtered_rooms.slice(0, 4).map(({ room, members }, index) => (
             <button
-              key={conversation.session_key}
+              key={room.id}
               className={cn(
                 "flex w-full items-center justify-between rounded-[18px] bg-[rgba(255,255,255,0.05)] px-2 py-2 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]",
                 index === 0 && "bg-[rgba(255,255,255,0.10)]",
               )}
               onClick={() => {
                 on_close();
-                on_open_conversation(conversation.session_key, conversation.agent_id);
+                on_open_room(room.id);
               }}
               type="button"
             >
               <div>
                 <p className="text-sm font-semibold text-slate-900/84">
-                  {truncate(conversation.title || "Untitled Room", 26)}
+                  {truncate(room.name || "Untitled Room", 26)}
                 </p>
                 <p className="max-w-[210px] truncate text-xs text-slate-700/54">
-                  {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(conversation.last_activity_at)}
+                  {room.mode} · {room.runtime_status} · {members.length} 成员
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[11px] text-slate-700/42">
-                  {formatRelativeTime(conversation.last_activity_at)}
+                  {formatRelativeTime(new Date(room.updated_at || room.created_at || Date.now()).getTime())}
                 </span>
-                {(conversation.message_count ?? 0) > 0 && (
-                  <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/14 px-1.5 text-[9px] font-bold text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                    {Math.min(conversation.message_count ?? 0, 9)}
-                  </span>
-                )}
                 <ChevronRight className="h-4 w-4 text-slate-700/40" />
               </div>
             </button>
@@ -530,10 +529,12 @@ const RecentRoomsPopover = memo(function RecentRoomsPopover({
 export function LauncherConsole({
   agents,
   conversations,
+  runtime_rooms,
   current_agent_id,
   on_create_room,
   on_open_contacts_page,
   on_open_app_conversation,
+  on_open_room,
   on_select_agent,
   on_open_conversation,
   on_create_agent,
@@ -560,10 +561,10 @@ export function LauncherConsole({
   }, [agents_by_id, conversations]);
 
   const recent_agents = useMemo(() => agents.slice(0, 2), [agents]);
-  const recent_rooms = useMemo(() => conversations_with_owners.slice(0, 3), [conversations_with_owners]);
+  const recent_rooms = useMemo(() => runtime_rooms.slice(0, 3), [runtime_rooms]);
   const decorative_tokens = useMemo(
-    () => buildDecorativeTokens(agents, conversations_with_owners),
-    [agents, conversations_with_owners],
+    () => buildDecorativeTokens(agents, runtime_rooms),
+    [agents, runtime_rooms],
   );
 
   const handle_submit = useCallback(() => {
@@ -586,23 +587,20 @@ export function LauncherConsole({
 
     if (room_match) {
       const keyword = room_match[1].toLowerCase();
-      const matched_room = conversations_with_owners.find(({ conversation }) =>
-        conversation.title.toLowerCase().includes(keyword),
+      const matched_room = runtime_rooms.find(({ room }) =>
+        (room.name || "").toLowerCase().includes(keyword),
       );
       if (matched_room) {
-        on_open_conversation(
-          matched_room.conversation.session_key,
-          matched_room.conversation.agent_id,
-        );
+        on_open_room(matched_room.room.id);
         return;
       }
     }
 
-    const room_first = conversations_with_owners.find(({ conversation }) =>
-      conversation.title.toLowerCase().includes(trimmed.toLowerCase()),
+    const room_first = runtime_rooms.find(({ room }) =>
+      (room.name || "").toLowerCase().includes(trimmed.toLowerCase()),
     );
     if (room_first) {
-      on_open_conversation(room_first.conversation.session_key, room_first.conversation.agent_id);
+      on_open_room(room_first.room.id);
       return;
     }
 
@@ -615,7 +613,7 @@ export function LauncherConsole({
     }
 
     on_open_app_conversation(trimmed);
-  }, [agents, conversations_with_owners, on_open_app_conversation, on_open_conversation, on_select_agent, query]);
+  }, [agents, on_open_app_conversation, on_open_room, on_select_agent, query, runtime_rooms]);
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -685,11 +683,11 @@ export function LauncherConsole({
 
           {show_rooms ? (
             <RecentRoomsPopover
-              conversations_with_owners={conversations_with_owners}
               on_create_room={on_create_room}
               on_close={() => setShowRooms(false)}
-              on_open_conversation={on_open_conversation}
+              on_open_room={on_open_room}
               recent_rooms={recent_rooms}
+              runtime_rooms={runtime_rooms}
             />
           ) : null}
         </div>
@@ -699,6 +697,7 @@ export function LauncherConsole({
         <HeroStage
           current_agent_id={current_agent_id}
           decorative_tokens={decorative_tokens}
+          on_open_room={on_open_room}
           on_open_conversation={on_open_conversation}
           on_open_app_conversation={on_open_app_conversation}
           on_query_change={setQuery}

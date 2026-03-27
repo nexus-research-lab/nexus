@@ -87,8 +87,10 @@ export function RoomPage() {
     return (
       <AppStage>
         <OpenRoomShell
+          available_agents={controller.agents}
           error={controller.open_room_error}
           is_loading={controller.is_open_room_loading}
+          on_add_member={controller.handle_open_room_add_member}
           on_post_action={controller.handle_open_room_action}
           on_post_message={controller.handle_open_room_message}
           on_refresh={controller.handle_open_room_refresh}

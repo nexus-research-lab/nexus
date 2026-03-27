@@ -1,13 +1,15 @@
 "use client";
 
 import { ReactNode, useMemo, useState } from "react";
-import { Activity, Bot, CheckCircle2, Megaphone, Send, Sparkles, Wrench } from "lucide-react";
+import { Activity, Bot, CheckCircle2, Megaphone, Plus, Send, Sparkles, Wrench } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
+import { Agent } from "@/types/agent";
 import { RoomActionEnvelope, RoomArtifactRecord, RoomEventRecord, RoomMemberRecord, RoomRuntimeView, RoomTaskRecord } from "@/types";
 
 interface OpenRoomShellProps {
   view: RoomRuntimeView;
+  available_agents: Agent[];
   is_loading: boolean;
   error: string | null;
   on_refresh: () => Promise<unknown>;
@@ -23,6 +25,7 @@ interface OpenRoomShellProps {
     metadata?: Record<string, any>;
   }) => Promise<unknown>;
   on_post_action: (params: RoomActionEnvelope) => Promise<unknown>;
+  on_add_member: (agent_id: string) => Promise<unknown>;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -48,6 +51,7 @@ const EVENT_TONE: Record<string, string> = {
 
 export function OpenRoomShell({
   view,
+  available_agents,
   is_loading,
   error,
   on_refresh,
@@ -57,6 +61,7 @@ export function OpenRoomShell({
   on_run_until_finished,
   on_post_message,
   on_post_action,
+  on_add_member,
 }: OpenRoomShellProps) {
   const [broadcast, set_broadcast] = useState("");
   const [messageScope, setMessageScope] = useState<"broadcast" | "direct">("broadcast");
@@ -64,6 +69,7 @@ export function OpenRoomShell({
   const [taskTitle, set_taskTitle] = useState("");
   const [taskSummary, set_taskSummary] = useState("");
   const [taskAssigneeId, set_taskAssigneeId] = useState("");
+  const [inviteAgentId, setInviteAgentId] = useState("");
 
   const agentMembers = useMemo(
     () => view.members.filter((member) => member.member_type === "agent" && member.member_agent_id),
@@ -74,6 +80,14 @@ export function OpenRoomShell({
     [view.events],
   );
   const phase = String(view.room.runtime_state?.phase ?? "setup");
+  const memberAgentIds = useMemo(
+    () => new Set(view.members.map((member) => member.member_agent_id).filter(Boolean)),
+    [view.members],
+  );
+  const invitables = useMemo(
+    () => available_agents.filter((agent) => !memberAgentIds.has(agent.agent_id)),
+    [available_agents, memberAgentIds],
+  );
 
   const handleSendBroadcast = async () => {
     const content = broadcast.trim();
@@ -103,6 +117,14 @@ export function OpenRoomShell({
     });
     set_taskTitle("");
     set_taskSummary("");
+  };
+
+  const handleInviteMember = async () => {
+    if (!inviteAgentId) {
+      return;
+    }
+    await on_add_member(inviteAgentId);
+    setInviteAgentId("");
   };
 
   return (
@@ -224,6 +246,23 @@ export function OpenRoomShell({
                 status: <span className="font-semibold text-slate-900/84">{view.room.runtime_status}</span>
               </div>
             </div>
+
+            <section className="mt-4 rounded-[24px] border border-white/60 bg-white/34 p-4">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">
+                <Plus className="h-4 w-4" />
+                <span>Invite Member</span>
+              </div>
+              <select className="neo-inset mt-3 w-full rounded-[16px] px-3 py-2 text-sm text-slate-900/86 outline-none" onChange={(event) => setInviteAgentId(event.target.value)} value={inviteAgentId}>
+                <option value="">选择要加入会议室的 agent</option>
+                {invitables.map((agent) => (
+                  <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
+                ))}
+              </select>
+              <button className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/60 bg-white/44 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50" disabled={!inviteAgentId || is_loading} onClick={() => void handleInviteMember()} type="button">
+                <Plus className="h-4 w-4" />
+                邀请加入
+              </button>
+            </section>
 
             <section className="mt-4 rounded-[24px] border border-white/60 bg-white/34 p-4">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700/48">

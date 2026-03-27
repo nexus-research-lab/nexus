@@ -31,7 +31,10 @@ class RoomSqlRepository(BaseSqlRepository):
         members: Optional[list[MemberRecord]] = None,
     ) -> RoomAggregate:
         """创建房间及初始成员。"""
-        entity = Room(**room.model_dump(exclude={"created_at", "updated_at"}))
+        payload = room.model_dump(exclude={"created_at", "updated_at"})
+        if "capabilities" in payload:
+            payload["capabilities_json"] = payload.pop("capabilities")
+        entity = Room(**payload)
         self._session.add(entity)
         for member in members or []:
             self._session.add(

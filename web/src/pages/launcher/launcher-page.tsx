@@ -178,6 +178,10 @@ export function LauncherPage() {
     navigate(AppRouteBuilders.contacts());
   }, [navigate]);
 
+  const handle_open_room = useCallback((room_id: string) => {
+    navigate(AppRouteBuilders.room(room_id));
+  }, [navigate]);
+
   const handle_create_room = useCallback(() => {
     const next_room_title = build_room_title_from_prompt(latest_user_prompt);
     set_pending_room_title(next_room_title);
@@ -217,6 +221,7 @@ export function LauncherPage() {
         description: "Created from Launcher room dialog.",
         goal,
       });
+      await controller.refresh_runtime_rooms();
       set_is_create_room_dialog_open(false);
       set_pending_room_title("");
       navigate(AppRouteBuilders.room(created_room.room.id));
@@ -225,7 +230,7 @@ export function LauncherPage() {
     } finally {
       set_is_creating_room(false);
     }
-  }, [navigate]);
+  }, [controller, navigate]);
 
   const handle_clear_app_conversation = useCallback(async () => {
     if (controller.app_conversation_key) {
@@ -268,6 +273,7 @@ export function LauncherPage() {
       title: pending_room_title || title,
       description: "Created from Launcher app conversation bootstrap flow.",
     });
+    await controller.refresh_runtime_rooms();
     set_pending_room_title("");
     set_should_bootstrap_room_after_create(false);
     navigate(AppRouteBuilders.room(created_room.room.id));
@@ -304,10 +310,12 @@ export function LauncherPage() {
           <LauncherConsole
             agents={controller.agents}
             conversations={controller.conversations}
+            runtime_rooms={controller.runtime_rooms}
             on_create_room={handle_create_room}
             current_agent_id={controller.current_agent_id}
             on_open_contacts_page={handle_open_contacts_page}
             on_open_app_conversation={controller.open_app_conversation}
+            on_open_room={handle_open_room}
             on_select_agent={handle_select_agent}
             on_open_conversation={handle_open_conversation}
             on_create_agent={handle_create_agent}

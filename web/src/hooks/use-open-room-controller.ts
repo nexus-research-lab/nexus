@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  addRoomMember,
   getRoom,
   getRoomView,
   postRoomAction,
@@ -127,6 +128,16 @@ export function useOpenRoomController({ room_id }: UseOpenRoomControllerOptions)
     return await run_command(() => postRoomAction(room_id, params), "提交动作失败");
   }, [room_id, run_command]);
 
+  const handle_add_member = useCallback(async (existing_agent_id: string) => {
+    if (!room_id) {
+      return null;
+    }
+    return await run_command(
+      () => addRoomMember(room_id, { existing_agent_id, source: "existing", workspace_binding: true }),
+      "添加成员失败",
+    );
+  }, [room_id, run_command]);
+
   const participants = useMemo(
     () => view?.members ?? room?.members ?? [],
     [room?.members, view?.members],
@@ -147,5 +158,6 @@ export function useOpenRoomController({ room_id }: UseOpenRoomControllerOptions)
     handle_open_room_run_until_finished: handle_run_until_finished,
     handle_open_room_message: handle_post_message,
     handle_open_room_action: handle_post_action,
+    handle_open_room_add_member: handle_add_member,
   };
 }
