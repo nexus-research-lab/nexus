@@ -146,7 +146,7 @@ class SessionRepository:
         meta["latest_round_id"] = compacted_rows[-1].get("round_id") if compacted_rows else None
 
         if compacted_rows:
-            latest_timestamp = compacted_rows[-1].get("timestamp")
+            latest_timestamp = self._pick_latest_reply_timestamp(compacted_rows)
             if latest_timestamp:
                 meta["last_activity"] = datetime.fromtimestamp(
                     int(latest_timestamp) / 1000,
@@ -154,9 +154,45 @@ class SessionRepository:
                 ).isoformat()
         return meta
 
+    @staticmethod
+    def _pick_latest_reply_timestamp(message_rows: List[Dict[str, Any]]) -> Optional[int]:
+        """优先返回最后一条回复消息时间，没有回复时回退到最后一条消息时间。"""
+        for row in reversed(message_rows):
+            if row.get("role") not in {"assistant", "result"}:
+                continue
+            timestamp = row.get("timestamp")
+            if isinstance(timestamp, (int, float)) and int(timestamp) > 0:
+                return int(timestamp)
+
+        last_row = message_rows[-1] if message_rows else None
+        if not last_row:
+            return None
+
+        timestamp = last_row.get("timestamp")
+        if isinstance(timestamp, (int, float)) and int(timestamp) > 0:
+            return int(timestamp)
+        return None
+
     def _write_session_meta(self, meta_path: Path, meta: Dict[str, Any]) -> None:
         """写入会话元数据。"""
         ConfigStore.write(meta_path, meta)
+
+    def _refresh_meta_from_log_if_needed(self, meta_path: Path) -> Dict[str, Any]:
+        """按消息日志回算 meta，避免历史会话时间长期停留在旧口径。"""
+        with self._lock:
+            meta = ConfigStore.read(meta_path, {})
+            if not meta:
+                return {}
+
+            log_path = meta_path.parent / "messages.jsonl"
+            raw_rows = self._load_raw_message_rows(log_path if log_path.exists() else None)
+            if not raw_rows:
+                return meta
+
+            refreshed_meta = self._refresh_meta_from_messages(dict(meta), raw_rows)
+            if refreshed_meta != meta:
+                self._write_session_meta(meta_path, refreshed_meta)
+            return refreshed_meta
 
     def _materialize_unfinished_rounds(
         self,
@@ -314,7 +350,7 @@ class SessionRepository:
             meta_path = self._find_session_meta_path(session_key)
             if not meta_path:
                 return None
-            meta = ConfigStore.read(meta_path, {})
+            meta = self._refresh_meta_from_log_if_needed(meta_path)
             if not meta:
                 return None
             return self._session_from_meta(meta)
@@ -348,7 +384,6 @@ class SessionRepository:
                     meta["options"] = options
                 if status is not None:
                     meta["status"] = status
-                meta["last_activity"] = datetime.now(timezone.utc).isoformat()
                 self._write_session_meta(meta_path, meta)
 
             logger.info(f"🔄 更新会话: key={session_key}")
@@ -368,7 +403,7 @@ class SessionRepository:
                     if meta_path in seen_paths:
                         continue
                     seen_paths.add(meta_path)
-                    meta = ConfigStore.read(meta_path, {})
+                    meta = self._refresh_meta_from_log_if_needed(meta_path)
                     if not meta:
                         continue
                     try:

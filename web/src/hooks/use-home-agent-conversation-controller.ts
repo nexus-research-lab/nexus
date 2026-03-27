@@ -206,7 +206,7 @@ export function useHomeAgentConversationController() {
 
     sync_conversation_snapshot(snapshot.conversation_id, {
       message_count: snapshot.message_count,
-      last_activity_at: snapshot.last_activity_at,
+      ...(snapshot.last_activity_at ? {last_activity_at: snapshot.last_activity_at} : {}),
       session_id: snapshot.session_id,
     });
   }, [sync_conversation_snapshot]);
