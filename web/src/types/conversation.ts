@@ -43,7 +43,7 @@ export interface UpdateConversationParams {
 export interface ConversationSnapshotPayload {
   conversation_id: string;
   message_count: number;
-  last_activity_at: number;
+  last_activity_at?: number;
   session_id: string | null;
 }
 

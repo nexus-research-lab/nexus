@@ -46,6 +46,25 @@ function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
   return groups;
 }
 
+function get_latest_reply_timestamp(messages: Message[]): number | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "assistant" && message.role !== "result") {
+      continue;
+    }
+    if (Number.isFinite(message.timestamp) && message.timestamp > 0) {
+      return message.timestamp;
+    }
+  }
+
+  const last_message = messages[messages.length - 1];
+  if (last_message && Number.isFinite(last_message.timestamp) && last_message.timestamp > 0) {
+    return last_message.timestamp;
+  }
+
+  return null;
+}
+
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
@@ -105,11 +124,16 @@ export function RoomChatPanel({
       return;
     }
 
+    if (messages.length === 0) {
+      return;
+    }
+
     const last_message = messages[messages.length - 1];
+    const latest_reply_timestamp = get_latest_reply_timestamp(messages);
     on_conversation_snapshot_change?.({
       conversation_id: external_session_key,
       message_count: messages.length,
-      last_activity_at: last_message?.timestamp ?? Date.now(),
+      ...(latest_reply_timestamp ? {last_activity_at: latest_reply_timestamp} : {}),
       session_id: last_message?.session_id ?? null,
     });
   }, [external_session_key, messages, on_conversation_snapshot_change]);

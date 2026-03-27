@@ -34,9 +34,7 @@ function to_timestamp(value?: string | null): number {
 
 function get_context_last_activity_timestamp(context: RoomContextAggregate): number {
   const session_timestamps = context.sessions.map((session) => (
-    to_timestamp(session.last_activity_at) ||
-    to_timestamp(session.updated_at) ||
-    to_timestamp(session.created_at)
+    to_timestamp(session.last_activity_at)
   ));
   const latest_session_timestamp = Math.max(0, ...session_timestamps);
 
@@ -58,6 +56,7 @@ export function useRoomPageController({
   } = useAgentStore();
   const {
     conversations,
+    sync_conversation_snapshot,
     load_conversations_from_server,
   } = useConversationStore();
 
@@ -225,10 +224,7 @@ export function useRoomPageController({
             latest_conversation?.created_at ??
             (to_timestamp(context.conversation.created_at) || context_last_activity_at),
           last_activity_at:
-            Math.max(
-              latest_conversation?.last_activity_at ?? 0,
-              context_last_activity_at,
-            ),
+            latest_conversation?.last_activity_at ?? context_last_activity_at,
           is_active: latest_conversation?.is_active,
           message_count:
             latest_conversation?.message_count ??
@@ -398,9 +394,13 @@ export function useRoomPageController({
     return validateAgentNameApi(name, exclude_agent_id);
   }, [dialog_mode, editing_agent_id]);
 
-  const handle_conversation_snapshot_change = useCallback((_snapshot: ConversationSnapshotPayload) => {
-    // room 页当前直接依赖后端 room 上下文与真实 session 列表，不再在本地伪造 thread 快照。
-  }, []);
+  const handle_conversation_snapshot_change = useCallback((snapshot: ConversationSnapshotPayload) => {
+    sync_conversation_snapshot(snapshot.conversation_id, {
+      message_count: snapshot.message_count,
+      ...(snapshot.last_activity_at ? {last_activity_at: snapshot.last_activity_at} : {}),
+      session_id: snapshot.session_id,
+    });
+  }, [sync_conversation_snapshot]);
 
   const handle_update_room = useCallback(async (params: UpdateRoomParams) => {
     if (!room_id) {
