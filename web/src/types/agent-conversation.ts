@@ -36,7 +36,7 @@ export interface UseAgentConversationReturn {
   delete_round: (round_id: string) => Promise<void>;
   regenerate: (round_id: string) => Promise<void>;
   pending_permission: PendingPermission | null;
-  send_permission_response: (payload: PermissionDecisionPayload) => void;
+  send_permission_response: (payload: PermissionDecisionPayload) => boolean;
 }
 
 export interface ConversationSnapshot {

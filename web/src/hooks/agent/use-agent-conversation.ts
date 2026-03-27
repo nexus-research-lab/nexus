@@ -138,7 +138,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [action_context]);
 
   const send_permission_response = useCallback((payload: PermissionDecisionPayload) => {
-    sendConversationPermissionResponse(payload, action_context);
+    return sendConversationPermissionResponse(payload, action_context);
   }, [action_context]);
 
   const regenerate = useCallback(async (round_id: string) => {

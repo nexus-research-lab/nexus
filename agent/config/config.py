@@ -99,10 +99,8 @@ class Settings(BaseSettings):
     # =====================================================
     WORKSPACE_PATH: str = ""  # 为空时使用 ~/.nexus-core/workspace
     BASE_SYSTEM_PROMPT: str = ""
-    BASE_SYSTEM_PROMPT_FILE: str = ""
     MAIN_AGENT_MODEL: str = ""
     MAIN_AGENT_SYSTEM_PROMPT: str = ""
-    MAIN_AGENT_SYSTEM_PROMPT_FILE: str = ""
 
     model_config = SettingsConfigDict(
         env_file=os.path.abspath(ENV_FILE),

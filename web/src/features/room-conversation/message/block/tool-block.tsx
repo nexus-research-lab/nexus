@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from 'react';
-import { Check, CheckCircle, ChevronDown, ChevronRight, Clock, Copy, Loader, Terminal, XCircle } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './code-block';
 import { PermissionDialog } from '@/shared/ui/permission-dialog';
@@ -36,6 +36,23 @@ interface ToolBlockProps {
 }
 
 // ==================== 辅助函数 ====================
+
+const TOOL_TITLE_MAP: Record<string, string> = {
+  Bash: '执行动作',
+  Read: '读取内容',
+  Write: '写入内容',
+  Edit: '修改内容',
+  MultiEdit: '批量修改',
+  Grep: '查找内容',
+  Glob: '浏览文件',
+  LS: '查看目录',
+  TodoWrite: '更新计划',
+  AskUserQuestion: '等待你的确认',
+};
+
+const getToolTitle = (tool_name: string): string => {
+  return TOOL_TITLE_MAP[tool_name] ?? '执行动作';
+};
 
 /** 获取文件路径的简短显示 */
 const getPathDisplay = (input: any): string | null => {
@@ -99,6 +116,11 @@ export function ToolBlock({
 
   // 路径显示
   const pathDisplay = useMemo(() => getPathDisplay(tool_use.input), [tool_use.input]);
+  const toolTitle = useMemo(() => getToolTitle(tool_use.name), [tool_use.name]);
+  const resultSummary = useMemo(() => {
+    if (!tool_result) return null;
+    return getResultSummary(tool_result.content);
+  }, [tool_result]);
 
   // 最终状态
   const finalStatus = tool_result?.is_error ? 'error' : status;
@@ -110,30 +132,30 @@ export function ToolBlock({
 
   // 状态配色
   const statusColors = {
-    pending: 'workspace-card',
-    running: 'workspace-card shadow-[0_18px_30px_rgba(133,119,255,0.12)]',
-    success: 'workspace-card shadow-[0_18px_30px_rgba(102,217,143,0.10)]',
-    error: 'workspace-card shadow-[0_18px_30px_rgba(235,90,81,0.10)]',
-    waiting_permission: 'workspace-card shadow-[0_18px_30px_rgba(255,157,86,0.12)]',
+    pending: 'border-white/24 bg-white/12',
+    running: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(133,119,255,0.08)]',
+    success: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(102,217,143,0.08)]',
+    error: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(235,90,81,0.08)]',
+    waiting_permission: 'border-white/28 bg-white/14 shadow-[0_18px_30px_rgba(255,157,86,0.1)]',
   };
 
   return (
     <div className={cn(
-      "radius-shell-md my-2 overflow-hidden transition-all duration-300",
+      "my-2 overflow-hidden rounded-[20px] border transition-all duration-300",
       statusColors[finalStatus]
     )}>
       {/* ═══════════ 头部栏：工具名+路径+状态+时间 ═══════════ */}
       <div
         className={cn(
-          "flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 px-3 py-2 font-mono text-xs transition-colors sm:h-10 sm:flex-nowrap",
-          "hover:bg-white/18",
+          "flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 px-3 py-2 text-xs transition-colors sm:min-h-11 sm:flex-nowrap",
+          "hover:bg-white/12",
           isRunning && "animate-pulse"
         )}
         onClick={() => hasResult && setIsExpanded(!isExpanded)}
       >
         {/* 工具图标 */}
         <div className={cn(
-          "workspace-chip radius-shell-sm flex h-6 w-6 items-center justify-center",
+          "flex h-7 w-7 items-center justify-center rounded-full border border-white/28 bg-white/24",
           isSuccess && "text-green-500",
           isError && "text-red-500",
           isRunning && "text-primary",
@@ -148,41 +170,37 @@ export function ToolBlock({
           ) : isWaiting ? (
             <Clock className="w-3.5 h-3.5 animate-pulse" />
           ) : (
-            <Terminal className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5" />
           )}
         </div>
 
-        {/* 工具名 */}
-        <span className={cn(
-          "shrink-0",
-          "font-medium uppercase tracking-wider",
-          isSuccess && "text-green-500",
-          isError && "text-red-500",
-          isRunning && "text-primary",
-          isWaiting && "text-orange-500"
-        )}>
-          {tool_use.name}
-        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className={cn(
+              "shrink-0 font-medium uppercase tracking-[0.14em]",
+              isSuccess && "text-green-600",
+              isError && "text-red-500",
+              isRunning && "text-primary",
+              isWaiting && "text-orange-500"
+            )}>
+              {toolTitle}
+            </span>
+            {durationText ? (
+              <span className="shrink-0 text-[11px] text-slate-700/46">{durationText}</span>
+            ) : null}
+          </div>
+          <div className="mt-0.5 min-w-0 text-[12px] text-slate-700/60">
+            {hasResult && !isExpanded && resultSummary ? (
+              <span className="block truncate">{resultSummary}</span>
+            ) : pathDisplay ? (
+              <span className="block truncate">{pathDisplay}</span>
+            ) : (
+              <span>{isWaiting ? '等你确认后继续' : '查看执行详情'}</span>
+            )}
+          </div>
+        </div>
 
-        {/* 分隔符 */}
-        <span className="text-muted-foreground/30">│</span>
-
-        {/* 路径/命令 */}
-        {pathDisplay && (
-          <span className="order-2 min-w-0 text-muted-foreground break-all sm:order-none w-auto sm:flex-1 sm:truncate sm:break-normal sm:max-w-[240px] xl:max-w-[300px]">
-            {pathDisplay}
-          </span>
-        )}
-
-        {/* 弹性空间 */}
         <div className="hidden flex-1 sm:block" />
-
-        {/* 结果摘要（折叠时） */}
-        {/*{hasResult && !isExpanded && (*/}
-        {/*  <span className="hidden max-w-[100px] truncate text-muted-foreground/60 lg:block">*/}
-        {/*    {getResultSummary(toolResult.content)}*/}
-        {/*  </span>*/}
-        {/*)}*/}
 
         {/* 复制按钮（有结果时） */}
         {hasResult && (
@@ -190,7 +208,7 @@ export function ToolBlock({
             onClick={handleCopyResult}
             className={cn(
               "ml-auto sm:ml-0",
-              "workspace-chip radius-shell-sm px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
+              "rounded-full border border-white/28 bg-white/18 px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all",
               copied
                 ? "text-green-500 bg-green-500/10"
                 : "text-slate-700/58 hover:text-slate-950 hover:bg-white/18"
@@ -198,14 +216,6 @@ export function ToolBlock({
           >
             {copied ? '✓' : '复制'}
           </button>
-        )}
-
-        {/* 时间 */}
-        {durationText && (
-          <>
-            <span className="hidden text-muted-foreground/30 sm:inline">│</span>
-            <span className="hidden text-muted-foreground/60 tabular-nums sm:inline">{durationText}</span>
-          </>
         )}
 
         {/* 展开指示器 */}
@@ -223,10 +233,18 @@ export function ToolBlock({
 
       {/* ═══════════ 展开的结果内容 ═══════════ */}
       {hasResult && isExpanded && (
-        <div className="border-t workspace-divider">
+        <div className="border-t border-white/18">
           <div className="max-h-[300px] overflow-y-auto p-3 custom-scrollbar">
+            {pathDisplay ? (
+              <div className="mb-3 rounded-[14px] border border-white/24 bg-white/18 px-3 py-2 text-[11px] text-slate-700/62">
+                <div className="mb-1 font-semibold uppercase tracking-[0.12em] text-slate-700/48">
+                  执行详情
+                </div>
+                <div className="break-all">{pathDisplay}</div>
+              </div>
+            ) : null}
             {typeof tool_result.content === 'string' ? (
-              <pre className="workspace-card radius-shell-sm p-4 text-xs font-mono whitespace-pre-wrap break-all text-slate-900/80">
+              <pre className="rounded-[16px] border border-white/24 bg-white/22 p-4 text-xs whitespace-pre-wrap break-all text-slate-900/80">
                 {tool_result.content}
               </pre>
             ) : (
@@ -238,7 +256,7 @@ export function ToolBlock({
 
       {/* ═══════════ 运行中指示 ═══════════ */}
       {!hasResult && isRunning && (
-        <div className="flex h-8 items-center gap-2 border-t workspace-divider px-3 text-xs text-slate-700/56">
+        <div className="flex h-8 items-center gap-2 border-t border-white/18 px-3 text-xs text-slate-700/56">
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
@@ -254,14 +272,14 @@ export function ToolBlock({
           {/* 参数预览 */}
           <div className="max-h-[120px] overflow-y-auto border-b border-orange-500/10 px-3 py-3 custom-scrollbar">
             {permission_request.summary && (
-              <div className="mb-2 text-[11px] text-orange-500 flex items-center gap-2">
+              <div className="mb-2 flex items-center gap-2 text-[11px] text-orange-500">
                 <span className="font-semibold uppercase tracking-wider">
-                  {permission_request.risk_label || '待确认'}
+                  {permission_request.risk_label || '需要确认'}
                 </span>
                 <span className="truncate">{permission_request.summary}</span>
               </div>
             )}
-            <pre className="workspace-card radius-shell-sm p-3 text-[11px] font-mono whitespace-pre-wrap break-all text-slate-900/74">
+            <pre className="rounded-[16px] border border-white/24 bg-white/18 p-3 text-[11px] whitespace-pre-wrap break-all text-slate-900/74">
               {JSON.stringify(permission_request.tool_input, null, 2)}
             </pre>
           </div>
@@ -270,7 +288,7 @@ export function ToolBlock({
           <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:h-11 sm:flex-nowrap sm:py-0">
             <span className="flex items-center gap-1.5 text-xs font-medium text-orange-500">
               <Clock className="w-3 h-3" />
-              等待确认
+              等你确认后继续
             </span>
             <div className="hidden flex-1 sm:block" />
             <button
@@ -289,7 +307,7 @@ export function ToolBlock({
               onClick={() => setShowDetailModal(true)}
               className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
             >
-              查看详情
+              查看执行详情
             </button>
           </div>
         </div>

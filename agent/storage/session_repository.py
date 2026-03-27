@@ -48,19 +48,15 @@ class SessionRepository:
         return workspace_path
 
     def _iter_known_workspace_paths(self) -> List[Path]:
-        """返回当前所有已知 workspace 路径。"""
-        records = ConfigStore.read(self._paths.agents_index_path, [])
+        """返回当前 workspace 根目录下的所有已知路径。"""
         paths: List[Path] = []
-        for record in records if isinstance(records, list) else []:
-            workspace_path = record.get("workspace_path")
-            if not workspace_path:
-                continue
-            path = Path(str(workspace_path)).expanduser()
-            if path not in paths:
-                paths.append(path)
-
-        if self._paths.workspace_base not in paths:
-            paths.append(self._paths.workspace_base)
+        workspace_base = self._paths.workspace_base.expanduser()
+        if workspace_base.exists():
+            for path in workspace_base.iterdir():
+                if path.is_dir() and path not in paths:
+                    paths.append(path)
+        if workspace_base not in paths:
+            paths.append(workspace_base)
         return paths
 
     def _find_session_meta_path(
@@ -98,6 +94,7 @@ class SessionRepository:
             session_key=meta["session_key"],
             agent_id=meta.get("agent_id") or  settings.DEFAULT_AGENT_ID,
             session_id=meta.get("session_id"),
+            room_session_id=(meta.get("options") or {}).get("room_session_id"),
             channel_type=meta.get("channel_type") or "websocket",
             chat_type=meta.get("chat_type") or "dm",
             status=meta.get("status") or "active",

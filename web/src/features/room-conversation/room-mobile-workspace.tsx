@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, MessageSquare, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, MessageSquare, Search, X } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/utils";
 import { Agent } from "@/types/agent";
@@ -11,11 +11,12 @@ import { RoomChatPanel } from "./room-chat-panel";
 
 interface RoomMobileWorkspaceProps {
   current_agent: Agent;
+  current_room_title: string;
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
   on_back_to_directory: () => void;
-  on_create_conversation: () => void;
+  on_create_conversation: (title?: string) => void | Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
   on_loading_change: (is_loading: boolean) => void;
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
@@ -23,6 +24,7 @@ interface RoomMobileWorkspaceProps {
 
 export function RoomMobileWorkspace({
   current_agent,
+  current_room_title,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
@@ -44,7 +46,7 @@ export function RoomMobileWorkspace({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <div className="px-2 pb-2 pt-2">
-        <div className="workspace-shell radius-shell-lg flex items-center gap-2 px-2 py-2">
+        <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
           <button
             className="workspace-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-900/82 transition hover:text-slate-950"
             onClick={on_back_to_directory}
@@ -64,22 +66,17 @@ export function RoomMobileWorkspace({
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-900/84">{current_agent.name}</p>
-              <p className="truncate text-[12px] text-slate-700/54">{current_conversation_title}</p>
+              <p className="truncate text-[12px] text-slate-700/54">
+                {current_room_title || current_conversation_title}
+              </p>
             </div>
 
             <ChevronDown className="h-4 w-4 shrink-0 text-slate-700/50" />
           </button>
 
-          <button
-            className="workspace-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-900/82 transition hover:text-slate-950"
-            onClick={() => {
-              on_create_conversation();
-              setIsConversationSheetOpen(false);
-            }}
-            type="button"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <div className="workspace-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-700/44">
+            <MessageSquare className="h-4 w-4" />
+          </div>
         </div>
       </div>
 
@@ -87,6 +84,7 @@ export function RoomMobileWorkspace({
         <RoomChatPanel
           agent_id={current_agent.agent_id}
           current_agent_name={current_agent.name}
+          current_room_title={current_room_title}
           layout="mobile"
           on_conversation_snapshot_change={on_conversation_snapshot_change}
           on_create_conversation={on_create_conversation}
@@ -105,7 +103,7 @@ export function RoomMobileWorkspace({
             type="button"
           />
 
-          <div className="workspace-shell absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
+          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-black/10" />
 
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -124,18 +122,6 @@ export function RoomMobileWorkspace({
                 <X className="h-4 w-4" />
               </button>
             </div>
-
-            <button
-              className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,rgba(174,163,255,0.18),rgba(255,255,255,0.82))] px-4 py-3 text-sm font-semibold text-foreground shadow-[0_10px_24px_rgba(133,119,255,0.12)]"
-              onClick={() => {
-                on_create_conversation();
-                setIsConversationSheetOpen(false);
-              }}
-              type="button"
-            >
-              <Plus className="h-4 w-4" />
-              新建会话
-            </button>
 
             <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
               {current_room_conversations.map((conversation) => {

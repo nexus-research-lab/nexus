@@ -14,7 +14,7 @@ interface ContentRendererProps {
   is_streaming?: boolean;
   streaming_block_indexes?: Set<number>;
   pending_permission?: PendingPermission | null;
-  on_permission_response?: (payload: PermissionDecisionPayload) => void;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_open_workspace_file?: (path: string) => void;
   hidden_tool_names?: string[];
 }
@@ -105,12 +105,13 @@ export function ContentRenderer(
                 <AskUserQuestionBlock
                   tool_use={block}
                   is_submitted={hasResult}
+                  is_ready={Boolean(isThisToolPending)}
                   on_submit={(_, answers) => {
                     // 发送 permission_response 并附带用户答案
-                    on_permission_response?.({
+                    return on_permission_response?.({
                       decision: 'allow',
                       user_answers: answers,
-                    });
+                    }) ?? false;
                   }}
                 />
               </div>

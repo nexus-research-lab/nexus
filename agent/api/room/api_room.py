@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from agent.infra.server.common import resp
 from agent.schema.model_room_runtime import RoomMemberSpec
+from agent.service.room.room_conversation_service import room_conversation_service
 from agent.service.room.room_service import room_service
 from agent.service.room_runtime.room_runtime_service import room_runtime_service
 
@@ -54,6 +55,26 @@ class CreateRoomRequest(BaseModel):
     title: Optional[str] = Field(default=None, description="主对话标题")
     ruleset_slug: Optional[str] = Field(default=None, description="规则集标识")
     goal: str = Field(default="", description="房间目标")
+
+
+class UpdateRoomRequest(BaseModel):
+    """更新 Room 请求。"""
+
+    name: Optional[str] = Field(default=None, description="房间名称")
+    description: Optional[str] = Field(default=None, description="房间描述")
+    title: Optional[str] = Field(default=None, description="主对话标题")
+
+
+class CreateRoomConversationRequest(BaseModel):
+    """创建 Room 对话请求。"""
+
+    title: Optional[str] = Field(default=None, description="对话标题")
+
+
+class UpdateRoomConversationRequest(BaseModel):
+    """更新 Room 对话请求。"""
+
+    title: Optional[str] = Field(default=None, description="对话标题")
 
 
 class RoomMessageRequest(BaseModel):
@@ -120,6 +141,31 @@ async def get_room(room_id: str):
     return resp.ok(resp.Resp(data=room.model_dump(mode="json")))
 
 
+@router.patch("/rooms/{room_id}")
+async def update_room(room_id: str, request: UpdateRoomRequest):
+    try:
+        context = await room_service.update_room(
+            room_id=room_id,
+            name=request.name,
+            description=request.description,
+            title=request.title,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
+
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(room_id: str):
+    try:
+        await room_service.delete_room(room_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data={"success": True}))
+
+
 @router.get("/rooms/{room_id}/contexts")
 async def get_room_contexts(room_id: str):
     try:
@@ -127,6 +173,53 @@ async def get_room_contexts(room_id: str):
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data=[item.model_dump(mode="json") for item in contexts]))
+
+
+@router.post("/rooms/{room_id}/conversations")
+async def create_room_conversation(room_id: str, request: CreateRoomConversationRequest):
+    try:
+        context = await room_conversation_service.create_room_conversation(
+            room_id=room_id,
+            title=request.title,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
+
+
+@router.patch("/rooms/{room_id}/conversations/{conversation_id}")
+async def update_room_conversation(
+    room_id: str,
+    conversation_id: str,
+    request: UpdateRoomConversationRequest,
+):
+    try:
+        context = await room_conversation_service.update_room_conversation(
+            room_id=room_id,
+            conversation_id=conversation_id,
+            title=request.title,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
+
+
+@router.delete("/rooms/{room_id}/conversations/{conversation_id}")
+async def delete_room_conversation(room_id: str, conversation_id: str):
+    try:
+        context = await room_conversation_service.delete_room_conversation(
+            room_id=room_id,
+            conversation_id=conversation_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
 
 
 @router.get("/rooms/{room_id}/view")
@@ -221,6 +314,17 @@ async def add_room_member(room_id: str, request: RoomMemberSpecRequest):
     except Exception as exc:
         raise _translate_errors(exc) from exc
     return resp.ok(resp.Resp(data=view.model_dump(mode="json")))
+
+
+@router.delete("/rooms/{room_id}/members/{agent_id}")
+async def remove_room_member(room_id: str, agent_id: str):
+    try:
+        context = await room_service.remove_agent_member(room_id=room_id, agent_id=agent_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=context.model_dump(mode="json")))
 
 
 @router.get("/rooms/{room_id}/events")

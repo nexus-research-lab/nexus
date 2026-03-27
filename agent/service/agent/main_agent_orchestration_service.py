@@ -15,7 +15,6 @@ from typing import Any, Optional
 
 from agent.schema.model_agent import AgentOptions
 from agent.service.agent.agent_service import agent_service
-from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.room.room_service import room_service
 
 
@@ -24,12 +23,10 @@ class MainAgentOrchestrationService:
 
     async def list_agents(self, include_main: bool = False) -> list[dict[str, Any]]:
         """列出可协作成员。"""
-        agents = await agent_service.get_agents()
+        agents = await agent_service.get_agents(include_main=include_main)
         agent_items: list[dict[str, Any]] = []
 
         for agent in agents:
-            if not include_main and MainAgentProfile.is_main_agent(agent.agent_id):
-                continue
             agent_items.append({
                 "agent_id": agent.agent_id,
                 "name": agent.name,

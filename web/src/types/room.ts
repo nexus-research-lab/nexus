@@ -72,12 +72,14 @@ export interface RoomSessionRecord {
   updated_at?: string | null;
 }
 
-export interface RoomConversationContext {
+export interface RoomContextAggregate {
   room: RoomRecord;
   members: RoomMemberRecord[];
   conversation: RoomConversationRecord;
   sessions: RoomSessionRecord[];
 }
+
+export type RoomConversationContext = RoomContextAggregate;
 
 export interface RoomMemberSpec {
   existing_agent_id?: string;
@@ -153,4 +155,25 @@ export interface RoomRuntimeView {
   protocol_runs: ProtocolRunListItem[];
   protocol_detail?: ProtocolRunDetail | null;
   viewer_member_id?: string | null;
+}
+
+export interface CreateRoomParams {
+  agent_ids: string[];
+  name?: string;
+  description?: string;
+  title?: string;
+}
+
+export interface UpdateRoomParams {
+  name?: string;
+  description?: string;
+  title?: string;
+}
+
+export interface CreateRoomConversationParams {
+  title?: string;
+}
+
+export interface UpdateRoomConversationParams {
+  title?: string;
 }

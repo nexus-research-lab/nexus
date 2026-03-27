@@ -3,7 +3,7 @@
 import { FolderKanban, MessageSquarePlus, Sparkles } from "lucide-react";
 
 interface RoomConversationEmptyStateProps {
-  on_create_conversation: () => void;
+  on_create_conversation: (title?: string) => void | Promise<string | null>;
 }
 
 export function RoomConversationEmptyState({
@@ -11,7 +11,7 @@ export function RoomConversationEmptyState({
 }: RoomConversationEmptyStateProps) {
   return (
     <div className="flex flex-1 items-center justify-center p-8">
-      <div className="workspace-shell radius-shell-xl relative w-full max-w-2xl overflow-hidden p-10 text-center">
+      <div className="radius-shell-xl relative w-full max-w-2xl overflow-hidden p-10 text-center">
         <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-16" />
         <div className="pointer-events-none absolute left-12 top-12 h-28 w-28 rounded-full glow-lilac opacity-32" />
         <div className="pointer-events-none absolute bottom-10 right-12 h-28 w-28 rounded-full glow-green opacity-28" />
@@ -53,7 +53,9 @@ export function RoomConversationEmptyState({
 
         <button
           className="mt-8 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,rgba(166,255,194,0.94),rgba(102,217,143,0.90))] px-7 py-3.5 text-sm font-bold text-[#18653a] shadow-[0_20px_34px_rgba(102,217,143,0.22)] transition-transform hover:-translate-y-0.5"
-          onClick={on_create_conversation}
+          onClick={() => {
+            void on_create_conversation();
+          }}
         >
           <MessageSquarePlus className="h-5 w-5" />
           <span>创建新会话</span>

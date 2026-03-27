@@ -7,7 +7,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Edit2, Terminal, User } from "lucide-react";
+import { Check, Copy, Edit2, Sparkles, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContentBlock, Message, ResultMessage } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
@@ -23,7 +23,7 @@ interface MessageItemProps {
   is_last_round?: boolean;
   is_loading?: boolean;
   pending_permission?: PendingPermission | null;
-  on_permission_response?: (payload: PermissionDecisionPayload) => void;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   hidden_tool_names?: string[];
   on_delete?: (round_id: string) => Promise<void>;
   on_regenerate?: (round_id: string) => Promise<void>;
@@ -268,11 +268,11 @@ export function MessageItem(
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
       {userMessage && (
         <div className={cn("w-full", compact ? "px-0.5" : "px-1 sm:px-4")}>
-          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
+          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[920px]")}>
             <div className="group flex min-w-0 items-end justify-end gap-3">
               <div className={cn(
-                "radius-shell-lg relative min-w-0 overflow-hidden transition-all duration-300 workspace-card",
-                compact ? "max-w-[86%] px-3.5" : "max-w-[78%] px-4 sm:px-5",
+                "relative min-w-0 overflow-hidden rounded-[22px] border border-white/45 bg-white/60 transition-all duration-300",
+                compact ? "max-w-[88%] px-3.5" : "max-w-[72%] px-4 sm:px-5",
               )}>
                 {/* 头部 */}
                 <div className={cn(
@@ -338,13 +338,13 @@ export function MessageItem(
       {/* 没有可见 assistant 内容时，仍渲染容器以提供删除/重试操作 */}
       {(!shouldHideAssistantContent || canOperateRound) && (
         <div className={cn("w-full", compact ? "px-0.5" : "px-1 sm:px-4")}>
-          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
+          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[920px]")}>
             <div className={cn("group flex min-w-0 items-start", compact ? "gap-2" : "gap-3")}>
 
               <div className={cn(
-                "radius-shell-lg relative min-w-0 flex-1 overflow-hidden workspace-card transition-all duration-500",
-                showCursor && "shadow-[0_24px_44px_rgba(133,119,255,0.16)]",
-                isCompleted && "shadow-[0_24px_44px_rgba(102,217,143,0.14)]"
+                "relative min-w-0 flex-1 overflow-hidden rounded-[20px] border border-white/38 bg-white/52 transition-all duration-500",
+                showCursor && "shadow-[0_18px_32px_rgba(133,119,255,0.12)]",
+                isCompleted && "shadow-[0_18px_32px_rgba(102,217,143,0.10)]"
               )}>
                 {/* 扫描线效果 */}
                 {showCursor && (
@@ -359,7 +359,7 @@ export function MessageItem(
                   compact ? "h-8 px-3" : "h-10 px-3 sm:px-4",
                 )}>
                   <div className="workspace-chip flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-                    <Terminal className="w-3 h-3 text-slate-800/70" />
+                    <Sparkles className="w-3 h-3 text-slate-800/70" />
                   </div>
                   <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-900/72">
                     {current_agent_name || "协作成员"}
@@ -371,15 +371,13 @@ export function MessageItem(
                   </span>
 
                   {/* 模型 */}
-                  {model && (
-                    <span className="min-w-0 truncate text-[10px] text-slate-700/40">{model}</span>
-                  )}
+                  {model ? <span className="min-w-0 truncate text-[10px] text-slate-700/34">{model}</span> : null}
 
                 </div>
 
                 {/* 内容区 */}
                 <div className={cn(
-                  compact ? "min-w-0 p-3.5 text-[13px] leading-6" : "min-w-0 p-4 text-sm leading-relaxed sm:p-5",
+                  compact ? "min-w-0 p-3.5 text-[13px] leading-6" : "min-w-0 p-4 text-sm leading-7 sm:p-5",
                   showCursor && "min-h-[60px]"
                 )}>
 

@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 
 interface RoomMemberSummaryCardProps {
   agent: Agent;
-  model_name: string;
   runtime_status: "Running" | "Idle" | "Active";
   localized_runtime_status: string;
   on_edit_agent: (agent_id: string) => void;
@@ -11,24 +10,23 @@ interface RoomMemberSummaryCardProps {
 
 export function RoomMemberSummaryCard({
   agent,
-  model_name,
   runtime_status,
   localized_runtime_status,
   on_edit_agent,
 }: RoomMemberSummaryCardProps) {
   return (
     <section className="border-b workspace-divider px-4 py-4">
-      <div className="workspace-card-strong rounded-[24px] px-4 py-4">
+      <div className="workspace-card rounded-[24px] px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/50">
-              Current Member
+              当前成员
             </p>
-            <p className="mt-1 text-[32px] font-black tracking-[-0.05em] text-slate-950/90">
+            <p className="mt-1 text-[28px] font-black tracking-[-0.05em] text-slate-950/90">
               {agent.name}
             </p>
             <p className="mt-1 text-[12px] text-slate-700/54">
-              当前 room 的执行成员 · {model_name}
+              当前正在推进这条协作
             </p>
           </div>
 
@@ -46,11 +44,11 @@ export function RoomMemberSummaryCard({
             </span>
             <button
               aria-label="打开 Agent 设置"
-              className="workspace-chip inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[11px] font-semibold text-slate-900/84 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
+              className="workspace-chip inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold text-slate-900/84 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
               onClick={() => on_edit_agent(agent.agent_id)}
               type="button"
             >
-              设置
+              成员设置
             </button>
           </div>
         </div>

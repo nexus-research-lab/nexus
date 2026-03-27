@@ -114,3 +114,49 @@ class RoomSqlRepository(BaseSqlRepository):
         stmt = select(Member).where(Member.room_id == room_id).order_by(Member.joined_at.asc())
         result = await self._session.execute(stmt)
         return [MemberRecord.model_validate(member) for member in result.scalars().all()]
+
+    async def update_room(
+        self,
+        room_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[RoomAggregate]:
+        """更新房间信息。"""
+        entity = await self._session.get(Room, room_id)
+        if entity is None:
+            return None
+        if name is not None:
+            entity.name = name
+        if description is not None:
+            entity.description = description
+        await self.flush()
+        return await self.get(room_id)
+
+    async def remove_agent_member(
+        self,
+        room_id: str,
+        agent_id: str,
+    ) -> Optional[MemberRecord]:
+        """移除指定 Agent 成员。"""
+        stmt = select(Member).where(
+            Member.room_id == room_id,
+            Member.member_type == "agent",
+            Member.member_agent_id == agent_id,
+        )
+        result = await self._session.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            return None
+        record = MemberRecord.model_validate(entity)
+        await self._session.delete(entity)
+        await self.flush()
+        return record
+
+    async def delete_room(self, room_id: str) -> bool:
+        """删除房间。"""
+        entity = await self._session.get(Room, room_id)
+        if entity is None:
+            return False
+        await self._session.delete(entity)
+        await self.flush()
+        return True

@@ -18,9 +18,10 @@ import { RoomScrollToLatestButton } from "./room-scroll-to-latest-button";
 interface RoomChatPanelProps {
   agent_id: string | null;
   current_agent_name?: string | null;
+  current_room_title?: string | null;
   session_key: string | null;
   session_title?: string | null;
-  on_create_conversation: () => void;
+  on_create_conversation?: (title?: string) => void | Promise<string | null>;
   layout?: "desktop" | "mobile";
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
@@ -47,6 +48,7 @@ function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
+  current_room_title,
   session_key: external_session_key,
   session_title,
   on_create_conversation,
@@ -242,14 +244,7 @@ export function RoomChatPanel({
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-      {!is_mobile_layout ? (
-        <>
-          <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-35" />
-          <div className="pointer-events-none absolute left-8 top-10 h-32 w-32 rounded-full glow-lilac opacity-30" />
-          <div className="pointer-events-none absolute right-[12%] top-[18%] h-32 w-32 rounded-full glow-peach opacity-25" />
-          <div className="pointer-events-none absolute bottom-10 right-10 h-36 w-36 rounded-full glow-green opacity-24" />
-        </>
-      ) : null}
+      {!is_mobile_layout ? <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-15" /> : null}
 
       {error && error.includes("服务器") ? (
         <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2">
@@ -275,13 +270,14 @@ export function RoomChatPanel({
       ) : null}
 
       {!external_session_key ? (
-        <RoomConversationEmptyState on_create_conversation={on_create_conversation} />
+        <RoomConversationEmptyState on_create_conversation={on_create_conversation ?? (() => {})} />
       ) : (
         <>
           {!is_mobile_layout ? (
             <RoomConversationHeader
               current_agent_name={current_agent_name ?? null}
               current_conversation_id={session_key}
+              current_room_title={current_room_title ?? null}
               current_conversation_title={session_title ?? null}
               is_loading={is_loading}
             />
@@ -292,7 +288,7 @@ export function RoomChatPanel({
             className={
               is_mobile_layout
                 ? "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-1 py-2"
-                : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-3 sm:px-4 sm:py-5 xl:px-6 xl:py-7"
+                : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-white/10 px-2 py-2 sm:px-4 sm:py-4 xl:px-6 xl:py-5"
             }
             onScroll={handle_scroll}
             onTouchEnd={handle_touch_end}

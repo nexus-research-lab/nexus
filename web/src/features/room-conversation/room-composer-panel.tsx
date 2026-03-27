@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X, Zap } from "lucide-react";
+import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/loading-orb";
@@ -34,7 +34,6 @@ const RoomComposerPanelView = memo(({
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
 }: RoomComposerPanelProps) => {
-  const [mode, setMode] = useState<"agent" | "room" | "app">("room");
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
@@ -164,12 +163,6 @@ const RoomComposerPanelView = memo(({
   const char_count = input.length;
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
-  const effective_placeholder =
-    mode === "app"
-      ? "让Nexus 帮你建 room、拉成员，或调整协作结构…"
-      : mode === "room"
-        ? "继续这个 room 的任务，@ 成员、补充上下文或推进下一步…"
-        : placeholder;
 
   return (
     <div
@@ -226,46 +219,15 @@ const RoomComposerPanelView = memo(({
           )}
         >
           <div className="pointer-events-none absolute inset-0 home-glass-grid opacity-14" />
-          <div className={cn("flex items-center gap-2 border-b workspace-divider px-3", compact ? "py-2" : "py-2.5")}>
-            <button
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
-                mode === "agent" ? "workspace-chip text-slate-950" : "text-slate-700/54 hover:text-slate-950",
-              )}
-              onClick={() => setMode("agent")}
-              type="button"
-            >
-              Agent
-            </button>
-            <button
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
-                mode === "room" ? "workspace-chip text-slate-950" : "text-slate-700/54 hover:text-slate-950",
-              )}
-              onClick={() => setMode("room")}
-              type="button"
-            >
-              Room
-            </button>
-            <button
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
-                mode === "app" ? "workspace-chip text-slate-950" : "text-slate-700/54 hover:text-slate-950",
-              )}
-              onClick={() => setMode("app")}
-              type="button"
-            >
-              Ask App
-            </button>
-            {!compact ? (
-              <div className="ml-auto truncate text-[11px] text-slate-700/48">
-                {mode === "agent"
-                  ? `当前协作 Agent：${current_agent_name ?? "未指定"}`
-                  : mode === "room"
-                    ? "面向当前 room 的协作输入"
-                    : "系统级组织与编排动作"}
-              </div>
-            ) : null}
+          <div className={cn("border-b workspace-divider px-4", compact ? "py-2" : "py-2.5")}>
+            <div className="flex items-center justify-between gap-3 text-[11px] text-slate-700/50">
+              <span className="font-semibold uppercase tracking-[0.14em]">Message</span>
+              {!compact ? (
+                <span className="truncate">
+                  {current_agent_name ? `@${current_agent_name} 正在这个协作中` : "继续推进当前协作"}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className={cn("flex items-end gap-2", compact ? "p-2.5" : "p-3")}>
@@ -318,7 +280,7 @@ const RoomComposerPanelView = memo(({
                 }}
                 onFocus={() => setIsFocused(true)}
                 onKeyDown={handle_key_down}
-                placeholder={effective_placeholder}
+                placeholder={placeholder}
                 rows={1}
                 style={{ fieldSizing: "content" }}
                 value={input}
@@ -382,8 +344,7 @@ const RoomComposerPanelView = memo(({
               {is_loading ? (
                 <span className="flex items-center gap-2 text-emerald-700/72">
                   <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                  <Zap size={10} className="animate-pulse" />
-                  <span className="animate-pulse">Agent 正在思考...</span>
+                  <span className="animate-pulse">正在回复中…</span>
                   <span className="text-slate-700/28">[ESC 停止]</span>
                 </span>
               ) : (
@@ -403,10 +364,8 @@ const RoomComposerPanelView = memo(({
             </div>
 
             {history_index >= 0 ? (
-              <div className="flex items-center gap-1 text-[10px] text-sky-700/70">
-                <span>历史</span>
-                <span className="tabular-nums">{history_index + 1}/{input_history.length}</span>
-                <span className="text-slate-700/28">[Ctrl+↑/↓]</span>
+              <div className="text-[10px] text-sky-700/70">
+                历史 {history_index + 1}/{input_history.length}
               </div>
             ) : null}
           </div>

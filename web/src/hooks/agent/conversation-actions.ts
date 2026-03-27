@@ -108,7 +108,7 @@ export function stopConversationGeneration(context: AgentConversationActionConte
 export function sendConversationPermissionResponse(
   payload: PermissionDecisionPayload,
   context: AgentConversationActionContext,
-): void {
+): boolean {
   const {
     agent_id,
     session_key,
@@ -117,20 +117,21 @@ export function sendConversationPermissionResponse(
     active_conversation_key_ref,
     pending_permission,
     set_error,
+    set_is_loading,
     set_pending_permission,
   } = context;
   const resolved_session_key = session_key || active_conversation_key_ref.current;
 
   if (!pending_permission) {
-    return;
+    return false;
   }
   if (!resolved_session_key || active_conversation_key_ref.current !== resolved_session_key) {
     set_pending_permission(null);
-    return;
+    return false;
   }
   if (ws_state !== 'connected') {
     set_error('WebSocket未连接，无法提交权限决策');
-    return;
+    return false;
   }
 
   const response: WebSocketMessage = {
@@ -152,6 +153,9 @@ export function sendConversationPermissionResponse(
 
   ws_send(response);
   set_pending_permission(null);
+  set_is_loading(true);
+  set_error(null);
+  return true;
 }
 
 /**

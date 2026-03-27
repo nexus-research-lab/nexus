@@ -16,6 +16,7 @@ from agent.service.session.session_router import build_session_key, get_default_
 from agent.schema.model_cost import SessionCostSummary
 from agent.schema.model_message import Message
 from agent.schema.model_session import ASession
+from agent.service.session.session_context_resolver import session_context_resolver
 from agent.service.session.session_store import session_store
 
 
@@ -35,7 +36,8 @@ class SessionService:
 
     async def get_sessions(self) -> List[ASession]:
         """获取所有会话列表。"""
-        return await session_store.get_all_sessions()
+        sessions = await session_store.get_all_sessions()
+        return await session_context_resolver.enrich_sessions(sessions)
 
     async def create_session(
         self,
@@ -60,7 +62,7 @@ class SessionService:
         session_info = await session_store.get_session_info(internal_key)
         if not session_info:
             raise RuntimeError("Failed to retrieve created session")
-        return session_info
+        return await session_context_resolver.enrich_session(session_info)
 
     async def update_session(
         self,
@@ -83,7 +85,7 @@ class SessionService:
         updated = await session_store.get_session_info(internal_key)
         if not updated:
             raise RuntimeError("Failed to retrieve updated session")
-        return updated
+        return await session_context_resolver.enrich_session(updated)
 
     async def get_session_messages(self, session_key: str) -> list[Message]:
         """获取会话历史消息。"""

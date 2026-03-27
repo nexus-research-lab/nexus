@@ -39,7 +39,10 @@ class PersistenceQueryService:
 
     async def get_agent(self, agent_id: str) -> Optional[AgentAggregate]:
         """读取单个 Agent 聚合。"""
-        return await agent_persistence_service.get_agent_aggregate(agent_id)
+        aggregate = await agent_persistence_service.get_agent_aggregate(agent_id)
+        if aggregate is None or aggregate.agent.status != "active":
+            return None
+        return aggregate
 
     async def list_active_agents(self) -> list[AgentAggregate]:
         """列出活跃 Agent 聚合。"""

@@ -23,7 +23,7 @@ import {
   renameWorkspaceEntryApi,
 } from "@/lib/agent-manage-api";
 import { HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS } from "@/lib/home-layout";
-import { cn, formatRelativeTime, truncate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/confirm-dialog";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -32,7 +32,6 @@ import { Conversation } from "@/types/conversation";
 
 import { RoomContextSection } from "../room-context/room-context-section";
 import { RoomMembersSection } from "../room-members/room-members-section";
-import { RoomConversationsSection } from "./room-conversations-section";
 import { RoomSidebarHeader } from "./room-sidebar-header";
 
 interface FileTreeNode {
@@ -41,19 +40,24 @@ interface FileTreeNode {
 }
 
 interface RoomSidebarPanelProps {
-  agents: Agent[];
+  members: Agent[];
+  available_room_agents: Agent[];
   agent: Agent;
+  room_name: string;
+  room_type: string;
   current_agent_id: string | null;
-  recent_agents: Agent[];
   conversations: Conversation[];
   current_conversation_id: string | null;
   active_workspace_path: string | null;
   on_select_agent: (agent_id: string) => void;
   on_open_directory: () => void;
-  on_create_agent: () => void;
   on_select_conversation: (conversation_id: string) => void;
-  on_create_conversation: () => void;
-  on_delete_conversation: (conversation_id: string) => void;
+  on_create_conversation: (title?: string) => Promise<string | null>;
+  on_delete_conversation: (conversation_id: string) => Promise<string | null>;
+  on_update_room: (params: {name?: string; description?: string; title?: string}) => Promise<void>;
+  on_delete_room: () => Promise<void>;
+  on_add_room_member: (agent_id: string) => Promise<void>;
+  on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
 }
 
@@ -83,33 +87,10 @@ function getFileIcon(name: string) {
   }
   if (
     [
-      "js",
-      "jsx",
-      "ts",
-      "tsx",
-      "py",
-      "java",
-      "go",
-      "rs",
-      "rb",
-      "php",
-      "c",
-      "cc",
-      "cpp",
-      "h",
-      "hpp",
-      "css",
-      "scss",
-      "sass",
-      "html",
-      "vue",
-      "sh",
-      "bash",
-      "zsh",
-      "yml",
-      "yaml",
-      "toml",
-      "ini",
+      "js", "jsx", "ts", "tsx", "py", "java", "go", "rs", "rb", "php", "c", "cc", "cpp", "h", "hpp",
+      "css", "scss", "sass", "html", "vue",
+      "sh", "bash", "zsh",
+      "yml", "yaml", "toml", "ini",
       "env",
       "sql",
     ].includes(extension)
@@ -121,19 +102,24 @@ function getFileIcon(name: string) {
 }
 
 export function RoomSidebarPanel({
-  agents,
+  members,
+  available_room_agents,
   agent,
+  room_name,
+  room_type,
   current_agent_id,
-  recent_agents,
   conversations,
   current_conversation_id,
   active_workspace_path,
   on_select_agent,
   on_open_directory,
-  on_create_agent,
   on_select_conversation,
   on_create_conversation,
   on_delete_conversation,
+  on_update_room,
+  on_delete_room,
+  on_add_room_member,
+  on_remove_room_member,
   on_open_workspace_file,
 }: RoomSidebarPanelProps) {
   const [files, setFiles] = useState<WorkspaceFileEntry[]>([]);
@@ -146,11 +132,11 @@ export function RoomSidebarPanel({
     type: "create" | "rename";
     entry_type: "file" | "directory";
     entry?: WorkspaceFileEntry;
-  }>({ is_open: false, type: "create", entry_type: "file" });
+  }>({is_open: false, type: "create", entry_type: "file"});
   const [confirm_dialog, setConfirmDialog] = useState<{
     is_open: boolean;
     entry?: WorkspaceFileEntry;
-  }>({ is_open: false });
+  }>({is_open: false});
 
   const file_states = useWorkspaceLiveStore((state) => state.file_states);
   const recent_events = useWorkspaceLiveStore((state) => state.recent_events);
@@ -183,7 +169,7 @@ export function RoomSidebarPanel({
     [...files]
       .sort((left, right) => left.path.localeCompare(right.path, "zh-CN"))
       .forEach((entry) => {
-        node_map.set(entry.path, { entry, children: [] });
+        node_map.set(entry.path, {entry, children: []});
       });
 
     [...files]
@@ -222,7 +208,7 @@ export function RoomSidebarPanel({
     conversations.find((conversation) => conversation.session_key === current_conversation_id) ?? null;
   const latest_conversation = selected_conversation ?? conversations[0] ?? null;
   const active_room_title =
-    selected_conversation?.title?.trim() || latest_conversation?.title?.trim() || "未命名 room";
+    room_name || selected_conversation?.title?.trim() || latest_conversation?.title?.trim() || "未命名 room";
 
   const load_files = useCallback(async () => {
     setIsLoadingFiles(true);
@@ -249,15 +235,15 @@ export function RoomSidebarPanel({
   const known_file_paths = useMemo(() => new Set(files.map((entry) => entry.path)), [files]);
   const visible_agents = useMemo(() => {
     const seen = new Set<string>();
-    const merged = [agent, ...recent_agents, ...agents];
+    const merged = [agent, ...members];
     return merged.filter((item) => {
       if (!item?.agent_id || seen.has(item.agent_id)) {
         return false;
       }
       seen.add(item.agent_id);
       return true;
-    }).slice(0, 5);
-  }, [agent, agents, recent_agents]);
+    }).slice(0, 6);
+  }, [agent, members]);
 
   useEffect(() => {
     if (!latest_agent_event || latest_agent_event.event_type !== "file_write_end") {
@@ -267,7 +253,7 @@ export function RoomSidebarPanel({
     const path_parts = latest_agent_event.path.split("/").slice(0, -1);
     if (path_parts.length > 0) {
       setExpandedDirectories((current) => {
-        const next_state = { ...current };
+        const next_state = {...current};
         path_parts.forEach((_, index) => {
           const parent_path = path_parts.slice(0, index + 1).join("/");
           next_state[parent_path] = true;
@@ -289,7 +275,7 @@ export function RoomSidebarPanel({
 
   useEffect(() => {
     setExpandedDirectories((current) => {
-      const next_state = { ...current };
+      const next_state = {...current};
       files
         .filter((entry) => entry.is_dir)
         .forEach((entry) => {
@@ -325,7 +311,7 @@ export function RoomSidebarPanel({
   }, [active_workspace_path, files]);
 
   const handle_create_entry = (entry_type: "file" | "directory") => {
-    setPromptDialog({ is_open: true, type: "create", entry_type });
+    setPromptDialog({is_open: true, type: "create", entry_type});
   };
 
   const handle_create_entry_confirm = async (next_path: string) => {
@@ -334,7 +320,7 @@ export function RoomSidebarPanel({
     }
 
     const entry_type = prompt_dialog.entry_type;
-    setPromptDialog({ is_open: false, type: "create", entry_type: "file" });
+    setPromptDialog({is_open: false, type: "create", entry_type: "file"});
 
     try {
       const response = await createWorkspaceEntryApi(agent.agent_id, next_path, entry_type);
@@ -359,11 +345,11 @@ export function RoomSidebarPanel({
   const handle_rename_entry_confirm = async (next_path: string) => {
     const entry = prompt_dialog.entry;
     if (!entry || !next_path.trim() || next_path === entry.path) {
-      setPromptDialog({ is_open: false, type: "create", entry_type: "file" });
+      setPromptDialog({is_open: false, type: "create", entry_type: "file"});
       return;
     }
 
-    setPromptDialog({ is_open: false, type: "create", entry_type: "file" });
+    setPromptDialog({is_open: false, type: "create", entry_type: "file"});
 
     try {
       const response = await renameWorkspaceEntryApi(agent.agent_id, entry.path, next_path);
@@ -384,17 +370,17 @@ export function RoomSidebarPanel({
   };
 
   const handle_delete_entry = (entry: WorkspaceFileEntry) => {
-    setConfirmDialog({ is_open: true, entry });
+    setConfirmDialog({is_open: true, entry});
   };
 
   const handle_delete_entry_confirm = async () => {
     const entry = confirm_dialog.entry;
     if (!entry) {
-      setConfirmDialog({ is_open: false });
+      setConfirmDialog({is_open: false});
       return;
     }
 
-    setConfirmDialog({ is_open: false });
+    setConfirmDialog({is_open: false});
 
     try {
       await deleteWorkspaceEntryApi(agent.agent_id, entry.path);
@@ -444,7 +430,7 @@ export function RoomSidebarPanel({
                   ? "workspace-card bg-[linear-gradient(135deg,rgba(166,255,194,0.26),rgba(242,250,245,0.24))] text-emerald-700"
                   : "text-slate-900/82 hover:bg-white/18",
           )}
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          style={{paddingLeft: `${depth * 16 + 8}px`}}
         >
           <button
             className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left"
@@ -460,16 +446,16 @@ export function RoomSidebarPanel({
             {is_directory ? (
               <>
                 {is_expanded ? (
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-700/50" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-700/50"/>
                 ) : (
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-700/50" />
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-700/50"/>
                 )}
-                <Folder className="h-4 w-4 shrink-0 text-slate-700/54" />
+                <Folder className="h-4 w-4 shrink-0 text-slate-700/54"/>
               </>
             ) : (
               <>
-                <span className="w-3.5 shrink-0" />
-                <FileIcon className="h-4 w-4 shrink-0" />
+                <span className="w-3.5 shrink-0"/>
+                <FileIcon className="h-4 w-4 shrink-0"/>
               </>
             )}
 
@@ -504,7 +490,7 @@ export function RoomSidebarPanel({
               onClick={() => handle_rename_entry(node.entry)}
               type="button"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="h-3.5 w-3.5"/>
             </button>
             <button
               aria-label="删除"
@@ -512,7 +498,7 @@ export function RoomSidebarPanel({
               onClick={() => handle_delete_entry(node.entry)}
               type="button"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3.5 w-3.5"/>
             </button>
           </div>
         </div>
@@ -532,30 +518,19 @@ export function RoomSidebarPanel({
         active_room_title={active_room_title}
         current_agent_name={agent.name}
         is_refreshing={is_loading_files}
+        on_delete_room={on_delete_room}
         on_open_directory={on_open_directory}
         on_refresh={() => void load_files()}
+        on_rename_room={(name) => on_update_room({name})}
       />
 
-      <div className="soft-scrollbar flex-1 overflow-y-auto">
-        <RoomConversationsSection
-          conversations={conversations}
-          current_conversation_id={current_conversation_id}
-          on_create_conversation={on_create_conversation}
-          on_delete_conversation={on_delete_conversation}
-          on_select_conversation={on_select_conversation}
-        />
-
-        <RoomMembersSection
-          current_agent_id={current_agent_id}
-          members={visible_agents}
-          on_create_agent={on_create_agent}
-          on_select_agent={on_select_agent}
-        />
-
+      <div className="soft-scrollbar flex-1 overflow-y-auto px-1 pb-4">
         <RoomContextSection
+          can_manage_conversations
           active_workspace_path={active_workspace_path}
           contextualFiles={contextual_files}
-          current_conversation={selected_conversation}
+          conversations={conversations}
+          current_conversation_id={current_conversation_id}
           file_explorer_content={
             directory_tree.length === 0 ? (
               <div className="workspace-card rounded-[22px] px-3 py-4 text-sm text-slate-700/58">
@@ -568,11 +543,23 @@ export function RoomSidebarPanel({
           filesystem_error={filesystem_error}
           is_file_explorer_visible={show_file_explorer}
           memory_file_count={memory_files.length}
+          on_create_conversation={on_create_conversation}
           on_create_directory={() => handle_create_entry("directory")}
           on_create_file={() => handle_create_entry("file")}
+          on_delete_conversation={on_delete_conversation}
           on_open_workspace_file={on_open_workspace_file}
+          on_select_conversation={on_select_conversation}
           on_toggle_file_explorer={() => setShowFileExplorer((current) => !current)}
-          total_conversation_count={conversations.length}
+        />
+
+        <RoomMembersSection
+          available_agents={available_room_agents}
+          can_manage_members={room_type === "room"}
+          current_agent_id={current_agent_id}
+          members={visible_agents}
+          on_add_member={on_add_room_member}
+          on_remove_member={on_remove_room_member}
+          on_select_agent={on_select_agent}
         />
       </div>
 
@@ -586,7 +573,7 @@ export function RoomSidebarPanel({
               : "输入目录的名称"
             : "输入新的名称"
         }
-        on_cancel={() => setPromptDialog({ is_open: false, type: "create", entry_type: "file" })}
+        on_cancel={() => setPromptDialog({is_open: false, type: "create", entry_type: "file"})}
         on_confirm={prompt_dialog.type === "create" ? handle_create_entry_confirm : handle_rename_entry_confirm}
         placeholder={prompt_dialog.entry_type === "file" ? "notes/todo.md" : "notes"}
         title={
@@ -603,7 +590,7 @@ export function RoomSidebarPanel({
         confirm_text="删除"
         is_open={confirm_dialog.is_open}
         message={`确定要删除 ${confirm_dialog.entry?.path ?? ""} 吗？删除后无法恢复。`}
-        on_cancel={() => setConfirmDialog({ is_open: false })}
+        on_cancel={() => setConfirmDialog({is_open: false})}
         on_confirm={handle_delete_entry_confirm}
         title="确认删除"
         variant="danger"

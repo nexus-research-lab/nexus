@@ -12,7 +12,7 @@ interface RoomConversationFeedProps {
   message_groups: Map<string, Message[]>;
   on_delete_round: (round_id: string) => Promise<void>;
   on_open_workspace_file?: (path: string) => void;
-  on_permission_response: (payload: PermissionDecisionPayload) => void;
+  on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   on_regenerate_round?: (round_id: string) => Promise<void>;
   round_ids: string[];
 }
@@ -32,7 +32,7 @@ export function RoomConversationFeed({
   round_ids,
 }: RoomConversationFeedProps) {
   return (
-    <div className={is_mobile_layout ? "space-y-4" : "mx-auto flex w-full max-w-[980px] flex-col gap-6 xl:gap-8"}>
+    <div className={is_mobile_layout ? "space-y-4" : "mx-auto flex w-full max-w-[920px] flex-col gap-5 xl:gap-6"}>
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;

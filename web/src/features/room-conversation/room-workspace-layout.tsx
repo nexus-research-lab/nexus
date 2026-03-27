@@ -13,35 +13,37 @@ import {
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { TodoItem } from "@/types/todo";
 
 import { RoomChatPanel } from "./room-chat-panel";
 
 interface RoomWorkspaceLayoutProps {
-  agents: Agent[];
   current_agent: Agent;
   current_agent_id: string | null;
+  current_room_type: string;
+  room_members: Agent[];
+  available_room_agents: Agent[];
+  current_room_title: string;
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
-  recent_agents: Agent[];
   active_workspace_path: string | null;
   is_editor_open: boolean;
   editor_width_percent: number;
   is_resizing_editor: boolean;
   is_conversation_busy: boolean;
   current_todos: TodoItem[];
-  conversation_cost_summary: ConversationCostSummary;
-  agent_cost_summary: AgentCostSummary;
   workspace_split_ref: RefObject<HTMLElement | null>;
   on_select_agent: (agent_id: string) => void;
   on_open_directory: () => void;
-  on_create_agent: () => void;
   on_edit_agent: (agent_id: string) => void;
-  on_create_conversation: () => void;
+  on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
-  on_delete_conversation: (conversation_id: string) => void;
+  on_delete_conversation: (conversation_id: string) => Promise<string | null>;
+  on_update_room: (params: {name?: string; description?: string; title?: string}) => Promise<void>;
+  on_delete_room: () => Promise<void>;
+  on_add_room_member: (agent_id: string) => Promise<void>;
+  on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
   on_close_workspace_pane: () => void;
   on_start_editor_resize: () => void;
@@ -51,29 +53,32 @@ interface RoomWorkspaceLayoutProps {
 }
 
 export function RoomWorkspaceLayout({
-  agents,
   current_agent,
   current_agent_id,
+  current_room_type,
+  room_members,
+  available_room_agents,
+  current_room_title,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
-  recent_agents,
   active_workspace_path,
   is_editor_open,
   editor_width_percent,
   is_resizing_editor,
   is_conversation_busy,
   current_todos,
-  conversation_cost_summary,
-  agent_cost_summary,
   workspace_split_ref,
   on_select_agent,
   on_open_directory,
-  on_create_agent,
   on_edit_agent,
   on_create_conversation,
   on_select_conversation,
   on_delete_conversation,
+  on_update_room,
+  on_delete_room,
+  on_add_room_member,
+  on_remove_room_member,
   on_open_workspace_file,
   on_close_workspace_pane,
   on_start_editor_resize,
@@ -87,18 +92,23 @@ export function RoomWorkspaceLayout({
         <RoomSidebarPanel
           active_workspace_path={active_workspace_path}
           agent={current_agent}
-          agents={agents}
+          available_room_agents={available_room_agents}
+          members={room_members}
           conversations={current_room_conversations}
           current_agent_id={current_agent_id}
           current_conversation_id={current_conversation_id}
-          on_create_agent={on_create_agent}
+          room_name={current_room_title}
+          room_type={current_room_type}
+          on_add_room_member={on_add_room_member}
           on_create_conversation={on_create_conversation}
           on_delete_conversation={on_delete_conversation}
+          on_delete_room={on_delete_room}
           on_open_directory={on_open_directory}
           on_open_workspace_file={on_open_workspace_file}
+          on_remove_room_member={on_remove_room_member}
           on_select_agent={on_select_agent}
           on_select_conversation={on_select_conversation}
-          recent_agents={recent_agents}
+          on_update_room={on_update_room}
         />
       </div>
 
@@ -124,6 +134,7 @@ export function RoomWorkspaceLayout({
             <RoomChatPanel
               agent_id={current_agent.agent_id}
               current_agent_name={current_agent.name}
+              current_room_title={current_room_title}
               on_conversation_snapshot_change={on_conversation_snapshot_change}
               on_create_conversation={on_create_conversation}
               on_loading_change={on_loading_change}
@@ -141,11 +152,11 @@ export function RoomWorkspaceLayout({
           <RoomContextPanel
             active_conversation={current_conversation}
             agent={current_agent}
-            agent_cost_summary={agent_cost_summary}
             is_conversation_busy={is_conversation_busy}
             on_edit_agent={on_edit_agent}
-            conversation_cost_summary={conversation_cost_summary}
-            sessions={current_room_conversations}
+            room_conversations={current_room_conversations}
+            room_members={room_members}
+            room_name={current_room_title}
             todos={current_todos}
           />
         </div>

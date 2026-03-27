@@ -7,23 +7,13 @@
 # 2026/3/12 20:39   Create
 # =====================================================
 
-"""
-文件存储初始化器。
+"""文件存储初始化器。"""
 
-[INPUT]: 依赖文件路径规则与 JSON 文件读写工具
-[OUTPUT]: 对外提供存储初始化与默认 Agent 引导能力
-[POS]: storage 的引导层，在 repository 启动时确保基础存储可用
-[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
-"""
-
-from datetime import datetime
 from threading import Lock
 from typing import Any, Dict, List
 
 from agent.config.config import settings
-from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.workspace.workspace_template_initializer import WorkspaceTemplateInitializer
-from agent.storage.config_store import ConfigStore
 from agent.storage.storage_paths import FileStoragePaths
 from agent.utils.logger import logger
 
@@ -49,45 +39,14 @@ class FileStorageBootstrap:
             self.__class__._initialized = True
 
     def _ensure_main_agent(self) -> None:
-        """确保 main agent 与其工作区模板存在。"""
+        """确保 main agent 的工作区模板存在。"""
         workspace_path = self.paths.workspace_base / settings.DEFAULT_AGENT_ID
-        record = MainAgentProfile.build_storage_record(workspace_path)
-        record["created_at"] = datetime.now().isoformat()
-        records = ConfigStore.read(self.paths.agents_index_path, [])
-        if not isinstance(records, list):
-            records = []
-
-        main_index = next(
-            (
-                index
-                for index, item in enumerate(records)
-                if item.get("agent_id") == MainAgentProfile.AGENT_ID
-            ),
-            None,
-        )
-        if main_index is None:
-            records.insert(0, record)
-        else:
-            existing_record = records[main_index]
-            existing_record["agent_id"] = MainAgentProfile.AGENT_ID
-            existing_record["name"] = MainAgentProfile.AGENT_ID
-            existing_record["workspace_path"] = str(workspace_path)
-            existing_record["status"] = "active"
-            if not existing_record.get("created_at"):
-                existing_record["created_at"] = record["created_at"]
-            existing_record["options"] = MainAgentProfile.merge_options(
-                existing_record.get("options"),
-            )
-            record = existing_record
-
         workspace_path.mkdir(parents=True, exist_ok=True)
-        ConfigStore.write(self.paths.agents_index_path, records)
-        ConfigStore.write(self.paths.get_agent_file_path(workspace_path), record)
         WorkspaceTemplateInitializer(
-            MainAgentProfile.AGENT_ID,
+            settings.DEFAULT_AGENT_ID,
             workspace_path,
-        ).ensure_initialized(MainAgentProfile.AGENT_ID)
-        logger.info(f"🧩 已初始化 main Agent 存储: {workspace_path}")
+        ).ensure_initialized(settings.DEFAULT_AGENT_ID)
+        logger.info(f"🧩 已初始化 main Agent 工作区: {workspace_path}")
 
     @staticmethod
     def compact_messages(message_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
