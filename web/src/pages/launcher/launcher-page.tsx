@@ -209,12 +209,6 @@ export function LauncherPage() {
     controller.handle_open_create_agent();
   }, [controller, latest_user_prompt]);
 
-  const handle_create_agent = useCallback(() => {
-    set_pending_room_title("");
-    set_should_bootstrap_room_after_create(false);
-    controller.handle_open_create_agent();
-  }, [controller]);
-
   const handle_clear_app_conversation = useCallback(async () => {
     if (controller.app_conversation_key) {
       await deleteConversation(controller.app_conversation_key);
@@ -308,14 +302,10 @@ export function LauncherPage() {
             conversations={controller.conversations}
             current_agent_id={controller.current_agent_id}
             is_app_conversation_open={controller.is_app_conversation_open}
-            on_open_contacts_page={handle_open_contacts_page}
             on_open_app_conversation={controller.open_app_conversation}
             on_close_app_conversation={controller.close_app_conversation}
             on_select_agent={handle_select_agent}
             on_open_conversation={handle_open_conversation}
-            on_create_agent={handle_create_agent}
-            on_edit_agent={controller.handle_edit_agent}
-            on_delete_agent={controller.handle_delete_agent}
             surface={controller.surface}
           />
         </div>

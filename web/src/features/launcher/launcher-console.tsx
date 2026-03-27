@@ -1,17 +1,15 @@
 "use client";
 
-import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
-import { ArrowUp, ChevronRight, MessageSquare, Plus, Search, Settings, Trash2, } from "lucide-react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { ArrowUp, MessageSquare } from "lucide-react";
 
 import {
   HeroActionOrbShell,
-  HeroActionPillShell,
   HeroBlobShell,
   HeroInputShell,
-  HeroSidePanelShell,
 } from "@/features/launcher/launcher-glass-shell";
 import { DebugReferenceOverlay } from "@/features/launcher/launcher-reference-overlay-debug";
-import { cn, formatRelativeTime, truncate } from "@/lib/utils";
+import { cn, truncate } from "@/lib/utils";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { LottiePlayer } from "@/shared/ui/lottie-player";
 import { Agent } from "@/types/agent";
@@ -24,22 +22,12 @@ interface LauncherConsoleProps {
   agents: Agent[];
   conversations: Conversation[];
   current_agent_id: string | null;
-  on_open_contacts_page: () => void;
   on_open_app_conversation: (initial_prompt?: string) => void;
   on_close_app_conversation: () => void;
   is_app_conversation_open: boolean;
   on_select_agent: (agent_id: string) => void;
   on_open_conversation: (conversation_id: string, agent_id?: string) => void;
-  on_create_agent: () => void;
-  on_edit_agent: (agent_id: string) => void;
-  on_delete_agent: (agent_id: string) => void;
   surface: "launcher" | "app";
-}
-
-interface HeaderActionButtonProps {
-  is_active?: boolean;
-  children: string;
-  on_click: () => void;
 }
 
 interface HeroStageProps {
@@ -58,22 +46,6 @@ interface HeroStageProps {
   surface: "launcher" | "app";
 }
 
-interface ContactsPopoverProps {
-  agents: Agent[];
-  on_close: () => void;
-  on_create_agent: () => void;
-  on_delete_agent: (agent_id: string) => void;
-  on_edit_agent: (agent_id: string) => void;
-  on_open_contacts_page: () => void;
-  on_select_agent: (agent_id: string) => void;
-}
-
-interface RecentRoomsPopoverProps {
-  on_close: () => void;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
-  recent_rooms: ConversationWithOwner[];
-  conversations_with_owners: ConversationWithOwner[];
-}
 
 const TOKEN_SWATCHES = [
   {fill: "#5FA052", text: "#FFFFFF", ring: "#8DBA86"},
@@ -160,31 +132,6 @@ function buildDecorativeTokens(
 }
 
 const MemoAgentPile = memo(AgentPile);
-
-const HeaderActionButton = memo(function HeaderActionButton({
-                                                              is_active = false,
-                                                              children,
-                                                              on_click,
-                                                            }: HeaderActionButtonProps) {
-  return (
-    <button
-      className="transition-transform duration-300 hover:-translate-y-0.5"
-      onClick={on_click}
-      type="button"
-    >
-      <HeroActionPillShell is_active={is_active}>
-        <span
-          className={cn(
-            "text-xs font-medium transition-colors sm:text-sm",
-            is_active ? "text-slate-900/88" : "text-slate-800/70",
-          )}
-        >
-          {children}
-        </span>
-      </HeroActionPillShell>
-    </button>
-  );
-});
 
 const HeroStage = memo(function HeroStage({
                                             current_agent_id,
@@ -308,242 +255,18 @@ const HeroStage = memo(function HeroStage({
   );
 });
 
-const ContactsPopover = memo(function ContactsPopover({
-                                                        agents,
-                                                        on_close,
-                                                        on_create_agent,
-                                                        on_delete_agent,
-                                                        on_edit_agent,
-                                                        on_open_contacts_page,
-                                                        on_select_agent,
-                                                      }: ContactsPopoverProps) {
-  const [query, setQuery] = useState("");
-  const deferred_query = useDeferredValue(query);
-  const filtered_agents = useMemo(() => {
-    const keyword = deferred_query.trim().toLowerCase();
-    if (!keyword) {
-      return agents;
-    }
-
-    return agents.filter((agent) =>
-      [agent.name, agent.workspace_path, agent.options.model ?? ""].some((field) =>
-        field.toLowerCase().includes(keyword),
-      ),
-    );
-  }, [agents, deferred_query]);
-
-  return (
-    <HeroSidePanelShell class_name="absolute right-0 top-[calc(100%+14px)] z-30">
-      <div className="mx-2 space-y-4">
-        <HeroInputShell class_name="w-full opacity-[0.92]">
-          <div className="flex min-w-0 items-center gap-3">
-            <Search className="h-4 w-4 text-slate-700/50"/>
-            <input
-              className="flex-1 bg-transparent text-sm text-slate-900/82 outline-none placeholder:text-slate-700/42"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search contacts..."
-              value={query}
-            />
-          </div>
-        </HeroInputShell>
-
-        <div className="space-y-2">
-          {filtered_agents.slice(0, 5).map((agent, index) => (
-            <div
-              key={agent.agent_id}
-              className={cn(
-                "flex items-center gap-3 rounded-[18px] bg-[rgba(255,255,255,0.05)] px-2 py-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]",
-                index === 0 && "bg-[rgba(255,255,255,0.10)]",
-              )}
-            >
-              <button
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10)] transition-colors hover:bg-white/16"
-                onClick={() => {
-                  on_close();
-                  on_select_agent(agent.agent_id);
-                }}
-                type="button"
-              >
-                <span className="text-sm font-semibold text-slate-900/84">
-                  {getInitials(agent.name)}
-                </span>
-              </button>
-
-              <button
-                className="min-w-0 flex-1 text-left"
-                onClick={() => {
-                  on_close();
-                  on_select_agent(agent.agent_id);
-                }}
-                type="button"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="h-4 w-1 rounded-full bg-[#7fe3a8]"/>
-                  <p className="truncate text-sm font-semibold text-slate-900/84">{agent.name}</p>
-                </div>
-              </button>
-
-              <div className="flex items-center gap-1">
-                <button
-                  aria-label="编辑 Agent 设置"
-                  className="rounded-full p-2 text-slate-700/44 transition-colors hover:bg-white/10 hover:text-slate-900/80"
-                  onClick={() => on_edit_agent(agent.agent_id)}
-                  type="button"
-                >
-                  <Settings className="h-4 w-4"/>
-                </button>
-                <button
-                  aria-label="删除 Agent"
-                  className="rounded-full p-2 text-slate-700/44 transition-colors hover:bg-white/10 hover:text-slate-900/80"
-                  onClick={() => on_delete_agent(agent.agent_id)}
-                  type="button"
-                >
-                  <Trash2 className="h-4 w-4"/>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="h-px w-full bg-white/10"/>
-
-        <button
-          className="flex w-full items-center gap-2 rounded-[18px] bg-[rgba(255,255,255,0.05)] px-3 py-3 text-sm font-medium text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]"
-          onClick={on_create_agent}
-          type="button"
-        >
-          <Plus className="h-4 w-4"/>
-          New Agent
-        </button>
-
-        <button
-          className="flex w-full items-center justify-between rounded-[18px] bg-[rgba(255,255,255,0.04)] px-3 py-3 text-sm font-medium text-slate-800/74 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.08)]"
-          onClick={() => {
-            on_close();
-            on_open_contacts_page();
-          }}
-          type="button"
-        >
-          <span>Open Contacts</span>
-          <ChevronRight className="h-4 w-4 text-slate-700/42"/>
-        </button>
-      </div>
-    </HeroSidePanelShell>
-  );
-});
-
-const RecentRoomsPopover = memo(function RecentRoomsPopover({
-                                                              on_close,
-                                                              on_open_conversation,
-                                                              recent_rooms,
-                                                              conversations_with_owners,
-                                                            }: RecentRoomsPopoverProps) {
-  const [query, setQuery] = useState("");
-  const deferred_query = useDeferredValue(query);
-  const filtered_rooms = useMemo(() => {
-    const keyword = deferred_query.trim().toLowerCase();
-    if (!keyword) {
-      return conversations_with_owners;
-    }
-
-    return conversations_with_owners.filter(({conversation, owner}) =>
-      [conversation.title, owner?.name ?? ""].some((field) =>
-        field.toLowerCase().includes(keyword),
-      ),
-    );
-  }, [conversations_with_owners, deferred_query]);
-
-  return (
-    <HeroSidePanelShell class_name="absolute right-0 top-[calc(100%+14px)] z-30">
-      <div className="mx-2 space-y-4">
-        <HeroInputShell class_name="w-full opacity-[0.92]">
-          <div className="flex min-w-0 items-center gap-3">
-            <Search className="h-4 w-4 text-slate-700/50"/>
-            <input
-              className="flex-1 bg-transparent text-sm text-slate-900/82 outline-none placeholder:text-slate-700/42"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search rooms..."
-              value={query}
-            />
-          </div>
-        </HeroInputShell>
-
-        <div className="space-y-2">
-          {filtered_rooms.slice(0, 4).map(({conversation, owner}, index) => (
-            <button
-              key={conversation.session_key}
-              className={cn(
-                "flex w-full items-center justify-between rounded-[18px] bg-[rgba(255,255,255,0.05)] px-2 py-2 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]",
-                index === 0 && "bg-[rgba(255,255,255,0.10)]",
-              )}
-              onClick={() => {
-                on_close();
-                on_open_conversation(conversation.session_key, conversation.agent_id);
-              }}
-              type="button"
-            >
-              <div>
-                <p className="text-sm font-semibold text-slate-900/84">
-                  {truncate(conversation.title || "", 20)}
-                </p>
-                <p className="max-w-[210px] truncate text-[10px] text-slate-700/54">
-                  {(owner?.name ?? "Unknown")} · 最近消息 · {formatRelativeTime(conversation.last_activity_at)}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                {(conversation.message_count ?? 0) > 0 && (
-                  <span
-                    className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/14 px-1.5 text-[9px] font-bold text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                    {Math.min(conversation.message_count ?? 0, 9)}
-                  </span>
-                )}
-                <ChevronRight className="h-4 w-4 text-slate-700/40"/>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div className="h-px w-full bg-white/10"/>
-
-        <button
-          className="flex w-full items-center gap-2 rounded-[18px] bg-[rgba(255,255,255,0.05)] px-3 py-3 text-sm font-medium text-slate-900/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgba(255,255,255,0.09)]"
-          onClick={() => {
-            on_close();
-            if (recent_rooms[0]) {
-              on_open_conversation(
-                recent_rooms[0].conversation.session_key,
-                recent_rooms[0].conversation.agent_id,
-              );
-            }
-          }}
-          type="button"
-        >
-          <Plus className="h-4 w-4"/>
-          New Room
-        </button>
-      </div>
-    </HeroSidePanelShell>
-  );
-});
-
 export function LauncherConsole({
                                   agents,
                                   conversations,
                                   current_agent_id,
-                                  on_open_contacts_page,
                                   on_open_app_conversation,
                                   on_close_app_conversation,
                                   is_app_conversation_open,
                                   on_select_agent,
                                   on_open_conversation,
-                                  on_create_agent,
-                                  on_edit_agent,
-                                  on_delete_agent,
                                   surface,
                                 }: LauncherConsoleProps) {
   const [query, setQuery] = useState("");
-  const [show_contacts, setShowContacts] = useState(false);
-  const [show_rooms, setShowRooms] = useState(false);
 
   const agents_by_id = useMemo(
     () => new Map(agents.map((agent) => [agent.agent_id, agent])),
@@ -634,55 +357,6 @@ export function LauncherConsole({
         </div>
 
         <div className="relative z-40 flex items-center gap-1.5 sm:gap-2">
-          <HeaderActionButton
-            is_active={show_contacts}
-            on_click={() => {
-              setShowContacts((current) => !current);
-              setShowRooms(false);
-            }}
-          >
-            Contacts
-          </HeaderActionButton>
-          <HeaderActionButton
-            is_active={show_rooms}
-            on_click={() => {
-              setShowRooms((current) => !current);
-              setShowContacts(false);
-            }}
-          >
-            Rooms
-          </HeaderActionButton>
-          <button
-            aria-label="创建 Agent"
-            className="transition-transform duration-300 hover:-translate-y-0.5"
-            onClick={on_create_agent}
-            type="button"
-          >
-            <HeroActionOrbShell is_active>
-              <Plus className="h-3.5 w-3.5 text-slate-900/80 sm:h-4 sm:w-4"/>
-            </HeroActionOrbShell>
-          </button>
-
-          {show_contacts ? (
-            <ContactsPopover
-              agents={agents}
-              on_close={() => setShowContacts(false)}
-              on_create_agent={on_create_agent}
-              on_delete_agent={on_delete_agent}
-              on_edit_agent={on_edit_agent}
-              on_open_contacts_page={on_open_contacts_page}
-              on_select_agent={on_select_agent}
-            />
-          ) : null}
-
-          {show_rooms ? (
-            <RecentRoomsPopover
-              conversations_with_owners={conversations_with_owners}
-              on_close={() => setShowRooms(false)}
-              on_open_conversation={on_open_conversation}
-              recent_rooms={recent_rooms}
-            />
-          ) : null}
         </div>
       </div>
 
