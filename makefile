@@ -1,4 +1,6 @@
 TAG:=0.0.1
+BACKEND_PORT ?= 8010
+WEB_PORT ?= 3000
 
 # Default target
 .DEFAULT_GOAL := help
@@ -15,7 +17,7 @@ help: ## Show this help message
 
 # Development commands
 run-web: ## Run frontend in development mode
-	cd web && npm run dev
+	cd web && npm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
 db-init: ## Run Alembic migrations for local database
 	@if [ -x .venv/bin/python ]; then \
@@ -31,11 +33,11 @@ db-init: ## Run Alembic migrations for local database
 
 run-backend: db-init ## Run backend in development mode
 	@if [ -x .venv/bin/python ]; then \
-		.venv/bin/python main.py; \
+		PORT=$(BACKEND_PORT) .venv/bin/python main.py; \
 	elif command -v python3 >/dev/null 2>&1; then \
-		python3 main.py; \
+		PORT=$(BACKEND_PORT) python3 main.py; \
 	elif command -v python >/dev/null 2>&1; then \
-		python main.py; \
+		PORT=$(BACKEND_PORT) python main.py; \
 	else \
 		echo "No usable Python runtime found"; \
 		exit 1; \
@@ -43,10 +45,20 @@ run-backend: db-init ## Run backend in development mode
 
 dev: ## Run both frontend and backend in development mode
 	@echo "Starting development servers..."
-	@echo "Backend: http://localhost:8010"
-	@echo "Frontend: http://localhost:3000"
+	@echo "Backend: http://localhost:$(BACKEND_PORT)"
+	@echo "Frontend: http://localhost:$(WEB_PORT)"
 	@echo "Press Ctrl+C to stop"
-	@make -j2 run-web run-backend
+	@if lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo ""; \
+		echo "Error: backend port $(BACKEND_PORT) is already in use."; \
+		echo "Hint: stop the existing process or run 'BACKEND_PORT=<port> make dev'."; \
+		lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN; \
+		exit 1; \
+	fi
+	@if lsof -nP -iTCP:$(WEB_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Warning: frontend port $(WEB_PORT) is already in use, Vite will choose another available port."; \
+	fi
+	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
 install: ## Install all dependencies
 	@echo "Installing backend dependencies..."

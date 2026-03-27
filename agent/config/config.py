@@ -110,6 +110,19 @@ class Settings(BaseSettings):
         ignored_types=(CyFunctionDetector,)
     )
 
+    @staticmethod
+    def _mask_sensitive_value(attr: str, value):
+        # 对敏感配置做脱敏，避免开发模式启动时把密钥直接打印到日志。
+        sensitive_keywords = ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "PRIVATE_KEY")
+        if not any(keyword in attr for keyword in sensitive_keywords):
+            return value
+        if value in [None, ""]:
+            return value
+        value_str = str(value)
+        if len(value_str) <= 8:
+            return "*" * len(value_str)
+        return f"{value_str[:4]}***{value_str[-4:]}"
+
     def update_dependent_settings(self):
         os.environ["ANTHROPIC_AUTH_TOKEN"] = self.ANTHROPIC_AUTH_TOKEN
         os.environ["ANTHROPIC_BASE_URL"] = self.ANTHROPIC_BASE_URL
@@ -130,9 +143,9 @@ class Settings(BaseSettings):
                     not callable(getattr(self, attr)) and \
                     attr not in ["LOGO", "SECRET_KEY", "_abc_impl"] and \
                     not attr.startswith("model_"):
-                logger.info(f"{attr}: {getattr(self, attr)}")
+                logger.info(f"{attr}: {self._mask_sensitive_value(attr, getattr(self, attr))}")
         for attr in self.model_extra:
-            logger.info(f"{attr}: {getattr(self, attr)}")
+            logger.info(f"{attr}: {self._mask_sensitive_value(attr, getattr(self, attr))}")
 
     def __str__(self):
         text = "\n".join(
