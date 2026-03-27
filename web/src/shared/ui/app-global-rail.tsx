@@ -34,12 +34,6 @@ export function AppGlobalRail({
       icon: Home,
     },
     {
-      key: "nexus",
-      label: "Nexus",
-      to: AppRouteBuilders.launcher_app(),
-      icon: Sparkles,
-    },
-    {
       key: "dms",
       label: "DMs",
       to: dm_href || AppRouteBuilders.dm_directory(),

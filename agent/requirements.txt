@@ -7,12 +7,14 @@ websockets>=15
 pydantic>=2.6.0
 pydantic-settings>=2.12.0
 typer>=0.20.0
+alembic>=1.14.0
 python-dotenv>=1.0.0
 python-multipart>=0.0.20
 typing_inspect
 psutil>=5.9.4
 sqlalchemy>=2.0.0
 aiosqlite>=0.20.0
+alembic>=1.18.4
 
 # agent requirements
 

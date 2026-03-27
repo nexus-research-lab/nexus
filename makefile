@@ -3,7 +3,9 @@ TAG:=0.0.1
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: help build start stop restart logs clean status dev install test
+.PHONY: help build build-backend build-web start stop restart logs clean status \
+	dev install db-init lint-web typecheck-web check-backend check test \
+	run-web run-backend up down log reboot
 
 # Show help
 help: ## Show this help message
@@ -15,7 +17,19 @@ help: ## Show this help message
 run-web: ## Run frontend in development mode
 	cd web && npm run dev
 
-run-backend: ## Run backend in development mode
+db-init: ## Run Alembic migrations for local database
+	@if [ -x .venv/bin/python ]; then \
+		.venv/bin/python -m alembic upgrade head; \
+	elif command -v python3 >/dev/null 2>&1; then \
+		python3 -m alembic upgrade head; \
+	elif command -v python >/dev/null 2>&1; then \
+		python -m alembic upgrade head; \
+	else \
+		echo "No usable Python runtime found"; \
+		exit 1; \
+	fi
+
+run-backend: db-init ## Run backend in development mode
 	@if [ -x .venv/bin/python ]; then \
 		.venv/bin/python main.py; \
 	elif command -v python3 >/dev/null 2>&1; then \
@@ -50,6 +64,22 @@ install: ## Install all dependencies
 	fi
 	@echo "Installing frontend dependencies..."
 	cd web && npm install
+
+check-backend: ## Run backend syntax check
+	@if [ -x .venv/bin/python ]; then \
+		.venv/bin/python -m py_compile $$(rg --files agent -g '*.py'); \
+	elif command -v python3 >/dev/null 2>&1; then \
+		python3 -m py_compile $$(rg --files agent -g '*.py'); \
+	elif command -v python >/dev/null 2>&1; then \
+		python -m py_compile $$(rg --files agent -g '*.py'); \
+	else \
+		echo "No usable Python runtime found"; \
+		exit 1; \
+	fi
+
+check: check-backend lint-web typecheck-web ## Run basic validation checks
+
+test: check ## Alias of check
 
 # Docker commands
 build: ## Build Docker images
