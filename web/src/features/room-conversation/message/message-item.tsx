@@ -447,13 +447,6 @@ export function MessageItem(
               </div>
 
               <div className="relative min-w-0">
-                {/* 扫描线效果 */}
-                {showCursor && (
-                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                    <div className="absolute inset-0 animate-scan" />
-                  </div>
-                )}
-
                 {/* 优雅的头部栏 */}
                 <div className={cn(
                   "flex min-w-0 items-center gap-2",
@@ -568,10 +561,6 @@ export function MessageItem(
                   />
                 )}
 
-                {/* 底部进度条（流式时） */}
-                {showCursor && (
-                  <div className="h-0.5 animate-progress-bar" />
-                )}
               </div>
             </div>
           </div>

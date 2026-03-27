@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { HOME_WORKSPACE_SECTION_GAP_CLASS } from "@/lib/home-layout";
@@ -100,6 +100,17 @@ export function RoomWorkspaceShell({
     }
   }, [active_surface_tab, current_room_type]);
 
+  const handle_select_conversation_in_shell = useCallback((conversation_id: string) => {
+    set_active_surface_tab("chat");
+    on_select_conversation(conversation_id);
+  }, [on_select_conversation]);
+
+  const handle_create_conversation_in_shell = useCallback(async (title?: string) => {
+    const next_conversation_id = await on_create_conversation(title);
+    set_active_surface_tab("chat");
+    return next_conversation_id;
+  }, [on_create_conversation]);
+
   if (is_mobile) {
     return (
         <RoomMobileWorkspace
@@ -110,9 +121,9 @@ export function RoomWorkspaceShell({
           current_room_title={current_room_title}
           on_back_to_directory={on_back_to_directory}
           on_conversation_snapshot_change={on_conversation_snapshot_change}
-        on_create_conversation={on_create_conversation}
+        on_create_conversation={handle_create_conversation_in_shell}
         on_loading_change={on_loading_change}
-        on_select_conversation={on_select_conversation}
+        on_select_conversation={handle_select_conversation_in_shell}
       />
     );
   }
@@ -143,7 +154,7 @@ export function RoomWorkspaceShell({
           on_change_surface_tab={set_active_surface_tab}
           on_close_workspace_pane={on_close_workspace_pane}
           on_conversation_snapshot_change={on_conversation_snapshot_change}
-          on_create_conversation={on_create_conversation}
+          on_create_conversation={handle_create_conversation_in_shell}
           on_delete_conversation={on_delete_conversation}
           on_delete_room={on_delete_room}
           on_edit_agent={on_edit_agent}
@@ -153,7 +164,7 @@ export function RoomWorkspaceShell({
           on_open_workspace_file={on_open_workspace_file}
           on_remove_room_member={on_remove_room_member}
           on_select_agent={on_select_agent}
-          on_select_conversation={on_select_conversation}
+          on_select_conversation={handle_select_conversation_in_shell}
           on_start_editor_resize={on_start_editor_resize}
           on_todos_change={on_todos_change}
           on_update_room={on_update_room}

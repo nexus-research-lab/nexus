@@ -32,6 +32,19 @@ function to_timestamp(value?: string | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function get_context_last_activity_timestamp(context: RoomContextAggregate): number {
+  const session_timestamps = context.sessions.map((session) => (
+    to_timestamp(session.last_activity_at) ||
+    to_timestamp(session.updated_at) ||
+    to_timestamp(session.created_at)
+  ));
+  const latest_session_timestamp = Math.max(0, ...session_timestamps);
+
+  return latest_session_timestamp ||
+    to_timestamp(context.conversation.updated_at) ||
+    to_timestamp(context.conversation.created_at);
+}
+
 export function useRoomPageController({
   room_id,
   conversation_id,
@@ -184,20 +197,38 @@ export function useRoomPageController({
         const latest_conversation = [...session_conversations].sort(
           (left, right) => right.last_activity_at - left.last_activity_at,
         )[0];
+        const context_last_activity_at = get_context_last_activity_timestamp(context);
+        const fallback_session = [...context.sessions].sort((left, right) => {
+          const left_timestamp = (
+            to_timestamp(left.last_activity_at) ||
+            to_timestamp(left.updated_at) ||
+            to_timestamp(left.created_at)
+          );
+          const right_timestamp = (
+            to_timestamp(right.last_activity_at) ||
+            to_timestamp(right.updated_at) ||
+            to_timestamp(right.created_at)
+          );
+          return right_timestamp - left_timestamp;
+        })[0];
 
         return {
           session_key: context.conversation.id,
           room_id: context.room.id,
           conversation_id: context.conversation.id,
           conversation_type: context.conversation.conversation_type,
-          session_id: latest_conversation?.session_id ?? null,
-          agent_id: latest_conversation?.agent_id ?? context.sessions[0]?.agent_id,
+          session_id: latest_conversation?.session_id ?? fallback_session?.sdk_session_id ?? null,
+          agent_id: latest_conversation?.agent_id ?? fallback_session?.agent_id,
           title: context.conversation.title?.trim() || context.room.name || "未命名对话",
           options: latest_conversation?.options ?? {},
           created_at:
-            latest_conversation?.created_at ?? to_timestamp(context.conversation.created_at),
+            latest_conversation?.created_at ??
+            (to_timestamp(context.conversation.created_at) || context_last_activity_at),
           last_activity_at:
-            latest_conversation?.last_activity_at ?? to_timestamp(context.conversation.updated_at),
+            Math.max(
+              latest_conversation?.last_activity_at ?? 0,
+              context_last_activity_at,
+            ),
           is_active: latest_conversation?.is_active,
           message_count:
             latest_conversation?.message_count ??

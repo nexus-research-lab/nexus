@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useConversationLoader } from "@/hooks/use-conversation-loader";
@@ -148,21 +148,30 @@ export function RoomChatPanel({
   const schedule_scroll_to_bottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     cancel_pending_scroll();
 
+    const container = scroll_ref.current;
+    if (!container) {
+      return;
+    }
+
+    // 流式输出时直接贴到底部，避免等待两帧后再修正位置导致换行抖动。
+    if (behavior === "auto") {
+      container.scrollTop = container.scrollHeight;
+      last_scroll_top_ref.current = container.scrollTop;
+      return;
+    }
+
     pending_scroll_frame_ref.current = requestAnimationFrame(() => {
-      pending_scroll_inner_frame_ref.current = requestAnimationFrame(() => {
-        const container = scroll_ref.current;
-        if (!container) {
-          return;
-        }
+      const nextContainer = scroll_ref.current;
+      if (!nextContainer) {
+        return;
+      }
 
-        // 直接滚动容器自身，避免 scrollIntoView 在嵌套滚动场景下停在半路。
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior,
-        });
-
-        last_scroll_top_ref.current = container.scrollTop;
+      nextContainer.scrollTo({
+        top: nextContainer.scrollHeight,
+        behavior,
       });
+
+      last_scroll_top_ref.current = nextContainer.scrollTop;
     });
   }, [cancel_pending_scroll]);
 
@@ -172,7 +181,7 @@ export function RoomChatPanel({
     schedule_scroll_to_bottom(behavior);
   }, [schedule_scroll_to_bottom]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!should_follow_latest_ref.current) {
       update_follow_state();
       return;
@@ -265,8 +274,13 @@ export function RoomChatPanel({
     }
     should_follow_latest_ref.current = true;
     setShowScrollToBottom(false);
-    await send_message(content);
     scroll_to_bottom("auto");
+
+    try {
+      await send_message(content);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    }
   };
 
   const handle_stop = () => {
@@ -327,6 +341,7 @@ export function RoomChatPanel({
                 ? "soft-scrollbar relative z-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-1 py-2"
                 : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfcfd] px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
             }
+            style={{ overflowAnchor: "none" }}
             onScroll={handle_scroll}
             onTouchEnd={handle_touch_end}
             onTouchMove={handle_touch_move}

@@ -171,7 +171,7 @@ function createMarkdownComponents(
     blockquote({children}) {
       return (
         <blockquote
-          className="my-4 w-full min-w-0 max-w-full overflow-hidden rounded-r border-l-4 border-primary/30 bg-primary/5 py-2 pl-4 italic text-muted-foreground [overflow-wrap:anywhere]">
+          className="my-4 w-full min-w-0 max-w-full overflow-hidden rounded-r border-l-4 pr-1 border-primary/30 bg-primary/5 py-2 pl-4 italic text-muted-foreground [overflow-wrap:anywhere]">
           <div className="min-w-0 max-w-full">
             {children}
           </div>

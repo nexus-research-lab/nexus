@@ -7,7 +7,8 @@ import {
   clampHomeEditorWidthPercent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/home-layout";
-import { getAgentCostSummaryApi } from "@/lib/agent-manage-api";
+import { getAgentCostSummaryApi, getWorkspaceFilesApi } from "@/lib/agent-manage-api";
+import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { TodoItem } from "@/types/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/workspace";
@@ -46,6 +47,8 @@ export function useHomeWorkspaceController({
   current_agent_id,
   current_conversation,
 }: HomeWorkspaceControllerOptions) {
+  const set_workspace_files = useWorkspaceFilesStore((state) => state.set_files);
+  const clear_workspace_agent = useWorkspaceFilesStore((state) => state.clear_agent);
   const [active_workspace_path, setActiveWorkspacePath] = useState<string | null>(null);
   const [is_editor_open, setIsEditorOpen] = useState(false);
   const [editor_width_percent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
@@ -72,6 +75,43 @@ export function useHomeWorkspaceController({
     setConversationCostSummary(EMPTY_CONVERSATION_COST_SUMMARY);
     setAgentCostSummary(EMPTY_AGENT_COST_SUMMARY);
   }, [current_agent_id]);
+
+  useEffect(() => {
+    if (!current_agent_id) {
+      return;
+    }
+    if (is_conversation_busy) {
+      return;
+    }
+
+    let ignore = false;
+
+    const load_workspace_files = async () => {
+      try {
+        const next_files = await getWorkspaceFilesApi(current_agent_id);
+        if (!ignore) {
+          set_workspace_files(current_agent_id, next_files);
+        }
+      } catch (error) {
+        console.error("Failed to load workspace files:", error);
+        if (!ignore) {
+          clear_workspace_agent(current_agent_id);
+        }
+      }
+    };
+
+    void load_workspace_files();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    clear_workspace_agent,
+    current_agent_id,
+    current_conversation?.session_key,
+    is_conversation_busy,
+    set_workspace_files,
+  ]);
 
   useEffect(() => {
     if (!current_agent_id || is_conversation_busy) {
