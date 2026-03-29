@@ -7,6 +7,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { prepare, layout } from "@chenglou/pretext";
 import { Bot, Check, ChevronDown, ChevronRight, Copy, Edit2, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssistantContentMerge } from "@/hooks/use-assistant-content-merge";
@@ -278,6 +279,30 @@ export function MessageItem(
   const isCompleted = hasFinalAnswer && !is_loading;
   const canOperateRound = !!userMessage && !is_loading;
 
+  // Pretext-based streaming min-height: measure the current assistant text
+  // and hold the container at that height so scroll doesn't jump on each token.
+  // We run layout() only when streaming and only when content changes.
+  const contentAreaRef = useRef<HTMLDivElement>(null);
+  const streamingMinHeight = useRef(60);
+  useEffect(() => {
+    if (!showCursor || !assistantTextContent) return;
+    const el = contentAreaRef.current;
+    if (!el) return;
+    try {
+      const width = el.offsetWidth || 640;
+      // prose font: text-sm = 14px, leading-7 = 28px
+      const prepared = prepare(assistantTextContent, "400 14px ui-sans-serif, system-ui, sans-serif");
+      const result = layout(prepared, width, 28);
+      // Keep min-height non-decreasing: never shrink during a single stream
+      streamingMinHeight.current = Math.max(streamingMinHeight.current, result.height);
+    } catch { /* fallback: keep previous estimate */ }
+  }, [showCursor, assistantTextContent]);
+
+  // Reset on new stream
+  useEffect(() => {
+    if (!showCursor) streamingMinHeight.current = 60;
+  }, [showCursor]);
+
   // 格式化时间
   const formatTime = (ts: number) => {
     const date = new Date(ts);
@@ -389,10 +414,13 @@ export function MessageItem(
                 </div>
 
                 {/* 内容区 */}
-                <div className={cn(
-                  compact ? "min-w-0 pb-2 pt-1 text-[13px] leading-6" : "min-w-0 pb-2 pt-1 text-[15px] leading-7",
-                  showCursor && "min-h-[60px]"
-                )}>
+                <div
+                  ref={contentAreaRef}
+                  className={cn(
+                    compact ? "min-w-0 pb-2 pt-1 text-[13px] leading-6" : "min-w-0 pb-2 pt-1 text-[15px] leading-7",
+                  )}
+                  style={showCursor ? { minHeight: streamingMinHeight.current } : undefined}
+                >
 
                   {hasVisibleProcess ? (
                     <div>
