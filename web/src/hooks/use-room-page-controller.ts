@@ -47,18 +47,18 @@ export function useRoomPageController({
   room_id,
   conversation_id,
 }: RoomPageControllerOptions) {
-  const {
-    agents,
-    create_agent,
-    update_agent,
-    delete_agent,
-    load_agents_from_server,
-  } = useAgentStore();
-  const {
-    conversations,
-    sync_conversation_snapshot,
-    load_conversations_from_server,
-  } = useConversationStore();
+  // Granular selectors — subscribes only to the slices we actually use.
+  // useAgentStore() / useConversationStore() without a selector returns the
+  // entire store object and re-renders on ANY store change (even unrelated fields).
+  const agents = useAgentStore((s) => s.agents);
+  const create_agent = useAgentStore((s) => s.create_agent);
+  const update_agent = useAgentStore((s) => s.update_agent);
+  const delete_agent = useAgentStore((s) => s.delete_agent);
+  const load_agents_from_server = useAgentStore((s) => s.load_agents_from_server);
+
+  const conversations = useConversationStore((s) => s.conversations);
+  const sync_conversation_snapshot = useConversationStore((s) => s.sync_conversation_snapshot);
+  const load_conversations_from_server = useConversationStore((s) => s.load_conversations_from_server);
 
   const [is_bootstrapped, set_is_bootstrapped] = useState(false);
   const [room_contexts, set_room_contexts] = useState<RoomContextAggregate[]>([]);
@@ -462,7 +462,11 @@ export function useRoomPageController({
 
   const is_hydrated = is_bootstrapped && !is_room_loading;
 
-  return {
+  // Memoize the return object so consumers wrapped in React.memo don't
+  // re-render just because this hook re-ran (e.g. due to unrelated state).
+  // Each value in the deps array is itself already stable (primitive, ref,
+  // or memoized), so this only produces a new object when something real changes.
+  return useMemo(() => ({
     agents,
     conversations,
     rooms,
@@ -504,5 +508,17 @@ export function useRoomPageController({
     route_conversation_id: conversation_id ?? null,
     route_room_id: room_id ?? null,
     ...workspace,
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [
+    agents, conversations, rooms, room_error, current_room, current_agent,
+    room_member_agents, available_room_agents, room_conversations, current_conversation,
+    current_room_conversation_id, is_hydrated, is_dialog_open, dialog_mode,
+    dialog_initial_title, dialog_initial_options, set_is_dialog_open,
+    handle_open_create_agent, handle_edit_agent, handle_select_agent,
+    handle_select_conversation, handle_back_to_directory, handle_delete_agent,
+    handle_create_conversation, handle_save_agent_options, handle_validate_agent_name,
+    handle_conversation_snapshot_change, handle_delete_conversation,
+    handle_update_room, handle_delete_room, handle_add_room_member,
+    handle_remove_room_member, conversation_id, room_id, workspace,
+  ]);
 }

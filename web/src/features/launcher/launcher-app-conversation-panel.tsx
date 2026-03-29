@@ -109,9 +109,14 @@ export function LauncherAppConversationPanel({
   const [show_scroll_to_bottom, set_show_scroll_to_bottom] = useState(false);
   const [active_tab, set_active_tab] = useState<NexusSurfaceTab>("chat");
 
-  const latest_user_message = [...app_conversation_messages]
-    .reverse()
-    .find((message): message is UserMessage => message.role === "user");
+  // Scan from the end without copying the array — O(N) no allocation
+  const latest_user_message = useMemo(() => {
+    for (let i = app_conversation_messages.length - 1; i >= 0; i--) {
+      const m = app_conversation_messages[i];
+      if (m.role === "user") return m as UserMessage;
+    }
+    return undefined;
+  }, [app_conversation_messages]);
   const latest_user_prompt = latest_user_message?.content ?? "";
   const recent_room = conversations_with_owners[0] ?? null;
   const message_groups = useMemo(

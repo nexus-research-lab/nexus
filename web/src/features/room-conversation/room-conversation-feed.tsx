@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -29,7 +29,7 @@ interface RoomConversationFeedProps {
 // overhead is not worth it and scroll behaviour is simpler without it.
 const VIRTUAL_THRESHOLD = 20;
 
-export function RoomConversationFeed({
+export const RoomConversationFeed = memo(function RoomConversationFeed({
   bottom_anchor_ref,
   feed_ref,
   scroll_ref,
@@ -97,7 +97,7 @@ export function RoomConversationFeed({
       <div ref={bottom_anchor_ref} className="h-px w-full" />
     </div>
   );
-}
+});
 
 // ─── VirtualFeed ──────────────────────────────────────────────────────────────
 

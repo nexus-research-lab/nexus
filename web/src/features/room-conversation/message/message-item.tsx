@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prepare, layout } from "@chenglou/pretext";
 import { Bot, Check, ChevronDown, ChevronRight, Copy, Edit2, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ interface MessageItemProps {
   class_name?: string;
 }
 
-export function MessageItem(
+function MessageItemInner(
   {
     compact = false,
     current_agent_name,
@@ -281,26 +281,38 @@ export function MessageItem(
 
   // Pretext-based streaming min-height: measure the current assistant text
   // and hold the container at that height so scroll doesn't jump on each token.
-  // We run layout() only when streaming and only when content changes.
+  // Throttled to run at most once every 150ms — pretext layout is fast but
+  // calling it on every token (100/sec) would still burn meaningful CPU.
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const streamingMinHeight = useRef(60);
+  const layoutThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!showCursor || !assistantTextContent) return;
-    const el = contentAreaRef.current;
-    if (!el) return;
-    try {
-      const width = el.offsetWidth || 640;
-      // prose font: text-sm = 14px, leading-7 = 28px
-      const prepared = prepare(assistantTextContent, "400 14px ui-sans-serif, system-ui, sans-serif");
-      const result = layout(prepared, width, 28);
-      // Keep min-height non-decreasing: never shrink during a single stream
-      streamingMinHeight.current = Math.max(streamingMinHeight.current, result.height);
-    } catch { /* fallback: keep previous estimate */ }
+    if (layoutThrottleRef.current !== null) return; // already scheduled
+
+    layoutThrottleRef.current = setTimeout(() => {
+      layoutThrottleRef.current = null;
+      const el = contentAreaRef.current;
+      if (!el) return;
+      try {
+        const width = el.offsetWidth || 640;
+        const prepared = prepare(assistantTextContent, "400 14px ui-sans-serif, system-ui, sans-serif");
+        const result = layout(prepared, width, 28);
+        streamingMinHeight.current = Math.max(streamingMinHeight.current, result.height);
+      } catch { /* keep previous estimate */ }
+    }, 150);
   }, [showCursor, assistantTextContent]);
 
-  // Reset on new stream
+  // Reset on new stream; cancel any pending throttled layout
   useEffect(() => {
-    if (!showCursor) streamingMinHeight.current = 60;
+    if (!showCursor) {
+      streamingMinHeight.current = 60;
+      if (layoutThrottleRef.current !== null) {
+        clearTimeout(layoutThrottleRef.current);
+        layoutThrottleRef.current = null;
+      }
+    }
   }, [showCursor]);
 
   // 格式化时间
@@ -519,5 +531,24 @@ export function MessageItem(
     </div>
   );
 }
+
+// Memo: only re-render when props that affect visual output change.
+// - Non-last rounds: messages array and agent name are stable after initial render.
+// - Last round: re-renders on is_loading (streaming) and pending_permission changes.
+export const MessageItem = memo(MessageItemInner, (prev, next) => {
+  if (prev.round_id !== next.round_id) return false;
+  if (prev.is_last_round !== next.is_last_round) return false;
+  if (prev.is_loading !== next.is_loading) return false;
+  if (prev.compact !== next.compact) return false;
+  if (prev.current_agent_name !== next.current_agent_name) return false;
+  if (prev.pending_permission !== next.pending_permission) return false;
+  if (prev.class_name !== next.class_name) return false;
+  // Messages array: compare by reference — applyStreamMessage always returns
+  // a new array, so reference inequality correctly signals a content change.
+  if (prev.messages !== next.messages) return false;
+  // Callbacks: stable because they're wrapped in useCallback upstream.
+  // We skip deep-comparing them to avoid the cost.
+  return true;
+});
 
 export default MessageItem;
