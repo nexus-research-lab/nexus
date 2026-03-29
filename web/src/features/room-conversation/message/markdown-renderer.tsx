@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
 import { CodeBlock } from "./block/code-block";
+import { InlineStreamingCursor } from "@/shared/ui/streaming-cursor";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
@@ -107,7 +108,15 @@ function WorkspaceFileButton({
 function createMarkdownComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
+  is_streaming?: boolean,
+  content?: string,
 ): Components {
+  // Track whether we've injected the cursor (only into the last paragraph)
+  let paragraphCount = 0;
+  const totalParagraphs = is_streaming && content
+    ? (content.match(/\n\n/g) ?? []).length + 1
+    : 0;
+
   return {
     pre({children}) {
       return <div className="my-4 w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
@@ -137,10 +146,13 @@ function createMarkdownComponents(
       );
     },
     p({children}) {
+      paragraphCount += 1;
+      const isLastParagraph = is_streaming && paragraphCount === totalParagraphs;
       return (
         <div
           className="mb-2 mt-2 min-w-0 max-w-full leading-relaxed text-foreground/90 [overflow-wrap:anywhere] last:mb-0">
           {children}
+          {isLastParagraph && <InlineStreamingCursor />}
         </div>
       );
     },
@@ -249,11 +261,15 @@ function createMarkdownComponents(
 }
 
 export function MarkdownRenderer(props: MarkdownRendererProps) {
-  const {content, class_name, on_open_workspace_file} = props;
+  const {content, class_name, is_streaming, on_open_workspace_file} = props;
   const current_agent_id = useAgentStore((state) => state.current_agent_id);
   const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
   const agent_files = current_agent_id ? files_by_agent[current_agent_id] || [] : [];
   const resolveFilePath = (value: string) => resolveWorkspaceFileReference(value, agent_files);
+
+  // Plain text with no double-newlines won't have <p> tags — detect this case
+  // to append cursor directly without relying on paragraph injection
+  const hasNoParagraphBreaks = is_streaming && !content.includes("\n\n");
 
   return (
     <div
@@ -266,12 +282,13 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
       )}
     >
       <ReactMarkdown
-        components={createMarkdownComponents(resolveFilePath, on_open_workspace_file)}
+        components={createMarkdownComponents(resolveFilePath, on_open_workspace_file, is_streaming, content)}
         rehypePlugins={REHYPE_PLUGINS}
         remarkPlugins={MARKDOWN_PLUGINS}
       >
         {content}
       </ReactMarkdown>
+      {hasNoParagraphBreaks && <InlineStreamingCursor />}
     </div>
   );
 }
