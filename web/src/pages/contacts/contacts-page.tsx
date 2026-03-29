@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
@@ -7,17 +7,15 @@ import { validateAgentNameApi } from "@/lib/agent-manage-api";
 import { ensureDirectRoom } from "@/lib/room-api";
 import { AppStage } from "@/shared/ui/app-stage";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
-import { AgentOptions } from "@/shared/ui/agent-options-dialog";
+import { AgentOptions } from "@/shared/ui/agent-options";
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
-import { ContactsRouteParams } from "@/types/route";
 import { initialOptions } from "@/config/options";
 
 export function ContactsPage() {
-  const params = useParams<ContactsRouteParams>();
   const navigate = useNavigate();
   const {
     agents,
@@ -33,10 +31,6 @@ export function ContactsPage() {
   const [editing_agent_id, set_editing_agent_id] = useState<string | null>(null);
   const [pending_delete_agent_id, set_pending_delete_agent_id] = useState<string | null>(null);
 
-  const selected_agent = useMemo(
-    () => agents.find((agent) => agent.agent_id === params.agent_id) ?? agents[0] ?? null,
-    [agents, params.agent_id],
-  );
   const editing_agent = useMemo(
     () => agents.find((agent) => agent.agent_id === editing_agent_id) ?? null,
     [agents, editing_agent_id],
@@ -63,6 +57,7 @@ export function ContactsPage() {
     };
   }, [dialog_mode, editing_agent]);
 
+  // 💬 Chat → ensureDirectRoom 发起 DM
   const handle_open_direct_room = useCallback((agent_id: string) => {
     void ensureDirectRoom(agent_id).then((context) => {
       navigate(
@@ -74,12 +69,26 @@ export function ContactsPage() {
     });
   }, [navigate]);
 
+  // 👥 Create Team → 用该 Agent 创建 Room（暂时复用 DM 逻辑）
+  const handle_create_team = useCallback((agent_id: string) => {
+    void ensureDirectRoom(agent_id).then((context) => {
+      navigate(
+        AppRouteBuilders.room_conversation(
+          context.room.id,
+          context.conversation.id,
+        ),
+      );
+    });
+  }, [navigate]);
+
+  // 新建 Agent → 打开 AgentOptions 对话框（create 模式）
   const handle_open_create_agent = useCallback(() => {
     set_dialog_mode("create");
     set_editing_agent_id(null);
     set_is_dialog_open(true);
   }, []);
 
+  // 点击卡片 → 打开 AgentOptions 对话框（edit 模式）
   const handle_open_edit_agent = useCallback((agent_id: string) => {
     set_dialog_mode("edit");
     set_editing_agent_id(agent_id);
@@ -103,11 +112,10 @@ export function ContactsPage() {
     };
 
     if (dialog_mode === "create") {
-      const created_agent_id = await create_agent({
+      await create_agent({
         name: title,
         options: next_options,
       });
-      navigate(AppRouteBuilders.contact_profile(created_agent_id));
       return;
     }
 
@@ -117,30 +125,16 @@ export function ContactsPage() {
         options: next_options,
       });
     }
-  }, [create_agent, dialog_mode, editing_agent_id, navigate, update_agent]);
-
-  const handle_request_delete_agent = useCallback((agent_id: string) => {
-    set_pending_delete_agent_id(agent_id);
-  }, []);
+  }, [create_agent, dialog_mode, editing_agent_id, update_agent]);
 
   const handle_confirm_delete_agent = useCallback(async () => {
     if (!pending_delete_agent_id) {
       return;
     }
 
-    const remaining_agents = agents.filter((agent) => agent.agent_id !== pending_delete_agent_id);
     await delete_agent(pending_delete_agent_id);
     set_pending_delete_agent_id(null);
-
-    if (selected_agent?.agent_id === pending_delete_agent_id) {
-      const next_agent = remaining_agents[0] ?? null;
-      navigate(
-        next_agent
-          ? AppRouteBuilders.contact_profile(next_agent.agent_id)
-          : AppRouteBuilders.contacts(),
-      );
-    }
-  }, [agents, delete_agent, navigate, pending_delete_agent_id, selected_agent?.agent_id]);
+  }, [delete_agent, pending_delete_agent_id]);
 
   useEffect(() => {
     void load_agents_from_server();
@@ -152,38 +146,37 @@ export function ContactsPage() {
   }
 
   return (
-    <AppStage active_rail_item="contacts">
+    <AppStage>
       <WorkspacePageFrame content_padding_class_name="p-0">
         <ContactsDirectory
           agents={agents}
           conversations={conversations}
-          on_open_direct_room={handle_open_direct_room}
           on_create_agent={handle_open_create_agent}
+          on_create_team={handle_create_team}
           on_edit_agent={handle_open_edit_agent}
-          on_delete_agent={handle_request_delete_agent}
-          selected_agent_id={params.agent_id}
+          on_open_direct_room={handle_open_direct_room}
         />
       </WorkspacePageFrame>
 
       <AgentOptions
-        mode={dialog_mode}
+        initial_options={dialog_initial_options}
+        initial_title={dialog_initial_title}
         is_open={is_dialog_open}
+        mode={dialog_mode}
         on_close={() => set_is_dialog_open(false)}
         on_save={handle_save_agent}
         on_validate_name={handle_validate_agent_name}
-        initial_title={dialog_initial_title}
-        initial_options={dialog_initial_options}
       />
 
       <ConfirmDialog
-        is_open={Boolean(pending_delete_agent_id)}
-        title="删除成员"
-        message="删除后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。"
         confirm_text="删除成员"
+        is_open={Boolean(pending_delete_agent_id)}
+        message="删除后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。"
+        on_cancel={() => set_pending_delete_agent_id(null)}
         on_confirm={() => {
           void handle_confirm_delete_agent();
         }}
-        on_cancel={() => set_pending_delete_agent_id(null)}
+        title="删除成员"
         variant="danger"
       />
     </AppStage>

@@ -1,13 +1,20 @@
 export const APP_ROUTE_PATHS = {
   launcher: "/",
+  home: "/app",
+  activity: "/activity",
   dm_directory: "/dms",
-  room_directory: "/rooms",
   room: "/rooms/:room_id",
   room_conversation: "/rooms/:room_id/conversations/:conversation_id",
   contacts: "/contacts",
   contact_profile: "/contacts/:agent_id",
   skills: "/skills",
   skill_detail: "/skills/:skill_name",
+  connectors: "/connectors",
+  scheduled_tasks: "/scheduled-tasks",
+  channels: "/channels",
+  pairings: "/pairings",
+  files: "/files",
+  settings: "/settings",
 } as const;
 
 function createLauncherSearchParams(params: Record<string, string | null | undefined>) {
@@ -31,8 +38,9 @@ export const AppRouteBuilders = {
       surface: "app",
       app_prompt: app_prompt?.trim() || undefined,
     }),
+  home: () => APP_ROUTE_PATHS.home,
+  activity: () => APP_ROUTE_PATHS.activity,
   dm_directory: () => APP_ROUTE_PATHS.dm_directory,
-  room_directory: () => APP_ROUTE_PATHS.room_directory,
   room: (room_id: string) => `/rooms/${encodeURIComponent(room_id)}`,
   room_conversation: (room_id: string, conversation_id: string) =>
     `/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
@@ -40,6 +48,12 @@ export const AppRouteBuilders = {
   contact_profile: (agent_id: string) => `/contacts/${encodeURIComponent(agent_id)}`,
   skills: () => APP_ROUTE_PATHS.skills,
   skill_detail: (skill_name: string) => `/skills/${encodeURIComponent(skill_name)}`,
+  connectors: () => APP_ROUTE_PATHS.connectors,
+  scheduled_tasks: () => APP_ROUTE_PATHS.scheduled_tasks,
+  channels: () => APP_ROUTE_PATHS.channels,
+  pairings: () => APP_ROUTE_PATHS.pairings,
+  files: () => APP_ROUTE_PATHS.files,
+  settings: () => APP_ROUTE_PATHS.settings,
 } as const;
 
 export type AppRoutePathKey = keyof typeof APP_ROUTE_PATHS;

@@ -21,7 +21,7 @@ export function WorkspaceInspectorShell({
     <div
       className={cn(
         HOME_AGENT_INSPECTOR_WRAPPER_CLASS,
-        "overflow-hidden rounded-r-[32px] rounded-l-[24px] border-l home-glass-divider bg-[linear-gradient(180deg,rgba(248,251,255,0.16),rgba(223,233,250,0.10))] backdrop-blur-[22px]",
+        "overflow-hidden rounded-r-[32px] rounded-l-[24px] border-l workspace-divider bg-white/8 backdrop-blur-md",
         class_name,
       )}
     >

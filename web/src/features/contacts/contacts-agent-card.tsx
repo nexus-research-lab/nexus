@@ -1,67 +1,59 @@
 "use client";
 
-import { ArrowRight, Bot, MessageSquareText } from "lucide-react";
+import { Bot, MessageSquareText, Users } from "lucide-react";
 
 import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace-status-badge";
 
 interface ContactsAgentCardProps {
-  description: string;
-  is_selected: boolean;
-  model_label: string;
+  /** Agent 名称 */
   name: string;
-  status_tone: "active" | "running" | "idle";
-  status_label: string;
+  /** Agent 描述（system_prompt 摘要） */
+  description: string;
+  /** 点击卡片本身 → 打开 AgentOptions 对话框（edit 模式） */
   on_open_profile: () => void;
+  /** 💬 Chat 按钮 → ensureDirectRoom 发起 DM */
   on_open_room: () => void;
+  /** 👥 Create Team 按钮 → 用该 Agent 创建 Room */
+  on_create_team: () => void;
 }
 
+/** Agent 卡片 — 居中布局，底部 Chat / Create Team 双按钮 */
 export function ContactsAgentCard({
-  description,
-  is_selected,
-  model_label,
   name,
-  status_tone,
-  status_label,
+  description,
   on_open_profile,
   on_open_room,
+  on_create_team,
 }: ContactsAgentCardProps) {
   return (
     <article
-      className={`rounded-[26px] border px-6 py-5 transition-all ${
-        is_selected
-          ? "workspace-card-strong border-sky-300/36 shadow-[0_18px_34px_rgba(102,112,145,0.14)]"
-          : "workspace-card border-white/24 hover:border-white/30 hover:bg-white/34"
-      }`}
+      className="workspace-card cursor-pointer rounded-[26px] border border-white/24 px-6 py-6 text-center transition-all hover:border-white/30 hover:bg-white/34"
+      onClick={on_open_profile}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="workspace-chip flex h-18 w-18 shrink-0 items-center justify-center rounded-[20px] text-slate-900/82">
-            <Bot className="h-7 w-7 text-slate-900/88" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[28px] font-bold tracking-[-0.04em] text-slate-950/92">{name}</p>
-            <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-sky-600/90">
-              {model_label}
-            </p>
-          </div>
-        </div>
-
-        <WorkspaceStatusBadge label={status_label} tone={status_tone} />
+      {/* 居中头像 */}
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-white/24 bg-white/16 backdrop-blur-sm">
+        <Bot className="h-7 w-7 text-slate-900/88" />
       </div>
 
-      <p className="mt-5 min-h-[72px] text-[15px] leading-7 text-slate-700/78">
+      {/* 名称 */}
+      <p className="mt-4 truncate text-[18px] font-bold tracking-[-0.03em] text-slate-950/92">
+        {name}
+      </p>
+
+      {/* 描述：1-2 行截断 */}
+      <p className="mt-2 line-clamp-2 min-h-[40px] text-[13px] leading-5 text-slate-700/68">
         {description}
       </p>
 
-      <div className="mt-6 flex items-center gap-3">
-        <WorkspacePillButton onClick={on_open_profile}>
-          View Details
+      {/* 底部操作按钮 */}
+      <div className="mt-5 flex items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
+        <WorkspacePillButton onClick={on_open_room} size="sm" variant="success">
+          <MessageSquareText className="h-3.5 w-3.5" />
+          Chat
         </WorkspacePillButton>
-        <WorkspacePillButton onClick={on_open_room} variant="strong">
-          <MessageSquareText className="h-4 w-4" />
-          Message
-          <ArrowRight className="h-4 w-4" />
+        <WorkspacePillButton onClick={on_create_team} size="sm">
+          <Users className="h-3.5 w-3.5" />
+          Create Team
         </WorkspacePillButton>
       </div>
     </article>

@@ -3,22 +3,24 @@
  *
  * 对标 Slack 窄栏：Tab 选择器（工作模式切换）。
  * 每个 Tab 代表一种工作模式，点击切换右侧宽面板内容。
- *
- * Phase 1a：Tab 仍指向现有路由，验证布局不崩。
+ * 底部 More 按钮弹出菜单提供 Files、Settings、Documentation、Feedback 入口。
  */
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity,
   Bell,
+  BookOpen,
+  FolderOpen,
   Home,
   MessageCircleMore,
+  MessageSquare,
   MoreHorizontal,
   Plus,
   Settings,
   Sparkles,
   Users,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { cn } from "@/lib/utils";
@@ -38,12 +40,12 @@ interface TabDef {
   show_badge?: boolean;
 }
 
-/** Phase 1a：沿用现有路由，Tab 映射保持兼容 */
+/** Tab 定义：每个 Tab 对应一个路由入口 */
 const TAB_ITEMS: TabDef[] = [
   {
     key: "home",
     label: "Home",
-    to: AppRouteBuilders.launcher(),
+    to: AppRouteBuilders.home(),
     icon: Home,
   },
   {
@@ -55,8 +57,7 @@ const TAB_ITEMS: TabDef[] = [
   {
     key: "activity",
     label: "Activity",
-    // Phase 1a：Activity 指向 / 占位，Phase 2 改为 /activity
-    to: AppRouteBuilders.launcher(),
+    to: AppRouteBuilders.activity(),
     icon: Bell,
     show_badge: false,
   },
@@ -74,14 +75,99 @@ const TAB_ITEMS: TabDef[] = [
   },
 ];
 
+/** More 菜单项定义 */
+interface MoreMenuItem {
+  key: string;
+  label: string;
+  icon: typeof Home;
+  /** 内部路由路径（与 external_url 互斥） */
+  to?: string;
+  /** 外部链接（与 to 互斥） */
+  external_url?: string;
+}
+
+/** More 菜单项列表 */
+const MORE_MENU_ITEMS: MoreMenuItem[] = [
+  {
+    key: "files",
+    label: "Files",
+    icon: FolderOpen,
+    to: AppRouteBuilders.files(),
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    icon: Settings,
+    to: AppRouteBuilders.settings(),
+  },
+];
+
+/** More 菜单分隔线后的外部链接 */
+const MORE_MENU_EXTERNAL_ITEMS: MoreMenuItem[] = [
+  {
+    key: "documentation",
+    label: "Documentation",
+    icon: BookOpen,
+    external_url: "https://docs.nexus.ai",
+  },
+  {
+    key: "feedback",
+    label: "Feedback",
+    icon: MessageSquare,
+    external_url: "https://feedback.nexus.ai",
+  },
+];
+
 export function SidebarNarrowRail() {
   const location = useLocation();
+  const navigate = useNavigate();
   const active_tab = useSidebarStore((s) => s.active_tab);
   const set_active_tab = useSidebarStore((s) => s.set_active_tab);
+
+  // More 菜单状态
+  const [is_more_open, set_is_more_open] = useState(false);
+  const more_ref = useRef<HTMLDivElement>(null);
 
   // 根据当前路由推导激活的 Tab
   const derived_tab = derive_tab_from_path(location.pathname);
   const current_tab = active_tab || derived_tab;
+
+  // 点击外部关闭 More 菜单
+  useEffect(() => {
+    if (!is_more_open) return;
+    const handle_click_outside = (e: MouseEvent) => {
+      if (more_ref.current && !more_ref.current.contains(e.target as Node)) {
+        set_is_more_open(false);
+      }
+    };
+    document.addEventListener("mousedown", handle_click_outside);
+    return () => document.removeEventListener("mousedown", handle_click_outside);
+  }, [is_more_open]);
+
+  // ESC 关闭 More 菜单
+  useEffect(() => {
+    if (!is_more_open) return;
+    const handle_key_down = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        set_is_more_open(false);
+      }
+    };
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
+  }, [is_more_open]);
+
+  /** 处理 More 菜单项点击 */
+  const handle_menu_item_click = useCallback(
+    (item: MoreMenuItem) => {
+      set_is_more_open(false);
+      if (item.to) {
+        navigate(item.to);
+      } else if (item.external_url) {
+        window.open(item.external_url, "_blank", "noopener,noreferrer");
+      }
+    },
+    [navigate],
+  );
 
   return (
     <aside className="flex h-full w-[88px] shrink-0 flex-col px-2 py-4">
@@ -134,16 +220,73 @@ export function SidebarNarrowRail() {
             );
           })}
 
-          {/* More 按钮 */}
-          <button
-            className="group flex w-full flex-col items-center gap-1 rounded-[20px] px-2 py-3 text-[11px] font-semibold tracking-[0.01em] text-slate-600 transition-all duration-300 hover:bg-white/30 hover:text-slate-900"
-            title="更多"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-white/30 text-slate-600 transition-all duration-300 group-hover:bg-white/48 group-hover:text-slate-900">
-              <MoreHorizontal className="h-4.5 w-4.5" />
-            </div>
-            <span>More</span>
-          </button>
+          {/* More 按钮 + 弹出菜单 */}
+          <div ref={more_ref} className="relative w-full">
+            <button
+              className={cn(
+                "group flex w-full flex-col items-center gap-1 rounded-[20px] px-2 py-3 text-[11px] font-semibold tracking-[0.01em] transition-all duration-300",
+                is_more_open
+                  ? "bg-white/30 text-slate-900"
+                  : "text-slate-600 hover:bg-white/30 hover:text-slate-900",
+              )}
+              onClick={() => set_is_more_open((prev) => !prev)}
+              title="更多"
+            >
+              <div
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-[14px] transition-all duration-300",
+                  is_more_open
+                    ? "bg-white/48 text-slate-900"
+                    : "bg-white/30 text-slate-600 group-hover:bg-white/48 group-hover:text-slate-900",
+                )}
+              >
+                <MoreHorizontal className="h-4.5 w-4.5" />
+              </div>
+              <span>More</span>
+            </button>
+
+            {/* More 弹出菜单 */}
+            {is_more_open ? (
+              <div className="absolute bottom-0 left-full z-50 ml-2 w-48 animate-in fade-in slide-in-from-left-2 duration-150">
+                <div className="home-glass-panel rounded-[16px] p-1.5 shadow-[0_16px_40px_rgba(102,112,145,0.20)]">
+                  {/* 内部导航项 */}
+                  {MORE_MENU_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-white/40 hover:text-slate-900"
+                        key={item.key}
+                        onClick={() => handle_menu_item_click(item)}
+                        type="button"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  {/* 分隔线 */}
+                  <div className="my-1 h-px bg-slate-200/50" />
+
+                  {/* 外部链接项 */}
+                  {MORE_MENU_EXTERNAL_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-white/40 hover:text-slate-900"
+                        key={item.key}
+                        onClick={() => handle_menu_item_click(item)}
+                        type="button"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </nav>
 
         {/* 底部固定区域 */}

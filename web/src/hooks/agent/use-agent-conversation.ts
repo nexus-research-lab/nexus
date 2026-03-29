@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAgentWsUrl } from '@/config/options';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
@@ -37,7 +37,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
 
   const active_conversation_key_ref = useRef<string | null>(null);
   const load_request_id_ref = useRef(0);
-  const lifecycle_context: AgentConversationLifecycleContext = {
+  const lifecycle_context: AgentConversationLifecycleContext = useMemo(() => ({
     active_conversation_key_ref,
     load_request_id_ref,
     set_conversation_key: set_session_key,
@@ -45,7 +45,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     set_pending_permission,
     set_is_loading,
     set_error,
-  };
+  }), [set_session_key, set_messages, set_pending_permission, set_is_loading, set_error]);
 
   const is_current_session_event = useCallback((incoming_session_key?: string | null) => {
     if (!incoming_session_key) {
@@ -115,7 +115,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     };
   }, [options.agent_id, ws_send, ws_state]);
 
-  const action_context: AgentConversationActionContext = {
+  const action_context: AgentConversationActionContext = useMemo(() => ({
     agent_id: options.agent_id,
     session_key,
     ws_state,
@@ -127,7 +127,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     set_is_loading,
     set_messages,
     set_pending_permission,
-  };
+  }), [options.agent_id, session_key, ws_state, ws_send, pending_permission, messages, set_error, set_is_loading, set_messages, set_pending_permission]);
 
   const send_message = useCallback(async (content: string) => {
     await sendConversationMessage(content, action_context);

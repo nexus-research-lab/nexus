@@ -1,16 +1,8 @@
 "use client";
 
-import {
-  Grid2X2,
-  List,
-  Users,
-} from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
-import { WorkspaceCanvasShell } from "@/shared/ui/workspace-canvas-shell";
-import { WorkspaceIconToggleButton } from "@/shared/ui/workspace-icon-toggle-button";
 import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace-search-input";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace-surface-header";
@@ -19,44 +11,41 @@ import { Conversation } from "@/types/conversation";
 
 import { ContactsAgentCard } from "./contacts-agent-card";
 import {
-  ContactsFilterKey,
   get_contacts_agent_conversations,
   get_contacts_agent_description,
-  get_contacts_model_label,
-  get_contacts_runtime_label,
-  get_contacts_runtime_status,
-  get_contacts_runtime_tone,
-  matches_contacts_filter,
   matches_contacts_search,
 } from "./contacts-directory-helpers";
-import { ContactsFilterSidebar } from "./contacts-filter-sidebar";
-import { ContactsProfilePanel } from "./contacts-profile-panel";
+
+/** Tab 过滤键 — My Agents / Task Generated */
+type ContactsTabKey = "my_agents" | "task_generated";
 
 interface ContactsDirectoryProps {
   agents: Agent[];
   conversations: Conversation[];
+  /** 💬 Chat → ensureDirectRoom 发起 DM */
   on_open_direct_room: (agent_id: string) => void;
+  /** 新建 Agent → 打开 AgentOptions 对话框（create 模式） */
   on_create_agent: () => void;
+  /** 点击卡片 → 打开 AgentOptions 对话框（edit 模式） */
   on_edit_agent: (agent_id: string) => void;
-  on_delete_agent: (agent_id: string) => void;
-  selected_agent_id?: string;
+  /** 👥 Create Team → 用该 Agent 创建 Room */
+  on_create_team: (agent_id: string) => void;
 }
 
+/** Contacts 全宽卡片网格 — Accio 风格 */
 export function ContactsDirectory({
   agents,
   conversations,
   on_open_direct_room,
   on_create_agent,
   on_edit_agent,
-  on_delete_agent,
-  selected_agent_id,
+  on_create_team,
 }: ContactsDirectoryProps) {
-  const navigate = useNavigate();
-  const [active_filter, set_active_filter] = useState<ContactsFilterKey>("all");
+  const [active_tab, set_active_tab] = useState<ContactsTabKey>("my_agents");
   const [search_query, set_search_query] = useState("");
-  const [view_mode, set_view_mode] = useState<"grid" | "list">("grid");
 
-  const conversations_by_agent = useMemo(() => {
+  // 按 agent 分组 conversations（用于后续扩展）
+  const _conversations_by_agent = useMemo(() => {
     const grouped = new Map<string, Conversation[]>();
     agents.forEach((agent) => {
       grouped.set(agent.agent_id, get_contacts_agent_conversations(conversations, agent.agent_id));
@@ -64,164 +53,108 @@ export function ContactsDirectory({
     return grouped;
   }, [agents, conversations]);
 
-  const selected_agent =
-    agents.find((agent) => agent.agent_id === selected_agent_id) ?? agents[0] ?? null;
+  // Tab 过滤 + 搜索
+  const filtered_agents = useMemo(() => {
+    return agents.filter((agent) => {
+      // Tab 过滤：task_generated 暂时为空（后续接入）
+      if (active_tab === "task_generated") return false;
+      return matches_contacts_search(agent, search_query);
+    });
+  }, [active_tab, agents, search_query]);
 
-  const filtered_agents = useMemo(() => (
-    agents.filter((agent) => {
-      const agent_conversations = conversations_by_agent.get(agent.agent_id) ?? [];
-      return (
-        matches_contacts_filter(agent, agent_conversations, active_filter) &&
-        matches_contacts_search(agent, search_query)
-      );
-    })
-  ), [active_filter, agents, conversations_by_agent, search_query]);
+  // Header tabs 定义
+  const tabs: { key: ContactsTabKey; label: string }[] = [
+    { key: "my_agents", label: "My Agents" },
+    { key: "task_generated", label: "Task Generated" },
+  ];
 
-  const selected_agent_conversations = selected_agent
-    ? conversations_by_agent.get(selected_agent.agent_id) ?? []
-    : [];
-
-  const filter_sections = useMemo(() => {
-    const build_count = (filter: ContactsFilterKey) => agents.filter((agent) => (
-      matches_contacts_filter(agent, conversations_by_agent.get(agent.agent_id) ?? [], filter)
-    )).length;
-
-    return [
-      {
-        title: "Main Directory",
-        items: [
-          { key: "all" as const, label: "All Agents", count: build_count("all") },
-          { key: "recent" as const, label: "Recent", count: build_count("recent") },
-        ],
-      },
-      {
-        title: "By Status",
-        items: [
-          { key: "running" as const, label: "Running", count: build_count("running"), dot_class_name: "bg-emerald-300" },
-          { key: "active" as const, label: "Active", count: build_count("active"), dot_class_name: "bg-sky-300" },
-          { key: "idle" as const, label: "Idle", count: build_count("idle"), dot_class_name: "bg-slate-400" },
-        ],
-      },
-      {
-        title: "By Capability",
-        items: [
-          { key: "skills_on" as const, label: "Skills On", count: build_count("skills_on"), dot_class_name: "bg-violet-300" },
-          { key: "skills_off" as const, label: "Skills Off", count: build_count("skills_off"), dot_class_name: "bg-amber-300" },
-        ],
-      },
-    ];
-  }, [agents, conversations_by_agent]);
-
+  // Header 右侧：搜索框
   const header_trailing = (
-    <>
-      <WorkspaceSearchInput
-        class_name="hidden xl:inline-flex"
-        input_class_name="w-[220px]"
-        on_change={set_search_query}
-        placeholder="搜索成员、模型或路径"
-        value={search_query}
-      />
-
-      <div className="hidden items-center gap-2 lg:flex">
-        <WorkspaceIconToggleButton
-          icon={<Grid2X2 className="h-4 w-4" />}
-          is_active={view_mode === "grid"}
-          onClick={() => set_view_mode("grid")}
-        />
-        <WorkspaceIconToggleButton
-          icon={<List className="h-4 w-4" />}
-          is_active={view_mode === "list"}
-          onClick={() => set_view_mode("list")}
-        />
-      </div>
-
-      <WorkspacePillButton onClick={on_create_agent}>
-        新建成员
-      </WorkspacePillButton>
-    </>
+    <WorkspaceSearchInput
+      class_name="hidden sm:inline-flex"
+      input_class_name="w-[200px]"
+      on_change={set_search_query}
+      placeholder="搜索成员..."
+      value={search_query}
+    />
   );
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 gap-2 lg:gap-2.5 xl:gap-3">
-      <ContactsFilterSidebar
-        active_filter={active_filter}
-        on_change_filter={set_active_filter}
-        on_create_agent={on_create_agent}
-        sections={filter_sections}
-        total_count={agents.length}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <WorkspaceSurfaceHeader
+        active_tab={active_tab}
+        badge="AGENTS"
+        leading={<Users className="h-4 w-4 text-slate-800/72" />}
+        on_change_tab={set_active_tab}
+        subtitle="管理你的 AI 成员，配置身份与能力"
+        tabs={tabs}
+        title="Agents"
+        trailing={header_trailing}
       />
 
-      <WorkspaceCanvasShell is_joined_with_inspector>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <WorkspaceSurfaceHeader
-            badge="CONTACTS"
-            leading={<Users className="h-4 w-4 text-slate-800/72" />}
-            subtitle={(
-              <span className="truncate">
-                {filtered_agents.length} / {agents.length} 个成员可见 · 浏览、筛选并发起 1v1 协作
-              </span>
-            )}
-            title="成员目录"
-            trailing={header_trailing}
-          />
+      {/* 卡片网格区域 */}
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {/* 首张卡片 — New Agent */}
+          <article
+            className="workspace-card flex cursor-pointer flex-col items-center justify-center rounded-[26px] border border-dashed border-slate-300/40 px-6 py-8 text-center transition-all hover:border-slate-400/50 hover:bg-white/34"
+            onClick={on_create_agent}
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/24 bg-white/16 backdrop-blur-sm">
+              <Plus className="h-7 w-7 text-slate-600" />
+            </div>
+            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-slate-950/80">
+              New Agent
+            </p>
+            <p className="mt-2 text-[13px] leading-5 text-slate-700/60">
+              创建一个新的 AI 成员
+            </p>
+          </article>
 
-          <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
-            {filtered_agents.length ? (
-              <div className={
-                view_mode === "grid"
-                  ? "grid gap-5 xl:grid-cols-2 2xl:grid-cols-3"
-                  : "space-y-4"
-              }>
-                {filtered_agents.map((agent) => {
-                  const runtime_status = get_contacts_runtime_status(agent);
-                  const status_label = get_contacts_runtime_label(runtime_status);
-                  const is_selected = selected_agent?.agent_id === agent.agent_id;
-
-                  return (
-                    <ContactsAgentCard
-                      key={agent.agent_id}
-                      description={get_contacts_agent_description(agent)}
-                      is_selected={is_selected}
-                      model_label={get_contacts_model_label(agent)}
-                      name={agent.name}
-                      on_open_profile={() => navigate(AppRouteBuilders.contact_profile(agent.agent_id))}
-                      on_open_room={() => on_open_direct_room(agent.agent_id)}
-                      status_label={status_label}
-                      status_tone={get_contacts_runtime_tone(runtime_status)}
-                    />
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="workspace-card flex min-h-[420px] items-center justify-center rounded-[28px] px-8 text-center">
-                <div>
-                  <p className="text-[22px] font-bold tracking-[-0.04em] text-slate-950/90">没有符合条件的成员</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-700/60">
-                    换一个筛选条件，或者直接创建一个新的成员继续配置。
-                  </p>
-                  <WorkspacePillButton class_name="mt-6" onClick={on_create_agent}>
-                    新建成员
-                  </WorkspacePillButton>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Agent 卡片列表 */}
+          {filtered_agents.map((agent) => (
+            <ContactsAgentCard
+              key={agent.agent_id}
+              description={get_contacts_agent_description(agent)}
+              name={agent.name}
+              on_create_team={() => on_create_team(agent.agent_id)}
+              on_open_profile={() => on_edit_agent(agent.agent_id)}
+              on_open_room={() => on_open_direct_room(agent.agent_id)}
+            />
+          ))}
         </div>
-      </WorkspaceCanvasShell>
 
-      <ContactsProfilePanel
-        agent={selected_agent}
-        conversations={selected_agent_conversations}
-        on_delete_agent={on_delete_agent}
-        on_edit_agent={on_edit_agent}
-        on_open_room={on_open_direct_room}
-        status_label={selected_agent
-          ? get_contacts_runtime_label(get_contacts_runtime_status(selected_agent))
-          : "未选择"}
-        status_tone={selected_agent
-          ? get_contacts_runtime_tone(get_contacts_runtime_status(selected_agent))
-          : "default"}
-      />
+        {/* 空状态 */}
+        {filtered_agents.length === 0 && active_tab === "my_agents" && (
+          <div className="workspace-card mt-6 flex min-h-[320px] items-center justify-center rounded-[28px] px-8 text-center">
+            <div>
+              <p className="text-[22px] font-bold tracking-[-0.04em] text-slate-950/90">
+                没有符合条件的成员
+              </p>
+              <p className="mt-3 text-sm leading-7 text-slate-700/60">
+                换一个搜索条件，或者直接创建一个新的成员。
+              </p>
+              <WorkspacePillButton class_name="mt-6" onClick={on_create_agent}>
+                新建成员
+              </WorkspacePillButton>
+            </div>
+          </div>
+        )}
+
+        {/* Task Generated 空状态 */}
+        {active_tab === "task_generated" && (
+          <div className="workspace-card mt-6 flex min-h-[320px] items-center justify-center rounded-[28px] px-8 text-center">
+            <div>
+              <p className="text-[22px] font-bold tracking-[-0.04em] text-slate-950/90">
+                暂无任务生成的成员
+              </p>
+              <p className="mt-3 text-sm leading-7 text-slate-700/60">
+                任务自动创建的 Agent 将显示在这里。
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

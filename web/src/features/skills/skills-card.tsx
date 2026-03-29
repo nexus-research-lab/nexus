@@ -1,74 +1,100 @@
 "use client";
 
-import { Lock, Puzzle } from "lucide-react";
+import { Check, Lock, Plus, Puzzle } from "lucide-react";
 
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace-status-badge";
+import { cn } from "@/lib/utils";
 
 interface SkillsCardProps {
+  /** 技能名称 */
   name: string;
+  /** 技能描述 */
   description: string;
+  /** 是否已安装（至少一个 agent 安装了） */
   installed: boolean;
+  /** 是否系统级（不可卸载） */
   locked: boolean;
-  is_selected: boolean;
+  /** 标签列表 */
   tags: string[];
+  /** 点击卡片 → 导航到详情页 */
   on_select: () => void;
+  /** 点击安装按钮 */
+  on_install?: () => void;
 }
 
+/** Skill 卡片 — 居中布局，底部安装状态/操作 */
 export function SkillsCard({
   name,
   description,
   installed,
   locked,
-  is_selected,
   tags,
   on_select,
+  on_install,
 }: SkillsCardProps) {
   return (
     <article
-      className={`cursor-pointer rounded-[26px] border px-6 py-5 transition-all ${
-        is_selected
-          ? "workspace-card-strong border-sky-300/36 shadow-[0_18px_34px_rgba(102,112,145,0.14)]"
-          : "workspace-card border-white/24 hover:border-white/30 hover:bg-white/34"
-      }`}
+      className="workspace-card cursor-pointer rounded-[26px] border border-white/24 px-6 py-6 text-center transition-all hover:border-white/30 hover:bg-white/34"
       onClick={on_select}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="workspace-chip flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] text-slate-900/82">
-            {locked ? (
-              <Lock className="h-5 w-5 text-slate-600/72" />
-            ) : (
-              <Puzzle className="h-5 w-5 text-slate-900/88" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[20px] font-bold tracking-[-0.03em] text-slate-950/92">
-              {name}
-            </p>
-            {tags.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex rounded-full bg-slate-100/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <WorkspaceStatusBadge
-          label={locked ? "系统" : installed ? "已启用" : "未启用"}
-          tone={installed ? "running" : "idle"}
-        />
+      {/* 居中图标 */}
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-white/24 bg-white/16 backdrop-blur-sm">
+        {locked ? (
+          <Lock className="h-6 w-6 text-slate-600/72" />
+        ) : (
+          <Puzzle className="h-6 w-6 text-slate-900/88" />
+        )}
       </div>
 
-      <p className="mt-4 line-clamp-2 min-h-[48px] text-[14px] leading-6 text-slate-700/78">
+      {/* 名称 */}
+      <p className="mt-4 truncate text-[18px] font-bold tracking-[-0.03em] text-slate-950/92">
+        {name}
+      </p>
+
+      {/* 描述：1-2 行截断 */}
+      <p className="mt-2 line-clamp-2 min-h-[40px] text-[13px] leading-5 text-slate-700/68">
         {description || "暂无描述"}
       </p>
+
+      {/* 标签 */}
+      {tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+          {tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex rounded-full border border-white/20 bg-white/16 px-2 py-0.5 text-[10px] font-semibold text-slate-500 backdrop-blur-sm"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 底部状态/操作 */}
+      <div className="mt-5" onClick={(e) => e.stopPropagation()}>
+        {locked ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-700">
+            <Check className="h-3.5 w-3.5" />
+            系统级 · 已安装
+          </span>
+        ) : installed ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-600">
+            <Check className="h-3.5 w-3.5" />
+            已安装
+          </span>
+        ) : (
+          <button
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all",
+              "workspace-chip text-slate-600 hover:bg-sky-50 hover:text-sky-600",
+            )}
+            onClick={on_install}
+            type="button"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            安装
+          </button>
+        )}
+      </div>
     </article>
   );
 }

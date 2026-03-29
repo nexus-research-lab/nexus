@@ -5,7 +5,7 @@
  * 后面调布局时只改这一处，不用在多个组件里到处找类名。
  */
 
-export const HOME_PAGE_PADDING_CLASS = "p-1 sm:p-4 xl:pt-4 xl:p-4 2xl:p-4";
+export const HOME_PAGE_PADDING_CLASS = "py-4 pr-2 pl-0";
 export const HOME_WORKSPACE_SECTION_GAP_CLASS = "gap-2 xl:gap-3";
 export const HOME_WORKSPACE_MAIN_GAP_CLASS = "gap-0 lg:gap-3 xl:gap-4";
 

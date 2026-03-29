@@ -10,7 +10,7 @@ import { createConversation, deleteConversation } from "@/lib/agent-api";
 import { createRoom, ensureDirectRoom } from "@/lib/room-api";
 import { cn } from "@/lib/utils";
 import { AppStage } from "@/shared/ui/app-stage";
-import { AgentOptions } from "@/shared/ui/agent-options-dialog";
+import { AgentOptions } from "@/shared/ui/agent-options";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
@@ -271,8 +271,7 @@ export function LauncherPage() {
 
   return (
     <AppStage
-      active_rail_item={controller.is_app_conversation_open ? "nexus" : "home"}
-      show_global_rail={false}
+      show_sidebar={false}
     >
       <div className="relative flex min-h-0 flex-1 gap-1 overflow-hidden">
         <div

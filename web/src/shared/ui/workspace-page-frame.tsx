@@ -20,7 +20,7 @@ export function WorkspacePageFrame({
   use_default_panel_style = true,
 }: WorkspacePageFrameProps) {
   return (
-    <div className={cn("relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6", body_class_name)}>
+    <div className={cn("relative flex min-h-0 flex-1 flex-col", body_class_name)}>
       <section
         className={cn(
           "relative flex min-h-0 flex-1 flex-col overflow-hidden",

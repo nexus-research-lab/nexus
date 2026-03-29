@@ -1,20 +1,17 @@
 "use client";
 
-import { RefObject } from "react";
+import { RefObject, useState } from "react";
 
 import { RoomContextPanel } from "@/features/room-context/room-context-panel";
 import { RoomEditorPanel } from "@/features/room-context/room-editor-panel";
-import { RoomObjectListPanel } from "@/features/room-navigation/room-object-list-panel";
 import {
   HOME_CHAT_PANEL_CLASS,
-  HOME_WORKSPACE_MAIN_GAP_CLASS,
 } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
 import { WorkspaceCanvasShell } from "@/shared/ui/workspace-canvas-shell";
 import { WorkspaceInspectorShell } from "@/shared/ui/workspace-inspector-shell";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { RoomAggregate } from "@/types/room";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 import { TodoItem } from "@/types/todo";
 
@@ -31,11 +28,9 @@ interface RoomWorkspaceLayoutProps {
   room_members: Agent[];
   available_room_agents: Agent[];
   current_room_title: string;
-  current_room_id: string | null;
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
-  rooms: RoomAggregate[];
   active_workspace_path: string | null;
   active_surface_tab: RoomSurfaceTabKey;
   is_editor_open: boolean;
@@ -46,14 +41,10 @@ interface RoomWorkspaceLayoutProps {
   workspace_split_ref: RefObject<HTMLElement | null>;
   on_change_surface_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_agent: (agent_id: string) => void;
-  on_open_contacts: () => void;
-  on_open_room: (room_id: string) => void;
   on_edit_agent: (agent_id: string) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
-  on_update_room: (params: {name?: string; description?: string; title?: string}) => Promise<void>;
-  on_delete_room: () => Promise<void>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
@@ -64,6 +55,14 @@ interface RoomWorkspaceLayoutProps {
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
 }
 
+/**
+ * Room 双栏工作区布局
+ *
+ * 左侧：ConversationArea（flex-1），包含 Header + 消息流 + 输入框
+ * 右侧：可折叠 DetailPanel（成员列表等）
+ *
+ * 原三栏布局中的左侧 ObjectListPanel 已迁移到侧边栏宽面板。
+ */
 export function RoomWorkspaceLayout({
   current_agent,
   current_agent_id,
@@ -71,11 +70,9 @@ export function RoomWorkspaceLayout({
   room_members,
   available_room_agents,
   current_room_title,
-  current_room_id,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
-  rooms,
   active_workspace_path,
   active_surface_tab,
   is_editor_open,
@@ -86,14 +83,10 @@ export function RoomWorkspaceLayout({
   workspace_split_ref,
   on_change_surface_tab,
   on_select_agent,
-  on_open_contacts,
-  on_open_room,
   on_edit_agent,
   on_create_conversation,
   on_select_conversation,
   on_delete_conversation,
-  on_update_room,
-  on_delete_room,
   on_add_room_member,
   on_remove_room_member,
   on_open_workspace_file,
@@ -103,24 +96,15 @@ export function RoomWorkspaceLayout({
   on_todos_change,
   on_conversation_snapshot_change,
 }: RoomWorkspaceLayoutProps) {
-  const show_detail_panel = !is_editor_open && active_surface_tab === "chat";
+  // 右侧详情面板折叠状态
+  const [is_detail_panel_open, set_is_detail_panel_open] = useState(true);
+
+  // 仅在 chat tab 且编辑器未打开时显示详情面板
+  const show_detail_panel = is_detail_panel_open && !is_editor_open && active_surface_tab === "chat";
+
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 gap-2 lg:gap-2.5 xl:gap-3")}>
-      <RoomObjectListPanel
-        active_space={current_room_type === "dm" ? "dm" : "room"}
-        agents={available_room_agents.concat(room_members.filter((member) => (
-          !available_room_agents.some((agent) => agent.agent_id === member.agent_id)
-        )))}
-        conversations={current_room_conversations}
-        current_room_id={current_room_id}
-        current_room_title={current_room_title}
-        on_delete_room={on_delete_room}
-        on_open_contacts={on_open_contacts}
-        on_open_room={on_open_room}
-        on_update_room={on_update_room}
-        rooms={rooms}
-      />
-
+      {/* 主内容区：编辑器 + 对话区 */}
       <section
         ref={workspace_split_ref}
         className={cn(
@@ -139,24 +123,26 @@ export function RoomWorkspaceLayout({
         />
 
         <WorkspaceCanvasShell
-          class_name={cn(
-            HOME_CHAT_PANEL_CLASS,
-            "shadow-[inset_1px_1px_0_rgba(255,255,255,0.40),0_18px_34px_rgba(77,91,124,0.06)]",
-          )}
+          class_name={HOME_CHAT_PANEL_CLASS}
           is_joined_with_inspector={show_detail_panel}
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <RoomConversationHeader
               active_tab={active_surface_tab}
               conversation_count={current_room_conversations.length}
+              conversations={current_room_conversations}
               current_agent_name={current_agent.name}
               current_conversation_id={current_conversation_id}
               current_conversation_title={current_conversation?.title ?? null}
               current_room_title={current_room_title}
               current_room_type={current_room_type}
+              is_detail_panel_open={is_detail_panel_open}
               is_loading={is_conversation_busy}
               member_count={room_members.length}
               on_change_tab={on_change_surface_tab}
+              on_select_conversation={on_select_conversation}
+              on_toggle_detail_panel={() => set_is_detail_panel_open((prev) => !prev)}
+              room_members={room_members}
             />
 
             <div className="min-h-0 min-w-0 flex-1">
@@ -203,6 +189,7 @@ export function RoomWorkspaceLayout({
         </WorkspaceCanvasShell>
       </section>
 
+      {/* 右侧可折叠详情面板 */}
       {show_detail_panel ? (
         <WorkspaceInspectorShell>
           <RoomContextPanel

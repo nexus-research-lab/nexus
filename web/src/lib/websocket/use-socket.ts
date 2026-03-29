@@ -77,7 +77,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
       console.debug('[useWebSocket] Cleaning up WebSocket client');
       client.disconnect();
     };
-  }, [options.url]); // 只依赖URL,避免重复创建
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- callbacks 已通过 ref 稳定化，config 仅在创建时读取，只在 url 变化时重建连接
+  }, [options.url]);
 
   const send = useCallback((data: WebSocketMessage) => {
     clientRef.current?.send(data);

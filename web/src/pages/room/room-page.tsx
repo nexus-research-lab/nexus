@@ -5,7 +5,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
 import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
 import { useRoomPageController } from "@/hooks/use-room-page-controller";
-import { AgentOptions } from "@/shared/ui/agent-options-dialog";
+import { AgentOptions } from "@/shared/ui/agent-options";
 import { AppLoadingScreen } from "@/shared/ui/app-loading-screen";
 import { AppStage } from "@/shared/ui/app-stage";
 import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
@@ -59,19 +59,6 @@ export function RoomPage() {
     return null;
   }, [controller, navigate, params.room_id]);
 
-  const handleDeleteRoom = useCallback(async () => {
-    await controller.handle_delete_room();
-    navigate(AppRouteBuilders.launcher());
-  }, [controller, navigate]);
-
-  const handleOpenRoom = useCallback((next_room_id: string) => {
-    navigate(AppRouteBuilders.room(next_room_id));
-  }, [navigate]);
-
-  const handleOpenContacts = useCallback(() => {
-    navigate(AppRouteBuilders.contacts());
-  }, [navigate]);
-
   useEffect(() => {
     if (
       controller.is_hydrated &&
@@ -100,25 +87,12 @@ export function RoomPage() {
   }
 
   if (controller.current_room && controller.current_agent) {
-    const current_conversation_route = controller.current_conversation_id
-      ? AppRouteBuilders.room_conversation(
-        controller.current_room.id,
-        controller.current_conversation_id,
-      )
-      : AppRouteBuilders.room(controller.current_room.id);
-
     return (
-      <AppStage
-        active_rail_item={controller.current_room_type === "dm" ? "dms" : "rooms"}
-        dm_href={controller.current_room_type === "dm" ? current_conversation_route : undefined}
-        room_href={controller.current_room_type === "room" ? current_conversation_route : undefined}
-      >
+      <AppStage>
         <WorkspacePageFrame
           content_padding_class_name="p-0"
-          panel_class_name="rounded-[34px] border border-white/28 bg-[linear-gradient(180deg,rgba(248,248,252,0.96),rgba(239,241,247,0.94))] shadow-[0_24px_80px_rgba(102,112,145,0.14)]"
           use_default_panel_style={false}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,208,168,0.18),transparent_24%),radial-gradient(circle_at_bottom,rgba(154,224,184,0.16),transparent_26%)]" />
           <div className="relative flex min-h-0 flex-1">
             <RoomWorkspaceShell
               active_workspace_path={controller.active_workspace_path}
@@ -133,7 +107,6 @@ export function RoomPage() {
               current_conversation={controller.current_conversation}
               current_conversation_id={controller.current_conversation_id}
               current_todos={controller.current_todos}
-              rooms={controller.rooms}
               editor_width_percent={controller.editor_width_percent}
               is_editor_open={controller.is_editor_open}
               is_resizing_editor={controller.is_resizing_editor}
@@ -142,12 +115,9 @@ export function RoomPage() {
               on_back_to_directory={handleBackToLauncher}
               on_close_workspace_pane={controller.handle_close_workspace_pane}
               on_delete_conversation={handleDeleteConversation}
-              on_delete_room={handleDeleteRoom}
               on_edit_agent={controller.handle_edit_agent}
               on_loading_change={controller.set_is_conversation_busy}
               on_create_conversation={handleCreateConversation}
-              on_open_contacts={handleOpenContacts}
-              on_open_room={handleOpenRoom}
               on_open_workspace_file={controller.handle_open_workspace_file}
               on_remove_room_member={controller.handle_remove_room_member}
               on_select_agent={handleSelectAgent}
@@ -155,7 +125,6 @@ export function RoomPage() {
               on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
               on_start_editor_resize={controller.handle_start_editor_resize}
               on_todos_change={controller.set_current_todos}
-              on_update_room={controller.handle_update_room}
               workspace_split_ref={controller.workspace_split_ref}
             />
           </div>
@@ -175,7 +144,7 @@ export function RoomPage() {
   }
 
   return (
-    <AppStage active_rail_item="rooms">
+    <AppStage>
       <WorkspacePageFrame>
         <RoomRouteEntry
           agents={controller.agents}

@@ -230,7 +230,7 @@ export function AskUserQuestionBlock({
 }: AskUserQuestionBlockProps) {
     // 解析输入
     const input = tool_use.input as AskUserQuestionInput;
-    const questions = input?.questions || [];
+    const questions = useMemo(() => input?.questions || [], [input?.questions]);
 
     // 状态：每个问题的选中选项
     const [selections, setSelections] = useState<Map<number, Set<string>>>(() => {

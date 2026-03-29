@@ -7,7 +7,6 @@ import { HOME_WORKSPACE_SECTION_GAP_CLASS } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
-import { RoomAggregate } from "@/types/room";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 import { TodoItem } from "@/types/todo";
 
@@ -25,7 +24,6 @@ interface RoomWorkspaceShellProps {
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
-  rooms: RoomAggregate[];
   active_workspace_path: string | null;
   is_editor_open: boolean;
   editor_width_percent: number;
@@ -35,14 +33,10 @@ interface RoomWorkspaceShellProps {
   workspace_split_ref: React.RefObject<HTMLElement | null>;
   on_select_agent: (agent_id: string) => void;
   on_back_to_directory: () => void;
-  on_open_contacts: () => void;
-  on_open_room: (room_id: string) => void;
   on_edit_agent: (agent_id: string) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
-  on_update_room: (params: {name?: string; description?: string; title?: string}) => Promise<void>;
-  on_delete_room: () => Promise<void>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
@@ -64,7 +58,6 @@ export function RoomWorkspaceShell({
   current_conversation,
   current_conversation_id,
   current_room_conversations,
-  rooms,
   active_workspace_path,
   is_editor_open,
   editor_width_percent,
@@ -74,14 +67,10 @@ export function RoomWorkspaceShell({
   workspace_split_ref,
   on_select_agent,
   on_back_to_directory,
-  on_open_contacts,
-  on_open_room,
   on_edit_agent,
   on_create_conversation,
   on_select_conversation,
   on_delete_conversation,
-  on_update_room,
-  on_delete_room,
   on_add_room_member,
   on_remove_room_member,
   on_open_workspace_file,
@@ -129,15 +118,13 @@ export function RoomWorkspaceShell({
   }
 
   return (
-    <section className={cn("flex min-h-0 flex-1 flex-col", HOME_WORKSPACE_SECTION_GAP_CLASS)}>
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+    <section className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", HOME_WORKSPACE_SECTION_GAP_CLASS)}>
         <RoomWorkspaceLayout
           active_workspace_path={active_workspace_path}
           active_surface_tab={active_surface_tab}
           available_room_agents={available_room_agents}
           current_agent={current_agent}
           current_agent_id={current_agent_id}
-          current_room_id={current_room_id}
           current_room_type={current_room_type}
           room_members={room_members}
           current_room_title={current_room_title}
@@ -145,7 +132,6 @@ export function RoomWorkspaceShell({
           current_conversation_id={current_conversation_id}
           current_room_conversations={current_room_conversations}
           current_todos={current_todos}
-          rooms={rooms}
           editor_width_percent={editor_width_percent}
           is_editor_open={is_editor_open}
           is_resizing_editor={is_resizing_editor}
@@ -156,21 +142,16 @@ export function RoomWorkspaceShell({
           on_conversation_snapshot_change={on_conversation_snapshot_change}
           on_create_conversation={handle_create_conversation_in_shell}
           on_delete_conversation={on_delete_conversation}
-          on_delete_room={on_delete_room}
           on_edit_agent={on_edit_agent}
           on_loading_change={on_loading_change}
-          on_open_contacts={on_open_contacts}
-          on_open_room={on_open_room}
           on_open_workspace_file={on_open_workspace_file}
           on_remove_room_member={on_remove_room_member}
           on_select_agent={on_select_agent}
           on_select_conversation={handle_select_conversation_in_shell}
           on_start_editor_resize={on_start_editor_resize}
           on_todos_change={on_todos_change}
-          on_update_room={on_update_room}
           workspace_split_ref={workspace_split_ref}
         />
-      </div>
     </section>
   );
 }

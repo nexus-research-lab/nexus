@@ -23,6 +23,16 @@ export type SidebarCollapseMode =
   | "icon-only"     // 纯图标：56px
   | "collapsed";    // 全收起：0px
 
+/** 宽面板宽度约束 */
+export const WIDE_PANEL_MIN_WIDTH = 180;
+export const WIDE_PANEL_MAX_WIDTH = 400;
+export const WIDE_PANEL_DEFAULT_WIDTH = 240;
+
+/** 将宽度限制在合法范围内 */
+function clamp_panel_width(width: number): number {
+  return Math.round(Math.min(WIDE_PANEL_MAX_WIDTH, Math.max(WIDE_PANEL_MIN_WIDTH, width)));
+}
+
 interface SidebarState {
   /** 当前激活的 Tab */
   active_tab: SidebarTabKey;
@@ -30,6 +40,8 @@ interface SidebarState {
   active_panel_item_id: string | null;
   /** 折叠模式 */
   collapse_mode: SidebarCollapseMode;
+  /** 宽面板宽度（px），支持拖拽调整 */
+  wide_panel_width: number;
   /** 宽面板各 Section 的折叠状态 */
   collapsed_sections: Record<string, boolean>;
   /** 导航来源 Tab（用于 DM 对话页判断激活 Tab） */
@@ -40,6 +52,8 @@ interface SidebarActions {
   set_active_tab: (tab: SidebarTabKey) => void;
   set_active_panel_item: (id: string | null) => void;
   set_collapse_mode: (mode: SidebarCollapseMode) => void;
+  /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
+  set_wide_panel_width: (width: number) => void;
   toggle_section: (section_id: string) => void;
   set_navigated_from_tab: (tab: SidebarTabKey | null) => void;
 }
@@ -69,6 +83,7 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       active_tab: "home",
       active_panel_item_id: null,
       collapse_mode: "full" as SidebarCollapseMode,
+      wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
       collapsed_sections: {},
       navigated_from_tab: null,
 
@@ -77,6 +92,9 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
 
       set_collapse_mode: (mode) => set({ collapse_mode: mode }),
+
+      set_wide_panel_width: (width) =>
+        set({ wide_panel_width: clamp_panel_width(width) }),
 
       toggle_section: (section_id) =>
         set((state) => ({
@@ -98,9 +116,10 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
     }),
     {
       name: "nexus-sidebar",
-      // 只持久化折叠相关状态，其余随路由推导
+      // 只持久化折叠相关状态和宽面板宽度，其余随路由推导
       partialize: (state) => ({
         collapse_mode: state.collapse_mode,
+        wide_panel_width: state.wide_panel_width,
         collapsed_sections: state.collapsed_sections,
       }),
     },

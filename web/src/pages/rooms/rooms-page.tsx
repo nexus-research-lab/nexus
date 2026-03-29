@@ -103,7 +103,6 @@ export function RoomsPage() {
           </WorkspacePillButton>
         </>
       )}
-      active_rail_item="rooms"
       description="当前还没有可恢复的多人协作。你可以先从首页描述任务，让 Nexus 帮你组织新的协作空间。"
       icon={<Waypoints className="h-6 w-6 text-slate-900/78" />}
       title="Rooms"

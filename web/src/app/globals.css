@@ -391,30 +391,48 @@
   }
 
 
+  /* 内容面板毛玻璃（比 home-glass-panel 更柔和，用于主内容区域） */
+  .home-glass-panel-subtle {
+    background:
+      radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.10), transparent 26%),
+      radial-gradient(circle at 84% 16%, rgba(137, 227, 214, 0.06), transparent 28%),
+      radial-gradient(circle at 52% 100%, rgba(143, 130, 255, 0.06), transparent 34%),
+      linear-gradient(180deg, rgba(246, 249, 255, 0.08), rgba(212, 224, 248, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow:
+      inset 1px 1px 0 rgba(255, 255, 255, 0.18),
+      inset -1px -1px 0 rgba(156, 176, 214, 0.06),
+      0 20px 44px rgba(77, 91, 124, 0.06),
+      0 4px 12px rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(22px) saturate(112%);
+  }
+
   .workspace-divider {
-    border-color: rgba(40, 52, 87, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
   }
 
   .workspace-card {
     background:
-      radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.30), transparent 26%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(250, 248, 244, 0.48));
-    border: 1px solid rgba(255, 255, 255, 0.28);
+      radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.22), transparent 26%),
+      linear-gradient(180deg, rgba(246, 249, 255, 0.18), rgba(223, 233, 250, 0.12));
+    border: 1px solid rgba(255, 255, 255, 0.30);
     box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.54),
-      0 14px 28px rgba(110, 117, 142, 0.08);
-    backdrop-filter: blur(16px) saturate(112%);
+      inset 1px 1px 0 rgba(255, 255, 255, 0.38),
+      inset -1px -1px 0 rgba(166, 181, 214, 0.10),
+      0 16px 32px rgba(76, 88, 120, 0.06);
+    backdrop-filter: blur(20px) saturate(116%);
   }
 
   .workspace-card-strong {
     background:
-      radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.34), transparent 26%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(250, 248, 244, 0.56));
-    border: 1px solid rgba(255, 255, 255, 0.34);
+      radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.26), transparent 26%),
+      linear-gradient(180deg, rgba(248, 251, 255, 0.24), rgba(224, 235, 252, 0.16));
+    border: 1px solid rgba(255, 255, 255, 0.36);
     box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.58),
-      0 18px 34px rgba(110, 117, 142, 0.10);
-    backdrop-filter: blur(18px) saturate(114%);
+      inset 1px 1px 0 rgba(255, 255, 255, 0.44),
+      inset -1px -1px 0 rgba(166, 181, 214, 0.12),
+      0 20px 38px rgba(76, 88, 120, 0.08);
+    backdrop-filter: blur(22px) saturate(120%);
   }
 
   .workspace-chip {

@@ -347,14 +347,19 @@ export function RoomChatPanel({
             <RoomConversationHeader
               active_tab="chat"
               conversation_count={1}
+              conversations={[]}
               current_agent_name={current_agent_name ?? null}
               current_conversation_id={session_key}
               current_room_type="room"
               current_room_title={current_room_title ?? null}
               current_conversation_title={session_title ?? null}
+              is_detail_panel_open={false}
               is_loading={is_loading}
               member_count={1}
               on_change_tab={() => {}}
+              on_select_conversation={() => {}}
+              on_toggle_detail_panel={() => {}}
+              room_members={[]}
             />
           ) : null}
 
