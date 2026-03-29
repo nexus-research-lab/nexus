@@ -9,6 +9,7 @@
 
 """Workspace 文件管理器。"""
 
+import os
 import shutil
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -59,26 +60,45 @@ class WorkspaceFileManager:
         return True
 
     def list_files(self) -> list[dict]:
-        """列出 workspace 可见文件树。"""
-        entries: list[dict] = []
+        """列出 workspace 可见文件树。
+
+        使用手动递归 + 提前剪枝代替 rglob，遇到隐藏目录直接跳过，
+        避免遍历 .agents/sessions 等大型运行时目录。
+        """
+        _HIDDEN = {".agents", ".git", "__pycache__", ".claude"}
         workspace_root = self._workspace_path.resolve()
-        for path in workspace_root.rglob("*"):
-            relative = path.relative_to(workspace_root)
-            if not self._is_visible_workspace_path(relative):
-                continue
+        entries: list[dict] = []
 
-            stat = path.stat()
-            entries.append(
-                {
-                    "path": relative.as_posix(),
-                    "name": path.name,
-                    "is_dir": path.is_dir(),
-                    "size": None if path.is_dir() else stat.st_size,
-                    "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "depth": len(relative.parts),
-                }
-            )
+        def _walk(dir_path: Path, parts: tuple) -> None:
+            try:
+                with os.scandir(dir_path) as it:
+                    for entry in it:
+                        name = entry.name
+                        if name in _HIDDEN or name.startswith(".DS_"):
+                            continue
+                        rel_parts = parts + (name,)
+                        rel_posix = "/".join(rel_parts)
+                        try:
+                            st = entry.stat(follow_symlinks=False)
+                        except OSError:
+                            continue
+                        is_dir = entry.is_dir(follow_symlinks=False)
+                        entries.append(
+                            {
+                                "path": rel_posix,
+                                "name": name,
+                                "is_dir": is_dir,
+                                "size": None if is_dir else st.st_size,
+                                "modified_at": datetime.fromtimestamp(st.st_mtime).isoformat(),
+                                "depth": len(rel_parts),
+                            }
+                        )
+                        if is_dir:
+                            _walk(Path(entry.path), rel_parts)
+            except PermissionError:
+                pass
 
+        _walk(workspace_root, ())
         entries.sort(key=lambda item: (item["is_dir"] is False, item["path"]))
         return entries
 

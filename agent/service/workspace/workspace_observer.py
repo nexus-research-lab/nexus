@@ -26,8 +26,8 @@ class WorkspaceObserver:
         self._watch_tasks: Dict[str, asyncio.Task] = {}
         self._snapshots: Dict[str, Dict[str, ObservedFileSnapshot]] = {}
         self._active_writes: Dict[str, Dict[str, ActiveWriteState]] = {}
-        self._poll_interval_seconds = 0.8
-        self._quiet_window_seconds = 1.2
+        self._poll_interval_seconds = 2.0
+        self._quiet_window_seconds = 2.5
         self._max_snapshot_bytes = 128 * 1024
 
     def subscribe(self, agent_id: str) -> None:
@@ -85,7 +85,7 @@ class WorkspaceObserver:
             if previous and previous.modified_at == current.modified_at and previous.size == current.size:
                 continue
 
-            current_content = self._read_snapshot_content(workspace, path, current.size)
+            current_content = await self._read_snapshot_content(workspace, path, current.size)
             if path not in active_writes:
                 active_writes[path] = ActiveWriteState(
                     before_content=None,
@@ -147,9 +147,15 @@ class WorkspaceObserver:
         self._snapshots[agent_id] = current_snapshot
 
     async def _capture_snapshot(self, workspace) -> Dict[str, ObservedFileSnapshot]:
-        """抓取当前 workspace 可见文件的元数据快照。"""
+        """抓取当前 workspace 可见文件的元数据快照。
+
+        list_files() 是同步 I/O（os.scandir），用 run_in_executor 卸载到线程池，
+        避免阻塞 asyncio 事件循环。
+        """
+        loop = asyncio.get_running_loop()
+        file_entries = await loop.run_in_executor(None, workspace.list_files)
         snapshot: Dict[str, ObservedFileSnapshot] = {}
-        for entry in workspace.list_files():
+        for entry in file_entries:
             if entry["is_dir"]:
                 continue
             path = str(entry["path"])
@@ -159,13 +165,17 @@ class WorkspaceObserver:
             )
         return snapshot
 
-    def _read_snapshot_content(self, workspace, path: str, size: int) -> Optional[str]:
-        """仅读取发生变化的小文件内容，避免轮询时全量读取所有文档。"""
+    async def _read_snapshot_content(self, workspace, path: str, size: int) -> Optional[str]:
+        """仅读取发生变化的小文件内容，避免轮询时全量读取所有文档。
+
+        read_relative_file 是同步 I/O，用 run_in_executor 卸载到线程池。
+        """
         if size > self._max_snapshot_bytes:
             return None
 
+        loop = asyncio.get_running_loop()
         try:
-            return workspace.read_relative_file(path)
+            return await loop.run_in_executor(None, workspace.read_relative_file, path)
         except (UnicodeDecodeError, ValueError, FileNotFoundError):
             return None
 
