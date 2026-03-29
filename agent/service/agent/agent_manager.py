@@ -183,6 +183,7 @@ class AgentManager:
 
         agent_options = agent.options.model_dump(exclude_none=True)
         agent_options.pop("skills_enabled", None)
+        agent_options.pop("installed_skills", None)
         base_options.update(agent_options)
         return base_options
 
