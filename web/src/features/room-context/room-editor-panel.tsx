@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GripVertical, LoaderCircle, Minimize2, Save } from "lucide-react";
 
 import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
@@ -40,55 +40,36 @@ export function RoomEditorPanel({
   const has_live_content = typeof live_state?.live_content === "string";
   const is_dirty = draft_content !== saved_content;
 
+  const load_content_ref = useRef(false);
+
   const load_content = useCallback(async () => {
     if (!is_open || !path) {
       return;
     }
 
+    load_content_ref.current = false;
     setIsLoading(true);
     setError(null);
     try {
       const response = await getWorkspaceFileContentApi(agent_id, path);
+      if (load_content_ref.current) return;
       setDraftContent(response.content);
       setSavedContent(response.content);
     } catch (load_error) {
+      if (load_content_ref.current) return;
       setError(load_error instanceof Error ? load_error.message : "读取文件失败");
     } finally {
-      setIsLoading(false);
-    }
-  }, [agent_id, is_open, path]);
-
-  useEffect(() => {
-    if (!is_open || !path) {
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await getWorkspaceFileContentApi(agent_id, path);
-        if (cancelled) {
-          return;
-        }
-        setDraftContent(response.content);
-        setSavedContent(response.content);
-      } catch (load_error) {
-        if (!cancelled) {
-          setError(load_error instanceof Error ? load_error.message : "读取文件失败");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+      if (!load_content_ref.current) {
+        setIsLoading(false);
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    }
   }, [agent_id, is_open, path]);
+
+  // 首次打开 / 切换文件时加载内容
+  useEffect(() => {
+    load_content();
+    return () => { load_content_ref.current = true; };
+  }, [load_content]);
 
   useEffect(() => {
     if (!is_open || !path || !live_state || !has_live_content) {

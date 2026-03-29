@@ -17,7 +17,7 @@ import {
   Radio,
   Users2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -101,7 +101,7 @@ function EmptyPlaceholder({ text }: { text: string }) {
 
 // ==================== 主组件 ====================
 
-export function CapabilitiesPanelContent() {
+export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent() {
   const navigate = useNavigate();
   const [skills, set_skills] = useState<SkillInfo[]>([]);
 
@@ -206,4 +206,4 @@ export function CapabilitiesPanelContent() {
       </CapSection>
     </div>
   );
-}
+});

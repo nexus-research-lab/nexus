@@ -19,7 +19,7 @@ import {
   Star,
   Waypoints,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -150,7 +150,7 @@ function get_room_timestamp(room: RoomAggregate): number {
 
 // ==================== 主组件 ====================
 
-export function HomePanelContent() {
+export const HomePanelContent = memo(function HomePanelContent() {
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
@@ -296,4 +296,4 @@ export function HomePanelContent() {
       </CollapsibleSection>
     </div>
   );
-}
+});

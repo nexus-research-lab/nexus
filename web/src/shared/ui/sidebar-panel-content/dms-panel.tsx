@@ -9,7 +9,7 @@
  */
 
 import { MessageCircleMore, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -38,7 +38,7 @@ function get_dm_avatar_letter(room: RoomAggregate, agents: Agent[]): string {
   return name.charAt(0).toUpperCase();
 }
 
-export function DmsPanelContent() {
+export const DmsPanelContent = memo(function DmsPanelContent() {
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
@@ -160,4 +160,4 @@ export function DmsPanelContent() {
       </div>
     </div>
   );
-}
+});

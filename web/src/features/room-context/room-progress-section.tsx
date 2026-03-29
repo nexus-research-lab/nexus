@@ -1,5 +1,6 @@
 import { CheckSquare, LoaderCircle } from "lucide-react";
 
+import { ContextSection } from "./context-section";
 import { LoadingOrb } from "@/shared/ui/loading-orb";
 import { TodoItem } from "@/types/todo";
 
@@ -13,17 +14,16 @@ export function RoomProgressSection({ todos }: RoomProgressSectionProps) {
   const visible_todos = todos.slice(0, 4);
 
   return (
-    <section className="border-b workspace-divider px-4 py-4">
-      <div className="mb-3 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700/56">
-        <div className="flex items-center gap-2">
-          <CheckSquare className="h-3.5 w-3.5" />
-          当前计划
-        </div>
+    <ContextSection
+      icon={<CheckSquare className="h-3.5 w-3.5" />}
+      title="当前计划"
+      trailing={
         <div className="workspace-chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium tracking-normal normal-case text-slate-700/54">
           {todos.length > 0 && <LoadingOrb />}
           <span>{todos.length === 0 ? "0 / 0" : `${completedTodoCount} / ${todos.length}`}</span>
         </div>
-      </div>
+      }
+    >
       {activeTodo && (
         <div className="workspace-card flex items-start gap-2 rounded-[22px] px-3 py-3 text-sm text-slate-900/84">
           <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
@@ -66,6 +66,6 @@ export function RoomProgressSection({ todos }: RoomProgressSectionProps) {
       {todos.length === 0 && (
         <p className="text-[11px] text-slate-700/52">当前没有活跃推进项。</p>
       )}
-    </section>
+    </ContextSection>
   );
 }

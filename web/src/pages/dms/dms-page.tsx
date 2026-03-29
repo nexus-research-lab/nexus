@@ -12,17 +12,9 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { listRooms, getRoomContexts } from "@/lib/room-api";
+import { sort_rooms_by_recency } from "@/lib/room-utils";
 import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
 import { RoomAggregate } from "@/types/room";
-
-/** 按更新时间降序排列 */
-function sort_rooms_desc(rooms: RoomAggregate[]) {
-  return [...rooms].sort((left, right) => {
-    const left_timestamp = new Date(left.room.updated_at ?? left.room.created_at ?? 0).getTime();
-    const right_timestamp = new Date(right.room.updated_at ?? right.room.created_at ?? 0).getTime();
-    return right_timestamp - left_timestamp;
-  });
-}
 
 export function DmsPage() {
   const navigate = useNavigate();
@@ -49,7 +41,7 @@ export function DmsPage() {
 
   // 找到最近的 DM Room
   const latest_dm_room = useMemo(() => (
-    sort_rooms_desc(rooms).find((room) => room.room.room_type === "dm") ?? null
+    sort_rooms_by_recency(rooms).find((room) => room.room.room_type === "dm") ?? null
   ), [rooms]);
 
   // 自动重定向到最近的 DM 对话

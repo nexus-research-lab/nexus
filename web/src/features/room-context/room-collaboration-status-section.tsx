@@ -3,6 +3,8 @@ import { Activity } from "lucide-react";
 import { Conversation } from "@/types/conversation";
 import { formatRelativeTime, truncate } from "@/lib/utils";
 
+import { ContextSection } from "./context-section";
+
 interface RoomCollaborationStatusSectionProps {
   active_conversation: Conversation | null;
   localized_runtime_status: string;
@@ -19,11 +21,10 @@ export function RoomCollaborationStatusSection({
     : "未命名对话";
 
   return (
-    <section className="border-b workspace-divider px-4 py-4">
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700/56">
-        <Activity className="h-3.5 w-3.5" />
-        Details
-      </div>
+    <ContextSection
+      icon={<Activity className="h-3.5 w-3.5" />}
+      title="Details"
+    >
       <div className="rounded-[22px] bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.08))] px-4 py-3 ring-1 ring-white/10 backdrop-blur-[14px]">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -48,6 +49,6 @@ export function RoomCollaborationStatusSection({
           <span className="text-[11px] font-medium text-slate-900/84">{conversation_title}</span>
         </div>
       </div>
-    </section>
+    </ContextSection>
   );
 }

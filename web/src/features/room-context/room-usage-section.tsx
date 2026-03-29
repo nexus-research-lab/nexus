@@ -3,6 +3,8 @@ import { Cpu } from "lucide-react";
 import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { formatCost, formatTokens } from "@/lib/utils";
 
+import { ContextSection } from "./context-section";
+
 interface RoomUsageSectionProps {
   agent_cost_summary: AgentCostSummary;
   conversation_cost_summary: ConversationCostSummary;
@@ -15,11 +17,10 @@ export function RoomUsageSection({
   const lastRunDurationMs = conversation_cost_summary.last_run_duration_ms ?? null;
 
   return (
-    <section className="border-b workspace-divider px-4 py-4">
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700/56">
-        <Cpu className="h-3.5 w-3.5" />
-        Conversation Usage
-      </div>
+    <ContextSection
+      icon={<Cpu className="h-3.5 w-3.5" />}
+      title="Conversation Usage"
+    >
       <div className="grid grid-cols-2 gap-2">
         <div className="workspace-card rounded-[22px] px-3 py-2">
           <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/50">当前 room</p>
@@ -60,6 +61,6 @@ export function RoomUsageSection({
           </span>
         </div>
       </div>
-    </section>
+    </ContextSection>
   );
 }

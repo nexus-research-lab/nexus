@@ -10,7 +10,7 @@
  */
 
 import { Plus, Users } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 
-export function ContactsPanelContent() {
+export const ContactsPanelContent = memo(function ContactsPanelContent() {
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
@@ -120,4 +120,4 @@ export function ContactsPanelContent() {
       </div>
     </div>
   );
-}
+});

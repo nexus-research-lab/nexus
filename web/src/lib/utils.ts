@@ -2,7 +2,7 @@
  * 工具函数库
  *
  * [INPUT]: 依赖 clsx, tailwind-merge
- * [OUTPUT]: 对外提供 cn, formatRelativeTime, formatFileSize, formatTokens, formatCost, truncate
+ * [OUTPUT]: 对外提供 cn, formatRelativeTime, formatTokens, formatCost, truncate
  * [POS]: lib 模块的通用工具层，被组件和其他 lib 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -43,19 +43,6 @@ export function formatRelativeTime(timestamp: number): string {
   if (minutes > 0) return `${minutes}分钟前`;
   if (seconds > 0) return `${seconds}秒前`;
   return '刚刚';
-}
-
-/**
- * 格式化文件大小
- */
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
 /**

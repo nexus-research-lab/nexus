@@ -5,9 +5,10 @@
  * 当前显示 Bell 图标 + "暂无活动" 文案。
  */
 
+import { memo } from "react";
 import { Bell } from "lucide-react";
 
-export function ActivityPanelContent() {
+export const ActivityPanelContent = memo(function ActivityPanelContent() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
       {/* 图标容器 */}
@@ -24,4 +25,4 @@ export function ActivityPanelContent() {
       </p>
     </div>
   );
-}
+});

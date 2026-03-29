@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { listRooms } from "@/lib/room-api";
+import { get_room_timestamp, sort_rooms_by_recency } from "@/lib/room-utils";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
 import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
@@ -29,15 +30,6 @@ import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace-surface-header";
 import { useAgentStore } from "@/store/agent";
 import { Agent } from "@/types/agent";
 import { RoomAggregate } from "@/types/room";
-
-// ==================== 辅助函数 ====================
-
-/** 获取 Room 时间戳 */
-function get_timestamp(room: RoomAggregate): number {
-  return new Date(
-    room.room.updated_at ?? room.room.created_at ?? 0,
-  ).getTime();
-}
 
 /** 获取 DM 显示名称 */
 function get_dm_name(room: RoomAggregate, agents: Agent[]): string {
@@ -137,9 +129,7 @@ export function HomePage() {
 
   // 最近对话列表（按时间降序，最多 20 条）
   const recent_rooms = useMemo(() => {
-    return [...rooms]
-      .sort((a, b) => get_timestamp(b) - get_timestamp(a))
-      .slice(0, 20);
+    return sort_rooms_by_recency(rooms).slice(0, 20);
   }, [rooms]);
 
   // 导航到 Room
@@ -233,7 +223,7 @@ export function HomePage() {
                       const subtitle = is_dm
                         ? "1v1 协作"
                         : `${member_count} 位成员`;
-                      const timestamp = get_timestamp(room);
+                      const timestamp = get_room_timestamp(room);
 
                       return (
                         <RecentItem
