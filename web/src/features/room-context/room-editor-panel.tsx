@@ -6,6 +6,7 @@ import { GripVertical, LoaderCircle, Minimize2, Save } from "lucide-react";
 import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
+import { TypewriterFileView } from "@/shared/ui/typewriter-file-view";
 
 interface RoomEditorPanelProps {
   agent_id: string;
@@ -33,6 +34,8 @@ export function RoomEditorPanel({
   const [is_loading, setIsLoading] = useState(false);
   const [is_saving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editor_width, setEditorWidth] = useState(0);
+  const editor_area_ref = useRef<HTMLDivElement>(null);
   const file_states = useWorkspaceLiveStore((state) => state.file_states);
 
   const live_state = path ? file_states[`${agent_id}:${path}`] : undefined;
@@ -41,6 +44,18 @@ export function RoomEditorPanel({
   const is_dirty = draft_content !== saved_content;
 
   const load_content_ref = useRef(false);
+
+  // Track editor container width for pretext line measurement
+  useEffect(() => {
+    const el = editor_area_ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setEditorWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const load_content = useCallback(async () => {
     if (!is_open || !path) {
@@ -214,13 +229,21 @@ export function RoomEditorPanel({
             <div className="px-4 py-3 text-sm text-destructive">{error}</div>
           ) : null}
 
-          <div className="flex-1 p-3">
-            <textarea
-              className="soft-scrollbar workspace-card h-full w-full resize-none rounded-[28px] p-5 font-mono text-sm leading-6 text-slate-900/82 outline-none disabled:opacity-70"
-              disabled={is_loading || is_external_writing}
-              onChange={(event) => setDraftContent(event.target.value)}
-              value={is_loading ? "加载中..." : draft_content}
-            />
+          <div ref={editor_area_ref} className="flex-1 p-3">
+            {is_external_writing ? (
+              <TypewriterFileView
+                content={draft_content}
+                container_width={editor_width > 0 ? editor_width - 40 : undefined}
+                class_name="h-full"
+              />
+            ) : (
+              <textarea
+                className="soft-scrollbar workspace-card h-full w-full resize-none rounded-[28px] p-5 font-mono text-sm leading-6 text-slate-900/82 outline-none disabled:opacity-70"
+                disabled={is_loading}
+                onChange={(event) => setDraftContent(event.target.value)}
+                value={is_loading ? "加载中..." : draft_content}
+              />
+            )}
           </div>
         </>
       ) : null}
