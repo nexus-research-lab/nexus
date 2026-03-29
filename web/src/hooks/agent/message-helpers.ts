@@ -44,6 +44,7 @@ export function applyStreamMessage(messages: Message[], event: StreamMessage): M
         session_id: event.session_id,
         role: 'assistant',
         content: [],
+        is_complete: false,
         model: event.message?.model,
         timestamp: event.timestamp,
       },
@@ -55,10 +56,12 @@ export function applyStreamMessage(messages: Message[], event: StreamMessage): M
   }
 
   const assistantMessage = messages[existingIndex] as AssistantMessage;
+  const stop_reason = event.message?.stop_reason || assistantMessage.stop_reason;
   const nextMessage: AssistantMessage = {
     ...assistantMessage,
     model: event.message?.model || assistantMessage.model,
-    stop_reason: event.message?.stop_reason || assistantMessage.stop_reason,
+    stop_reason,
+    is_complete: stop_reason ? true : assistantMessage.is_complete,
     usage: event.usage || assistantMessage.usage,
     content: [...assistantMessage.content],
   };
