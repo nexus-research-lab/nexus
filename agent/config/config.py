@@ -25,7 +25,7 @@ else:
     ENV_FILE = os.path.join(ROOT_PATH, "../.env")
 
 # http://patorjk.com/software/taag/#p=display&f=Lil%20Devil&t=v%201.0.1%0A
-logo = """
+logo = r"""
 
      (`-')  _            (`-')  _<-. (`-')_ (`-')              <-.(`-')  _     (`-')      
      (OO ).-/     .->    ( OO).-/   \( OO) )( OO).->            __( OO) (_)    ( OO).->   
