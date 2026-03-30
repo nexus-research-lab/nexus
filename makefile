@@ -79,11 +79,11 @@ install: ## Install all dependencies
 
 check-backend: ## Run backend syntax check
 	@if [ -x .venv/bin/python ]; then \
-		.venv/bin/python -m py_compile $$(rg --files agent -g '*.py'); \
+		.venv/bin/python -m py_compile $$(find agent -type f -name '*.py'); \
 	elif command -v python3 >/dev/null 2>&1; then \
-		python3 -m py_compile $$(rg --files agent -g '*.py'); \
+		python3 -m py_compile $$(find agent -type f -name '*.py'); \
 	elif command -v python >/dev/null 2>&1; then \
-		python -m py_compile $$(rg --files agent -g '*.py'); \
+		python -m py_compile $$(find agent -type f -name '*.py'); \
 	else \
 		echo "No usable Python runtime found"; \
 		exit 1; \
