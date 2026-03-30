@@ -1,7 +1,7 @@
 /**
  * 侧边栏左侧窄栏（88px）
  *
- * 对标 Slack 窄栏：Tab 选择器（工作模式切换）。
+ * 窄栏：Tab 选择器（工作模式切换）。
  * 每个 Tab 代表一种工作模式，点击切换右侧宽面板内容。
  * 底部 More 按钮弹出菜单提供 Files、Settings、Documentation、Feedback 入口。
  */

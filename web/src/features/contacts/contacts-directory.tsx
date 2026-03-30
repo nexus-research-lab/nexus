@@ -32,7 +32,7 @@ interface ContactsDirectoryProps {
   on_create_team: (agent_id: string) => void;
 }
 
-/** Contacts 全宽卡片网格 — Accio 风格 */
+/** Contacts 全宽卡片网格 — 风格 */
 export function ContactsDirectory({
   agents,
   conversations,

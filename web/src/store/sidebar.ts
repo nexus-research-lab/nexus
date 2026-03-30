@@ -2,7 +2,7 @@
  * 侧边栏状态 Store
  *
  * 管理双面板侧边栏的 Tab 激活、面板条目高亮、折叠模式等状态。
- * 参考 Slack 双面板设计：左侧窄栏（Tab 选择）+ 右侧宽面板（Tab 内容）。
+ * 双面板设计：左侧窄栏（Tab 选择）+ 右侧宽面板（Tab 内容）。
  */
 
 import { create } from "zustand";

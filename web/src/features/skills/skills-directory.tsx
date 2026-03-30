@@ -14,7 +14,7 @@ import { SkillInfo, AgentSkillEntry } from "@/types/skill";
 import { SkillDetailDialog } from "./skill-detail-dialog";
 import { SkillsCard } from "./skills-card";
 
-/** Skills 全宽卡片网格 — Accio 风格 */
+/** Skills 全宽卡片网格 — 风格 */
 export function SkillsDirectory() {
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [agents, set_agents] = useState<Agent[]>([]);

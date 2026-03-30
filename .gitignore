@@ -163,6 +163,7 @@ cython_debug/
 .idea/
 
 # projects
+docs
 logs
 cache
 plans
