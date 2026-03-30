@@ -58,10 +58,17 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
     let particles: AsciiParticle[] = [];
     let W = 0, H = 0;
     let glyph_size = 6;
-    let ir = 100, iforce = 3;
+    let glyph_font = "";       // cached — avoid re-parsing font every frame
+    let ir = 100, ir_sq = ir * ir, iforce = 3;
     let raf = 0;
     let px = -9999, py = -9999;
     let dead = false;
+    let is_mobile = false;
+    // clock layout — computed once on resize, not every frame
+    let clock_pad_x = 22, clock_pad_y = 18;
+    let clock_big_size = 28, clock_sm_size = 13, clock_meta_size = 10;
+    let clock_font_big = "", clock_font_sm = "", clock_font_meta = "";
+    let clock_hm_w = 0; // width of "HH:MM" — updated each second
 
     // ── clock state (updated every second) ────────────────────────────────────
     let clock_hh = "", clock_mm = "", clock_ss = "";
@@ -72,6 +79,11 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
       clock_hh = pad2(now.getHours());
       clock_mm = pad2(now.getMinutes());
       clock_ss = pad2(now.getSeconds());
+      // Re-measure HH:MM width once per second (font must be set first; done after resize)
+      if (clock_font_big) {
+        ctx!.font = clock_font_big;
+        clock_hm_w = ctx!.measureText(`${clock_hh}:${clock_mm}`).width;
+      }
     }
     tick_clock();
     clock_timer = window.setInterval(tick_clock, 1000);
@@ -85,6 +97,19 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
       canvas!.style.width = `${W}px`;
       canvas!.style.height = `${H}px`;
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Pre-compute clock layout so draw loop reads constants, not expressions
+      clock_pad_x = is_mobile ? 14 : 22;
+      clock_pad_y = is_mobile ? 12 : 18;
+      clock_big_size = Math.round(Math.min(W * 0.072, H * 0.20, 56));
+      clock_sm_size = Math.round(clock_big_size * 0.46);
+      clock_meta_size = Math.round(Math.min(W * 0.018, 11));
+      clock_font_big = `200 ${clock_big_size}px "IBM Plex Mono", monospace`;
+      clock_font_sm = `200 ${clock_sm_size}px "IBM Plex Mono", monospace`;
+      clock_font_meta = `400 ${clock_meta_size}px "IBM Plex Mono", monospace`;
+      // Measure HH:MM width with new font
+      ctx!.font = clock_font_big;
+      clock_hm_w = ctx!.measureText(`${clock_hh}:${clock_mm}`).width;
     }
 
     // ── pointer ───────────────────────────────────────────────────────────────
@@ -106,11 +131,13 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
       const cv = canvas!;
       const cx = ctx!;
 
-      const is_mobile = mobile_q.matches;
+      is_mobile = mobile_q.matches;
       const charset = is_mobile ? MOBILE_ASCII_CHARS : ASCII_CHARS;
       const step = is_mobile ? 2 : 4;
       glyph_size = is_mobile ? 3 : 6;
+      glyph_font = `500 ${glyph_size}px "IBM Plex Mono", monospace`;
       ir = is_mobile ? 50 : 110;
+      ir_sq = ir * ir;
       iforce = is_mobile ? 5 : 3.5;
 
       resize(section.clientWidth, section.clientHeight);
@@ -156,7 +183,7 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
             target_alpha: is_mobile ? 0.95 : 0.82 + Math.random() * 0.18,
             is_text: true,
             phase: Math.random() * Math.PI * 2,
-            delay: (x / W) * 1.0 + Math.random() * 0.15,
+            delay: (x / W) + Math.random() * 0.15,
           });
         }
       }
@@ -183,23 +210,28 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
       const t0 = performance.now();
 
       // ── draw loop ──────────────────────────────────────────────────────────
+      const has_ptr = () => px > -9000;
+
       const draw = (now: number) => {
         if (dead) { raf = 0; return; }
 
         const elapsed = (now - t0) / 1000;
+        const ptr = has_ptr();
         ctx.clearRect(0, 0, W, H);
 
-        // particles
-        ctx.font = `500 ${glyph_size}px "IBM Plex Mono", monospace`;
+        // Set shared state once per frame
+        ctx.font = glyph_font;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = HERO_INK;
+
+        let last_alpha = -1; // track last globalAlpha to skip redundant sets
 
         for (const p of particles) {
           const prog = Math.max(0, elapsed - p.delay);
 
           if (p.is_text && prog < 0.01) {
-            ctx.globalAlpha = 0.02;
+            if (last_alpha !== 0.02) { ctx.globalAlpha = 0.02; last_alpha = 0.02; }
             ctx.fillText(p.char, p.x, p.y);
             continue;
           }
@@ -207,12 +239,16 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
           p.vx += (p.tx - p.x) * 0.038;
           p.vy += (p.ty - p.y) * 0.038;
 
-          const ddx = p.x - px, ddy = p.y - py;
-          const dist = Math.hypot(ddx, ddy);
-          if (dist < ir && dist > 0) {
-            const f = ((1 - dist / ir) ** 2) * iforce;
-            p.vx += (ddx / dist) * f;
-            p.vy += (ddy / dist) * f;
+          // Use squared distance to avoid Math.hypot (sqrt) when pointer is far
+          if (ptr) {
+            const ddx = p.x - px, ddy = p.y - py;
+            const dist_sq = ddx * ddx + ddy * ddy;
+            if (dist_sq < ir_sq && dist_sq > 0) {
+              const dist = Math.sqrt(dist_sq);
+              const f = ((1 - dist / ir) ** 2) * iforce;
+              p.vx += (ddx / dist) * f;
+              p.vy += (ddy / dist) * f;
+            }
           }
 
           p.vx *= 0.87; p.vy *= 0.87;
@@ -232,39 +268,32 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
             if (Math.random() < 0.003) p.char = pick(charset);
           }
 
-          ctx.globalAlpha = Math.max(0, p.alpha);
+          const a = Math.max(0, p.alpha);
+          if (a !== last_alpha) { ctx.globalAlpha = a; last_alpha = a; }
           ctx.fillText(p.char, p.x, p.y);
         }
 
-        // ── clock overlay — rendered directly in canvas ────────────────────
+        // ── clock overlay ──────────────────────────────────────────────────
         ctx.textAlign = "left";
         ctx.textBaseline = "bottom";
         ctx.fillStyle = CLOCK_INK;
 
-        const pad_x = is_mobile ? 14 : 22;
-        const pad_y = is_mobile ? 12 : 18;
+        const clock_y = H - clock_pad_y - clock_big_size * 0.28;
 
-        // HH:MM — large
-        const big_size = Math.round(Math.min(W * 0.072, H * 0.20, 56));
-        ctx.font = `200 ${big_size}px "IBM Plex Mono", monospace`;
-        ctx.globalAlpha = 0.82;
-        ctx.fillText(`${clock_hh}:${clock_mm}`, pad_x, H - pad_y - big_size * 0.28);
+        ctx.font = clock_font_big;
+        ctx.globalAlpha = 0.82; last_alpha = 0.82;
+        ctx.fillText(`${clock_hh}:${clock_mm}`, clock_pad_x, clock_y);
 
-        // :SS — smaller, shifted right
-        const hm_w = ctx.measureText(`${clock_hh}:${clock_mm}`).width;
-        const sm_size = Math.round(big_size * 0.46);
-        ctx.font = `200 ${sm_size}px "IBM Plex Mono", monospace`;
-        ctx.globalAlpha = 0.38;
-        ctx.fillText(`:${clock_ss}`, pad_x + hm_w + 2, H - pad_y - big_size * 0.28 + (big_size - sm_size) * 0.82);
+        ctx.font = clock_font_sm;
+        ctx.globalAlpha = 0.38; last_alpha = 0.38;
+        ctx.fillText(`:${clock_ss}`, clock_pad_x + clock_hm_w + 2, clock_y + (clock_big_size - clock_sm_size) * 0.82);
 
-        // status line — agents · rooms
-        const meta_size = Math.round(Math.min(W * 0.018, 11));
-        ctx.font = `400 ${meta_size}px "IBM Plex Mono", monospace`;
+        ctx.font = clock_font_meta;
         ctx.globalAlpha = 0.28;
         ctx.fillText(
           `AGENTS ${agent_count}  ·  ROOMS ${room_count}`,
-          pad_x,
-          H - pad_y - big_size - 6,
+          clock_pad_x,
+          H - clock_pad_y - clock_big_size - 6,
         );
 
         ctx.globalAlpha = 1;
