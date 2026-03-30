@@ -50,29 +50,31 @@ function buildCreateModeSkills(
   enabled_names: string[],
 ): SkillToggleItem[] {
   const enabled_set = new Set(enabled_names);
+  // 市场页 getAvailableSkillsApi 返回的 installed 在 resource_pool_mode 下即为 pool 可用性
   return global_skills
+    .filter((skill) => !skill.locked && skill.installed && skill.global_enabled)
     .map((skill) => ({
       name: skill.name,
       title: skill.title || skill.name,
       description: skill.description,
       version: skill.version,
-      enabled: enabled_set.has(skill.name) || skill.locked,
+      enabled: enabled_set.has(skill.name),
       locked: skill.locked,
-    }))
-    .filter((skill) => !skill.locked);
+    }));
 }
 
 function buildEditModeSkills(agent_skills: AgentSkillEntry[]): SkillToggleItem[] {
+  // 后端已按资源池可用性过滤，前端直接展示全部返回项
   return agent_skills
+    .filter((skill) => !skill.locked)
     .map((skill) => ({
       name: skill.name,
       title: skill.title || skill.name,
       description: skill.description,
       version: skill.version,
-      enabled: skill.installed || skill.locked,
+      enabled: skill.installed,
       locked: skill.locked,
-    }))
-    .filter((skill) => !skill.locked);
+    }));
 }
 
 export function AgentOptionsSkillsTab({
@@ -161,7 +163,7 @@ export function AgentOptionsSkillsTab({
               onChange={(e) => onSkillsEnabledChange(e.target.checked)}
               className="peer sr-only"
             />
-            <div className="h-6 w-11 rounded-full bg-muted peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
+            <div className="h-6 w-11 rounded-full bg-muted peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
           </label>
         </div>
       </div>
@@ -218,7 +220,7 @@ export function AgentOptionsSkillsTab({
                     onChange={() => onToggleSettingSource(item.key)}
                     className="peer sr-only"
                   />
-                  <div className="h-6 w-11 rounded-full bg-slate-200/80 peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-white/60 after:bg-white after:shadow-sm after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
+                  <div className="h-6 w-11 rounded-full bg-slate-200/80 peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-white/60 after:bg-white after:shadow-sm after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
                 </label>
               </div>
             );
@@ -295,7 +297,7 @@ export function AgentOptionsSkillsTab({
                       onChange={() => toggle_skill(skill.name)}
                       className="peer sr-only"
                     />
-                    <div className="h-6 w-11 rounded-full bg-slate-200/80 peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-white/60 after:bg-white after:shadow-sm after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
+                    <div className="h-6 w-11 rounded-full bg-slate-200/80 peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-white/60 after:bg-white after:shadow-sm after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
                   </label>
                 </div>
               );

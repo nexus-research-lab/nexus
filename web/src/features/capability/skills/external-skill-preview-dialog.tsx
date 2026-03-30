@@ -52,7 +52,7 @@ export function ExternalSkillPreviewDialog({
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold text-slate-600">
-                skills.sh
+                社区技能
               </span>
               <span className="inline-flex rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold text-slate-600">
                 {item.source}
@@ -76,7 +76,7 @@ export function ExternalSkillPreviewDialog({
 
         <div className="soft-scrollbar flex-1 overflow-y-auto px-6 py-5">
           <div className="workspace-card mb-5 rounded-[22px] px-5 py-4 text-[13px] leading-6 text-slate-700/78">
-            这是来自 skills.sh 的外部技能预览。导入后会进入 Nexus 的全局技能库，再在 Agent 设置里为具体智能体启用。
+            这是来自社区的外部技能预览。导入后会进入 Nexus 的全局技能库，再在 Agent 设置里为具体智能体启用。
           </div>
           <SkillMarkdown markdown={item.readme_markdown || item.description || "暂无预览内容"} />
         </div>
@@ -89,7 +89,7 @@ export function ExternalSkillPreviewDialog({
             target="_blank"
           >
             <ExternalLink className="h-4 w-4" />
-            打开 skills.sh 原页
+            打开原始页面
           </a>
           <div className="flex flex-wrap items-center gap-2">
             <WorkspacePillButton disabled={busy || already_imported} onClick={on_import_only}>

@@ -217,6 +217,18 @@ export const importGitSkillApi = async (url: string, branch?: string): Promise<S
     return result.data;
 };
 
+export const installSkillToPoolApi = async (skill_name: string): Promise<SkillDetail> => {
+    const response = await fetch(`${AGENT_API_BASE_URL}/skills/${encodeURIComponent(skill_name)}/install`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+        throw new Error(`安装到资源池失败: ${response.statusText}`);
+    }
+    const result: ApiResponse<SkillDetail> = await response.json();
+    return result.data;
+};
+
 export const importLocalSkillApi = async (file: File): Promise<SkillDetail> => {
     const form_data = new FormData();
     form_data.append("file", file);

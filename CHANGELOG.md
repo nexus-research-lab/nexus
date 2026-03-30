@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 新增 `capability` 能力模块，统一管理技能市场、连接器、定时任务、渠道与配对能力。
+- 技能系统数据持久化：新增 `pool_skills` / `agent_skills` 数据库表与 Alembic 迁移，技能安装状态、全局开关、Agent-Skill 关联全部写入 SQLite，取代旧 JSON 文件存储。
+- 新增 `SkillSqlRepository` 与 `SkillRepository` 数据访问层。
+
+### Changed
+- 技能市场代码从 `service/workspace/` 迁移至 `service/capability/skills/`，API 从 `api/agent/` 迁移至 `api/capability/`。
+- `SkillCatalog` 改为无状态设计，状态由调用方通过数据库查询后传入。
+- `SkillService` 全面改用 `skill_repository` 进行状态读写。
+
+### Fixed
+- 修复 `session_repository` / `cost_repository` 模块级初始化产生的导入副作用（#11）。
+- 修复 Alembic 迁移多 head 冲突问题。
+
 ### Docs
 - 更新根目录 `README.md`，同步当前 React + Vite 前端、混合持久化、Memory、Room/DM 页面结构与配置说明。
 - 更新 `web/README.md`，修正前端技术栈、目录结构、路由与 `VITE_*` 环境变量说明。

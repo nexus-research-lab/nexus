@@ -1,4 +1,4 @@
-import { SkillsDirectory } from "@/features/skills/skills-directory";
+import { SkillsDirectory } from "@/features/capability/skills/skills-directory";
 import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
 
 /** Skills 页面 — 卡片网格 + 弹窗详情（不再使用路由切换详情页） */

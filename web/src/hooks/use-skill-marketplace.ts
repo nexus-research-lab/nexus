@@ -1,0 +1,321 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  deleteSkillFromPoolApi,
+  getAvailableSkillsApi,
+  importSkillsShSkillApi,
+  importGitSkillApi,
+  importLocalSkillApi,
+  installSkillToPoolApi,
+  searchExternalSkillsApi,
+  setSkillGlobalEnabledApi,
+  updateImportedSkillsApi,
+  updateSingleSkillApi,
+} from "@/lib/skill-api";
+import type { ExternalSkillSearchItem, SkillActionFailure, SkillInfo } from "@/types/skill";
+
+export type SourceFilter = "all" | "builtin" | "external" | "system";
+export type DiscoveryMode = "catalog" | "external";
+
+export const SOURCE_LABELS: Record<SourceFilter, string> = {
+  all: "全部来源",
+  builtin: "内置",
+  external: "外部",
+  system: "系统",
+};
+
+export function formatInstalls(n: number) {
+  return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : `${n}`;
+}
+
+export function useSkillMarketplace() {
+  const [skills, set_skills] = useState<SkillInfo[]>([]);
+  const [search_query, set_search_query] = useState("");
+  const [discovery_mode, set_discovery_mode] = useState<DiscoveryMode>("catalog");
+  const [source_filter, set_source_filter] = useState<SourceFilter>("all");
+  const [active_category, set_active_category] = useState<string>("all");
+  const [installed_only, set_installed_only] = useState(false);
+  const [selected_skill, set_selected_skill] = useState<string | null>(null);
+  const [external_query, set_external_query] = useState("");
+  const [external_results, set_external_results] = useState<ExternalSkillSearchItem[]>([]);
+  const [preview_external_item, set_preview_external_item] = useState<ExternalSkillSearchItem | null>(null);
+  const [external_loading, set_external_loading] = useState(false);
+  const [git_prompt_open, set_git_prompt_open] = useState(false);
+  const [loading, set_loading] = useState(true);
+  const [busy_skill_name, set_busy_skill_name] = useState<string | null>(null);
+  const [status_message, set_status_message] = useState<string | null>(null);
+  const [error_message, set_error_message] = useState<string | null>(null);
+  const [source_dropdown_open, set_source_dropdown_open] = useState(false);
+  const file_input_ref = useRef<HTMLInputElement | null>(null);
+
+  /* ── 数据加载 ───────────────────────────────── */
+
+  const load_skills = useCallback(async (query: string, source: SourceFilter) => {
+    const next_skills = await getAvailableSkillsApi({
+      q: query || undefined,
+      source_type: source === "all" ? undefined : source,
+    });
+    set_skills(next_skills);
+  }, []);
+
+  const load_data = useCallback(async () => {
+    try {
+      set_loading(true);
+      await load_skills(search_query, source_filter);
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "加载失败");
+    } finally {
+      set_loading(false);
+    }
+  }, [load_skills, search_query, source_filter]);
+
+  useEffect(() => {
+    void load_data();
+  }, [load_data]);
+
+  useEffect(() => {
+    if (discovery_mode !== "catalog") return;
+    void load_skills(search_query, source_filter).catch((err: unknown) => {
+      set_error_message(err instanceof Error ? err.message : "刷新失败");
+    });
+  }, [discovery_mode, load_skills, search_query, source_filter]);
+
+  /* ── 派生数据 ───────────────────────────────── */
+
+  const categories = useMemo(() => {
+    const map = new Map<string, string>();
+    skills.forEach((s) => map.set(s.category_key, s.category_name));
+    return [{ key: "all", label: "全部" }].concat(
+      Array.from(map.entries()).map(([key, label]) => ({ key, label })),
+    );
+  }, [skills]);
+
+  const visible_skills = useMemo(() => {
+    let list = skills;
+    if (active_category !== "all") {
+      list = list.filter((s) => s.category_key === active_category);
+    }
+    if (installed_only) {
+      list = list.filter((s) => s.installed);
+    }
+    return list;
+  }, [active_category, installed_only, skills]);
+
+  const grouped_skills = useMemo(() => {
+    const map = new Map<string, SkillInfo[]>();
+    visible_skills.forEach((s) => {
+      const list = map.get(s.category_name) ?? [];
+      list.push(s);
+      map.set(s.category_name, list);
+    });
+    return Array.from(map.entries());
+  }, [visible_skills]);
+
+  const installed_count = useMemo(
+    () => skills.filter((s) => s.installed).length,
+    [skills],
+  );
+
+  const imported_skill_names = useMemo(
+    () => new Set(skills.map((s) => s.name)),
+    [skills],
+  );
+
+  /* ── 操作 ───────────────────────────────────── */
+
+  const clear_messages = () => {
+    set_status_message(null);
+    set_error_message(null);
+  };
+
+  const refresh_marketplace = useCallback(async () => {
+    await load_skills(search_query, source_filter);
+  }, [load_skills, search_query, source_filter]);
+
+  const handle_update_single = useCallback(async (skill_name: string) => {
+    clear_messages();
+    try {
+      set_busy_skill_name(skill_name);
+      await updateSingleSkillApi(skill_name);
+      set_status_message(`已更新 ${skill_name}`);
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "更新失败");
+    } finally {
+      set_busy_skill_name(null);
+    }
+  }, [refresh_marketplace]);
+
+  const handle_install_to_pool = useCallback(async (skill: SkillInfo) => {
+    clear_messages();
+    try {
+      set_busy_skill_name(skill.name);
+      await installSkillToPoolApi(skill.name);
+      set_status_message(`${skill.title || skill.name} 已安装`);
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "安装失败");
+    } finally {
+      set_busy_skill_name(null);
+    }
+  }, [refresh_marketplace]);
+
+  const handle_toggle_global_enabled = useCallback(async (skill: SkillInfo) => {
+    clear_messages();
+    try {
+      set_busy_skill_name(skill.name);
+      await setSkillGlobalEnabledApi(skill.name, !skill.global_enabled);
+      set_status_message(
+        `${skill.title || skill.name} 已${skill.global_enabled ? "全局停用" : "全局启用"}`,
+      );
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "操作失败");
+    } finally {
+      set_busy_skill_name(null);
+    }
+  }, [refresh_marketplace]);
+
+  const handle_delete_from_pool = useCallback(async (skill: SkillInfo) => {
+    clear_messages();
+    try {
+      set_busy_skill_name(skill.name);
+      await deleteSkillFromPoolApi(skill.name);
+      set_status_message(`${skill.title || skill.name} 已从资源池删除`);
+      if (selected_skill === skill.name) set_selected_skill(null);
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      set_busy_skill_name(null);
+    }
+  }, [refresh_marketplace, selected_skill]);
+
+  const handle_update_installed = useCallback(async () => {
+    clear_messages();
+    try {
+      const result = await updateImportedSkillsApi();
+      set_status_message(
+        `更新完成：更新 ${result.updated_skills.length} 个，跳过 ${result.skipped_skills.length} 个`,
+      );
+      if (result.failures.length) {
+        set_error_message(
+          result.failures.map((i: SkillActionFailure) => `${i.skill_name}: ${i.error}`).join("；"),
+        );
+      }
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "更新失败");
+    }
+  }, [refresh_marketplace]);
+
+  const handle_local_import = useCallback(async (file: File) => {
+    clear_messages();
+    try {
+      await importLocalSkillApi(file);
+      set_status_message(`已导入：${file.name}`);
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "导入失败");
+    }
+  }, [refresh_marketplace]);
+
+  const handle_git_import = useCallback(async (url: string) => {
+    clear_messages();
+    if (!url.trim()) return;
+    try {
+      await importGitSkillApi(url.trim());
+      set_status_message("已通过 Git 导入");
+      set_git_prompt_open(false);
+      await refresh_marketplace();
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "Git 导入失败");
+    }
+  }, [refresh_marketplace]);
+
+  const handle_external_search = useCallback(async () => {
+    clear_messages();
+    if (!external_query.trim()) {
+      set_external_results([]);
+      return;
+    }
+    try {
+      set_external_loading(true);
+      const results = await searchExternalSkillsApi(external_query.trim());
+      set_external_results(results);
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "搜索失败");
+    } finally {
+      set_external_loading(false);
+    }
+  }, [external_query]);
+
+  const handle_import_external = useCallback(async (item: ExternalSkillSearchItem) => {
+    clear_messages();
+    try {
+      set_busy_skill_name(item.skill_slug);
+      await importSkillsShSkillApi(item.package_spec, item.skill_slug);
+      set_status_message(`已导入：${item.skill_slug}`);
+      await refresh_marketplace();
+      set_preview_external_item(null);
+    } catch (err) {
+      set_error_message(err instanceof Error ? err.message : "导入失败");
+    } finally {
+      set_busy_skill_name(null);
+    }
+  }, [refresh_marketplace]);
+
+  return {
+    // 状态
+    skills,
+    search_query,
+    discovery_mode,
+    source_filter,
+    active_category,
+    installed_only,
+    selected_skill,
+    external_query,
+    external_results,
+    preview_external_item,
+    external_loading,
+    git_prompt_open,
+    loading,
+    busy_skill_name,
+    status_message,
+    error_message,
+    source_dropdown_open,
+    file_input_ref,
+    // 派生数据
+    categories,
+    visible_skills,
+    grouped_skills,
+    installed_count,
+    imported_skill_names,
+    // setter
+    set_search_query,
+    set_discovery_mode,
+    set_source_filter,
+    set_active_category,
+    set_installed_only,
+    set_selected_skill,
+    set_external_query,
+    set_preview_external_item,
+    set_git_prompt_open,
+    set_source_dropdown_open,
+    set_status_message,
+    set_error_message,
+    // 操作
+    refresh_marketplace,
+    handle_update_single,
+    handle_install_to_pool,
+    handle_toggle_global_enabled,
+    handle_delete_from_pool,
+    handle_update_installed,
+    handle_local_import,
+    handle_git_import,
+    handle_external_search,
+    handle_import_external,
+  };
+}
+
+export type SkillMarketplaceController = ReturnType<typeof useSkillMarketplace>;

@@ -7,7 +7,7 @@
 # 2026/3/30 20:34   Create
 # =====================================================
 
-"""外部 Skill 注册表存储。"""
+"""外部 Skill 注册表与清单文件存储。"""
 
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ class SkillRegistryStore:
     def __init__(self) -> None:
         self._root = Path(settings.CACHE_FILE_DIR).expanduser() / "skills" / "registry"
         self._root.mkdir(parents=True, exist_ok=True)
-        self._state_file = self._root / ".skill-pool-state.json"
 
     @property
     def root(self) -> Path:
@@ -67,17 +66,3 @@ class SkillRegistryStore:
         target_dir = self.skill_dir(skill_name)
         if target_dir.exists():
             shutil.rmtree(target_dir)
-
-    def read_global_states(self) -> dict[str, bool]:
-        if not self._state_file.exists():
-            return {}
-        payload = json.loads(self._state_file.read_text(encoding="utf-8"))
-        return {str(key): bool(value) for key, value in payload.items()}
-
-    def write_global_state(self, skill_name: str, enabled: bool) -> None:
-        states = self.read_global_states()
-        states[skill_name] = enabled
-        self._state_file.write_text(
-            json.dumps(states, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )

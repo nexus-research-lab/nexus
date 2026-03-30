@@ -20,8 +20,8 @@ import zipfile
 from pathlib import Path
 
 from agent.schema.model_skill import ExternalSkillManifest, ExternalSkillSearchItem
-from agent.service.workspace.skill_frontmatter import SkillFrontmatterParser
-from agent.service.workspace.skill_registry_store import SkillRegistryStore
+from agent.service.capability.skills.skill_frontmatter import SkillFrontmatterParser
+from agent.service.capability.skills.skill_registry_store import SkillRegistryStore
 
 
 class SkillImportService:
@@ -29,7 +29,7 @@ class SkillImportService:
 
     def __init__(self) -> None:
         self._store = SkillRegistryStore()
-        self._project_root = Path(__file__).resolve().parents[3]
+        self._project_root = Path(__file__).resolve().parents[4]
 
     def import_local_path(self, local_path: str) -> ExternalSkillManifest:
         source_path = Path(local_path).expanduser()
@@ -71,6 +71,7 @@ class SkillImportService:
                 skill_root,
                 source_ref=url,
                 import_mode="git",
+                persist=False,
             )
             manifest.git_url = url
             manifest.git_branch = branch or self._resolve_git_branch(repo_dir)
@@ -90,6 +91,7 @@ class SkillImportService:
                 skill_root,
                 source_ref=package_spec,
                 import_mode="skills_sh",
+                persist=False,
             )
             manifest.package_spec = package_spec
             manifest.skill_slug = skill_slug
@@ -141,6 +143,7 @@ class SkillImportService:
         skill_root: Path,
         source_ref: str,
         import_mode: str,
+        persist: bool = True,
     ) -> ExternalSkillManifest:
         parsed = SkillFrontmatterParser.parse(skill_root / "SKILL.md")
         manifest = ExternalSkillManifest(
@@ -157,7 +160,10 @@ class SkillImportService:
             recommendation="用户导入的自定义 Skill。",
         )
         self._ensure_name_available(manifest.name)
-        self._store.write_skill(manifest, skill_root)
+        # 中文注释：git / skills.sh 导入会在补充远端元数据后再统一落盘，
+        # 避免先 copy 一次再覆盖 copy 一次，导致导入耗时明显增加。
+        if persist:
+            self._store.write_skill(manifest, skill_root)
         return manifest
 
     def _resolve_skill_root(self, base_dir: Path) -> Path:

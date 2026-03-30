@@ -23,13 +23,23 @@
 ```text
 .
 ├── agent/               # 后端服务、运行时、存储、工作区、通道
+│   ├── api/             # API 路由层
+│   │   └── capability/  # 能力市场 API（技能等）
+│   ├── service/         # 业务逻辑层
+│   │   └── capability/  # 能力模块
+│   │       ├── skills/      # 技能市场：目录、安装、分发
+│   │       ├── connectors/  # 连接器（预留）
+│   │       ├── scheduled/   # 定时任务（预留）
+│   │       ├── channels/    # 渠道能力（预留）
+│   │       └── pairings/    # 配对能力（预留）
+│   └── storage/         # 持久化（SQLite + 文件）
 ├── web/                 # React + Vite 前端
 ├── docs/                # 技术文档
 ├── deploy/              # Docker / nginx / compose
+├── skills/              # 内置 Skill 定义
 ├── env.example          # 后端环境变量模板
 ├── main.py              # 后端入口
-├── makefile             # 常用命令
-└── SYSTEM_PROMPT.md     # 基础 system prompt
+└── makefile             # 常用命令
 ```
 
 ## 快速开始
@@ -165,7 +175,7 @@ make stop
 
 ## 存储
 
-- SQLite：结构化元数据
+- SQLite：结构化元数据（Agent、Session、Room、Skill 等）
 - `~/.nexus/workspace/`：workspace 根目录
 - `<workspace>/.agents/`：Agent 运行态、Session、消息日志、成本账本
 
@@ -187,6 +197,9 @@ make stop
 - `POST /agent/v1/sessions`
 - `GET /agent/v1/sessions/{session_key}/messages`
 - `GET /agent/v1/sessions/{session_key}/cost/summary`
+- `GET /agent/v1/skills` — 技能市场列表
+- `POST /agent/v1/skills/{name}/install` — 安装技能
+- `POST /agent/v1/skills/{name}/uninstall` — 卸载技能
 - `WS /agent/v1/chat/ws`
 
 ## 文档

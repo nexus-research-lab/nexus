@@ -29,7 +29,7 @@ from agent.schema.model_skill import (
     UpdateSkillGlobalEnabledRequest,
     UpdateInstalledSkillsResponse,
 )
-from agent.service.workspace.skill_service import skill_service
+from agent.service.capability.skills.skill_service import skill_service
 
 router = APIRouter(tags=["skill"])
 
@@ -87,6 +87,18 @@ async def import_git_skill(request: ImportGitSkillRequest):
     """通过 Git 链接导入 Skill。"""
     try:
         detail = await skill_service.import_git(request.url, request.branch)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=detail.model_dump()))
+
+
+@router.post("/skills/{skill_name}/install", response_model=SkillDetail)
+async def install_skill_to_pool(skill_name: str):
+    """将技能安装到全局资源池。"""
+    try:
+        detail = await skill_service.install_to_pool(skill_name)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data=detail.model_dump()))
