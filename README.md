@@ -62,6 +62,15 @@ ANTHROPIC_AUTH_TOKEN=your_token
 ANTHROPIC_MODEL=your_model
 ```
 
+数据库默认使用本地 SQLite，通常不需要额外配置：
+
+```bash
+# .env
+DATABASE_URL=sqlite+aiosqlite:///./cache/data/data.db
+```
+
+如果不在 `.env` 中显式填写 `DATABASE_URL`，后端也会使用上面的默认值。
+
 ### 3. 安装
 
 ```bash
@@ -70,13 +79,36 @@ make install
 
 ### 4. 初始化数据库（首次启动）
 
-本地直接启动后端现在会先尝试执行迁移。首次启动也可以手动执行：
+默认数据库文件为 `cache/data/data.db`。
+
+推荐首次启动顺序：
 
 ```bash
 make db-init
+make dev
 ```
 
-Docker 部署会在容器启动时自动执行数据库初始化脚本。
+说明：
+
+- `make db-init` 会执行 Alembic 迁移
+- `make dev` / `make run-backend` 启动后端时也会尝试先执行迁移
+- Docker 部署会在容器启动时自动执行数据库初始化脚本
+
+如果你看到类似 `table agents already exists` 的报错，通常说明当前 SQLite 文件里的表已经存在，但 `alembic_version` 还没有登记版本号。可以按下面两种方式处理：
+
+如果本地数据库可以直接重建：
+
+```bash
+rm -f cache/data/data.db
+make db-init
+```
+
+如果想保留现有本地数据：
+
+```bash
+.venv/bin/python -m alembic stamp head
+make db-init
+```
 
 ### 5. 启动
 
@@ -118,7 +150,7 @@ make stop
 - `ANTHROPIC_AUTH_TOKEN`
 - `ANTHROPIC_BASE_URL`
 - `ANTHROPIC_MODEL`
-- `DATABASE_URL`
+- `DATABASE_URL`：默认值为 `sqlite+aiosqlite:///./cache/data/data.db`
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`
 - `WEBSOCKET_ENABLED`

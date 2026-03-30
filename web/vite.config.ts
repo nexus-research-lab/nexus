@@ -9,6 +9,52 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return undefined;
+          }
+
+          if (
+            id.includes("react-markdown") ||
+            id.includes("remark-") ||
+            id.includes("rehype-") ||
+            id.includes("/katex/")
+          ) {
+            return "vendor-markdown";
+          }
+
+          if (
+            id.includes("lottie-react") ||
+            id.includes("@lottiefiles/dotlottie-react") ||
+            id.includes("lottie-web")
+          ) {
+            return "vendor-lottie";
+          }
+
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            id.includes("scheduler")
+          ) {
+            return "vendor-react";
+          }
+
+          if (
+            id.includes("lucide-react") ||
+            id.includes("framer-motion") ||
+            id.includes("matter-js")
+          ) {
+            return "vendor-ui";
+          }
+
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     host: "0.0.0.0",
     port: 3000,

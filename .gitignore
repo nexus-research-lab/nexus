@@ -171,3 +171,25 @@ uv.toml
 .claude
 .agents
 .kilocode
+
+# local runtime artifacts
+logs/
+*.pid
+*.pid.lock
+*.out
+*.err
+
+# local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# frontend build/cache
+web/.next/
+web/node_modules/
+
+# python tooling cache
+.ruff_cache/
+
+# editor
+.vscode/
