@@ -29,6 +29,12 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("📁 使用 workspace 文件存储模式启动")
 
+        # 显式初始化存储层（避免导入时产生文件系统副作用）
+        from agent.storage.session_repository import session_repository
+        from agent.storage.cost_repository import cost_repository
+        session_repository.ensure_ready()
+        cost_repository.ensure_ready()
+
         # 注册并启动消息通道
         await _register_channels()
 

@@ -36,6 +36,9 @@ class SessionRepository:
         self._bootstrap = FileStorageBootstrap()
         self._paths = FileStoragePaths()
         self._lock = Lock()
+
+    def ensure_ready(self) -> None:
+        """显式初始化，由 lifespan 调用而非导入时执行。"""
         self._bootstrap.ensure_ready()
 
     async def _resolve_workspace_path(self, agent_id: str) -> Path:

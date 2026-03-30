@@ -50,6 +50,11 @@ class AgentPromptBuilder:
             if base_prompt:
                 sections.append(base_prompt)
 
+        # 注入工作区路径，避免模型写错路径
+        workspace_path = getattr(workspace, "path", None)
+        if workspace_path:
+            sections.append(f"当前工作区绝对路径: {workspace_path}")
+
         for name in self._PROMPT_FILE_NAMES:
             content = workspace.read_file(name)
             if content:
