@@ -63,7 +63,7 @@ const TAB_ITEMS: TabDef[] = [
   },
   {
     key: "capabilities",
-    label: "能力",
+    label: "Capabilty",
     to: AppRouteBuilders.skills(),
     icon: Sparkles,
   },

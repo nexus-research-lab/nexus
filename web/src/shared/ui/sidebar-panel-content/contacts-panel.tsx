@@ -2,7 +2,7 @@
  * Contacts 面板内容
  *
  * Agent 列表面板：
- * - 头部显示"成员网络" + 成员数 + [+] 新建按钮
+ * - 头部显示"成员" + 成员数 + [+] 新建按钮
  * - Agent 条目：头像 + 名称 + 在线状态指示器
  * - 点击导航到 /contacts/:agent_id
  *
@@ -51,7 +51,7 @@ export const ContactsPanelContent = memo(function ContactsPanelContent() {
         <div className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5 text-slate-500" />
           <span className="text-[11px] font-semibold text-slate-600">
-            成员网络
+            联系人
           </span>
           <span className="text-[10px] text-slate-400">{agents.length}</span>
         </div>

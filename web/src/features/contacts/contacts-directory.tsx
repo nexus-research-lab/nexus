@@ -94,7 +94,7 @@ export function ContactsDirectory({
 
       {/* 卡片网格区域 */}
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-3 gap-6 md:grid-cols-4 xl:grid-cols-5">
           {/* 首张卡片 — New Agent */}
           <article
             className="workspace-card flex cursor-pointer flex-col items-center justify-center rounded-[26px] border border-dashed border-slate-300/40 px-6 py-8 text-center transition-all hover:border-slate-400/50 hover:bg-white/34"
@@ -123,23 +123,6 @@ export function ContactsDirectory({
             />
           ))}
         </div>
-
-        {/* 空状态 */}
-        {filtered_agents.length === 0 && active_tab === "my_agents" && (
-          <div className="workspace-card mt-6 flex min-h-[320px] items-center justify-center rounded-[28px] px-8 text-center">
-            <div>
-              <p className="text-[22px] font-bold tracking-[-0.04em] text-slate-950/90">
-                没有符合条件的成员
-              </p>
-              <p className="mt-3 text-sm leading-7 text-slate-700/60">
-                换一个搜索条件，或者直接创建一个新的成员。
-              </p>
-              <WorkspacePillButton class_name="mt-6" onClick={on_create_agent}>
-                新建成员
-              </WorkspacePillButton>
-            </div>
-          </div>
-        )}
 
         {/* Task Generated 空状态 */}
         {active_tab === "task_generated" && (

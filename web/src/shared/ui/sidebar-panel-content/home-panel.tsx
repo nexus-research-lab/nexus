@@ -241,13 +241,13 @@ export const HomePanelContent = memo(function HomePanelContent() {
               key={room.room.id}
               icon={<Hash className="h-3.5 w-3.5" />}
               is_active={active_item_id === room.room.id}
-              label={room.room.name?.trim() || "未命名协作"}
+              label={room.room.name?.trim() || "未命名ROOM"}
               meta={formatRelativeTime(get_room_timestamp(room))}
               on_click={() => navigate_to_room(room.room.id)}
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[11px] text-slate-400">暂无协作空间</p>
+          <p className="px-2 py-2 text-[11px] text-slate-400">暂无ROOM</p>
         )}
       </CollapsibleSection>
 

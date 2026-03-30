@@ -143,7 +143,7 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
                     </span>
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                    1v1 协作
+                    1v1
                   </p>
                 </div>
               </button>

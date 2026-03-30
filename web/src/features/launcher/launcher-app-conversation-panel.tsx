@@ -80,28 +80,28 @@ function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
 }
 
 export function LauncherAppConversationPanel({
-                                               agents,
-                                               app_conversation_draft,
-                                               app_conversation_messages,
-                                               conversations_with_owners,
-                                               error,
-                                               is_loading,
-                                               ws_state,
-                                               on_create_room,
-                                               on_clear_conversation,
-                                               on_change_draft,
-                                               on_close,
-                                               on_delete_round,
-                                               on_open_agent_room,
-                                               on_open_conversation,
-                                               on_open_contacts_page,
-                                               on_permission_response,
-                                               on_regenerate_round,
-                                               on_stop_generation,
-                                               on_submit,
-                                               pending_permission,
-                                               suggested_room_title,
-                                             }: LauncherAppConversationPanelProps) {
+  agents,
+  app_conversation_draft,
+  app_conversation_messages,
+  conversations_with_owners,
+  error,
+  is_loading,
+  ws_state,
+  on_create_room,
+  on_clear_conversation,
+  on_change_draft,
+  on_close,
+  on_delete_round,
+  on_open_agent_room,
+  on_open_conversation,
+  on_open_contacts_page,
+  on_permission_response,
+  on_regenerate_round,
+  on_stop_generation,
+  on_submit,
+  pending_permission,
+  suggested_room_title,
+}: LauncherAppConversationPanelProps) {
   const scroll_ref = useRef<HTMLDivElement>(null);
   const bottom_anchor_ref = useRef<HTMLDivElement>(null);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
@@ -197,7 +197,7 @@ export function LauncherAppConversationPanel({
     if (!actions.some((action) => action.key === "contacts")) {
       actions.push({
         key: "contacts-fallback",
-        label: "浏览成员网络",
+        label: "浏览联系人列表",
         description: "去 Contacts 看当前有哪些成员。",
         on_click: on_open_contacts_page,
       });
@@ -336,7 +336,7 @@ export function LauncherAppConversationPanel({
             <HeroActionPillShell class_name="w-fit">
               <span
                 className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
-                <span className="h-3 w-3 rounded-full bg-[#7fe3a8]"/>
+                <span className="h-3 w-3 rounded-full bg-[#7fe3a8]" />
                 Nexus
               </span>
               <span className={`text-[11px] font-medium ${connection_meta.tone_class_name}`}>
@@ -353,7 +353,7 @@ export function LauncherAppConversationPanel({
               type="button"
             >
               <HeroActionOrbShell class_name="h-[46px] w-[46px]">
-                <RotateCcw className="h-4 w-4 text-slate-900/76"/>
+                <RotateCcw className="h-4 w-4 text-slate-900/76" />
               </HeroActionOrbShell>
             </button>
             <button
@@ -363,7 +363,7 @@ export function LauncherAppConversationPanel({
               type="button"
             >
               <HeroActionOrbShell class_name="h-[54px] w-[54px]">
-                <X className="h-4 w-4 text-slate-900/76"/>
+                <X className="h-4 w-4 text-slate-900/76" />
               </HeroActionOrbShell>
             </button>
           </div>
@@ -414,7 +414,7 @@ export function LauncherAppConversationPanel({
           {error ? (
             <div
               className="mx-3 mt-3 flex items-start gap-2 rounded-[20px] bg-[rgba(255,120,120,0.12)] px-3 py-2 text-xs leading-5 text-red-900/84 shadow-[inset_0_0_0_1px_rgba(255,120,120,0.14)]">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0"/>
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
           ) : null}
@@ -653,7 +653,7 @@ export function LauncherAppConversationPanel({
                   type="button"
                 >
                   <span className="truncate">{action.label}</span>
-                  <ArrowRight className="h-2.5 w-2.5 shrink-0"/>
+                  <ArrowRight className="h-2.5 w-2.5 shrink-0" />
                 </button>
               ))}
             </div>
@@ -693,11 +693,11 @@ export function LauncherAppConversationPanel({
                   type="button"
                 >
                   {is_loading ? (
-                    <RotateCcw className="h-4 w-4"/>
+                    <RotateCcw className="h-4 w-4" />
                   ) : ws_state === "connected" ? (
-                    <ArrowRight className="h-4 w-4"/>
+                    <ArrowRight className="h-4 w-4" />
                   ) : (
-                    <LoaderCircle className="h-4 w-4 animate-spin"/>
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
                   )}
                 </button>
               </div>
