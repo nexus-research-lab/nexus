@@ -78,7 +78,7 @@ export function ContactsSkillsSection({ agent_id }: ContactsSkillsSectionProps) 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-semibold text-slate-950/88">
-                      {skill.name}
+                      {skill.title || skill.name}
                     </span>
                     {skill.locked && (
                       <Lock className="h-3 w-3 flex-shrink-0 text-slate-400" />

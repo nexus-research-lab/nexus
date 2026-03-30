@@ -21,10 +21,11 @@ import { memo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { getAvailableSkillsApi } from "@/lib/skill-api";
+import { getAgentSkillsApi } from "@/lib/skill-api";
 import { cn } from "@/lib/utils";
+import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
-import { SkillInfo } from "@/types/skill";
+import { AgentSkillEntry } from "@/types/skill";
 
 // ==================== 可折叠 Section ====================
 
@@ -103,22 +104,30 @@ function EmptyPlaceholder({ text }: { text: string }) {
 
 export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent() {
   const navigate = useNavigate();
-  const [skills, set_skills] = useState<SkillInfo[]>([]);
+  const current_agent_id = useAgentStore((s) => s.current_agent_id);
+  const [skills, set_skills] = useState<AgentSkillEntry[]>([]);
 
-  // 加载 Skills 数据
   useEffect(() => {
     let cancelled = false;
-    void getAvailableSkillsApi()
+    if (!current_agent_id) {
+      set_skills([]);
+      return;
+    }
+    void getAgentSkillsApi(current_agent_id)
       .then((data) => {
-        if (!cancelled) set_skills(data);
+        if (!cancelled) {
+          set_skills(data.filter((skill) => skill.installed));
+        }
       })
       .catch(() => {
-        // 静默处理错误
+        if (!cancelled) {
+          set_skills([]);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [current_agent_id]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -144,14 +153,14 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
               type="button"
             >
               <Puzzle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span className="min-w-0 flex-1 truncate">{skill.name}</span>
+              <span className="min-w-0 flex-1 truncate">{skill.title || skill.name}</span>
               <span className="shrink-0 text-[10px] text-slate-400">
-                {skill.scope}
+                {skill.category_name}
               </span>
             </button>
           ))
         ) : (
-          <EmptyPlaceholder text="暂无技能" />
+          <EmptyPlaceholder text={current_agent_id ? "当前智能体暂未安装技能" : "先选择一个当前智能体"} />
         )}
         {/* 超过 10 个时显示"查看更多" */}
         {skills.length > 10 ? (

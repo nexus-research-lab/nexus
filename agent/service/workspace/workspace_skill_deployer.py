@@ -35,15 +35,20 @@ class WorkspaceSkillDeployer:
             return
 
         for skill_name in self.MAIN_AGENT_SKILL_NAMES:
-            self._deploy_skill(skill_name, context)
+            self._deploy_skill(skill_name, None, context)
 
     # =====================================================
     # 公共安装/卸载接口
     # =====================================================
 
-    def deploy_skill(self, skill_name: str, context: dict[str, str] | None = None) -> None:
+    def deploy_skill(
+            self,
+            skill_name: str,
+            source_dir: Path | None = None,
+            context: dict[str, str] | None = None,
+    ) -> None:
         """安装单个 skill 到 workspace。"""
-        self._deploy_skill(skill_name, context or {})
+        self._deploy_skill(skill_name, source_dir, context or {})
 
     def undeploy_skill(self, skill_name: str) -> None:
         """从 workspace 移除单个 skill。"""
@@ -67,14 +72,19 @@ class WorkspaceSkillDeployer:
             if d.is_dir()
         )
 
-    def _deploy_skill(self, skill_name: str, context: dict[str, str]) -> None:
+    def _deploy_skill(
+            self,
+            skill_name: str,
+            source_dir: Path | None,
+            context: dict[str, str],
+    ) -> None:
         """部署单个 skill，并把 Claude 目录映射到内部 skill 目录。"""
-        source_dir = self._repo_skills_root / skill_name
-        if not source_dir.exists():
-            raise FileNotFoundError(f"未找到仓库 skill 目录: {source_dir}")
+        resolved_source_dir = source_dir or (self._repo_skills_root / skill_name)
+        if not resolved_source_dir.exists():
+            raise FileNotFoundError(f"未找到 skill 目录: {resolved_source_dir}")
 
         target_dir = self._workspace_agents_skills_root / skill_name
-        self._sync_skill_directory(source_dir, target_dir, context)
+        self._sync_skill_directory(resolved_source_dir, target_dir, context)
         self._ensure_claude_skill_link(skill_name, target_dir)
 
     def _sync_skill_directory(
@@ -125,5 +135,4 @@ class WorkspaceSkillDeployer:
         # 使用相对软链接，保证 workspace 整体迁移时映射关系仍然成立。
         link_path.symlink_to(relative_target, target_is_directory=target_dir.is_dir())
         logger.info(f"🔗 已映射 Claude skill: {link_path} -> {relative_target}")
-
 

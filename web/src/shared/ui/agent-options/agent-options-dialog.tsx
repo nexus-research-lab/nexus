@@ -25,6 +25,7 @@ import { AgentOptionsPreview } from "./agent-options-preview";
 // ==================== 类型定义 ====================
 
 interface AgentOptionsProps {
+  agent_id?: string;
   mode: "create" | "edit";
   is_open: boolean;
   on_close: () => void;
@@ -47,6 +48,7 @@ interface AgentDialogInitialOptions extends Partial<AgentConfigOptions> {
 
 /** AgentOptions 对话框 — 三栏布局 */
 export function AgentOptions({
+  agent_id,
   mode,
   is_open,
   on_close,
@@ -74,6 +76,9 @@ export function AgentOptions({
   // ---- Skills 状态 ----
   const [skillsEnabled, setSkillsEnabled] = useState(
     sourceOptions.skills_enabled ?? true
+  );
+  const [installedSkills, setInstalledSkills] = useState<string[]>(
+    sourceOptions.installed_skills || []
   );
   const [settingSources, setSettingSources] = useState<
     ("user" | "project" | "local")[]
@@ -106,6 +111,7 @@ export function AgentOptions({
     setModel(opts.model || "glm-5");
     setSystemPrompt(opts.system_prompt || "");
     setSkillsEnabled(opts.skills_enabled ?? true);
+    setInstalledSkills(opts.installed_skills || []);
     setSettingSources(opts.setting_sources || ["user", "project"]);
     setPermissionMode(opts.permission_mode || "default");
     setAllowedTools(opts.allowed_tools || []);
@@ -210,6 +216,7 @@ export function AgentOptions({
       disallowed_tools: disallowedTools,
       system_prompt: systemPrompt || undefined,
       skills_enabled: skillsEnabled,
+      installed_skills: installedSkills,
       setting_sources:
         settingSources.length > 0 ? settingSources : undefined,
     };
@@ -288,7 +295,10 @@ export function AgentOptions({
 
             {activeTab === "skills" && (
               <AgentOptionsSkillsTab
+                agentId={agent_id}
+                enabledSkillNames={installedSkills}
                 skillsEnabled={skillsEnabled}
+                onEnabledSkillNamesChange={setInstalledSkills}
                 onSkillsEnabledChange={setSkillsEnabled}
                 settingSources={settingSources}
                 onToggleSettingSource={toggleSettingSource}

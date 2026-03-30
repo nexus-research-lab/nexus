@@ -1,0 +1,29 @@
+{
+  "categories": [
+    { "key": "research-analysis", "name": "研究与分析" },
+    { "key": "programming-development", "name": "编程与开发" },
+    { "key": "content-docs", "name": "内容与文档" },
+    { "key": "design-frontend", "name": "设计与前端" },
+    { "key": "data-automation", "name": "数据与自动化" },
+    { "key": "ecommerce-growth", "name": "电商与增长" },
+    { "key": "system-builtins", "name": "系统内置" }
+  ],
+  "skills": [
+    { "name": "apify-market-research", "category_key": "research-analysis", "category_name": "研究与分析", "recommendation": "适合市场洞察、机会分析与区域验证。" },
+    { "name": "apify-trend-analysis", "category_key": "research-analysis", "category_name": "研究与分析", "recommendation": "适合趋势识别、热点跟踪与内容选题。" },
+    { "name": "brave-search", "category_key": "research-analysis", "category_name": "研究与分析", "recommendation": "适合需要最新网页信息的研究任务。" },
+    { "name": "mcp-builder", "category_key": "programming-development", "category_name": "编程与开发", "recommendation": "适合构建对外服务接入与 MCP 工具链。" },
+    { "name": "webapp-testing", "category_key": "programming-development", "category_name": "编程与开发", "recommendation": "适合本地 Web 应用联调、回归与截图验证。" },
+    { "name": "frontend-design", "category_key": "design-frontend", "category_name": "设计与前端", "recommendation": "适合页面设计、组件美化与落地实现。" },
+    { "name": "canvas-design", "category_key": "design-frontend", "category_name": "设计与前端", "recommendation": "适合海报、静态视觉与导出物设计。" },
+    { "name": "theme-factory", "category_key": "design-frontend", "category_name": "设计与前端", "recommendation": "适合统一主题、视觉系统和文档风格。" },
+    { "name": "doc-coauthoring", "category_key": "content-docs", "category_name": "内容与文档", "recommendation": "适合协作撰写方案、规格和技术文档。" },
+    { "name": "internal-comms", "category_key": "content-docs", "category_name": "内容与文档", "recommendation": "适合内部公告、项目汇报和同步稿。" },
+    { "name": "docx", "category_key": "content-docs", "category_name": "内容与文档", "recommendation": "适合 Word 文档生成、编辑与审阅。" },
+    { "name": "pptx", "category_key": "content-docs", "category_name": "内容与文档", "recommendation": "适合演示文稿创建与修改。" },
+    { "name": "pdf", "category_key": "data-automation", "category_name": "数据与自动化", "recommendation": "适合 PDF 读取、表单处理与批量生成。" },
+    { "name": "xlsx", "category_key": "data-automation", "category_name": "数据与自动化", "recommendation": "适合表格分析、批处理和格式化输出。" },
+    { "name": "apify-ecommerce", "category_key": "ecommerce-growth", "category_name": "电商与增长", "recommendation": "适合电商选品、价格追踪和竞品分析。" },
+    { "name": "apify-lead-generation", "category_key": "ecommerce-growth", "category_name": "电商与增长", "recommendation": "适合潜客挖掘、商家搜集和销售线索整理。" }
+  ]
+}

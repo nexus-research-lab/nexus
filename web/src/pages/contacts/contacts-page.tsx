@@ -51,6 +51,7 @@ export function ContactsPage() {
       max_turns: editing_agent.options.max_turns,
       max_thinking_tokens: editing_agent.options.max_thinking_tokens,
       skills_enabled: editing_agent.options.skills_enabled,
+      installed_skills: editing_agent.options.installed_skills,
       setting_sources: editing_agent.options.setting_sources,
       system_prompt: editing_agent.options.system_prompt,
     };
@@ -106,6 +107,7 @@ export function ContactsPage() {
       allowed_tools: options.allowed_tools,
       disallowed_tools: options.disallowed_tools,
       skills_enabled: options.skills_enabled,
+      installed_skills: options.installed_skills,
       setting_sources: options.setting_sources,
       system_prompt: options.system_prompt,
     };
@@ -168,6 +170,7 @@ export function ContactsPage() {
       </WorkspacePageFrame>
 
       <AgentOptions
+        agent_id={editing_agent_id ?? undefined}
         initial_options={dialog_initial_options}
         initial_title={dialog_initial_title}
         is_open={is_dialog_open}
