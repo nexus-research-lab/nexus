@@ -26,7 +26,7 @@ class WorkspaceDiffStats(BaseModel):
 class WorkspaceEvent(BaseModel):
     """Workspace 文件实时事件。"""
 
-    type: Literal["file_write_start", "file_write_delta", "file_write_end"] = Field(..., description="事件类型")
+    type: Literal["file_write_start", "file_write_delta", "file_write_end", "file_deleted"] = Field(..., description="事件类型")
     agent_id: str = Field(..., description="Agent 实体 ID")
     path: str = Field(..., description="相对 workspace 的文件路径")
     version: int = Field(default=1, description="文件写入版本号")

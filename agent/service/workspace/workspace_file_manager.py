@@ -268,9 +268,17 @@ class WorkspaceFileManager:
             return None
         return content
 
+    # 超过此阈值的文件跳过 diff 计算，避免 O(n²) SequenceMatcher 造成 CPU 峰值
+    MAX_DIFF_BYTES = 64 * 1024
+
     @staticmethod
-    def build_diff_stats(before_content: str, after_content: str) -> WorkspaceDiffStats:
-        """计算基础 diff 摘要。"""
+    def build_diff_stats(before_content: str, after_content: str) -> Optional[WorkspaceDiffStats]:
+        """计算基础 diff 摘要。大文件跳过 diff 以避免 CPU 峰值。"""
+        # 大文件跳过 diff 计算
+        if (len(before_content) > WorkspaceFileManager.MAX_DIFF_BYTES
+                or len(after_content) > WorkspaceFileManager.MAX_DIFF_BYTES):
+            return None
+
         before_lines = before_content.splitlines()
         after_lines = after_content.splitlines()
         matcher = SequenceMatcher(a=before_lines, b=after_lines)

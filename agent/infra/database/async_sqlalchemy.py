@@ -9,6 +9,7 @@
 
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
@@ -39,6 +40,12 @@ class AsyncDatabase:
         if database_url is None:
             # 默认使用SQLite，可以配置为其他数据库
             database_url = settings.DATABASE_URL
+
+        # SQLite 不展开 ~，需要手动解析为绝对路径
+        if ":///" in database_url:
+            scheme = database_url.split(":///")[0]
+            db_path = str(Path(database_url[len(scheme) + len(":///"):]).expanduser())
+            database_url = f"{scheme}:///{db_path}"
 
         self.engine = create_async_engine(
             database_url,

@@ -68,22 +68,29 @@ class WorkspaceEventBus:
 
         self._queue.put_nowait(event)
 
+    # 空闲超时：30秒无新事件后退出 dispatch loop，下次 publish 时重新创建
+    _IDLE_TIMEOUT_SECONDS = 30.0
+
     async def _dispatch_loop(self) -> None:
-        """消费队列并分发给订阅者。"""
+        """持久化消费队列，空闲超时后自动退出，避免频繁创建/销毁 Task。"""
         if self._queue is None:
             return
 
         while True:
-            event = await self._queue.get()
+            try:
+                event = await asyncio.wait_for(
+                    self._queue.get(), timeout=self._IDLE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                # 空闲超时，退出循环；下次 publish() 时会重新创建 Task
+                break
+
             try:
                 await self._dispatch(event)
             except Exception as exc:
                 logger.warning(f"⚠️ 分发 workspace 事件失败: {exc}")
             finally:
                 self._queue.task_done()
-
-            if self._queue.empty():
-                break
 
     async def _dispatch(self, event: WorkspaceEvent) -> None:
         """将事件分发给当前 agent 的订阅者。"""

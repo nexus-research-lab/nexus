@@ -41,7 +41,7 @@ logo = """
 class Settings(BaseSettings):
     # 项目信息, 服务配置
     LOGO: str = logo
-    WORKERS: int = os.getenv("WORKERS", 1)
+    WORKERS: int = int(os.getenv("WORKERS", 1))
     DEBUG: bool = True
     PROJECT_NAME: str = "agent"
     API_PREFIX: str = "/agent"
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     SERVER_TYPE: str = "uvicorn"
 
     HOST: str = "0.0.0.0"
-    PORT: int = os.getenv("PORT", 8010)
+    PORT: int = int(os.getenv("PORT", 8010))
     DOMAIN: str = f'http://localhost:{PORT}'
 
     # 日志配置

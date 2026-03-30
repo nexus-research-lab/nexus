@@ -36,10 +36,16 @@ target_metadata = Base.metadata
 
 
 def _normalize_database_url(database_url: str) -> str:
-    """将运行时数据库地址转换为 Alembic 可用的同步地址。"""
+    """将运行时数据库地址转换为 Alembic 可用的同步地址，并展开 ~。"""
     if database_url.startswith("sqlite+aiosqlite:///"):
-        return database_url.replace("sqlite+aiosqlite:///", "sqlite:///")
-    return database_url
+        url = database_url.replace("sqlite+aiosqlite:///", "sqlite:///")
+    else:
+        url = database_url
+    # SQLite 不展开 ~，手动展开为绝对路径
+    if url.startswith("sqlite:///"):
+        db_path = Path(url[len("sqlite:///"):]).expanduser()
+        url = f"sqlite:///{db_path}"
+    return url
 
 
 def run_migrations_offline() -> None:
@@ -78,8 +84,8 @@ def run_migrations_online() -> None:
     normalized_url = _normalize_database_url(db_url)
     config.set_main_option("sqlalchemy.url", normalized_url)
     if normalized_url.startswith("sqlite:///"):
-        db_path = normalized_url.replace("sqlite:///", "")
-        db_dir = Path(db_path).parent
+        db_path = Path(normalized_url.replace("sqlite:///", "")).expanduser()
+        db_dir = db_path.parent
         db_dir.mkdir(parents=True, exist_ok=True)
 
     connectable = engine_from_config(
