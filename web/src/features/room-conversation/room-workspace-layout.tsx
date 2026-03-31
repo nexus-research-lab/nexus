@@ -1,26 +1,27 @@
 "use client";
 
-import { RefObject, useState } from "react";
+import { Fragment, RefObject, useState } from "react";
 
-import { RoomContextPanel } from "@/features/room-context/room-context-panel";
-import { RoomEditorPanel } from "@/features/room-context/room-editor-panel";
+import { RoomContextPanel } from "@/features/conversation-shared/context/room-context-panel";
+import { EditorPanel } from "@/features/conversation-shared/context/editor-panel";
+import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
 import {
   HOME_CHAT_PANEL_CLASS,
 } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
-import { WorkspaceCanvasShell } from "@/shared/ui/workspace-canvas-shell";
-import { WorkspaceInspectorShell } from "@/shared/ui/workspace-inspector-shell";
+import { WorkspaceCanvasShell } from "@/shared/ui/workspace/workspace-canvas-shell";
+import { WorkspaceInspectorShell } from "@/shared/ui/workspace/workspace-inspector-shell";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 import { TodoItem } from "@/types/todo";
 import { UpdateRoomParams } from "@/types/room";
 
-import { RoomAgentAboutView } from "./room-agent-about-view";
 import { RoomChatPanel } from "./room-chat-panel";
-import { RoomConversationHeader } from "./room-conversation-header";
+import { RoomChatErrorBoundary } from "./room-chat-error-boundary";
 import { RoomConversationHistoryView } from "./room-conversation-history-view";
 import { RoomWorkspaceView } from "./room-workspace-view";
+import { RoomAgentAboutView } from "./room-agent-about-view";
 
 interface RoomWorkspaceLayoutProps {
   current_agent: Agent;
@@ -36,6 +37,7 @@ interface RoomWorkspaceLayoutProps {
   current_room_conversations: Conversation[];
   active_workspace_path: string | null;
   active_surface_tab: RoomSurfaceTabKey;
+  initial_draft?: string | null;
   is_editor_open: boolean;
   editor_width_percent: number;
   is_resizing_editor: boolean;
@@ -52,12 +54,14 @@ interface RoomWorkspaceLayoutProps {
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_delete_room: () => Promise<void>;
+  on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
   on_close_workspace_pane: () => void;
   on_start_editor_resize: () => void;
   on_loading_change: (is_loading: boolean) => void;
   on_todos_change: (todos: TodoItem[]) => void;
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
+  on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
 }
 
 /**
@@ -65,8 +69,6 @@ interface RoomWorkspaceLayoutProps {
  *
  * 左侧：ConversationArea（flex-1），包含 Header + 消息流 + 输入框
  * 右侧：可折叠 DetailPanel（成员列表等）
- *
- * 原三栏布局中的左侧 ObjectListPanel 已迁移到侧边栏宽面板。
  */
 export function RoomWorkspaceLayout({
   current_agent,
@@ -82,6 +84,7 @@ export function RoomWorkspaceLayout({
   current_room_conversations,
   active_workspace_path,
   active_surface_tab,
+  initial_draft = null,
   is_editor_open,
   editor_width_percent,
   is_resizing_editor,
@@ -98,18 +101,23 @@ export function RoomWorkspaceLayout({
   on_remove_room_member,
   on_update_room,
   on_delete_room,
+  on_update_conversation_title,
   on_open_workspace_file,
   on_close_workspace_pane,
   on_start_editor_resize,
   on_loading_change,
   on_todos_change,
   on_conversation_snapshot_change,
+  on_room_event,
 }: RoomWorkspaceLayoutProps) {
-  // 右侧详情面板折叠状态
   const [is_detail_panel_open, set_is_detail_panel_open] = useState(true);
+  const is_dm = current_room_type === "dm";
+  const ChatBoundary = import.meta.env.DEV ? RoomChatErrorBoundary : Fragment;
 
   // 仅在 chat tab 且编辑器未打开时显示详情面板
   const show_detail_panel = is_detail_panel_open && !is_editor_open && active_surface_tab === "chat";
+
+  const handle_open_workspace_file = (path: string) => on_open_workspace_file(path);
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 gap-2")}>
@@ -127,40 +135,54 @@ export function RoomWorkspaceLayout({
           is_joined_with_inspector={show_detail_panel}
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <RoomConversationHeader
-              active_tab={active_surface_tab}
-              conversation_count={current_room_conversations.length}
-              conversations={current_room_conversations}
-              current_agent_name={current_agent.name}
-              current_conversation_id={current_conversation_id}
-              current_conversation_title={current_conversation?.title ?? null}
-              current_room_title={current_room_title}
-              current_room_type={current_room_type}
-              is_detail_panel_open={is_detail_panel_open}
-              is_loading={is_conversation_busy}
-              member_count={room_members.length}
-              on_change_tab={on_change_surface_tab}
-              on_select_conversation={on_select_conversation}
-              on_create_conversation={on_create_conversation}
-              on_toggle_detail_panel={() => set_is_detail_panel_open((prev) => !prev)}
-              room_members={room_members}
-            />
-
             <div className="min-h-0 min-w-0 flex-1">
               {active_surface_tab === "chat" ? (
-                <RoomChatPanel
-                  agent_id={current_agent.agent_id}
-                  current_agent_name={current_agent.name}
-                  current_room_title={current_room_title}
-                  hide_header
-                  on_conversation_snapshot_change={on_conversation_snapshot_change}
-                  on_create_conversation={on_create_conversation}
-                  on_loading_change={on_loading_change}
-                  on_open_workspace_file={on_open_workspace_file}
-                  on_todos_change={on_todos_change}
-                  session_key={current_conversation?.session_key ?? null}
-                  session_title={current_conversation?.title ?? null}
-                />
+                is_dm ? (
+                  <ChatBoundary>
+                    <DmChatPanel
+                      active_tab={active_surface_tab}
+                      agent_id={current_agent.agent_id}
+                      conversations={current_room_conversations}
+                      current_agent_name={current_agent.name}
+                      initial_draft={initial_draft}
+                      is_detail_panel_open={is_detail_panel_open}
+                      on_change_tab={on_change_surface_tab}
+                      on_conversation_snapshot_change={on_conversation_snapshot_change}
+                      on_create_conversation={on_create_conversation}
+                      on_loading_change={on_loading_change}
+                      on_open_workspace_file={handle_open_workspace_file}
+                      on_todos_change={on_todos_change}
+                      on_toggle_detail_panel={() => set_is_detail_panel_open((prev) => !prev)}
+                      session_key={current_conversation?.session_key ?? null}
+                      session_title={current_conversation?.title ?? null}
+                    />
+                  </ChatBoundary>
+                ) : (
+                  <ChatBoundary>
+                    <RoomChatPanel
+                      active_tab={active_surface_tab}
+                      agent_id={current_agent.agent_id}
+                      conversation_id={current_conversation_id}
+                      conversations={current_room_conversations}
+                      current_agent_name={current_agent.name}
+                      current_room_title={current_room_title}
+                      initial_draft={initial_draft}
+                      is_detail_panel_open={is_detail_panel_open}
+                      on_change_tab={on_change_surface_tab}
+                      on_conversation_snapshot_change={on_conversation_snapshot_change}
+                      on_create_conversation={on_create_conversation}
+                      on_loading_change={on_loading_change}
+                      on_open_workspace_file={handle_open_workspace_file}
+                      on_room_event={on_room_event}
+                      on_select_conversation={on_select_conversation}
+                      on_todos_change={on_todos_change}
+                      on_toggle_detail_panel={() => set_is_detail_panel_open((prev) => !prev)}
+                      room_id={room_id}
+                      room_members={room_members}
+                      session_title={current_conversation?.title ?? null}
+                    />
+                  </ChatBoundary>
+                )
               ) : null}
 
               {active_surface_tab === "history" ? (
@@ -171,6 +193,7 @@ export function RoomWorkspaceLayout({
                   on_create_conversation={on_create_conversation}
                   on_delete_conversation={on_delete_conversation}
                   on_select_conversation={on_select_conversation}
+                  on_update_conversation_title={on_update_conversation_title}
                 />
               ) : null}
 
@@ -182,14 +205,14 @@ export function RoomWorkspaceLayout({
                 />
               ) : null}
 
-              {active_surface_tab === "about" && current_room_type === "dm" ? (
+              {active_surface_tab === "about" && is_dm ? (
                 <RoomAgentAboutView agent={current_agent} />
               ) : null}
             </div>
           </div>
         </WorkspaceCanvasShell>
 
-        <RoomEditorPanel
+        <EditorPanel
           agent_id={current_agent.agent_id}
           class_name="hidden lg:flex"
           is_open={is_editor_open}
@@ -201,30 +224,32 @@ export function RoomWorkspaceLayout({
       </section>
 
       {/* 右侧可折叠详情面板 */}
-      {show_detail_panel ? (
-        <WorkspaceInspectorShell>
-          <RoomContextPanel
-            active_conversation={current_conversation}
-            agent={current_agent}
-            available_room_agents={available_room_agents}
-            current_agent_id={current_agent_id}
-            current_room_type={current_room_type}
-            room_id={room_id}
-            room_name={current_room_title}
-            room_description={room_description}
-            is_conversation_busy={is_conversation_busy}
-            on_add_room_member={on_add_room_member}
-            on_edit_agent={on_edit_agent}
-            on_remove_room_member={on_remove_room_member}
-            on_update_room={on_update_room}
-            on_delete_room={on_delete_room}
-            on_select_agent={on_select_agent}
-            room_conversations={current_room_conversations}
-            room_members={room_members}
-            todos={current_todos}
-          />
-        </WorkspaceInspectorShell>
-      ) : null}
-    </div>
+      {
+        show_detail_panel ? (
+          <WorkspaceInspectorShell>
+            <RoomContextPanel
+              active_conversation={current_conversation}
+              agent={current_agent}
+              available_room_agents={available_room_agents}
+              current_agent_id={current_agent_id}
+              current_room_type={current_room_type}
+              room_id={room_id}
+              room_name={current_room_title}
+              room_description={room_description}
+              is_conversation_busy={is_conversation_busy}
+              on_add_room_member={on_add_room_member}
+              on_edit_agent={on_edit_agent}
+              on_remove_room_member={on_remove_room_member}
+              on_update_room={on_update_room}
+              on_delete_room={on_delete_room}
+              on_select_agent={on_select_agent}
+              room_conversations={current_room_conversations}
+              room_members={room_members}
+              todos={current_todos}
+            />
+          </WorkspaceInspectorShell>
+        ) : null
+      }
+    </div >
   );
 }

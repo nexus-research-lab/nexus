@@ -5,17 +5,17 @@ import { formatRelativeTime, truncate } from "@/lib/utils";
 
 import { ContextSection } from "./context-section";
 
-interface RoomCollaborationStatusSectionProps {
+interface CollaborationStatusSectionProps {
   active_conversation: Conversation | null;
   localized_runtime_status: string;
   total_member_count: number;
 }
 
-export function RoomCollaborationStatusSection({
+export function CollaborationStatusSection({
   active_conversation,
   localized_runtime_status,
   total_member_count,
-}: RoomCollaborationStatusSectionProps) {
+}: CollaborationStatusSectionProps) {
   const conversation_title = active_conversation?.title?.trim()
     ? truncate(active_conversation.title, 22)
     : "未命名对话";

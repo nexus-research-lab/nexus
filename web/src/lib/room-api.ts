@@ -213,27 +213,16 @@ export async function deleteRoom(room_id: string): Promise<{success: boolean}> {
 }
 
 export async function ensureDirectRoom(agent_id: string): Promise<RoomContextAggregate> {
-  const rooms = await listRooms(200);
-  const matched_room = rooms.find((item) => {
-    if (item.room.room_type !== "dm") {
-      return false;
-    }
-
-    const agent_members = item.members.filter((member) => member.member_type === "agent");
-    return (
-      agent_members.length === 1 &&
-      agent_members[0]?.member_agent_id === agent_id
-    );
-  });
-
-  if (matched_room) {
-    const contexts = await getRoomContexts(matched_room.room.id);
-    if (contexts.length > 0) {
-      return contexts[0];
-    }
+  const response = await fetch(
+    `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agent_id)}`,
+    {
+      method: "GET",
+      headers: {"Content-Type": "application/json"},
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`获取或创建 DM room 失败: ${response.statusText}`);
   }
-
-  return createRoom({
-    agent_ids: [agent_id],
-  });
+  const result: ApiResponse<RoomContextAggregate> = await response.json();
+  return result.data;
 }

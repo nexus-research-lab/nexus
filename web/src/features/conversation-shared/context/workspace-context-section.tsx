@@ -1,18 +1,18 @@
 import { ShieldCheck } from "lucide-react";
 
-interface RoomWorkspaceContextSectionProps {
+interface WorkspaceContextSectionProps {
   allowed_tool_count: number;
   localized_agent_skill: string;
   permission_mode: string;
   served_room_count: number;
 }
 
-export function RoomWorkspaceContextSection({
+export function WorkspaceContextSection({
   allowed_tool_count,
   localized_agent_skill,
   permission_mode,
   served_room_count,
-}: RoomWorkspaceContextSectionProps) {
+}: WorkspaceContextSectionProps) {
   return (
     <section className="px-4 py-4">
       <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700/56">

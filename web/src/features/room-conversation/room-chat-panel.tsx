@@ -6,84 +6,90 @@ import { useAgentConversation } from "@/hooks/agent";
 import { useConversationLoader } from "@/hooks/use-conversation-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
-import { Message } from "@/types/message";
-import { ConversationSnapshotPayload } from "@/types/conversation";
+import { ConversationSnapshotPayload, Conversation } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
+import { Agent } from "@/types/agent";
+import { RoomSurfaceTabKey } from "@/types/room-surface";
 
-import { RoomComposerPanel } from "./room-composer-panel";
+import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
+import { ConversationFeed } from "@/features/conversation-shared/conversation-feed";
+import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
+import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation-shared/utils";
 import { RoomConversationEmptyState } from "./room-conversation-empty-state";
-import { RoomConversationFeed } from "./room-conversation-feed";
 import { RoomConversationHeader } from "./room-conversation-header";
-import { RoomScrollToLatestButton } from "./room-scroll-to-latest-button";
 
-interface RoomChatPanelProps {
+/** 构建 Room 共享 session_key，与后端 room_chat_service.py 一致 */
+function build_room_session_key(conversation_id: string): string {
+  return `room:group:${conversation_id}`;
+}
+
+export interface RoomChatPanelProps {
   agent_id: string | null;
   current_agent_name?: string | null;
   current_room_title?: string | null;
-  session_key: string | null;
+  /** Room conversation id — used to derive the shared session_key */
+  conversation_id: string | null;
+  room_id?: string | null;
+  room_members: Agent[];
+  conversations: Conversation[];
   session_title?: string | null;
-  on_create_conversation?: (title?: string) => void | Promise<string | null>;
+  /** Controlled tab — caller manages which surface tab is active */
+  active_tab?: RoomSurfaceTabKey;
+  on_change_tab?: (tab: RoomSurfaceTabKey) => void;
+  is_detail_panel_open?: boolean;
+  on_toggle_detail_panel?: () => void;
   layout?: "desktop" | "mobile";
+  initial_draft?: string | null;
+  hide_header?: boolean;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
   on_conversation_snapshot_change?: (snapshot: ConversationSnapshotPayload) => void;
-  hide_header?: boolean;
-}
-
-function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
-  const groups = new Map<string, Message[]>();
-
-  for (const message of messages) {
-    const round_id = message.round_id || message.message_id;
-    if (!groups.has(round_id)) {
-      groups.set(round_id, []);
-    }
-    groups.get(round_id)!.push(message);
-  }
-
-  return groups;
-}
-
-function get_latest_reply_timestamp(messages: Message[]): number | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role !== "assistant" && message.role !== "result") {
-      continue;
-    }
-    if (Number.isFinite(message.timestamp) && message.timestamp > 0) {
-      return message.timestamp;
-    }
-  }
-
-  const last_message = messages[messages.length - 1];
-  if (last_message && Number.isFinite(last_message.timestamp) && last_message.timestamp > 0) {
-    return last_message.timestamp;
-  }
-
-  return null;
+  on_create_conversation?: (title?: string) => void | Promise<string | null>;
+  on_select_conversation?: (conversation_id: string) => void;
+  on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
 }
 
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
   current_room_title,
-  session_key: external_session_key,
+  conversation_id,
+  room_id = null,
+  room_members,
+  conversations,
   session_title,
-  on_create_conversation,
+  active_tab = "chat",
+  on_change_tab,
+  is_detail_panel_open = false,
+  on_toggle_detail_panel,
   layout = "desktop",
+  initial_draft = null,
+  hide_header = false,
   on_open_workspace_file,
   on_todos_change,
   on_loading_change,
   on_conversation_snapshot_change,
-  hide_header = false,
+  on_create_conversation,
+  on_select_conversation,
+  on_room_event,
 }: RoomChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
+
+  const session_key = conversation_id ? build_room_session_key(conversation_id) : null;
+
+  const agent_name_map = useMemo(() => {
+    if (room_members.length === 0) return undefined;
+    const map: Record<string, string> = {};
+    for (const member of room_members) {
+      map[member.agent_id] = member.name;
+    }
+    return map;
+  }, [room_members]);
 
   const {
     error,
     messages,
-    session_key,
     is_loading,
     pending_permission,
     send_message,
@@ -94,9 +100,13 @@ export function RoomChatPanel({
     regenerate,
   } = useAgentConversation({
     agent_id,
+    room_id,
+    conversation_id,
+    chat_type: "group",
     on_error: (err) => {
-      console.error("Conversation error:", err);
+      console.error("Room conversation error:", err);
     },
+    on_room_event,
   });
 
   const {
@@ -112,64 +122,47 @@ export function RoomChatPanel({
     on_touch_end,
   } = useFollowScroll({
     trigger_deps: [messages, is_loading] as const,
-    session_key: external_session_key,
+    session_key,
   });
 
-  const todos = useExtractTodos(messages, external_session_key);
+  const todos = useExtractTodos(messages, session_key);
+
+  useEffect(() => { on_todos_change?.(todos); }, [on_todos_change, todos]);
+  useEffect(() => { on_loading_change?.(is_loading); }, [is_loading, on_loading_change]);
 
   useEffect(() => {
-    on_todos_change?.(todos);
-  }, [on_todos_change, todos]);
-
-  useEffect(() => {
-    on_loading_change?.(is_loading);
-  }, [is_loading, on_loading_change]);
-
-  useEffect(() => {
-    if (!external_session_key) {
-      return;
-    }
-
-    if (messages.length === 0) {
-      return;
-    }
-
-    const last_message = messages[messages.length - 1];
+    if (!session_key || messages.length === 0) return;
+    const last = messages[messages.length - 1];
     const latest_reply_timestamp = get_latest_reply_timestamp(messages);
     on_conversation_snapshot_change?.({
-      conversation_id: external_session_key,
+      conversation_id: conversation_id ?? session_key,
       message_count: messages.length,
-      ...(latest_reply_timestamp ? {last_activity_at: latest_reply_timestamp} : {}),
-      session_id: last_message?.session_id ?? null,
+      ...(latest_reply_timestamp ? { last_activity_at: latest_reply_timestamp } : {}),
+      session_id: last?.session_id ?? null,
     });
-  }, [external_session_key, messages, on_conversation_snapshot_change]);
+  }, [conversation_id, session_key, messages, on_conversation_snapshot_change]);
 
   useConversationLoader({
-    conversation_id: external_session_key,
+    conversation_id: session_key,
     load_conversation,
     debug_name: "RoomChatPanel",
   });
 
   const message_groups = useMemo(() => groupMessagesByRound(messages), [messages]);
+  const round_ids = Array.from(message_groups.keys());
 
   const handle_send_message = async (content: string) => {
-    if (!content.trim() || is_loading) {
-      return;
-    }
+    if (!content.trim() || is_loading) return;
     scroll_to_bottom("auto");
-
     try {
       await send_message(content);
-    } catch (error) {
-      console.error("Failed to send message:", error);
+    } catch (err) {
+      console.error("Failed to send message:", err);
     }
   };
 
-  const handle_stop = () => {
-    stop_generation();
-  };
-
-  const round_ids = Array.from(message_groups.keys());
+  const handle_stop = () => stop_generation();
+  const handle_stop_message = (msg_id: string) => stop_generation(msg_id);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
@@ -197,27 +190,31 @@ export function RoomChatPanel({
         </div>
       ) : null}
 
-      {!external_session_key ? (
-        <RoomConversationEmptyState on_create_conversation={on_create_conversation ?? (() => {})} />
+      {!session_key ? (
+        <RoomConversationEmptyState on_create_conversation={on_create_conversation ?? (() => { })} />
       ) : (
         <>
           {!is_mobile_layout && !hide_header ? (
             <RoomConversationHeader
-              active_tab="chat"
-              conversation_count={1}
-              conversations={[]}
-              current_agent_name={current_agent_name ?? null}
+              active_tab={active_tab}
+              conversations={conversations}
               current_conversation_id={session_key}
-              current_room_type="room"
-              current_room_title={current_room_title ?? null}
               current_conversation_title={session_title ?? null}
-              is_detail_panel_open={false}
+              current_room_title={current_room_title ?? null}
+              is_detail_panel_open={is_detail_panel_open}
               is_loading={is_loading}
-              member_count={1}
-              on_change_tab={() => {}}
-              on_select_conversation={() => {}}
-              on_toggle_detail_panel={() => {}}
-              room_members={[]}
+              on_change_tab={on_change_tab ?? (() => { })}
+              on_create_conversation={
+                on_create_conversation
+                  ? async (title) => {
+                    const result = await on_create_conversation(title);
+                    return typeof result === "string" ? result : null;
+                  }
+                  : undefined
+              }
+              on_select_conversation={on_select_conversation ?? (() => { })}
+              on_toggle_detail_panel={on_toggle_detail_panel ?? (() => { })}
+              room_members={room_members}
             />
           ) : null}
 
@@ -235,7 +232,8 @@ export function RoomChatPanel({
             onTouchStart={on_touch_start}
             onWheel={on_wheel}
           >
-            <RoomConversationFeed
+            <ConversationFeed
+              agent_name_map={agent_name_map}
               bottom_anchor_ref={bottom_anchor_ref}
               feed_ref={feed_ref}
               scroll_ref={scroll_ref}
@@ -248,24 +246,27 @@ export function RoomChatPanel({
               on_open_workspace_file={on_open_workspace_file}
               on_permission_response={send_permission_response}
               on_regenerate_round={regenerate}
+              on_stop_message={handle_stop_message}
               round_ids={round_ids}
             />
           </div>
 
           {show_scroll_to_bottom ? (
-            <RoomScrollToLatestButton
+            <ScrollToLatestButton
               is_loading={is_loading}
               is_mobile_layout={is_mobile_layout}
               on_click={() => scroll_to_bottom("smooth")}
             />
           ) : null}
 
-          <RoomComposerPanel
+          <ComposerPanel
             compact={is_mobile_layout}
             current_agent_name={current_agent_name ?? null}
+            initial_draft={initial_draft}
             is_loading={is_loading}
             on_send_message={handle_send_message}
             on_stop={handle_stop}
+            room_members={room_members}
           />
         </>
       )}

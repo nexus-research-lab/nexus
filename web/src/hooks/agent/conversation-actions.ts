@@ -18,6 +18,9 @@ export async function sendConversationMessage(
   const {
     agent_id,
     session_key,
+    room_id,
+    conversation_id,
+    chat_type,
     ws_state,
     ws_send,
     active_conversation_key_ref,
@@ -57,19 +60,34 @@ export async function sendConversationMessage(
   set_is_loading(true);
   set_error(null);
 
-  ws_send({
+  const ws_payload: Record<string, unknown> = {
     type: 'chat',
     content,
     session_key: resolved_session_key,
     agent_id: agent_id || DEFAULT_AGENT_ID,
     round_id,
-  });
+    req_id: round_id,  // echo'd back in chat_ack for correlation
+  };
+
+  // Room 消息附加 room 上下文
+  if (chat_type === 'group') {
+    ws_payload.chat_type = 'group';
+    if (room_id) ws_payload.room_id = room_id;
+    if (conversation_id) ws_payload.conversation_id = conversation_id;
+  }
+
+  ws_send(ws_payload as WebSocketMessage);
 }
 
 /**
  * 中断当前会话生成。
+ * @param context - 会话上下文
+ * @param msg_id - 可选，指定只取消某个 Agent 气泡（Room 并发场景）
  */
-export function stopConversationGeneration(context: AgentConversationActionContext): void {
+export function stopConversationGeneration(
+  context: AgentConversationActionContext,
+  msg_id?: string,
+): void {
   const {
     agent_id,
     session_key,
@@ -91,12 +109,19 @@ export function stopConversationGeneration(context: AgentConversationActionConte
     .reverse()
     .find((message) => message.role === 'user')?.round_id;
 
-  ws_send({
+  const payload: Record<string, unknown> = {
     type: 'interrupt',
     session_key: resolved_session_key,
     agent_id: agent_id || DEFAULT_AGENT_ID,
     round_id: latest_user_round_id,
-  });
+  };
+
+  // per-msg_id interrupt for Room multi-agent scenario
+  if (msg_id) {
+    payload.msg_id = msg_id;
+  }
+
+  ws_send(payload as WebSocketMessage);
 
   set_is_loading(false);
   set_pending_permission(null);

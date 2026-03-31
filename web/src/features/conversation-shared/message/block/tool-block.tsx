@@ -10,7 +10,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './code-block';
-import { PermissionDialog } from '@/shared/ui/permission-dialog';
+import { PermissionDialog } from '@/shared/ui/dialog/permission-dialog';
 import { ToolResultContent, ToolUseContent } from '@/types/message';
 import { PermissionRiskLevel, PermissionUpdate } from '@/types/permission';
 

@@ -14,6 +14,7 @@ import {
   listRooms,
   removeRoomMember,
   updateRoom,
+  updateRoomConversation,
 } from "@/lib/room-api";
 import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
 import { useAgentStore } from "@/store/agent";
@@ -395,12 +396,85 @@ export function useRoomPageController({
   }, [dialog_mode, editing_agent_id]);
 
   const handle_conversation_snapshot_change = useCallback((snapshot: ConversationSnapshotPayload) => {
-    sync_conversation_snapshot(snapshot.conversation_id, {
-      message_count: snapshot.message_count,
-      ...(snapshot.last_activity_at ? {last_activity_at: snapshot.last_activity_at} : {}),
-      session_id: snapshot.session_id,
+    const next_last_activity_at = snapshot.last_activity_at
+      ? new Date(snapshot.last_activity_at).toISOString()
+      : undefined;
+
+    set_room_contexts((prev) => {
+      let has_changed = false;
+
+      const next_contexts = prev.map((context) => {
+        if (context.conversation.id !== snapshot.conversation_id) {
+          return context;
+        }
+
+        let context_changed = false;
+        const next_sessions = context.sessions.map((session) => {
+          if (session.id !== active_room_session?.id) {
+            return session;
+          }
+
+          const next_sdk_session_id = snapshot.session_id ?? session.sdk_session_id;
+          const next_session_last_activity_at = next_last_activity_at ?? session.last_activity_at;
+          const session_changed =
+            session.sdk_session_id !== next_sdk_session_id ||
+            session.last_activity_at !== next_session_last_activity_at;
+
+          if (!session_changed) {
+            return session;
+          }
+
+          has_changed = true;
+          context_changed = true;
+          return {
+            ...session,
+            sdk_session_id: next_sdk_session_id,
+            last_activity_at: next_session_last_activity_at,
+          };
+        });
+
+        if (!context_changed) {
+          return context;
+        }
+
+        return {
+          ...context,
+          sessions: next_sessions,
+        };
+      });
+
+      return has_changed ? next_contexts : prev;
     });
-  }, [sync_conversation_snapshot]);
+
+    if (!current_conversation?.session_key) {
+      return;
+    }
+
+    const next_snapshot = {
+      message_count: snapshot.message_count,
+      ...(snapshot.last_activity_at ? { last_activity_at: snapshot.last_activity_at } : {}),
+      session_id: snapshot.session_id,
+    };
+
+    const conversation_changed =
+      current_conversation.message_count !== next_snapshot.message_count ||
+      (next_snapshot.last_activity_at !== undefined &&
+        current_conversation.last_activity_at !== next_snapshot.last_activity_at) ||
+      current_conversation.session_id !== next_snapshot.session_id;
+
+    if (!conversation_changed) {
+      return;
+    }
+
+    sync_conversation_snapshot(current_conversation.session_key, next_snapshot);
+  }, [
+    active_room_session?.id,
+    current_conversation?.last_activity_at,
+    current_conversation?.message_count,
+    current_conversation?.session_id,
+    current_conversation?.session_key,
+    sync_conversation_snapshot,
+  ]);
 
   const handle_update_room = useCallback(async (params: UpdateRoomParams) => {
     if (!room_id) {
@@ -438,6 +512,13 @@ export function useRoomPageController({
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
     return fallback_context.conversation.id;
+  }, [load_conversations_from_server, refresh_room_contexts, room_id]);
+
+  const handle_update_conversation_title = useCallback(async (conversation_id: string, title: string) => {
+    if (!room_id) return;
+    await updateRoomConversation(room_id, conversation_id, { title });
+    await refresh_room_contexts(room_id);
+    await load_conversations_from_server();
   }, [load_conversations_from_server, refresh_room_contexts, room_id]);
 
   const handle_add_room_member = useCallback(async (agent_id: string) => {
@@ -523,6 +604,7 @@ export function useRoomPageController({
     handle_open_conversation_from_launcher,
     handle_conversation_snapshot_change,
     handle_delete_conversation,
+    handle_update_conversation_title,
     handle_update_room,
     handle_delete_room,
     handle_add_room_member,
@@ -530,7 +612,6 @@ export function useRoomPageController({
     route_conversation_id: conversation_id ?? null,
     route_room_id: room_id ?? null,
     ...workspace,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     agents, conversations, rooms, room_error, current_room, current_agent,
     room_member_agents, available_room_agents, room_conversations, current_conversation,
@@ -540,7 +621,7 @@ export function useRoomPageController({
     handle_select_conversation, handle_back_to_directory, handle_delete_agent,
     handle_create_conversation, handle_save_agent_options, handle_validate_agent_name,
     handle_open_conversation_from_launcher, handle_conversation_snapshot_change,
-    handle_delete_conversation, handle_update_room, handle_delete_room,
+    handle_delete_conversation, handle_update_conversation_title, handle_update_room, handle_delete_room,
     handle_add_room_member, handle_remove_room_member, conversation_id, room_id, workspace,
   ]);
 }

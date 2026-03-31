@@ -6,9 +6,9 @@ import { GripVertical, LoaderCircle, Minimize2, Save } from "lucide-react";
 import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
-import { TypewriterFileView } from "@/shared/ui/typewriter-file-view";
+import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 
-interface RoomEditorPanelProps {
+interface EditorPanelProps {
   agent_id: string;
   path: string | null;
   is_open: boolean;
@@ -19,7 +19,7 @@ interface RoomEditorPanelProps {
   on_resize_start: () => void;
 }
 
-export function RoomEditorPanel({
+export function EditorPanel({
   agent_id,
   path,
   is_open,
@@ -28,7 +28,7 @@ export function RoomEditorPanel({
   class_name,
   on_close,
   on_resize_start,
-}: RoomEditorPanelProps) {
+}: EditorPanelProps) {
   const [draft_content, setDraftContent] = useState("");
   const [saved_content, setSavedContent] = useState("");
   const [is_loading, setIsLoading] = useState(false);

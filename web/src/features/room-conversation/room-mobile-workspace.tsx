@@ -7,7 +7,7 @@ import { formatRelativeTime } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload } from "@/types/conversation";
 
-import { RoomChatPanel } from "./room-chat-panel";
+import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
 
 interface RoomMobileWorkspaceProps {
   current_agent: Agent;
@@ -15,6 +15,7 @@ interface RoomMobileWorkspaceProps {
   current_conversation: Conversation | null;
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
+  initial_draft?: string | null;
   on_back_to_directory: () => void;
   on_create_conversation: (title?: string) => void | Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
@@ -28,6 +29,7 @@ export function RoomMobileWorkspace({
   current_conversation,
   current_conversation_id,
   current_room_conversations,
+  initial_draft = null,
   on_back_to_directory,
   on_create_conversation,
   on_select_conversation,
@@ -81,10 +83,11 @@ export function RoomMobileWorkspace({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1">
-        <RoomChatPanel
+        <DmChatPanel
           agent_id={current_agent.agent_id}
           current_agent_name={current_agent.name}
-          current_room_title={current_room_title}
+          conversations={current_room_conversations}
+          initial_draft={initial_draft}
           layout="mobile"
           on_conversation_snapshot_change={on_conversation_snapshot_change}
           on_create_conversation={on_create_conversation}

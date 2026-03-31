@@ -1,19 +1,19 @@
 import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
 
-interface RoomMemberSummaryCardProps {
+interface MemberSummaryCardProps {
   agent: Agent;
   runtime_status: "Running" | "Idle" | "Active";
   localized_runtime_status: string;
   on_edit_agent: (agent_id: string) => void;
 }
 
-export function RoomMemberSummaryCard({
+export function MemberSummaryCard({
   agent,
   runtime_status,
   localized_runtime_status,
   on_edit_agent,
-}: RoomMemberSummaryCardProps) {
+}: MemberSummaryCardProps) {
   return (
     <section className="border-b workspace-divider px-4 py-4 min-w-[240px]">
       <div className="rounded-[24px] bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(240,244,255,0.60))] px-4 py-4 ring-1 ring-white/40">

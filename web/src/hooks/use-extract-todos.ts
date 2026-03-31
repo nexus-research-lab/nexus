@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { Message, ResultMessage } from "@/types/message";
 import { TodoItem } from "@/types/todo";
 
@@ -6,24 +6,33 @@ function isSameSessionMessage(message: Message, external_session_key: string): b
   return !message.session_key || message.session_key === external_session_key;
 }
 
+function isSameTodo(left: TodoItem, right: TodoItem): boolean {
+  return (
+    left.content === right.content &&
+    left.status === right.status &&
+    left.active_form === right.active_form
+  );
+}
+
+function areTodosEqual(left: TodoItem[], right: TodoItem[]): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((item, index) => isSameTodo(item, right[index]));
+}
+
 export const useExtractTodos = (
   messages: Message[],
   external_session_key: string | null
 ) => {
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const prevSessionRef = useRef<string | null>(null);
+  const stable_todos_ref = useRef<TodoItem[]>([]);
 
-  // Extract todos from messages (reset on session change)
-  useEffect(() => {
-    // Session changed - reset todos immediately
-    if (prevSessionRef.current !== external_session_key) {
-      setTodos([]);
-      prevSessionRef.current = external_session_key;
-    }
-
-    // No session - don't extract
+  const computed_todos = useMemo(() => {
     if (!external_session_key || messages.length === 0) {
-      return;
+      return [];
     }
 
     let latestTodos: TodoItem[] = [];
@@ -31,12 +40,8 @@ export const useExtractTodos = (
     let latestTodoIndex = -1;
     let found = false;
 
-    // Iterate backwards to find the latest TodoWrite tool use
-    // Only consider messages from current session
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-
-      // Skip messages that don't belong to current session
       if (!isSameSessionMessage(msg, external_session_key)) {
         continue;
       }
@@ -56,15 +61,16 @@ export const useExtractTodos = (
           }
         }
       }
-      if (found) break;
+
+      if (found) {
+        break;
+      }
     }
 
     if (!found || latestTodos.length === 0 || !latestTodoRoundId) {
-      setTodos([]);
-      return;
+      return [];
     }
 
-    // 终态收敛：该轮异常结束（中断/错误）时直接清空 Todo，避免右上角 Agent Plan 残留
     const roundResult = [...messages]
       .reverse()
       .find((msg): msg is ResultMessage =>
@@ -74,11 +80,9 @@ export const useExtractTodos = (
       );
 
     if (roundResult && roundResult.is_error) {
-      setTodos([]);
-      return;
+      return [];
     }
 
-    // 跨轮兜底：如果已进入新轮次而旧轮无终态，也清空旧 Todo，避免挂住
     const hasLaterRoundMessage = messages.slice(latestTodoIndex + 1).some((msg) =>
       isSameSessionMessage(msg, external_session_key)
       && msg.round_id
@@ -87,12 +91,15 @@ export const useExtractTodos = (
     );
 
     if (hasLaterRoundMessage && !roundResult) {
-      setTodos([]);
-      return;
+      return [];
     }
 
-    setTodos(latestTodos);
-  }, [messages, external_session_key]);
+    return latestTodos;
+  }, [external_session_key, messages]);
 
-  return todos;
+  if (!areTodosEqual(stable_todos_ref.current, computed_todos)) {
+    stable_todos_ref.current = computed_todos;
+  }
+
+  return stable_todos_ref.current;
 };

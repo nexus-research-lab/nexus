@@ -110,15 +110,30 @@ export const syncConversationSnapshotAction = (
   patch: Partial<Pick<Conversation, 'message_count' | 'last_activity_at' | 'session_id'>>
 ): void => {
   set((state) => {
-    // Avoid O(N log N) sort on every stream token.
-    // The list is already sorted; only reorder if last_activity_at changed.
     const idx = state.conversations.findIndex((c) => c.session_key === key);
     if (idx === -1) return { error: null };
 
-    const patched: Conversation = { ...state.conversations[idx], ...patch };
+    const current = state.conversations[idx];
+    const next_last_activity_at = patch.last_activity_at ?? current.last_activity_at;
+    const next_message_count = patch.message_count ?? current.message_count;
+    const next_session_id = patch.session_id ?? current.session_id;
+    const has_changed =
+      current.last_activity_at !== next_last_activity_at ||
+      current.message_count !== next_message_count ||
+      current.session_id !== next_session_id;
+
+    // 中文注释：流式过程中会高频同步快照，同值更新必须直接短路，避免触发无意义重渲染。
+    if (!has_changed) {
+      return { error: null };
+    }
+
+    const patched: Conversation = {
+      ...current,
+      ...patch,
+    };
     const activity_changed =
       patch.last_activity_at !== undefined &&
-      patch.last_activity_at !== state.conversations[idx].last_activity_at;
+      patch.last_activity_at !== current.last_activity_at;
 
     let updated_conversations: Conversation[];
     if (activity_changed) {

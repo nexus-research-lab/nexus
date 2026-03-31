@@ -2,7 +2,7 @@
 
 import { Bot, Sparkles } from "lucide-react";
 
-import { WorkspaceSurfaceView } from "@/shared/ui/workspace-surface-view";
+import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
 import { Agent } from "@/types/agent";
 
 interface RoomAgentAboutViewProps {

@@ -8,10 +8,10 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prepare, layout } from "@chenglou/pretext";
-import { Bot, Check, ChevronDown, ChevronRight, Copy, Edit2, User, Wrench } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, Copy, Edit2, Square, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssistantContentMerge } from "@/hooks/use-assistant-content-merge";
-import { ContentBlock, Message, ResultMessage } from "@/types/message";
+import { AssistantMessage, ContentBlock, Message, ResultMessage } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
@@ -31,6 +31,8 @@ interface MessageItemProps {
   on_regenerate?: (round_id: string) => Promise<void>;
   on_edit_user_message?: (message_id: string, new_content: string) => void;
   on_open_workspace_file?: (path: string) => void;
+  /** Called when user clicks the per-message stop button in Room mode. */
+  on_stop_message?: (msg_id: string) => void;
   class_name?: string;
 }
 
@@ -49,6 +51,7 @@ function MessageItemInner(
     on_regenerate,
     on_edit_user_message,
     on_open_workspace_file,
+    on_stop_message,
     class_name,
   }: MessageItemProps) {
   const [copiedUser, setCopiedUser] = useState(false);
@@ -78,6 +81,12 @@ function MessageItemInner(
   const model = firstAssistant && 'model' in firstAssistant ? firstAssistant.model : undefined;
   const timestamp = firstAssistant?.timestamp || resultMessage?.timestamp;
 
+  // Room 并发场景：读取 stream_status（仅 AssistantMessage 携带此字段）
+  const stream_status = useMemo(() => {
+    const a = firstAssistant as AssistantMessage | undefined;
+    return a?.stream_status ?? null;
+  }, [firstAssistant]);
+
   // 统计信息
   const stats = useMemo(() => {
     if (!resultMessage) return null;
@@ -104,13 +113,17 @@ function MessageItemInner(
   }, [userMessage]);
 
   const shouldHideAssistantContent = useMemo(() => {
+    // Always show bubbles that have a meaningful stream_status
+    if (stream_status === 'pending' || stream_status === 'streaming' || stream_status === 'cancelled') {
+      return false;
+    }
     if (mergedContent.length === 0) return true;
     return mergedContent.every(block => {
       if (block.type === 'text') return !block.text?.trim();
       if (block.type === 'tool_use') return hidden_tool_names.includes(block.name);
       return block.type === 'tool_result';
     });
-  }, [mergedContent, hidden_tool_names]);
+  }, [mergedContent, hidden_tool_names, stream_status]);
 
   const hasInlinePendingTool = useMemo(() => {
     if (!pending_permission) {
@@ -279,6 +292,13 @@ function MessageItemInner(
   const isCompleted = hasFinalAnswer && !is_loading;
   const canOperateRound = !!userMessage && !is_loading;
 
+  // Per-message stop: visible when this bubble is actively pending/streaming
+  const can_stop_message = on_stop_message && (stream_status === 'pending' || stream_status === 'streaming');
+  const handle_stop_message = useCallback(() => {
+    if (!on_stop_message || !firstAssistant) return;
+    on_stop_message(firstAssistant.message_id);
+  }, [on_stop_message, firstAssistant]);
+
   // Pretext-based streaming min-height: measure the current assistant text
   // and hold the container at that height so scroll doesn't jump on each token.
   // Throttled to run at most once every 150ms — pretext layout is fast but
@@ -383,7 +403,7 @@ function MessageItemInner(
                 {/* 内容 */}
                 <div className="pb-1 pt-1">
                   <p className={cn(
-                    "whitespace-pre-wrap text-slate-900 [overflow-wrap:anywhere]",
+                    "whitespace-pre-wrap text-slate-900 wrap-anywhere",
                     compact ? "text-[13px] leading-6" : "text-[15px] leading-7",
                   )}>
                     {userContent}
@@ -423,6 +443,21 @@ function MessageItemInner(
                   {/* 模型 */}
                   {model ? <span className="min-w-0 truncate text-xs text-slate-400">{model}</span> : null}
 
+                  <div className="flex-1" />
+
+                  {/* Per-message stop button (Room 并发模式) */}
+                  {can_stop_message && (
+                    <button
+                      type="button"
+                      aria-label="停止生成"
+                      onClick={handle_stop_message}
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <Square className="h-3 w-3 fill-current" />
+                      <span>停止</span>
+                    </button>
+                  )}
+
                 </div>
 
                 {/* 内容区 */}
@@ -433,6 +468,20 @@ function MessageItemInner(
                   )}
                   style={showCursor ? { minHeight: streamingMinHeight.current } : undefined}
                 >
+
+                  {/* Room 并发：pending 占位动画 */}
+                  {stream_status === 'pending' && mergedContent.length === 0 && (
+                    <div className="flex items-center gap-1.5 py-1">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+                    </div>
+                  )}
+
+                  {/* Room 并发：已取消标记 */}
+                  {stream_status === 'cancelled' && mergedContent.length === 0 && (
+                    <span className="text-xs text-slate-400 italic">已停止</span>
+                  )}
 
                   {hasVisibleProcess ? (
                     <div>

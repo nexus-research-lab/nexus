@@ -5,15 +5,15 @@ import { formatCost, formatTokens } from "@/lib/utils";
 
 import { ContextSection } from "./context-section";
 
-interface RoomUsageSectionProps {
+interface UsageSectionProps {
   agent_cost_summary: AgentCostSummary;
   conversation_cost_summary: ConversationCostSummary;
 }
 
-export function RoomUsageSection({
+export function UsageSection({
   agent_cost_summary,
   conversation_cost_summary,
-}: RoomUsageSectionProps) {
+}: UsageSectionProps) {
   const lastRunDurationMs = conversation_cost_summary.last_run_duration_ms ?? null;
 
   return (

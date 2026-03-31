@@ -3,10 +3,9 @@
  *
  * 本文件定义前端使用的消息数据结构
  */
-
 import { SessionId, ToolInput } from './sdk';
 
-export type MessageRole = 'user' | 'assistant' | 'system' | 'result';
+export type MessageRole = 'user' | 'assistant' | 'system' | 'result' | 'agent';
 
 export interface TextContent {
   type: 'text';
@@ -55,6 +54,16 @@ export interface UserMessage extends BaseMessage {
   content: string;
 }
 
+export interface AgentMessage {
+  message_id: string;
+  session_key: string;
+  room_id: string;
+  conversation_id: string;
+  sender_agent_id: string;
+  content: string;
+  timestamp: number;
+}
+
 export interface Usage {
   input_tokens: number;
   output_tokens: number;
@@ -63,6 +72,9 @@ export interface Usage {
   [key: string]: any;
 }
 
+/** Status for assistant messages in Room multi-agent scenarios. */
+export type AssistantMessageStatus = 'pending' | 'streaming' | 'done' | 'cancelled';
+
 export interface AssistantMessage extends BaseMessage {
   role: 'assistant';
   content: ContentBlock[];
@@ -70,6 +82,8 @@ export interface AssistantMessage extends BaseMessage {
   stop_reason?: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use';
   model?: string;
   usage?: Usage;
+  /** Room 并发场景下气泡的生命周期状态 */
+  stream_status?: AssistantMessageStatus;
 }
 
 export interface SystemMessage extends BaseMessage {
@@ -117,10 +131,71 @@ export interface StreamMessage {
 }
 
 export interface EventMessage {
-  event_type: 'message' | 'stream' | 'permission_request' | 'workspace_event' | 'pong' | 'error';
+  event_type:
+  | 'message'
+  | 'stream'
+  | 'permission_request'
+  | 'workspace_event'
+  | 'pong'
+  | 'error'
+  | 'room_collaboration'
+  | 'agent_thinking'
+  | 'agent_done'
+  | 'room_member_added'
+  | 'room_member_removed'
+  | 'room_deleted'
+  | 'chat_ack'
+  | 'stream_start'
+  | 'stream_end'
+  | 'stream_cancelled';
   session_key?: string | null;
   agent_id?: string | null;
   session_id?: SessionId | null;
   data: any;
   timestamp: number;
+}
+
+/** Pending agent slot from chat_ack */
+export interface PendingAgentSlot {
+  agent_id: string;
+  msg_id: string;
+}
+
+/** chat_ack event data */
+export interface ChatAckData {
+  req_id: string;
+  round_id: string;
+  pending: PendingAgentSlot[];
+}
+
+export type RoomCollaborationEventType = 'agent_message' | 'room_broadcast';
+
+export interface RoomCollaborationEvent {
+  event_type: 'room_collaboration';
+  data: {
+    room_id: string;
+    conversation_id: string;
+    message_type: RoomCollaborationEventType;
+    sender_agent_id?: string;
+    content?: string;
+  };
+  timestamp: number;
+}
+
+export interface ActivityEventMessage {
+  event_type: 'activity';
+  data: ActivityEventData;
+  timestamp: number;
+}
+
+export interface ActivityEventData {
+  id: string;
+  event_type: string;
+  actor_type: 'user' | 'agent' | 'system';
+  actor_id?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  summary?: string | null;
+  metadata_json?: Record<string, any> | null;
+  created_at: string;
 }

@@ -1,14 +1,14 @@
 import { CheckSquare, LoaderCircle } from "lucide-react";
 
 import { ContextSection } from "./context-section";
-import { LoadingOrb } from "@/shared/ui/loading-orb";
+import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { TodoItem } from "@/types/todo";
 
-interface RoomProgressSectionProps {
+interface ProgressSectionProps {
   todos: TodoItem[];
 }
 
-export function RoomProgressSection({ todos }: RoomProgressSectionProps) {
+export function ProgressSection({ todos }: ProgressSectionProps) {
   const completedTodoCount = todos.filter((todo) => todo.status === "completed").length;
   const activeTodo = todos.find((todo) => todo.status === "in_progress") ?? null;
   const visible_todos = todos.slice(0, 4);

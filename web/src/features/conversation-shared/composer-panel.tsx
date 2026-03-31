@@ -8,7 +8,7 @@ import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { useTextareaHeight } from "@/hooks/use-textarea-height";
 import { Agent } from "@/types/agent";
 
-import { MentionPopover } from "@/features/conversation-shared/mention-popover";
+import { MentionPopover } from "./mention-popover";
 
 interface AttachmentFile {
   id: string;
@@ -17,7 +17,7 @@ interface AttachmentFile {
   type: "image" | "document";
 }
 
-interface RoomComposerPanelProps {
+interface ComposerPanelProps {
   compact: boolean;
   current_agent_name: string | null;
   is_loading: boolean;
@@ -30,7 +30,7 @@ interface RoomComposerPanelProps {
   room_members?: Agent[];
 }
 
-const RoomComposerPanelView = memo(({
+const ComposerPanelView = memo(({
   compact,
   current_agent_name,
   is_loading,
@@ -41,7 +41,7 @@ const RoomComposerPanelView = memo(({
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
-}: RoomComposerPanelProps) => {
+}: ComposerPanelProps) => {
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
@@ -457,8 +457,8 @@ const RoomComposerPanelView = memo(({
   );
 });
 
-RoomComposerPanelView.displayName = "RoomComposerPanelView";
+ComposerPanelView.displayName = "ComposerPanelView";
 
-export function RoomComposerPanel(props: RoomComposerPanelProps) {
-  return <RoomComposerPanelView {...props} />;
+export function ComposerPanel(props: ComposerPanelProps) {
+  return <ComposerPanelView {...props} />;
 }

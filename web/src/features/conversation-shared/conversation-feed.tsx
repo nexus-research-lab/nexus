@@ -7,7 +7,7 @@ import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { estimateRoundHeights } from "@/hooks/use-message-height";
 
-interface RoomConversationFeedProps {
+interface ConversationFeedProps {
   bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
   feed_ref?: RefObject<HTMLDivElement | null>;
   /** The scrollable container — needed by the virtualizer */
@@ -48,7 +48,7 @@ function resolve_round_agent_name(
   return undefined;
 }
 
-export const RoomConversationFeed = memo(function RoomConversationFeed({
+export const ConversationFeed = memo(function ConversationFeed({
   bottom_anchor_ref,
   feed_ref,
   scroll_ref,
@@ -65,7 +65,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
   on_regenerate_round,
   on_stop_message,
   round_ids,
-}: RoomConversationFeedProps) {
+}: ConversationFeedProps) {
   const use_virtual = round_ids.length >= VIRTUAL_THRESHOLD;
 
   if (use_virtual && scroll_ref) {
@@ -143,7 +143,7 @@ function VirtualFeed({
   on_regenerate_round,
   on_stop_message,
   round_ids,
-}: Omit<RoomConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
+}: Omit<ConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
   const container_ref = useRef<HTMLDivElement>(null);
 
   // Measure scroll container width for pretext height estimation

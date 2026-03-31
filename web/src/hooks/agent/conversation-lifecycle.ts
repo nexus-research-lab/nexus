@@ -30,6 +30,8 @@ export function startAgentConversation(context: AgentConversationLifecycleContex
 
 /**
  * 加载现有对话消息。
+ * 如果 bg_message_cache_ref 中有该 session 的缓存消息，先用缓存预填充（避免 loading 闪烁）。
+ * API 返回后用服务端数据覆盖，并清除 cache。
  */
 export async function loadAgentConversation(
   session_key: string,
@@ -39,7 +41,17 @@ export async function loadAgentConversation(
   context.load_request_id_ref.current = request_id;
   context.active_conversation_key_ref.current = session_key;
   context.set_conversation_key(session_key);
-  resetConversationView(context);
+
+  // Pre-fill with cached background messages before the API round-trip
+  const cached = context.bg_message_cache_ref?.current.get(session_key);
+  if (cached && cached.length > 0) {
+    context.set_messages(sortMessages(cached));
+    context.set_pending_permission(null);
+    context.set_is_loading(false);
+    context.set_error(null);
+  } else {
+    resetConversationView(context);
+  }
 
   try {
     const data = await getConversationMessages(session_key);
@@ -52,6 +64,8 @@ export async function loadAgentConversation(
     if (Array.isArray(data)) {
       context.set_messages(sortMessages(data));
     }
+    // Cache is now stale — clear it
+    context.bg_message_cache_ref?.current.delete(session_key);
   } catch (err) {
     if (
       context.load_request_id_ref.current !== request_id ||

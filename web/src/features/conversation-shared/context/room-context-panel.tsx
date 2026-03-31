@@ -3,19 +3,19 @@
 import { Bot, Settings, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 
-import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
-import { WorkspaceInspectorSection } from "@/shared/ui/workspace-inspector-section";
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { WorkspaceInspectorSection } from "@/shared/ui/workspace/workspace-inspector-section";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 import { UpdateRoomParams } from "@/types/room";
 
-import { RoomCollaborationStatusSection } from "./room-collaboration-status-section";
-import { RoomMemberSummaryCard } from "./room-member-summary-card";
-import { RoomMemberPickerDialog } from "../room-members/room-member-picker-dialog";
-import { RoomProgressSection } from "./room-progress-section";
-import { RoomSettingsPanel } from "../room-conversation/room-settings-panel";
+import { CollaborationStatusSection } from "./collaboration-status-section";
+import { MemberSummaryCard } from "./member-summary-card";
+import { RoomMemberPickerDialog } from "@/features/room-members/room-member-picker-dialog";
+import { ProgressSection } from "./progress-section";
+import { RoomSettingsPanel } from "@/features/room-conversation/room-settings-panel";
 
 interface RoomContextPanelProps {
   agent: Agent;
@@ -107,58 +107,59 @@ export function RoomContextPanel({
               {room_members.map((member) => {
                 const is_active = member.agent_id === current_agent_id;
                 return (
-                  <button
+                  <div
                     key={member.agent_id}
-                    className={`group flex w-full items-center gap-3 rounded-[16px] px-3 py-2 text-left transition-all duration-300 ${
+                    className={`group flex items-center gap-2 rounded-[16px] px-1 py-1 transition-all duration-300 ${
                       is_active ? "bg-white/14" : "hover:bg-white/10"
                     }`}
-                    onClick={() => on_select_agent(member.agent_id)}
-                    type="button"
                   >
-                    <div className="home-glass-pill flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
-                      {member.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-slate-900/82">
-                        {member.name}
-                      </p>
-                      <p className="truncate text-[11px] text-slate-700/48">
-                        {is_active ? "当前活跃" : "参与协作中"}
-                      </p>
-                    </div>
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${is_active ? "bg-emerald-400" : "bg-slate-300"}`} />
+                    <button
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-[14px] px-2 py-1 text-left"
+                      onClick={() => on_select_agent(member.agent_id)}
+                      type="button"
+                    >
+                      <div className="home-glass-pill flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
+                        {member.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-slate-900/82">
+                          {member.name}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-700/48">
+                          {is_active ? "当前活跃" : "参与协作中"}
+                        </p>
+                      </div>
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${is_active ? "bg-emerald-400" : "bg-slate-300"}`} />
+                    </button>
                     <button
                       aria-label={`移除 ${member.name}`}
-                      className="rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-destructive"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        set_pending_remove_agent_id(member.agent_id);
-                      }}
+                      className="shrink-0 rounded-xl p-1.5 text-slate-700/54 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10 hover:text-destructive"
+                      onClick={() => set_pending_remove_agent_id(member.agent_id)}
                       type="button"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </WorkspaceInspectorSection>
         ) : null}
 
-        <RoomMemberSummaryCard
+        <MemberSummaryCard
           agent={agent}
           localized_runtime_status={localized_runtime_status}
           on_edit_agent={on_edit_agent}
           runtime_status={runtime_status}
         />
 
-        <RoomCollaborationStatusSection
+        <CollaborationStatusSection
           active_conversation={active_conversation}
           localized_runtime_status={localized_runtime_status}
           total_member_count={room_members.length}
         />
 
-        <RoomProgressSection todos={todos} />
+        <ProgressSection todos={todos} />
       </>
 
       <RoomMemberPickerDialog

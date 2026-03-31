@@ -3,7 +3,7 @@
 import { FileText, FolderTree } from "lucide-react";
 import { useMemo } from "react";
 
-import { WorkspaceSurfaceView } from "@/shared/ui/workspace-surface-view";
+import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 
 interface RoomWorkspaceViewProps {

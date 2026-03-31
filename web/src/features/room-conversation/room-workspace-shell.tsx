@@ -27,6 +27,7 @@ interface RoomWorkspaceShellProps {
   current_conversation_id: string | null;
   current_room_conversations: Conversation[];
   active_workspace_path: string | null;
+  initial_draft?: string | null;
   is_editor_open: boolean;
   editor_width_percent: number;
   is_resizing_editor: boolean;
@@ -43,12 +44,14 @@ interface RoomWorkspaceShellProps {
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_delete_room: () => Promise<void>;
+  on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
   on_close_workspace_pane: () => void;
   on_start_editor_resize: () => void;
   on_loading_change: (is_loading: boolean) => void;
   on_todos_change: (todos: TodoItem[]) => void;
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
+  on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
 }
 
 export function RoomWorkspaceShell({
@@ -60,11 +63,11 @@ export function RoomWorkspaceShell({
   room_members,
   available_room_agents,
   current_room_title,
-  current_room_id,
   current_conversation,
   current_conversation_id,
   current_room_conversations,
   active_workspace_path,
+  initial_draft,
   is_editor_open,
   editor_width_percent,
   is_resizing_editor,
@@ -81,12 +84,14 @@ export function RoomWorkspaceShell({
   on_remove_room_member,
   on_update_room,
   on_delete_room,
+  on_update_conversation_title,
   on_open_workspace_file,
   on_close_workspace_pane,
   on_start_editor_resize,
   on_loading_change,
   on_todos_change,
   on_conversation_snapshot_change,
+  on_room_event,
 }: RoomWorkspaceShellProps) {
   const is_mobile = useMediaQuery("(max-width: 767px)");
   const [active_surface_tab, set_active_surface_tab] = useState<RoomSurfaceTabKey>("chat");
@@ -110,14 +115,15 @@ export function RoomWorkspaceShell({
 
   if (is_mobile) {
     return (
-        <RoomMobileWorkspace
-          current_agent={current_agent}
-          current_conversation={current_conversation}
-          current_conversation_id={current_conversation_id}
-          current_room_conversations={current_room_conversations}
-          current_room_title={current_room_title}
-          on_back_to_directory={on_back_to_directory}
-          on_conversation_snapshot_change={on_conversation_snapshot_change}
+      <RoomMobileWorkspace
+        current_agent={current_agent}
+        current_conversation={current_conversation}
+        current_conversation_id={current_conversation_id}
+        current_room_conversations={current_room_conversations}
+        current_room_title={current_room_title}
+        initial_draft={initial_draft}
+        on_back_to_directory={on_back_to_directory}
+        on_conversation_snapshot_change={on_conversation_snapshot_change}
         on_create_conversation={handle_create_conversation_in_shell}
         on_loading_change={on_loading_change}
         on_select_conversation={handle_select_conversation_in_shell}
@@ -127,42 +133,46 @@ export function RoomWorkspaceShell({
 
   return (
     <section className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", HOME_WORKSPACE_SECTION_GAP_CLASS)}>
-        <RoomWorkspaceLayout
-          active_workspace_path={active_workspace_path}
-          active_surface_tab={active_surface_tab}
-          available_room_agents={available_room_agents}
-          current_agent={current_agent}
-          current_agent_id={current_agent_id}
-          current_room_type={current_room_type}
-          room_members={room_members}
-          current_room_title={current_room_title}
-          current_conversation={current_conversation}
-          current_conversation_id={current_conversation_id}
-          current_room_conversations={current_room_conversations}
-          current_todos={current_todos}
-          editor_width_percent={editor_width_percent}
-          is_editor_open={is_editor_open}
-          is_resizing_editor={is_resizing_editor}
-          is_conversation_busy={is_conversation_busy}
-          on_add_room_member={on_add_room_member}
-          on_change_surface_tab={set_active_surface_tab}
-          on_close_workspace_pane={on_close_workspace_pane}
-          on_conversation_snapshot_change={on_conversation_snapshot_change}
-          on_create_conversation={handle_create_conversation_in_shell}
-          on_delete_conversation={on_delete_conversation}
-          on_edit_agent={on_edit_agent}
-          on_loading_change={on_loading_change}
-          on_open_workspace_file={on_open_workspace_file}
-          on_remove_room_member={on_remove_room_member}
-          on_update_room={on_update_room}
-          on_delete_room={on_delete_room}
-          on_create_conversation={on_create_conversation}
-          on_select_agent={on_select_agent}
-          on_select_conversation={handle_select_conversation_in_shell}
-          on_start_editor_resize={on_start_editor_resize}
-          on_todos_change={on_todos_change}
-          workspace_split_ref={workspace_split_ref}
-        />
+      <RoomWorkspaceLayout
+        active_workspace_path={active_workspace_path}
+        active_surface_tab={active_surface_tab}
+        available_room_agents={available_room_agents}
+        current_agent={current_agent}
+        current_agent_id={current_agent_id}
+        current_room_type={current_room_type}
+        room_id={room_id}
+        room_description={room_description}
+        room_members={room_members}
+        current_room_title={current_room_title}
+        current_conversation={current_conversation}
+        current_conversation_id={current_conversation_id}
+        current_room_conversations={current_room_conversations}
+        initial_draft={initial_draft}
+        current_todos={current_todos}
+        editor_width_percent={editor_width_percent}
+        is_editor_open={is_editor_open}
+        is_resizing_editor={is_resizing_editor}
+        is_conversation_busy={is_conversation_busy}
+        on_add_room_member={on_add_room_member}
+        on_change_surface_tab={set_active_surface_tab}
+        on_close_workspace_pane={on_close_workspace_pane}
+        on_conversation_snapshot_change={on_conversation_snapshot_change}
+        on_create_conversation={handle_create_conversation_in_shell}
+        on_delete_conversation={on_delete_conversation}
+        on_edit_agent={on_edit_agent}
+        on_loading_change={on_loading_change}
+        on_open_workspace_file={on_open_workspace_file}
+        on_remove_room_member={on_remove_room_member}
+        on_update_room={on_update_room}
+        on_delete_room={on_delete_room}
+        on_update_conversation_title={on_update_conversation_title}
+        on_select_agent={on_select_agent}
+        on_select_conversation={handle_select_conversation_in_shell}
+        on_start_editor_resize={on_start_editor_resize}
+        on_todos_change={on_todos_change}
+        workspace_split_ref={workspace_split_ref}
+        on_room_event={on_room_event}
+      />
     </section>
   );
 }

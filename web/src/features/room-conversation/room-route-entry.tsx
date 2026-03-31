@@ -2,7 +2,7 @@ import { ArrowRight, MessageSquare, Sparkles, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace-action-bar";
+import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/workspace-action-bar";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 

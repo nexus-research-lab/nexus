@@ -7,9 +7,13 @@ import { PermissionDecisionPayload } from '@/types/permission';
 import {
   AgentConversationActionContext,
   AgentConversationLifecycleContext,
+  AgentThinkingPayload,
+  RoomEventPayload,
   UseAgentConversationOptions,
   UseAgentConversationReturn,
 } from '@/types/agent-conversation';
+import { AssistantMessage, AssistantMessageStatus } from '@/types';
+import { upsertMessage } from './message-helpers';
 import {
   clearAgentConversation,
   loadAgentConversation,
@@ -35,9 +39,13 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [error, set_error] = useState<string | null>(null);
   const [session_key, set_session_key] = useState<string | null>(null);
   const [pending_permission, set_pending_permission] = useState<UseAgentConversationReturn['pending_permission']>(null);
+  const [agent_thinking, set_agent_thinking] = useState<AgentThinkingPayload | null>(null);
 
   const active_conversation_key_ref = useRef<string | null>(null);
   const load_request_id_ref = useRef(0);
+  // Per-session message cache: accumulates messages received for non-active sessions
+  // so they are not lost when the user switches conversations.
+  const bg_message_cache_ref = useRef<Map<string, Message[]>>(new Map());
 
   // ── Stream batching ──────────────────────────────────────────────────────
   // WebSocket fires on every token (~50-100/sec during streaming).
@@ -83,6 +91,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     set_pending_permission,
     set_is_loading,
     set_error,
+    bg_message_cache_ref,
   }), [set_session_key, set_messages, set_pending_permission, set_is_loading, set_error]);
 
   const is_current_session_event = useCallback((incoming_session_key?: string | null) => {
@@ -90,6 +99,27 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       return false;
     }
     return active_conversation_key_ref.current === incoming_session_key;
+  }, []);
+
+  const on_background_message = useCallback((key: string, message: Message) => {
+    const cache = bg_message_cache_ref.current;
+    const existing = cache.get(key) ?? [];
+    const next = upsertMessage(existing, message);
+    cache.set(key, next);
+  }, []);
+
+  const on_room_event = useCallback((event_type: string, data: RoomEventPayload) => {
+    options.on_room_event?.(event_type, data);
+  }, [options]);
+
+  const update_message_status = useCallback((msg_id: string, status: AssistantMessageStatus) => {
+    set_messages((prev) =>
+      prev.map((m) =>
+        m.message_id === msg_id && m.role === 'assistant'
+          ? { ...(m as AssistantMessage), stream_status: status }
+          : m,
+      ),
+    );
   }, []);
 
   const handle_websocket_message = useCallback((backend_message: unknown) => {
@@ -102,8 +132,12 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_messages,
       set_pending_permission,
       enqueue_stream_payload,
+      on_background_message,
+      set_agent_thinking,
+      on_room_event,
+      update_message_status,
     });
-  }, [apply_workspace_event, is_current_session_event, enqueue_stream_payload]);
+  }, [apply_workspace_event, is_current_session_event, enqueue_stream_payload, on_background_message, on_room_event, update_message_status]);
 
   // Cancel any pending rAF flush on unmount to prevent setState after unmount
   useEffect(() => {
@@ -164,9 +198,26 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     };
   }, [options.agent_id, ws_send, ws_state]);
 
+  // Subscribe to room-level events (member changes, deletions, etc.) when in a Room context
+  useEffect(() => {
+    const room_id = options.room_id;
+    if (!room_id || ws_state !== 'connected') {
+      return;
+    }
+
+    ws_send({ type: 'subscribe_room', room_id });
+
+    return () => {
+      ws_send({ type: 'unsubscribe_room', room_id });
+    };
+  }, [options.room_id, ws_send, ws_state]);
+
   const action_context: AgentConversationActionContext = useMemo(() => ({
     agent_id: options.agent_id,
     session_key,
+    room_id: options.room_id,
+    conversation_id: options.conversation_id,
+    chat_type: options.chat_type,
     ws_state,
     ws_send,
     active_conversation_key_ref,
@@ -176,14 +227,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     set_is_loading,
     set_messages,
     set_pending_permission,
-  }), [options.agent_id, session_key, ws_state, ws_send, pending_permission, messages, set_error, set_is_loading, set_messages, set_pending_permission]);
+  }), [options.agent_id, options.room_id, options.conversation_id, options.chat_type, session_key, ws_state, ws_send, pending_permission, messages, set_error, set_is_loading, set_messages, set_pending_permission]);
 
   const send_message = useCallback(async (content: string) => {
     await sendConversationMessage(content, action_context);
   }, [action_context]);
 
-  const stop_generation = useCallback(() => {
-    stopConversationGeneration(action_context);
+  const stop_generation = useCallback((msg_id?: string) => {
+    stopConversationGeneration(action_context, msg_id);
   }, [action_context]);
 
   const send_permission_response = useCallback((payload: PermissionDecisionPayload) => {
@@ -229,6 +280,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     ws_state,
     is_loading,
     pending_permission,
+    agent_thinking,
     send_message,
     bind_conversation_key,
     start_conversation,

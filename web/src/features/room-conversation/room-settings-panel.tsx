@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Settings, Trash2, X } from "lucide-react";
 
-import { ConfirmDialog, PromptDialog } from "@/shared/ui/confirm-dialog";
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
-import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { UpdateRoomParams } from "@/types/room";
 
 interface RoomSettingsPanelProps {
@@ -56,7 +55,7 @@ export function RoomSettingsPanel({
     } finally {
       set_is_updating(false);
     }
-    set_editing_name(false);
+    set_is_editing_name(false);
   };
 
   const handle_update_description = async (value: string) => {
@@ -73,7 +72,7 @@ export function RoomSettingsPanel({
     } finally {
       set_is_updating(false);
     }
-    set_editing_description(false);
+    set_is_editing_description(false);
   };
 
   const handle_delete_room = async () => {
@@ -125,7 +124,7 @@ export function RoomSettingsPanel({
                     onKeyDown={(e) => {
                       if (e.key === "Escape") {
                         set_edit_name_value(room_name);
-                        set_editing_name(false);
+                        set_is_editing_name(false);
                       }
                     }}
                     placeholder="输入 Room 名称"
@@ -145,7 +144,7 @@ export function RoomSettingsPanel({
                   <p className="text-sm text-slate-900">{room_name || "未命名 Room"}</p>
                   <WorkspacePillButton
                     size="sm"
-                    onClick={() => set_editing_name(true)}
+                    onClick={() => set_is_editing_name(true)}
                   >
                     编辑
                   </WorkspacePillButton>
@@ -166,7 +165,7 @@ export function RoomSettingsPanel({
                     onKeyDown={(e) => {
                       if (e.key === "Escape") {
                         set_edit_description_value(room_description);
-                        set_editing_description(false);
+                        set_is_editing_description(false);
                       }
                     }}
                     placeholder="描述这个 Room 的用途..."
@@ -189,7 +188,7 @@ export function RoomSettingsPanel({
                   </p>
                   <WorkspacePillButton
                     size="sm"
-                    onClick={() => set_editing_description(true)}
+                    onClick={() => set_is_editing_description(true)}
                   >
                     编辑
                   </WorkspacePillButton>
