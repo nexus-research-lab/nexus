@@ -29,6 +29,9 @@ const ScheduledTasksPage = lazy(() =>
 const SkillsPage = lazy(() =>
   import("@/pages/skills/skills-page").then((m) => ({ default: m.SkillsPage })),
 );
+const ConnectorsPage = lazy(() =>
+  import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
+);
 
 /** 页面加载占位 */
 function PageFallback() {
@@ -71,7 +74,7 @@ export function AppRouter() {
             <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skill_detail} />
 
             {/* 能力子路由 */}
-            <Route element={<PlaceholderPage title="连接器" description="管理外部服务连接" />} path={APP_ROUTE_PATHS.connectors} />
+            <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
             <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />
             <Route element={<PlaceholderPage title="频道" description="管理消息频道" />} path={APP_ROUTE_PATHS.channels} />
             <Route element={<PlaceholderPage title="配对" description="管理 Agent 配对关系" />} path={APP_ROUTE_PATHS.pairings} />

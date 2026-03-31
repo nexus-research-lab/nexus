@@ -13,9 +13,10 @@ import {
   Users2,
 } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { getConnectedCountApi } from "@/lib/connector-api";
 import { getAvailableSkillsApi } from "@/lib/skill-api";
 import { cn } from "@/lib/utils";
 import { SkillInfo } from "@/types/skill";
@@ -26,6 +27,7 @@ interface CapabilitySummaryCardProps {
   icon: React.ReactNode;
   description: string;
   accent?: "default" | "active";
+  selected?: boolean;
   on_click: () => void;
 }
 
@@ -35,15 +37,18 @@ function CapabilitySummaryCard({
   icon,
   description,
   accent = "default",
+  selected = false,
   on_click,
 }: CapabilitySummaryCardProps) {
   return (
     <button
       className={cn(
         "group flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition-all duration-200",
-        accent === "active"
-          ? "border-emerald-200/70 bg-white/72 shadow-[0_14px_30px_rgba(102,112,145,0.10)]"
-          : "border-white/30 bg-white/42 hover:bg-white/56",
+        selected
+          ? "border-sky-200/80 bg-white/80 shadow-[0_14px_30px_rgba(102,112,145,0.12)]"
+          : accent === "active"
+            ? "border-emerald-200/70 bg-white/72 shadow-[0_14px_30px_rgba(102,112,145,0.10)]"
+            : "border-white/30 bg-white/42 hover:bg-white/56",
       )}
       onClick={on_click}
       type="button"
@@ -51,9 +56,11 @@ function CapabilitySummaryCard({
       <div
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px]",
-          accent === "active"
-            ? "bg-emerald-50 text-emerald-600"
-            : "bg-white/70 text-slate-500",
+          selected
+            ? "bg-sky-50 text-sky-600"
+            : accent === "active"
+              ? "bg-emerald-50 text-emerald-600"
+              : "bg-white/70 text-slate-500",
         )}
       >
         {icon}
@@ -80,7 +87,9 @@ function CapabilitySummaryCard({
 
 export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [skills, set_skills] = useState<SkillInfo[]>([]);
+  const [connector_count, set_connector_count] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +104,11 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
           set_skills([]);
         }
       });
+    void getConnectedCountApi()
+      .then((count) => {
+        if (!cancelled) set_connector_count(count);
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -118,14 +132,17 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
         description={skill_summary}
         icon={<Puzzle className="h-4 w-4" />}
         on_click={() => navigate(AppRouteBuilders.skills())}
+        selected={location.pathname.startsWith("/capability/skills")}
         title="Skills"
       />
 
       <CapabilitySummaryCard
-        count={0}
-        description="连接外部服务和数据源"
+        accent={connector_count > 0 ? "active" : "default"}
+        count={connector_count}
+        description={connector_count > 0 ? `已连接 ${connector_count} 个应用` : "连接外部服务和数据源"}
         icon={<Link2 className="h-4 w-4" />}
         on_click={() => navigate(AppRouteBuilders.connectors())}
+        selected={location.pathname.startsWith("/capability/connectors")}
         title="Connectors"
       />
 
@@ -134,6 +151,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
         description="自动运行周期性任务"
         icon={<Calendar className="h-4 w-4" />}
         on_click={() => navigate(AppRouteBuilders.scheduled_tasks())}
+        selected={location.pathname.startsWith("/capability/scheduled-tasks")}
         title="Scheduled"
       />
 
@@ -142,6 +160,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
         description="接入消息和通知通道"
         icon={<Radio className="h-4 w-4" />}
         on_click={() => navigate(AppRouteBuilders.channels())}
+        selected={location.pathname.startsWith("/capability/channels")}
         title="Channels"
       />
 
@@ -150,6 +169,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
         description="配置 Agent 之间的协作关系"
         icon={<Users2 className="h-4 w-4" />}
         on_click={() => navigate(AppRouteBuilders.pairings())}
+        selected={location.pathname.startsWith("/capability/pairings")}
         title="Pairings"
       />
     </div>

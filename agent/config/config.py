@@ -102,6 +102,23 @@ class Settings(BaseSettings):
     MAIN_AGENT_MODEL: str = ""
     MAIN_AGENT_SYSTEM_PROMPT: str = ""
 
+    # =====================================================
+    # Connector OAuth 配置
+    # =====================================================
+    CONNECTOR_OAUTH_REDIRECT_URI: str = "http://localhost:3000/capability/connectors"
+    CONNECTOR_GITHUB_CLIENT_ID: str = ""
+    CONNECTOR_GITHUB_CLIENT_SECRET: str = ""
+    CONNECTOR_GOOGLE_CLIENT_ID: str = ""
+    CONNECTOR_GOOGLE_CLIENT_SECRET: str = ""
+    CONNECTOR_LINKEDIN_CLIENT_ID: str = ""
+    CONNECTOR_LINKEDIN_CLIENT_SECRET: str = ""
+    CONNECTOR_TWITTER_CLIENT_ID: str = ""
+    CONNECTOR_TWITTER_CLIENT_SECRET: str = ""
+    CONNECTOR_INSTAGRAM_CLIENT_ID: str = ""
+    CONNECTOR_INSTAGRAM_CLIENT_SECRET: str = ""
+    CONNECTOR_SHOPIFY_CLIENT_ID: str = ""
+    CONNECTOR_SHOPIFY_CLIENT_SECRET: str = ""
+
     model_config = SettingsConfigDict(
         env_file=os.path.abspath(ENV_FILE),
         env_file_encoding="utf-8",

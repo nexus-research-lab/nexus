@@ -11,6 +11,7 @@
 from fastapi import APIRouter, Depends
 
 from agent.api.agent.api_agent import router as agent_router
+from agent.api.capability.api_connector import router as connector_router
 from agent.api.capability.api_skill import router as skill_router
 from agent.api.chat_ws.websocket_server import router as websocket_router
 from agent.api.common import common_router
@@ -31,6 +32,9 @@ api_router.include_router(agent_router, prefix="/v1")
 
 # Include the skill router
 api_router.include_router(skill_router, prefix="/v1")
+
+# Include the connector router
+api_router.include_router(connector_router, prefix="/v1")
 
 # Include the session router
 api_router.include_router(session_router, prefix="/v1")

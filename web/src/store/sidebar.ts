@@ -70,11 +70,7 @@ export function derive_tab_from_path(pathname: string): SidebarTabKey {
   if (pathname.startsWith("/dms")) return "dms";
   if (pathname.startsWith("/activity")) return "activity";
   if (
-    pathname.startsWith("/skills") ||
-    pathname.startsWith("/connectors") ||
-    pathname.startsWith("/scheduled-tasks") ||
-    pathname.startsWith("/channels") ||
-    pathname.startsWith("/pairings")
+    pathname.startsWith("/capability/")
   ) return "capabilities";
   if (pathname.startsWith("/contacts")) return "contacts";
   // /app、/rooms、以及默认情况都归到 home

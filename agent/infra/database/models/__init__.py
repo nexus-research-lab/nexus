@@ -20,12 +20,14 @@ from agent.infra.database.models.room import Room
 from agent.infra.database.models.round import Round
 from agent.infra.database.models.runtime import Runtime
 from agent.infra.database.models.session import Session
+from agent.infra.database.models.connector import ConnectorConnection
 from agent.infra.database.models.skill import AgentSkill, PoolSkill
 
 __all__ = [
     "ActivityEvent",
     "Agent",
     "AgentSkill",
+    "ConnectorConnection",
     "Profile",
     "PoolSkill",
     "Runtime",
