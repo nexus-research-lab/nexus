@@ -9,7 +9,7 @@ import { useAgentStore } from "@/store/agent";
 import { RoomAggregate } from "@/types/room";
 
 import { HomeAsciiHero } from "./home-ascii-hero";
-import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 
 export function HomePage() {
   const agents = useAgentStore((s) => s.agents);

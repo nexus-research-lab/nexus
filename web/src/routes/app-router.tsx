@@ -4,8 +4,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { LauncherPage } from "@/pages/launcher/launcher-page";
 import { PlaceholderPage } from "@/pages/placeholder/placeholder-page";
-import { AppLayout } from "@/shared/ui/app-layout";
-import { AppLayoutNoSidebar } from "@/shared/ui/app-layout-no-sidebar";
+import { AppLayout } from "@/shared/ui/layout/app-layout";
+import { AppLayoutNoSidebar } from "@/shared/ui/layout/app-layout-no-sidebar";
 
 // 懒加载页面组件 — 首次导航时按需加载
 const ActivityPage = lazy(() =>

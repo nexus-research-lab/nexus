@@ -5,7 +5,7 @@ import { Lock, Sparkles, Loader2 } from "lucide-react";
 
 import { AgentSkillEntry } from "@/types/skill";
 import { getAgentSkillsApi, installSkillApi, uninstallSkillApi } from "@/lib/skill-api";
-import { WorkspaceInspectorSection } from "@/shared/ui/workspace-inspector-section";
+import { WorkspaceInspectorSection } from "@/shared/ui/workspace/workspace-inspector-section";
 
 interface ContactsSkillsSectionProps {
   agent_id: string;

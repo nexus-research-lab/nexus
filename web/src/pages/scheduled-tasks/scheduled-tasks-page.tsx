@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { Clock, Plus } from "lucide-react";
 
-import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 
 import { CreateTaskDialog } from "./create-task-dialog";
 

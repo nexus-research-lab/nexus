@@ -2,7 +2,7 @@
 
 import { Bot, MessageSquareText, Users } from "lucide-react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 
 interface ContactsAgentCardProps {
   /** Agent 名称 */

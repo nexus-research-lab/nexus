@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { Loader2 } from "lucide-react";
@@ -7,13 +7,16 @@ import { Loader2 } from "lucide-react";
 import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
 import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
 import { useRoomPageController } from "@/hooks/use-room-page-controller";
-import { AgentOptions } from "@/shared/ui/agent-options";
-import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
+import { AgentOptions } from "@/shared/ui/dialog/agent-options";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { RoomRouteParams } from "@/types/route";
+import { UpdateRoomParams } from "@/types/room";
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const initialDraft = searchParams.get("initial");
   const controller = useRoomPageController({
     room_id: params.room_id,
     conversation_id: params.conversation_id,
@@ -23,6 +26,10 @@ export function RoomPage() {
     controller.handle_back_to_directory();
     navigate(AppRouteBuilders.launcher());
   }, [controller, navigate]);
+
+  const handleUpdateRoom = useCallback(async (_room_id: string, params: UpdateRoomParams) => {
+    await controller.handle_update_room(params);
+  }, [controller]);
 
   const handleSelectAgent = useCallback((agent_id: string) => {
     controller.handle_select_agent(agent_id);
@@ -64,27 +71,43 @@ export function RoomPage() {
     navigate(AppRouteBuilders.launcher());
   }, [controller, navigate]);
 
+  const handleUpdateConversationTitle = useCallback(async (conversation_id: string, title: string) => {
+    await controller.handle_update_conversation_title(conversation_id, title);
+  }, [controller]);
+
+  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent-conversation").RoomEventPayload) => {
+    if (event_type === "room_deleted") {
+      navigate(AppRouteBuilders.launcher());
+    }
+    // room_member_added / room_member_removed are handled by the next server-rendered
+    // room context fetch; no extra action needed here.
+  }, [navigate]);
+
   useEffect(() => {
+    // 原有逻辑：自动导航到当前对话
     if (
       controller.is_hydrated &&
       params.room_id &&
       !params.conversation_id &&
-      controller.current_conversation_id
+      controller.current_conversation_id &&
+      !initialDraft
     ) {
       navigate(
         AppRouteBuilders.room_conversation(
           params.room_id,
           controller.current_conversation_id,
         ),
-        {replace: true},
+        { replace: true },
       );
     }
   }, [
-    controller.current_conversation_id,
     controller.is_hydrated,
+    searchParams,
     navigate,
     params.conversation_id,
     params.room_id,
+    controller.current_conversation_id,
+    initialDraft,
   ]);
 
   // 加载中 — 内联 loading，AppStage 由路由布局层提供
@@ -114,7 +137,7 @@ export function RoomPage() {
               available_room_agents={controller.available_room_agents}
               current_agent={controller.current_agent}
               current_agent_id={controller.current_agent_id}
-              current_room_id={controller.route_room_id}
+              room_id={controller.route_room_id}
               current_room_type={controller.current_room_type}
               room_description={controller.current_room_description}
               room_members={controller.room_members}
@@ -124,6 +147,7 @@ export function RoomPage() {
               current_conversation_id={controller.current_conversation_id}
               current_todos={controller.current_todos}
               editor_width_percent={controller.editor_width_percent}
+              initial_draft={initialDraft}
               is_editor_open={controller.is_editor_open}
               is_resizing_editor={controller.is_resizing_editor}
               is_conversation_busy={controller.is_conversation_busy}
@@ -136,16 +160,16 @@ export function RoomPage() {
               on_create_conversation={handleCreateConversation}
               on_open_workspace_file={controller.handle_open_workspace_file}
               on_remove_room_member={controller.handle_remove_room_member}
-              on_update_room={controller.handle_update_room}
+              on_update_room={handleUpdateRoom}
               on_delete_room={handleDeleteRoom}
-              on_update_room={controller.handle_update_room}
-              on_delete_room={controller.handle_delete_room}
+              on_update_conversation_title={handleUpdateConversationTitle}
               on_select_agent={handleSelectAgent}
               on_select_conversation={handleSelectConversation}
               on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
               on_start_editor_resize={controller.handle_start_editor_resize}
               on_todos_change={controller.set_current_todos}
               workspace_split_ref={controller.workspace_split_ref}
+              on_room_event={handleRoomEvent}
             />
           </div>
         </WorkspacePageFrame>

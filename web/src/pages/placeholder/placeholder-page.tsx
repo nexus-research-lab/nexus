@@ -7,7 +7,7 @@
 
 import { Construction } from "lucide-react";
 
-import { WorkspaceEntryPage } from "@/shared/ui/workspace-entry-page";
+import { WorkspaceEntryPage } from "@/shared/ui/workspace/workspace-entry-page";
 
 interface PlaceholderPageProps {
   title: string;

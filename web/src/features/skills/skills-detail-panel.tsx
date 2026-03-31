@@ -7,7 +7,7 @@ import { ArrowLeft, Bot, Check, Loader2, Lock, Puzzle, Shield, Tag } from "lucid
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getAgents } from "@/lib/agent-manage-api";
 import { getAgentSkillsApi, getAvailableSkillsApi, installSkillApi, uninstallSkillApi } from "@/lib/skill-api";
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { Agent } from "@/types/agent";
 import { AgentSkillEntry, SkillInfo } from "@/types/skill";
 

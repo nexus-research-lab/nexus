@@ -193,7 +193,7 @@ export function SkillDetailDialog({ skill_name, is_open, on_close }: SkillDetail
               {/* Agent 安装列表 */}
               <section className="mt-5">
                 {is_system ? (
-                  <div className="modal-card flex items-center gap-3 rounded-[16px] px-5 py-4">
+                  <div className="modal-card flex items-center gap-3 rounded-2xl px-5 py-4">
                     <Lock className="h-5 w-5 shrink-0 text-amber-500" />
                     <span className="text-[14px] text-slate-700/78">
                       此技能为系统级技能，仅由主智能体使用，不支持手动安装或卸载。

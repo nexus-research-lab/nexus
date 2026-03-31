@@ -5,9 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getAgentSkillsApi, getAvailableSkillsApi } from "@/lib/skill-api";
 import { getAgents } from "@/lib/agent-manage-api";
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace-search-input";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace-surface-header";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
+import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
 import { Agent } from "@/types/agent";
 import { SkillInfo, AgentSkillEntry } from "@/types/skill";
 

@@ -3,9 +3,8 @@
 import { Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace-search-input";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace-surface-header";
+import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 
@@ -34,13 +33,13 @@ interface ContactsDirectoryProps {
 
 /** Contacts 全宽卡片网格 — 风格 */
 export function ContactsDirectory({
-  agents,
-  conversations,
-  on_open_direct_room,
-  on_create_agent,
-  on_edit_agent,
-  on_create_team,
-}: ContactsDirectoryProps) {
+                                    agents,
+                                    conversations,
+                                    on_open_direct_room,
+                                    on_create_agent,
+                                    on_edit_agent,
+                                    on_create_team,
+                                  }: ContactsDirectoryProps) {
   const [active_tab, set_active_tab] = useState<ContactsTabKey>("my_agents");
   const [search_query, set_search_query] = useState("");
 
@@ -64,8 +63,8 @@ export function ContactsDirectory({
 
   // Header tabs 定义
   const tabs: { key: ContactsTabKey; label: string }[] = [
-    { key: "my_agents", label: "My Agents" },
-    { key: "task_generated", label: "Task Generated" },
+    {key: "my_agents", label: "My Agents"},
+    {key: "task_generated", label: "Task Generated"},
   ];
 
   // Header 右侧：搜索框
@@ -84,7 +83,7 @@ export function ContactsDirectory({
       <WorkspaceSurfaceHeader
         active_tab={active_tab}
         badge="AGENTS"
-        leading={<Users className="h-4 w-4 text-slate-800/72" />}
+        leading={<Users className="h-4 w-4 text-slate-800/72"/>}
         on_change_tab={set_active_tab}
         subtitle="管理你的 AI 成员，配置身份与能力"
         tabs={tabs}
@@ -94,22 +93,24 @@ export function ContactsDirectory({
 
       {/* 卡片网格区域 */}
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
-        <div className="grid grid-cols-3 gap-6 md:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-3 gap-6 md:grid-cols-3 xl:grid-cols-4">
           {/* 首张卡片 — New Agent */}
-          <article
-            className="workspace-card flex cursor-pointer flex-col items-center justify-center rounded-[26px] border border-dashed border-slate-300/40 px-6 py-8 text-center transition-all hover:border-slate-400/50 hover:bg-white/34"
-            onClick={on_create_agent}
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/44 bg-white/64">
-              <Plus className="h-7 w-7 text-slate-600" />
-            </div>
-            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-slate-950/80">
-              New Agent
-            </p>
-            <p className="mt-2 text-[13px] leading-5 text-slate-700/60">
-              创建一个新的 AI 成员
-            </p>
-          </article>
+          {active_tab != "task_generated" && (<article
+              className="workspace-card flex cursor-pointer flex-col items-center justify-center rounded-[26px] border border-dashed border-slate-300/40 px-6 py-8 text-center transition-all hover:border-slate-400/50 hover:bg-white/34"
+              onClick={on_create_agent}
+            >
+              <div
+                className="flex h-16 w-16 items-center justify-center rounded-full border border-white/44 bg-white/64">
+                <Plus className="h-7 w-7 text-slate-600"/>
+              </div>
+              <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-slate-950/80">
+                New Agent
+              </p>
+              <p className="mt-2 text-[13px] leading-5 text-slate-700/60">
+                创建一个新的 AI 成员
+              </p>
+            </article>
+          )}
 
           {/* Agent 卡片列表 */}
           {filtered_agents.map((agent) => (
@@ -126,7 +127,8 @@ export function ContactsDirectory({
 
         {/* Task Generated 空状态 */}
         {active_tab === "task_generated" && (
-          <div className="workspace-card mt-6 flex min-h-80 items-center justify-center rounded-[28px] px-8 text-center">
+          <div
+            className="workspace-card mt-6 flex min-h-80 items-center justify-center rounded-[28px] px-8 text-center">
             <div>
               <p className="text-[22px] font-bold tracking-[-0.04em] text-slate-950/90">
                 暂无任务生成的成员

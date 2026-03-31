@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { listRooms, getRoomContexts } from "@/lib/room-api";
 import { sort_rooms_by_recency } from "@/lib/room-utils";
-import { WorkspacePageFrame } from "@/shared/ui/workspace-page-frame";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { RoomAggregate } from "@/types/room";
 
 export function DmsPage() {
