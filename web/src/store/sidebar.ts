@@ -109,17 +109,11 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
         })),
 
       set_navigated_from_tab: (tab) => {
-        set({ navigated_from_tab: tab });
-        // 5 秒后自动清除，避免后续浏览器前进/后退误判
-        if (tab) {
-          if (_navigated_from_tab_timer !== null) {
-            clearTimeout(_navigated_from_tab_timer);
-          }
-          _navigated_from_tab_timer = setTimeout(() => {
-            _navigated_from_tab_timer = null;
-            set({ navigated_from_tab: null });
-          }, 5000);
+        if (_navigated_from_tab_timer !== null) {
+          clearTimeout(_navigated_from_tab_timer);
+          _navigated_from_tab_timer = null;
         }
+        set({ navigated_from_tab: tab });
       },
     }),
     {

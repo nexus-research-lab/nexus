@@ -31,6 +31,7 @@ export function formatInstalls(n: number) {
 export function useSkillMarketplace() {
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [search_query, set_search_query] = useState("");
+  const [debounced_search_query, set_debounced_search_query] = useState("");
   const [discovery_mode, set_discovery_mode] = useState<DiscoveryMode>("catalog");
   const [source_filter, set_source_filter] = useState<SourceFilter>("all");
   const [active_category, set_active_category] = useState<string>("all");
@@ -58,27 +59,28 @@ export function useSkillMarketplace() {
     set_skills(next_skills);
   }, []);
 
-  const load_data = useCallback(async () => {
-    try {
-      set_loading(true);
-      await load_skills(search_query, source_filter);
-    } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "加载失败");
-    } finally {
-      set_loading(false);
-    }
-  }, [load_skills, search_query, source_filter]);
-
   useEffect(() => {
-    void load_data();
-  }, [load_data]);
+    const timer = window.setTimeout(() => {
+      set_debounced_search_query(search_query);
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [search_query]);
 
   useEffect(() => {
     if (discovery_mode !== "catalog") return;
-    void load_skills(search_query, source_filter).catch((err: unknown) => {
-      set_error_message(err instanceof Error ? err.message : "刷新失败");
-    });
-  }, [discovery_mode, load_skills, search_query, source_filter]);
+    void (async () => {
+      try {
+        set_loading(true);
+        await load_skills(debounced_search_query, source_filter);
+      } catch (err) {
+        set_error_message(err instanceof Error ? err.message : "加载失败");
+      } finally {
+        set_loading(false);
+      }
+    })();
+  }, [debounced_search_query, discovery_mode, load_skills, source_filter]);
 
   /* ── 派生数据 ───────────────────────────────── */
 

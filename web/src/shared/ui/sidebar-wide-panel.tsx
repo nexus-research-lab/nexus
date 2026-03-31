@@ -62,13 +62,15 @@ function render_panel_content(tab: SidebarTabKey) {
 
 export function SidebarWidePanel() {
   const location = useLocation();
-  const active_tab = useSidebarStore((s) => s.active_tab);
   const collapse_mode = useSidebarStore((s) => s.collapse_mode);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
+  const navigated_from_tab = useSidebarStore((s) => s.navigated_from_tab);
 
   const derived_tab = derive_tab_from_path(location.pathname);
-  const current_tab = active_tab || derived_tab;
+  const current_tab = location.pathname.startsWith("/rooms") && navigated_from_tab
+    ? navigated_from_tab
+    : derived_tab;
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);

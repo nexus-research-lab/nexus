@@ -19,9 +19,17 @@ from pathlib import Path
 class SkillFrontmatterParser:
     """负责从 SKILL.md 中提取基础元信息。"""
 
+    _cache: dict[str, tuple[int, dict[str, object]]] = {}
+
     @staticmethod
     def parse(skill_md: Path) -> dict[str, object]:
         """读取 frontmatter 与原始 markdown。"""
+        stat = skill_md.stat()
+        cache_key = str(skill_md.resolve())
+        cached = SkillFrontmatterParser._cache.get(cache_key)
+        if cached and cached[0] == stat.st_mtime_ns:
+            return dict(cached[1])
+
         content = skill_md.read_text(encoding="utf-8")
         frontmatter = SkillFrontmatterParser._extract_frontmatter(content)
         data = SkillFrontmatterParser._parse_lines(frontmatter)
@@ -31,6 +39,7 @@ class SkillFrontmatterParser:
         data["description"] = str(data.get("description") or "")
         data["scope"] = str(data.get("scope") or "any")
         data["tags"] = SkillFrontmatterParser._normalize_tags(data.get("tags"))
+        SkillFrontmatterParser._cache[cache_key] = (stat.st_mtime_ns, dict(data))
         return data
 
     @staticmethod
@@ -96,4 +105,3 @@ class SkillFrontmatterParser:
                 return [item.strip().strip("[]\"'") for item in value.split(",") if item.strip()]
             return [value.strip().strip("[]\"'")]
         return []
-

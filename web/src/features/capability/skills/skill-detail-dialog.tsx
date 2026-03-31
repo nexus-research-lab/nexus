@@ -22,6 +22,7 @@ import {
 import {
   deleteSkillFromPoolApi,
   getSkillDetailApi,
+  installSkillToPoolApi,
   setSkillGlobalEnabledApi,
   updateSingleSkillApi,
 } from "@/lib/skill-api";
@@ -106,6 +107,20 @@ export function SkillDetailDialog({
       set_acting(false);
     }
   }, [load_detail, on_close, on_refresh, skill]);
+
+  const handle_install = useCallback(async () => {
+    if (!skill || skill.locked || skill.installed) return;
+    try {
+      set_acting(true);
+      await installSkillToPoolApi(skill.name);
+      await Promise.resolve(on_refresh());
+      await load_detail();
+    } catch (err) {
+      set_error(err instanceof Error ? err.message : "安装 skill 失败");
+    } finally {
+      set_acting(false);
+    }
+  }, [load_detail, on_refresh, skill]);
 
   if (!is_open) return null;
 
@@ -214,7 +229,17 @@ export function SkillDetailDialog({
             </button>
           ) : skill ? (
             <>
-              {skill.has_update ? (
+              {!skill.installed ? (
+                <button
+                  className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={acting}
+                  onClick={() => void handle_install()}
+                  type="button"
+                >
+                  {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Puzzle className="h-4 w-4" />}
+                  安装到资源池
+                </button>
+              ) : skill.has_update ? (
                 <button
                   className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   disabled={acting}
@@ -230,7 +255,7 @@ export function SkillDetailDialog({
                   已安装
                 </span>
               )}
-              {!skill.locked ? (
+              {!skill.locked && skill.installed ? (
                 <label className="relative inline-flex cursor-pointer items-center">
                   <input
                     checked={skill.global_enabled}
@@ -242,7 +267,7 @@ export function SkillDetailDialog({
                   <div className="h-6 w-11 rounded-full bg-slate-200/80 peer peer-checked:bg-emerald-500 after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-white/60 after:bg-white after:shadow-sm after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
                 </label>
               ) : null}
-              {skill.deletable ? (
+              {skill.installed && skill.deletable ? (
                 <button
                   className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 disabled:opacity-60"
                   disabled={acting}

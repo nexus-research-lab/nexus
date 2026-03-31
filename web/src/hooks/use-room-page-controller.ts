@@ -370,6 +370,7 @@ export function useRoomPageController({
       allowed_tools: options.allowed_tools,
       disallowed_tools: options.disallowed_tools,
       skills_enabled: options.skills_enabled,
+      installed_skills: options.installed_skills,
       setting_sources: options.setting_sources,
     };
 

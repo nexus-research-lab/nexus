@@ -121,8 +121,9 @@ const MORE_MENU_EXTERNAL_ITEMS: MoreMenuItem[] = [
 export function SidebarNarrowRail() {
   const location = useLocation();
   const navigate = useNavigate();
-  const active_tab = useSidebarStore((s) => s.active_tab);
   const set_active_tab = useSidebarStore((s) => s.set_active_tab);
+  const navigated_from_tab = useSidebarStore((s) => s.navigated_from_tab);
+  const set_navigated_from_tab = useSidebarStore((s) => s.set_navigated_from_tab);
 
   // More 菜单状态
   const [is_more_open, set_is_more_open] = useState(false);
@@ -130,7 +131,9 @@ export function SidebarNarrowRail() {
 
   // 根据当前路由推导激活的 Tab
   const derived_tab = derive_tab_from_path(location.pathname);
-  const current_tab = active_tab || derived_tab;
+  const current_tab = location.pathname.startsWith("/rooms") && navigated_from_tab
+    ? navigated_from_tab
+    : derived_tab;
 
   // 点击外部关闭 More 菜单
   useEffect(() => {
@@ -191,14 +194,17 @@ export function SidebarNarrowRail() {
               <Link
                 key={tab.key}
                 aria-current={is_active ? "page" : undefined}
-                className={cn(
+              className={cn(
                   "group relative flex w-full flex-col items-center gap-1 rounded-[20px] px-2 py-3 text-[11px] font-semibold tracking-[0.01em] transition-all duration-300",
                   is_active
                     ? "workspace-card-strong text-slate-950 shadow-[0_16px_30px_rgba(102,112,145,0.14)]"
                     : "text-slate-600 hover:bg-white/30 hover:text-slate-900",
                 )}
                 to={tab.to}
-                onClick={() => set_active_tab(tab.key)}
+                onClick={() => {
+                  set_active_tab(tab.key);
+                  set_navigated_from_tab(tab.key);
+                }}
               >
                 <div
                   className={cn(

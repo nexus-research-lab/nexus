@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复 `session_repository` / `cost_repository` 模块级初始化产生的导入副作用（#11）。
 - 修复 Alembic 迁移多 head 冲突问题。
+- 修复技能市场与能力侧栏的多处状态不一致问题，包括全局开关/更新不同步、Agent 技能配置保存不生效、详情弹窗安装状态误显示，以及 DM 跳转后侧栏高亮错误。
+
+### Changed
+- 优化 Skills 页面交互与布局：搜索置顶、分类降级为轻筛选、操作反馈改为自动消失的轻量提示，能力侧栏改为总览卡片并显示全局已安装能力数量。
 
 ### Docs
 - 更新根目录 `README.md`，同步当前 React + Vite 前端、混合持久化、Memory、Room/DM 页面结构与配置说明。

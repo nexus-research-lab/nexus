@@ -98,6 +98,11 @@ export function AgentOptionsSkillsTab({
           const agent_skills = await getAgentSkillsApi(agentId);
           if (!cancelled) {
             setAvailableSkills(buildEditModeSkills(agent_skills));
+            onEnabledSkillNamesChange(
+              agent_skills
+                .filter((skill) => !skill.locked && skill.installed)
+                .map((skill) => skill.name),
+            );
           }
           return;
         }
@@ -120,7 +125,7 @@ export function AgentOptionsSkillsTab({
     return () => {
       cancelled = true;
     };
-  }, [agentId, enabledSkillNames]);
+  }, [agentId, onEnabledSkillNamesChange]);
 
   const enabled_count = useMemo(
     () => availableSkills.filter((skill) => enabledSkillNames.includes(skill.name)).length,

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -20,14 +21,25 @@ export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBan
   const items = splitFeedbackItems(message);
   const is_success = tone === "success";
   const Icon = is_success ? CheckCircle2 : AlertCircle;
+  const auto_dismiss_ms = is_success ? 2200 : 3600;
+
+  useEffect(() => {
+    if (!on_dismiss) return;
+    const timer = window.setTimeout(() => {
+      on_dismiss();
+    }, auto_dismiss_ms);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [auto_dismiss_ms, on_dismiss]);
 
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-[18px] px-4 py-3",
+        "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[18px] border px-4 py-3 shadow-[0_18px_40px_rgba(90,110,140,0.18)] backdrop-blur-xl",
         is_success
-          ? "border border-emerald-200/50 bg-emerald-50/60"
-          : "border border-rose-200/50 bg-rose-50/60",
+          ? "border-emerald-200/70 bg-white/88"
+          : "border-rose-200/70 bg-white/92",
       )}
     >
       <div
@@ -64,7 +76,7 @@ export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBan
       </div>
       {on_dismiss && (
         <button
-          className="shrink-0 text-[11px] text-slate-500 hover:text-slate-700"
+          className="shrink-0 text-[11px] text-slate-400 transition-colors hover:text-slate-700"
           onClick={on_dismiss}
           type="button"
         >

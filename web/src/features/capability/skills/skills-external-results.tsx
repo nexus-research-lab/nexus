@@ -1,6 +1,5 @@
-import { Download, Import, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace-pill-button";
 import type { ExternalSkillSearchItem } from "@/types/skill";
 
 import { formatInstalls } from "@/hooks/use-skill-marketplace";
@@ -72,54 +71,52 @@ function ExternalResultCard({
   on_import,
 }: ExternalResultCardProps) {
   const already_imported = imported_skill_names.has(item.skill_slug);
+  const is_busy = busy_skill_name === item.skill_slug;
 
   return (
-    <div className="workspace-card rounded-[20px] px-5 py-4 transition-all hover:bg-white/40">
+    <div
+      className="workspace-card flex cursor-pointer flex-col rounded-[20px] px-5 py-4 transition-all hover:bg-white/40"
+      onClick={on_preview}
+    >
+      {/* 标题行 */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-[14px] font-bold text-slate-950/90">
-              {item.title || item.skill_slug}
-            </p>
-            <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
-              {formatInstalls(item.installs)} installs
-            </span>
-            {already_imported && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                已导入
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 truncate text-[11px] text-slate-500">
-            {item.package_spec}
+          <p className="truncate text-[14px] font-bold tracking-tight text-slate-900">
+            {item.title || item.skill_slug}
+          </p>
+          <p className="mt-0.5 flex items-center gap-2 truncate text-[11px] text-slate-400">
+            <span>{item.package_spec}</span>
+            <span>·</span>
+            <span>{formatInstalls(item.installs)} installs</span>
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <WorkspacePillButton onClick={on_preview} size="sm">
-            预览
-          </WorkspacePillButton>
-          <WorkspacePillButton
-            disabled={busy_skill_name === item.skill_slug}
-            onClick={on_import}
-            size="sm"
-            variant="strong"
-          >
-            {busy_skill_name === item.skill_slug ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5" />
-            )}
-            导入
-          </WorkspacePillButton>
+        <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {already_imported ? (
+            <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-600">
+              已导入
+            </span>
+          ) : (
+            <button
+              className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/70 px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition-all hover:bg-sky-50 hover:text-sky-600 disabled:opacity-50"
+              disabled={is_busy}
+              onClick={on_import}
+              type="button"
+            >
+              {is_busy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Download className="h-3 w-3" />
+              )}
+              导入
+            </button>
+          )}
         </div>
       </div>
-      <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600/70">
+
+      {/* 描述 */}
+      <p className="mt-2.5 line-clamp-2 flex-1 text-[12px] leading-[1.6] text-slate-600/70">
         {item.readme_markdown || item.description}
       </p>
-      <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-slate-400">
-        <Import className="h-3 w-3" />
-        导入后由 Nexus 管理安装与更新
-      </div>
     </div>
   );
 }

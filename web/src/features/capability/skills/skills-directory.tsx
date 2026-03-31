@@ -38,31 +38,30 @@ export function SkillsDirectory() {
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
         <SkillsSearchBar ctrl={ctrl} />
 
-        {/* 反馈消息 */}
-        {(ctrl.status_message || ctrl.error_message) && (
-          <div className="mb-4 space-y-2">
-            {ctrl.status_message && (
-              <FeedbackBanner
-                message={ctrl.status_message}
-                on_dismiss={() => ctrl.set_status_message(null)}
-                title="操作完成"
-                tone="success"
-              />
-            )}
-            {ctrl.error_message && (
-              <FeedbackBanner
-                message={ctrl.error_message}
-                on_dismiss={() => ctrl.set_error_message(null)}
-                title="操作失败"
-                tone="error"
-              />
-            )}
-          </div>
-        )}
-
         {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
         {ctrl.discovery_mode === "catalog" && <SkillsCatalogGrid ctrl={ctrl} />}
       </div>
+
+      {(ctrl.status_message || ctrl.error_message) && (
+        <div className="pointer-events-none fixed right-6 top-24 z-40 flex flex-col gap-2">
+          {ctrl.status_message && (
+            <FeedbackBanner
+              message={ctrl.status_message}
+              on_dismiss={() => ctrl.set_status_message(null)}
+              title="操作完成"
+              tone="success"
+            />
+          )}
+          {ctrl.error_message && (
+            <FeedbackBanner
+              message={ctrl.error_message}
+              on_dismiss={() => ctrl.set_error_message(null)}
+              title="操作失败"
+              tone="error"
+            />
+          )}
+        </div>
+      )}
 
       {/* 弹窗 */}
       {ctrl.selected_skill && (

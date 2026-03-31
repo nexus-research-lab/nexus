@@ -44,6 +44,7 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
   const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
+  const set_navigated_from_tab = useSidebarStore((s) => s.set_navigated_from_tab);
 
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const [search_query, set_search_query] = useState("");
@@ -85,9 +86,10 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
   const handle_click = useCallback(
     (room_id: string) => {
       set_active_item(room_id);
+      set_navigated_from_tab("dms");
       navigate(AppRouteBuilders.room(room_id));
     },
-    [navigate, set_active_item],
+    [navigate, set_active_item, set_navigated_from_tab],
   );
 
   return (

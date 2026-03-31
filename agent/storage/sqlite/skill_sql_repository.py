@@ -116,3 +116,11 @@ class SkillSqlRepository(BaseSqlRepository):
             await self._session.execute(del_stmt)
             await self.flush()
         return agent_ids
+
+    async def list_agent_ids_by_skill_name(self, skill_name: str) -> list[str]:
+        """查询安装了指定 skill 的 Agent ID 列表。"""
+        stmt = select(AgentSkill.agent_id).where(
+            AgentSkill.skill_name == skill_name
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())

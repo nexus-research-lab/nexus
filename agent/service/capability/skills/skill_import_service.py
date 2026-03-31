@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -111,6 +112,25 @@ class SkillImportService:
             return False
         latest_commit = self._resolve_remote_commit(manifest.git_url, manifest.git_branch)
         return bool(latest_commit and latest_commit != manifest.git_commit)
+
+    def check_skills_sh_update(self, manifest: ExternalSkillManifest) -> bool:
+        """比较远端 skills.sh 导入结果与本地 registry 内容是否一致。"""
+        if manifest.import_mode != "skills_sh" or not manifest.package_spec or not manifest.skill_slug:
+            return False
+        current_dir = self._store.skill_dir(manifest.name)
+        if not current_dir.exists():
+            return False
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="nexus-skill-skills-sh-check-") as temp_dir:
+                temp_root = Path(temp_dir)
+                self._run_skills_cli_add(temp_root, manifest.package_spec, manifest.skill_slug)
+                remote_dir = temp_root / ".agents" / "skills" / manifest.skill_slug
+                if not (remote_dir / "SKILL.md").exists():
+                    return False
+                return self._hash_skill_directory(remote_dir) != self._hash_skill_directory(current_dir)
+        except ValueError:
+            return False
 
     def update_git_skill(self, manifest: ExternalSkillManifest) -> ExternalSkillManifest:
         if manifest.import_mode != "git" or not manifest.git_url:
@@ -303,3 +323,13 @@ class SkillImportService:
         for root in protected_roots:
             if (root / skill_name / "SKILL.md").exists():
                 raise ValueError(f"Skill '{skill_name}' 与系统/内置 skill 重名，不能导入覆盖")
+
+    def _hash_skill_directory(self, skill_root: Path) -> str:
+        """生成 skill 目录摘要，用于判断远端内容是否变化。"""
+        digest = hashlib.sha256()
+        for path in sorted(skill_root.rglob("*")):
+            if path.is_dir() or path.name == ".nexus-skill.json":
+                continue
+            digest.update(path.relative_to(skill_root).as_posix().encode("utf-8"))
+            digest.update(path.read_bytes())
+        return digest.hexdigest()

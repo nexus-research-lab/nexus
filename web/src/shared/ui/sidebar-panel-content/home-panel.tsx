@@ -156,6 +156,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
   const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
+  const set_navigated_from_tab = useSidebarStore((s) => s.set_navigated_from_tab);
 
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const [starred] = useState<StarredItem[]>(load_starred_items);
@@ -187,9 +188,10 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const navigate_to_room = useCallback(
     (room_id: string) => {
       set_active_item(room_id);
+      set_navigated_from_tab("home");
       navigate(AppRouteBuilders.room(room_id));
     },
-    [navigate, set_active_item],
+    [navigate, set_active_item, set_navigated_from_tab],
   );
 
   // 导航到 Agent（联系人详情）
@@ -221,6 +223,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
                 if (item.type === "agent") {
                   navigate(AppRouteBuilders.contact_profile(item.id));
                 } else {
+                  set_navigated_from_tab("home");
                   navigate(AppRouteBuilders.room(item.id));
                 }
               }}

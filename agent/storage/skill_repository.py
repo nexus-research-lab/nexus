@@ -91,6 +91,12 @@ class SkillRepository:
             await session.commit()
         return agent_ids
 
+    async def get_agent_ids_by_skill_name(self, skill_name: str) -> list[str]:
+        """获取安装了指定 skill 的 Agent ID 列表。"""
+        async with self._db.session() as session:
+            repo = SkillSqlRepository(session)
+            return await repo.list_agent_ids_by_skill_name(skill_name)
+
 
 # 全局单例
 skill_repository = SkillRepository()

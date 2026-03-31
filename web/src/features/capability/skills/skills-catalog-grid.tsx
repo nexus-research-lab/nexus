@@ -53,7 +53,10 @@ export function SkillsCatalogGrid({ ctrl }: SkillsCatalogGridProps) {
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {items.map((skill: SkillInfo) => (
-              <div key={skill.name} className={ctrl.busy_skill_name === skill.name ? "opacity-70" : ""}>
+              <div
+                key={skill.name}
+                className={ctrl.busy_skill_name === skill.name ? "opacity-60 transition-opacity" : "transition-opacity"}
+              >
                 <SkillsCard
                   busy={ctrl.busy_skill_name === skill.name}
                   on_delete={() => void ctrl.handle_delete_from_pool(skill)}
