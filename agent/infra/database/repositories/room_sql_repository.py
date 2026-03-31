@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from agent.infra.database.models.member import Member
 from agent.infra.database.models.room import Room
 from agent.schema.model_chat_persistence import MemberRecord, RoomAggregate, RoomRecord
-from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
+from agent.infra.database.repositories.base_sql_repository import BaseSqlRepository
 
 
 class RoomSqlRepository(BaseSqlRepository):

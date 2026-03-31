@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from agent.infra.database.models.session import Session
 from agent.schema.model_chat_persistence import SessionRecord
-from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
+from agent.infra.database.repositories.base_sql_repository import BaseSqlRepository
 
 
 class SessionSqlRepository(BaseSqlRepository):
@@ -83,6 +83,21 @@ class SessionSqlRepository(BaseSqlRepository):
         if entity is None:
             return None
         entity.last_activity_at = last_activity_at or datetime.now()
+        await self.flush()
+        await self.refresh(entity)
+        return SessionRecord.model_validate(entity)
+
+    async def update_sdk_session_id(
+        self,
+        room_session_id: str,
+        sdk_session_id: str,
+    ) -> Optional[SessionRecord]:
+        """更新 SDK 会话 ID。"""
+        entity = await self._session.get(Session, room_session_id)
+        if entity is None:
+            return None
+        entity.sdk_session_id = sdk_session_id
+        entity.last_activity_at = datetime.now()
         await self.flush()
         await self.refresh(entity)
         return SessionRecord.model_validate(entity)

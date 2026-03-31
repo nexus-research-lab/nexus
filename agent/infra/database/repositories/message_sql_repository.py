@@ -18,7 +18,7 @@ from sqlalchemy import select
 from agent.infra.database.models.message import Message
 from agent.infra.database.models.round import Round
 from agent.schema.model_chat_persistence import MessageRecord, RoundRecord
-from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
+from agent.infra.database.repositories.base_sql_repository import BaseSqlRepository
 
 
 class MessageSqlRepository(BaseSqlRepository):
@@ -105,3 +105,20 @@ class MessageSqlRepository(BaseSqlRepository):
         )
         result = await self._session.execute(stmt)
         return [RoundRecord.model_validate(entity) for entity in result.scalars().all()]
+
+    async def delete_by_conversation_round(
+        self,
+        conversation_id: str,
+        round_id: str,
+    ) -> int:
+        """删除指定对话下某一轮的消息索引。"""
+        stmt = select(Message).where(
+            Message.conversation_id == conversation_id,
+            Message.round_id == round_id,
+        )
+        result = await self._session.execute(stmt)
+        entities = result.scalars().all()
+        for entity in entities:
+            await self._session.delete(entity)
+        await self.flush()
+        return len(entities)

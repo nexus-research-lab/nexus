@@ -16,17 +16,18 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from agent.infra.database.get_db import get_db
+from agent.infra.database.repositories.agent_sql_repository import AgentSqlRepository
+from agent.infra.file_store.storage_bootstrap import FileStorageBootstrap
+from agent.infra.file_store.storage_paths import FileStoragePaths
 from agent.schema.model_agent import AAgent
 from agent.schema.model_agent_persistence import AgentAggregate
+from agent.service.agent.agent_sql_mapper import AgentSqlMapper
 from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.workspace.workspace_template_initializer import (
     WorkspaceTemplateInitializer,
 )
-from agent.storage.agent_sql_mapper import AgentSqlMapper
-from agent.storage.sqlite.agent_sql_repository import AgentSqlRepository
-from agent.storage.storage_bootstrap import FileStorageBootstrap
-from agent.storage.storage_paths import FileStoragePaths
 from agent.utils.logger import logger
+
 
 class AgentRepository:
     """以 SQLite 为主真相源的 Agent 仓库。"""
@@ -39,14 +40,14 @@ class AgentRepository:
         self._initialized = False
 
     async def create_agent(
-        self,
-        agent_id: str,
-        name: str,
-        workspace_path: str,
-        options: Optional[Dict] = None,
-        avatar: Optional[str] = None,
-        description: Optional[str] = None,
-        vibe_tags: Optional[list] = None,
+            self,
+            agent_id: str,
+            name: str,
+            workspace_path: str,
+            options: Optional[Dict] = None,
+            avatar: Optional[str] = None,
+            description: Optional[str] = None,
+            vibe_tags: Optional[list] = None,
     ) -> Optional[str]:
         """创建 Agent，返回 agent_id。"""
         await self._ensure_ready()
@@ -94,9 +95,9 @@ class AgentRepository:
         return [AgentSqlMapper.to_model(item) for item in aggregates]
 
     async def exists_active_agent_name(
-        self,
-        name: str,
-        exclude_agent_id: Optional[str] = None,
+            self,
+            name: str,
+            exclude_agent_id: Optional[str] = None,
     ) -> bool:
         """检查活跃 Agent 名称是否已存在。"""
         normalized = name.lower()
@@ -108,13 +109,13 @@ class AgentRepository:
         return False
 
     async def update_agent(
-        self,
-        agent_id: str,
-        name: Optional[str] = None,
-        options: Optional[Dict] = None,
-        avatar: Optional[str] = None,
-        description: Optional[str] = None,
-        vibe_tags: Optional[list] = None,
+            self,
+            agent_id: str,
+            name: Optional[str] = None,
+            options: Optional[Dict] = None,
+            avatar: Optional[str] = None,
+            description: Optional[str] = None,
+            vibe_tags: Optional[list] = None,
     ) -> bool:
         """更新 Agent 基础信息与运行参数。"""
         await self._ensure_ready()

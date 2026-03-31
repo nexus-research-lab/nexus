@@ -11,13 +11,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import select
 
 from agent.infra.database.models.conversation import Conversation
 from agent.schema.model_chat_persistence import ConversationRecord
-from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
+from agent.infra.database.repositories.base_sql_repository import BaseSqlRepository
 
 
 class ConversationSqlRepository(BaseSqlRepository):
@@ -63,6 +64,20 @@ class ConversationSqlRepository(BaseSqlRepository):
         if entity is None:
             return None
         entity.title = title
+        await self.flush()
+        await self.refresh(entity)
+        return ConversationRecord.model_validate(entity)
+
+    async def touch(
+        self,
+        conversation_id: str,
+        touched_at: Optional[datetime] = None,
+    ) -> Optional[ConversationRecord]:
+        """刷新对话更新时间。"""
+        entity = await self._session.get(Conversation, conversation_id)
+        if entity is None:
+            return None
+        entity.updated_at = touched_at or datetime.now()
         await self.flush()
         await self.refresh(entity)
         return ConversationRecord.model_validate(entity)

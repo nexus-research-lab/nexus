@@ -26,7 +26,7 @@ from agent.schema.model_agent_persistence import (
     ProfileRecord,
     RuntimeRecord,
 )
-from agent.storage.sqlite.base_sql_repository import BaseSqlRepository
+from agent.infra.database.repositories.base_sql_repository import BaseSqlRepository
 
 
 class AgentSqlRepository(BaseSqlRepository):

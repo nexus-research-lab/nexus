@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 
 from agent.config.config import settings
 from agent.service.workspace.workspace_template_initializer import WorkspaceTemplateInitializer
-from agent.storage.storage_paths import FileStoragePaths
+from agent.infra.file_store.storage_paths import FileStoragePaths
 from agent.utils.logger import logger
 
 
