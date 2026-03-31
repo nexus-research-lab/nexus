@@ -21,6 +21,7 @@ from agent.service.channels.ws.handlers.permission_handler import PermissionHand
 from agent.service.channels.ws.handlers.ping_handler import PingHandler
 from agent.service.channels.ws.websocket_sender import WebSocketSender
 from agent.service.chat.chat_service import ChatService
+from agent.service.chat.room_chat_service import RoomChatService
 from agent.service.session.session_manager import session_manager
 from agent.service.permission.strategy.permission_interactive import InteractivePermissionStrategy
 from agent.utils.logger import logger
@@ -41,6 +42,7 @@ class WebSocketConnectionManager:
 
         permission_handler = PermissionHandler(self.sender, self.permission_strategy)
         chat_service = ChatService(self.sender, self.permission_strategy)
+        room_chat_service = RoomChatService(self.sender, self.permission_strategy)
         interrupt_handler = InterruptHandler(self.sender)
         ping_handler = PingHandler(self.sender)
         error_handler = ErrorHandler(self.sender)
@@ -48,6 +50,7 @@ class WebSocketConnectionManager:
         return ChannelDispatcher(
             sender=self.sender,
             chat_service=chat_service,
+            room_chat_service=room_chat_service,
             interrupt_handler=interrupt_handler,
             permission_handler=permission_handler,
             ping_handler=ping_handler,

@@ -16,7 +16,9 @@ from agent.service.channels.ws.handlers.interrupt_handler import InterruptHandle
 from agent.service.channels.ws.handlers.permission_handler import PermissionHandler
 from agent.service.channels.ws.handlers.ping_handler import PingHandler
 from agent.service.channels.ws.websocket_sender import WebSocketSender
+from agent.service.channels.ws.ws_connection_registry import ws_connection_registry
 from agent.service.chat.chat_service import ChatService
+from agent.service.chat.room_chat_service import RoomChatService, build_room_session_key
 from agent.service.session.session_router import build_session_key
 
 
@@ -27,6 +29,7 @@ class ChannelDispatcher:
         self,
         sender: WebSocketSender,
         chat_service: ChatService,
+        room_chat_service: RoomChatService,
         interrupt_handler: InterruptHandler,
         permission_handler: PermissionHandler,
         ping_handler: PingHandler,
@@ -35,6 +38,7 @@ class ChannelDispatcher:
     ) -> None:
         self._sender = sender
         self._chat_service = chat_service
+        self._room_chat_service = room_chat_service
         self._interrupt_handler = interrupt_handler
         self._permission_handler = permission_handler
         self._ping_handler = ping_handler
@@ -47,7 +51,16 @@ class ChannelDispatcher:
         msg_type = message.get("type")
 
         if msg_type == "chat":
-            await self._chat_service.handle_chat_message_with_task(message, self._chat_tasks)
+            # Room 消息路由到 RoomChatService
+            if self._is_room_message(message):
+                self._normalize_room_session_key(message)
+                await self._room_chat_service.handle_room_message_with_task(
+                    message, self._chat_tasks,
+                )
+            else:
+                await self._chat_service.handle_chat_message_with_task(
+                    message, self._chat_tasks,
+                )
             return
 
         if msg_type == "interrupt":
@@ -70,6 +83,18 @@ class ChannelDispatcher:
                 self._sender.unsubscribe_workspace(agent_id)
             return
 
+        if msg_type == "subscribe_room":
+            room_id = message.get("room_id", "")
+            if room_id:
+                ws_connection_registry.subscribe_room(self._sender, room_id)
+            return
+
+        if msg_type == "unsubscribe_room":
+            room_id = message.get("room_id", "")
+            if room_id:
+                ws_connection_registry.unsubscribe_room(self._sender, room_id)
+            return
+
         if msg_type == "ping":
             await self._ping_handler.handle_ping(message)
             return
@@ -77,8 +102,27 @@ class ChannelDispatcher:
         await self._error_handler.handle_unknown_message_type(message)
 
     @staticmethod
+    def _is_room_message(message: Dict[str, Any]) -> bool:
+        """判断是否为 Room 消息。"""
+        if message.get("chat_type") == "group":
+            return True
+        if message.get("room_id"):
+            return True
+        session_key = message.get("session_key", "")
+        if isinstance(session_key, str) and session_key.startswith("room:"):
+            return True
+        return False
+
+    @staticmethod
+    def _normalize_room_session_key(message: Dict[str, Any]) -> None:
+        """为 Room 消息构建共享 session_key。"""
+        conversation_id = message.get("conversation_id", "")
+        if not message.get("session_key") and conversation_id:
+            message["session_key"] = build_room_session_key(conversation_id)
+
+    @staticmethod
     def _normalize_session_key(message: Dict[str, Any]) -> None:
-        """将前端 agent_id 标准化为内部 session_key。"""
+        """将前端 agent_id 标准化为内部 session_key（仅 DM）。"""
         if "agent_id" not in message or "session_key" in message:
             return
 

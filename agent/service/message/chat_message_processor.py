@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from claude_agent_sdk import Message as SDKMessage
 from claude_agent_sdk import ResultMessage, SystemMessage
@@ -26,6 +26,9 @@ from agent.service.session.session_manager import session_manager
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
+PersistMessageCallback = Callable[[Message], Awaitable[None]]
+RegisterSessionCallback = Callable[[str, str], Awaitable[None]]
+
 
 class ChatMessageProcessor:
     """负责将 SDK 消息转换为前后端统一消息协议。"""
@@ -37,17 +40,24 @@ class ChatMessageProcessor:
         round_id: Optional[str] = None,
         agent_id: str = None,
         session_id: Optional[str] = None,
+        assistant_message_id: Optional[str] = None,
+        persist_message: Optional[PersistMessageCallback] = None,
+        register_session: Optional[RegisterSessionCallback] = None,
     ) -> None:
         self.query = query
         self.session_key = session_key
         self.agent_id = agent_id or  settings.DEFAULT_AGENT_ID
         self.round_id = round_id or str(uuid.uuid4())
         self.session_id = session_id
+        # 预分配的 assistant message_id，覆盖 SDK 分配的 id
+        self._assistant_message_id: Optional[str] = assistant_message_id
         self.subtype: Optional[str] = None
         self.message_count = 0
         self._is_user_message_saved = False
         self._last_assistant_message_id: Optional[str] = None
         self._segment = AssistantSegment()
+        self._persist_message = persist_message or self._default_persist_message
+        self._register_session = register_session or self._default_register_session
 
     async def process_messages(self, response_msg: SDKMessage) -> list[Message | StreamMessage]:
         """处理单条 SDK 消息。"""
@@ -72,7 +82,7 @@ class ChatMessageProcessor:
 
         for message in messages:
             if isinstance(message, Message):
-                await session_store.save_message(message)
+                await self._persist_message(message)
             self.message_count += 1
         return messages
 
@@ -84,7 +94,7 @@ class ChatMessageProcessor:
         if not session_id:
             return
         self.session_id = session_id
-        await session_manager.register_sdk_session(session_key=self.session_key, session_id=session_id)
+        await self._register_session(self.session_key, session_id)
         logger.debug("🔗建立映射: key=%s ↔ sdk_session=%s", self.session_key, session_id)
 
     async def _save_user_message(self) -> None:
@@ -100,8 +110,21 @@ class ChatMessageProcessor:
             role="user",
             content=self.query,
         )
-        await session_store.save_message(user_message)
+        await self._persist_message(user_message)
         self._is_user_message_saved = True
+
+    @staticmethod
+    async def _default_persist_message(message: Message) -> None:
+        """默认消息落库逻辑。"""
+        await session_store.save_message(message)
+
+    @staticmethod
+    async def _default_register_session(session_key: str, session_id: str) -> None:
+        """默认会话映射落库逻辑。"""
+        await session_manager.register_sdk_session(
+            session_key=session_key,
+            session_id=session_id,
+        )
 
     def _dispatch(self, response_msg: SDKMessage) -> list[Message | StreamMessage]:
         """按 SDK 消息类型分发。"""
@@ -127,8 +150,10 @@ class ChatMessageProcessor:
 
         if event_type == "message_start":
             message = event.get("message") or {}
+            # 使用预分配的 id（Room 并发场景），否则用 SDK 分配的 id
+            effective_message_id = self._assistant_message_id or message.get("id")
             self._segment.start(
-                message_id=message.get("id"),
+                message_id=effective_message_id,
                 model=message.get("model"),
                 usage=message.get("usage"),
             )

@@ -15,6 +15,8 @@ from typing import Any, Dict, Optional
 
 from agent.config.config import settings
 from agent.service.channels.ws.handlers.base_handler import BaseHandler
+from agent.service.room.room_message_store import room_message_store
+from agent.service.room.room_session_keys import is_room_shared_session_key
 from agent.service.session.session_manager import session_manager
 from agent.schema.model_message import Message
 from agent.service.session.session_store import session_store
@@ -28,11 +30,107 @@ class InterruptHandler(BaseHandler):
         """处理中断消息。"""
         session_key = message.get("session_key") or message.get("agent_id", "")
         round_id = message.get("round_id")
+        target_agent_id = message.get("target_agent_id")
+        msg_id = message.get("msg_id")  # per-message interrupt (Room 并发场景)
         if not session_key:
             logger.warning("⚠️ interrupt 消息缺少 session_key")
             return
 
+        if is_room_shared_session_key(session_key):
+            await self._handle_room_interrupt(
+                session_key=session_key,
+                round_id=round_id,
+                agent_id=message.get("agent_id", ""),
+                chat_tasks=chat_tasks,
+                msg_id=msg_id,
+            )
+            return
+
+        # 精确到 msg_id 的中断：room:{session_key}:{msg_id}
+        if msg_id:
+            msg_task_key = f"room:{session_key}:{msg_id}"
+            msg_task = chat_tasks.get(msg_task_key)
+            if msg_task and not msg_task.done():
+                msg_task.cancel()
+                logger.info(f"🛑 per-msg_id 中断: {msg_task_key}")
+                return
+            logger.warning(f"⚠️ per-msg_id 任务未找到或已结束: {msg_task_key}")
+            return
+
+        # per-agent 中断（旧协议兼容）
+        if target_agent_id:
+            agent_task_key = f"room:{session_key}:{target_agent_id}"
+            agent_task = chat_tasks.get(agent_task_key)
+            if agent_task and not agent_task.done():
+                agent_task.cancel()
+                logger.info(f"🛑 per-agent 中断: {agent_task_key}")
+                await self._send_interrupt_result(session_key, round_id)
+                return
+            logger.warning(f"⚠️ per-agent 任务未找到或已结束: {agent_task_key}")
+            return
+
         asyncio.create_task(self._handle_interrupt_async(session_key, chat_tasks, round_id))
+
+    async def _handle_room_interrupt(
+        self,
+        session_key: str,
+        round_id: Optional[str],
+        agent_id: str,
+        chat_tasks: Dict[str, asyncio.Task],
+        msg_id: Optional[str] = None,
+    ) -> None:
+        """处理中断 Room 共享流。"""
+        if msg_id:
+            msg_task_key = f"room:{session_key}:{msg_id}"
+            msg_task = chat_tasks.get(msg_task_key)
+            if msg_task and not msg_task.done():
+                msg_task.cancel()
+                logger.info(f"🛑 Room 单气泡中断: {msg_task_key}")
+                return
+            logger.warning(f"⚠️ Room 单气泡任务未找到: {msg_task_key}")
+            return
+
+        cancelled = 0
+        task_prefix = f"room:{session_key}"
+        for task_key, task in list(chat_tasks.items()):
+            if not task_key.startswith(task_prefix) or task.done():
+                continue
+            task.cancel()
+            cancelled += 1
+
+        if not round_id:
+            round_id = await room_message_store.get_latest_round_id(session_key)
+        if not round_id:
+            logger.warning(f"⚠️ Room 中断缺少 round_id: key={session_key}")
+            return
+        if await room_message_store.has_round_result(session_key, round_id):
+            logger.info(f"ℹ️ 跳过 Room 中断结果: key={session_key}, round={round_id}")
+            return
+
+        result_message = Message(
+            session_key=session_key,
+            agent_id=agent_id or settings.DEFAULT_AGENT_ID,
+            round_id=round_id,
+            session_id=None,
+            message_id=str(uuid.uuid4()),
+            role="result",
+            subtype="interrupted",
+            duration_ms=0,
+            duration_api_ms=0,
+            is_error=True,
+            num_turns=0,
+            total_cost_usd=0,
+            usage={
+                "input_tokens": 0,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "output_tokens": 0,
+            },
+            result="用户中断",
+        )
+        await room_message_store.save_message(result_message)
+        logger.info(f"💾 保存 Room 中断消息: key={session_key}, round_id={round_id}, tasks={cancelled}")
+        await self.send(result_message)
 
     async def _handle_interrupt_async(
         self,

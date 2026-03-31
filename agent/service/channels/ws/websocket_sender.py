@@ -25,9 +25,11 @@ class WebSocketSender(MessageSender):
     """WebSocket 消息发送器。"""
 
     def __init__(self, websocket: WebSocket):
+        from agent.service.channels.ws.ws_connection_registry import ws_connection_registry
         self.websocket = websocket
         self._workspace_subscriptions: Dict[str, str] = {}
         self._is_closed = False
+        ws_connection_registry.register(self)
 
     async def _safe_send_json(self, payload: Dict[str, Any]) -> None:
         """安全发送，连接关闭后不再继续推送。"""
@@ -111,8 +113,10 @@ class WebSocketSender(MessageSender):
         workspace_observer.unsubscribe(agent_id)
 
     def unsubscribe_all_workspace(self) -> None:
-        """取消当前连接的所有 workspace 事件订阅。"""
+        """取消当前连接的所有 workspace 事件订阅，并从全局注册表注销。"""
+        from agent.service.channels.ws.ws_connection_registry import ws_connection_registry
         self._is_closed = True
+        ws_connection_registry.unregister(self)
         for agent_id in list(self._workspace_subscriptions.keys()):
             self.unsubscribe_workspace(agent_id)
 
