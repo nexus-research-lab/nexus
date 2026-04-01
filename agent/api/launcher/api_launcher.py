@@ -20,7 +20,6 @@ from agent.config.config import settings
 from agent.infra.server.common import resp
 from agent.service.launcher.launcher_service import launcher_service, LauncherAction
 from agent.service.room.room_service import room_service
-from agent.infra.database.models.activity_event import ActivityEventType
 
 router = APIRouter(tags=["launcher"])
 

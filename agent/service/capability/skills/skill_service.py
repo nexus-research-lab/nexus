@@ -26,10 +26,10 @@ from agent.schema.model_skill import (
 from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.capability.skills.skill_catalog import SkillCatalog
 from agent.service.capability.skills.skill_import_service import SkillImportService
+from agent.service.capability.skills.skill_repository import skill_repository
 from agent.service.capability.skills.skill_registry_store import SkillRegistryStore
 from agent.service.workspace.workspace_skill_deployer import WorkspaceSkillDeployer
-from agent.storage.agent_repository import agent_repository
-from agent.storage.skill_repository import skill_repository
+from agent.service.agent.agent_repository import agent_repository
 from agent.utils.logger import logger
 
 
@@ -394,20 +394,6 @@ class SkillService:
             self._update_status_cache[detail.name] = (now, has_update)
             return has_update
         return False
-
-    async def sync_agent_skills(self, agent_id: str, desired_skill_names: list[str]) -> list[str]:
-        """按目标 skill 列表同步 Agent workspace 与 DB 关联。"""
-        await self._resolve_agent(agent_id)
-        desired = set(desired_skill_names)
-        current = set(await skill_repository.get_agent_skill_names(agent_id))
-
-        # 中文注释：先移除不再需要的 skill，再安装新增 skill，
-        # 这样可以确保 workspace 中最终只保留当前配置允许的能力。
-        for skill_name in sorted(current - desired):
-            await self.uninstall_skill(agent_id, skill_name)
-        for skill_name in sorted(desired - current):
-            await self.install_skill(agent_id, skill_name)
-        return sorted(desired)
 
     async def _sync_skill_to_installed_agents(self, skill_name: str) -> None:
         """根据全局状态，把某个 skill 同步到所有已安装该 skill 的 Agent。"""

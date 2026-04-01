@@ -28,7 +28,7 @@ from agent.service.capability.connectors.connector_catalog import (
     ConnectorCatalog,
 )
 from agent.service.capability.connectors.connector_oauth_service import connector_oauth_service
-from agent.storage.connector_repository import connector_repository
+from agent.service.capability.connectors.connector_repository import connector_repository
 
 logger = logging.getLogger(__name__)
 
