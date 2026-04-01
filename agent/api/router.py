@@ -12,13 +12,13 @@ from fastapi import APIRouter, Depends
 
 from agent.api.agent.api_agent import router as agent_router
 from agent.api.agent.api_agent_workspace import router as agent_workspace_router
-from agent.api.agent.api_agent_skill import router as agent_skill_router
+from agent.api.capability.api_connector import router as connector_router
+from agent.api.capability.api_skill import router as capability_skill_router
 from agent.api.chat.websocket_server import router as websocket_router
 from agent.api.common import common_router
 from agent.api.repository.api_persistence import router as persistence_router
 from agent.api.room.api_room import router as room_router
 from agent.api.session.api_session import router as session_router
-from agent.api.activity.api_activity import router as activity_router
 from agent.api.launcher.api_launcher import router as launcher_router
 from agent.config.config import settings
 from agent.infra.server.common.base_depends import extract_request_id
@@ -32,7 +32,8 @@ if settings.WEBSOCKET_ENABLED:
 # Include to agent router
 api_router.include_router(agent_router, prefix="/v1")
 api_router.include_router(agent_workspace_router, prefix="/v1")
-api_router.include_router(agent_skill_router, prefix="/v1")
+api_router.include_router(connector_router, prefix="/v1")
+api_router.include_router(capability_skill_router, prefix="/v1")
 
 # Include to session router
 api_router.include_router(session_router, prefix="/v1")
@@ -42,9 +43,6 @@ api_router.include_router(room_router, prefix="/v1")
 
 # Include to persistence router
 api_router.include_router(persistence_router, prefix="/v1")
-
-# Include to activity router
-api_router.include_router(activity_router, prefix="/v1")
 
 # Include to launcher router
 api_router.include_router(launcher_router, prefix="/v1")
