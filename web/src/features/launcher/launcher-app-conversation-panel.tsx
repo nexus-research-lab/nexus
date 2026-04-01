@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  Bot,
-  LoaderCircle,
-  RotateCcw,
-  X,
-} from "lucide-react";
+import { AlertCircle, Bot, LoaderCircle, RotateCcw, X, } from "lucide-react";
 
 import {
   HeroActionOrbShell,
@@ -56,21 +50,21 @@ function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
 }
 
 export function LauncherAppConversationPanel({
-  app_conversation_draft,
-  app_conversation_messages,
-  error,
-  is_loading,
-  ws_state,
-  on_clear_conversation,
-  on_change_draft,
-  on_close,
-  on_delete_round,
-  on_permission_response,
-  on_regenerate_round,
-  on_stop_generation,
-  on_submit,
-  pending_permission,
-}: LauncherAppConversationPanelProps) {
+                                               app_conversation_draft,
+                                               app_conversation_messages,
+                                               error,
+                                               is_loading,
+                                               ws_state,
+                                               on_clear_conversation,
+                                               on_change_draft,
+                                               on_close,
+                                               on_delete_round,
+                                               on_permission_response,
+                                               on_regenerate_round,
+                                               on_stop_generation,
+                                               on_submit,
+                                               pending_permission,
+                                             }: LauncherAppConversationPanelProps) {
   const scroll_ref = useRef<HTMLDivElement>(null);
   const bottom_anchor_ref = useRef<HTMLDivElement>(null);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
@@ -188,8 +182,9 @@ export function LauncherAppConversationPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <HeroActionPillShell class_name="w-fit">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
-                <span className={cn("h-3 w-3 rounded-full", connection_meta.dot_class_name)} />
+              <span
+                className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-800/72">
+                <span className={cn("h-3 w-3 rounded-full", connection_meta.dot_class_name)}/>
                 Nexus
               </span>
               <span className={cn("text-[11px] font-medium", connection_meta.badge_class_name)}>
@@ -206,7 +201,7 @@ export function LauncherAppConversationPanel({
               type="button"
             >
               <HeroActionOrbShell class_name="h-[46px] w-[46px]">
-                <RotateCcw className="h-4 w-4 text-slate-900/76" />
+                <RotateCcw className="h-4 w-4 text-slate-900/76"/>
               </HeroActionOrbShell>
             </button>
             <button
@@ -216,30 +211,24 @@ export function LauncherAppConversationPanel({
               type="button"
             >
               <HeroActionOrbShell class_name="h-[54px] w-[54px]">
-                <X className="h-4 w-4 text-slate-900/76" />
+                <X className="h-4 w-4 text-slate-900/76"/>
               </HeroActionOrbShell>
             </button>
           </div>
         </div>
 
-        <div className="border-b border-white/10 px-3 pb-3 pt-4">
-          <div className="min-w-0">
-            <p className="truncate text-[22px] font-black tracking-[-0.04em] text-slate-950/90">
-              Nexus
-            </p>
-            <p className="mt-1 flex items-center gap-2 text-[12px] text-slate-700/52">
-              <Bot className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">
-                首页只保留一个对话入口，用自然语言发起协作。
-              </span>
-            </p>
-          </div>
+        <div className="border-b border-white/10 px-3 pt-4">
+          <p className="truncate text-[22px] font-black tracking-[-0.04em] text-slate-950/90">
+            Nexus
+          </p>
         </div>
 
-        <div className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[rgba(255,255,255,0.05)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+        <div
+          className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[rgba(255,255,255,0.05)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
           {error ? (
-            <div className="mx-3 mt-3 flex items-start gap-2 rounded-[20px] bg-[rgba(255,120,120,0.12)] px-3 py-2 text-xs leading-5 text-red-900/84 shadow-[inset_0_0_0_1px_rgba(255,120,120,0.14)]">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div
+              className="mx-3 mt-3 flex items-start gap-2 rounded-[20px] bg-[rgba(255,120,120,0.12)] px-3 py-2 text-xs leading-5 text-red-900/84 shadow-[inset_0_0_0_1px_rgba(255,120,120,0.14)]">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0"/>
               <span>{error}</span>
             </div>
           ) : null}
@@ -266,13 +255,10 @@ export function LauncherAppConversationPanel({
             ) : (
               <div className="flex min-h-80 flex-col justify-center px-5 py-6">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700/44">
-                  Chat
+                  Nexus Chat
                 </p>
                 <p className="mt-3 text-base font-semibold text-slate-950/84">
-                  直接告诉 Nexus 你现在要推进什么。
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-700/58">
-                  它会根据你的意图，把你带去合适的 Agent、Room，或者直接继续当前任务。
+                  告诉 Nexus 你要推进什么
                 </p>
               </div>
             )}
@@ -319,11 +305,11 @@ export function LauncherAppConversationPanel({
                   type="button"
                 >
                   {is_loading ? (
-                    <RotateCcw className="h-4 w-4" />
+                    <RotateCcw className="h-4 w-4"/>
                   ) : ws_state === "connected" ? (
-                    <Bot className="h-4 w-4" />
+                    <Bot className="h-4 w-4"/>
                   ) : (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className="h-4 w-4 animate-spin"/>
                   )}
                 </button>
               </div>

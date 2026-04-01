@@ -99,11 +99,20 @@ export function LauncherPage() {
       return;
     }
 
-    const conversation_key = await ensure_app_conversation_key();
-    app_conversation.bind_conversation_key(conversation_key);
-    await app_conversation.send_message(trimmed_prompt);
     controller.set_app_conversation_draft("");
     controller.clear_route_app_prompt();
+
+    try {
+      const conversation_key = await ensure_app_conversation_key();
+      app_conversation.bind_conversation_key(conversation_key);
+      await app_conversation.send_message(trimmed_prompt);
+    } catch (error) {
+      // 发送失败时，仅在输入框仍为空时回填，避免覆盖用户新输入。
+      controller.set_app_conversation_draft((current_draft) => (
+        current_draft.trim() ? current_draft : trimmed_prompt
+      ));
+      throw error;
+    }
   }, [app_conversation, controller, ensure_app_conversation_key]);
 
   useEffect(() => {
