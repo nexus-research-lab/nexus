@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -15,26 +15,9 @@ import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
 import { DEFAULT_AGENT_ID } from "@/config/options";
-import { UserMessage } from "@/types/message";
 
 const APP_AGENT_ID = DEFAULT_AGENT_ID;
 const APP_CONVERSATION_SEED_KEY = "launcher-app-main";
-
-function build_room_title_from_prompt(prompt: string | undefined) {
-  const normalized_prompt = (prompt ?? "")
-    .trim()
-    .replace(/[。！？!?,，；;：:\s]+$/g, "")
-    .replace(/^(帮我|请|我想|我要|我需要|帮忙|麻烦你)/, "")
-    .replace(/^(创建|新建|开始|组织|整理)(一个|一条|个)?/, "")
-    .replace(/(协作|room|Room|任务)$/g, "")
-    .trim();
-
-  if (!normalized_prompt) {
-    return "新协作";
-  }
-
-  return normalized_prompt.slice(0, 24);
-}
 
 export function LauncherPage() {
   const controller = useLauncherPageController();
@@ -80,24 +63,6 @@ export function LauncherPage() {
     controller.app_conversation_key,
     controller.is_app_conversation_open,
   ]);
-
-  const latest_user_prompt = useMemo(() => {
-    const latest_user_message = [...app_conversation.messages]
-      .reverse()
-      .find((message): message is UserMessage => message.role === "user");
-    return latest_user_message?.content ?? "";
-  }, [app_conversation.messages]);
-
-  const conversations_with_owners = useMemo(() => (
-    controller.conversations
-      .map((conversation) => ({
-        conversation,
-        owner: conversation.agent_id
-          ? controller.agents.find((agent) => agent.agent_id === conversation.agent_id) ?? null
-          : null,
-      }))
-      .sort((left, right) => right.conversation.last_activity_at - left.conversation.last_activity_at)
-  ), [controller.agents, controller.conversations]);
 
   const ensure_app_conversation_key = useCallback(async () => {
     if (controller.app_conversation_key) {
@@ -200,17 +165,6 @@ export function LauncherPage() {
       });
     }
   }, [controller, navigate]);
-
-  const handle_open_contacts_page = useCallback(() => {
-    navigate(AppRouteBuilders.contacts());
-  }, [navigate]);
-
-  const handle_create_room = useCallback(() => {
-    const next_room_title = build_room_title_from_prompt(latest_user_prompt);
-    set_pending_room_title(next_room_title);
-    set_should_bootstrap_room_after_create(true);
-    controller.handle_open_create_agent();
-  }, [controller, latest_user_prompt]);
 
   const handle_clear_app_conversation = useCallback(async () => {
     if (controller.app_conversation_key) {
@@ -317,27 +271,20 @@ export function LauncherPage() {
               data-open={controller.is_app_conversation_open ? "true" : "false"}
             >
               <LauncherAppConversationPanel
-                agents={controller.agents}
                 app_conversation_draft={controller.app_conversation_draft}
                 app_conversation_messages={app_conversation.messages}
-                conversations_with_owners={conversations_with_owners}
                 error={app_conversation.error}
                 is_loading={app_conversation.is_loading}
                 ws_state={app_conversation.ws_state}
-                on_create_room={handle_create_room}
                 on_clear_conversation={handle_clear_app_conversation}
                 on_change_draft={controller.set_app_conversation_draft}
                 on_close={controller.close_app_conversation}
                 on_delete_round={app_conversation.delete_round}
-                on_open_agent_room={handle_select_agent}
-                on_open_conversation={handle_open_conversation}
-                on_open_contacts_page={handle_open_contacts_page}
                 on_permission_response={app_conversation.send_permission_response}
                 on_regenerate_round={app_conversation.regenerate}
                 on_stop_generation={app_conversation.stop_generation}
                 on_submit={handle_submit_app_conversation}
                 pending_permission={app_conversation.pending_permission}
-                suggested_room_title={build_room_title_from_prompt(latest_user_prompt)}
               />
             </div>
           </div>
