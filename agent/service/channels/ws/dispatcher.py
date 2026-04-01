@@ -19,6 +19,7 @@ from agent.service.channels.ws.websocket_sender import WebSocketSender
 from agent.service.channels.ws.ws_connection_registry import ws_connection_registry
 from agent.service.chat.chat_service import ChatService
 from agent.service.chat.room_chat_service import RoomChatService, build_room_session_key
+from agent.service.room.room_route_guard import room_route_guard
 from agent.service.session.session_router import build_session_key
 
 
@@ -85,8 +86,34 @@ class ChannelDispatcher:
 
         if msg_type == "subscribe_room":
             room_id = message.get("room_id", "")
+            conversation_id = message.get("conversation_id")
+            last_seen_room_seq = message.get("last_seen_room_seq")
             if room_id:
-                ws_connection_registry.subscribe_room(self._sender, room_id)
+                try:
+                    await room_route_guard.validate_subscription(
+                        room_id=room_id,
+                        conversation_id=conversation_id if isinstance(conversation_id, str) else None,
+                    )
+                except ValueError as exc:
+                    await self._sender.send_event_message(
+                        self._error_handler.create_error_response(
+                            error_type="invalid_room_subscription",
+                            message=str(exc),
+                            details={
+                                "room_id": room_id,
+                                "conversation_id": conversation_id,
+                            },
+                        )
+                    )
+                    return
+                await ws_connection_registry.subscribe_room(
+                    self._sender,
+                    room_id,
+                    conversation_id=conversation_id if isinstance(conversation_id, str) else None,
+                    last_seen_room_seq=(
+                        last_seen_room_seq if isinstance(last_seen_room_seq, int) else None
+                    ),
+                )
             return
 
         if msg_type == "unsubscribe_room":

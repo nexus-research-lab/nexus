@@ -16,7 +16,12 @@ from fastapi import WebSocket
 from agent.service.channels.message_sender import MessageSender
 from agent.service.workspace.workspace_event_bus import workspace_event_bus
 from agent.service.workspace.workspace_observer import workspace_observer
-from agent.schema.model_message import EventMessage, Message, StreamMessage
+from agent.schema.model_message import (
+    EventMessage,
+    Message,
+    StreamMessage,
+    build_transport_event,
+)
 from agent.schema.model_workspace import WorkspaceEvent
 from agent.utils.logger import logger
 
@@ -49,24 +54,12 @@ class WebSocketSender(MessageSender):
 
     async def send_message(self, message: Message) -> None:
         """发送完整消息。"""
-        event = EventMessage(
-            event_type="message",
-            session_key=message.session_key,
-            agent_id=message.agent_id,
-            session_id=message.session_id,
-            data=message.model_dump(mode="json", exclude_none=True),
-        )
+        event = build_transport_event(message)
         await self._safe_send_json(event.model_dump(mode="json", exclude_none=True))
 
     async def send_stream_message(self, message: StreamMessage) -> None:
         """发送流式消息。"""
-        event = EventMessage(
-            event_type="stream",
-            session_key=message.session_key,
-            agent_id=message.agent_id,
-            session_id=message.session_id,
-            data=message.model_dump(mode="json", exclude_none=True),
-        )
+        event = build_transport_event(message)
         await self._safe_send_json(event.model_dump(mode="json", exclude_none=True))
 
     async def send_event_message(self, event: EventMessage) -> None:
@@ -77,6 +70,7 @@ class WebSocketSender(MessageSender):
         """发送 workspace 事件。"""
         message = EventMessage(
             event_type="workspace_event",
+            delivery_mode="ephemeral",
             session_key=event.session_key,
             agent_id=event.agent_id,
             data=event.model_dump(mode="json", exclude_none=True),

@@ -43,7 +43,7 @@ class WebSocketConnectionManager:
         permission_handler = PermissionHandler(self.sender, self.permission_strategy)
         chat_service = ChatService(self.sender, self.permission_strategy)
         room_chat_service = RoomChatService(self.sender, self.permission_strategy)
-        interrupt_handler = InterruptHandler(self.sender)
+        interrupt_handler = InterruptHandler(self.sender, self.permission_strategy)
         ping_handler = PingHandler(self.sender)
         error_handler = ErrorHandler(self.sender)
 

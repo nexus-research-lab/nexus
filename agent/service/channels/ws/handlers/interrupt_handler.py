@@ -15,16 +15,26 @@ from typing import Any, Dict, Optional
 
 from agent.config.config import settings
 from agent.service.channels.ws.handlers.base_handler import BaseHandler
-from agent.service.room.room_message_store import room_message_store
+from agent.service.permission.strategy.permission_strategy import PermissionStrategy
+from agent.service.room.room_interrupt_service import room_interrupt_service
+from agent.service.room.room_route_guard import room_route_guard
 from agent.service.room.room_session_keys import is_room_shared_session_key
 from agent.service.session.session_manager import session_manager
-from agent.schema.model_message import Message
+from agent.schema.model_message import EventMessage, Message
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
 
 class InterruptHandler(BaseHandler):
     """中断消息处理器。"""
+
+    def __init__(
+        self,
+        sender,
+        permission_strategy: PermissionStrategy | None = None,
+    ) -> None:
+        super().__init__(sender)
+        self._permission_strategy = permission_strategy
 
     async def handle_interrupt(self, message: Dict[str, Any], chat_tasks: Dict[str, asyncio.Task]) -> None:
         """处理中断消息。"""
@@ -39,8 +49,11 @@ class InterruptHandler(BaseHandler):
         if is_room_shared_session_key(session_key):
             await self._handle_room_interrupt(
                 session_key=session_key,
+                room_id=message.get("room_id"),
+                conversation_id=message.get("conversation_id"),
                 round_id=round_id,
                 agent_id=message.get("agent_id", ""),
+                target_agent_id=target_agent_id,
                 chat_tasks=chat_tasks,
                 msg_id=msg_id,
             )
@@ -74,12 +87,43 @@ class InterruptHandler(BaseHandler):
     async def _handle_room_interrupt(
         self,
         session_key: str,
+        room_id: Optional[str],
+        conversation_id: Optional[str],
         round_id: Optional[str],
         agent_id: str,
+        target_agent_id: Optional[str],
         chat_tasks: Dict[str, asyncio.Task],
         msg_id: Optional[str] = None,
     ) -> None:
         """处理中断 Room 共享流。"""
+        try:
+            await room_route_guard.validate_interrupt(
+                session_key=session_key,
+                room_id=room_id if isinstance(room_id, str) else None,
+                conversation_id=(
+                    conversation_id if isinstance(conversation_id, str) else None
+                ),
+                msg_id=msg_id if isinstance(msg_id, str) else None,
+                target_agent_id=(
+                    target_agent_id if isinstance(target_agent_id, str) else None
+                ),
+            )
+        except ValueError as exc:
+            await self.send(
+                self.create_error_response(
+                    error_type="invalid_room_interrupt",
+                    message=str(exc),
+                    session_key=session_key,
+                    details={
+                        "room_id": room_id,
+                        "conversation_id": conversation_id,
+                        "msg_id": msg_id,
+                        "target_agent_id": target_agent_id,
+                    },
+                )
+            )
+            return
+
         if msg_id:
             msg_task_key = f"room:{session_key}:{msg_id}"
             msg_task = chat_tasks.get(msg_task_key)
@@ -90,47 +134,54 @@ class InterruptHandler(BaseHandler):
             logger.warning(f"⚠️ Room 单气泡任务未找到: {msg_task_key}")
             return
 
-        cancelled = 0
+        round_id = await room_interrupt_service.resolve_round_id(session_key, round_id)
+        if not round_id:
+            logger.warning(f"⚠️ Room 中断缺少 round_id: key={session_key}")
+            return
+
+        cancelled_tasks: list[asyncio.Task] = []
         task_prefix = f"room:{session_key}"
         for task_key, task in list(chat_tasks.items()):
             if not task_key.startswith(task_prefix) or task.done():
                 continue
             task.cancel()
-            cancelled += 1
+            cancelled_tasks.append(task)
 
-        if not round_id:
-            round_id = await room_message_store.get_latest_round_id(session_key)
-        if not round_id:
-            logger.warning(f"⚠️ Room 中断缺少 round_id: key={session_key}")
-            return
-        if await room_message_store.has_round_result(session_key, round_id):
-            logger.info(f"ℹ️ 跳过 Room 中断结果: key={session_key}, round={round_id}")
-            return
+        if cancelled_tasks:
+            await asyncio.gather(*cancelled_tasks, return_exceptions=True)
 
-        result_message = Message(
+        repair_result = await room_interrupt_service.repair_cancelled_slots(
             session_key=session_key,
-            agent_id=agent_id or settings.DEFAULT_AGENT_ID,
             round_id=round_id,
-            session_id=None,
-            message_id=str(uuid.uuid4()),
-            role="result",
-            subtype="interrupted",
-            duration_ms=0,
-            duration_api_ms=0,
-            is_error=True,
-            num_turns=0,
-            total_cost_usd=0,
-            usage={
-                "input_tokens": 0,
-                "cache_creation_input_tokens": 0,
-                "cache_read_input_tokens": 0,
-                "output_tokens": 0,
-            },
-            result="用户中断",
         )
-        await room_message_store.save_message(result_message)
-        logger.info(f"💾 保存 Room 中断消息: key={session_key}, round_id={round_id}, tasks={cancelled}")
-        await self.send(result_message)
+        room_id = repair_result.get("room_id")
+        conversation_id = repair_result.get("conversation_id")
+        repaired_slots = repair_result.get("slots") or []
+        for slot in repaired_slots:
+            await self._broadcast_room_interrupt_event(
+                room_id=room_id,
+                event=EventMessage(
+                    event_type="stream_cancelled",
+                    session_key=session_key,
+                    room_id=room_id,
+                    conversation_id=conversation_id,
+                    agent_id=slot.get("agent_id") or agent_id or settings.DEFAULT_AGENT_ID,
+                    message_id=slot.get("msg_id"),
+                    caused_by=slot.get("round_id") or round_id,
+                    data={
+                        "msg_id": slot.get("msg_id"),
+                        "agent_id": slot.get("agent_id") or agent_id or settings.DEFAULT_AGENT_ID,
+                        "round_id": slot.get("round_id") or round_id,
+                    },
+                ),
+            )
+        logger.info(
+            "🛑 Room 中断完成: key=%s, round_id=%s, tasks=%s, repaired=%s",
+            session_key,
+            round_id,
+            len(cancelled_tasks),
+            len(repaired_slots),
+        )
 
     async def _handle_interrupt_async(
         self,
@@ -165,9 +216,28 @@ class InterruptHandler(BaseHandler):
             else:
                 logger.warning(f"⚠️ 未找到任务: {session_key}")
 
+            if self._permission_strategy is not None:
+                self._permission_strategy.cancel_requests_for_session(
+                    session_key,
+                    message="用户中断",
+                )
             await self._send_interrupt_result(session_key, round_id)
         except Exception as exc:
             logger.error(f"❌ 中断处理失败: {exc}")
+
+    async def _broadcast_room_interrupt_event(
+        self,
+        room_id: str | None,
+        event: EventMessage,
+    ) -> None:
+        """向 Room 订阅者广播中断补偿事件。"""
+        if not room_id:
+            await self.send(event)
+            return
+
+        from agent.service.channels.ws.ws_connection_registry import ws_connection_registry
+
+        await ws_connection_registry.broadcast_to_room_subscribers(room_id, event)
 
     async def _send_interrupt_result(self, session_key: str, round_id: Optional[str] = None) -> None:
         """发送中断结果消息。"""
