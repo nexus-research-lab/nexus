@@ -117,7 +117,12 @@ export function ActivityPage() {
                 <option value="agent_created">创建 Agent</option>
                 <option value="room_created">创建 Room</option>
                 <option value="room_message">Room 消息</option>
+                <option value="room_round_completed">Room 完成</option>
+                <option value="room_round_cancelled">Room 中断</option>
+                <option value="room_round_failed">Room 失败</option>
                 <option value="dm_message">DM 消息</option>
+                <option value="permission_requested">权限请求</option>
+                <option value="permission_resolved">权限决策</option>
               </select>
             </div>
           </div>
@@ -163,7 +168,12 @@ export function ActivityPage() {
                   {event.event_type === 'agent_created' && <span className="text-sm">🤖</span>}
                   {event.event_type === 'room_created' && <span className="text-sm">🏠</span>}
                   {event.event_type === 'room_message' && <span className="text-sm">💬</span>}
+                  {event.event_type === 'room_round_completed' && <span className="text-sm">✅</span>}
+                  {event.event_type === 'room_round_cancelled' && <span className="text-sm">⏹️</span>}
+                  {event.event_type === 'room_round_failed' && <span className="text-sm">⚠️</span>}
                   {event.event_type === 'dm_message' && <span className="text-sm">💭</span>}
+                  {event.event_type === 'permission_requested' && <span className="text-sm">🛂</span>}
+                  {event.event_type === 'permission_resolved' && <span className="text-sm">🛡️</span>}
                   {event.event_type === 'skill_installed' && <span className="text-sm">📦</span>}
                   {event.event_type === 'skill_uninstalled' && <span className="text-sm">🗑️</span>}
                   {event.event_type === 'task_completed' && <span className="text-sm">✅</span>}

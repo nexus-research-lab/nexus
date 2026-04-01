@@ -13,25 +13,35 @@ import { ActivityEvent, ActivityItem } from '@/types/activity';
 function getEventIcon(event_type: string) {
   switch (event_type) {
     case 'agent_created':
-      return 'bot';
+      return '🤖';
     case 'agent_updated':
-      return 'settings';
+      return '⚙️';
     case 'room_created':
-      return 'users';
+      return '🏠';
     case 'room_message':
-      return 'message-square';
+      return '💬';
+    case 'room_round_completed':
+      return '✅';
+    case 'room_round_cancelled':
+      return '⏹️';
+    case 'room_round_failed':
+      return '⚠️';
     case 'dm_message':
-      return 'message-circle';
+      return '💭';
+    case 'permission_requested':
+      return '🛂';
+    case 'permission_resolved':
+      return '🛡️';
     case 'skill_installed':
-      return 'download';
+      return '📦';
     case 'skill_uninstalled':
-      return 'trash-2';
+      return '🗑️';
     case 'task_completed':
-      return 'check-circle';
+      return '✅';
     case 'task_failed':
-      return 'x-circle';
+      return '❌';
     default:
-      return 'bell';
+      return '🔔';
   }
 }
 
@@ -46,6 +56,12 @@ function buildActivityItem(event: ActivityEvent): ActivityItem {
     subtitle = event.actor_id || 'Agent';
   } else {
     subtitle = '系统';
+  }
+  const tool_name = typeof event.metadata_json?.tool_name === 'string'
+    ? event.metadata_json.tool_name
+    : null;
+  if (tool_name) {
+    subtitle = subtitle ? `${subtitle} · ${tool_name}` : tool_name;
   }
 
   // 根据事件类型构建可点击的链接

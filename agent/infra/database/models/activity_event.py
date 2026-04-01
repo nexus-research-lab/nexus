@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import JSON, DateTime, String, Text, func
+from sqlalchemy import JSON, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agent.infra.database.async_sqlalchemy import Base
@@ -24,7 +24,12 @@ class ActivityEventType:
     AGENT_UPDATED = "agent_updated"
     ROOM_CREATED = "room_created"
     ROOM_MESSAGE = "room_message"
+    ROOM_ROUND_COMPLETED = "room_round_completed"
+    ROOM_ROUND_CANCELLED = "room_round_cancelled"
+    ROOM_ROUND_FAILED = "room_round_failed"
     DM_MESSAGE = "dm_message"
+    PERMISSION_REQUESTED = "permission_requested"
+    PERMISSION_RESOLVED = "permission_resolved"
     SKILL_INSTALLED = "skill_installed"
     SKILL_UNINSTALLED = "skill_uninstalled"
     TASK_COMPLETED = "task_completed"
