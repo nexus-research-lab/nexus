@@ -22,10 +22,12 @@ from claude_agent_sdk import (
 
 from agent.service.channels.message_sender import MessageSender
 from agent.config.config import settings
+from agent.service.activity.conversation_audit_service import conversation_audit_service
 from agent.service.session.session_manager import session_manager
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.schema.model_message import EventMessage
 from agent.service.permission.pending_permission_request import PendingPermissionRequest
+from agent.service.permission.permission_route_context import PermissionRouteContext
 from agent.service.permission.permission_request_presenter import PermissionRequestPresenter
 from agent.service.permission.permission_update_codec import PermissionUpdateCodec
 from agent.utils.logger import logger
@@ -36,6 +38,7 @@ class InteractivePermissionStrategy(PermissionStrategy):
 
     _permission_requests: Dict[str, PendingPermissionRequest] = {}
     _permission_responses: Dict[str, Dict[str, Any]] = {}
+    _session_routes: Dict[str, PermissionRouteContext] = {}
 
     def __init__(self, sender: MessageSender):
         self.sender = sender
@@ -67,11 +70,20 @@ class InteractivePermissionStrategy(PermissionStrategy):
         suggestion_updates = PermissionUpdateCodec.serialize_updates(
             context.suggestions if context else None
         )
+        route_context = self.__class__._session_routes.get(session_key)
 
         permission_event = EventMessage(
             event_type="permission_request",
-            session_key=session_key,
+            session_key=(
+                route_context.route_session_key
+                if route_context else session_key
+            ),
+            room_id=route_context.room_id if route_context else None,
+            conversation_id=route_context.conversation_id if route_context else None,
+            agent_id=route_context.agent_id if route_context else None,
+            message_id=route_context.message_id if route_context else None,
             session_id=session_manager.get_session_id(session_key),
+            caused_by=route_context.caused_by if route_context else None,
             data=PermissionRequestPresenter.build_payload(
                 pending_request,
                 suggestion_updates,
@@ -80,6 +92,14 @@ class InteractivePermissionStrategy(PermissionStrategy):
 
         try:
             await self.sender.send(permission_event)
+            await conversation_audit_service.record_permission_request(
+                session_key=session_key,
+                tool_name=tool_name,
+                route_context=route_context,
+                request_id=request_id,
+                tool_summary=PermissionRequestPresenter._summarize_input(tool_name, input_data),
+                expires_at=pending_request.expires_at,
+            )
         except Exception as exc:
             logger.warning(f"⚠️ 发送权限请求失败: tool={tool_name}, error={exc}")
             self._cleanup_request(request_id)
@@ -95,6 +115,13 @@ class InteractivePermissionStrategy(PermissionStrategy):
             return self._build_permission_result(tool_name, input_data, response)
         except asyncio.TimeoutError:
             logger.warning(f"⏰ 权限请求超时: {tool_name}")
+            await conversation_audit_service.record_permission_resolution(
+                session_key=session_key,
+                tool_name=tool_name,
+                decision="timeout",
+                route_context=route_context,
+                request_id=request_id,
+            )
             return PermissionResultDeny(message="Permission request timeout")
         finally:
             self._cleanup_request(request_id)
@@ -122,6 +149,18 @@ class InteractivePermissionStrategy(PermissionStrategy):
         self.__class__._permission_responses[request_id] = response_data
         pending_request = self.__class__._permission_requests.get(request_id)
         if pending_request:
+            route_context = self.__class__._session_routes.get(pending_request.session_key)
+            asyncio.create_task(
+                conversation_audit_service.record_permission_resolution(
+                    session_key=pending_request.session_key,
+                    tool_name=pending_request.tool_name,
+                    decision=str(response_data["decision"]),
+                    route_context=route_context,
+                    request_id=request_id,
+                    interrupt=bool(response_data["interrupt"]),
+                    message=str(response_data.get("message") or ""),
+                )
+            )
             pending_request.event.set()
             return True
         return False
@@ -137,6 +176,49 @@ class InteractivePermissionStrategy(PermissionStrategy):
             return
 
         self._is_closed = True
+
+    def bind_session_route(
+        self,
+        session_key: str,
+        route_context: PermissionRouteContext,
+    ) -> None:
+        """记录运行时 session 到前端路由会话的映射。"""
+        self.__class__._session_routes[session_key] = route_context
+
+    def unbind_session_route(self, session_key: str) -> None:
+        """清理运行时 session 的前端路由映射。"""
+        self.__class__._session_routes.pop(session_key, None)
+
+    def cancel_requests_for_session(
+        self,
+        session_key: str,
+        message: str = "Permission request cancelled",
+    ) -> int:
+        """主动取消指定 session 下仍在等待的权限请求。"""
+        cancelled = 0
+        for request_id, pending_request in list(self.__class__._permission_requests.items()):
+            if pending_request.session_key != session_key:
+                continue
+            self.__class__._permission_responses[request_id] = {
+                "decision": "deny",
+                "message": message,
+                "interrupt": True,
+            }
+            route_context = self.__class__._session_routes.get(session_key)
+            asyncio.create_task(
+                conversation_audit_service.record_permission_resolution(
+                    session_key=session_key,
+                    tool_name=pending_request.tool_name,
+                    decision="cancelled",
+                    route_context=route_context,
+                    request_id=request_id,
+                    interrupt=True,
+                    message=message,
+                )
+            )
+            pending_request.event.set()
+            cancelled += 1
+        return cancelled
 
     def _cleanup_request(self, request_id: str) -> None:
         """清理单个权限请求。"""
