@@ -20,6 +20,7 @@ from agent.service.channels.message_sender import MessageSender
 from agent.schema.model_message import StreamMessage, Message
 from agent.service.message.sdk_message_mapper import SdkMessageMapper
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
+from agent.service.session.session_router import build_session_key
 from agent.utils.logger import logger
 
 
@@ -57,8 +58,13 @@ class AgentMessenger:
             logger.warning(f"⚠️ 目标 agent 不存在: {to_agent_id}")
             return {"success": False, "error": "Agent not found"}
 
-        # 构造目标 session_key（使用简单格式）
-        target_session_key = f"agent:{to_agent_id}:internal:chat"
+        # 中文注释：Agent 内部委派也必须走统一 session_key 规则，避免出现不可解析的孤立格式。
+        target_session_key = build_session_key(
+            channel="internal",
+            chat_type="dm",
+            ref="chat",
+            agent_id=to_agent_id,
+        )
 
         try:
             # 获取或创建目标 agent 的客户端

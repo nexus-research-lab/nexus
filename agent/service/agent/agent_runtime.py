@@ -31,17 +31,25 @@ class AgentRuntime:
         permission_strategy: PermissionStrategy,
         resume_session_id: str | None = None,
         resolved_agent_id: str | None = None,
+        force_fresh: bool = False,
     ) -> ClaudeSDKClient:
         """按需获取或创建 SDK client。"""
+        # Room 协作链路要求共享历史以我们自己的快照为准。
+        # 因此当 force_fresh=True 时，必须淘汰旧 SDK client，避免隐式携带上一轮对话历史。
+        if force_fresh:
+            await session_manager.close_session(session_key)
+
         client = await session_manager.get_session(session_key)
         if client:
             logger.debug(f"♻️ 复用现有 session: {session_key}")
             return client
 
         existing_session = None
-        if resume_session_id is None or resolved_agent_id is None:
+        if not force_fresh and (resume_session_id is None or resolved_agent_id is None):
             existing_session = await session_store.get_session_info(session_key)
-        session_id = resume_session_id or (existing_session.session_id if existing_session else None)
+        session_id = None if force_fresh else (
+            resume_session_id or (existing_session.session_id if existing_session else None)
+        )
         real_agent_id = resolved_agent_id or (existing_session.agent_id if existing_session else agent_id)
 
         try:
