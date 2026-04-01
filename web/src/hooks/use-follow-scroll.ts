@@ -54,9 +54,19 @@ export function useFollowScroll({
   const pending_scroll_frame_ref = useRef<number | null>(null);
   const pending_scroll_inner_frame_ref = useRef<number | null>(null);
   const touch_start_y_ref = useRef<number | null>(null);
+  const show_scroll_to_bottom_ref = useRef(false);
   const [show_scroll_to_bottom, setShowScrollToBottom] = useState(false);
 
   // ==================== 跟随状态 ====================
+
+  const set_scroll_to_bottom_visibility = useCallback((visible: boolean) => {
+    if (show_scroll_to_bottom_ref.current === visible) {
+      return;
+    }
+
+    show_scroll_to_bottom_ref.current = visible;
+    setShowScrollToBottom(visible);
+  }, []);
 
   const update_follow_state = useCallback(() => {
     const container = scroll_ref.current;
@@ -65,8 +75,8 @@ export function useFollowScroll({
     const distance_to_bottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     const is_near_bottom = distance_to_bottom <= BOTTOM_THRESHOLD_PX;
     should_follow_latest_ref.current = is_near_bottom;
-    setShowScrollToBottom(!is_near_bottom);
-  }, []);
+    set_scroll_to_bottom_visibility(!is_near_bottom);
+  }, [set_scroll_to_bottom_visibility]);
 
   // ==================== 滚动调度 ====================
 
@@ -105,16 +115,17 @@ export function useFollowScroll({
 
   const scroll_to_bottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     should_follow_latest_ref.current = true;
-    setShowScrollToBottom(false);
+    set_scroll_to_bottom_visibility(false);
     schedule_scroll_to_bottom(behavior);
-  }, [schedule_scroll_to_bottom]);
+  }, [schedule_scroll_to_bottom, set_scroll_to_bottom_visibility]);
 
   // ==================== 副作用 ====================
 
   // 新消息 / loading 变化时自动滚动
   useLayoutEffect(() => {
     if (!should_follow_latest_ref.current) {
-      update_follow_state();
+      // 中文注释：用户主动离开底部后，仅保持按钮可见，避免流式消息期间重复触发同步 setState。
+      set_scroll_to_bottom_visibility(true);
       return;
     }
     const is_loading = trigger_deps[1] as boolean;
@@ -129,7 +140,7 @@ export function useFollowScroll({
 
     const observer = new ResizeObserver(() => {
       if (!should_follow_latest_ref.current) {
-        update_follow_state();
+        set_scroll_to_bottom_visibility(true);
         return;
       }
       schedule_scroll_to_bottom("auto");
@@ -137,7 +148,7 @@ export function useFollowScroll({
 
     observer.observe(feed);
     return () => observer.disconnect();
-  }, [schedule_scroll_to_bottom, update_follow_state]);
+  }, [schedule_scroll_to_bottom, set_scroll_to_bottom_visibility]);
 
   // session 切换时重置
   useEffect(() => {

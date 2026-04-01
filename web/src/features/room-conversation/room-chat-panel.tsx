@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useConversationLoader } from "@/hooks/use-conversation-loader";
@@ -8,14 +8,21 @@ import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { buildRoomSharedSessionKey } from "@/lib/session-key";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
+import { AssistantMessage, Message, ResultMessage } from "@/types/message";
 import { TodoItem } from "@/types/todo";
 import { Agent } from "@/types/agent";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 
-import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
-import { ConversationFeed } from "@/features/conversation-shared/conversation-feed";
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
-import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation-shared/utils";
+import {
+  getAgentRoundStatus,
+  get_latest_reply_timestamp,
+  groupRoomMessagesByRound,
+  isAgentRoundActive,
+} from "@/features/conversation-shared/utils";
+import { RoomConversationFeed } from "./room-conversation-feed";
+import { useRoomThread, useThreadPanelData } from "./thread/room-thread-context";
+import { RoomComposerPanel } from "./room-composer-panel";
 import { RoomConversationEmptyState } from "./room-conversation-empty-state";
 import { RoomConversationHeader } from "./room-conversation-header";
 
@@ -46,6 +53,10 @@ export interface RoomChatPanelProps {
   on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
 }
 
+/**
+ * RoomChatPanel — 必须在 RoomThreadContextProvider 内部使用。
+ * Provider 由 RoomWorkspaceLayout / RoomMobileWorkspace 提供。
+ */
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
@@ -71,6 +82,9 @@ export function RoomChatPanel({
   on_room_event,
 }: RoomChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
+  const { active_thread, close_thread } = useRoomThread();
+  const { set_thread_panel_data } = useThreadPanelData();
+  const thread_loading_ref = useRef(false);
 
   const session_key = conversation_id ? buildRoomSharedSessionKey(conversation_id) : null;
 
@@ -127,6 +141,9 @@ export function RoomChatPanel({
   useEffect(() => { on_todos_change?.(todos); }, [on_todos_change, todos]);
   useEffect(() => { on_loading_change?.(is_loading); }, [is_loading, on_loading_change]);
 
+  // 切换对话时自动关闭 Thread 面板
+  useEffect(() => { close_thread(); }, [conversation_id, close_thread]);
+
   useEffect(() => {
     if (!session_key || messages.length === 0) return;
     const last = messages[messages.length - 1];
@@ -145,11 +162,11 @@ export function RoomChatPanel({
     debug_name: "RoomChatPanel",
   });
 
-  const message_groups = useMemo(() => groupMessagesByRound(messages), [messages]);
+  const message_groups = useMemo(() => groupRoomMessagesByRound(messages), [messages]);
   const round_ids = Array.from(message_groups.keys());
 
   const handle_send_message = async (content: string) => {
-    if (!content.trim() || is_loading) return;
+    if (!content.trim()) return;
     scroll_to_bottom("auto");
     try {
       await send_message(content);
@@ -159,12 +176,78 @@ export function RoomChatPanel({
   };
 
   const handle_stop = () => stop_generation();
-  const handle_stop_message = (msg_id: string) => stop_generation(msg_id);
+  const handle_stop_message = useCallback((msg_id: string) => stop_generation(msg_id), [stop_generation]);
   const composer_status_hint = agent_thinking?.agent_name
     ? `@${agent_thinking.agent_name} 正在回复`
     : is_loading
-      ? "协作成员正在回复"
+      ? "协作进行中，仍可继续发送；当前暂不支持新的 @ 指派"
       : "使用 @成员名 指定本轮参与者";
+
+  // Thread 面板数据：推送到 Context，由 Layout 读取渲染 inspector
+  const thread_round_messages = useMemo(
+    () => active_thread ? message_groups.get(active_thread.round_id) ?? [] : [],
+    [active_thread, message_groups],
+  );
+  const thread_agent_messages = useMemo(() => {
+    if (!active_thread) {
+      return [];
+    }
+
+    return thread_round_messages.filter((message) => (
+      message.role === "user" ||
+      (message.agent_id === active_thread.agent_id && (message.role === "assistant" || message.role === "result"))
+    ));
+  }, [active_thread, thread_round_messages]);
+  const thread_is_loading = useMemo(() => {
+    if (!active_thread) {
+      return false;
+    }
+
+    const assistant_messages = thread_agent_messages.filter(
+      (message): message is AssistantMessage => message.role === "assistant",
+    );
+    const result_message = thread_agent_messages.find(
+      (message): message is ResultMessage => message.role === "result" && message.agent_id === active_thread.agent_id,
+    );
+    const status = getAgentRoundStatus(assistant_messages, result_message);
+    return isAgentRoundActive(status);
+  }, [active_thread, thread_agent_messages]);
+  const thread_agent_name = active_thread && agent_name_map
+    ? agent_name_map[active_thread.agent_id] ?? active_thread.agent_id
+    : null;
+
+  useEffect(() => {
+    if (!active_thread) {
+      thread_loading_ref.current = false;
+      return;
+    }
+
+    if (
+      active_thread.auto_close_on_finish &&
+      thread_loading_ref.current &&
+      !thread_is_loading
+    ) {
+      thread_loading_ref.current = false;
+      close_thread();
+      return;
+    }
+
+    thread_loading_ref.current = thread_is_loading;
+  }, [active_thread, close_thread, thread_is_loading]);
+
+  useEffect(() => {
+    if (!active_thread) {
+      set_thread_panel_data(null);
+      return;
+    }
+    set_thread_panel_data({
+      round_messages: thread_round_messages,
+      agent_name: thread_agent_name,
+      is_loading: thread_is_loading,
+      on_stop_message: handle_stop_message,
+      on_open_workspace_file,
+    });
+  }, [active_thread, thread_round_messages, thread_agent_name, thread_is_loading, handle_stop_message, set_thread_panel_data, on_open_workspace_file]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
@@ -233,7 +316,7 @@ export function RoomChatPanel({
             onTouchStart={on_touch_start}
             onWheel={on_wheel}
           >
-            <ConversationFeed
+            <RoomConversationFeed
               agent_name_map={agent_name_map}
               bottom_anchor_ref={bottom_anchor_ref}
               feed_ref={feed_ref}
@@ -260,11 +343,12 @@ export function RoomChatPanel({
             />
           ) : null}
 
-          <ComposerPanel
+          <RoomComposerPanel
             compact={is_mobile_layout}
             current_agent_name={current_agent_name ?? null}
             initial_draft={initial_draft}
             is_loading={is_loading}
+            mention_disabled={is_loading}
             on_send_message={handle_send_message}
             on_stop={handle_stop}
             room_members={room_members}

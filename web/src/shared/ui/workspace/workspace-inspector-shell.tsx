@@ -25,8 +25,8 @@ export function WorkspaceInspectorShell({
         class_name,
       )}
     >
-      <aside className={cn("flex min-h-0 flex-col bg-transparent", HOME_AGENT_INSPECTOR_WIDTH_CLASS)}>
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+      <aside className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-transparent">
+        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-hide">
           {children}
         </div>
       </aside>

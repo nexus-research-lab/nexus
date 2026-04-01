@@ -28,6 +28,8 @@ interface RoomComposerPanelProps {
   placeholder?: string;
   max_length?: number;
   room_members?: Agent[];
+  mention_disabled?: boolean;
+  status_hint?: string | null;
 }
 
 const RoomComposerPanelView = memo(({
@@ -41,6 +43,8 @@ const RoomComposerPanelView = memo(({
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
+  mention_disabled = false,
+  status_hint = null,
 }: RoomComposerPanelProps) => {
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
@@ -64,7 +68,8 @@ const RoomComposerPanelView = memo(({
   const handle_input_change = useCallback((value: string) => {
     setInput(value);
 
-    if (room_members.length === 0) {
+    if (room_members.length === 0 || mention_disabled) {
+      set_mention_active(false);
       return;
     }
 
@@ -89,7 +94,7 @@ const RoomComposerPanelView = memo(({
     }
 
     set_mention_active(false);
-  }, [room_members.length]);
+  }, [mention_disabled, room_members.length]);
 
   const handle_mention_select = useCallback((agent: Agent) => {
     // 把 @filter 替换为 @AgentName + 空格
@@ -128,7 +133,7 @@ const RoomComposerPanelView = memo(({
 
   const handle_send = useCallback(() => {
     const trimmed_input = input.trim();
-    if ((!trimmed_input && attachments.length === 0) || disabled || is_loading) {
+    if ((!trimmed_input && attachments.length === 0) || disabled) {
       return;
     }
 
@@ -144,7 +149,7 @@ const RoomComposerPanelView = memo(({
     if (textarea_ref.current) {
       textarea_ref.current.style.height = "auto";
     }
-  }, [attachments.length, disabled, input, is_loading, on_send_message]);
+  }, [attachments.length, disabled, input, on_send_message]);
 
   const handle_key_down = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (is_composing_ref.current || event.nativeEvent.isComposing) {
@@ -239,6 +244,9 @@ const RoomComposerPanelView = memo(({
   const char_count = input.length;
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
+  const resolved_status_hint = status_hint ?? (
+    current_agent_name ? `@${current_agent_name} 正在这个协作中` : "继续推进当前协作"
+  );
 
   return (
     <div
@@ -299,7 +307,7 @@ const RoomComposerPanelView = memo(({
               <span className="font-semibold uppercase tracking-[0.14em]">Message</span>
               {!compact ? (
                 <span className="truncate text-slate-400">
-                  {is_loading ? "协作成员正在回复" : "使用 @成员名 指定本轮参与者"}
+                  {resolved_status_hint}
                 </span>
               ) : null}
             </div>
@@ -324,7 +332,7 @@ const RoomComposerPanelView = memo(({
                   "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground",
                   "focus-visible:ring-2 focus-visible:ring-primary/40",
                 )}
-                disabled={disabled || is_loading}
+                disabled={disabled}
                 onClick={() => file_input_ref.current?.click()}
                 type="button"
               >
@@ -333,7 +341,7 @@ const RoomComposerPanelView = memo(({
             </div>
 
             <div className="relative flex-1">
-              {mention_active && room_members.length > 0 ? (
+              {mention_active && !mention_disabled && room_members.length > 0 ? (
                 <MentionPopover
                   anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
                   filter={mention_filter}
@@ -350,7 +358,7 @@ const RoomComposerPanelView = memo(({
                   "disabled:cursor-not-allowed disabled:opacity-50",
                   "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
                 )}
-                disabled={disabled || is_loading}
+                disabled={disabled}
                 onBlur={() => setIsFocused(false)}
                 onChange={(event) => handle_input_change(event.target.value)}
                 onCompositionEnd={() => {
@@ -395,29 +403,31 @@ const RoomComposerPanelView = memo(({
                     "group hover:-translate-y-0.5 hover:shadow-[0_12px_20px_rgba(239,68,68,0.18)]",
                   )}
                   onClick={on_stop}
+                  type="button"
                 >
                   <div className="absolute inset-0 animate-pulse bg-destructive/10" />
                   <StopCircle size={16} className="relative z-10" />
                 </button>
-              ) : (
-                <button
-                  aria-label="发送消息"
-                  className={cn(
-                    "relative overflow-hidden rounded-2xl p-2",
-                    "bg-[linear-gradient(135deg,rgba(166,255,194,0.94),rgba(102,217,143,0.90))] text-[#18653a]",
-                    "transition-all duration-200",
-                    "hover:-translate-y-0.5 hover:shadow-[0_14px_22px_rgba(102,217,143,0.18)]",
-                    "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-primary/20 disabled:hover:shadow-none",
-                    "focus-visible:ring-2 focus-visible:ring-primary/40",
-                    "group",
-                  )}
-                  disabled={is_input_empty || disabled || is_over_limit}
-                  onClick={handle_send}
-                >
-                  <div className="absolute inset-0 translate-x-full bg-linear-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-                  <Send size={16} className="relative z-10" />
-                </button>
-              )}
+              ) : null}
+
+              <button
+                aria-label="发送消息"
+                className={cn(
+                  "relative overflow-hidden rounded-2xl p-2",
+                  "bg-[linear-gradient(135deg,rgba(166,255,194,0.94),rgba(102,217,143,0.90))] text-[#18653a]",
+                  "transition-all duration-200",
+                  "hover:-translate-y-0.5 hover:shadow-[0_14px_22px_rgba(102,217,143,0.18)]",
+                  "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-primary/20 disabled:hover:shadow-none",
+                  "focus-visible:ring-2 focus-visible:ring-primary/40",
+                  "group",
+                )}
+                disabled={is_input_empty || disabled || is_over_limit}
+                onClick={handle_send}
+                type="button"
+              >
+                <div className="absolute inset-0 translate-x-full bg-linear-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                <Send size={16} className="relative z-10" />
+              </button>
             </div>
           </div>
 
@@ -426,8 +436,11 @@ const RoomComposerPanelView = memo(({
               {is_loading ? (
                 <span className="flex items-center gap-2 text-emerald-700/72">
                   <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                  <span className="animate-pulse">正在回复中…</span>
-                  <span className="text-slate-700/28">[ESC 停止]</span>
+                  <span className="animate-pulse">协作进行中，仍可继续发送</span>
+                  {mention_disabled ? (
+                    <span className="text-slate-700/40">@ 暂不可用</span>
+                  ) : null}
+                  <span className="text-slate-700/28">[ESC 停止最近一轮]</span>
                 </span>
               ) : (
                 <>

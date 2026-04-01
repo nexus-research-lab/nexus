@@ -22,6 +22,8 @@ import { RoomChatErrorBoundary } from "./room-chat-error-boundary";
 import { RoomConversationHistoryView } from "./room-conversation-history-view";
 import { RoomWorkspaceView } from "./room-workspace-view";
 import { RoomAgentAboutView } from "./room-agent-about-view";
+import { RoomThreadContextProvider, useRoomThread, useThreadPanelData } from "./thread/room-thread-context";
+import { ThreadDetailPanel } from "./thread-detail-panel";
 
 interface RoomWorkspaceLayoutProps {
   current_agent: Agent;
@@ -69,9 +71,24 @@ interface RoomWorkspaceLayoutProps {
  * Room 双栏工作区布局
  *
  * 左侧：ConversationArea（flex-1），包含 Header + 消息流 + 输入框
- * 右侧：可折叠 DetailPanel（成员列表等）
+ * 右侧：可折叠 DetailPanel（成员列表等） / Thread 面板
  */
-export function RoomWorkspaceLayout({
+export function RoomWorkspaceLayout(props: RoomWorkspaceLayoutProps) {
+  const is_dm = props.current_room_type === "dm";
+
+  // DM 不需要 Thread Context
+  if (is_dm) {
+    return <RoomWorkspaceLayoutInner {...props} />;
+  }
+
+  return (
+    <RoomThreadContextProvider>
+      <RoomWorkspaceLayoutInner {...props} />
+    </RoomThreadContextProvider>
+  );
+}
+
+function RoomWorkspaceLayoutInner({
   current_agent,
   current_agent_id,
   current_room_type,
@@ -225,33 +242,158 @@ export function RoomWorkspaceLayout({
         />
       </section>
 
-      {/* 右侧可折叠详情面板 */}
+      {/* 右侧可折叠详情面板 / Thread 面板 */}
       {
-        show_detail_panel ? (
-          <WorkspaceInspectorShell>
-            <RoomContextPanel
-              active_conversation={current_room_conversation}
-              agent={current_agent}
-              available_room_agents={available_room_agents}
+        is_dm ? (
+          show_detail_panel ? (
+            <WorkspaceInspectorShell>
+              <RoomContextPanel
+                active_conversation={current_room_conversation}
+                agent={current_agent}
+                available_room_agents={available_room_agents}
+                current_agent_id={current_agent_id}
+                current_room_type={current_room_type}
+                room_id={room_id}
+                room_name={current_room_title}
+                room_description={room_description}
+                is_conversation_busy={is_conversation_busy}
+                on_add_room_member={on_add_room_member}
+                on_edit_agent={on_edit_agent}
+                on_remove_room_member={on_remove_room_member}
+                on_update_room={on_update_room}
+                on_delete_room={on_delete_room}
+                on_select_agent={on_select_agent}
+                room_conversations={current_room_conversations}
+                room_members={room_members}
+                todos={current_todos}
+              />
+            </WorkspaceInspectorShell>
+          ) : null
+        ) : (
+          /* Room: 当 Thread 活跃或 detail panel 开启时显示右侧面板 */
+          !is_editor_open && active_surface_tab === "chat" ? (
+            <RoomInspectorSlot
+              show_context_panel={is_detail_panel_open}
+              current_agent={current_agent}
               current_agent_id={current_agent_id}
               current_room_type={current_room_type}
               room_id={room_id}
-              room_name={current_room_title}
               room_description={room_description}
+              current_room_title={current_room_title}
+              current_room_conversation={current_room_conversation}
+              current_room_conversations={current_room_conversations}
+              available_room_agents={available_room_agents}
+              room_members={room_members}
               is_conversation_busy={is_conversation_busy}
+              current_todos={current_todos}
               on_add_room_member={on_add_room_member}
               on_edit_agent={on_edit_agent}
               on_remove_room_member={on_remove_room_member}
               on_update_room={on_update_room}
               on_delete_room={on_delete_room}
               on_select_agent={on_select_agent}
-              room_conversations={current_room_conversations}
-              room_members={room_members}
-              todos={current_todos}
             />
-          </WorkspaceInspectorShell>
-        ) : null
+          ) : null
+        )
       }
     </div >
+  );
+}
+
+// ─── Room Inspector Slot ──────────────────────────────────────────────────────
+// 仅在 RoomThreadContextProvider 内部渲染，安全使用 useRoomThread
+
+interface RoomInspectorSlotProps {
+  show_context_panel: boolean;
+  current_agent: Agent;
+  current_agent_id: string | null;
+  current_room_type: string;
+  room_id: string | null;
+  room_description: string;
+  current_room_title: string;
+  current_room_conversation: RoomConversationView | null;
+  current_room_conversations: RoomConversationView[];
+  available_room_agents: Agent[];
+  room_members: Agent[];
+  is_conversation_busy: boolean;
+  current_todos: TodoItem[];
+  on_add_room_member: (agent_id: string) => Promise<void>;
+  on_edit_agent: (agent_id: string) => void;
+  on_remove_room_member: (agent_id: string) => Promise<void>;
+  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
+  on_delete_room: () => Promise<void>;
+  on_select_agent: (agent_id: string) => void;
+}
+
+function RoomInspectorSlot({
+  show_context_panel,
+  current_agent,
+  current_agent_id,
+  current_room_type,
+  room_id,
+  room_description,
+  current_room_title,
+  current_room_conversation,
+  current_room_conversations,
+  available_room_agents,
+  room_members,
+  is_conversation_busy,
+  current_todos,
+  on_add_room_member,
+  on_edit_agent,
+  on_remove_room_member,
+  on_update_room,
+  on_delete_room,
+  on_select_agent,
+}: RoomInspectorSlotProps) {
+  const { active_thread, close_thread } = useRoomThread();
+  const { thread_panel_data } = useThreadPanelData();
+  const has_thread = !!(active_thread && thread_panel_data);
+
+  // 既无 Thread 也无 Context 面板时隐藏
+  if (!has_thread && !show_context_panel) return null;
+
+  // Thread 面板打开时，替换 RoomContextPanel
+  if (has_thread) {
+    return (
+      <WorkspaceInspectorShell class_name="!w-[360px] xl:!w-[clamp(360px,24vw,480px)] 2xl:!w-[clamp(380px,24vw,520px)]">
+        <ThreadDetailPanel
+          round_id={active_thread!.round_id}
+          agent_id={active_thread!.agent_id}
+          agent_name={thread_panel_data!.agent_name ?? active_thread!.agent_id}
+          all_round_messages={thread_panel_data!.round_messages}
+          on_close={close_thread}
+          on_stop_message={thread_panel_data!.on_stop_message}
+          on_open_workspace_file={thread_panel_data!.on_open_workspace_file}
+          is_loading={thread_panel_data!.is_loading}
+          layout="desktop"
+        />
+      </WorkspaceInspectorShell>
+    );
+  }
+
+  return (
+    <WorkspaceInspectorShell>
+      <RoomContextPanel
+        active_conversation={current_room_conversation}
+        agent={current_agent}
+        available_room_agents={available_room_agents}
+        current_agent_id={current_agent_id}
+        current_room_type={current_room_type}
+        room_id={room_id}
+        room_name={current_room_title}
+        room_description={room_description}
+        is_conversation_busy={is_conversation_busy}
+        on_add_room_member={on_add_room_member}
+        on_edit_agent={on_edit_agent}
+        on_remove_room_member={on_remove_room_member}
+        on_update_room={on_update_room}
+        on_delete_room={on_delete_room}
+        on_select_agent={on_select_agent}
+        room_conversations={current_room_conversations}
+        room_members={room_members}
+        todos={current_todos}
+      />
+    </WorkspaceInspectorShell>
   );
 }

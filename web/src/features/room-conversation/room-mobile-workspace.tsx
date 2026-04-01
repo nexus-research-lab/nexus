@@ -10,6 +10,8 @@ import { Conversation, ConversationSnapshotPayload, RoomConversationView } from 
 
 import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
 import { RoomChatPanel } from "./room-chat-panel";
+import { RoomThreadContextProvider, useRoomThread, useThreadPanelData } from "./thread/room-thread-context";
+import { ThreadDetailPanel } from "./thread-detail-panel";
 
 interface RoomMobileWorkspaceProps {
   current_agent: Agent;
@@ -110,23 +112,26 @@ export function RoomMobileWorkspace({
             session_title={current_agent_conversation?.title ?? null}
           />
         ) : (
-          <RoomChatPanel
-            agent_id={current_agent.agent_id}
-            conversation_id={current_room_conversation_id}
-            conversations={current_room_conversations}
-            current_agent_name={current_agent.name}
-            current_room_title={current_room_title}
-            initial_draft={initial_draft}
-            layout="mobile"
-            on_conversation_snapshot_change={on_conversation_snapshot_change}
-            on_create_conversation={on_create_conversation}
-            on_loading_change={on_loading_change}
-            on_room_event={on_room_event}
-            on_select_conversation={on_select_conversation}
-            room_id={room_id}
-            room_members={room_members}
-            session_title={current_room_conversation?.title ?? null}
-          />
+          <RoomThreadContextProvider>
+            <RoomChatPanel
+              agent_id={current_agent.agent_id}
+              conversation_id={current_room_conversation_id}
+              conversations={current_room_conversations}
+              current_agent_name={current_agent.name}
+              current_room_title={current_room_title}
+              initial_draft={initial_draft}
+              layout="mobile"
+              on_conversation_snapshot_change={on_conversation_snapshot_change}
+              on_create_conversation={on_create_conversation}
+              on_loading_change={on_loading_change}
+              on_room_event={on_room_event}
+              on_select_conversation={on_select_conversation}
+              room_id={room_id}
+              room_members={room_members}
+              session_title={current_room_conversation?.title ?? null}
+            />
+            <MobileThreadOverlay />
+          </RoomThreadContextProvider>
         )}
       </div>
 
@@ -193,5 +198,29 @@ export function RoomMobileWorkspace({
         </>
       ) : null}
     </section>
+  );
+}
+
+/** 移动端 Thread 全屏覆盖 — 在 RoomThreadContextProvider 内部使用 */
+function MobileThreadOverlay() {
+  const { active_thread, close_thread } = useRoomThread();
+  const { thread_panel_data } = useThreadPanelData();
+
+  if (!active_thread || !thread_panel_data) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background">
+      <ThreadDetailPanel
+        round_id={active_thread.round_id}
+        agent_id={active_thread.agent_id}
+        agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
+        all_round_messages={thread_panel_data.round_messages}
+        on_close={close_thread}
+        on_stop_message={thread_panel_data.on_stop_message}
+        on_open_workspace_file={thread_panel_data.on_open_workspace_file}
+        is_loading={thread_panel_data.is_loading}
+        layout="mobile"
+      />
+    </div>
   );
 }

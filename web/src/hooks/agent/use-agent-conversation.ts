@@ -235,6 +235,11 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [sync_loading_state]);
 
   const track_result_message = useCallback((message: import('@/types').ResultMessage) => {
+    // 中文注释：Room 多 Agent 场景下，result.parent_id 直指占位 assistant msg_id，
+    // 先按 message_id 清理可避免 round_id 不一致时残留“回复中”状态。
+    if (message.parent_id) {
+      active_message_tracker_ref.current.delete(message.parent_id);
+    }
     clear_round_tracking(message.round_id);
   }, [clear_round_tracking]);
 

@@ -3,9 +3,11 @@ import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageItem } from "@/features/conversation-shared/message";
+import { isMultiAgentRound } from "@/features/conversation-shared/utils";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { estimateRoundHeights } from "@/hooks/use-message-height";
+import { RoomRoundCardGroup } from "./thread/room-round-card-group";
 
 interface RoomConversationFeedProps {
   bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
@@ -99,8 +101,26 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
-        const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
+        const is_multi = isMultiAgentRound(roundMessages);
 
+        // 多 Agent 轮次使用 Slack 式卡片组渲染
+        if (is_multi && agent_name_map) {
+          return (
+            <RoomRoundCardGroup
+              key={roundId}
+              round_id={roundId}
+              messages={roundMessages}
+              agent_name_map={agent_name_map}
+              is_last_round={isLastRound}
+              is_loading={is_loading}
+              on_stop_message={on_stop_message}
+              on_open_workspace_file={on_open_workspace_file}
+            />
+          );
+        }
+
+        // 单 Agent 轮次沿用 MessageItem
+        const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
         return (
           <MessageItem
             key={roundId}
@@ -201,7 +221,7 @@ function VirtualFeed({
           const roundId = round_ids[virtual_item.index];
           const roundMessages = message_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
-          const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
+          const is_multi = isMultiAgentRound(roundMessages);
 
           return (
             <div
@@ -209,20 +229,32 @@ function VirtualFeed({
               data-index={virtual_item.index}
               ref={virtualizer.measureElement}
             >
-              <MessageItem
-                compact={compact}
-                current_agent_name={round_agent_name}
-                round_id={roundId}
-                messages={roundMessages}
-                is_last_round={isLastRound}
-                is_loading={is_loading}
-                pending_permission={isLastRound ? is_last_round_pending_permission : null}
-                on_permission_response={on_permission_response}
-                on_open_workspace_file={on_open_workspace_file}
-                on_delete={on_delete_round}
-                on_regenerate={isLastRound ? on_regenerate_round : undefined}
-                on_stop_message={on_stop_message}
-              />
+              {is_multi && agent_name_map ? (
+                <RoomRoundCardGroup
+                  round_id={roundId}
+                  messages={roundMessages}
+                  agent_name_map={agent_name_map}
+                  is_last_round={isLastRound}
+                  is_loading={is_loading}
+                  on_stop_message={on_stop_message}
+                  on_open_workspace_file={on_open_workspace_file}
+                />
+              ) : (
+                <MessageItem
+                  compact={compact}
+                  current_agent_name={resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name}
+                  round_id={roundId}
+                  messages={roundMessages}
+                  is_last_round={isLastRound}
+                  is_loading={is_loading}
+                  pending_permission={isLastRound ? is_last_round_pending_permission : null}
+                  on_permission_response={on_permission_response}
+                  on_open_workspace_file={on_open_workspace_file}
+                  on_delete={on_delete_round}
+                  on_regenerate={isLastRound ? on_regenerate_round : undefined}
+                  on_stop_message={on_stop_message}
+                />
+              )}
             </div>
           );
         })}
