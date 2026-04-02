@@ -26,7 +26,6 @@ from agent.schema.model_skill import (
     SearchExternalSkillsResponse,
     SkillDetail,
     SkillInfo,
-    UpdateSkillGlobalEnabledRequest,
     UpdateInstalledSkillsResponse,
 )
 from agent.service.capability.skills.skill_service import skill_service
@@ -92,18 +91,6 @@ async def import_git_skill(request: ImportGitSkillRequest):
     return resp.ok(resp.Resp(data=detail.model_dump()))
 
 
-@router.post("/skills/{skill_name}/install", response_model=SkillDetail)
-async def install_skill_to_pool(skill_name: str):
-    """将技能安装到全局资源池。"""
-    try:
-        detail = await skill_service.install_to_pool(skill_name)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return resp.ok(resp.Resp(data=detail.model_dump()))
-
-
 @router.get("/skills/search/external", response_model=SearchExternalSkillsResponse)
 async def search_external_skills(q: str):
     """搜索 skills.sh 外部技能。"""
@@ -144,23 +131,11 @@ async def update_global_skill(skill_name: str):
     return resp.ok(resp.Resp(data=result.model_dump()))
 
 
-@router.patch("/skills/{skill_name}/global-enabled", response_model=SkillDetail)
-async def set_skill_global_enabled(skill_name: str, request: UpdateSkillGlobalEnabledRequest):
-    """设置 Skill 的全局启用状态。"""
-    try:
-        result = await skill_service.set_global_enabled(skill_name, request.enabled)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return resp.ok(resp.Resp(data=result.model_dump()))
-
-
 @router.delete("/skills/{skill_name}")
-async def delete_skill_from_pool(skill_name: str):
-    """从全局技能池删除 skill。"""
+async def delete_skill(skill_name: str):
+    """删除外部导入的 skill。"""
     try:
-        await skill_service.delete_from_pool(skill_name)
+        await skill_service.delete_skill(skill_name)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

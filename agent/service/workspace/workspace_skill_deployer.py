@@ -19,6 +19,7 @@ from agent.utils.logger import logger
 class WorkspaceSkillDeployer:
     """负责把仓库内 skill 部署到 agent workspace。"""
 
+    BASE_SKILL_NAMES = ("memory-manager",)
     MAIN_AGENT_SKILL_NAMES = ("nexus-manager",)
 
     def __init__(self, agent_id: str, workspace_path: Path):
@@ -30,11 +31,12 @@ class WorkspaceSkillDeployer:
         self._workspace_claude_skills_root = self._workspace_path / ".claude" / "skills"
 
     def ensure_deployed(self, context: dict[str, str]) -> None:
-        """确保主智能体 skill 已部署到 workspace。"""
-        if not MainAgentProfile.is_main_agent(self._agent_id):
-            return
+        """确保系统托管 skill 已部署到 workspace。"""
+        managed_skill_names = list(self.BASE_SKILL_NAMES)
+        if MainAgentProfile.is_main_agent(self._agent_id):
+            managed_skill_names.extend(self.MAIN_AGENT_SKILL_NAMES)
 
-        for skill_name in self.MAIN_AGENT_SKILL_NAMES:
+        for skill_name in managed_skill_names:
             self._deploy_skill(skill_name, None, context)
 
     # =====================================================
@@ -135,4 +137,3 @@ class WorkspaceSkillDeployer:
         # 使用相对软链接，保证 workspace 整体迁移时映射关系仍然成立。
         link_path.symlink_to(relative_target, target_is_directory=target_dir.is_dir())
         logger.info(f"🔗 已映射 Claude skill: {link_path} -> {relative_target}")
-

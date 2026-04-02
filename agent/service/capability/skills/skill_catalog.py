@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from agent.schema.model_skill import ExternalSkillManifest, SkillDetail, SkillInfo
+from agent.schema.model_skill import ExternalSkillManifest, SkillDetail
 from agent.service.capability.skills.skill_frontmatter import SkillFrontmatterParser
 from agent.service.capability.skills.skill_registry_store import SkillRegistryStore
 
@@ -34,7 +34,10 @@ class SkillCatalogRecord:
 class SkillCatalog:
     """聚合系统、内置和外部 Skill。"""
 
-    SYSTEM_SKILL_NAMES = {"memory-manager", "nexus-manager"}
+    # 中文注释：仅对外暴露真正可见的系统 skill。
+    # `nexus-manager` 只用于 main agent 内部编排，不进入公开 skill 市场。
+    SYSTEM_SKILL_NAMES = {"memory-manager"}
+    INTERNAL_SKILL_NAMES = {"nexus-manager"}
 
     def __init__(self) -> None:
         self._project_root = Path(__file__).resolve().parents[4]
@@ -42,27 +45,19 @@ class SkillCatalog:
         self._manifest_path = Path(__file__).resolve().parent / "data" / "curated_skill_catalog.json"
         self._store = SkillRegistryStore()
 
-    def list_records(
-        self,
-        global_states: dict[str, bool] | None = None,
-        pool_installed_states: dict[str, bool] | None = None,
-    ) -> dict[str, SkillCatalogRecord]:
-        """聚合所有 skill 记录，状态由外部传入（来自 DB）。"""
-        gs = global_states or {}
-        ps = pool_installed_states or {}
+    def list_records(self) -> dict[str, SkillCatalogRecord]:
+        """聚合所有公开 skill 记录。"""
         records: dict[str, SkillCatalogRecord] = {}
         records.update(self._load_system_records())
-        records.update(self._load_builtin_records(gs, ps))
-        records.update(self._load_external_records(gs))
+        records.update(self._load_builtin_records())
+        records.update(self._load_external_records())
         return records
 
     def get_record(
         self,
         skill_name: str,
-        global_states: dict[str, bool] | None = None,
-        pool_installed_states: dict[str, bool] | None = None,
     ) -> SkillCatalogRecord | None:
-        return self.list_records(global_states, pool_installed_states).get(skill_name)
+        return self.list_records().get(skill_name)
 
     def _load_system_records(self) -> dict[str, SkillCatalogRecord]:
         records: dict[str, SkillCatalogRecord] = {}
@@ -85,9 +80,8 @@ class SkillCatalog:
                     source_ref=str(skill_dir),
                     version="system",
                     locked=True,
-                    global_enabled=True,
                     deletable=False,
-                    installed=True,
+                    installed=False,
                     readme_markdown=str(parsed.get("readme_markdown") or ""),
                     recommendation="系统内置能力，安装状态由平台托管。",
                 ),
@@ -95,16 +89,12 @@ class SkillCatalog:
             )
         return records
 
-    def _load_builtin_records(
-        self,
-        global_states: dict[str, bool],
-        pool_installed_states: dict[str, bool],
-    ) -> dict[str, SkillCatalogRecord]:
+    def _load_builtin_records(self) -> dict[str, SkillCatalogRecord]:
         manifest = json.loads(self._manifest_path.read_text(encoding="utf-8"))
         records: dict[str, SkillCatalogRecord] = {}
         for entry in manifest.get("skills", []):
             name = entry["name"]
-            if name in records or name in self.SYSTEM_SKILL_NAMES:
+            if name in records or name in self.SYSTEM_SKILL_NAMES or name in self.INTERNAL_SKILL_NAMES:
                 continue
             skill_dir = self._find_builtin_skill_dir(name)
             skill_md = skill_dir / "SKILL.md" if skill_dir else None
@@ -124,9 +114,8 @@ class SkillCatalog:
                     source_ref=str(skill_dir),
                     version=str(parsed.get("version") or "builtin"),
                     locked=False,
-                    global_enabled=global_states.get(name, True),
-                    deletable=pool_installed_states.get(name, False),
-                    installed=pool_installed_states.get(name, False),
+                    deletable=False,
+                    installed=False,
                     readme_markdown=str(parsed.get("readme_markdown") or ""),
                     recommendation=str(entry.get("recommendation") or ""),
                 ),
@@ -141,7 +130,7 @@ class SkillCatalog:
         )
         return records
 
-    def _load_external_records(self, global_states: dict[str, bool]) -> dict[str, SkillCatalogRecord]:
+    def _load_external_records(self) -> dict[str, SkillCatalogRecord]:
         records: dict[str, SkillCatalogRecord] = {}
         for manifest in self._store.list_external_manifests():
             skill_dir = self._store.skill_dir(manifest.name)
@@ -150,7 +139,7 @@ class SkillCatalog:
                 continue
             parsed = SkillFrontmatterParser.parse(skill_md)
             records[manifest.name] = SkillCatalogRecord(
-                detail=self._build_external_detail(manifest, parsed, skill_dir, global_states),
+                detail=self._build_external_detail(manifest, parsed, skill_dir),
                 source_path=skill_dir,
                 git_url=manifest.git_url,
                 git_branch=manifest.git_branch,
@@ -163,7 +152,6 @@ class SkillCatalog:
         manifest: ExternalSkillManifest,
         parsed: dict[str, object],
         skill_dir: Path,
-        global_states: dict[str, bool],
     ) -> SkillDetail:
         return SkillDetail(
             name=manifest.name,
@@ -177,9 +165,8 @@ class SkillCatalog:
             source_ref=manifest.source_ref or str(skill_dir),
             version=manifest.version,
             locked=False,
-            global_enabled=global_states.get(manifest.name, True),
             deletable=True,
-            installed=True,
+            installed=False,
             readme_markdown=str(parsed.get("readme_markdown") or ""),
             recommendation=manifest.recommendation,
         )

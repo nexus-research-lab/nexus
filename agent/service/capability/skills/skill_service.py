@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # =====================================================
 # @File   ：skill_service.py
-# @Date   ：2026/3/30 20:40
-# @Author ：Codex
-# 2026/3/30 20:40   Create
+# @Date   ：2026/4/2 11:40
+# @Author ：leemysw
+# 2026/4/2 11:40   Create
 # =====================================================
 
 """Skill Marketplace 服务。"""
@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
 from agent.schema.model_skill import (
     AgentSkillEntry,
@@ -24,33 +23,24 @@ from agent.schema.model_skill import (
     UpdateInstalledSkillsResponse,
 )
 from agent.service.agent.main_agent_profile import MainAgentProfile
-from agent.service.capability.skills.skill_catalog import SkillCatalog
+from agent.service.capability.skills.skill_catalog import SkillCatalog, SkillCatalogRecord
 from agent.service.capability.skills.skill_import_service import SkillImportService
-from agent.service.capability.skills.skill_repository import skill_repository
 from agent.service.capability.skills.skill_registry_store import SkillRegistryStore
-from agent.service.workspace.workspace_skill_deployer import WorkspaceSkillDeployer
-from agent.service.agent.agent_repository import agent_repository
+from agent.service.capability.skills.skill_workspace_store import SkillWorkspaceStore
 from agent.utils.logger import logger
 
 
 class SkillService:
     """负责 Skill Marketplace 查询、导入、安装与更新。"""
 
-    BASE_SKILL_NAMES = ("memory-manager",)
-    MAIN_AGENT_SKILL_NAMES = ("nexus-manager",)
     UPDATE_STATUS_TTL_SECONDS = 300
 
     def __init__(self) -> None:
         self._catalog = SkillCatalog()
         self._import_service = SkillImportService()
         self._file_store = SkillRegistryStore()
+        self._workspace_store = SkillWorkspaceStore()
         self._update_status_cache: dict[str, tuple[float, bool]] = {}
-
-    async def _load_states(self) -> tuple[dict[str, bool], dict[str, bool]]:
-        """从数据库加载全局启用状态和资源池安装状态。"""
-        global_states = await skill_repository.get_global_states()
-        pool_states = await skill_repository.get_pool_installed_states()
-        return global_states, pool_states
 
     async def get_all_skills(
         self,
@@ -59,13 +49,12 @@ class SkillService:
         source_type: str | None = None,
         q: str | None = None,
     ) -> list[SkillInfo]:
-        global_states, pool_states = await self._load_states()
-        records = self._catalog.list_records(global_states, pool_states)
+        records = self._catalog.list_records()
         installed_names: set[str] = set()
         is_main = True
         if agent_id:
-            await self._resolve_agent(agent_id)
-            installed_names = set(await skill_repository.get_agent_skill_names(agent_id))
+            await self._ensure_agent_system_skills(agent_id)
+            installed_names = await self._workspace_store.get_deployed_skill_names(agent_id)
             is_main = MainAgentProfile.is_main_agent(agent_id)
 
         query = (q or "").strip().lower()
@@ -74,15 +63,9 @@ class SkillService:
             detail = record.detail.model_copy(deep=True)
             if detail.scope == "main" and not is_main:
                 continue
-            detail.installed = self._is_installed(
-                detail.name,
-                installed_names,
-                detail.source_type,
-                pool_states,
-                resource_pool_mode=agent_id is None,
-            )
+            detail.installed = agent_id is not None and detail.name in installed_names
             detail.locked = detail.source_type == "system"
-            detail.has_update = self._has_update(detail, record, detail.installed, eager=False)
+            detail.has_update = self._has_update(detail, eager=False)
             if category_key and detail.category_key != category_key:
                 continue
             if source_type and detail.source_type != source_type:
@@ -93,72 +76,39 @@ class SkillService:
         return sorted(items, key=lambda item: (item.category_name, item.title.lower()))
 
     async def get_skill_detail(self, skill_name: str, agent_id: str | None = None) -> SkillDetail:
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
+        record = self._require_record(skill_name)
         detail = record.detail.model_copy(deep=True)
-        installed_names: set[str] = set()
         if agent_id:
-            await self._resolve_agent(agent_id)
-            installed_names = set(await skill_repository.get_agent_skill_names(agent_id))
-        detail.installed = self._is_installed(
-            detail.name,
-            installed_names,
-            detail.source_type,
-            pool_states,
-            resource_pool_mode=agent_id is None,
-        )
+            await self._ensure_agent_system_skills(agent_id)
+            installed_names = await self._workspace_store.get_deployed_skill_names(agent_id)
+            detail.installed = detail.name in installed_names
+        else:
+            detail.installed = False
         detail.locked = detail.source_type == "system"
-        detail.has_update = self._has_update(detail, record, detail.installed, eager=True)
+        detail.has_update = self._has_update(detail, eager=True)
         return detail
 
     async def get_agent_skills(self, agent_id: str) -> list[AgentSkillEntry]:
-        # 中文注释：分两步获取数据，避免混淆"资源池可用"和"agent 已部署"两个概念。
-        # _is_installed(resource_pool_mode=False) 返回的是 agent 是否已部署该 skill，
-        # 而 Agent 配置页需要的是"资源池里是否有这个 skill 且全局启用"。
-        # 因此单独从 DB 拿 pool_states 用于过滤可见性。
-        global_states, pool_states = await self._load_states()
         items = await self.get_all_skills(agent_id=agent_id)
-
-        result: list[AgentSkillEntry] = []
-        for item in items:
-            if item.locked:
-                # system skill: 永远可在 Agent 里配置
-                result.append(AgentSkillEntry.model_validate(item.model_dump()))
-                continue
-            # 判断该 skill 是否在全局资源池中：
-            # - external: 导入即入池，始终为 True
-            # - builtin / system: 需要显式安装到资源池（PoolSkill 表）
-            in_pool = (
-                item.source_type == "external"
-                or pool_states.get(item.name, False)
-            )
-            if in_pool and item.global_enabled:
-                result.append(AgentSkillEntry.model_validate(item.model_dump()))
-        return result
+        return [AgentSkillEntry.model_validate(item.model_dump()) for item in items]
 
     async def install_skill(self, agent_id: str, skill_name: str) -> AgentSkillEntry:
-        global_states, pool_states = await self._load_states()
-        record = self._validate_installable(agent_id, skill_name, global_states, pool_states)
-        agent = await self._resolve_agent(agent_id)
-        deployer = WorkspaceSkillDeployer(agent_id, Path(agent.workspace_path))
-        deployer.deploy_skill(skill_name, source_dir=record.source_path)
-        # 写入 DB 记录 Agent-Skill 关联
-        await skill_repository.add_agent_skill(agent_id, skill_name)
-        logger.info(f"✅ Skill installed: {skill_name} → agent {agent_id}")
+        record = self._validate_installable(agent_id, skill_name)
+        await self._workspace_store.deploy_skill(
+            agent_id,
+            skill_name,
+            record.source_path,
+        )
+        logger.info(f"✅ Skill installed: {skill_name} -> agent {agent_id}")
         return AgentSkillEntry.model_validate(
             (await self.get_skill_detail(skill_name, agent_id=agent_id)).model_dump()
         )
 
     async def uninstall_skill(self, agent_id: str, skill_name: str) -> None:
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
+        record = self._require_record(skill_name)
         if record.detail.source_type == "system":
             raise ValueError(f"Skill '{skill_name}' is system-managed and cannot be uninstalled")
-        agent = await self._resolve_agent(agent_id)
-        deployer = WorkspaceSkillDeployer(agent_id, Path(agent.workspace_path))
-        deployer.undeploy_skill(skill_name)
-        # 从 DB 移除 Agent-Skill 关联
-        await skill_repository.remove_agent_skill(agent_id, skill_name)
+        await self._workspace_store.undeploy_skill(agent_id, skill_name)
 
     async def batch_install_skills(self, agent_id: str, skill_names: list[str]) -> BatchInstallSkillsResponse:
         successes: list[str] = []
@@ -197,15 +147,10 @@ class SkillService:
         updated_skills: list[str] = []
         skipped_skills: list[str] = []
         failures: list[SkillActionFailure] = []
-        global_states, pool_states = await self._load_states()
-        for skill_name in self._catalog.list_records(global_states, pool_states).keys():
-            try:
-                record = self._require_record(skill_name, global_states, pool_states)
-            except LookupError:
-                continue
+        for skill_name, record in self._catalog.list_records().items():
             if record.detail.source_type != "external":
                 continue
-            if not self._has_update(record.detail, record, False, eager=True):
+            if not self._has_update(record.detail, eager=True):
                 skipped_skills.append(skill_name)
                 continue
             try:
@@ -220,27 +165,22 @@ class SkillService:
         )
 
     async def update_skill(self, agent_id: str, skill_name: str) -> AgentSkillEntry:
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
+        record = self._require_record(skill_name)
         if record.detail.source_type != "external":
             raise ValueError(f"Skill '{skill_name}' does not support manual update")
-        manifest = self._import_service._store.read_manifest(skill_name)
-        if manifest.import_mode == "git":
-            updated_manifest = self._import_service.update_git_skill(manifest)
-        elif manifest.import_mode == "skills_sh":
-            updated_manifest = self._import_service.update_skills_sh_skill(manifest)
-        else:
-            raise ValueError(f"Skill '{skill_name}' does not support remote update")
-        gs2, ps2 = await self._load_states()
-        updated_record = self._catalog.get_record(updated_manifest.name, gs2, ps2)
+        updated_manifest = self._update_external_manifest(skill_name)
+        self._update_status_cache.pop(skill_name, None)
+        updated_record = self._catalog.get_record(updated_manifest.name)
         if not updated_record:
             raise LookupError(f"Skill not found after update: {skill_name}")
-        # 如果该 Agent 已安装此 skill，同步更新 workspace 文件
-        agent_skills = await skill_repository.get_agent_skill_names(agent_id)
-        if skill_name in agent_skills:
-            agent = await self._resolve_agent(agent_id)
-            deployer = WorkspaceSkillDeployer(agent_id, Path(agent.workspace_path))
-            deployer.deploy_skill(skill_name, source_dir=updated_record.source_path)
+
+        installed_names = await self._workspace_store.get_deployed_skill_names(agent_id)
+        if skill_name in installed_names:
+            await self._workspace_store.deploy_skill(
+                agent_id,
+                skill_name,
+                updated_record.source_path,
+            )
         return AgentSkillEntry.model_validate(
             (await self.get_skill_detail(skill_name, agent_id=agent_id)).model_dump()
         )
@@ -249,133 +189,68 @@ class SkillService:
         record = self._require_record(skill_name)
         if record.detail.source_type != "external":
             raise ValueError(f"Skill '{skill_name}' does not support manual update")
-        manifest = self._import_service._store.read_manifest(skill_name)
-        if manifest.import_mode == "git":
-            self._import_service.update_git_skill(manifest)
-        elif manifest.import_mode == "skills_sh":
-            self._import_service.update_skills_sh_skill(manifest)
-        else:
-            raise ValueError(f"Skill '{skill_name}' does not support remote update")
-        await self._sync_skill_to_installed_agents(skill_name)
+        self._update_external_manifest(skill_name)
+        self._update_status_cache.pop(skill_name, None)
+        await self._workspace_store.sync_skill_to_installed_agents(skill_name, record.source_path)
         return await self.get_skill_detail(skill_name)
 
     async def import_local_path(self, local_path: str) -> SkillDetail:
         manifest = self._import_service.import_local_path(local_path)
-        await skill_repository.set_pool_installed(manifest.name, True)
+        self._update_status_cache.pop(manifest.name, None)
         return await self.get_skill_detail(manifest.name)
 
     async def import_uploaded_file(self, file_name: str, payload: bytes) -> SkillDetail:
         manifest = self._import_service.import_uploaded_file(file_name, payload)
-        await skill_repository.set_pool_installed(manifest.name, True)
+        self._update_status_cache.pop(manifest.name, None)
         return await self.get_skill_detail(manifest.name)
 
     async def import_git(self, url: str, branch: str | None = None) -> SkillDetail:
         manifest = self._import_service.import_git(url, branch)
-        await skill_repository.set_pool_installed(manifest.name, True)
+        self._update_status_cache.pop(manifest.name, None)
         return await self.get_skill_detail(manifest.name)
 
     async def import_skills_sh(self, package_spec: str, skill_slug: str) -> SkillDetail:
         manifest = self._import_service.import_skills_sh(package_spec, skill_slug)
-        await skill_repository.set_pool_installed(manifest.name, True)
+        self._update_status_cache.pop(manifest.name, None)
         return await self.get_skill_detail(manifest.name)
+
+    async def delete_skill(self, skill_name: str) -> None:
+        record = self._require_record(skill_name)
+        if not record.detail.deletable or record.detail.source_type != "external":
+            raise ValueError(f"Skill '{skill_name}' cannot be deleted")
+
+        # 中文注释：删除外部 skill 时，要先清理所有已部署 workspace，
+        # 否则 Agent 会继续持有失效副本。
+        await self._workspace_store.undeploy_skill_from_all_agents(skill_name)
+        self._file_store.delete_skill(skill_name)
+        self._update_status_cache.pop(skill_name, None)
 
     def search_external_skills(self, query: str) -> list[ExternalSkillSearchItem]:
         return self._import_service.search_skills_sh(query)
 
-    def _validate_installable(
-        self,
-        agent_id: str,
-        skill_name: str,
-        global_states: dict[str, bool],
-        pool_states: dict[str, bool],
-    ):
-        record = self._require_record(skill_name, global_states, pool_states)
+    def _validate_installable(self, agent_id: str, skill_name: str) -> SkillCatalogRecord:
+        record = self._require_record(skill_name)
         if record.detail.source_type == "system":
             raise ValueError(f"Skill '{skill_name}' is system-managed and cannot be manually installed")
-        if not record.detail.installed:
-            raise ValueError(f"Skill '{skill_name}' is not installed in the pool")
-        if not record.detail.global_enabled:
-            raise ValueError(f"Skill '{skill_name}' is globally disabled")
-        is_main = MainAgentProfile.is_main_agent(agent_id)
-        if record.detail.scope == "main" and not is_main:
-            raise ValueError(f"Skill '{skill_name}' is restricted to main agent")
+        if record.detail.scope == "main" and not MainAgentProfile.is_main_agent(agent_id):
+            raise ValueError(
+                f"Skill '{skill_name}' is restricted to {MainAgentProfile.display_label()}"
+            )
         return record
 
-    async def set_global_enabled(self, skill_name: str, enabled: bool) -> SkillDetail:
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
-        if record.detail.locked:
-            raise ValueError(f"Skill '{skill_name}' is system-managed and cannot be globally disabled")
-        if not record.detail.installed:
-            raise ValueError(f"Skill '{skill_name}' is not installed in the pool")
-        await skill_repository.set_global_enabled(skill_name, enabled)
-        await self._sync_skill_to_installed_agents(skill_name)
-        return await self.get_skill_detail(skill_name)
+    async def _ensure_agent_system_skills(self, agent_id: str):
+        """确保查询前先把系统托管 skill 补齐到目标 workspace。"""
+        from agent.service.agent.agent_manager import agent_manager
 
-    async def delete_from_pool(self, skill_name: str) -> None:
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
-        if not record.detail.deletable:
-            raise ValueError(f"Skill '{skill_name}' cannot be deleted from the pool")
+        return await agent_manager.get_agent_workspace(agent_id)
 
-        # 中文注释：删除技能池中的 skill 时，先从 DB 移除所有 Agent 关联，
-        # 再清理各 Agent workspace 中的部署副本，最后删除技能池记录。
-        affected_agent_ids = await skill_repository.remove_skill_from_all_agents(skill_name)
-        for aid in affected_agent_ids:
-            agent = await agent_repository.get_agent(aid)
-            if agent:
-                deployer = WorkspaceSkillDeployer(aid, Path(agent.workspace_path))
-                deployer.undeploy_skill(skill_name)
-
-        if record.detail.source_type == "external":
-            self._file_store.delete_skill(skill_name)
-        await skill_repository.delete_pool_skill(skill_name)
-
-    async def install_to_pool(self, skill_name: str) -> SkillDetail:
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
-        if record.detail.locked:
-            raise ValueError(f"Skill '{skill_name}' is system-managed and already available")
-        if record.detail.source_type == "external":
-            raise ValueError(f"Skill '{skill_name}' is already imported into the pool")
-        await skill_repository.set_pool_installed(skill_name, True)
-        await skill_repository.set_global_enabled(skill_name, True)
-        return await self.get_skill_detail(skill_name)
-
-    async def _resolve_agent(self, agent_id: str):
-        agent = await agent_repository.get_agent(agent_id)
-        if not agent:
-            raise LookupError(f"Agent not found: {agent_id}")
-        return agent
-
-    def _require_record(
-        self,
-        skill_name: str,
-        global_states: dict[str, bool] | None = None,
-        pool_states: dict[str, bool] | None = None,
-    ):
-        record = self._catalog.get_record(skill_name, global_states, pool_states)
+    def _require_record(self, skill_name: str) -> SkillCatalogRecord:
+        record = self._catalog.get_record(skill_name)
         if not record:
             raise LookupError(f"Skill not found: {skill_name}")
         return record
 
-    def _is_installed(
-        self,
-        skill_name: str,
-        installed_names: set[str],
-        source_type: str,
-        pool_states: dict[str, bool] | None = None,
-        resource_pool_mode: bool = False,
-    ) -> bool:
-        if resource_pool_mode:
-            return source_type == "system" or (pool_states or {}).get(skill_name, False)
-        if skill_name in self.BASE_SKILL_NAMES:
-            return True
-        if skill_name in self.MAIN_AGENT_SKILL_NAMES:
-            return True
-        return source_type != "system" and skill_name in installed_names
-
-    def _has_update(self, detail: SkillDetail, record, installed: bool, eager: bool = False) -> bool:
+    def _has_update(self, detail: SkillDetail, eager: bool = False) -> bool:
         if detail.source_type != "external":
             return False
         cached = self._update_status_cache.get(detail.name)
@@ -384,41 +259,33 @@ class SkillService:
             return cached[1]
         if not eager:
             return cached[1] if cached else False
+
         manifest = self._import_service._store.read_manifest(detail.name)
+        has_update = False
         if manifest.import_mode == "git":
             has_update = self._import_service.check_git_update(manifest)
-            self._update_status_cache[detail.name] = (now, has_update)
-            return has_update
-        if manifest.import_mode == "skills_sh":
+        elif manifest.import_mode == "skills_sh":
             has_update = self._import_service.check_skills_sh_update(manifest)
-            self._update_status_cache[detail.name] = (now, has_update)
-            return has_update
-        return False
-
-    async def _sync_skill_to_installed_agents(self, skill_name: str) -> None:
-        """根据全局状态，把某个 skill 同步到所有已安装该 skill 的 Agent。"""
-        global_states, pool_states = await self._load_states()
-        record = self._require_record(skill_name, global_states, pool_states)
-        agent_ids = await skill_repository.get_agent_ids_by_skill_name(skill_name)
-        for agent_id in agent_ids:
-            agent = await agent_repository.get_agent(agent_id)
-            if not agent:
-                continue
-            deployer = WorkspaceSkillDeployer(agent_id, Path(agent.workspace_path))
-            if record.detail.global_enabled:
-                deployer.deploy_skill(skill_name, source_dir=record.source_path)
-            else:
-                deployer.undeploy_skill(skill_name)
+        self._update_status_cache[detail.name] = (now, has_update)
+        return has_update
 
     def _match_query(self, detail: SkillDetail, query: str) -> bool:
         haystacks = [
-            detail.name.lower(),
-            detail.title.lower(),
-            detail.description.lower(),
-            detail.category_name.lower(),
-            " ".join(detail.tags).lower(),
+            detail.name,
+            detail.title,
+            detail.description,
+            detail.category_name,
+            " ".join(detail.tags),
         ]
-        return any(query in item for item in haystacks)
+        return any(query in value.lower() for value in haystacks if value)
+
+    def _update_external_manifest(self, skill_name: str):
+        manifest = self._import_service._store.read_manifest(skill_name)
+        if manifest.import_mode == "git":
+            return self._import_service.update_git_skill(manifest)
+        if manifest.import_mode == "skills_sh":
+            return self._import_service.update_skills_sh_skill(manifest)
+        raise ValueError(f"Skill '{skill_name}' does not support remote update")
 
 
 skill_service = SkillService()

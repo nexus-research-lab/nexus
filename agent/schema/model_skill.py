@@ -38,8 +38,7 @@ class SkillInfo(AModel):
     installed: bool = Field(default=False, description="当前 Agent 是否已安装")
     locked: bool = Field(default=False, description="是否系统锁定")
     has_update: bool = Field(default=False, description="是否存在可更新版本")
-    global_enabled: bool = Field(default=True, description="是否全局启用")
-    deletable: bool = Field(default=False, description="是否允许从资源池删除")
+    deletable: bool = Field(default=False, description="是否允许删除 skill 源")
 
 
 class SkillDetail(SkillInfo):
@@ -126,12 +125,6 @@ class ImportSkillsShSkillRequest(AModel):
 
     package_spec: str = Field(..., description="如 owner/repo")
     skill_slug: str = Field(..., description="目标 skill slug")
-
-
-class UpdateSkillGlobalEnabledRequest(AModel):
-    """全局启用开关请求。"""
-
-    enabled: bool = Field(..., description="是否全局启用")
 
 
 class ExternalSkillManifest(AModel):

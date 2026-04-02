@@ -15,7 +15,7 @@ CLI 工具路径：`python3 "{project_root}/agent/cli.py"`
 - **Room（群组空间）**：多个 Agent 共处的对话空间，支持创建后追加成员。
 - **Workspace（工作区）**：每个 Agent 独立拥有的文件空间，可读写业务文件与记忆文件。
 - **Skill（技能）**：部署到 Agent 工作区中的能力包，决定其可用专业动作。
-- **nexus**：系统内置的主 Agent，不能作为 Room 成员，所有 Room 操作由它发起。
+- **主智能体**：系统内置的保留 Agent，不能作为 Room 成员，所有 Room 操作由它发起。
 - 每个成员创建后自动获得独立工作空间（workspace），用于存放技能、工具配置和文件。
 
 ## 命令参考
@@ -29,7 +29,7 @@ python3 "{project_root}/agent/cli.py" list_agents
 python3 "{project_root}/agent/cli.py" list_agents --include_main
 ```
 
-- 默认不包含 main agent；加 `--include_main` 可包含。
+- 默认不包含主智能体；加 `--include_main` 可包含。
 - 返回字段：`agent_id`、`name`、`status`、`workspace_path`、`model`、`skills_enabled`
 
 #### validate_agent_name — 校验成员名称
@@ -225,11 +225,11 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 
 - 创建成员时自动初始化目录结构和模板文件。
 - 已存在的文件不会被覆盖，保证用户修改不丢失。
-- main agent 和普通成员使用不同的模板（main 的模板包含系统级职责定义）。
+- 主智能体和普通成员使用不同的模板（主智能体模板包含系统级职责定义）。
 
 ### 技能部署
 
-- 基础 skill 与 main 专属 skill 由系统管理，不能手动卸载。
+- 基础 skill 与主智能体专属 skill 由系统管理，不能手动卸载。
 - 普通 skill 可通过 `install_skill` / `uninstall_skill` 管理。
 - 技能部署到 `.agents/skills/<skill_name>/`。
 - `.claude/skills/<skill_name>` 是指向 `.agents/skills/` 的相对符号链接。
@@ -244,7 +244,7 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 
 ## 使用规则
 
-- **main 不能作为 Room 成员**，创建 Room 时不要把 main 放进 `agent_ids`。
+- **主智能体不能作为 Room 成员**，创建 Room 时不要把主智能体的 `agent_id` 放进 `agent_ids`。
 - 创建成员前，先 `validate_agent_name` 再 `create_agent`，名称不通过时告知用户原因。
 - 创建多人 Room 时，先向用户确认成员列表，再执行创建。
 - 涉及文件修改时，先读再写；对路径和覆盖范围说清楚。
