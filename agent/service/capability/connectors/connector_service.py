@@ -135,6 +135,7 @@ class ConnectorService:
         # 中文注释：OAuth 完成后清空临时 state，只保留第三方返回的 token 结果。
         await connector_repository.connect(
             connector_id=connection.connector_id,
+            # TODO: 加密凭证后再存储，当前为明文，存在安全风险（见 #25）
             credentials=json.dumps(token_payload, ensure_ascii=False),
             auth_type=entry.auth_type,
             state="connected",
