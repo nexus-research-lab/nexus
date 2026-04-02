@@ -29,7 +29,6 @@ import discord
 
 from agent.service.channels.message_channel import MessageChannel
 from agent.service.channels.im.discord_sender import DiscordSender
-from agent.config.config import settings
 from agent.service.permission.strategy.permission_auto import AutoAllowPermissionStrategy
 from agent.service.session.session_router import build_session_key
 from agent.utils.logger import logger
@@ -119,7 +118,6 @@ class DiscordChannel(MessageChannel):
                 channel="dg",
                 chat_type="dm",
                 ref=str(message.author.id),
-                agent_id=settings.DEFAULT_AGENT_ID,
             )
         else:
             ref = f"{message.guild.id}:{message.channel.id}"
@@ -130,7 +128,6 @@ class DiscordChannel(MessageChannel):
                 chat_type="group",
                 ref=ref,
                 thread_id=thread_id,
-                agent_id=settings.DEFAULT_AGENT_ID,
             )
 
         logger.info(

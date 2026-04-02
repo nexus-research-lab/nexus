@@ -18,11 +18,11 @@ from claude_agent_sdk import Message as SDKMessage
 from claude_agent_sdk import ResultMessage, SystemMessage
 from claude_agent_sdk.types import AssistantMessage, StreamEvent, UserMessage
 
-from agent.config.config import settings
 from agent.schema.model_message import Message, StreamMessage
 from agent.service.message.assistant_segment import AssistantSegment
 from agent.service.message.sdk_message_mapper import SdkMessageMapper
 from agent.service.session.session_manager import session_manager
+from agent.service.session.session_router import resolve_agent_id
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -46,7 +46,7 @@ class ChatMessageProcessor:
     ) -> None:
         self.query = query
         self.session_key = session_key
-        self.agent_id = agent_id or  settings.DEFAULT_AGENT_ID
+        self.agent_id = resolve_agent_id(agent_id)
         self.round_id = round_id or str(uuid.uuid4())
         self.session_id = session_id
         # 预分配的 assistant message_id，覆盖 SDK 分配的 id

@@ -12,7 +12,6 @@
 import asyncio
 from typing import Any, Dict
 
-from agent.config.config import settings
 from agent.schema.model_message import build_error_event, EventMessage
 from agent.service.agent.agent_runtime import agent_runtime
 from agent.service.channels.message_sender import MessageSender
@@ -22,6 +21,7 @@ from agent.service.session.session_manager import session_manager
 from agent.service.session.session_router import (
     StructuredSessionKeyError,
     require_structured_session_key,
+    resolve_agent_id,
 )
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
@@ -61,10 +61,8 @@ class ChatService:
         content = message.get("content")
         round_id = message.get("round_id")
         existing_session = await session_store.get_session_info(session_key)
-        real_agent_id = (
-            existing_session.agent_id
-            if existing_session and existing_session.agent_id
-            else requested_agent_id or  settings.DEFAULT_AGENT_ID
+        real_agent_id = resolve_agent_id(
+            existing_session.agent_id if existing_session else requested_agent_id
         )
 
         try:

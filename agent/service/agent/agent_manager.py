@@ -107,8 +107,8 @@ class AgentManager:
         existing = await agent_repository.get_agent(agent_id)
         if not existing:
             return False
-        if MainAgentProfile.is_main_agent(agent_id) and name is not None and name != existing.name:
-            raise ValueError(f"{MainAgentProfile.display_label()} 名称不可修改")
+        if name is not None and name != existing.name:
+            MainAgentProfile.ensure_not_main_agent(agent_id, "名称不可修改")
 
         normalized_name = None
         if name is not None:
@@ -140,8 +140,7 @@ class AgentManager:
 
     async def delete_agent(self, agent_id: str) -> bool:
         """删除 Agent，并同步清理运行态与工作区。"""
-        if MainAgentProfile.is_main_agent(agent_id):
-            raise ValueError(f"{MainAgentProfile.display_label()} 不可删除")
+        MainAgentProfile.ensure_not_main_agent(agent_id, "不可删除")
 
         agent = await agent_repository.get_agent(agent_id)
         if not agent:

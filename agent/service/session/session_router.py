@@ -41,6 +41,12 @@ def get_default_agent_id() -> str:
     return settings.DEFAULT_AGENT_ID
 
 
+def resolve_agent_id(agent_id: Optional[str]) -> str:
+    """解析 agent_id，缺失时回退到默认 Agent。"""
+    normalized_agent_id = (agent_id or "").strip()
+    return normalized_agent_id or get_default_agent_id()
+
+
 def is_agent_session_key(session_key: str) -> bool:
     """判断是否为 Agent 作用域的结构化会话键。"""
     return (session_key or "").startswith(f"{AGENT_SESSION_PREFIX}:")
@@ -142,11 +148,11 @@ def build_session_key(
 
     Examples:
         >>> build_session_key("ws", "dm", "abc-123")
-        'agent:main:ws:dm:abc-123'
+        'agent:<default-agent-id>:ws:dm:abc-123'
         >>> build_session_key("dg", "group", "123:456", thread_id="789")
-        'agent:main:dg:group:123:456:topic:789'
+        'agent:<default-agent-id>:dg:group:123:456:topic:789'
     """
-    resolved_agent_id = agent_id or get_default_agent_id()
+    resolved_agent_id = resolve_agent_id(agent_id)
     # 中文注释：统一在协议入口做 trim，避免调用方拼出仅空白差异的键。
     resolved_channel = channel.strip()
     resolved_chat_type = chat_type.strip()
@@ -202,7 +208,7 @@ def parse_session_key(session_key: str) -> dict:
             {
                 "kind": "agent",
                 "is_structured": validation_error is None,
-                "agent_id": parts[1] if len(parts) > 1 and parts[1] else get_default_agent_id(),
+                "agent_id": resolve_agent_id(parts[1] if len(parts) > 1 else None),
                 "channel": parts[2] if len(parts) > 2 and parts[2] else None,
                 "chat_type": parts[3] if len(parts) > 3 and parts[3] else "dm",
             }

@@ -1,4 +1,4 @@
-import { DEFAULT_AGENT_ID } from '@/config/options';
+import { resolveAgentId } from '@/config/options';
 import { WebSocketMessage } from '@/types/websocket';
 import { isStructuredSessionKey } from '@/lib/session-key';
 import { generateUuid } from '@/lib/uuid';
@@ -53,7 +53,7 @@ export async function sendSessionMessage(
     message_id: round_id,
     session_key: resolved_session_key,
     round_id,
-    agent_id: agent_id || DEFAULT_AGENT_ID,
+    agent_id: resolveAgentId(agent_id),
     role: 'user',
     content,
     timestamp: Date.now(),
@@ -69,7 +69,7 @@ export async function sendSessionMessage(
     type: 'chat',
     content,
     session_key: resolved_session_key,
-    agent_id: agent_id || DEFAULT_AGENT_ID,
+    agent_id: resolveAgentId(agent_id),
     round_id,
     req_id: round_id,  // echo'd back in chat_ack for correlation
   };
@@ -127,7 +127,7 @@ export function stopSessionGeneration(
   const payload: Record<string, unknown> = {
     type: 'interrupt',
     session_key: resolved_session_key,
-    agent_id: agent_id || DEFAULT_AGENT_ID,
+    agent_id: resolveAgentId(agent_id),
     round_id: latest_user_round_id,
   };
 
@@ -191,7 +191,7 @@ export function sendSessionPermissionResponse(
     type: 'permission_response',
     request_id: pending_permission.request_id,
     session_key: resolved_session_key,
-    agent_id: agent_id || DEFAULT_AGENT_ID,
+    agent_id: resolveAgentId(agent_id),
     decision: payload.decision,
     message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
     interrupt: payload.interrupt ?? false,

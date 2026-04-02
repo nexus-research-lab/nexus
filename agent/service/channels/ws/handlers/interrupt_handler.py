@@ -13,7 +13,6 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional
 
-from agent.config.config import settings
 from agent.service.channels.ws.handlers.base_handler import BaseHandler
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.room.room_interrupt_service import room_interrupt_service
@@ -23,6 +22,7 @@ from agent.service.session.session_manager import session_manager
 from agent.service.session.session_router import (
     StructuredSessionKeyError,
     require_structured_session_key,
+    resolve_agent_id,
 )
 from agent.schema.model_message import EventMessage, Message
 from agent.service.session.session_store import session_store
@@ -186,12 +186,12 @@ class InterruptHandler(BaseHandler):
                     session_key=session_key,
                     room_id=room_id,
                     conversation_id=conversation_id,
-                    agent_id=slot.get("agent_id") or agent_id or settings.DEFAULT_AGENT_ID,
+                    agent_id=resolve_agent_id(slot.get("agent_id") or agent_id),
                     message_id=slot.get("msg_id"),
                     caused_by=slot.get("round_id") or round_id,
                     data={
                         "msg_id": slot.get("msg_id"),
-                        "agent_id": slot.get("agent_id") or agent_id or settings.DEFAULT_AGENT_ID,
+                        "agent_id": resolve_agent_id(slot.get("agent_id") or agent_id),
                         "round_id": slot.get("round_id") or round_id,
                     },
                 ),
@@ -277,7 +277,7 @@ class InterruptHandler(BaseHandler):
 
         result_message = Message(
             session_key=session_key,
-            agent_id=session_info.agent_id if session_info else settings.DEFAULT_AGENT_ID,
+            agent_id=resolve_agent_id(session_info.agent_id if session_info else None),
             round_id=round_id,
             session_id=session_id,
             message_id=str(uuid.uuid4()),

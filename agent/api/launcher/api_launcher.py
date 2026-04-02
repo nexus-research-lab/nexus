@@ -16,8 +16,8 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from agent.config.config import settings
 from agent.infra.server.common import resp
+from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.launcher.launcher_service import launcher_service, LauncherAction
 from agent.service.room.room_service import room_service
 
@@ -99,7 +99,10 @@ async def get_launcher_suggestions():
                 id=agent.agent.id,
                 name=agent.profile.display_name or agent.agent.name,
             )
-            for agent in agents if agent.agent.id != settings.DEFAULT_AGENT_ID  # 不推荐主 Agent
+            for agent in MainAgentProfile.filter_regular_agents(
+                agents,
+                lambda item: item.agent.id,
+            )
         ]
 
         room_suggestions = [

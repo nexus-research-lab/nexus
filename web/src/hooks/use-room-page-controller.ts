@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { DEFAULT_AGENT_ID, initialOptions } from "@/config/options";
+import { initialOptions, isMainAgent } from "@/config/options";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
 import { buildRoomAgentSessionKey, buildRoomSharedSessionKey } from "@/lib/session-key";
 import {
@@ -359,7 +359,7 @@ export function useRoomPageController({
     const joined_agent_ids = new Set(room_member_agents.map((agent) => agent.agent_id));
     return agents.filter((agent) => (
       !joined_agent_ids.has(agent.agent_id) &&
-      agent.agent_id !== DEFAULT_AGENT_ID
+      !isMainAgent(agent.agent_id)
     ));
   }, [agents, room_member_agents]);
 

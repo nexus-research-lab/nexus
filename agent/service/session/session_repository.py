@@ -18,13 +18,13 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from agent.config.config import settings
 from agent.service.agent.agent_repository import agent_repository
 from agent.infra.file_store.json_store import JsonFileStore
 from agent.infra.file_store.storage_bootstrap import FileStorageBootstrap
 from agent.infra.file_store.storage_paths import FileStoragePaths
 from agent.schema.model_message import Message, parse_message
 from agent.schema.model_session import ASession
+from agent.service.session.session_router import resolve_agent_id
 from agent.utils.logger import logger
 
 
@@ -94,7 +94,7 @@ class SessionRepository:
         now = datetime.now(timezone.utc).isoformat()
         return ASession(
             session_key=meta["session_key"],
-            agent_id=meta.get("agent_id") or  settings.DEFAULT_AGENT_ID,
+            agent_id=resolve_agent_id(meta.get("agent_id")),
             session_id=meta.get("session_id"),
             room_session_id=(meta.get("options") or {}).get("room_session_id"),
             channel_type=meta.get("channel_type") or "websocket",
@@ -269,7 +269,7 @@ class SessionRepository:
                     "message_id": f"interrupted_result_{round_id}_{uuid.uuid4().hex[:8]}",
                     "parent_id": last_row.get("message_id"),
                     "session_key": session_key,
-                    "agent_id": last_row.get("agent_id") or meta.get("agent_id") or  settings.DEFAULT_AGENT_ID,
+                    "agent_id": resolve_agent_id(last_row.get("agent_id") or meta.get("agent_id")),
                     "round_id": round_id,
                     "session_id": last_row.get("session_id") or meta.get("session_id") or "",
                     "role": "result",
@@ -303,14 +303,15 @@ class SessionRepository:
         session_key: str,
         channel_type: str = "websocket",
         chat_type: str = "dm",
-        agent_id: str = settings.DEFAULT_AGENT_ID,
+        agent_id: Optional[str] = None,
         session_id: Optional[str] = None,
         title: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """创建新会话。"""
         try:
-            workspace_path = await self._resolve_workspace_path(agent_id)
+            resolved_agent_id = resolve_agent_id(agent_id)
+            workspace_path = await self._resolve_workspace_path(resolved_agent_id)
             meta_path = self._paths.get_session_meta_path(workspace_path, session_key)
             log_path = self._paths.get_session_message_log_path(workspace_path, session_key)
 
@@ -322,7 +323,7 @@ class SessionRepository:
                 now = datetime.now(timezone.utc).isoformat()
                 meta = {
                     "session_key": session_key,
-                    "agent_id": agent_id,
+                    "agent_id": resolved_agent_id,
                     "session_id": session_id,
                     "channel_type": channel_type,
                     "chat_type": chat_type,

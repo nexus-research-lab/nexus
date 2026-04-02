@@ -9,10 +9,13 @@
 
 """主智能体固定配置。"""
 
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, TypeVar
 
 from agent.config.config import settings
+
+_T = TypeVar("_T")
 
 
 class MainAgentProfile:
@@ -41,6 +44,11 @@ class MainAgentProfile:
         return agent_id == cls.AGENT_ID
 
     @classmethod
+    def is_regular_agent(cls, agent_id: str) -> bool:
+        """判断是否为普通成员智能体。"""
+        return bool(agent_id) and not cls.is_main_agent(agent_id)
+
+    @classmethod
     def display_name(cls) -> str:
         """返回当前配置的主智能体标识。"""
         return cls.AGENT_ID
@@ -49,6 +57,21 @@ class MainAgentProfile:
     def display_label(cls) -> str:
         """返回用于提示的主智能体名称。"""
         return f"主智能体（{cls.display_name()}）"
+
+    @classmethod
+    def ensure_not_main_agent(cls, agent_id: str, action: str) -> None:
+        """阻止把主智能体当作普通成员处理。"""
+        if cls.is_main_agent(agent_id):
+            raise ValueError(f"{cls.display_label()} {action}")
+
+    @classmethod
+    def filter_regular_agents(
+        cls,
+        items: Iterable[_T],
+        get_agent_id: Callable[[_T], str],
+    ) -> list[_T]:
+        """从集合中过滤出普通成员智能体。"""
+        return [item for item in items if cls.is_regular_agent(get_agent_id(item))]
 
     @classmethod
     def build_default_options(cls) -> Dict[str, Any]:

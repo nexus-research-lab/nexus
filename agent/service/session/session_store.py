@@ -20,10 +20,9 @@
 
 from typing import Dict, List, Optional
 
-from agent.config.config import settings
 from agent.service.session.cost_repository import cost_repository
 from agent.service.session.session_repository import session_repository
-from agent.service.session.session_router import parse_session_key
+from agent.service.session.session_router import parse_session_key, resolve_agent_id
 from agent.schema.model_message import Message
 from agent.schema.model_session import ASession
 from agent.utils.logger import logger
@@ -53,7 +52,7 @@ class MessageHistoryStore:
     ) -> Optional[ASession]:
         """创建新会话并返回"""
         parsed = parse_session_key(session_key)
-        agent_id = parsed.get("agent_id") or settings.DEFAULT_AGENT_ID
+        agent_id = resolve_agent_id(parsed.get("agent_id"))
         success = await session_repository.create_session(
             session_key=session_key,
             agent_id=agent_id,
@@ -74,7 +73,7 @@ class MessageHistoryStore:
     async def update_session(
             self,
             session_key: str,
-            agent_id: str = settings.DEFAULT_AGENT_ID,
+            agent_id: Optional[str] = None,
             session_id: Optional[str] = None,
             title: Optional[str] = None,
             options: Optional[Dict] = None,
@@ -84,7 +83,7 @@ class MessageHistoryStore:
         if not existing:
             success = await session_repository.create_session(
                 session_key=session_key,
-                agent_id=agent_id,
+                agent_id=resolve_agent_id(agent_id),
                 session_id=session_id,
                 title=title or "New Chat",
                 options=options,
@@ -125,12 +124,13 @@ class MessageHistoryStore:
                 return False
 
             # 统一以会话绑定的 Agent 为准，避免 SDK 转换链路丢失 agent_id 后写入错误 workspace。
-            if message.agent_id in ("", settings.DEFAULT_AGENT_ID) and session_info.agent_id not in ("", None):
+            default_agent_id = resolve_agent_id(None)
+            if message.agent_id in ("", default_agent_id) and session_info.agent_id not in ("", None):
                 message.agent_id = session_info.agent_id
             elif message.agent_id:
                 message.agent_id = message.agent_id
             else:
-                message.agent_id = session_info.agent_id or  settings.DEFAULT_AGENT_ID
+                message.agent_id = resolve_agent_id(session_info.agent_id)
 
             if not message.session_id and session_info.session_id:
                 message.session_id = session_info.session_id

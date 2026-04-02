@@ -9,7 +9,7 @@
 
 """Workspace 模板与基础提示词。"""
 
-from agent.config.config import settings
+from agent.service.agent.main_agent_profile import MainAgentProfile
 
 # =====================================================
 # 全局 System Prompt
@@ -203,6 +203,6 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 
 def get_workspace_templates(agent_id: str) -> dict[str, str]:
     """按 agent_id 返回对应 workspace 模板。"""
-    if agent_id == settings.DEFAULT_AGENT_ID:
+    if MainAgentProfile.is_main_agent(agent_id):
         return MAIN_AGENT_WORKSPACE_TEMPLATES
     return WORKSPACE_TEMPLATES

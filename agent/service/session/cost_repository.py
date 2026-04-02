@@ -24,11 +24,10 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from agent.config.config import settings
 from agent.service.agent.agent_repository import agent_repository
 from agent.infra.file_store.json_store import JsonFileStore
 from agent.infra.file_store.storage_paths import FileStoragePaths
-from agent.service.session.session_router import parse_session_key
+from agent.service.session.session_router import parse_session_key, resolve_agent_id
 from agent.service.session.session_repository import session_repository
 from agent.schema.model_cost import AgentCostSummary, CostLedgerEntry, SessionCostSummary
 from agent.schema.model_message import Message
@@ -114,8 +113,8 @@ class CostRepository:
             agent_id
             or (session.agent_id if session else None)
             or self._resolve_agent_id_from_session_key(session_key)
-            or settings.DEFAULT_AGENT_ID
         )
+        resolved_agent_id = resolve_agent_id(resolved_agent_id)
         workspace_path = await self._resolve_workspace_path(resolved_agent_id)
         session_dir = self._paths.get_session_dir(workspace_path, session_key)
         if session_dir.exists():
@@ -231,8 +230,8 @@ class CostRepository:
             agent_id
             or (session.agent_id if session else None)
             or self._resolve_agent_id_from_session_key(session_key)
-            or settings.DEFAULT_AGENT_ID
         )
+        resolved_agent_id = resolve_agent_id(resolved_agent_id)
         rows = await self._read_cost_rows(session_key, agent_id=resolved_agent_id)
         summary = self._build_session_summary(resolved_agent_id, session_key, rows)
         summary.session_id = (
@@ -306,8 +305,8 @@ class CostRepository:
         agent_id = (
             (session.agent_id if session else None)
             or self._resolve_agent_id_from_session_key(session_key)
-            or settings.DEFAULT_AGENT_ID
         )
+        agent_id = resolve_agent_id(agent_id)
         summary = await self._read_session_summary(session_key, agent_id=agent_id)
         rows = await self._read_cost_rows(session_key, agent_id=agent_id)
         if summary and (summary.completed_rounds > 0 or rows):

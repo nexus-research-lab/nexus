@@ -14,10 +14,10 @@ import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
-import { DEFAULT_AGENT_ID } from "@/config/options";
+import { getDefaultAgentId } from "@/config/options";
 
 export function LauncherPage() {
-  const app_agent_id = DEFAULT_AGENT_ID;
+  const app_agent_id = getDefaultAgentId();
   const controller = useLauncherPageController();
   const navigate = useNavigate();
   const [should_bootstrap_room_after_create, set_should_bootstrap_room_after_create] = useState(false);

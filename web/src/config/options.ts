@@ -73,6 +73,18 @@ export function getAgentWsUrl(): string {
   return `ws://${getBrowserHost()}:8010/agent/v1/chat/ws`;
 }
 
+export function getDefaultAgentId(): string {
+  return DEFAULT_AGENT_ID;
+}
+
+export function isMainAgent(agent_id?: string | null): boolean {
+  return (agent_id ?? "").trim() === DEFAULT_AGENT_ID;
+}
+
+export function resolveAgentId(agent_id?: string | null): string {
+  return (agent_id ?? "").trim() || DEFAULT_AGENT_ID;
+}
+
 export async function hydrateRuntimeOptions(): Promise<void> {
   const response = await fetch(`${getAgentApiBaseUrl()}/runtime/options`);
   if (!response.ok) {

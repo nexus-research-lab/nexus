@@ -27,7 +27,10 @@ class AgentService:
         """获取所有 Agent。"""
         agents = await agent_manager.get_all_agents()
         if not include_main:
-            agents = [a for a in agents if not MainAgentProfile.is_main_agent(a.agent_id)]
+            agents = MainAgentProfile.filter_regular_agents(
+                agents,
+                lambda agent: agent.agent_id,
+            )
         return agents
 
     async def create_agent(

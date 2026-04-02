@@ -29,7 +29,6 @@ from telegram.ext import Application, ContextTypes, filters, MessageHandler
 
 from agent.service.channels.message_channel import MessageChannel
 from agent.service.channels.im.telegram_sender import TelegramSender
-from agent.config.config import settings
 from agent.service.permission.strategy.permission_auto import AutoAllowPermissionStrategy
 from agent.service.session.session_router import build_session_key
 from agent.utils.logger import logger
@@ -85,7 +84,6 @@ class TelegramChannel(MessageChannel):
                 channel="tg",
                 chat_type="dm",
                 ref=str(user.id),
-                agent_id=settings.DEFAULT_AGENT_ID,
             )
         else:
             # 群组/Topic 支持
@@ -95,7 +93,6 @@ class TelegramChannel(MessageChannel):
                 chat_type="group",
                 ref=str(chat_id),
                 thread_id=thread_id,
-                agent_id=settings.DEFAULT_AGENT_ID,
             )
 
         logger.info(f"📨 Telegram 消息: user={user.username}, chat_id={chat_id}, key={session_key}")
