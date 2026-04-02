@@ -132,6 +132,13 @@ class SkillCatalog:
                 ),
                 source_path=skill_dir,
             )
+        records.update(
+            self._load_fallback_builtin_records(
+                records,
+                global_states,
+                pool_installed_states,
+            )
+        )
         return records
 
     def _load_external_records(self, global_states: dict[str, bool]) -> dict[str, SkillCatalogRecord]:
@@ -189,3 +196,67 @@ class SkillCatalog:
             if (skill_dir / "SKILL.md").exists():
                 return skill_dir
         return None
+
+    def _load_fallback_builtin_records(
+        self,
+        existing_records: dict[str, SkillCatalogRecord],
+        global_states: dict[str, bool],
+        pool_installed_states: dict[str, bool],
+    ) -> dict[str, SkillCatalogRecord]:
+        """补齐未在 curated manifest 中声明、但本地实际可用的 builtin skills。"""
+        records: dict[str, SkillCatalogRecord] = {}
+        existing_names = set(existing_records)
+        for skill_dir in self._iter_builtin_skill_dirs():
+            skill_name = skill_dir.name
+            if skill_name in self.SYSTEM_SKILL_NAMES or skill_name in existing_names:
+                continue
+            parsed = SkillFrontmatterParser.parse(skill_dir / "SKILL.md")
+            category_key = str(parsed.get("category_key") or "builtin-misc")
+            category_name = str(parsed.get("category_name") or "扩展能力")
+            recommendation = str(
+                parsed.get("recommendation") or "自动收录的本地可用能力。"
+            )
+            records[skill_name] = SkillCatalogRecord(
+                detail=SkillDetail(
+                    name=parsed["name"],
+                    title=str(parsed.get("title") or parsed["name"]),
+                    description=str(parsed.get("description") or ""),
+                    scope=str(parsed.get("scope") or "any"),
+                    tags=list(parsed.get("tags") or []),
+                    category_key=category_key,
+                    category_name=category_name,
+                    source_type="builtin",
+                    source_ref=str(skill_dir),
+                    version=str(parsed.get("version") or "builtin"),
+                    locked=False,
+                    global_enabled=global_states.get(skill_name, True),
+                    deletable=pool_installed_states.get(skill_name, False),
+                    installed=pool_installed_states.get(skill_name, False),
+                    readme_markdown=str(parsed.get("readme_markdown") or ""),
+                    recommendation=recommendation,
+                ),
+                source_path=skill_dir,
+            )
+        return records
+
+    def _iter_builtin_skill_dirs(self):
+        """遍历所有本地可发现的 builtin skill 目录。"""
+        search_roots = [
+            self._repo_skills_root,
+            Path.home() / ".codex" / "skills",
+            Path.home() / ".agents" / "skills",
+            Path.home() / ".cc-switch" / "skills",
+        ]
+        seen_names: set[str] = set()
+        for root in search_roots:
+            if not root.exists():
+                continue
+            for skill_dir in sorted(root.iterdir()):
+                if not skill_dir.is_dir() or skill_dir.name.startswith("."):
+                    continue
+                if not (skill_dir / "SKILL.md").exists():
+                    continue
+                if skill_dir.name in seen_names:
+                    continue
+                seen_names.add(skill_dir.name)
+                yield skill_dir

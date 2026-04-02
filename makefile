@@ -77,6 +77,12 @@ install: ## Install all dependencies
 	@echo "Installing frontend dependencies..."
 	cd web && npm install
 
+lint-web: ## Run frontend lint
+	cd web && npm run lint
+
+typecheck-web: ## Run frontend type check
+	cd web && npx tsc --noEmit
+
 check-backend: ## Run backend syntax check
 	@if [ -x .venv/bin/python ]; then \
 		.venv/bin/python -m py_compile $$(find agent -type f -name '*.py'); \

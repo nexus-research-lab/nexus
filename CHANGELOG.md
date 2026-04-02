@@ -20,10 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复 `session_repository` / `cost_repository` 模块级初始化产生的导入副作用（#11）。
 - 修复 Alembic 迁移多 head 冲突问题。
+- 修复 `make dev` / `make db-init` 因 Alembic 双 `head` 与后端启动旧导入路径导致的本地启动失败问题。
+- 修复 `web` 依赖安装失败：移除失效且未使用的 `@anthropic-ai/claude-code` 遗留依赖，并增加项目级 npm registry 配置。
 - 修复技能市场与能力侧栏的多处状态不一致问题，包括全局开关/更新不同步、Agent 技能配置保存不生效、详情弹窗安装状态误显示，以及 DM 跳转后侧栏高亮错误。
 
 ### Changed
 - 优化 Skills 页面交互与布局：搜索置顶、分类降级为轻筛选、操作反馈改为自动消失的轻量提示，能力侧栏改为总览卡片并显示全局已安装能力数量。
+- capability 后端正式接入主路由，技能市场与连接器读写统一走新的 SQLite repository 与 capability service。
+- Skill catalog 自动补齐本地可发现但未手工编目的 builtin skills，避免能力页内容缺漏。
 
 ### Docs
 - 更新根目录 `README.md`，同步当前 React + Vite 前端、混合持久化、Memory、Room/DM 页面结构与配置说明。

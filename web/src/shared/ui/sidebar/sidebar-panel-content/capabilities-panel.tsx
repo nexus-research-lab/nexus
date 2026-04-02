@@ -1,10 +1,7 @@
 /**
  * Capabilities 面板内容
  *
- * 5 个可折叠分区：Skills、Connectors、Scheduled Tasks、Channels、Pairings。
- * Skills 分区调用 getAvailableSkillsApi() 获取数据。
- * 其余分区暂无数据，显示占位文案。
- * 每个分区标题右侧有 [→] 按钮，点击导航到对应全量页面。
+ * 改为能力总览导航，不再展示展开式长列表。
  */
 
 import {
@@ -15,130 +12,168 @@ import {
   Radio,
   Users2,
 } from "lucide-react";
-import { memo, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { memo, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { getConnectedCountApi } from "@/lib/connector-api";
 import { getAvailableSkillsApi } from "@/lib/skill-api";
 import { cn } from "@/lib/utils";
-import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { SkillInfo } from "@/types/skill";
 
-// ==================== 空占位 ====================
+interface CapabilitySummaryCardProps {
+  title: string;
+  count: number;
+  icon: React.ReactNode;
+  description: string;
+  accent?: "default" | "active";
+  selected?: boolean;
+  on_click: () => void;
+}
 
-function EmptyPlaceholder({ text }: { text: string }) {
+function CapabilitySummaryCard({
+  title,
+  count,
+  icon,
+  description,
+  accent = "default",
+  selected = false,
+  on_click,
+}: CapabilitySummaryCardProps) {
   return (
-    <p className="px-2 py-2 text-[11px] text-slate-400">{text}</p>
+    <button
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition-all duration-200",
+        selected
+          ? "border-sky-200/80 bg-white/80 shadow-[0_14px_30px_rgba(102,112,145,0.12)]"
+          : accent === "active"
+            ? "border-emerald-200/70 bg-white/72 shadow-[0_14px_30px_rgba(102,112,145,0.10)]"
+            : "border-white/30 bg-white/42 hover:bg-white/56",
+      )}
+      onClick={on_click}
+      type="button"
+    >
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px]",
+          selected
+            ? "bg-sky-50 text-sky-600"
+            : accent === "active"
+              ? "bg-emerald-50 text-emerald-600"
+              : "bg-white/70 text-slate-500",
+        )}
+      >
+        {icon}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+            {title}
+          </span>
+          <span className="rounded-full bg-white/75 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+            {count}
+          </span>
+        </div>
+        <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">
+          {description}
+        </p>
+      </div>
+
+      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-600" />
+    </button>
   );
 }
 
-// ==================== 主组件 ====================
-
 export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [skills, set_skills] = useState<SkillInfo[]>([]);
+  const [connector_count, set_connector_count] = useState(0);
 
-  // 加载 Skills 数据
   useEffect(() => {
     let cancelled = false;
     void getAvailableSkillsApi()
       .then((data) => {
-        if (!cancelled) set_skills(data);
+        if (!cancelled) {
+          set_skills(data.filter((skill) => skill.installed));
+        }
       })
       .catch(() => {
-        // 静默处理错误
+        if (!cancelled) {
+          set_skills([]);
+        }
       });
+    void getConnectedCountApi()
+      .then((count) => {
+        if (!cancelled) {
+          set_connector_count(count);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const skill_count = useMemo(() => skills.length, [skills]);
+
+  const skill_summary = useMemo(() => {
+    if (skill_count === 0) {
+      return "还没有安装能力";
+    }
+    return `已安装 ${skill_count} 个能力`;
+  }, [skill_count]);
+
   return (
-    <div className="flex flex-col gap-1">
-      {/* Skills 分区 */}
-      <CollapsibleSection
-        action_icon={<ArrowRight className="h-3 w-3" />}
-        action_title="查看全部 Skills"
-        count={skills.length}
-        icon={<Puzzle className="h-3 w-3" />}
-        on_action={() => navigate(AppRouteBuilders.skills())}
-        section_id="cap-skills"
+    <div className="flex flex-col gap-2">
+      <CapabilitySummaryCard
+        accent={skill_count > 0 ? "active" : "default"}
+        count={skill_count}
+        description={skill_summary}
+        icon={<Puzzle className="h-4 w-4" />}
+        on_click={() => navigate(AppRouteBuilders.skills())}
+        selected={location.pathname.startsWith("/capability/skills")}
         title="Skills"
-      >
-        {skills.length > 0 ? (
-          skills.slice(0, 10).map((skill) => (
-            <button
-              key={skill.name}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px]",
-                "text-slate-600 transition-all duration-150 hover:bg-white/30 hover:text-slate-800",
-              )}
-              onClick={() =>
-                navigate(AppRouteBuilders.skills())
-              }
-              type="button"
-            >
-              <Puzzle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span className="min-w-0 flex-1 truncate">{skill.name}</span>
-              <span className="shrink-0 text-[10px] text-slate-400">
-                {skill.scope}
-              </span>
-            </button>
-          ))
-        ) : (
-          <EmptyPlaceholder text="暂无技能" />
-        )}
-        {/* 超过 10 个时显示"查看更多" */}
-        {skills.length > 10 ? (
-          <button
-            className="px-2 py-1 text-[11px] text-slate-500 hover:text-slate-700"
-            onClick={() => navigate(AppRouteBuilders.skills())}
-            type="button"
-          >
-            查看全部 {skills.length} 个技能 →
-          </button>
-        ) : null}
-      </CollapsibleSection>
+      />
 
-      {/* Connectors 分区 */}
-      <CollapsibleSection
-        count={0}
-        icon={<Link2 className="h-3 w-3" />}
-        section_id="cap-connectors"
+      <CapabilitySummaryCard
+        accent={connector_count > 0 ? "active" : "default"}
+        count={connector_count}
+        description={connector_count > 0 ? `已连接 ${connector_count} 个应用` : "连接外部服务和数据源"}
+        icon={<Link2 className="h-4 w-4" />}
+        on_click={() => navigate(AppRouteBuilders.connectors())}
+        selected={location.pathname.startsWith("/capability/connectors")}
         title="Connectors"
-      >
-        <EmptyPlaceholder text="暂无连接器" />
-      </CollapsibleSection>
+      />
 
-      {/* Scheduled Tasks 分区 */}
-      <CollapsibleSection
+      <CapabilitySummaryCard
         count={0}
-        icon={<Calendar className="h-3 w-3" />}
-        section_id="cap-scheduled"
+        description="自动运行周期性任务"
+        icon={<Calendar className="h-4 w-4" />}
+        on_click={() => navigate(AppRouteBuilders.scheduled_tasks())}
+        selected={location.pathname.startsWith("/capability/scheduled-tasks")}
         title="Scheduled"
-      >
-        <EmptyPlaceholder text="暂无定时任务" />
-      </CollapsibleSection>
+      />
 
-      {/* Channels 分区 */}
-      <CollapsibleSection
+      <CapabilitySummaryCard
         count={0}
-        icon={<Radio className="h-3 w-3" />}
-        section_id="cap-channels"
+        description="接入消息和通知通道"
+        icon={<Radio className="h-4 w-4" />}
+        on_click={() => navigate(AppRouteBuilders.channels())}
+        selected={location.pathname.startsWith("/capability/channels")}
         title="Channels"
-      >
-        <EmptyPlaceholder text="暂无频道" />
-      </CollapsibleSection>
+      />
 
-      {/* Pairings 分区 */}
-      <CollapsibleSection
+      <CapabilitySummaryCard
         count={0}
-        icon={<Users2 className="h-3 w-3" />}
-        section_id="cap-pairings"
+        description="配置 Agent 之间的协作关系"
+        icon={<Users2 className="h-4 w-4" />}
+        on_click={() => navigate(AppRouteBuilders.pairings())}
+        selected={location.pathname.startsWith("/capability/pairings")}
         title="Pairings"
-      >
-        <EmptyPlaceholder text="暂无配对" />
-      </CollapsibleSection>
+      />
     </div>
   );
 });

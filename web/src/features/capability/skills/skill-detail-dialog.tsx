@@ -106,7 +106,7 @@ export function SkillDetailDialog({
     } finally {
       set_acting(false);
     }
-  }, [load_detail, on_close, on_refresh, skill]);
+  }, [on_close, on_refresh, skill]);
 
   const handle_install = useCallback(async () => {
     if (!skill || skill.locked || skill.installed) return;

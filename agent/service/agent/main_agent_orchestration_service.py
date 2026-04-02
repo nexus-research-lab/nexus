@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from agent.schema.model_agent import AgentOptions
 from agent.service.agent.agent_service import agent_service
+from agent.service.capability.skills.skill_service import skill_service
 from agent.service.room.room_service import room_service
 from agent.service.workspace.workspace_service import workspace_service
 
@@ -234,7 +235,8 @@ class MainAgentOrchestrationService:
 
     async def list_skills(self) -> list[dict[str, Any]]:
         """列出可安装技能。"""
-        return [skill.model_dump(mode="json") for skill in skill_service.get_all_skills()]
+        skills = await skill_service.get_all_skills()
+        return [skill.model_dump(mode="json") for skill in skills]
 
     async def get_agent_skills(self, agent_id: str) -> list[dict[str, Any]]:
         """读取成员技能状态。"""

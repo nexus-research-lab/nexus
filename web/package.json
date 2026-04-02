@@ -9,7 +9,6 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^2.1.88",
     "@chenglou/pretext": "^0.0.3",
     "@lottiefiles/dotlottie-react": "^0.18.7",
     "@tanstack/react-virtual": "^3.13.23",
