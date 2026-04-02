@@ -1,4 +1,4 @@
-import { Check, Copy, RefreshCw, Trash2, Zap } from "lucide-react";
+import { Check, Copy, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MessageStatsData {
@@ -13,11 +13,7 @@ interface MessageStatsProps {
   show_cursor?: boolean;
   compact?: boolean;
   copied_assistant?: boolean;
-  is_regenerating?: boolean;
-  is_deleting?: boolean;
   on_copy_assistant?: () => void;
-  on_regenerate?: () => void;
-  on_delete?: () => void;
 }
 
 export function MessageStats(
@@ -26,11 +22,7 @@ export function MessageStats(
     show_cursor,
     compact = false,
     copied_assistant,
-    is_regenerating,
-    is_deleting,
     on_copy_assistant,
-    on_regenerate,
-    on_delete,
   }: MessageStatsProps) {
   return (
     <div
@@ -78,28 +70,6 @@ export function MessageStats(
               title="复制回答"
             >
               {copied_assistant ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}
-            </button>
-          )}
-          {/* 重新生成 */}
-          {on_regenerate && (
-            <button
-              onClick={on_regenerate}
-              disabled={is_regenerating}
-              className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 disabled:opacity-50"
-              title="重新生成"
-            >
-              <RefreshCw className={cn("w-3 h-3", is_regenerating && "animate-spin")}/>
-            </button>
-          )}
-          {/* 删除 */}
-          {on_delete && (
-            <button
-              onClick={on_delete}
-              disabled={is_deleting}
-              className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-500 disabled:opacity-50"
-              title="删除"
-            >
-              <Trash2 className="w-3 h-3"/>
             </button>
           )}
         </div>

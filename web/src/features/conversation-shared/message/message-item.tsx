@@ -27,8 +27,6 @@ interface MessageItemProps {
   pending_permission?: PendingPermission | null;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   hidden_tool_names?: string[];
-  on_delete?: (round_id: string) => Promise<void>;
-  on_regenerate?: (round_id: string) => Promise<void>;
   on_edit_user_message?: (message_id: string, new_content: string) => void;
   on_open_workspace_file?: (path: string) => void;
   /** Called when user clicks the per-message stop button in Room mode. */
@@ -44,15 +42,12 @@ function MessageItemInner(
   {
     compact = false,
     current_agent_name,
-    round_id,
     messages,
     is_last_round,
     is_loading,
     pending_permission,
     on_permission_response,
     hidden_tool_names = ['TodoWrite'],
-    on_delete,
-    on_regenerate,
     on_edit_user_message,
     on_open_workspace_file,
     on_stop_message,
@@ -62,8 +57,6 @@ function MessageItemInner(
   }: MessageItemProps) {
   const [copiedUser, setCopiedUser] = useState(false);
   const [copiedAssistant, setCopiedAssistant] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
   const [isProcessExpanded, setIsProcessExpanded] = useState(default_process_expanded);
 
   // 分离消息 + 合并内容
@@ -279,31 +272,10 @@ function MessageItemInner(
     }
   }, [assistantTextContent]);
 
-  const handleDelete = useCallback(async () => {
-    if (!on_delete || isDeleting) return;
-    setIsDeleting(true);
-    try {
-      await on_delete(round_id);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [on_delete, round_id, isDeleting]);
-
-  const handleRegenerate = useCallback(async () => {
-    if (!on_regenerate || isRegenerating) return;
-    setIsRegenerating(true);
-    try {
-      await on_regenerate(round_id);
-    } finally {
-      setIsRegenerating(false);
-    }
-  }, [on_regenerate, round_id, isRegenerating]);
-
   const showCursor = is_last_round && is_loading && streamingBlockIndexes.size > 0;
   const isCompleted = hasFinalAnswer && !is_loading;
-  const canOperateRound = !!userMessage && !is_loading;
   const canCopyAssistant = Boolean(assistantTextContent?.trim());
-  const shouldShowAssistantFooter = isCompleted && (Boolean(stats) || canCopyAssistant || canOperateRound);
+  const shouldShowAssistantFooter = isCompleted && (Boolean(stats) || canCopyAssistant);
 
   // Per-message stop: visible when this bubble is actively pending/streaming
   const can_stop_message = on_stop_message && (stream_status === 'pending' || stream_status === 'streaming');
@@ -428,8 +400,7 @@ function MessageItemInner(
       )}
 
       {/* ═══════════════════════ 助手消息 ═══════════════════════ */}
-      {/* 没有可见 assistant 内容时，仍渲染容器以提供删除/重试操作 */}
-      {(!shouldHideAssistantContent || canOperateRound) && (
+      {!shouldHideAssistantContent && (
         <div className={cn("w-full", compact ? "px-0.5" : "px-2 sm:px-3")}>
           <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
             <div className={cn("group grid min-w-0 grid-cols-[40px_minmax(0,1fr)]", compact ? "gap-2" : "gap-3")}>
@@ -587,11 +558,7 @@ function MessageItemInner(
                     show_cursor={showCursor}
                     compact={compact}
                     copied_assistant={copiedAssistant}
-                    is_regenerating={isRegenerating}
-                    is_deleting={isDeleting}
                     on_copy_assistant={canCopyAssistant ? handleCopyAssistant : undefined}
-                    on_regenerate={canOperateRound && on_regenerate ? handleRegenerate : undefined}
-                    on_delete={canOperateRound && on_delete ? handleDelete : undefined}
                   />
                 )}
 
@@ -604,9 +571,7 @@ function MessageItemInner(
   );
 }
 
-// Memo: only re-render when props that affect visual output change.
-// - Non-last rounds: messages array and agent name are stable after initial render.
-// - Last round: re-renders on is_loading (streaming) and pending_permission changes.
+// 仅在影响视觉输出的关键属性变化时重新渲染，避免流式阶段产生无效更新。
 export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.round_id !== next.round_id) return false;
   if (prev.is_last_round !== next.is_last_round) return false;
@@ -616,11 +581,9 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.pending_permission !== next.pending_permission) return false;
   if (prev.assistant_header_action !== next.assistant_header_action) return false;
   if (prev.class_name !== next.class_name) return false;
-  // Messages array: compare by reference — applyStreamMessage always returns
-  // a new array, so reference inequality correctly signals a content change.
+  // 消息数组按引用比较，上游流式合并会返回新数组，足以标记内容变化。
   if (prev.messages !== next.messages) return false;
-  // Callbacks: stable because they're wrapped in useCallback upstream.
-  // We skip deep-comparing them to avoid the cost.
+  // 回调由上游 useCallback 保持稳定，这里不做深比较以避免额外开销。
   return true;
 });
 
