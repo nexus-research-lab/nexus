@@ -35,7 +35,6 @@ interface LauncherConsoleProps {
   on_close_app_conversation: () => void;
   is_app_conversation_open: boolean;
   on_select_agent: (agent_id: string) => void;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   surface: "launcher" | "app";
 }
 
@@ -45,7 +44,6 @@ interface HeroStageProps {
   on_open_app_conversation: (initial_prompt?: string) => void;
   on_close_app_conversation: () => void;
   is_app_conversation_open: boolean;
-  on_open_conversation: (conversation_id: string, agent_id?: string) => void;
   on_query_change: (value: string) => void;
   on_select_agent: (agent_id: string) => void;
   on_open_room: (room_id: string) => void;
@@ -150,7 +148,6 @@ const HeroStage = memo(function HeroStage({
   on_open_app_conversation,
   on_close_app_conversation,
   is_app_conversation_open,
-  on_open_conversation,
   on_query_change,
   on_select_agent,
   on_open_room,
@@ -290,7 +287,6 @@ export function LauncherConsole({
   on_close_app_conversation,
   is_app_conversation_open,
   on_select_agent,
-  on_open_conversation,
   surface,
 }: LauncherConsoleProps) {
   const [query, setQuery] = useState("");
@@ -415,7 +411,6 @@ export function LauncherConsole({
         <HeroStage
           current_agent_id={current_agent_id}
           decorative_tokens={decorative_tokens}
-          on_open_conversation={on_open_conversation}
           on_open_app_conversation={on_open_app_conversation}
           on_close_app_conversation={on_close_app_conversation}
           is_app_conversation_open={is_app_conversation_open}

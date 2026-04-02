@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
-import { useConversationLoader } from "@/hooks/use-conversation-loader";
+import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
-import { ConversationSnapshotPayload } from "@/types/conversation";
+import { SessionSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 
 import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
@@ -34,7 +34,7 @@ export interface DmChatPanelProps {
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
-  on_conversation_snapshot_change?: (snapshot: ConversationSnapshotPayload) => void;
+  on_conversation_snapshot_change?: (snapshot: SessionSnapshotPayload) => void;
   on_create_conversation?: (title?: string) => void | Promise<string | null>;
 }
 
@@ -66,10 +66,8 @@ export function DmChatPanel({
     pending_permission,
     send_message,
     stop_generation,
-    load_conversation,
+    load_session,
     send_permission_response,
-    delete_round,
-    regenerate,
   } = useAgentConversation({
     agent_id,
     on_error: (err) => {
@@ -104,7 +102,7 @@ export function DmChatPanel({
     const last = messages[messages.length - 1];
     const latest_reply_timestamp = get_latest_reply_timestamp(messages);
     const snapshot = {
-      conversation_id: session_key,
+      session_key,
       message_count: messages.length,
       ...(latest_reply_timestamp ? { last_activity_at: latest_reply_timestamp } : {}),
       session_id: last?.session_id ?? null,
@@ -120,9 +118,9 @@ export function DmChatPanel({
     on_conversation_snapshot_change?.(snapshot);
   }, [session_key, messages, on_conversation_snapshot_change]);
 
-  useConversationLoader({
-    conversation_id: session_key,
-    load_conversation,
+  useSessionLoader({
+    session_key,
+    load_session,
     debug_name: "DmChatPanel",
   });
 
@@ -202,10 +200,8 @@ export function DmChatPanel({
           is_loading={is_loading}
           is_mobile_layout={is_mobile_layout}
           message_groups={message_groups}
-          on_delete_round={delete_round}
           on_open_workspace_file={on_open_workspace_file}
           on_permission_response={send_permission_response}
-          on_regenerate_round={regenerate}
           round_ids={round_ids}
         />
       </div>

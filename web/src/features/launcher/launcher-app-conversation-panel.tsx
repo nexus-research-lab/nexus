@@ -23,12 +23,10 @@ interface LauncherAppConversationPanelProps {
   error: string | null;
   is_loading: boolean;
   ws_state: WebSocketState;
-  on_clear_conversation: () => void;
+  on_clear_session: () => void;
   on_change_draft: (next_value: string) => void;
   on_close: () => void;
-  on_delete_round: (round_id: string) => Promise<void>;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
-  on_regenerate_round: (round_id: string) => Promise<void>;
   on_stop_generation: () => void;
   on_submit: (next_prompt: string) => void;
   pending_permission: PendingPermission | null;
@@ -55,12 +53,10 @@ export function LauncherAppConversationPanel({
                                                error,
                                                is_loading,
                                                ws_state,
-                                               on_clear_conversation,
+                                               on_clear_session,
                                                on_change_draft,
                                                on_close,
-                                               on_delete_round,
                                                on_permission_response,
-                                               on_regenerate_round,
                                                on_stop_generation,
                                                on_submit,
                                                pending_permission,
@@ -197,7 +193,7 @@ export function LauncherAppConversationPanel({
             <button
               aria-label="清空 Nexus 对话"
               className="transition-transform duration-300 hover:-translate-y-0.5"
-              onClick={on_clear_conversation}
+              onClick={on_clear_session}
               type="button"
             >
               <HeroActionOrbShell class_name="h-[46px] w-[46px]">
@@ -247,9 +243,7 @@ export function LauncherAppConversationPanel({
                 is_loading={is_loading}
                 is_mobile_layout
                 message_groups={message_groups}
-                on_delete_round={on_delete_round}
                 on_permission_response={on_permission_response}
-                on_regenerate_round={on_regenerate_round}
                 round_ids={round_ids}
               />
             ) : (
