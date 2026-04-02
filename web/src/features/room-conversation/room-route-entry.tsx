@@ -2,7 +2,6 @@ import { ArrowRight, MessageSquare, Sparkles, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { getConversationRouteId } from "@/lib/conversation-route";
 import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/workspace-action-bar";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
@@ -23,7 +22,9 @@ export function RoomRouteEntry({
   const navigate = useNavigate();
   const room_agent = agents[0] ?? null;
   const recent_room_conversations = conversations
-    .filter((conversation) => conversation.room_id === room_id)
+    .filter((conversation): conversation is Conversation & { conversation_id: string } => (
+      conversation.room_id === room_id && Boolean(conversation.conversation_id)
+    ))
     .sort((left, right) => right.last_activity_at - left.last_activity_at)
     .slice(0, 4);
 
@@ -75,13 +76,13 @@ export function RoomRouteEntry({
               <div className="mt-3 space-y-2">
                 {recent_room_conversations.map((conversation) => (
                   <button
-                    key={getConversationRouteId(conversation)}
+                    key={conversation.conversation_id}
                     className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-3 text-left transition hover:bg-white/16"
                     onClick={() =>
                       navigate(
                         AppRouteBuilders.room_conversation(
                           conversation.room_id ?? room_id ?? "",
-                          getConversationRouteId(conversation),
+                          conversation.conversation_id,
                         ),
                       )
                     }

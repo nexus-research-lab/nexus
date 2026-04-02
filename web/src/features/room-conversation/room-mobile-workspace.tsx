@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, MessageSquare, Search, X } from "lucide-react";
 
-import { getConversationRouteId } from "@/lib/conversation-route";
 import { formatRelativeTime } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { Conversation, ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
@@ -21,7 +20,7 @@ interface RoomMobileWorkspaceProps {
   current_room_title: string;
   current_room_conversation: RoomConversationView | null;
   current_agent_conversation: Conversation | null;
-  current_room_conversation_id: string | null;
+  conversation_id: string | null;
   current_room_conversations: RoomConversationView[];
   initial_draft?: string | null;
   on_back_to_directory: () => void;
@@ -40,7 +39,7 @@ export function RoomMobileWorkspace({
   current_room_title,
   current_room_conversation,
   current_agent_conversation,
-  current_room_conversation_id,
+  conversation_id,
   current_room_conversations,
   initial_draft = null,
   on_back_to_directory,
@@ -115,7 +114,7 @@ export function RoomMobileWorkspace({
           <RoomThreadContextProvider>
             <RoomChatPanel
               agent_id={current_agent.agent_id}
-              conversation_id={current_room_conversation_id}
+              conversation_id={conversation_id}
               conversations={current_room_conversations}
               current_agent_name={current_agent.name}
               current_room_title={current_room_title}
@@ -166,14 +165,13 @@ export function RoomMobileWorkspace({
 
             <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
               {current_room_conversations.map((conversation) => {
-                const route_conversation_id = getConversationRouteId(conversation);
-                const is_active = route_conversation_id === current_room_conversation_id;
+                const is_active = conversation.conversation_id === conversation_id;
                 return (
                   <button
-                    key={route_conversation_id}
+                    key={conversation.conversation_id}
                     className="workspace-card flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/18"
                     onClick={() => {
-                      on_select_conversation(route_conversation_id);
+                      on_select_conversation(conversation.conversation_id);
                       setIsConversationSheetOpen(false);
                     }}
                     type="button"

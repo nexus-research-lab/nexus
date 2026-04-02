@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
-import { useConversationLoader } from "@/hooks/use-conversation-loader";
+import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { buildRoomSharedSessionKey } from "@/lib/session-key";
-import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
+import { RoomConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
 import { AssistantMessage, Message, ResultMessage } from "@/types/message";
 import { TodoItem } from "@/types/todo";
 import { Agent } from "@/types/agent";
@@ -47,7 +47,7 @@ export interface RoomChatPanelProps {
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
-  on_conversation_snapshot_change?: (snapshot: ConversationSnapshotPayload) => void;
+  on_conversation_snapshot_change?: (snapshot: RoomConversationSnapshotPayload) => void;
   on_create_conversation?: (title?: string) => void | Promise<string | null>;
   on_select_conversation?: (conversation_id: string) => void;
   on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
@@ -105,10 +105,8 @@ export function RoomChatPanel({
     pending_permission,
     send_message,
     stop_generation,
-    load_conversation,
+    load_session,
     send_permission_response,
-    delete_round,
-    regenerate,
   } = useAgentConversation({
     agent_id,
     room_id,
@@ -145,20 +143,20 @@ export function RoomChatPanel({
   useEffect(() => { close_thread(); }, [conversation_id, close_thread]);
 
   useEffect(() => {
-    if (!session_key || messages.length === 0) return;
+    if (!conversation_id || messages.length === 0) return;
     const last = messages[messages.length - 1];
     const latest_reply_timestamp = get_latest_reply_timestamp(messages);
     on_conversation_snapshot_change?.({
-      conversation_id: conversation_id ?? session_key,
+      conversation_id,
       message_count: messages.length,
       ...(latest_reply_timestamp ? { last_activity_at: latest_reply_timestamp } : {}),
       session_id: last?.session_id ?? null,
     });
-  }, [conversation_id, session_key, messages, on_conversation_snapshot_change]);
+  }, [conversation_id, messages, on_conversation_snapshot_change]);
 
-  useConversationLoader({
-    conversation_id: session_key,
-    load_conversation,
+  useSessionLoader({
+    session_key,
+    load_session,
     debug_name: "RoomChatPanel",
   });
 
@@ -283,7 +281,7 @@ export function RoomChatPanel({
             <RoomConversationHeader
               active_tab={active_tab}
               conversations={conversations}
-              current_room_conversation_id={conversation_id}
+              conversation_id={conversation_id}
               current_room_title={current_room_title ?? null}
               is_detail_panel_open={is_detail_panel_open}
               is_loading={is_loading}
@@ -326,10 +324,8 @@ export function RoomChatPanel({
               is_loading={is_loading}
               is_mobile_layout={is_mobile_layout}
               message_groups={message_groups}
-              on_delete_round={delete_round}
               on_open_workspace_file={on_open_workspace_file}
               on_permission_response={send_permission_response}
-              on_regenerate_round={regenerate}
               on_stop_message={handle_stop_message}
               round_ids={round_ids}
             />

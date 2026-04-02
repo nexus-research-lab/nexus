@@ -22,10 +22,8 @@ interface RoomConversationFeedProps {
   is_loading: boolean;
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
-  on_delete_round: (round_id: string) => Promise<void>;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
-  on_regenerate_round?: (round_id: string) => Promise<void>;
   /** Room 并发模式：停止单条消息生成 */
   on_stop_message?: (msg_id: string) => void;
   round_ids: string[];
@@ -61,10 +59,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
   is_loading,
   is_mobile_layout,
   message_groups,
-  on_delete_round,
   on_open_workspace_file,
   on_permission_response,
-  on_regenerate_round,
   on_stop_message,
   round_ids,
 }: RoomConversationFeedProps) {
@@ -83,10 +79,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         is_loading={is_loading}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
-        on_delete_round={on_delete_round}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
-        on_regenerate_round={on_regenerate_round}
         on_stop_message={on_stop_message}
         round_ids={round_ids}
       />
@@ -133,8 +127,6 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
             pending_permission={isLastRound ? is_last_round_pending_permission : null}
             on_permission_response={on_permission_response}
             on_open_workspace_file={on_open_workspace_file}
-            on_delete={on_delete_round}
-            on_regenerate={isLastRound ? on_regenerate_round : undefined}
             on_stop_message={on_stop_message}
           />
         );
@@ -157,10 +149,8 @@ function VirtualFeed({
   is_loading,
   is_mobile_layout,
   message_groups,
-  on_delete_round,
   on_open_workspace_file,
   on_permission_response,
-  on_regenerate_round,
   on_stop_message,
   round_ids,
 }: Omit<RoomConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
@@ -250,8 +240,6 @@ function VirtualFeed({
                   pending_permission={isLastRound ? is_last_round_pending_permission : null}
                   on_permission_response={on_permission_response}
                   on_open_workspace_file={on_open_workspace_file}
-                  on_delete={on_delete_round}
-                  on_regenerate={isLastRound ? on_regenerate_round : undefined}
                   on_stop_message={on_stop_message}
                 />
               )}

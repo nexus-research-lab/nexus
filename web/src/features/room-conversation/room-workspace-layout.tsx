@@ -41,7 +41,7 @@ interface RoomWorkspaceLayoutProps {
   current_room_conversation: RoomConversationView | null;
   current_agent_conversation: Conversation | null;
   current_agent_session_key: string | null;
-  current_room_conversation_id: string | null;
+  conversation_id: string | null;
   current_room_conversations: RoomConversationView[];
   active_workspace_path: string | null;
   active_surface_tab: RoomSurfaceTabKey;
@@ -105,7 +105,7 @@ function RoomWorkspaceLayoutInner({
   current_room_conversation,
   current_agent_conversation,
   current_agent_session_key,
-  current_room_conversation_id,
+  conversation_id,
   current_room_conversations,
   active_workspace_path,
   active_surface_tab,
@@ -173,7 +173,7 @@ function RoomWorkspaceLayoutInner({
               <RoomConversationHeader
                 active_tab={active_surface_tab}
                 conversations={current_room_conversations}
-                current_room_conversation_id={current_room_conversation_id}
+                conversation_id={conversation_id}
                 current_room_title={current_room_title}
                 is_detail_panel_open={is_detail_panel_open}
                 is_loading={is_conversation_busy}
@@ -212,7 +212,7 @@ function RoomWorkspaceLayoutInner({
                     <RoomChatPanel
                       active_tab={active_surface_tab}
                       agent_id={current_agent.agent_id}
-                      conversation_id={current_room_conversation_id}
+                      conversation_id={conversation_id}
                       conversations={current_room_conversations}
                       current_agent_name={current_agent.name}
                       current_room_title={current_room_title}
@@ -239,7 +239,7 @@ function RoomWorkspaceLayoutInner({
               {active_surface_tab === "history" ? (
                 <RoomConversationHistoryView
                   conversations={current_room_conversations}
-                  current_room_conversation_id={current_room_conversation_id}
+                  conversation_id={conversation_id}
                   current_room_type={current_room_type}
                   on_create_conversation={on_create_conversation}
                   on_delete_conversation={on_delete_conversation}
