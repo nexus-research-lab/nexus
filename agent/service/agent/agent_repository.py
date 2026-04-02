@@ -210,6 +210,7 @@ class AgentRepository:
                 return
             self._bootstrap.ensure_ready()
             await self._ensure_main_agent()
+            await self._ensure_active_agent_workspaces()
             self._initialized = True
 
     async def _ensure_main_agent(self) -> None:
@@ -256,6 +257,20 @@ class AgentRepository:
             await repository.create(payload)
             await session.commit()
         logger.info(f"🧩 已初始化 main Agent 数据: {workspace_path}")
+
+    async def _ensure_active_agent_workspaces(self) -> None:
+        """确保所有活跃 Agent 的 workspace 模板与系统 skill 已补齐。"""
+        async with self._db.session() as session:
+            repository = AgentSqlRepository(session)
+            aggregates = await repository.list_active()
+
+        for aggregate in aggregates:
+            if MainAgentProfile.is_main_agent(aggregate.agent.id):
+                continue
+            WorkspaceTemplateInitializer(
+                aggregate.agent.id,
+                Path(aggregate.agent.workspace_path).expanduser(),
+            ).ensure_initialized(aggregate.agent.name)
 
     async def _get_aggregate(self, agent_id: str) -> Optional[AgentAggregate]:
         """读取 Agent 聚合。"""

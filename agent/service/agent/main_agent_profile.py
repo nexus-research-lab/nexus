@@ -7,7 +7,7 @@
 # 2026/03/25 23:28   Create
 # =====================================================
 
-"""main agent 固定配置。"""
+"""主智能体固定配置。"""
 
 from pathlib import Path
 from typing import Any, Dict
@@ -16,7 +16,7 @@ from agent.config.config import settings
 
 
 class MainAgentProfile:
-    """负责描述系统保留 main agent 的固定身份与默认运行参数。"""
+    """负责描述系统保留主智能体的固定身份与默认运行参数。"""
 
     AGENT_ID = settings.DEFAULT_AGENT_ID
     ALLOWED_TOOLS = [
@@ -33,16 +33,26 @@ class MainAgentProfile:
         "WebSearch",
         "Write",
     ]
-    SETTING_SOURCES = ["user", "project", "local"]
+    SETTING_SOURCES = ["project"]
 
     @classmethod
     def is_main_agent(cls, agent_id: str) -> bool:
-        """判断是否为系统保留的 main agent。"""
+        """判断是否为系统保留的主智能体。"""
         return agent_id == cls.AGENT_ID
 
     @classmethod
+    def display_name(cls) -> str:
+        """返回当前配置的主智能体标识。"""
+        return cls.AGENT_ID
+
+    @classmethod
+    def display_label(cls) -> str:
+        """返回用于提示的主智能体名称。"""
+        return f"主智能体（{cls.display_name()}）"
+
+    @classmethod
     def build_default_options(cls) -> Dict[str, Any]:
-        """构建 main agent 的默认运行参数。"""
+        """构建主智能体的默认运行参数。"""
         options: Dict[str, Any] = {
             "allowed_tools": cls.ALLOWED_TOOLS,
             "permission_mode": "default",
@@ -54,7 +64,7 @@ class MainAgentProfile:
 
     @classmethod
     def build_storage_record(cls, workspace_path: Path) -> Dict[str, Any]:
-        """构建 main agent 的存储记录。"""
+        """构建主智能体的存储记录。"""
         return {
             "agent_id": cls.AGENT_ID,
             "name": cls.AGENT_ID,
@@ -65,7 +75,7 @@ class MainAgentProfile:
 
     @classmethod
     def merge_options(cls, current_options: Any) -> Dict[str, Any]:
-        """为 main agent 补齐缺失的默认运行参数。"""
+        """为主智能体补齐缺失的默认运行参数。"""
         merged_options = dict(current_options) if isinstance(current_options, dict) else {}
         default_options = cls.build_default_options()
         merged_options["allowed_tools"] = default_options["allowed_tools"]

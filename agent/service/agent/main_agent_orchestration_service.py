@@ -7,7 +7,7 @@
 # 2026/03/26 01:28   Create
 # =====================================================
 
-"""main agent 编排服务。"""
+"""主智能体编排服务。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from agent.service.workspace.workspace_service import workspace_service
 
 
 class MainAgentOrchestrationService:
-    """为 main agent 提供创建成员与组建 room 的高层动作。"""
+    """为主智能体提供创建成员与组建 room 的高层动作。"""
 
     async def list_agents(self, include_main: bool = False) -> list[dict[str, Any]]:
         """列出可协作成员。"""
@@ -50,7 +50,7 @@ class MainAgentOrchestrationService:
             options=AgentOptions(
                 model=model,
                 permission_mode="default",
-                setting_sources=["user", "project", "local"],
+                setting_sources=["project"],
             ),
         )
         return {

@@ -27,7 +27,10 @@ from agent.service.session.cost_repository import cost_repository
 from typing import List, Optional
 
 from agent.service.session.session_manager import session_manager
-from agent.service.session.session_router import build_session_key, get_default_agent_id
+from agent.service.session.session_router import (
+    get_default_agent_id,
+    require_structured_session_key,
+)
 from agent.schema.model_cost import SessionCostSummary
 from agent.schema.model_message import Message
 from agent.schema.model_session import ASession
@@ -57,16 +60,9 @@ class SessionService:
             }
         )
 
-    def to_session_key(self, session_key: str, agent_id: Optional[str] = None) -> str:
-        """将前端 session_key 规范化为内部 session_key。"""
-        if session_key.startswith("agent:") or session_key.startswith("room:"):
-            return session_key
-        return build_session_key(
-            channel="ws",
-            chat_type="dm",
-            ref=session_key,
-            agent_id=agent_id or get_default_agent_id(),
-        )
+    def to_session_key(self, session_key: str) -> str:
+        """要求 Session API 只接受结构化 session_key。"""
+        return require_structured_session_key(session_key)
 
     async def get_sessions(self) -> List[ASession]:
         """获取所有会话列表。"""
@@ -91,7 +87,7 @@ class SessionService:
         title: Optional[str] = "New Chat",
     ) -> ASession:
         """创建会话。"""
-        internal_key = self.to_session_key(session_key, agent_id)
+        internal_key = self.to_session_key(session_key)
         existing = await session_store.get_session_info(internal_key)
         if existing:
             raise ValueError("Session already exists")
@@ -155,24 +151,6 @@ class SessionService:
         success = await session_store.delete_session(internal_key)
         if not success:
             raise LookupError("Session not found")
-
-    async def delete_round(self, session_key: str, round_id: str) -> int:
-        """删除一轮对话。"""
-        internal_key = self.to_session_key(session_key)
-        if is_room_shared_session_key(internal_key):
-            deleted_count = await room_message_store.delete_round(internal_key, round_id)
-            if deleted_count < 0:
-                raise RuntimeError("Failed to delete round")
-            return deleted_count
-
-        existing = await session_store.get_session_info(internal_key)
-        if not existing:
-            raise LookupError("Session not found")
-
-        deleted_count = await session_store.delete_round(internal_key, round_id)
-        if deleted_count < 0:
-            raise RuntimeError("Failed to delete round")
-        return deleted_count
 
     async def _list_room_sessions(self) -> list[ASession]:
         """从 SQL 组装 Room 会话视图。"""

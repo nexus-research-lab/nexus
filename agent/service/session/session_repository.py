@@ -433,30 +433,6 @@ class SessionRepository:
             logger.error(f"❌ 删除会话失败: {exc}", exc_info=True)
             return False
 
-    async def delete_round(self, session_key: str, round_id: str) -> int:
-        """删除一轮对话。"""
-        try:
-            meta_path = self._find_session_meta_path(session_key)
-            log_path = self._find_message_log_path(session_key)
-            if not meta_path or not log_path:
-                return 0
-
-            with self._lock:
-                raw_rows = self._load_raw_message_rows(log_path)
-                deleted_count = len([row for row in raw_rows if row.get("round_id") == round_id])
-                remaining_rows = [row for row in raw_rows if row.get("round_id") != round_id]
-                JsonFileStore.write_jsonl(log_path, remaining_rows)
-
-                meta = JsonFileStore.read_json(meta_path, {})
-                refreshed_meta = self._refresh_meta_from_messages(meta, remaining_rows)
-                self._write_session_meta(meta_path, refreshed_meta)
-
-            logger.info(f"🗑️ 删除轮次: key={session_key}, round={round_id}, 共{deleted_count}条")
-            return deleted_count
-        except Exception as exc:
-            logger.error(f"❌ 删除轮次失败: {exc}", exc_info=True)
-            return -1
-
     async def get_latest_round_id(self, session_key: str) -> Optional[str]:
         """获取最新 round_id。"""
         try:

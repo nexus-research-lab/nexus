@@ -7,11 +7,11 @@
 # 2026/04/01 16:03   Create
 # =====================================================
 
-"""main agent Typer CLI 命令注册。"""
+"""主智能体 Typer CLI 命令注册。"""
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, TYPE_CHECKING
+from typing import Annotated, Any
 
 import typer
 
@@ -40,22 +40,18 @@ from agent.schema.model_main_agent_cli import (
     UpdateWorkspaceFileCommand,
     ValidateAgentNameCommand,
 )
+from agent.service.agent.main_agent_profile import MainAgentProfile
 
-if TYPE_CHECKING:
-    pass
 ServiceCall = Callable[["MainAgentOrchestrationService"], Awaitable[Any]]
 CommandRunner = Callable[[ServiceCall], None]
 AgentIdsParser = Callable[[str], list[str]]
 
 
-def build_typer_app(
-        run_service_call: CommandRunner,
-        parse_agent_ids: AgentIdsParser,
-) -> typer.Typer:
+def build_typer_app(run_service_call: CommandRunner, parse_agent_ids: AgentIdsParser) -> typer.Typer:
     """构建 Typer 应用。"""
     app = typer.Typer(
-        name="main_agent_orchestration_cli",
-        help="供 main agent 调用的协作编排 CLI",
+        name=f"{MainAgentProfile.display_name()}_orchestration_cli",
+        help=f"供{MainAgentProfile.display_label()}调用的协作编排 CLI",
         no_args_is_help=True,
         add_completion=False,
         rich_markup_mode=None,
@@ -64,10 +60,9 @@ def build_typer_app(
 
     @app.command("list_agents", help="列出成员 agent")
     def list_agents(
-            include_main: Annotated[
-                bool,
-                typer.Option("--include-main", "--include_main", help="是否包含 main agent"),
-            ] = False,
+            include_main: Annotated[bool, typer.Option(
+                "--include-main", "--include_main", help=f"是否包含{MainAgentProfile.display_label()}"
+            )] = False,
     ) -> None:
         command = ListAgentsCommand(include_main=include_main)
         run_service_call(lambda service: service.list_agents(include_main=command.include_main))

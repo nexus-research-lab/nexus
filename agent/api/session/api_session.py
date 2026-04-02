@@ -24,9 +24,15 @@ from pydantic import BaseModel
 from agent.schema.model_cost import SessionCostSummary
 from agent.schema.model_session import ASession
 from agent.service.session.session_service import session_service
+from agent.service.session.session_router import StructuredSessionKeyError
 from agent.infra.server.common import resp
 
 router = APIRouter(tags=["session"])
+
+
+def _raise_invalid_session_key(detail: str) -> None:
+    """抛出统一的 session_key 参数错误。"""
+    raise HTTPException(status_code=422, detail=detail)
 
 
 # =====================================================
@@ -66,6 +72,8 @@ async def create_session(request: CreateSessionRequest):
             agent_id=request.agent_id,
             title=request.title,
         )
+    except StructuredSessionKeyError as exc:
+        _raise_invalid_session_key(str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail="Session already exists")
     except RuntimeError as exc:
@@ -79,6 +87,8 @@ async def update_session(session_key: str, request: UpdateSessionRequest):
     """更新会话信息"""
     try:
         session_info = await session_service.update_session(session_key=session_key, title=request.title)
+    except StructuredSessionKeyError as exc:
+        _raise_invalid_session_key(str(exc))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -89,7 +99,10 @@ async def update_session(session_key: str, request: UpdateSessionRequest):
 @router.get("/sessions/{session_key}/messages")
 async def get_session_messages(session_key: str):
     """获取指定会话的所有消息"""
-    data = await session_service.get_session_messages(session_key)
+    try:
+        data = await session_service.get_session_messages(session_key)
+    except StructuredSessionKeyError as exc:
+        _raise_invalid_session_key(str(exc))
     return resp.ok(resp.Resp(data=[item.model_dump(mode="json", exclude_none=True) for item in data]))
 
 
@@ -98,6 +111,8 @@ async def get_session_cost_summary(session_key: str):
     """获取指定会话的成本汇总。"""
     try:
         summary = await session_service.get_session_cost_summary(session_key)
+    except StructuredSessionKeyError as exc:
+        _raise_invalid_session_key(str(exc))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data=summary.model_dump(mode="json")))
@@ -108,19 +123,8 @@ async def delete_session(session_key: str):
     """删除会话"""
     try:
         await session_service.delete_session(session_key)
+    except StructuredSessionKeyError as exc:
+        _raise_invalid_session_key(str(exc))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data={"success": True}))
-
-
-@router.delete("/sessions/{session_key}/rounds/{round_id}")
-async def delete_round(session_key: str, round_id: str):
-    """删除一轮对话"""
-    try:
-        deleted_count = await session_service.delete_round(session_key, round_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    return resp.ok(resp.Resp(data={"success": True, "deleted_count": deleted_count}))

@@ -7,7 +7,7 @@
 # 2026/03/26 11:10   Create
 # =====================================================
 
-"""main agent CLI 参数类型。"""
+"""主智能体 CLI 参数类型。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from agent.infra.schemas.model_cython import AModel
 class ListAgentsCommand(AModel):
     """列出成员命令。"""
 
-    include_main: bool = Field(default=False, description="是否包含 main agent")
+    include_main: bool = Field(default=False, description="是否包含主智能体")
 
 
 class ValidateAgentNameCommand(AModel):

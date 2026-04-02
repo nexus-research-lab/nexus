@@ -20,14 +20,11 @@ from agent.infra.database.models.round import Round
 from agent.infra.database.models.runtime import Runtime
 from agent.infra.database.models.session import Session
 from agent.infra.database.models.connector import ConnectorConnection
-from agent.infra.database.models.skill import AgentSkill, PoolSkill
 
 __all__ = [
     "Agent",
-    "AgentSkill",
     "ConnectorConnection",
     "Profile",
-    "PoolSkill",
     "Runtime",
     "Contact",
     "Room",
@@ -44,10 +41,8 @@ def load_models() -> tuple[type, ...]:
     """显式加载所有 ORM 模型，确保 Base.metadata 完整。"""
     return (
         Agent,
-        AgentSkill,
         ConnectorConnection,
         Profile,
-        PoolSkill,
         Runtime,
         Contact,
         Room,

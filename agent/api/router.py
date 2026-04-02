@@ -15,7 +15,7 @@ from agent.api.agent.api_agent_workspace import router as agent_workspace_router
 from agent.api.capability.api_connector import router as connector_router
 from agent.api.capability.api_skill import router as capability_skill_router
 from agent.api.chat.websocket_server import router as websocket_router
-from agent.api.common import common_router
+from agent.api.common.api_runtime import router as runtime_router
 from agent.api.repository.api_persistence import router as persistence_router
 from agent.api.room.api_room import router as room_router
 from agent.api.session.api_session import router as session_router
@@ -47,5 +47,5 @@ api_router.include_router(persistence_router, prefix="/v1")
 # Include to launcher router
 api_router.include_router(launcher_router, prefix="/v1")
 
-# Include to common router (health check, etc.)
-api_router.include_router(common_router)
+# Include runtime route
+api_router.include_router(runtime_router, prefix="/v1")

@@ -74,6 +74,15 @@ class CostRepository:
         return {}
 
     @staticmethod
+    def _resolve_agent_id_from_session_key(session_key: str) -> Optional[str]:
+        """从结构化 session_key 中解析 Agent ID。"""
+        parsed = parse_session_key(session_key)
+        if parsed.get("kind") != "agent":
+            return None
+        agent_id = str(parsed.get("agent_id") or "").strip()
+        return agent_id or None
+
+    @staticmethod
     def _to_int(value: Any) -> int:
         """安全转换整数。"""
         try:
@@ -101,11 +110,10 @@ class CostRepository:
     async def _resolve_session_dir(self, session_key: str, agent_id: Optional[str] = None) -> Optional[Path]:
         """解析 session 目录。"""
         session = await session_repository.get_session(session_key)
-        parsed = parse_session_key(session_key) if session_key.startswith("agent:") else {}
         resolved_agent_id = (
             agent_id
             or (session.agent_id if session else None)
-            or parsed.get("agent_id")
+            or self._resolve_agent_id_from_session_key(session_key)
             or settings.DEFAULT_AGENT_ID
         )
         workspace_path = await self._resolve_workspace_path(resolved_agent_id)
@@ -219,11 +227,10 @@ class CostRepository:
     async def rebuild_session_summary(self, session_key: str, agent_id: Optional[str] = None) -> SessionCostSummary:
         """重建并持久化 Session 成本汇总。"""
         session = await session_repository.get_session(session_key)
-        parsed = parse_session_key(session_key) if session_key.startswith("agent:") else {}
         resolved_agent_id = (
             agent_id
             or (session.agent_id if session else None)
-            or parsed.get("agent_id")
+            or self._resolve_agent_id_from_session_key(session_key)
             or settings.DEFAULT_AGENT_ID
         )
         rows = await self._read_cost_rows(session_key, agent_id=resolved_agent_id)
@@ -289,26 +296,6 @@ class CostRepository:
         await self.rebuild_agent_summary(message.agent_id)
         return True
 
-    async def delete_round_costs(self, session_key: str, round_id: str, agent_id: Optional[str] = None) -> int:
-        """删除指定轮次的成本账本并重建汇总。"""
-        session = await session_repository.get_session(session_key)
-        resolved_agent_id = agent_id or (session.agent_id if session else None) or  settings.DEFAULT_AGENT_ID
-        session_dir = await self._resolve_session_dir(session_key, agent_id=resolved_agent_id)
-        if not session_dir:
-            return 0
-
-        log_path = session_dir / "telemetry_cost.jsonl"
-        rows = JsonFileStore.read_jsonl(log_path)
-        remaining_rows = [row for row in rows if row.get("round_id") != round_id]
-        deleted_count = len(rows) - len(remaining_rows)
-
-        with self._lock:
-            JsonFileStore.write_jsonl(log_path, remaining_rows)
-
-        await self.rebuild_session_summary(session_key, agent_id=resolved_agent_id)
-        await self.rebuild_agent_summary(resolved_agent_id)
-        return deleted_count
-
     async def handle_session_deleted(self, session_key: str, agent_id: str) -> None:
         """会话删除后的 Agent 汇总刷新。"""
         await self.rebuild_agent_summary(agent_id)
@@ -316,10 +303,9 @@ class CostRepository:
     async def get_session_cost_summary(self, session_key: str) -> SessionCostSummary:
         """获取 Session 成本汇总。"""
         session = await session_repository.get_session(session_key)
-        parsed = parse_session_key(session_key) if session_key.startswith("agent:") else {}
         agent_id = (
             (session.agent_id if session else None)
-            or parsed.get("agent_id")
+            or self._resolve_agent_id_from_session_key(session_key)
             or settings.DEFAULT_AGENT_ID
         )
         summary = await self._read_session_summary(session_key, agent_id=agent_id)

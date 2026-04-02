@@ -13,26 +13,34 @@ from __future__ import annotations
 
 from typing import Optional
 
-from agent.service.session.session_router import build_session_key
-
-ROOM_SHARED_SESSION_PREFIX = "room:group:"
+from agent.service.session.session_router import (
+    build_room_shared_session_key as build_room_gateway_session_key,
+    build_session_key,
+    parse_session_key,
+)
 
 
 def build_room_shared_session_key(conversation_id: str) -> str:
     """构建 Room 共享消息流的 session_key。"""
-    return f"{ROOM_SHARED_SESSION_PREFIX}{conversation_id}"
+    return build_room_gateway_session_key(conversation_id)
 
 
 def is_room_shared_session_key(session_key: str) -> bool:
     """判断是否为 Room 共享消息流键。"""
-    return session_key.startswith(ROOM_SHARED_SESSION_PREFIX)
+    parsed = parse_session_key(session_key)
+    return (
+        parsed.get("kind") == "room"
+        and bool(parsed.get("is_structured"))
+        and bool(parsed.get("conversation_id"))
+    )
 
 
 def parse_room_conversation_id(session_key: str) -> Optional[str]:
     """从 Room 共享消息流键中提取 conversation_id。"""
-    if not is_room_shared_session_key(session_key):
+    parsed = parse_session_key(session_key)
+    if parsed.get("kind") != "room":
         return None
-    conversation_id = session_key[len(ROOM_SHARED_SESSION_PREFIX):].strip()
+    conversation_id = str(parsed.get("conversation_id") or "").strip()
     return conversation_id or None
 
 

@@ -147,18 +147,6 @@ class MessageHistoryStore:
         """获取会话历史消息"""
         return await session_repository.get_session_messages(session_key)
 
-    async def delete_round(self, session_key: str, round_id: str) -> int:
-        """删除一轮对话"""
-        deleted_count = await session_repository.delete_round(session_key, round_id)
-        if deleted_count > 0:
-            session_info = await session_repository.get_session(session_key)
-            await cost_repository.delete_round_costs(
-                session_key=session_key,
-                round_id=round_id,
-                agent_id=session_info.agent_id if session_info else None,
-            )
-        return deleted_count
-
     async def get_latest_round_id(self, session_key: str) -> Optional[str]:
         """获取最新 round_id"""
         return await session_repository.get_latest_round_id(session_key)

@@ -173,20 +173,3 @@ class MessageSqlRepository(BaseSqlRepository):
         )
         result = await self._session.execute(stmt)
         return [RoundRecord.model_validate(entity) for entity in result.scalars().all()]
-
-    async def delete_by_conversation_round(
-        self,
-        conversation_id: str,
-        round_id: str,
-    ) -> int:
-        """删除指定对话下某一轮的消息索引。"""
-        stmt = select(Message).where(
-            Message.conversation_id == conversation_id,
-            Message.round_id == round_id,
-        )
-        result = await self._session.execute(stmt)
-        entities = result.scalars().all()
-        for entity in entities:
-            await self._session.delete(entity)
-        await self.flush()
-        return len(entities)

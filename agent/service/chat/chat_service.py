@@ -12,12 +12,17 @@
 import asyncio
 from typing import Any, Dict
 
+from agent.config.config import settings
 from agent.schema.model_message import build_error_event, EventMessage
 from agent.service.agent.agent_runtime import agent_runtime
 from agent.service.channels.message_sender import MessageSender
 from agent.service.message.chat_message_processor import ChatMessageProcessor
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.session.session_manager import session_manager
+from agent.service.session.session_router import (
+    StructuredSessionKeyError,
+    require_structured_session_key,
+)
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -35,18 +40,9 @@ class ChatService:
             chat_tasks: Dict[str, Any],
     ) -> None:
         """处理聊天消息并维护任务生命周期。"""
-        session_key = message.get("session_key") or message.get("agent_id", "")
+        session_key = await self._resolve_session_key(message)
         if not session_key:
-            await self._sender.send(
-                self._build_error(
-                    error_type="validation_error",
-                    message="session_key is required for chat messages",
-                    session_key=session_key or None,
-                )
-            )
             return
-
-        message["session_key"] = session_key
 
         if session_key in chat_tasks and not chat_tasks[session_key].done():
             logger.info(f"⚠️ 取消旧 chat 任务: {session_key}")
@@ -58,7 +54,9 @@ class ChatService:
 
     async def handle_chat_message(self, message: Dict[str, Any]) -> None:
         """处理聊天消息并推动 Claude 对话循环。"""
-        session_key = message.get("session_key") or message.get("agent_id", "")
+        session_key = await self._resolve_session_key(message)
+        if not session_key:
+            return
         requested_agent_id = message.get("agent_id", "")
         content = message.get("content")
         round_id = message.get("round_id")
@@ -108,6 +106,31 @@ class ChatService:
                     break
 
             logger.info(f"✅ 消息处理完成: key={session_key}, 共 {processor.message_count} 条响应")
+
+    async def _resolve_session_key(self, message: Dict[str, Any]) -> str | None:
+        """解析并校验聊天消息的结构化 session_key。"""
+        raw_session_key = message.get("session_key")
+        if not isinstance(raw_session_key, str):
+            raw_session_key = ""
+
+        try:
+            session_key = require_structured_session_key(raw_session_key)
+        except StructuredSessionKeyError as exc:
+            await self._sender.send(
+                self._build_error(
+                    error_type=(
+                        "validation_error"
+                        if str(exc) == "session_key is required"
+                        else "invalid_session_key"
+                    ),
+                    message=str(exc),
+                    session_key=raw_session_key or None,
+                )
+            )
+            return None
+
+        message["session_key"] = session_key
+        return session_key
 
     @staticmethod
     def _on_task_done(session_key: str, task: asyncio.Task) -> None:

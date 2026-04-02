@@ -21,7 +21,6 @@ from agent.infra.database.repositories.conversation_sql_repository import (
     ConversationSqlRepository,
 )
 from agent.infra.database.repositories.message_sql_repository import MessageSqlRepository
-from agent.infra.database.repositories.room_sql_repository import RoomSqlRepository
 from agent.infra.database.repositories.session_sql_repository import SessionSqlRepository
 from agent.infra.file_store.json_store import JsonFileStore
 from agent.infra.file_store.storage_bootstrap import FileStorageBootstrap
@@ -37,7 +36,6 @@ from agent.service.room.room_message_mapper import (
 )
 from agent.service.room.room_round_store import room_round_store
 from agent.service.room.room_session_keys import (
-    build_room_agent_session_key,
     parse_room_conversation_id,
 )
 from agent.service.session.cost_repository import cost_repository
@@ -223,58 +221,6 @@ class RoomMessageStore:
             except Exception:
                 continue
         return messages
-
-    async def delete_round(self, session_key: str, round_id: str) -> int:
-        """删除 Room 指定轮次。"""
-        conversation_id = parse_room_conversation_id(session_key)
-        if not conversation_id:
-            return -1
-
-        with self._lock:
-            raw_rows = self._load_raw_rows(conversation_id)
-            deleted_rows = [
-                row for row in raw_rows if str(row.get("round_id") or "") == round_id
-            ]
-            remaining_rows = [
-                row for row in raw_rows if str(row.get("round_id") or "") != round_id
-            ]
-            JsonFileStore.write_jsonl(
-                self._get_conversation_log_path(conversation_id),
-                remaining_rows,
-            )
-
-        async with self._db.session() as session:
-            conversation_repository = ConversationSqlRepository(session)
-            repository = MessageSqlRepository(session)
-            room_type = "room"
-            conversation = await conversation_repository.get(conversation_id)
-            if conversation and conversation.room_id:
-                room_repository = RoomSqlRepository(session)
-                room_aggregate = await room_repository.get(conversation.room_id)
-                if room_aggregate:
-                    room_type = room_aggregate.room.room_type
-            await repository.delete_by_conversation_round(
-                conversation_id=conversation_id,
-                round_id=round_id,
-            )
-            await session.commit()
-
-        agent_ids = {
-            str(row.get("agent_id") or "").strip()
-            for row in deleted_rows
-            if row.get("role") == "result" and str(row.get("agent_id") or "").strip()
-        }
-        for agent_id in agent_ids:
-            await cost_repository.delete_round_costs(
-                session_key=build_room_agent_session_key(
-                    conversation_id=conversation_id,
-                    agent_id=agent_id,
-                    room_type=room_type,
-                ),
-                round_id=round_id,
-                agent_id=agent_id,
-            )
-        return len(deleted_rows)
 
     async def get_latest_round_id(self, session_key: str) -> Optional[str]:
         """获取最新 round_id。"""

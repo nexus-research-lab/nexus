@@ -7,7 +7,7 @@
 # 2026/03/26 01:29   Create
 # =====================================================
 
-"""main agent 编排 CLI。"""
+"""主智能体编排 CLI。"""
 
 from __future__ import annotations
 
@@ -27,12 +27,13 @@ if str(PROJECT_ROOT) not in sys.path:
 from agent.cli.command import (  # noqa: E402
     build_typer_app,
 )
+from agent.service.agent.main_agent_profile import MainAgentProfile  # noqa: E402
 
 ServiceCall = Callable[[object], Awaitable[object]]
 
 
 class MainAgentOrchestrationCli:
-    """封装 main agent 的协作编排命令行。"""
+    """封装主智能体的协作编排命令行。"""
 
     def __init__(self) -> None:
         self._app = build_typer_app(
@@ -43,7 +44,11 @@ class MainAgentOrchestrationCli:
     def run(self, argv: list[str] | None = None) -> int:
         """执行 CLI。"""
         try:
-            self._app(args=argv, prog_name="main_agent_orchestration_cli", standalone_mode=False)
+            self._app(
+                args=argv,
+                prog_name=f"{MainAgentProfile.display_name()}_orchestration_cli",
+                standalone_mode=False,
+            )
         except typer.Exit as exc:
             return int(exc.exit_code or 0)
         except click.ClickException as exc:
