@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { useHomeAgentConversationController } from "@/hooks/use-home-agent-conversation-controller";
@@ -41,11 +41,7 @@ export function useLauncherPageController() {
 
   const surface: LauncherSurface = search_params.get("surface") === "app" ? "app" : "launcher";
   const route_app_prompt = search_params.get("app_prompt")?.trim() ?? "";
-  const [app_conversation_draft, set_app_conversation_draft] = useState(route_app_prompt);
-
-  useEffect(() => {
-    set_app_conversation_draft(route_app_prompt);
-  }, [route_app_prompt]);
+  const [app_conversation_draft, set_app_conversation_draft] = useState("");
 
   useEffect(() => {
     if (search_params.get("blobDebug") !== "1" || surface === "app") {
@@ -84,6 +80,23 @@ export function useLauncherPageController() {
     });
   }, [set_launcher_search]);
 
+  const handle_change_app_conversation_draft = useCallback((next_value: SetStateAction<string>) => {
+    set_app_conversation_draft((current_value) => (
+      typeof next_value === "function"
+        ? next_value(current_value)
+        : next_value
+    ));
+
+    // 中文注释：路由里的 app_prompt 只用于一次性启动。
+    // 用户一旦开始手动输入，就应立刻丢弃这份启动 prompt，避免再次回灌到输入链路。
+    if (route_app_prompt) {
+      set_launcher_search({
+        surface: "app",
+        app_prompt: undefined,
+      });
+    }
+  }, [route_app_prompt, set_launcher_search]);
+
   return useMemo(() => ({
     ...agent_conversation,
     surface,
@@ -96,7 +109,7 @@ export function useLauncherPageController() {
     clear_route_app_prompt,
     set_app_session_key,
     clear_app_session_key,
-    set_app_conversation_draft,
+    set_app_conversation_draft: handle_change_app_conversation_draft,
   }), [
     agent_conversation,
     surface,
@@ -109,5 +122,6 @@ export function useLauncherPageController() {
     clear_route_app_prompt,
     set_app_session_key,
     clear_app_session_key,
+    handle_change_app_conversation_draft,
   ]);
 }

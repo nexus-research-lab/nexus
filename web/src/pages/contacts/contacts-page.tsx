@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
-import { ensureDirectRoom } from "@/lib/room-api";
+import { createRoom, ensureDirectRoom } from "@/lib/room-api";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
@@ -67,9 +67,9 @@ export function ContactsPage() {
     });
   }, [navigate]);
 
-  // 👥 Create Team → 用该 Agent 创建 Room（暂时复用 DM 逻辑）
+  // 👥 Create Team → 用该 Agent 创建单人成员 Room
   const handle_create_team = useCallback((agent_id: string) => {
-    void ensureDirectRoom(agent_id).then((context) => {
+    void createRoom({ agent_ids: [agent_id] }).then((context) => {
       navigate(
         AppRouteBuilders.room_conversation(
           context.room.id,

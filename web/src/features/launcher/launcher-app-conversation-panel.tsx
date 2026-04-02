@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Bot, LoaderCircle, RotateCcw, X, } from "lucide-react";
 
 import {
@@ -64,6 +64,7 @@ export function LauncherAppConversationPanel({
   const scroll_ref = useRef<HTMLDivElement>(null);
   const bottom_anchor_ref = useRef<HTMLDivElement>(null);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
+  const is_composing_ref = useRef(false);
   const should_follow_latest_ref = useRef(true);
   const [show_scroll_to_bottom, set_show_scroll_to_bottom] = useState(false);
   const message_groups = useMemo(
@@ -172,6 +173,25 @@ export function LauncherAppConversationPanel({
     on_submit(app_conversation_draft);
   }, [app_conversation_draft, can_send_message, on_submit]);
 
+  const handle_key_down = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (is_composing_ref.current || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (event.key === "Escape" && is_loading) {
+      event.preventDefault();
+      on_stop_generation();
+      return;
+    }
+
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+    handle_submit();
+  }, [handle_submit, is_loading, on_stop_generation]);
+
   return (
     <HeroSidePanelShell class_name="h-full min-h-[620px] w-full max-w-[420px]">
       <div className="flex h-full min-h-0 flex-col">
@@ -275,19 +295,13 @@ export function LauncherAppConversationPanel({
                   ref={textarea_ref}
                   className="max-h-36 min-h-7 flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-6 text-slate-900/84 outline-none placeholder:text-slate-700/42"
                   onChange={(event) => on_change_draft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape" && is_loading) {
-                      event.preventDefault();
-                      on_stop_generation();
-                      return;
-                    }
-                    if (event.key !== "Enter" || event.shiftKey) {
-                      return;
-                    }
-
-                    event.preventDefault();
-                    handle_submit();
+                  onCompositionEnd={() => {
+                    is_composing_ref.current = false;
                   }}
+                  onCompositionStart={() => {
+                    is_composing_ref.current = true;
+                  }}
+                  onKeyDown={handle_key_down}
                   placeholder="告诉 Nexus 你要推进什么..."
                   rows={1}
                   value={app_conversation_draft}

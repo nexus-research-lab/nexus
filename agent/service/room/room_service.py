@@ -90,7 +90,10 @@ class RoomService:
                     return contexts[0]
 
         # 不存在则创建
-        context = await self.create_room(agent_ids=[agent_id])
+        context = await self.create_room(
+            agent_ids=[agent_id],
+            room_type="dm",
+        )
         return context
 
     async def get_room_contexts(self, room_id: str) -> list[ConversationContextAggregate]:
@@ -150,20 +153,21 @@ class RoomService:
         name: Optional[str] = None,
         description: str = "",
         title: Optional[str] = None,
+        room_type: str = "room",
     ) -> ConversationContextAggregate:
         """创建 Room，并为每个 Agent 初始化会话。"""
         normalized_agent_ids = self._normalize_agent_ids(agent_ids)
         agent_aggregates = await self._load_agent_aggregates(normalized_agent_ids)
+        normalized_room_type = self._normalize_room_type(room_type)
 
         room_id = random_uuid()
         conversation_id = random_uuid()
-        room_type = "dm" if len(normalized_agent_ids) == 1 else "room"
-        room_name = name or self._build_room_name(agent_aggregates, room_type)
+        room_name = name or self._build_room_name(agent_aggregates, normalized_room_type)
         conversation_title = title or room_name
 
         room_record = RoomRecord(
             id=room_id,
-            room_type=room_type,
+            room_type=normalized_room_type,
             name=room_name,
             description=description,
         )
@@ -171,7 +175,7 @@ class RoomService:
         conversation_record = ConversationRecord(
             id=conversation_id,
             room_id=room_id,
-            conversation_type="dm" if room_type == "dm" else "room_main",
+            conversation_type="dm" if normalized_room_type == "dm" else "room_main",
             title=conversation_title,
         )
 
@@ -201,6 +205,13 @@ class RoomService:
             sessions=sessions,
         )
         return context
+
+    def _normalize_room_type(self, room_type: str) -> str:
+        """规范化创建时指定的 room 类型。"""
+        normalized = (room_type or "room").strip().lower()
+        if normalized not in {"room", "dm"}:
+            raise ValueError("room_type 仅支持 room 或 dm")
+        return normalized
 
     async def add_agent_member(
         self,

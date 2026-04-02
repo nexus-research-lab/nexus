@@ -125,7 +125,7 @@ export function SkillDetailDialog({
 
         <div className="soft-scrollbar flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
-            <div className="flex min-h-[320px] items-center justify-center">
+            <div className="flex min-h-80 items-center justify-center">
               <Loader2 className="h-7 w-7 animate-spin text-slate-400" />
             </div>
           ) : skill ? (
@@ -172,7 +172,7 @@ export function SkillDetailDialog({
               <SkillMarkdown markdown={skill.readme_markdown} />
             </>
           ) : (
-            <div className="flex min-h-[320px] items-center justify-center text-sm text-slate-500">
+            <div className="flex min-h-80 items-center justify-center text-sm text-slate-500">
               未找到该 Skill
             </div>
           )}
