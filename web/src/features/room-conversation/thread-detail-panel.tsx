@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { ArrowLeft, Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Message } from "@/types/message";
@@ -10,8 +10,8 @@ interface ThreadDetailPanelProps {
   round_id: string;
   agent_id: string;
   agent_name: string;
-  /** 当前轮次的所有消息（由父组件从 messages 中过滤） */
-  all_round_messages: Message[];
+  /** 已过滤好的 Thread 消息。 */
+  messages: Message[];
   on_close: () => void;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
@@ -22,13 +22,13 @@ interface ThreadDetailPanelProps {
 
 /**
  * Thread 详情面板 — 展示单个 Agent 在某轮中的完整回复内容。
- * 复用 MessageItem 渲染，仅过滤出目标 agent_id 的消息 + user 消息。
+ * 上游已经完成消息过滤，这里只负责展示。
  */
 export function ThreadDetailPanel({
   round_id,
   agent_id,
   agent_name,
-  all_round_messages,
+  messages,
   on_close,
   on_stop_message,
   on_open_workspace_file,
@@ -37,15 +37,6 @@ export function ThreadDetailPanel({
 }: ThreadDetailPanelProps) {
   const scroll_ref = useRef<HTMLDivElement>(null);
   const is_mobile = layout === "mobile";
-
-  // 过滤出 user 消息 + 目标 agent 的 assistant/result 消息
-  const filtered_messages = useMemo(() => {
-    return all_round_messages.filter(
-      (m) =>
-        m.role === "user" ||
-        (m.agent_id === agent_id && (m.role === "assistant" || m.role === "result")),
-    );
-  }, [all_round_messages, agent_id]);
 
   return (
     <div className={cn(
@@ -96,7 +87,7 @@ export function ThreadDetailPanel({
           compact
           current_agent_name={agent_name}
           round_id={round_id}
-          messages={filtered_messages}
+          messages={messages}
           is_last_round
           is_loading={is_loading}
           default_process_expanded

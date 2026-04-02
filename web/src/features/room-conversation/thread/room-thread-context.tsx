@@ -15,7 +15,7 @@ interface OpenThreadOptions {
 
 /** Thread 面板数据 — 由 RoomChatPanel 设置，由 Layout 读取用于渲染 ThreadDetailPanel */
 export interface ThreadPanelData {
-  round_messages: Message[];
+  messages: Message[];
   agent_name: string | null;
   is_loading: boolean;
   on_stop_message?: (msg_id: string) => void;
@@ -26,10 +26,8 @@ export interface ThreadPanelData {
 
 interface ThreadControlState {
   active_thread: ThreadTarget | null;
-  inline_expanded: Set<string>;
   open_thread: (round_id: string, agent_id: string, options?: OpenThreadOptions) => void;
   close_thread: () => void;
-  toggle_inline_expand: (round_id: string, agent_id: string) => void;
 }
 
 const ThreadControlContext = createContext<ThreadControlState | null>(null);
@@ -61,7 +59,6 @@ export function useThreadPanelData(): ThreadDataState {
 export function RoomThreadContextProvider({ children }: { children: React.ReactNode }) {
   // 控制状态
   const [active_thread, set_active_thread] = useState<ThreadTarget | null>(null);
-  const [inline_expanded, set_inline_expanded] = useState<Set<string>>(new Set());
 
   // 面板数据：用 ref 存储 + version counter 驱动重渲染
   const panel_data_ref = useRef<ThreadPanelData | null>(null);
@@ -73,7 +70,7 @@ export function RoomThreadContextProvider({ children }: { children: React.ReactN
     if (data === prev) return;
     if (data && prev) {
       if (
-        data.round_messages === prev.round_messages &&
+        data.messages === prev.messages &&
         data.is_loading === prev.is_loading &&
         data.agent_name === prev.agent_name &&
         data.on_stop_message === prev.on_stop_message &&
@@ -96,39 +93,15 @@ export function RoomThreadContextProvider({ children }: { children: React.ReactN
       agent_id,
       auto_close_on_finish: options?.auto_close_on_finish ?? false,
     });
-    const key = `${round_id}:${agent_id}`;
-    set_inline_expanded((prev) => {
-      if (!prev.has(key)) return prev;
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
   }, []);
 
   const close_thread = useCallback(() => {
     set_active_thread(null);
   }, []);
 
-  const toggle_inline_expand = useCallback((round_id: string, agent_id: string) => {
-    const key = `${round_id}:${agent_id}`;
-    set_inline_expanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-    set_active_thread((prev) => {
-      if (prev && prev.round_id === round_id && prev.agent_id === agent_id) return null;
-      return prev;
-    });
-  }, []);
-
   const control_value = useMemo<ThreadControlState>(
-    () => ({ active_thread, inline_expanded, open_thread, close_thread, toggle_inline_expand }),
-    [active_thread, inline_expanded, open_thread, close_thread, toggle_inline_expand],
+    () => ({ active_thread, open_thread, close_thread }),
+    [active_thread, open_thread, close_thread],
   );
 
   const data_value = useMemo<ThreadDataState>(

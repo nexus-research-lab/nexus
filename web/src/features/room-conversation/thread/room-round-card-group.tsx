@@ -6,10 +6,8 @@ import { MessageItem } from "@/features/conversation-shared/message";
 import { cn } from "@/lib/utils";
 import { AssistantMessage, Message, ResultMessage } from "@/types/message";
 import {
-  AgentRoundStatus,
-  getAgentRoundStatus,
-  getAgentRoundTimestamp,
-  groupRoundByAgent,
+  buildRoomAgentRoundEntries,
+  RoomAgentRoundEntry,
   isAgentRoundActive,
 } from "@/features/conversation-shared/utils";
 import { AgentStatusCard } from "./agent-status-card";
@@ -18,20 +16,15 @@ import { useRoomThread } from "./room-thread-context";
 interface RoomRoundCardGroupProps {
   round_id: string;
   messages: Message[];
-  agent_name_map: Record<string, string>;
+  agent_name_map?: Record<string, string>;
   is_last_round: boolean;
   is_loading: boolean;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
 
-interface RoomAgentEntry {
-  agent_id: string;
+interface RoomAgentEntry extends RoomAgentRoundEntry {
   agent_name: string;
-  assistant_messages: AssistantMessage[];
-  result_message?: ResultMessage;
-  status: AgentRoundStatus;
-  timestamp: number;
 }
 
 function RoomCompletedReply({
@@ -95,6 +88,7 @@ function RoomCompletedReply({
  * 1. 用户消息与已完成回复沿用通用消息样式；
  * 2. 已完成的 Agent 回复直接进入主时间线；
  * 3. 未完成的 Agent 保持为底部占位卡片，点击进入 Thread 查看实时过程。
+ * 4. 单 Agent / 多 Agent 的 Room 轮次统一走这一套渲染。
  */
 function RoomRoundCardGroupInner({
   round_id,
@@ -112,42 +106,12 @@ function RoomRoundCardGroupInner({
     [messages],
   );
 
-  const result_map = useMemo(() => {
-    const next_map = new Map<string, ResultMessage>();
-    for (const message of messages) {
-      if (message.role === "result" && message.agent_id) {
-        next_map.set(message.agent_id, message as ResultMessage);
-      }
-    }
-    return next_map;
-  }, [messages]);
-
-  const agent_groups = useMemo(
-    () => groupRoundByAgent(messages),
-    [messages],
-  );
-
   const agent_entries = useMemo(() => {
-    const agent_ids = new Set<string>([
-      ...agent_groups.keys(),
-      ...result_map.keys(),
-    ]);
-
-    return Array.from(agent_ids).map((agent_id) => {
-      const assistant_messages = agent_groups.get(agent_id) ?? [];
-      const result_message = result_map.get(agent_id);
-      const status = getAgentRoundStatus(assistant_messages, result_message);
-
-      return {
-        agent_id,
-        agent_name: agent_name_map[agent_id] ?? agent_id,
-        assistant_messages,
-        result_message,
-        status,
-        timestamp: getAgentRoundTimestamp(assistant_messages, result_message),
-      } satisfies RoomAgentEntry;
-    });
-  }, [agent_groups, agent_name_map, result_map]);
+    return buildRoomAgentRoundEntries(messages).map((entry) => ({
+      ...entry,
+      agent_name: agent_name_map?.[entry.agent_id] ?? entry.agent_id,
+    }));
+  }, [agent_name_map, messages]);
 
   const completed_entries = useMemo(
     () => agent_entries
@@ -229,7 +193,6 @@ function RoomRoundCardGroupInner({
                           agent_name={entry.agent_name}
                           messages={entry.assistant_messages}
                           result_message={entry.result_message}
-                          is_inline_expanded={false}
                           is_thread_active={is_thread_active}
                           on_click_thread={() => toggle_thread(entry.agent_id, true)}
                           on_stop_message={

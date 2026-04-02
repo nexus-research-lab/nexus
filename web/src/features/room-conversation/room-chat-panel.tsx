@@ -8,14 +8,15 @@ import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { buildRoomSharedSessionKey } from "@/lib/session-key";
 import { RoomConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
-import { AssistantMessage, Message, ResultMessage } from "@/types/message";
+import { Message } from "@/types/message";
 import { TodoItem } from "@/types/todo";
 import { Agent } from "@/types/agent";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import {
-  getAgentRoundStatus,
+  getRoomAgentRoundEntry,
+  getRoomThreadMessages,
   get_latest_reply_timestamp,
   groupRoomMessagesByRound,
   isAgentRoundActive,
@@ -186,30 +187,23 @@ export function RoomChatPanel({
     () => active_thread ? message_groups.get(active_thread.round_id) ?? [] : [],
     [active_thread, message_groups],
   );
-  const thread_agent_messages = useMemo(() => {
+  const thread_messages = useMemo(() => {
     if (!active_thread) {
       return [];
     }
 
-    return thread_round_messages.filter((message) => (
-      message.role === "user" ||
-      (message.agent_id === active_thread.agent_id && (message.role === "assistant" || message.role === "result"))
-    ));
+    return getRoomThreadMessages(thread_round_messages, active_thread.agent_id);
   }, [active_thread, thread_round_messages]);
-  const thread_is_loading = useMemo(() => {
-    if (!active_thread) {
-      return false;
-    }
-
-    const assistant_messages = thread_agent_messages.filter(
-      (message): message is AssistantMessage => message.role === "assistant",
-    );
-    const result_message = thread_agent_messages.find(
-      (message): message is ResultMessage => message.role === "result" && message.agent_id === active_thread.agent_id,
-    );
-    const status = getAgentRoundStatus(assistant_messages, result_message);
-    return isAgentRoundActive(status);
-  }, [active_thread, thread_agent_messages]);
+  const thread_entry = useMemo(
+    () => active_thread
+      ? getRoomAgentRoundEntry(thread_round_messages, active_thread.agent_id)
+      : null,
+    [active_thread, thread_round_messages],
+  );
+  const thread_is_loading = useMemo(
+    () => Boolean(thread_entry && isAgentRoundActive(thread_entry.status)),
+    [thread_entry],
+  );
   const thread_agent_name = active_thread && agent_name_map
     ? agent_name_map[active_thread.agent_id] ?? active_thread.agent_id
     : null;
@@ -239,13 +233,13 @@ export function RoomChatPanel({
       return;
     }
     set_thread_panel_data({
-      round_messages: thread_round_messages,
+      messages: thread_messages,
       agent_name: thread_agent_name,
       is_loading: thread_is_loading,
       on_stop_message: handle_stop_message,
       on_open_workspace_file,
     });
-  }, [active_thread, thread_round_messages, thread_agent_name, thread_is_loading, handle_stop_message, set_thread_panel_data, on_open_workspace_file]);
+  }, [active_thread, thread_messages, thread_agent_name, thread_is_loading, handle_stop_message, set_thread_panel_data, on_open_workspace_file]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">

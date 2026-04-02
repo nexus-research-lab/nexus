@@ -395,7 +395,7 @@ function RoomInspectorSlot({
           round_id={active_thread!.round_id}
           agent_id={active_thread!.agent_id}
           agent_name={thread_panel_data!.agent_name ?? active_thread!.agent_id}
-          all_round_messages={thread_panel_data!.round_messages}
+          messages={thread_panel_data!.messages}
           on_close={close_thread}
           on_stop_message={thread_panel_data!.on_stop_message}
           on_open_workspace_file={thread_panel_data!.on_open_workspace_file}

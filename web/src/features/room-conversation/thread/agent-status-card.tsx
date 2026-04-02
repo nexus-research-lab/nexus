@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo } from "react";
-import { Bot, Check, ChevronDown, ChevronRight, Loader2, Square, X } from "lucide-react";
+import { Bot, Check, Loader2, Square, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AssistantMessage, ResultMessage } from "@/types/message";
 import {
@@ -15,10 +15,8 @@ interface AgentStatusCardProps {
   agent_name: string;
   messages: AssistantMessage[];
   result_message?: ResultMessage;
-  is_inline_expanded?: boolean;
   is_thread_active: boolean;
   on_click_thread: () => void;
-  on_toggle_expand?: () => void;
   on_stop_message?: () => void;
 }
 
@@ -27,10 +25,8 @@ function AgentStatusCardInner({
   agent_name,
   messages,
   result_message,
-  is_inline_expanded = false,
   is_thread_active,
   on_click_thread,
-  on_toggle_expand,
   on_stop_message,
 }: AgentStatusCardProps) {
   const status: AgentRoundStatus = getAgentRoundStatus(messages, result_message);
@@ -67,14 +63,6 @@ function AgentStatusCardInner({
       }
     },
     [first_msg, on_stop_message],
-  );
-
-  const handle_expand_toggle = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      on_toggle_expand?.();
-    },
-    [on_toggle_expand],
   );
 
   return (
@@ -148,20 +136,6 @@ function AgentStatusCardInner({
           </button>
         )}
 
-        {/* 展开/折叠按钮 (done 状态) */}
-        {status === "done" && on_toggle_expand ? (
-          <button
-            type="button"
-            onClick={handle_expand_toggle}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-          >
-            {is_inline_expanded ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5" />
-            )}
-          </button>
-        ) : null}
       </div>
     </div>
   );

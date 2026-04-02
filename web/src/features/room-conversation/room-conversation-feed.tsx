@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageItem } from "@/features/conversation-shared/message";
-import { isMultiAgentRound } from "@/features/conversation-shared/utils";
+import { hasRoomAgentRoundEntries } from "@/features/conversation-shared/utils";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { estimateRoundHeights } from "@/hooks/use-message-height";
@@ -95,10 +95,10 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
-        const is_multi = isMultiAgentRound(roundMessages);
+        const has_room_entries = hasRoomAgentRoundEntries(roundMessages);
 
-        // 多 Agent 轮次使用 Slack 式卡片组渲染
-        if (is_multi && agent_name_map) {
+        // Room 中一旦出现 Agent 回复，就统一走 RoomRoundCardGroup。
+        if (has_room_entries) {
           return (
             <RoomRoundCardGroup
               key={roundId}
@@ -113,7 +113,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
           );
         }
 
-        // 单 Agent 轮次沿用 MessageItem
+        // 纯用户轮次或尚未分配到 Agent 的轮次，沿用 MessageItem。
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
         return (
           <MessageItem
@@ -211,7 +211,7 @@ function VirtualFeed({
           const roundId = round_ids[virtual_item.index];
           const roundMessages = message_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
-          const is_multi = isMultiAgentRound(roundMessages);
+          const has_room_entries = hasRoomAgentRoundEntries(roundMessages);
 
           return (
             <div
@@ -219,7 +219,7 @@ function VirtualFeed({
               data-index={virtual_item.index}
               ref={virtualizer.measureElement}
             >
-              {is_multi && agent_name_map ? (
+              {has_room_entries ? (
                 <RoomRoundCardGroup
                   round_id={roundId}
                   messages={roundMessages}

@@ -52,6 +52,15 @@ export function groupRoomMessagesByRound(messages: Message[]): Map<string, Messa
 /** 聚合状态：单个 Agent 在某轮中的整体状态 */
 export type AgentRoundStatus = "pending" | "streaming" | "done" | "error" | "cancelled";
 
+/** Room 中单个 Agent 在某轮里的聚合结果。 */
+export interface RoomAgentRoundEntry {
+  agent_id: string;
+  assistant_messages: AssistantMessage[];
+  result_message?: ResultMessage;
+  status: AgentRoundStatus;
+  timestamp: number;
+}
+
 /** 判断一个轮次是否包含多个 Agent 的 assistant 消息 */
 export function isMultiAgentRound(messages: Message[]): boolean {
   const agent_ids = new Set<string>();
@@ -62,6 +71,14 @@ export function isMultiAgentRound(messages: Message[]): boolean {
     }
   }
   return false;
+}
+
+/** 判断一轮 Room 消息是否已经出现可归属到 Agent 的回复。 */
+export function hasRoomAgentRoundEntries(messages: Message[]): boolean {
+  return messages.some((message) => (
+    Boolean(message.agent_id) &&
+    (message.role === "assistant" || message.role === "result")
+  ));
 }
 
 /** 将一轮消息按 agent_id 分组，仅分组 assistant 消息 */
@@ -77,6 +94,16 @@ export function groupRoundByAgent(messages: Message[]): Map<string, AssistantMes
     }
   }
   return groups;
+}
+
+function buildResultMessageMap(messages: Message[]): Map<string, ResultMessage> {
+  const result_map = new Map<string, ResultMessage>();
+  for (const message of messages) {
+    if (message.role === "result" && message.agent_id) {
+      result_map.set(message.agent_id, message as ResultMessage);
+    }
+  }
+  return result_map;
 }
 
 /** 从一组 assistant 消息中推导该 Agent 的聚合状态 */
@@ -139,6 +166,60 @@ export function getAgentRoundTimestamp(
   }
 
   return 0;
+}
+
+/** 构造一轮中所有 Agent 的聚合回复，用于主时间线和 Thread 共用。 */
+export function buildRoomAgentRoundEntries(messages: Message[]): RoomAgentRoundEntry[] {
+  const result_map = buildResultMessageMap(messages);
+  const agent_groups = groupRoundByAgent(messages);
+  const agent_ids = new Set<string>([
+    ...agent_groups.keys(),
+    ...result_map.keys(),
+  ]);
+
+  return Array.from(agent_ids).map((agent_id) => {
+    const assistant_messages = agent_groups.get(agent_id) ?? [];
+    const result_message = result_map.get(agent_id);
+
+    return {
+      agent_id,
+      assistant_messages,
+      result_message,
+      status: getAgentRoundStatus(assistant_messages, result_message),
+      timestamp: getAgentRoundTimestamp(assistant_messages, result_message),
+    };
+  });
+}
+
+/** 读取某轮某个 Agent 的聚合回复。 */
+export function getRoomAgentRoundEntry(
+  messages: Message[],
+  agent_id: string,
+): RoomAgentRoundEntry | null {
+  const result_map = buildResultMessageMap(messages);
+  const agent_groups = groupRoundByAgent(messages);
+  const assistant_messages = agent_groups.get(agent_id) ?? [];
+  const result_message = result_map.get(agent_id);
+
+  if (assistant_messages.length === 0 && !result_message) {
+    return null;
+  }
+
+  return {
+    agent_id,
+    assistant_messages,
+    result_message,
+    status: getAgentRoundStatus(assistant_messages, result_message),
+    timestamp: getAgentRoundTimestamp(assistant_messages, result_message),
+  };
+}
+
+/** 过滤出 Thread 需要展示的用户消息和目标 Agent 消息。 */
+export function getRoomThreadMessages(messages: Message[], agent_id: string): Message[] {
+  return messages.filter((message) => (
+    message.role === "user" ||
+    (message.agent_id === agent_id && (message.role === "assistant" || message.role === "result"))
+  ));
 }
 
 /** 从 assistant 消息中提取纯文本预览（截取前 80 字符） */

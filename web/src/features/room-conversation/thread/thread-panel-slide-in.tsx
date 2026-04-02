@@ -10,8 +10,8 @@ interface ThreadPanelSlideInProps {
   round_id: string | null;
   agent_id: string | null;
   agent_name: string | null;
-  /** 当前轮次的所有消息 */
-  all_round_messages: Message[];
+  /** 已过滤好的 Thread 消息 */
+  messages: Message[];
   on_close: () => void;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
@@ -28,7 +28,7 @@ export function ThreadPanelSlideIn({
   round_id,
   agent_id,
   agent_name,
-  all_round_messages,
+  messages,
   on_close,
   on_stop_message,
   on_open_workspace_file,
@@ -56,7 +56,7 @@ export function ThreadPanelSlideIn({
               round_id={round_id}
               agent_id={agent_id}
               agent_name={agent_name}
-              all_round_messages={all_round_messages}
+              messages={messages}
               on_close={on_close}
               on_stop_message={on_stop_message}
               on_open_workspace_file={on_open_workspace_file}
@@ -83,7 +83,7 @@ export function ThreadPanelSlideIn({
           round_id={round_id}
           agent_id={agent_id}
           agent_name={agent_name}
-          all_round_messages={all_round_messages}
+          messages={messages}
           on_close={on_close}
           on_stop_message={on_stop_message}
           on_open_workspace_file={on_open_workspace_file}
