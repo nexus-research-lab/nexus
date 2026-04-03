@@ -251,7 +251,7 @@ export function LauncherAppConversationPanel({
 
           <div
             ref={scroll_ref}
-            className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-1 pb-2 pt-3"
+            className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-2 pt-3"
             onScroll={update_follow_state}
           >
             {app_conversation_messages.length ? (

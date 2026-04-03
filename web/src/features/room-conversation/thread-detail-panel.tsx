@@ -86,7 +86,7 @@ export function ThreadDetailPanel({
       {/* ── 内容区 ────────────────────────────────────────────── */}
       <div
         ref={scroll_ref}
-        className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-3"
+        className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-3"
       >
         <MessageItem
           compact

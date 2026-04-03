@@ -691,18 +691,28 @@ function MessageItemInner(
 
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
       {userMessage && (
-        <div className={cn("w-full", compact ? "px-0.5" : "px-2 sm:px-3")}>
+        <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
           <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
-            <div className="group grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                <User className="h-4 w-4" />
-              </div>
+            <div className={cn(
+              "group grid min-w-0",
+              compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
+            )}>
+              {!compact ? (
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
+                  <User className="h-4 w-4" />
+                </div>
+              ) : null}
               <div className="relative min-w-0">
                 {/* 头部 */}
                 <div className={cn(
                   "flex items-center gap-2",
-                  compact ? "h-[26px]" : "h-7",
+                  compact ? "h-6" : "h-7",
                 )}>
+                  {compact ? (
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
+                      <User className="h-3 w-3" />
+                    </div>
+                  ) : null}
                   <span className="shrink-0 text-sm font-bold text-slate-900">你</span>
                   <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">
                     {userMessage.timestamp ? formatTime(userMessage.timestamp) : "--:--"}
@@ -742,7 +752,7 @@ function MessageItemInner(
                 <div className="pb-1 pt-1">
                   <p className={cn(
                     "whitespace-pre-wrap text-slate-900 wrap-anywhere",
-                    compact ? "text-[13px] leading-6" : "text-[15px] leading-7",
+                    compact ? "text-[14px] leading-6" : "text-[15px] leading-7",
                   )}>
                     {userContent}
                   </p>
@@ -755,19 +765,29 @@ function MessageItemInner(
 
       {/* ═══════════════════════ 助手消息 ═══════════════════════ */}
       {!shouldHideAssistantContent && (
-        <div className={cn("w-full", compact ? "px-0.5" : "px-2 sm:px-3")}>
+        <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
           <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
-            <div className={cn("group grid min-w-0 grid-cols-[40px_minmax(0,1fr)]", compact ? "gap-2" : "gap-3")}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                <Bot className="h-4 w-4" />
-              </div>
+            <div className={cn(
+              "group grid min-w-0",
+              compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
+            )}>
+              {!compact ? (
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
+                  <Bot className="h-4 w-4" />
+                </div>
+              ) : null}
 
               <div className="relative min-w-0">
                 {/* 优雅的头部栏 */}
                 <div className={cn(
                   "flex min-w-0 items-center gap-2",
-                  compact ? "h-7 pb-0.5" : "h-7 pb-0.5",
+                  compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
                 )}>
+                  {compact ? (
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
+                      <Bot className="h-3 w-3" />
+                    </div>
+                  ) : null}
                   <span className="shrink-0 text-sm font-bold text-slate-900">
                     {current_agent_name || "协作成员"}
                   </span>
@@ -807,7 +827,7 @@ function MessageItemInner(
                 <div
                   ref={contentAreaRef}
                   className={cn(
-                    compact ? "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[13px] leading-6" : "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[15px] leading-7",
+                    compact ? "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[14px] leading-6" : "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[15px] leading-7",
                   )}
                   style={showCursor ? { minHeight: streamingMinHeight.current } : undefined}
                 >
