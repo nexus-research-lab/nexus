@@ -61,11 +61,23 @@ class ThinkingContent(BaseModel):
     signature: Optional[str] = Field(default=None, description="思考签名")
 
 
+class TaskProgressContent(BaseModel):
+    """任务进度内容块。"""
+
+    type: Literal["task_progress"] = "task_progress"
+    task_id: str = Field(..., description="后台任务 ID")
+    description: str = Field(default="", description="当前进度描述")
+    tool_use_id: Optional[str] = Field(default=None, description="关联工具调用 ID")
+    last_tool_name: Optional[str] = Field(default=None, description="最近执行的工具")
+    usage: Dict[str, Any] = Field(default_factory=dict, description="进度统计信息")
+
+
 ContentBlock = Union[
     TextContent,
     ToolUseContent,
     ToolResultContent,
     ThinkingContent,
+    TaskProgressContent,
 ]
 
 
@@ -235,6 +247,8 @@ def parse_content_block(payload: Dict[str, Any]) -> ContentBlock:
         return ToolResultContent(**normalized_payload)
     if block_type == "thinking":
         return ThinkingContent(**normalized_payload)
+    if block_type == "task_progress":
+        return TaskProgressContent(**normalized_payload)
     return TextContent(**normalized_payload)
 
 

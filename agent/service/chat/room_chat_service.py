@@ -341,7 +341,6 @@ class RoomChatService:
             client = await agent_runtime.get_or_create_client(
                 session_key=sdk_session_key,
                 agent_id=agent_id,
-                permission_strategy=self._permission_strategy,
                 resolved_agent_id=agent_id,
                 force_fresh=True,
             )

@@ -131,7 +131,7 @@ class ChatMessageProcessor:
     def _dispatch(self, response_msg: SDKMessage) -> list[Message | StreamMessage]:
         """按 SDK 消息类型分发。"""
         if isinstance(response_msg, SystemMessage):
-            return []
+            return self._handle_system_message(response_msg)
         if isinstance(response_msg, StreamEvent):
             return self._handle_stream_event(response_msg)
         if isinstance(response_msg, AssistantMessage):
@@ -268,11 +268,44 @@ class ChatMessageProcessor:
             agent_id=self.agent_id,
             round_id=self.round_id,
             session_id=self.session_id,
-            parent_id=self.round_id,
+            parent_id=str(payload.get("parent_tool_use_id") or self.round_id),
             is_complete=bool(self._segment.stop_reason),
         )
         self._remember_assistant_message(assistant_message)
         return [assistant_message]
+
+    def _handle_system_message(self, response_msg: SystemMessage) -> list[Message]:
+        """把任务进度系统消息并入当前执行链。"""
+        payload = SdkMessageMapper.to_plain_dict(response_msg)
+        subtype = str(payload.get("subtype") or "")
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        if subtype != "task_progress" or not data:
+            return []
+
+        task_id = str(data.get("task_id") or "")
+        if not task_id:
+            return []
+
+        self._segment.append_task_progress(
+            {
+                "type": "task_progress",
+                "task_id": task_id,
+                "tool_use_id": data.get("tool_use_id"),
+                "description": str(data.get("description") or ""),
+                "last_tool_name": data.get("last_tool_name"),
+                "usage": data.get("usage") if isinstance(data.get("usage"), dict) else {},
+            }
+        )
+        message = self._segment.build_message(
+            session_key=self.session_key,
+            agent_id=self.agent_id,
+            round_id=self.round_id,
+            session_id=self.session_id,
+            parent_id=self.round_id,
+            is_complete=False,
+        )
+        self._remember_assistant_message(message)
+        return [message]
 
     def _handle_tool_result_message(self, response_msg: UserMessage) -> list[Message]:
         """将工具结果回填到当前 assistant 段。"""

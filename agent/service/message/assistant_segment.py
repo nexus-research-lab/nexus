@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, Optional
 
-from agent.schema.model_message import Message, StreamMessage
+from agent.schema.model_message import Message, StreamMessage, current_timestamp_ms
 
 
 class AssistantSegment:
@@ -30,18 +30,21 @@ class AssistantSegment:
         self.model: Optional[str] = None
         self.stop_reason: Optional[str] = None
         self.usage: Optional[Dict[str, Any]] = None
+        self.timestamp: Optional[int] = None
 
     def start(
         self,
         message_id: Optional[str] = None,
         model: Optional[str] = None,
         usage: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[int] = None,
     ) -> None:
         """开始一段新的 assistant 输出。"""
         self.reset()
         self.message_id = message_id or str(uuid.uuid4())
         self.model = model
         self.usage = usage
+        self.timestamp = timestamp or current_timestamp_ms()
 
     def ensure_started(self) -> None:
         """确保当前段已经初始化。"""
@@ -117,6 +120,11 @@ class AssistantSegment:
         for block in content:
             self._upsert_block(dict(block))
 
+    def append_task_progress(self, block: Dict[str, Any]) -> None:
+        """写入或更新任务进度块。"""
+        self.ensure_started()
+        self._upsert_block(dict(block))
+
     def has_content(self) -> bool:
         """判断当前段是否已有内容。"""
         return bool(self.content)
@@ -135,6 +143,9 @@ class AssistantSegment:
                 self.content[index] = incoming_block
                 return
             if incoming_type == "tool_result" and current_block.get("tool_use_id") == incoming_block.get("tool_use_id"):
+                self.content[index] = incoming_block
+                return
+            if incoming_type == "task_progress" and current_block.get("task_id") == incoming_block.get("task_id"):
                 self.content[index] = incoming_block
                 return
             if incoming_type == "text" and current_block.get("text") == incoming_block.get("text"):
@@ -188,6 +199,7 @@ class AssistantSegment:
             session_id=session_id,
             parent_id=parent_id,
             role="assistant",
+            timestamp=self.timestamp or current_timestamp_ms(),
             content=[dict(block) for block in self.content],
             model=self.model,
             stop_reason=self.stop_reason,
