@@ -29,7 +29,7 @@ interface LauncherAppConversationPanelProps {
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   on_stop_generation: () => void;
   on_submit: (next_prompt: string) => void;
-  pending_permission: PendingPermission | null;
+  pending_permissions: PendingPermission[];
 }
 
 const BOTTOM_THRESHOLD_PX = 80;
@@ -59,7 +59,7 @@ export function LauncherAppConversationPanel({
                                                on_permission_response,
                                                on_stop_generation,
                                                on_submit,
-                                               pending_permission,
+                                               pending_permissions,
                                              }: LauncherAppConversationPanelProps) {
   const scroll_ref = useRef<HTMLDivElement>(null);
   const bottom_anchor_ref = useRef<HTMLDivElement>(null);
@@ -259,7 +259,7 @@ export function LauncherAppConversationPanel({
                 bottom_anchor_ref={bottom_anchor_ref}
                 compact
                 current_agent_name="Nexus"
-                is_last_round_pending_permission={pending_permission}
+                is_last_round_pending_permissions={pending_permissions}
                 is_loading={is_loading}
                 is_mobile_layout
                 message_groups={message_groups}

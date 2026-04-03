@@ -259,7 +259,7 @@ export function LauncherPage() {
                 on_permission_response={app_conversation.send_permission_response}
                 on_stop_generation={app_conversation.stop_generation}
                 on_submit={handle_submit_app_conversation}
-                pending_permission={app_conversation.pending_permission}
+                pending_permissions={app_conversation.pending_permissions}
               />
             </div>
           </div>

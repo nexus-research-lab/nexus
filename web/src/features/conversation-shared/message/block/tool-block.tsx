@@ -38,7 +38,7 @@ interface ToolBlockProps {
 // ==================== 辅助函数 ====================
 
 const TOOL_TITLE_MAP: Record<string, string> = {
-  Bash: '执行动作',
+  Bash: '执行命令',
   Read: '读取内容',
   Write: '写入内容',
   Edit: '修改内容',
@@ -48,17 +48,27 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   LS: '查看目录',
   TodoWrite: '更新计划',
   AskUserQuestion: '等待你的确认',
+  WebSearch: '网络搜索',
+  WebFetch: '抓取网页',
+  Skill: '调用技能',
+  Task: '委派任务',
 };
 
 const getToolTitle = (tool_name: string): string => {
-  return TOOL_TITLE_MAP[tool_name] ?? '执行动作';
+  return TOOL_TITLE_MAP[tool_name] ?? tool_name;
 };
 
-/** 获取文件路径的简短显示 */
-const getPathDisplay = (input: any): string | null => {
+/** 获取工具输入的简短摘要 */
+const getInputSummary = (input: any): string | null => {
   if (!input) return null;
   if (input.file_path) return input.file_path;
   if (input.path) return input.path;
+  if (input.url) return input.url;
+  if (input.query) return input.query;
+  if (input.pattern) return input.pattern;
+  if (input.description) return input.description;
+  if (input.task) return input.task;
+  if (input.prompt) return input.prompt;
   if (input.command) return `$ ${input.command.slice(0, 50)}${input.command.length > 50 ? '...' : ''}`;
   return null;
 };
@@ -115,7 +125,7 @@ export function ToolBlock({
   }, [duration]);
 
   // 路径显示
-  const pathDisplay = useMemo(() => getPathDisplay(tool_use.input), [tool_use.input]);
+  const inputSummary = useMemo(() => getInputSummary(tool_use.input), [tool_use.input]);
   const toolTitle = useMemo(() => getToolTitle(tool_use.name), [tool_use.name]);
   const resultSummary = useMemo(() => {
     if (!tool_result) return null;
@@ -179,10 +189,10 @@ export function ToolBlock({
           <div className="mt-0.5 min-w-0 text-[12px] text-slate-500">
             {hasResult && !isExpanded && resultSummary ? (
               <span className="block truncate">{resultSummary}</span>
-            ) : pathDisplay ? (
-              <span className="block truncate">{pathDisplay}</span>
+            ) : inputSummary ? (
+              <span className="block truncate">{inputSummary}</span>
             ) : (
-              <span>{isWaiting ? '等你确认后继续' : '查看执行详情'}</span>
+              <span>{isWaiting ? '等待确认' : '处理中…'}</span>
             )}
           </div>
         </div>
@@ -230,38 +240,46 @@ export function ToolBlock({
       )}
 
       {!hasResult && isRunning && (
-        <div className="ml-7 mt-2 flex items-center gap-2 text-xs text-slate-500">
-          <div className="flex gap-1">
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.4s_infinite]" />
+        <div className="ml-7 mt-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
+              <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
+              <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.4s_infinite]" />
+            </div>
+            <span className="text-[11px] text-slate-400">处理中</span>
           </div>
-          <span className="font-mono text-[10px] uppercase tracking-wider">处理中…</span>
         </div>
       )}
 
       {permission_request && isWaiting && (
-        <div className="ml-7 mt-2 rounded-md bg-orange-50/70 p-3">
-          <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
-            {permission_request.summary && (
-              <div className="mb-2 flex items-center gap-2 text-[11px] text-orange-500">
-                <span className="font-semibold uppercase tracking-wider">
-                  {permission_request.risk_label || '需要确认'}
+        <div className="ml-7 mt-2 rounded-xl border border-amber-200/70 bg-amber-50/45 p-3">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-700">
+                {permission_request.risk_label || '需要确认'}
+              </span>
+              {permission_request.expires_at ? (
+                <span className="text-slate-400">
+                  {new Date(permission_request.expires_at).toLocaleTimeString()}
+                  {' '}前确认
                 </span>
-                <span className="truncate">{permission_request.summary}</span>
-              </div>
-            )}
-            <pre className="rounded-md bg-white/80 p-3 text-[11px] whitespace-pre-wrap break-all text-slate-900/74">
-              {JSON.stringify(permission_request.tool_input, null, 2)}
-            </pre>
+              ) : null}
+            </div>
+            {permission_request.summary ? (
+              <p className="text-[13px] leading-6 text-slate-700">
+                {permission_request.summary}
+              </p>
+            ) : null}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 sm:flex-nowrap">
-            <span className="flex items-center gap-1.5 text-xs font-medium text-orange-500">
-              <Clock className="w-3 h-3" />
-              等你确认后继续
-            </span>
-            <div className="hidden flex-1 sm:block" />
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+            <button
+              onClick={() => setShowDetailModal(true)}
+              className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
+            >
+              详情
+            </button>
             <button
               onClick={() => permission_request.on_deny()}
               className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
@@ -270,15 +288,9 @@ export function ToolBlock({
             </button>
             <button
               onClick={() => permission_request.on_allow()}
-              className="radius-shell-sm bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-[0_14px_24px_rgba(133,119,255,0.18)] transition-colors hover:bg-primary/90"
+              className="radius-shell-sm bg-slate-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-slate-800"
             >
-              允许执行
-            </button>
-            <button
-              onClick={() => setShowDetailModal(true)}
-              className="workspace-chip radius-shell-sm px-3 py-1 text-xs font-medium transition-colors hover:text-slate-950"
-            >
-              查看执行详情
+              允许
             </button>
           </div>
         </div>
@@ -289,7 +301,7 @@ export function ToolBlock({
         <PermissionDialog
           is_open={showDetailModal}
           tool_name={tool_use.name}
-          tool_input={tool_use.input}
+          tool_input={permission_request.tool_input}
           risk_level={permission_request.risk_level}
           risk_label={permission_request.risk_label}
           summary={permission_request.summary}

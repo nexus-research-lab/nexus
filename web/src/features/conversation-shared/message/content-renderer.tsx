@@ -13,7 +13,7 @@ interface ContentRendererProps {
   content: string | ContentBlock[];
   is_streaming?: boolean;
   streaming_block_indexes?: Set<number>;
-  pending_permission?: PendingPermission | null;
+  pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_open_workspace_file?: (path: string) => void;
   hidden_tool_names?: string[];
@@ -24,7 +24,7 @@ export function ContentRenderer(
     content,
     is_streaming = false,
     streaming_block_indexes,
-    pending_permission,
+    pending_permissions_by_tool_use_id,
     on_permission_response,
     on_open_workspace_file,
     hidden_tool_names = [],
@@ -93,13 +93,28 @@ export function ContentRenderer(
           );
         }
 
+        if (block.type === 'task_progress') {
+          return (
+            <div key={index} className="border-l border-slate-200/90 pl-4">
+              <div className="rounded-md bg-sky-50/70 px-3 py-2 text-[12px] text-sky-700">
+                <div className="font-medium text-sky-600">
+                  {block.last_tool_name || '后台任务'} 正在执行
+                </div>
+                <div className="mt-1 whitespace-pre-wrap break-words text-slate-600">
+                  {block.description || '正在处理中…'}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         if (block.type === 'tool_use') {
           // 特殊处理 AskUserQuestion 工具
           if (block.name === 'AskUserQuestion') {
             const toolData = toolUseMap.get(block.id);
             const hasResult = !!toolData?.result;
-            // 检查是否正在等待此工具的权限请求
-            const isThisToolPending = pending_permission && pending_permission.tool_name === 'AskUserQuestion' && !hasResult;
+            const pending_permission = pending_permissions_by_tool_use_id?.get(block.id);
+            const isThisToolPending = Boolean(pending_permission && !hasResult);
             return (
               <div key={index}>
                 <AskUserQuestionBlock
@@ -107,8 +122,11 @@ export function ContentRenderer(
                   is_submitted={hasResult}
                   is_ready={Boolean(isThisToolPending)}
                   on_submit={(_, answers) => {
-                    // 发送 permission_response 并附带用户答案
+                    if (!pending_permission) {
+                      return false;
+                    }
                     return on_permission_response?.({
+                      request_id: pending_permission.request_id,
                       decision: 'allow',
                       user_answers: answers,
                     }) ?? false;
@@ -124,9 +142,8 @@ export function ContentRenderer(
           }
 
           const toolData = toolUseMap.get(block.id);
-          // 判断权限匹配：匹配 + 无结果检查
-          const isThisToolPendingPermission = pending_permission &&
-            pending_permission.tool_name === block.name && !toolData?.result;
+          const pending_permission = pending_permissions_by_tool_use_id?.get(block.id);
+          const isThisToolPendingPermission = Boolean(pending_permission && !toolData?.result);
 
           // 确定状态
           let toolStatus: 'pending' | 'running' | 'success' | 'error' | 'waiting_permission' = 'running';
@@ -151,10 +168,12 @@ export function ContentRenderer(
                   suggestions: pending_permission!.suggestions,
                   expires_at: pending_permission!.expires_at,
                   on_allow: (updated_permissions) => on_permission_response?.({
+                    request_id: pending_permission!.request_id,
                     decision: 'allow',
                     updated_permissions,
                   }),
                   on_deny: (updated_permissions) => on_permission_response?.({
+                    request_id: pending_permission!.request_id,
                     decision: 'deny',
                     updated_permissions,
                   }),

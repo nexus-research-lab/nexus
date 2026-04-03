@@ -103,7 +103,7 @@ export function RoomChatPanel({
     error,
     messages,
     is_loading,
-    pending_permission,
+    pending_permissions,
     send_message,
     stop_generation,
     load_session,
@@ -319,7 +319,7 @@ export function RoomChatPanel({
               feed_ref={feed_ref}
               scroll_ref={scroll_ref}
               current_agent_name={current_agent_name ?? null}
-              is_last_round_pending_permission={pending_permission}
+              is_last_round_pending_permissions={pending_permissions}
               is_loading={is_loading}
               is_mobile_layout={is_mobile_layout}
               message_groups={message_groups}

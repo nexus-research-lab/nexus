@@ -11,7 +11,7 @@ import { prepare, layout } from "@chenglou/pretext";
 import { Bot, Check, ChevronDown, ChevronRight, Copy, Edit2, Square, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssistantContentMerge } from "@/hooks/use-assistant-content-merge";
-import { AssistantMessage, ContentBlock, Message, ResultMessage } from "@/types/message";
+import { AssistantMessage, ContentBlock, Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
@@ -45,7 +45,7 @@ interface MessageItemProps {
   messages: Message[];
   is_last_round?: boolean;
   is_loading?: boolean;
-  pending_permission?: PendingPermission | null;
+  pending_permissions?: PendingPermission[];
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   hidden_tool_names?: string[];
   on_edit_user_message?: (message_id: string, new_content: string) => void;
@@ -65,10 +65,11 @@ function MessageItemInner(
   {
     compact = false,
     current_agent_name,
+    round_id,
     messages,
     is_last_round,
     is_loading,
-    pending_permission,
+    pending_permissions = [],
     on_permission_response,
     hidden_tool_names = ['TodoWrite'],
     on_edit_user_message,
@@ -132,31 +133,57 @@ function MessageItemInner(
     return typeof userMessage.content === 'string' ? userMessage.content : '';
   }, [userMessage]);
 
-  const hasInlinePendingTool = useMemo(() => {
-    if (!pending_permission) {
-      return false;
+  const {
+    matchedPendingPermissionsByToolUseId,
+    unmatchedPendingPermissions,
+  } = useMemo(() => {
+    const matched_permissions = new Map<string, PendingPermission>();
+    if (pending_permissions.length === 0) {
+      return {
+        matchedPendingPermissionsByToolUseId: matched_permissions,
+        unmatchedPendingPermissions: [] as PendingPermission[],
+      };
     }
 
-    const pendingToolUseIds = new Set<string>();
-    const resolvedToolUseIds = new Set<string>();
-
+    const resolved_tool_use_ids = new Set<string>();
     for (const block of mergedContent) {
-      if (block.type === 'tool_use' && block.name === pending_permission.tool_name) {
-        pendingToolUseIds.add(block.id);
-      }
-      if (block.type === 'tool_result') {
-        resolvedToolUseIds.add(block.tool_use_id);
+      if (block.type === "tool_result") {
+        resolved_tool_use_ids.add(block.tool_use_id);
       }
     }
 
-    for (const toolUseId of pendingToolUseIds) {
-      if (!resolvedToolUseIds.has(toolUseId)) {
-        return true;
+    const permission_queue_map = new Map<string, PendingPermission[]>();
+    pending_permissions.forEach((permission) => {
+      const signature = buildPermissionSignature(permission.tool_name, permission.tool_input);
+      const queue = permission_queue_map.get(signature) ?? [];
+      queue.push(permission);
+      permission_queue_map.set(signature, queue);
+    });
+
+    const matched_request_ids = new Set<string>();
+    for (const block of mergedContent) {
+      if (block.type !== "tool_use" || resolved_tool_use_ids.has(block.id)) {
+        continue;
       }
+      const signature = buildPermissionSignature(block.name, block.input);
+      const queue = permission_queue_map.get(signature);
+      const permission = queue?.shift();
+      if (!permission) {
+        continue;
+      }
+      matched_permissions.set(block.id, permission);
+      matched_request_ids.add(permission.request_id);
     }
 
-    return false;
-  }, [mergedContent, pending_permission]);
+    return {
+      matchedPendingPermissionsByToolUseId: matched_permissions,
+      unmatchedPendingPermissions: pending_permissions.filter(
+        (permission) => !matched_request_ids.has(permission.request_id),
+      ),
+    };
+  }, [mergedContent, pending_permissions]);
+
+  const hasInlinePendingTool = matchedPendingPermissionsByToolUseId.size > 0;
 
   const hiddenToolUseIds = useMemo(() => {
     const nextIds = new Set<string>();
@@ -210,6 +237,14 @@ function MessageItemInner(
             source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
           });
         }
+        return;
+      }
+      if (block.type === "task_progress") {
+        entries.push({
+          block,
+          merged_index: mergedIndex,
+          source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+        });
       }
     });
 
@@ -280,15 +315,25 @@ function MessageItemInner(
     [visibleAssistantTurns],
   );
 
+  const finalAssistantTurn = useMemo(() => {
+    for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
+      const message = assistantMessages[index] as AssistantMessage;
+      if (!message.parent_id || message.parent_id === round_id) {
+        return visibleAssistantTurns.find((turn) => turn.message_id === message.message_id) ?? null;
+      }
+    }
+    return lastAssistantTurn;
+  }, [assistantMessages, lastAssistantTurn, round_id, visibleAssistantTurns]);
+
   const finalTailEntries = useMemo<OrderedAssistantEntry[]>(() => {
-    if (!lastAssistantTurn) {
+    if (!finalAssistantTurn) {
       return [];
     }
 
     const tail_entries: OrderedAssistantEntry[] = [];
     for (let index = visibleOrderedAssistantEntries.length - 1; index >= 0; index -= 1) {
       const entry = visibleOrderedAssistantEntries[index];
-      if (entry.source_message_id !== lastAssistantTurn.message_id) {
+      if (entry.source_message_id !== finalAssistantTurn.message_id) {
         break;
       }
       if (entry.block.type !== "text" || !entry.block.text.trim()) {
@@ -297,7 +342,7 @@ function MessageItemInner(
       tail_entries.unshift(entry);
     }
     return tail_entries;
-  }, [lastAssistantTurn, visibleOrderedAssistantEntries]);
+  }, [finalAssistantTurn, visibleOrderedAssistantEntries]);
 
   const finalTailText = useMemo(() => {
     return finalTailEntries
@@ -330,9 +375,9 @@ function MessageItemInner(
       );
     }
 
-    if (!result_text && lastAssistantTurn) {
+    if (!result_text && finalAssistantTurn) {
       return projectionFromOrderedEntries(
-        visibleOrderedAssistantEntries.filter((entry) => entry.source_message_id !== lastAssistantTurn.message_id),
+        visibleOrderedAssistantEntries.filter((entry) => entry.source_message_id !== finalAssistantTurn.message_id),
         streamingBlockIndexes,
       );
     }
@@ -341,7 +386,7 @@ function MessageItemInner(
   }, [
     finalTailEntries,
     finalTailText,
-    lastAssistantTurn,
+    finalAssistantTurn,
     resultMessage,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
@@ -351,17 +396,17 @@ function MessageItemInner(
     if (finalTailEntries.length > 0) {
       return finalTailEntries.map((entry) => entry.block);
     }
-    if (!lastAssistantTurn) {
+    if (!finalAssistantTurn) {
       return null;
     }
-    if (lastAssistantTurn.text_content.length > 0) {
-      return lastAssistantTurn.text_content;
+    if (finalAssistantTurn.text_content.length > 0) {
+      return finalAssistantTurn.text_content;
     }
-    if (lastAssistantTurn.content.length > 0) {
-      return lastAssistantTurn.content;
+    if (finalAssistantTurn.content.length > 0) {
+      return finalAssistantTurn.content;
     }
     return null;
-  }, [finalTailEntries, lastAssistantTurn]);
+  }, [finalTailEntries, finalAssistantTurn]);
 
   const fallbackFinalAssistantStreamingIndexes = useMemo(() => {
     if (finalTailEntries.length > 0) {
@@ -373,14 +418,14 @@ function MessageItemInner(
       });
       return next_indexes;
     }
-    if (!lastAssistantTurn) {
+    if (!finalAssistantTurn) {
       return new Set<number>();
     }
-    if (lastAssistantTurn.text_content.length > 0) {
-      return lastAssistantTurn.text_streaming_indexes;
+    if (finalAssistantTurn.text_content.length > 0) {
+      return finalAssistantTurn.text_streaming_indexes;
     }
-    return lastAssistantTurn.streaming_indexes;
-  }, [finalTailEntries, lastAssistantTurn, streamingBlockIndexes]);
+    return finalAssistantTurn.streaming_indexes;
+  }, [finalAssistantTurn, finalTailEntries, streamingBlockIndexes]);
 
   const directOrderedProjection = useMemo<ContentProjection>(() => {
     if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
@@ -426,13 +471,14 @@ function MessageItemInner(
     return extractTextFromContentBlocks(finalAssistantContent);
   }, [finalAssistantContent]);
   const shouldRenderDirectAssistantContent = directOrderedProjection.content.length > 0;
-  const hasVisibleProcess = processProjection.content.length > 0 || (pending_permission && !hasInlinePendingTool);
+  const hasVisibleProcess = processProjection.content.length > 0 || unmatchedPendingPermissions.length > 0;
   const shouldRenderProcessCallchain = assistant_content_mode === "dm_archived" && hasVisibleProcess;
 
   const processSummary = useMemo(() => {
     let toolCount = 0;
     let thinkingCount = 0;
     let errorCount = 0;
+    let progressCount = 0;
 
     for (const block of processProjection.content) {
       if (block.type === "thinking") {
@@ -445,10 +491,14 @@ function MessageItemInner(
       }
       if (block.type === "tool_result" && block.is_error) {
         errorCount += 1;
+        continue;
+      }
+      if (block.type === "task_progress") {
+        progressCount += 1;
       }
     }
 
-    if (pending_permission) {
+    if (pending_permissions.length > 0) {
       return "等待你的确认后继续";
     }
 
@@ -462,9 +512,12 @@ function MessageItemInner(
     if (errorCount > 0) {
       summaryParts.push(`${errorCount} 个异常`);
     }
+    if (progressCount > 0) {
+      summaryParts.push(`${progressCount} 条进度`);
+    }
 
     return summaryParts.length > 0 ? summaryParts.join(" · ") : "查看过程";
-  }, [pending_permission, processProjection.content]);
+  }, [pending_permissions.length, processProjection.content]);
 
   const shouldHideAssistantContent = useMemo(() => {
     if (
@@ -504,10 +557,10 @@ function MessageItemInner(
   );
 
   useEffect(() => {
-    if (pending_permission || (is_last_round && is_loading)) {
+    if (pending_permissions.length > 0 || (is_last_round && is_loading)) {
       setIsProcessExpanded(true);
     }
-  }, [is_last_round, is_loading, pending_permission]);
+  }, [is_last_round, is_loading, pending_permissions.length]);
 
   // 操作
   const handleCopyUser = useCallback(async () => {
@@ -545,34 +598,39 @@ function MessageItemInner(
     if (!on_stop_message || !firstAssistant) return;
     on_stop_message(firstAssistant.message_id);
   }, [on_stop_message, firstAssistant]);
-  const pendingPermissionBlock = pending_permission && !hasInlinePendingTool ? (
-    <div className="mt-3 rounded-xl bg-slate-50/70 p-3">
-      <ToolBlock
-        tool_use={{
-          type: "tool_use",
-          id: `pending_${pending_permission.request_id}`,
-          name: pending_permission.tool_name,
-          input: pending_permission.tool_input,
-        }}
-        status="waiting_permission"
-        permission_request={{
-          request_id: pending_permission.request_id,
-          tool_input: pending_permission.tool_input,
-          risk_level: pending_permission.risk_level,
-          risk_label: pending_permission.risk_label,
-          summary: pending_permission.summary,
-          suggestions: pending_permission.suggestions,
-          expires_at: pending_permission.expires_at,
-          on_allow: (updated_permissions) => on_permission_response?.({
-            decision: "allow",
-            updated_permissions,
-          }),
-          on_deny: (updated_permissions) => on_permission_response?.({
-            decision: "deny",
-            updated_permissions,
-          }),
-        }}
-      />
+  const pendingPermissionBlock = unmatchedPendingPermissions.length > 0 ? (
+    <div className="mt-3 space-y-3 rounded-xl bg-slate-50/70 p-3">
+      {unmatchedPendingPermissions.map((permission) => (
+        <ToolBlock
+          key={permission.request_id}
+          tool_use={{
+            type: "tool_use",
+            id: `pending_${permission.request_id}`,
+            name: permission.tool_name,
+            input: permission.tool_input,
+          }}
+          status="waiting_permission"
+          permission_request={{
+            request_id: permission.request_id,
+            tool_input: permission.tool_input,
+            risk_level: permission.risk_level,
+            risk_label: permission.risk_label,
+            summary: permission.summary,
+            suggestions: permission.suggestions,
+            expires_at: permission.expires_at,
+            on_allow: (updated_permissions) => on_permission_response?.({
+              request_id: permission.request_id,
+              decision: "allow",
+              updated_permissions,
+            }),
+            on_deny: (updated_permissions) => on_permission_response?.({
+              request_id: permission.request_id,
+              decision: "deny",
+              updated_permissions,
+            }),
+          }}
+        />
+      ))}
     </div>
   ) : null;
 
@@ -778,7 +836,7 @@ function MessageItemInner(
                         content={directOrderedProjection.content}
                         is_streaming={showCursor}
                         streaming_block_indexes={directOrderedProjection.streaming_indexes}
-                        pending_permission={pending_permission}
+                        pending_permissions_by_tool_use_id={matchedPendingPermissionsByToolUseId}
                         on_permission_response={on_permission_response}
                         on_open_workspace_file={on_open_workspace_file}
                         hidden_tool_names={hidden_tool_names}
@@ -809,7 +867,7 @@ function MessageItemInner(
                             content={processProjection.content}
                             is_streaming={showCursor}
                             streaming_block_indexes={processProjection.streaming_indexes}
-                            pending_permission={pending_permission}
+                            pending_permissions_by_tool_use_id={matchedPendingPermissionsByToolUseId}
                             on_permission_response={on_permission_response}
                             on_open_workspace_file={on_open_workspace_file}
                             hidden_tool_names={hidden_tool_names}
@@ -860,7 +918,7 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.is_loading !== next.is_loading) return false;
   if (prev.compact !== next.compact) return false;
   if (prev.current_agent_name !== next.current_agent_name) return false;
-  if (prev.pending_permission !== next.pending_permission) return false;
+  if (prev.pending_permissions !== next.pending_permissions) return false;
   if (prev.assistant_header_action !== next.assistant_header_action) return false;
   if (prev.assistant_content_mode !== next.assistant_content_mode) return false;
   if (prev.class_name !== next.class_name) return false;
@@ -899,6 +957,32 @@ function extractTextFromContentBlocks(content?: ContentBlock[] | null): string {
     }
   });
   return texts.join("\n\n");
+}
+
+function buildPermissionSignature(tool_name: string, tool_input: Record<string, unknown>): string {
+  return `${tool_name}:${stableStringify(tool_input)}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (value == null) {
+    return "null";
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(String(value));
 }
 
 export default MessageItem;

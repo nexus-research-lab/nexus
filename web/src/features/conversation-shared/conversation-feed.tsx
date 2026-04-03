@@ -16,7 +16,7 @@ interface ConversationFeedProps {
   current_agent_name: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
-  is_last_round_pending_permission: PendingPermission | null;
+  is_last_round_pending_permissions: PendingPermission[];
   is_loading: boolean;
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
@@ -53,7 +53,7 @@ export const ConversationFeed = memo(function ConversationFeed({
   compact = false,
   current_agent_name,
   agent_name_map,
-  is_last_round_pending_permission,
+  is_last_round_pending_permissions,
   is_loading,
   is_mobile_layout,
   message_groups,
@@ -73,7 +73,7 @@ export const ConversationFeed = memo(function ConversationFeed({
         compact={compact}
         current_agent_name={current_agent_name}
         agent_name_map={agent_name_map}
-        is_last_round_pending_permission={is_last_round_pending_permission}
+        is_last_round_pending_permissions={is_last_round_pending_permissions}
         is_loading={is_loading}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
@@ -93,6 +93,9 @@ export const ConversationFeed = memo(function ConversationFeed({
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
+        const should_keep_round_live = isLastRound && (
+          is_loading || is_last_round_pending_permissions.length > 0
+        );
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
 
         return (
@@ -102,10 +105,10 @@ export const ConversationFeed = memo(function ConversationFeed({
             current_agent_name={round_agent_name}
             round_id={roundId}
             messages={roundMessages}
-            assistant_content_mode={isLastRound && is_loading ? "dm_live" : "dm_archived"}
+            assistant_content_mode={should_keep_round_live ? "dm_live" : "dm_archived"}
             is_last_round={isLastRound}
             is_loading={is_loading}
-            pending_permission={isLastRound ? is_last_round_pending_permission : null}
+            pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
@@ -126,7 +129,7 @@ function VirtualFeed({
   compact,
   current_agent_name,
   agent_name_map,
-  is_last_round_pending_permission,
+  is_last_round_pending_permissions,
   is_loading,
   is_mobile_layout,
   message_groups,
@@ -192,6 +195,9 @@ function VirtualFeed({
           const roundId = round_ids[virtual_item.index];
           const roundMessages = message_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
+          const should_keep_round_live = isLastRound && (
+            is_loading || is_last_round_pending_permissions.length > 0
+          );
           const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
 
           return (
@@ -205,10 +211,10 @@ function VirtualFeed({
                 current_agent_name={round_agent_name}
                 round_id={roundId}
                 messages={roundMessages}
-                assistant_content_mode={isLastRound && is_loading ? "dm_live" : "dm_archived"}
+                assistant_content_mode={should_keep_round_live ? "dm_live" : "dm_archived"}
                 is_last_round={isLastRound}
                 is_loading={is_loading}
-                pending_permission={isLastRound ? is_last_round_pending_permission : null}
+                pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
                 on_permission_response={on_permission_response}
                 on_open_workspace_file={on_open_workspace_file}
                 on_stop_message={on_stop_message}

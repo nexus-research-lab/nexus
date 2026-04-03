@@ -18,7 +18,7 @@ interface RoomConversationFeedProps {
   current_agent_name: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
-  is_last_round_pending_permission: PendingPermission | null;
+  is_last_round_pending_permissions: PendingPermission[];
   is_loading: boolean;
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
@@ -55,7 +55,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
   compact = false,
   current_agent_name,
   agent_name_map,
-  is_last_round_pending_permission,
+  is_last_round_pending_permissions,
   is_loading,
   is_mobile_layout,
   message_groups,
@@ -75,7 +75,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         compact={compact}
         current_agent_name={current_agent_name}
         agent_name_map={agent_name_map}
-        is_last_round_pending_permission={is_last_round_pending_permission}
+        is_last_round_pending_permissions={is_last_round_pending_permissions}
         is_loading={is_loading}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
@@ -124,7 +124,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
             messages={roundMessages}
             is_last_round={isLastRound}
             is_loading={is_loading}
-            pending_permission={isLastRound ? is_last_round_pending_permission : null}
+            pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
@@ -145,7 +145,7 @@ function VirtualFeed({
   compact,
   current_agent_name,
   agent_name_map,
-  is_last_round_pending_permission,
+  is_last_round_pending_permissions,
   is_loading,
   is_mobile_layout,
   message_groups,
@@ -237,7 +237,7 @@ function VirtualFeed({
                   messages={roundMessages}
                   is_last_round={isLastRound}
                   is_loading={is_loading}
-                  pending_permission={isLastRound ? is_last_round_pending_permission : null}
+                  pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
                   on_permission_response={on_permission_response}
                   on_open_workspace_file={on_open_workspace_file}
                   on_stop_message={on_stop_message}
