@@ -64,10 +64,21 @@ class WebSocketConnectionManager:
         if self.permission_strategy:
             self.permission_strategy.close()
 
+        tasks_to_await: list[asyncio.Task] = []
         for session_key, task in chat_tasks.items():
+            if (
+                self.permission_strategy and
+                self.permission_strategy.has_pending_request_for_session(session_key)
+            ):
+                # 中文注释：权限确认已展示给前端后，短暂断线不应把会话直接打断。
+                # 保留运行中的任务，等待重连后的 permission_response 唤醒。
+                logger.info(f"🔒 保留等待权限确认的会话任务: {session_key}")
+                continue
+
             if not task.done():
                 logger.info(f"🛑 清理: 取消 chat 任务 {session_key}")
                 task.cancel()
+                tasks_to_await.append(task)
 
             try:
                 client = await session_manager.get_session(session_key)
@@ -77,8 +88,8 @@ class WebSocketConnectionManager:
             except Exception as exc:
                 logger.warning(f"⚠️ 中断 SDK 失败 {session_key}: {exc}")
 
-        if chat_tasks:
-            await asyncio.gather(*chat_tasks.values(), return_exceptions=True)
+        if tasks_to_await:
+            await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
         chat_tasks.clear()
 

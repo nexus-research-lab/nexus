@@ -20,6 +20,7 @@ from claude_agent_sdk.types import AssistantMessage, StreamEvent, UserMessage
 
 from agent.schema.model_message import Message, StreamMessage
 from agent.service.message.assistant_segment import AssistantSegment
+from agent.service.message.sdk_message_logger import message_log
 from agent.service.message.sdk_message_mapper import SdkMessageMapper
 from agent.service.session.session_manager import session_manager
 from agent.service.session.session_router import resolve_agent_id
@@ -68,6 +69,7 @@ class ChatMessageProcessor:
                 type(response_msg).__name__,
                 SdkMessageMapper.to_plain_dict(response_msg),
             )
+        message_log.print_message(response_msg)
         await self._register_session_id(response_msg)
         if not isinstance(response_msg, SystemMessage):
             await self._save_user_message()

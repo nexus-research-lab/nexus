@@ -43,6 +43,13 @@ class InteractivePermissionStrategy(PermissionStrategy):
         self.sender = sender
         self._is_closed = False
 
+    def has_pending_request_for_session(self, session_key: str) -> bool:
+        """判断指定 session 是否仍有等待中的权限请求。"""
+        return any(
+            pending_request.session_key == session_key
+            for pending_request in self.__class__._permission_requests.values()
+        )
+
     async def request_permission(
             self,
             session_key: str,
@@ -52,7 +59,12 @@ class InteractivePermissionStrategy(PermissionStrategy):
     ) -> PermissionResult:
         """通过当前通道向前端请求权限确认。"""
         if self._is_closed or self._sender_is_closed():
-            return PermissionResultDeny(message="Permission channel closed", interrupt=True)
+            logger.warning(
+                "⚠️ 权限通道不可用，按普通拒绝处理: session=%s tool=%s",
+                session_key,
+                tool_name,
+            )
+            return PermissionResultDeny(message="Permission channel closed", interrupt=False)
 
         request_id = str(uuid.uuid4())
         timeout_seconds = max(float(settings.PERMISSION_REQUEST_TIMEOUT_SECONDS), 1.0)
@@ -94,11 +106,19 @@ class InteractivePermissionStrategy(PermissionStrategy):
         except Exception as exc:
             logger.warning(f"⚠️ 发送权限请求失败: tool={tool_name}, error={exc}")
             self._cleanup_request(request_id)
-            return PermissionResultDeny(message="Failed to dispatch permission request", interrupt=True)
+            return PermissionResultDeny(
+                message="Failed to dispatch permission request",
+                interrupt=False,
+            )
 
         if self._is_closed or self._sender_is_closed():
             self._cleanup_request(request_id)
-            return PermissionResultDeny(message="Permission channel closed", interrupt=True)
+            logger.warning(
+                "⚠️ 权限请求已发出但通道随后关闭，按普通拒绝处理: session=%s tool=%s",
+                session_key,
+                tool_name,
+            )
+            return PermissionResultDeny(message="Permission channel closed", interrupt=False)
 
         try:
             await asyncio.wait_for(pending_request.event.wait(), timeout=timeout_seconds)
