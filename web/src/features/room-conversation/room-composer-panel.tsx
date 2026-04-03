@@ -1,10 +1,9 @@
 "use client";
 
 import { KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Paperclip, Send, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { useTextareaHeight } from "@/hooks/use-textarea-height";
 import { Agent } from "@/types/agent";
 
@@ -19,32 +18,24 @@ interface AttachmentFile {
 
 interface RoomComposerPanelProps {
   compact: boolean;
-  current_agent_name: string | null;
-  is_loading: boolean;
   on_send_message: (content: string) => void | Promise<void>;
-  on_stop: () => void;
   initial_draft?: string | null;
   disabled?: boolean;
   placeholder?: string;
   max_length?: number;
   room_members?: Agent[];
-  mention_disabled?: boolean;
-  status_hint?: string | null;
+  mention_unavailable_agent_ids?: string[];
 }
 
 const RoomComposerPanelView = memo(({
   compact,
-  current_agent_name,
-  is_loading,
   on_send_message,
-  on_stop,
   initial_draft = null,
   disabled = false,
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
-  mention_disabled = false,
-  status_hint = null,
+  mention_unavailable_agent_ids = [],
 }: RoomComposerPanelProps) => {
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
@@ -60,6 +51,9 @@ const RoomComposerPanelView = memo(({
   const is_composing_ref = useRef(false);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
+  const available_room_members = room_members.filter(
+    (member) => !mention_unavailable_agent_ids.includes(member.agent_id),
+  );
 
   // Pretext-based auto-height: no scrollHeight reflow
   useTextareaHeight(textarea_ref, input, { minHeight: 24, maxHeight: 128, lineHeight: 24, paddingY: 0 });
@@ -68,7 +62,7 @@ const RoomComposerPanelView = memo(({
   const handle_input_change = useCallback((value: string) => {
     setInput(value);
 
-    if (room_members.length === 0 || mention_disabled) {
+    if (available_room_members.length === 0) {
       set_mention_active(false);
       return;
     }
@@ -94,7 +88,7 @@ const RoomComposerPanelView = memo(({
     }
 
     set_mention_active(false);
-  }, [mention_disabled, room_members.length]);
+  }, [available_room_members.length]);
 
   const handle_mention_select = useCallback((agent: Agent) => {
     // 把 @filter 替换为 @AgentName + 空格
@@ -189,11 +183,6 @@ const RoomComposerPanelView = memo(({
       }
       return;
     }
-
-    if (event.key === "Escape" && is_loading) {
-      event.preventDefault();
-      on_stop();
-    }
   };
 
   const handle_file_select = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -244,9 +233,6 @@ const RoomComposerPanelView = memo(({
   const char_count = input.length;
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
-  const resolved_status_hint = status_hint ?? (
-    current_agent_name ? `@${current_agent_name} 正在这个协作中` : "继续推进当前协作"
-  );
 
   return (
     <div
@@ -303,13 +289,8 @@ const RoomComposerPanelView = memo(({
           )}
         >
           <div className={cn("border-b border-slate-200 px-4", compact ? "py-1.5" : "py-2")}>
-            <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
+            <div className="flex items-center gap-3 text-[11px] text-slate-500">
               <span className="font-semibold uppercase tracking-[0.14em]">Message</span>
-              {!compact ? (
-                <span className="truncate text-slate-400">
-                  {resolved_status_hint}
-                </span>
-              ) : null}
             </div>
           </div>
 
@@ -341,11 +322,11 @@ const RoomComposerPanelView = memo(({
             </div>
 
             <div className="relative flex-1">
-              {mention_active && !mention_disabled && room_members.length > 0 ? (
+              {mention_active && available_room_members.length > 0 ? (
                 <MentionPopover
                   anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
                   filter={mention_filter}
-                  members={room_members}
+                  members={available_room_members}
                   on_close={handle_mention_close}
                   on_select={handle_mention_select}
                 />
@@ -393,23 +374,6 @@ const RoomComposerPanelView = memo(({
                 </div>
               ) : null}
 
-              {is_loading ? (
-                <button
-                  aria-label="停止生成"
-                  className={cn(
-                    "relative overflow-hidden rounded-2xl p-2",
-                    "bg-[linear-gradient(135deg,rgba(255,224,224,0.98),rgba(247,173,173,0.92))] text-destructive",
-                    "transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/40",
-                    "group hover:-translate-y-0.5 hover:shadow-[0_12px_20px_rgba(239,68,68,0.18)]",
-                  )}
-                  onClick={on_stop}
-                  type="button"
-                >
-                  <div className="absolute inset-0 animate-pulse bg-destructive/10" />
-                  <StopCircle size={16} className="relative z-10" />
-                </button>
-              ) : null}
-
               <button
                 aria-label="发送消息"
                 className={cn(
@@ -433,29 +397,16 @@ const RoomComposerPanelView = memo(({
 
           <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2">
             <div className="flex items-center gap-3 text-[10px] text-slate-400">
-              {is_loading ? (
-                <span className="flex items-center gap-2 text-emerald-700/72">
-                  <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                  <span className="animate-pulse">协作进行中，仍可继续发送</span>
-                  {mention_disabled ? (
-                    <span className="text-slate-700/40">@ 暂不可用</span>
-                  ) : null}
-                  <span className="text-slate-700/28">[ESC 停止最近一轮]</span>
-                </span>
-              ) : (
-                <>
-                  <span className="flex items-center gap-1">
-                    <kbd>Enter</kbd>
-                    <span>发送</span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd>Shift</kbd>
-                    <span>+</span>
-                    <kbd>Enter</kbd>
-                    <span>换行</span>
-                  </span>
-                </>
-              )}
+              <span className="flex items-center gap-1">
+                <kbd>Enter</kbd>
+                <span>发送</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd>Shift</kbd>
+                <span>+</span>
+                <kbd>Enter</kbd>
+                <span>换行</span>
+              </span>
             </div>
 
             {history_index >= 0 ? (

@@ -15,6 +15,7 @@ import { RoomSurfaceTabKey } from "@/types/room-surface";
 
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import {
+  buildRoomAgentRoundEntries,
   getRoomAgentRoundEntry,
   getRoomThreadMessages,
   get_latest_reply_timestamp,
@@ -102,7 +103,6 @@ export function RoomChatPanel({
     error,
     messages,
     is_loading,
-    agent_thinking,
     pending_permission,
     send_message,
     stop_generation,
@@ -163,6 +163,17 @@ export function RoomChatPanel({
 
   const message_groups = useMemo(() => groupRoomMessagesByRound(messages), [messages]);
   const round_ids = Array.from(message_groups.keys());
+  const mention_unavailable_agent_ids = useMemo(() => {
+    const next_ids = new Set<string>();
+    for (const round_messages of message_groups.values()) {
+      for (const entry of buildRoomAgentRoundEntries(round_messages)) {
+        if (isAgentRoundActive(entry.status)) {
+          next_ids.add(entry.agent_id);
+        }
+      }
+    }
+    return Array.from(next_ids);
+  }, [message_groups]);
 
   const handle_send_message = async (content: string) => {
     if (!content.trim()) return;
@@ -174,13 +185,7 @@ export function RoomChatPanel({
     }
   };
 
-  const handle_stop = () => stop_generation();
   const handle_stop_message = useCallback((msg_id: string) => stop_generation(msg_id), [stop_generation]);
-  const composer_status_hint = agent_thinking?.agent_name
-    ? `@${agent_thinking.agent_name} 正在回复`
-    : is_loading
-      ? "协作进行中，仍可继续发送；当前暂不支持新的 @ 指派"
-      : "使用 @成员名 指定本轮参与者";
 
   // Thread 面板数据：推送到 Context，由 Layout 读取渲染 inspector
   const thread_round_messages = useMemo(
@@ -335,14 +340,10 @@ export function RoomChatPanel({
 
           <RoomComposerPanel
             compact={is_mobile_layout}
-            current_agent_name={current_agent_name ?? null}
             initial_draft={initial_draft}
-            is_loading={is_loading}
-            mention_disabled={is_loading}
+            mention_unavailable_agent_ids={mention_unavailable_agent_ids}
             on_send_message={handle_send_message}
-            on_stop={handle_stop}
             room_members={room_members}
-            status_hint={composer_status_hint}
           />
         </>
       )}

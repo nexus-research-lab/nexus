@@ -340,12 +340,22 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     },
   });
 
+  const previous_ws_state_ref = useRef(ws_state);
+
   useEffect(() => {
+    const previous_ws_state = previous_ws_state_ref.current;
     if (ws_state === 'connected') {
       has_connected_ref.current = true;
       set_error(null);
+
+      // 中文注释：WebSocket 短暂重连后，旧 sender 推送的增量消息可能已经落库但未送达当前页面。
+      // 这里在重连成功后主动回拉一次当前会话，补齐断线期间遗漏的消息与工具结果。
+      if (previous_ws_state !== 'connected') {
+        void reload_current_session();
+      }
     }
-  }, [ws_state]);
+    previous_ws_state_ref.current = ws_state;
+  }, [reload_current_session, ws_state]);
 
   useEffect(() => {
     if (!agent_id || ws_state !== 'connected') {

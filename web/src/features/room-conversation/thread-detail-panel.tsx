@@ -88,6 +88,7 @@ export function ThreadDetailPanel({
           current_agent_name={agent_name}
           round_id={round_id}
           messages={messages}
+          assistant_content_mode="room_thread"
           is_last_round
           is_loading={is_loading}
           default_process_expanded

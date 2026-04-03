@@ -17,6 +17,27 @@ import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
 
+interface OrderedAssistantEntry {
+  block: ContentBlock;
+  merged_index: number;
+  source_message_id: string;
+}
+
+interface AssistantTurnEntry {
+  message_id: string;
+  content: ContentBlock[];
+  text_content: ContentBlock[];
+  streaming_indexes: Set<number>;
+  text_streaming_indexes: Set<number>;
+}
+
+interface ContentProjection {
+  content: ContentBlock[];
+  streaming_indexes: Set<number>;
+}
+
+type AssistantContentMode = "dm_live" | "dm_archived" | "room_thread" | "room_result";
+
 interface MessageItemProps {
   compact?: boolean;
   current_agent_name?: string | null;
@@ -35,6 +56,8 @@ interface MessageItemProps {
   default_process_expanded?: boolean;
   /** 助手头部右侧附加操作，例如查看 Thread */
   assistant_header_action?: ReactNode;
+  /** 助手内容渲染模式。 */
+  assistant_content_mode?: AssistantContentMode;
   class_name?: string;
 }
 
@@ -53,6 +76,7 @@ function MessageItemInner(
     on_stop_message,
     default_process_expanded = false,
     assistant_header_action,
+    assistant_content_mode = "dm_archived",
     class_name,
   }: MessageItemProps) {
   const [copiedUser, setCopiedUser] = useState(false);
@@ -65,10 +89,8 @@ function MessageItemInner(
     assistantMessages,
     resultMessage,
     mergedContent,
+    mergedContentSourceMessageIds,
     streamingBlockIndexes,
-    visibleAssistantTextContent,
-    assistantTextStreamingIndexes,
-    assistantTextContent,
   } = useAssistantContentMerge({
     messages,
     is_last_round,
@@ -105,29 +127,10 @@ function MessageItemInner(
   }, [resultMessage]);
 
   // 状态
-  const hasFinalAnswer = !!resultMessage;
   const userContent = useMemo(() => {
     if (!userMessage || userMessage.role !== 'user') return '';
     return typeof userMessage.content === 'string' ? userMessage.content : '';
   }, [userMessage]);
-
-  const shouldHideAssistantContent = useMemo(() => {
-    // Always show bubbles that have a meaningful stream_status
-    if (
-      stream_status === 'pending' ||
-      stream_status === 'streaming' ||
-      stream_status === 'cancelled' ||
-      stream_status === 'error'
-    ) {
-      return false;
-    }
-    if (mergedContent.length === 0) return true;
-    return mergedContent.every(block => {
-      if (block.type === 'text') return !block.text?.trim();
-      if (block.type === 'tool_use') return hidden_tool_names.includes(block.name);
-      return block.type === 'tool_result';
-    });
-  }, [mergedContent, hidden_tool_names, stream_status]);
 
   const hasInlinePendingTool = useMemo(() => {
     if (!pending_permission) {
@@ -165,47 +168,273 @@ function MessageItemInner(
     return nextIds;
   }, [mergedContent, hidden_tool_names]);
 
-  const visibleProcessContent = useMemo(() => {
-    return mergedContent.filter((block) => {
+  const visibleOrderedAssistantEntries = useMemo<OrderedAssistantEntry[]>(() => {
+    const entries: OrderedAssistantEntry[] = [];
+
+    mergedContent.forEach((block, mergedIndex) => {
+      if (block.type === "text") {
+        if (block.text.trim()) {
+          entries.push({
+            block,
+            merged_index: mergedIndex,
+            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+          });
+        }
+        return;
+      }
       if (block.type === "thinking") {
-        return Boolean(block.thinking?.trim());
+        if (block.thinking?.trim()) {
+          entries.push({
+            block,
+            merged_index: mergedIndex,
+            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+          });
+        }
+        return;
       }
       if (block.type === "tool_use") {
-        return !hidden_tool_names.includes(block.name);
+        if (!hidden_tool_names.includes(block.name)) {
+          entries.push({
+            block,
+            merged_index: mergedIndex,
+            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+          });
+        }
+        return;
       }
       if (block.type === "tool_result") {
-        return !hiddenToolUseIds.has(block.tool_use_id);
-      }
-      return false;
-    });
-  }, [hiddenToolUseIds, hidden_tool_names, mergedContent]);
-
-  const processStreamingIndexes = useMemo(() => {
-    const nextIndexes = new Set<number>();
-    let processIndex = 0;
-
-    mergedContent.forEach((block, index) => {
-      const isVisibleThinking = block.type === "thinking" && Boolean(block.thinking?.trim());
-      const isVisibleToolUse = block.type === "tool_use" && !hidden_tool_names.includes(block.name);
-      const isVisibleToolResult = block.type === "tool_result" && !hiddenToolUseIds.has(block.tool_use_id);
-
-      if (isVisibleThinking || isVisibleToolUse || isVisibleToolResult) {
-        if (streamingBlockIndexes.has(index)) {
-          nextIndexes.add(processIndex);
+        if (!hiddenToolUseIds.has(block.tool_use_id)) {
+          entries.push({
+            block,
+            merged_index: mergedIndex,
+            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+          });
         }
-        processIndex += 1;
+      }
+    });
+
+    return entries;
+  }, [hiddenToolUseIds, hidden_tool_names, mergedContent, mergedContentSourceMessageIds]);
+
+  const visibleOrderedAssistantContent = useMemo(() => {
+    return visibleOrderedAssistantEntries.map((entry) => entry.block);
+  }, [visibleOrderedAssistantEntries]);
+
+  const orderedAssistantStreamingIndexes = useMemo(() => {
+    const nextIndexes = new Set<number>();
+
+    visibleOrderedAssistantEntries.forEach((entry, visibleIndex) => {
+      if (streamingBlockIndexes.has(entry.merged_index)) {
+        nextIndexes.add(visibleIndex);
       }
     });
 
     return nextIndexes;
-  }, [hiddenToolUseIds, hidden_tool_names, mergedContent, streamingBlockIndexes]);
+  }, [streamingBlockIndexes, visibleOrderedAssistantEntries]);
+
+  const visibleAssistantTurns = useMemo<AssistantTurnEntry[]>(() => {
+    const turn_map = new Map<string, AssistantTurnEntry>();
+    assistantMessages.forEach((message) => {
+      turn_map.set(message.message_id, {
+        message_id: message.message_id,
+        content: [],
+        text_content: [],
+        streaming_indexes: new Set<number>(),
+        text_streaming_indexes: new Set<number>(),
+      });
+    });
+
+    visibleOrderedAssistantEntries.forEach((entry) => {
+      const turn = turn_map.get(entry.source_message_id);
+      if (!turn) {
+        return;
+      }
+
+      const content_index = turn.content.length;
+      turn.content.push(entry.block);
+      if (streamingBlockIndexes.has(entry.merged_index)) {
+        turn.streaming_indexes.add(content_index);
+      }
+
+      if (entry.block.type === "text" && entry.block.text.trim()) {
+        const text_index = turn.text_content.length;
+        turn.text_content.push(entry.block);
+        if (streamingBlockIndexes.has(entry.merged_index)) {
+          turn.text_streaming_indexes.add(text_index);
+        }
+      }
+    });
+
+    return assistantMessages
+      .map((message) => turn_map.get(message.message_id))
+      .filter((turn): turn is AssistantTurnEntry => Boolean(turn && turn.content.length > 0));
+  }, [assistantMessages, streamingBlockIndexes, visibleOrderedAssistantEntries]);
+
+  const orderedProjection = useMemo<ContentProjection>(() => ({
+    content: visibleOrderedAssistantContent,
+    streaming_indexes: orderedAssistantStreamingIndexes,
+  }), [orderedAssistantStreamingIndexes, visibleOrderedAssistantContent]);
+
+  const lastAssistantTurn = useMemo(
+    () => visibleAssistantTurns.at(-1) ?? null,
+    [visibleAssistantTurns],
+  );
+
+  const finalTailEntries = useMemo<OrderedAssistantEntry[]>(() => {
+    if (!lastAssistantTurn) {
+      return [];
+    }
+
+    const tail_entries: OrderedAssistantEntry[] = [];
+    for (let index = visibleOrderedAssistantEntries.length - 1; index >= 0; index -= 1) {
+      const entry = visibleOrderedAssistantEntries[index];
+      if (entry.source_message_id !== lastAssistantTurn.message_id) {
+        break;
+      }
+      if (entry.block.type !== "text" || !entry.block.text.trim()) {
+        break;
+      }
+      tail_entries.unshift(entry);
+    }
+    return tail_entries;
+  }, [lastAssistantTurn, visibleOrderedAssistantEntries]);
+
+  const finalTailText = useMemo(() => {
+    return finalTailEntries
+      .map((entry) => entry.block)
+      .filter((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text")
+      .map((block) => block.text)
+      .join("\n\n")
+      .trim();
+  }, [finalTailEntries]);
+
+  const archivedProcessProjection = useMemo<ContentProjection>(() => {
+    const result_text = resultMessage?.result?.trim();
+    const should_strip_tail = finalTailEntries.length > 0
+      && (
+        !result_text
+        || finalTailText === result_text
+        || finalTailEntries
+          .map((entry) => entry.block)
+          .filter((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text")
+          .map((block) => block.text)
+          .join("")
+          .trim() === result_text
+      );
+
+    if (should_strip_tail) {
+      const tail_indexes = new Set(finalTailEntries.map((entry) => entry.merged_index));
+      return projectionFromOrderedEntries(
+        visibleOrderedAssistantEntries.filter((entry) => !tail_indexes.has(entry.merged_index)),
+        streamingBlockIndexes,
+      );
+    }
+
+    if (!result_text && lastAssistantTurn) {
+      return projectionFromOrderedEntries(
+        visibleOrderedAssistantEntries.filter((entry) => entry.source_message_id !== lastAssistantTurn.message_id),
+        streamingBlockIndexes,
+      );
+    }
+
+    return projectionFromOrderedEntries(visibleOrderedAssistantEntries, streamingBlockIndexes);
+  }, [
+    finalTailEntries,
+    finalTailText,
+    lastAssistantTurn,
+    resultMessage,
+    streamingBlockIndexes,
+    visibleOrderedAssistantEntries,
+  ]);
+
+  const fallbackFinalAssistantContent = useMemo(() => {
+    if (finalTailEntries.length > 0) {
+      return finalTailEntries.map((entry) => entry.block);
+    }
+    if (!lastAssistantTurn) {
+      return null;
+    }
+    if (lastAssistantTurn.text_content.length > 0) {
+      return lastAssistantTurn.text_content;
+    }
+    if (lastAssistantTurn.content.length > 0) {
+      return lastAssistantTurn.content;
+    }
+    return null;
+  }, [finalTailEntries, lastAssistantTurn]);
+
+  const fallbackFinalAssistantStreamingIndexes = useMemo(() => {
+    if (finalTailEntries.length > 0) {
+      const next_indexes = new Set<number>();
+      finalTailEntries.forEach((entry, index) => {
+        if (streamingBlockIndexes.has(entry.merged_index)) {
+          next_indexes.add(index);
+        }
+      });
+      return next_indexes;
+    }
+    if (!lastAssistantTurn) {
+      return new Set<number>();
+    }
+    if (lastAssistantTurn.text_content.length > 0) {
+      return lastAssistantTurn.text_streaming_indexes;
+    }
+    return lastAssistantTurn.streaming_indexes;
+  }, [finalTailEntries, lastAssistantTurn, streamingBlockIndexes]);
+
+  const directOrderedProjection = useMemo<ContentProjection>(() => {
+    if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
+      return orderedProjection;
+    }
+    return { content: [], streaming_indexes: new Set<number>() };
+  }, [assistant_content_mode, orderedProjection]);
+
+  const processProjection = useMemo<ContentProjection>(() => {
+    if (assistant_content_mode === "dm_archived") {
+      return archivedProcessProjection;
+    }
+    return { content: [], streaming_indexes: new Set<number>() };
+  }, [archivedProcessProjection, assistant_content_mode]);
+
+  const finalAssistantContent = useMemo<string | ContentBlock[] | null>(() => {
+    if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
+      return null;
+    }
+
+    const result_text = resultMessage?.result?.trim();
+    if (result_text) {
+      return result_text;
+    }
+
+    return fallbackFinalAssistantContent;
+  }, [assistant_content_mode, fallbackFinalAssistantContent, resultMessage]);
+
+  const finalAssistantStreamingIndexes = useMemo(() => {
+    if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
+      return new Set<number>();
+    }
+    if (typeof finalAssistantContent === "string") {
+      return new Set<number>();
+    }
+    return fallbackFinalAssistantStreamingIndexes;
+  }, [assistant_content_mode, fallbackFinalAssistantStreamingIndexes, finalAssistantContent]);
+
+  const finalAssistantText = useMemo(() => {
+    if (typeof finalAssistantContent === "string") {
+      return finalAssistantContent;
+    }
+    return extractTextFromContentBlocks(finalAssistantContent);
+  }, [finalAssistantContent]);
+  const shouldRenderDirectAssistantContent = directOrderedProjection.content.length > 0;
+  const hasVisibleProcess = processProjection.content.length > 0 || (pending_permission && !hasInlinePendingTool);
+  const shouldRenderProcessCallchain = assistant_content_mode === "dm_archived" && hasVisibleProcess;
 
   const processSummary = useMemo(() => {
     let toolCount = 0;
     let thinkingCount = 0;
     let errorCount = 0;
 
-    for (const block of visibleProcessContent) {
+    for (const block of processProjection.content) {
       if (block.type === "thinking") {
         thinkingCount += 1;
         continue;
@@ -222,9 +451,6 @@ function MessageItemInner(
     if (pending_permission) {
       return "等待你的确认后继续";
     }
-    if (is_last_round && is_loading) {
-      return toolCount > 0 ? `正在处理 ${toolCount} 个动作` : "正在整理过程";
-    }
 
     const summaryParts: string[] = [];
     if (thinkingCount > 0) {
@@ -238,10 +464,44 @@ function MessageItemInner(
     }
 
     return summaryParts.length > 0 ? summaryParts.join(" · ") : "查看过程";
-  }, [is_last_round, is_loading, pending_permission, visibleProcessContent]);
+  }, [pending_permission, processProjection.content]);
 
-  const hasVisibleProcess = visibleProcessContent.length > 0 || (pending_permission && !hasInlinePendingTool);
-  const shouldRenderAssistantText = visibleAssistantTextContent.length > 0;
+  const shouldHideAssistantContent = useMemo(() => {
+    if (
+      stream_status === 'pending'
+      || stream_status === 'streaming'
+      || stream_status === 'cancelled'
+      || stream_status === 'error'
+    ) {
+      return false;
+    }
+
+    if (directOrderedProjection.content.length > 0) {
+      return false;
+    }
+    if (processProjection.content.length > 0) {
+      return false;
+    }
+    if (typeof finalAssistantContent === "string") {
+      return !finalAssistantContent.trim();
+    }
+    if (finalAssistantContent && finalAssistantContent.length > 0) {
+      return false;
+    }
+    return !resultMessage;
+  }, [
+    directOrderedProjection.content.length,
+    finalAssistantContent,
+    processProjection.content.length,
+    resultMessage,
+    stream_status,
+  ]);
+
+  const shouldRenderAssistantText = Boolean(
+    typeof finalAssistantContent === "string"
+      ? finalAssistantContent.trim()
+      : finalAssistantContent?.length,
+  );
 
   useEffect(() => {
     if (pending_permission || (is_last_round && is_loading)) {
@@ -262,20 +522,22 @@ function MessageItemInner(
   }, [userContent]);
 
   const handleCopyAssistant = useCallback(async () => {
-    if (!assistantTextContent) return;
+    const text = finalAssistantText;
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(assistantTextContent);
+      await navigator.clipboard.writeText(text);
       setCopiedAssistant(true);
       setTimeout(() => setCopiedAssistant(false), 2000);
     } catch (error) {
       console.error('Failed to copy:', error);
     }
-  }, [assistantTextContent]);
+  }, [finalAssistantText]);
 
   const showCursor = is_last_round && is_loading && streamingBlockIndexes.size > 0;
-  const isCompleted = hasFinalAnswer && !is_loading;
-  const canCopyAssistant = Boolean(assistantTextContent?.trim());
-  const shouldShowAssistantFooter = isCompleted && (Boolean(stats) || canCopyAssistant);
+  const canCopyAssistant = Boolean(finalAssistantText?.trim());
+  const shouldShowAssistantFooter = (
+    assistant_content_mode === "dm_archived" || assistant_content_mode === "room_result"
+  ) && !is_loading && (Boolean(stats) || canCopyAssistant);
 
   // Per-message stop: visible when this bubble is actively pending/streaming
   const can_stop_message = on_stop_message && (stream_status === 'pending' || stream_status === 'streaming');
@@ -283,6 +545,36 @@ function MessageItemInner(
     if (!on_stop_message || !firstAssistant) return;
     on_stop_message(firstAssistant.message_id);
   }, [on_stop_message, firstAssistant]);
+  const pendingPermissionBlock = pending_permission && !hasInlinePendingTool ? (
+    <div className="mt-3 rounded-xl bg-slate-50/70 p-3">
+      <ToolBlock
+        tool_use={{
+          type: "tool_use",
+          id: `pending_${pending_permission.request_id}`,
+          name: pending_permission.tool_name,
+          input: pending_permission.tool_input,
+        }}
+        status="waiting_permission"
+        permission_request={{
+          request_id: pending_permission.request_id,
+          tool_input: pending_permission.tool_input,
+          risk_level: pending_permission.risk_level,
+          risk_label: pending_permission.risk_label,
+          summary: pending_permission.summary,
+          suggestions: pending_permission.suggestions,
+          expires_at: pending_permission.expires_at,
+          on_allow: (updated_permissions) => on_permission_response?.({
+            decision: "allow",
+            updated_permissions,
+          }),
+          on_deny: (updated_permissions) => on_permission_response?.({
+            decision: "deny",
+            updated_permissions,
+          }),
+        }}
+      />
+    </div>
+  ) : null;
 
   // Pretext-based streaming min-height: measure the current assistant text
   // and hold the container at that height so scroll doesn't jump on each token.
@@ -293,7 +585,11 @@ function MessageItemInner(
   const layoutThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!showCursor || !assistantTextContent) return;
+    const layout_text = assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread"
+      ? extractTextFromContentBlocks(directOrderedProjection.content)
+      : finalAssistantText;
+
+    if (!showCursor || !layout_text) return;
     if (layoutThrottleRef.current !== null) return; // already scheduled
 
     layoutThrottleRef.current = setTimeout(() => {
@@ -302,12 +598,12 @@ function MessageItemInner(
       if (!el) return;
       try {
         const width = el.offsetWidth || 640;
-        const prepared = prepare(assistantTextContent, "400 14px ui-sans-serif, system-ui, sans-serif");
+        const prepared = prepare(layout_text, "400 14px ui-sans-serif, system-ui, sans-serif");
         const result = layout(prepared, width, 28);
         streamingMinHeight.current = Math.max(streamingMinHeight.current, result.height);
       } catch { /* keep previous estimate */ }
     }, 150);
-  }, [showCursor, assistantTextContent]);
+  }, [assistant_content_mode, directOrderedProjection.content, finalAssistantText, showCursor]);
 
   // Reset on new stream; cancel any pending throttled layout
   useEffect(() => {
@@ -476,7 +772,22 @@ function MessageItemInner(
                     <span className="text-xs text-rose-500 italic">执行失败</span>
                   )}
 
-                  {hasVisibleProcess ? (
+                  {shouldRenderDirectAssistantContent ? (
+                    <div>
+                      <ContentRenderer
+                        content={directOrderedProjection.content}
+                        is_streaming={showCursor}
+                        streaming_block_indexes={directOrderedProjection.streaming_indexes}
+                        pending_permission={pending_permission}
+                        on_permission_response={on_permission_response}
+                        on_open_workspace_file={on_open_workspace_file}
+                        hidden_tool_names={hidden_tool_names}
+                      />
+                      {pendingPermissionBlock}
+                    </div>
+                  ) : null}
+
+                  {shouldRenderProcessCallchain ? (
                     <div>
                       <button
                         className="flex w-full items-center gap-2 px-0 py-1.5 text-left transition-colors hover:text-slate-700"
@@ -495,56 +806,27 @@ function MessageItemInner(
                       {isProcessExpanded ? (
                         <div className="pt-1">
                           <ContentRenderer
-                            content={visibleProcessContent}
+                            content={processProjection.content}
                             is_streaming={showCursor}
-                            streaming_block_indexes={processStreamingIndexes}
+                            streaming_block_indexes={processProjection.streaming_indexes}
                             pending_permission={pending_permission}
                             on_permission_response={on_permission_response}
                             on_open_workspace_file={on_open_workspace_file}
                             hidden_tool_names={hidden_tool_names}
                           />
 
-                          {pending_permission && !hasInlinePendingTool ? (
-                            <div className="mt-3 rounded-xl bg-slate-50/70 p-3">
-                              <ToolBlock
-                                tool_use={{
-                                  type: "tool_use",
-                                  id: `pending_${pending_permission.request_id}`,
-                                  name: pending_permission.tool_name,
-                                  input: pending_permission.tool_input,
-                                }}
-                                status="waiting_permission"
-                                permission_request={{
-                                  request_id: pending_permission.request_id,
-                                  tool_input: pending_permission.tool_input,
-                                  risk_level: pending_permission.risk_level,
-                                  risk_label: pending_permission.risk_label,
-                                  summary: pending_permission.summary,
-                                  suggestions: pending_permission.suggestions,
-                                  expires_at: pending_permission.expires_at,
-                                  on_allow: (updated_permissions) => on_permission_response?.({
-                                    decision: "allow",
-                                    updated_permissions,
-                                  }),
-                                  on_deny: (updated_permissions) => on_permission_response?.({
-                                    decision: "deny",
-                                    updated_permissions,
-                                  }),
-                                }}
-                              />
-                            </div>
-                          ) : null}
+                          {pendingPermissionBlock}
                         </div>
                       ) : null}
                     </div>
                   ) : null}
 
                   {shouldRenderAssistantText ? (
-                    <div className={cn(hasVisibleProcess)}>
+                    <div className={cn(shouldRenderProcessCallchain)}>
                       <ContentRenderer
-                        content={visibleAssistantTextContent}
+                        content={finalAssistantContent ?? []}
                         is_streaming={showCursor}
-                        streaming_block_indexes={assistantTextStreamingIndexes}
+                        streaming_block_indexes={finalAssistantStreamingIndexes}
                         on_open_workspace_file={on_open_workspace_file}
                       />
                     </div>
@@ -580,11 +862,43 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.current_agent_name !== next.current_agent_name) return false;
   if (prev.pending_permission !== next.pending_permission) return false;
   if (prev.assistant_header_action !== next.assistant_header_action) return false;
+  if (prev.assistant_content_mode !== next.assistant_content_mode) return false;
   if (prev.class_name !== next.class_name) return false;
   // 消息数组按引用比较，上游流式合并会返回新数组，足以标记内容变化。
   if (prev.messages !== next.messages) return false;
   // 回调由上游 useCallback 保持稳定，这里不做深比较以避免额外开销。
   return true;
 });
+
+function projectionFromOrderedEntries(
+  entries: OrderedAssistantEntry[],
+  streaming_block_indexes: Set<number>,
+): ContentProjection {
+  const content: ContentBlock[] = [];
+  const streaming_indexes = new Set<number>();
+
+  entries.forEach((entry, index) => {
+    content.push(entry.block);
+    if (streaming_block_indexes.has(entry.merged_index)) {
+      streaming_indexes.add(index);
+    }
+  });
+
+  return { content, streaming_indexes };
+}
+
+function extractTextFromContentBlocks(content?: ContentBlock[] | null): string {
+  if (!content || content.length === 0) {
+    return "";
+  }
+
+  const texts: string[] = [];
+  content.forEach((block) => {
+    if (block.type === "text" && block.text.trim()) {
+      texts.push(block.text);
+    }
+  });
+  return texts.join("\n\n");
+}
 
 export default MessageItem;

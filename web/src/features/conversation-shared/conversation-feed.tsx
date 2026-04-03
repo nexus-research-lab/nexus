@@ -102,6 +102,7 @@ export const ConversationFeed = memo(function ConversationFeed({
             current_agent_name={round_agent_name}
             round_id={roundId}
             messages={roundMessages}
+            assistant_content_mode={isLastRound && is_loading ? "dm_live" : "dm_archived"}
             is_last_round={isLastRound}
             is_loading={is_loading}
             pending_permission={isLastRound ? is_last_round_pending_permission : null}
@@ -204,6 +205,7 @@ function VirtualFeed({
                 current_agent_name={round_agent_name}
                 round_id={roundId}
                 messages={roundMessages}
+                assistant_content_mode={isLastRound && is_loading ? "dm_live" : "dm_archived"}
                 is_last_round={isLastRound}
                 is_loading={is_loading}
                 pending_permission={isLastRound ? is_last_round_pending_permission : null}

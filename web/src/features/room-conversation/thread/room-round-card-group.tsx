@@ -60,6 +60,7 @@ function RoomCompletedReply({
         current_agent_name={agent_name}
         round_id={`${round_id}:${agent_id}`}
         messages={messages_for_render}
+        assistant_content_mode="room_result"
         is_last_round={false}
         is_loading={false}
         on_open_workspace_file={on_open_workspace_file}

@@ -26,6 +26,8 @@ interface UseAssistantContentMergeReturn {
   streamingAssistantMessageId: string | null;
   /** 合并去重后的所有内容块 */
   mergedContent: ContentBlock[];
+  /** mergedContent 每个块对应的来源 assistant 消息 ID */
+  mergedContentSourceMessageIds: string[];
   /** 正在流式输出的 block 在 mergedContent 中的索引 */
   streamingBlockIndexes: Set<number>;
   /** 可见的 assistant 文本内容块 */
@@ -65,8 +67,9 @@ export function useAssistantContentMerge({
   }, [assistantMessages, is_last_round, is_loading]);
 
   // 合并并去重 assistant 内容
-  const { mergedContent, streamingBlockIndexes } = useMemo(() => {
+  const { mergedContent, mergedContentSourceMessageIds, streamingBlockIndexes } = useMemo(() => {
     const allBlocks: ContentBlock[] = [];
+    const sourceMessageIds: string[] = [];
     const nextStreamingBlockIndexes = new Set<number>();
     const seenToolIds = new Set<string>();
 
@@ -92,15 +95,17 @@ export function useAssistantContentMerge({
 
         const nextIndex = allBlocks.length;
         allBlocks.push(block);
+        sourceMessageIds.push(msg.message_id);
         if (isStreamingMessage && blockIndex === streamingContentIndex) {
           nextStreamingBlockIndexes.add(nextIndex);
         }
       });
     }
-    return {
-      mergedContent: allBlocks,
-      streamingBlockIndexes: nextStreamingBlockIndexes,
-    };
+      return {
+        mergedContent: allBlocks,
+        mergedContentSourceMessageIds: sourceMessageIds,
+        streamingBlockIndexes: nextStreamingBlockIndexes,
+      };
   }, [assistantMessages, streamingAssistantMessageId]);
 
   const visibleAssistantTextContent = useMemo(() => {
@@ -141,6 +146,7 @@ export function useAssistantContentMerge({
     resultMessage,
     streamingAssistantMessageId,
     mergedContent,
+    mergedContentSourceMessageIds,
     streamingBlockIndexes,
     visibleAssistantTextContent,
     assistantTextStreamingIndexes,
