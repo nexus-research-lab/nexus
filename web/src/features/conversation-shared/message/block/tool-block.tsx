@@ -119,15 +119,12 @@ const getReadableSuggestions = (suggestions: PermissionUpdate[] = []) => {
     const behavior = suggestion.behavior
       ? behaviorMap[suggestion.behavior] || suggestion.behavior
       : '更新规则';
-    const ruleSummary = suggestion.rules
-      ?.map((rule) => rule.rule_content || rule.tool_name)
-      .filter(Boolean)
-      .join('，');
 
     return {
       index,
-      label: `${behavior}并写入${destination}`,
-      description: ruleSummary || suggestion.type,
+      label: behavior === '允许'
+        ? `写入${destination}`
+        : `${behavior}并写入${destination}`,
     };
   });
 };
@@ -236,6 +233,10 @@ export function ToolBlock({
     if (!tool_result) return null;
     return getResultSummary(tool_result.content);
   }, [tool_result]);
+  const permissionFieldSummary = useMemo(() => {
+    if (readablePermissionFields.length === 0) return null;
+    return readablePermissionFields.map((field) => `${field.label}：${field.value}`).join(' · ');
+  }, [readablePermissionFields]);
 
   // 最终状态
   const finalStatus = tool_result?.is_error ? 'error' : status;
@@ -244,6 +245,9 @@ export function ToolBlock({
   const isSuccess = finalStatus === 'success';
   const isError = finalStatus === 'error';
   const isWaiting = finalStatus === 'waiting_permission';
+  const waitingConfirmationText = permission_request?.expires_at
+    ? `${new Date(permission_request.expires_at).toLocaleTimeString()} 前确认`
+    : '确认后继续执行';
 
   useEffect(() => {
     setSelectedSuggestionIndex(-1);
@@ -291,12 +295,16 @@ export function ToolBlock({
             )}>
               {toolTitle}
             </span>
-            {durationText ? (
+            {isWaiting ? (
+              <span className="shrink-0 text-[11px] text-slate-400">{waitingConfirmationText}</span>
+            ) : durationText ? (
               <span className="shrink-0 text-[11px] text-slate-400">{durationText}</span>
             ) : null}
           </div>
           <div className="mt-0.5 min-w-0 text-[12px] text-slate-500">
-            {hasResult && !isExpanded && resultSummary ? (
+            {isWaiting && permissionFieldSummary ? (
+              <span className="block truncate">{permissionFieldSummary}</span>
+            ) : hasResult && !isExpanded && resultSummary ? (
               <span className="block truncate">{resultSummary}</span>
             ) : inputSummary ? (
               <span className="block truncate">{inputSummary}</span>
@@ -308,8 +316,30 @@ export function ToolBlock({
 
         <div className="hidden flex-1 sm:block" />
 
+        {isWaiting && permission_request ? (
+          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              onClick={() => permission_request.on_deny()}
+              className="modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
+            >
+              拒绝
+            </button>
+            <button
+              onClick={() => {
+                const selectedUpdate = selectedSuggestionIndex >= 0 && permission_request.suggestions
+                  ? [permission_request.suggestions[selectedSuggestionIndex]]
+                  : undefined;
+                permission_request.on_allow(selectedUpdate);
+              }}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-[0_8px_20px_rgba(133,119,255,0.2)] transition-colors hover:bg-primary/90"
+            >
+              允许
+            </button>
+          </div>
+        ) : null}
+
         {/* 复制按钮（有结果时） */}
-        {hasResult && (
+        {hasResult && !isWaiting && (
           <button
             onClick={handleCopyResult}
             className={cn(
@@ -362,119 +392,54 @@ export function ToolBlock({
       )}
 
       {permission_request && isWaiting && (
-        <div className="ml-7 mt-2 border-t border-slate-200/80 pt-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0 text-[11px] text-slate-400">
-              {permission_request.expires_at
-                ? `${new Date(permission_request.expires_at).toLocaleTimeString()} 前确认`
-                : '确认后继续执行'}
-            </div>
-
-            <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <button
-                onClick={() => permission_request.on_deny()}
-                className="modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
-              >
-                拒绝
-              </button>
-              <button
-                onClick={() => {
-                  const selectedUpdate = selectedSuggestionIndex >= 0 && permission_request.suggestions
-                    ? [permission_request.suggestions[selectedSuggestionIndex]]
-                    : undefined;
-                  permission_request.on_allow(selectedUpdate);
-                }}
-                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-[0_8px_20px_rgba(133,119,255,0.2)] transition-colors hover:bg-primary/90"
-              >
-                允许
-              </button>
-            </div>
-          </div>
-
-          {permission_request.summary ? (
-            <p className="mt-2 text-[13px] leading-7 text-slate-600">
-              {permission_request.summary}
-            </p>
-          ) : null}
-
+        <div className="ml-7 mt-2 space-y-2">
           {primaryInputDetail ? (
-            <div className="modal-card radius-shell-md mt-2 overflow-hidden">
-              <div className="border-b modal-divider px-4 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  {FIELD_LABEL_MAP[primaryInputDetail.key] || '执行内容'}
-                </p>
-              </div>
-              <pre className="px-4 py-3 text-[13px] leading-7 whitespace-pre-wrap break-all text-slate-800">
+            <div className="text-[13px] leading-7 text-slate-800">
+              <pre className="whitespace-pre-wrap break-all">
                 {primaryInputDetail.value}
               </pre>
             </div>
           ) : null}
 
-          {readablePermissionFields.length > 0 ? (
-            <div className="mt-2 grid gap-2">
-              {readablePermissionFields.map((field) => (
-                <div key={field.key} className="modal-card radius-shell-md px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    {field.label}
-                  </p>
-                  <p className="mt-2 text-[13px] leading-7 whitespace-pre-wrap break-words text-slate-800">
-                    {field.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
           {readableSuggestions.length > 0 ? (
-            <div className="mt-3 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                授权范围
-              </p>
-              <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                className={cn(
+                  "workspace-chip radius-shell-sm flex items-center gap-2 px-3 py-1.5 text-xs font-medium transition-all duration-200",
+                  selectedSuggestionIndex === -1
+                    ? "text-primary ring-1 ring-primary/25 shadow-[0_8px_18px_rgba(15,23,42,0.05)]"
+                    : "text-slate-500 hover:text-slate-800",
+                )}
+              >
+                <input
+                  type="radio"
+                  name={`permission-suggestion-${permission_request.request_id}`}
+                  checked={selectedSuggestionIndex === -1}
+                  onChange={() => setSelectedSuggestionIndex(-1)}
+                  className="sr-only"
+                />
+                <span>仅这次</span>
+              </label>
+              {readableSuggestions.map((suggestion) => (
                 <label
+                  key={suggestion.index}
                   className={cn(
-                    "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-200",
-                    selectedSuggestionIndex === -1
-                      ? "modal-card-active bg-primary/5 ring-1 ring-primary/30 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
-                      : "modal-card hover:border-primary/20 hover:bg-white/80",
+                    "workspace-chip radius-shell-sm flex items-center gap-2 px-3 py-1.5 text-xs font-medium transition-all duration-200",
+                    selectedSuggestionIndex === suggestion.index
+                      ? "text-primary ring-1 ring-primary/25 shadow-[0_8px_18px_rgba(15,23,42,0.05)]"
+                      : "text-slate-500 hover:text-slate-800",
                   )}
                 >
                   <input
                     type="radio"
                     name={`permission-suggestion-${permission_request.request_id}`}
-                    checked={selectedSuggestionIndex === -1}
-                    onChange={() => setSelectedSuggestionIndex(-1)}
-                    className="mt-0.5"
+                    checked={selectedSuggestionIndex === suggestion.index}
+                    onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                    className="sr-only"
                   />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">仅这次</p>
-                    <p className="text-xs text-muted-foreground">只对这一次生效</p>
-                  </div>
+                  <span>{suggestion.label}</span>
                 </label>
-                {readableSuggestions.map((suggestion) => (
-                  <label
-                    key={suggestion.index}
-                    className={cn(
-                      "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-200",
-                      selectedSuggestionIndex === suggestion.index
-                        ? "modal-card-active bg-primary/5 ring-1 ring-primary/30 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
-                        : "modal-card hover:border-primary/20 hover:bg-white/80",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name={`permission-suggestion-${permission_request.request_id}`}
-                      checked={selectedSuggestionIndex === suggestion.index}
-                      onChange={() => setSelectedSuggestionIndex(suggestion.index)}
-                      className="mt-0.5"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{suggestion.label}</p>
-                      <p className="text-xs text-muted-foreground break-all">{suggestion.description}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
+              ))}
             </div>
           ) : null}
         </div>
