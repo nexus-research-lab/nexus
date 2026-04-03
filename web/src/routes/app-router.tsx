@@ -76,7 +76,6 @@ export function AppRouter() {
             <Route element={<PlaceholderPage title="配对" description="管理 Agent 配对关系" />} path={APP_ROUTE_PATHS.pairings} />
 
             {/* 其他占位路由 */}
-            <Route element={<PlaceholderPage title="文件" description="浏览和管理工作区文件" />} path={APP_ROUTE_PATHS.files} />
             <Route element={<PlaceholderPage title="设置" description="应用程序设置和偏好" />} path={APP_ROUTE_PATHS.settings} />
           </Route>
 

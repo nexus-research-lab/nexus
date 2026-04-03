@@ -1,72 +1,44 @@
 /**
- * 侧边栏右侧宽面板（可拖拽调整宽度）
+ * 侧边栏宽面板（可拖拽调整宽度）
  *
- * 右侧宽面板：展示选中 Tab 的完整内容。
- * 根据 active_tab 切换不同的面板内容组件。
+ * 保留原来的内容面板，并把一级导航压缩到头部，
+ * 这样左侧不再需要独立的窄栏。
+ *
+ * 面板根据当前路由切换内容，并支持拖拽调整宽度。
  * 宽度从 store 读取，右边缘可拖拽调整（180–400px）。
- *
- * Phase 1a：先渲染空容器 + Tab 标题，验证布局。
- * Phase 1b：填充各 Tab 的面板内容组件。
  */
 
+import { FolderOpen, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 
+import { AppRouteBuilders } from "@/app/router/route-paths";
 import { cn } from "@/lib/utils";
-import {
-  type SidebarTabKey,
-  type SidebarCollapseMode,
-  WIDE_PANEL_MIN_WIDTH,
-  WIDE_PANEL_MAX_WIDTH,
-  derive_tab_from_path,
-  useSidebarStore,
-} from "@/store/sidebar";
+import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
+import { WIDE_PANEL_MIN_WIDTH, WIDE_PANEL_MAX_WIDTH, useSidebarStore } from "@/store/sidebar";
 
 import { HomePanelContent } from "./sidebar-panel-content/home-panel";
-import { DmsPanelContent } from "./sidebar-panel-content/dms-panel";
 import { CapabilitiesPanelContent } from "./sidebar-panel-content/capabilities-panel";
-import { ContactsPanelContent } from "./sidebar-panel-content/contacts-panel";
 
-/** Tab 标题映射 */
-const TAB_TITLES: Record<SidebarTabKey, string> = {
-  home: "工作台",
-  dms: "私信",
-  capabilities: "能力",
-  contacts: "成员",
-};
+const CAPABILITY_SECTION_COUNT = 5;
 
-/** 根据折叠模式判断是否显示宽面板 */
-function should_show_panel(mode: SidebarCollapseMode): boolean {
-  return mode === "full";
+interface UtilityLink {
+  label: string;
+  to?: string;
+  icon: typeof FolderOpen;
 }
 
-/** 根据激活 Tab 渲染对应的面板内容 */
-function render_panel_content(tab: SidebarTabKey) {
-  switch (tab) {
-    case "home":
-      return <HomePanelContent />;
-    case "dms":
-      return <DmsPanelContent />;
-    case "capabilities":
-      return <CapabilitiesPanelContent />;
-    case "contacts":
-      return <ContactsPanelContent />;
-    default:
-      return null;
-  }
-}
+const UTILITY_LINKS: UtilityLink[] = [
+  {
+    label: "设置",
+    to: AppRouteBuilders.settings(),
+    icon: Settings,
+  },
+];
 
 export function SidebarWidePanel() {
-  const location = useLocation();
-  const collapse_mode = useSidebarStore((s) => s.collapse_mode);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
-  const navigated_from_tab = useSidebarStore((s) => s.navigated_from_tab);
-
-  const derived_tab = derive_tab_from_path(location.pathname);
-  const current_tab = location.pathname.startsWith("/rooms") && navigated_from_tab
-    ? navigated_from_tab
-    : derived_tab;
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -112,27 +84,80 @@ export function SidebarWidePanel() {
     return () => document.removeEventListener("selectstart", handle_select_start);
   }, []);
 
-  // 折叠模式下不显示宽面板
-  if (!should_show_panel(collapse_mode)) {
-    return null;
-  }
-
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col py-4 pl-0 pr-2"
+      className="relative flex h-full shrink-0 flex-col px-2 py-4"
       style={{ width: wide_panel_width }}
     >
       <div className="home-glass-panel radius-shell-xl flex h-full w-full flex-col overflow-hidden">
         {/* 面板头部 */}
-        <div className="flex items-center gap-2 border-b border-white/20 px-4 py-3">
-          <h2 className="text-sm font-bold text-slate-800">
-            {TAB_TITLES[current_tab]}
-          </h2>
+        <div className="border-b border-white/20 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Link
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(233,229,223,0.92))] text-base font-black tracking-[-0.06em] text-slate-900 shadow-[0_12px_24px_rgba(102,112,145,0.12)] transition-transform duration-200 hover:scale-[1.03]"
+                to={AppRouteBuilders.launcher()}
+                title="回到 Launcher"
+              >
+                N
+              </Link>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-slate-500/70">
+                  Workspace
+                </p>
+                <h2 className="truncate text-sm font-bold text-slate-800">工作台</h2>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {UTILITY_LINKS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.label}
+                    className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-white/30 text-slate-600 transition-all duration-200 hover:bg-white/55 hover:text-slate-900"
+                    title={item.label}
+                    to={item.to ?? AppRouteBuilders.home()}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
 
         {/* 面板内容 */}
         <div className="flex-1 overflow-y-auto px-2 py-2">
-          {render_panel_content(current_tab)}
+          <HomePanelContent />
+
+          <CollapsibleSection
+            count={CAPABILITY_SECTION_COUNT}
+            section_id="sidebar-capabilities"
+            title="能力"
+          >
+            <CapabilitiesPanelContent />
+          </CollapsibleSection>
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-white/16 px-3 py-2">
+          <a
+            className="rounded-full px-2 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-white/35 hover:text-slate-900"
+            href="https://docs.nexus.ai"
+            rel="noreferrer"
+            target="_blank"
+          >
+            文档
+          </a>
+          <a
+            className="rounded-full px-2 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-white/35 hover:text-slate-900"
+            href="https://feedback.nexus.ai"
+            rel="noreferrer"
+            target="_blank"
+          >
+            反馈
+          </a>
         </div>
       </div>
 

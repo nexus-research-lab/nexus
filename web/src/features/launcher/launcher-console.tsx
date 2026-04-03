@@ -14,6 +14,7 @@ import { DebugReferenceOverlay } from "@/features/launcher/launcher-reference-ov
 import { cn, truncate } from "@/lib/utils";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
+import { useSidebarStore } from "@/store/sidebar";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
@@ -294,6 +295,7 @@ export function LauncherConsole({
   const [recentAgents, setRecentAgents] = useState<LauncherSuggestion[]>([]);
   const [recentRooms, setRecentRooms] = useState<LauncherSuggestion[]>([]);
   const navigate = useNavigate();
+  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
 
   // 加载 Launcher 推荐列表
   useEffect(() => {
@@ -333,13 +335,14 @@ export function LauncherConsole({
       try {
         const contexts = await getRoomContexts(room_id);
         if (contexts.length > 0) {
+          set_active_panel_item(room_id);
           navigate(AppRouteBuilders.room_conversation(room_id, contexts[0].conversation.id));
         }
       } catch (error) {
         console.error("Failed to open suggested room:", error);
       }
     })();
-  }, [navigate]);
+  }, [navigate, set_active_panel_item]);
 
   const handle_submit = useCallback(async () => {
     const trimmed = query.trim();
@@ -355,6 +358,7 @@ export function LauncherConsole({
         case "open_agent_dm": {
           const context = await ensureDirectRoom(action.target_id);
           if (context) {
+            set_active_panel_item(context.room.id);
             const route = AppRouteBuilders.room_conversation(context.room.id, context.conversation.id);
             // 如果有初始消息，在导航 URL 中编码以供 Room 页面使用
             const finalRoute = action.initial_message
@@ -367,6 +371,7 @@ export function LauncherConsole({
         case "open_room": {
           const contexts = await getRoomContexts(action.target_id);
           if (contexts.length > 0) {
+            set_active_panel_item(action.target_id);
             const route = AppRouteBuilders.room_conversation(action.target_id, contexts[0].conversation.id);
             // 如果有初始消息，在导航 URL 中编码以供 Room 页面使用
             const finalRoute = action.initial_message
@@ -385,7 +390,7 @@ export function LauncherConsole({
     } finally {
       setIsQueryLoading(false);
     }
-  }, [query, isQueryLoading, on_open_app_conversation, navigate]);
+  }, [query, isQueryLoading, on_open_app_conversation, navigate, set_active_panel_item]);
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

@@ -14,22 +14,17 @@ import {
   Bot,
   Hash,
   MessageCircleMore,
-  MoreHorizontal,
-  Pencil,
   Plus,
   Star,
-  Trash2,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
 import { createRoom, deleteRoom, listRooms, updateRoom } from "@/lib/room-api";
-import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
+import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 import { Agent } from "@/types/agent";
@@ -53,113 +48,6 @@ function load_starred_items(): StarredItem[] {
   } catch {
     return [];
   }
-}
-
-// ==================== 列表条目组件 ====================
-
-interface PanelItemProps {
-  icon: React.ReactNode;
-  label: string;
-  meta?: string;
-  is_active?: boolean;
-  on_click: () => void;
-  /** 右键/更多菜单操作 */
-  on_rename?: () => void;
-  on_delete?: () => void;
-}
-
-function PanelItem({ icon, label, meta, is_active, on_click, on_rename, on_delete }: PanelItemProps) {
-  const [menu_pos, set_menu_pos] = useState<{ x: number; y: number } | null>(null);
-  const item_ref = useRef<HTMLButtonElement>(null);
-
-  // 右键菜单
-  const handle_context_menu = useCallback((e: React.MouseEvent) => {
-    if (!on_rename && !on_delete) return;
-    e.preventDefault();
-    set_menu_pos({ x: e.clientX, y: e.clientY });
-  }, [on_rename, on_delete]);
-
-  // 更多按钮
-  const handle_more_click = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    set_menu_pos({ x: rect.right, y: rect.top });
-  }, []);
-
-  // 关闭菜单
-  useEffect(() => {
-    if (!menu_pos) return;
-    const close = () => set_menu_pos(null);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [menu_pos]);
-
-  const has_actions = Boolean(on_rename || on_delete);
-
-  return (
-    <>
-      <button
-        ref={item_ref}
-        className={cn(
-          "group/item flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] transition-all duration-150",
-          is_active
-            ? "bg-white/60 font-semibold text-slate-900 shadow-sm"
-            : "text-slate-600 hover:bg-white/30 hover:text-slate-800",
-        )}
-        onClick={on_click}
-        onContextMenu={handle_context_menu}
-        type="button"
-      >
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-500">
-          {icon}
-        </span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
-        {has_actions ? (
-          <span
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-400 opacity-0 transition-all hover:text-slate-700 group-hover/item:opacity-100"
-            onClick={handle_more_click}
-            role="button"
-            tabIndex={-1}
-          >
-            <MoreHorizontal className="h-3 w-3" />
-          </span>
-        ) : meta ? (
-          <span className="shrink-0 text-[10px] text-slate-400">{meta}</span>
-        ) : null}
-      </button>
-
-      {/* 右键/更多 上下文菜单 — Portal 渲染 */}
-      {menu_pos ? createPortal(
-        <div
-          className="fixed z-[9990] w-36 rounded-xl border border-slate-200/60 bg-white/95 py-1 shadow-lg backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
-          style={{ top: menu_pos.y, left: menu_pos.x }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {on_rename ? (
-            <button
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] text-slate-700 hover:bg-slate-50"
-              onClick={() => { set_menu_pos(null); on_rename(); }}
-              type="button"
-            >
-              <Pencil className="h-3 w-3" />
-              重命名
-            </button>
-          ) : null}
-          {on_delete ? (
-            <button
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] text-red-600 hover:bg-red-50"
-              onClick={() => { set_menu_pos(null); on_delete(); }}
-              type="button"
-            >
-              <Trash2 className="h-3 w-3" />
-              删除
-            </button>
-          ) : null}
-        </div>,
-        document.body,
-      ) : null}
-    </>
-  );
 }
 
 // ==================== 辅助函数 ====================
@@ -286,7 +174,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           title="Starred"
         >
           {starred.map((item) => (
-            <PanelItem
+            <SidebarListItem
               key={item.id}
               icon={<Star className="h-3.5 w-3.5 text-amber-400" />}
               is_active={active_item_id === item.id}
@@ -315,7 +203,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
       >
         {normal_rooms.length > 0 ? (
           normal_rooms.map((room) => (
-            <PanelItem
+            <SidebarListItem
               key={room.room.id}
               icon={<Hash className="h-3.5 w-3.5" />}
               is_active={active_item_id === room.room.id}
@@ -338,7 +226,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
       >
         {dm_rooms.length > 0 ? (
           dm_rooms.map((room) => (
-            <PanelItem
+            <SidebarListItem
               key={room.room.id}
               icon={<MessageCircleMore className="h-3.5 w-3.5" />}
               is_active={active_item_id === room.room.id}
@@ -360,7 +248,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
       >
         {agents.length > 0 ? (
           agents.map((agent) => (
-            <PanelItem
+            <SidebarListItem
               key={agent.agent_id}
               icon={<Bot className="h-3.5 w-3.5" />}
               is_active={active_item_id === agent.agent_id}

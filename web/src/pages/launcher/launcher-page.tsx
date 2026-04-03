@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
+import { useSidebarStore } from "@/store/sidebar";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
 import { getDefaultAgentId } from "@/config/options";
 
@@ -20,6 +21,7 @@ export function LauncherPage() {
   const app_agent_id = getDefaultAgentId();
   const controller = useLauncherPageController();
   const navigate = useNavigate();
+  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const [should_bootstrap_room_after_create, set_should_bootstrap_room_after_create] = useState(false);
   const [pending_room_title, set_pending_room_title] = useState<string>("");
   const consumed_route_prompt_ref = useRef<string | null>(null);
@@ -135,6 +137,7 @@ export function LauncherPage() {
   const handle_select_agent = useCallback((agent_id: string) => {
     void ensureDirectRoom(agent_id).then((context) => {
       controller.handle_select_agent(agent_id);
+      set_active_panel_item(context.room.id);
       navigate(
         AppRouteBuilders.room_conversation(
           context.room.id,
@@ -142,7 +145,7 @@ export function LauncherPage() {
         ),
       );
     });
-  }, [controller, navigate]);
+  }, [controller, navigate, set_active_panel_item]);
 
   const handle_clear_app_session = useCallback(async () => {
     if (controller.app_session_key) {
@@ -176,6 +179,7 @@ export function LauncherPage() {
       set_pending_room_title("");
       set_should_bootstrap_room_after_create(false);
       const context = await ensureDirectRoom(next_agent_id);
+      set_active_panel_item(context.room.id);
       navigate(
         AppRouteBuilders.room_conversation(
           context.room.id,
@@ -192,13 +196,14 @@ export function LauncherPage() {
     });
     set_pending_room_title("");
     set_should_bootstrap_room_after_create(false);
+    set_active_panel_item(room_context.room.id);
     navigate(
       AppRouteBuilders.room_conversation(
         room_context.room.id,
         room_context.conversation.id,
       ),
     );
-  }, [controller, navigate, pending_room_title, should_bootstrap_room_after_create]);
+  }, [controller, navigate, pending_room_title, set_active_panel_item, should_bootstrap_room_after_create]);
 
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;

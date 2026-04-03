@@ -9,5 +9,4 @@ export { useAppConversationStore } from './app-conversation';
 export { useAgentStore } from './agent';
 export { useWorkspaceLiveStore } from './workspace-live';
 export { useWorkspaceFilesStore } from './workspace-files';
-export { useSidebarStore, derive_tab_from_path } from './sidebar';
-export type { SidebarTabKey, SidebarCollapseMode } from './sidebar';
+export { useSidebarStore } from './sidebar';
