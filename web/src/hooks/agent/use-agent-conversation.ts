@@ -48,7 +48,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [is_loading, set_is_loading] = useState(false);
   const [error, set_error] = useState<string | null>(null);
   const [session_key, set_session_key] = useState<string | null>(null);
-  const [pending_permission, set_pending_permission] = useState<UseAgentConversationReturn['pending_permission']>(null);
+  const [pending_permissions, set_pending_permissions] = useState<UseAgentConversationReturn['pending_permissions']>([]);
   const [agent_thinking, set_agent_thinking] = useState<AgentThinkingPayload | null>(null);
 
   const active_session_key_ref = useRef<string | null>(null);
@@ -56,6 +56,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const room_seq_cursor_ref = useRef(0);
   const pending_round_ids_ref = useRef<Set<string>>(new Set());
   const active_message_tracker_ref = useRef<Map<string, ActiveMessageTracker>>(new Map());
+  const pending_permission_count_ref = useRef(0);
   // Per-session message cache: accumulates messages received for non-active sessions
   // so they are not lost when the user switches conversations.
   const bg_message_cache_ref = useRef<Map<string, Message[]>>(new Map());
@@ -72,30 +73,6 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const stream_buffer_ref = useRef<import('@/types').StreamMessage[]>([]);
   const stream_raf_ref = useRef<number | null>(null);
 
-  const flush_stream_buffer = useCallback(() => {
-    stream_raf_ref.current = null;
-    const payloads = stream_buffer_ref.current;
-    if (payloads.length === 0) return;
-    stream_buffer_ref.current = [];
-
-    startTransition(() => {
-      set_messages((prev) => {
-        let next = prev;
-        for (const payload of payloads) {
-          next = applyStreamMessage(next, payload);
-        }
-        return next;
-      });
-      set_is_loading(true);
-    });
-  }, []);
-
-  const enqueue_stream_payload = useCallback((payload: import('@/types').StreamMessage) => {
-    stream_buffer_ref.current.push(payload);
-    if (stream_raf_ref.current === null) {
-      stream_raf_ref.current = requestAnimationFrame(flush_stream_buffer);
-    }
-  }, [flush_stream_buffer]);
   const lifecycle_context: AgentConversationLifecycleContext = useMemo(() => ({
     active_session_key_ref,
     load_request_id_ref,
@@ -105,7 +82,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     chat_type,
     set_session_key,
     set_messages,
-    set_pending_permission,
+    set_pending_permissions,
     set_is_loading,
     set_error,
     bg_message_cache_ref,
@@ -116,7 +93,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     chat_type,
     set_session_key,
     set_messages,
-    set_pending_permission,
+    set_pending_permissions,
     set_is_loading,
     set_error,
   ]);
@@ -151,7 +128,8 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const sync_loading_state = useCallback(() => {
     const next_is_loading = (
       pending_round_ids_ref.current.size > 0 ||
-      active_message_tracker_ref.current.size > 0
+      active_message_tracker_ref.current.size > 0 ||
+      pending_permission_count_ref.current > 0
     );
     set_is_loading((prev) => (prev === next_is_loading ? prev : next_is_loading));
   }, []);
@@ -159,8 +137,41 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const reset_loading_tracker = useCallback(() => {
     pending_round_ids_ref.current.clear();
     active_message_tracker_ref.current.clear();
+    pending_permission_count_ref.current = 0;
     set_is_loading(false);
   }, []);
+
+  useEffect(() => {
+    pending_permission_count_ref.current = pending_permissions.length;
+    sync_loading_state();
+  }, [pending_permissions.length, sync_loading_state]);
+
+  const flush_stream_buffer = useCallback(() => {
+    stream_raf_ref.current = null;
+    const payloads = stream_buffer_ref.current;
+    if (payloads.length === 0) return;
+    stream_buffer_ref.current = [];
+
+    startTransition(() => {
+      set_messages((prev) => {
+        let next = prev;
+        for (const payload of payloads) {
+          next = applyStreamMessage(next, payload);
+        }
+        return next;
+      });
+      // 中文注释：流式缓冲可能在 ResultMessage 之后才被刷新。
+      // 这里不能盲目把 loading 重新置为 true，否则会把已结束的轮次再次点亮。
+      sync_loading_state();
+    });
+  }, [sync_loading_state]);
+
+  const enqueue_stream_payload = useCallback((payload: import('@/types').StreamMessage) => {
+    stream_buffer_ref.current.push(payload);
+    if (stream_raf_ref.current === null) {
+      stream_raf_ref.current = requestAnimationFrame(flush_stream_buffer);
+    }
+  }, [flush_stream_buffer]);
 
   const clear_round_tracking = useCallback((round_id?: string | null) => {
     if (round_id) {
@@ -277,7 +288,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_error,
       set_is_loading,
       set_messages,
-      set_pending_permission,
+      set_pending_permissions,
       enqueue_stream_payload,
       on_background_message,
       set_agent_thinking,
@@ -375,6 +386,22 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     };
   }, [agent_id, ws_send, ws_state]);
 
+  useEffect(() => {
+    if (!session_key || ws_state !== 'connected') {
+      return;
+    }
+
+    // 中文注释：WebSocket 重连后，后端需要重新知道“当前这个连接服务哪个 session”，
+    // 否则挂起中的权限请求无法重投到新连接。
+    ws_send({
+      type: 'bind_session',
+      session_key,
+      ...(agent_id ? { agent_id } : {}),
+      ...(room_id ? { room_id } : {}),
+      ...(conversation_id ? { conversation_id } : {}),
+    });
+  }, [agent_id, conversation_id, room_id, session_key, ws_send, ws_state]);
+
   // Subscribe to room-level events (member changes, deletions, etc.) when in a Room context
   useEffect(() => {
     room_seq_cursor_ref.current = 0;
@@ -410,13 +437,13 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     ws_state,
     ws_send,
     active_session_key_ref,
-    pending_permission,
+    pending_permissions,
     messages,
     set_error,
     set_is_loading,
     set_messages,
-    set_pending_permission,
-  }), [agent_id, room_id, conversation_id, chat_type, session_key, ws_state, ws_send, pending_permission, messages, set_error, set_is_loading, set_messages, set_pending_permission]);
+    set_pending_permissions,
+  }), [agent_id, room_id, conversation_id, chat_type, session_key, ws_state, ws_send, pending_permissions, messages, set_error, set_is_loading, set_messages, set_pending_permissions]);
 
   const send_message = useCallback(async (content: string) => {
     const round_id = await sendSessionMessage(content, action_context);
@@ -462,7 +489,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     active_session_key_ref.current = key;
     set_session_key(key);
     if (!key) {
-      set_pending_permission(null);
+      set_pending_permissions([]);
     }
   }, []);
 
@@ -476,7 +503,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     session_key,
     ws_state,
     is_loading,
-    pending_permission,
+    pending_permissions,
     agent_thinking,
     send_message,
     bind_session_key,

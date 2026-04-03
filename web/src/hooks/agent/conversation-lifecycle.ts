@@ -13,7 +13,7 @@ export function resetSessionView(
   next_error: string | null = null,
 ): void {
   context.set_messages([]);
-  context.set_pending_permission(null);
+  context.set_pending_permissions([]);
   context.set_is_loading(false);
   context.set_error(next_error);
 }
@@ -51,7 +51,7 @@ export async function loadAgentSession(
   const cached = context.bg_message_cache_ref?.current.get(session_key);
   if (cached && cached.length > 0) {
     context.set_messages(sortMessages(cached));
-    context.set_pending_permission(null);
+    context.set_pending_permissions([]);
     context.set_is_loading(false);
     context.set_error(null);
   } else {

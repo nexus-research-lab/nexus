@@ -49,6 +49,7 @@ function extractTextFromMessages(messages: Message[]): string {
       } else if (Array.isArray(msg.content)) {
         for (const block of msg.content as any[]) {
           if (block.type === "text") parts.push(block.text ?? "");
+          if (block.type === "task_progress") parts.push(block.description ?? "");
         }
       }
     }

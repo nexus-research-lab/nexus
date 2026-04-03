@@ -27,7 +27,7 @@ export async function sendSessionMessage(
     set_error,
     set_is_loading,
     set_messages,
-    set_pending_permission,
+    set_pending_permissions,
   } = context;
   const resolved_session_key = session_key || active_session_key_ref.current;
 
@@ -61,7 +61,7 @@ export async function sendSessionMessage(
   };
 
   set_messages((prev) => upsertMessage(prev, userMessage));
-  set_pending_permission(null);
+  set_pending_permissions([]);
   set_is_loading(true);
   set_error(null);
 
@@ -106,7 +106,7 @@ export function stopSessionGeneration(
     messages,
     set_error,
     set_is_loading,
-    set_pending_permission,
+    set_pending_permissions,
   } = context;
   const resolved_session_key = session_key || active_session_key_ref.current;
 
@@ -148,7 +148,7 @@ export function stopSessionGeneration(
   ws_send(payload as WebSocketMessage);
 
   set_is_loading(false);
-  set_pending_permission(null);
+  set_pending_permissions([]);
 }
 
 /**
@@ -164,18 +164,21 @@ export function sendSessionPermissionResponse(
     ws_state,
     ws_send,
     active_session_key_ref,
-    pending_permission,
+    pending_permissions,
     set_error,
     set_is_loading,
-    set_pending_permission,
+    set_pending_permissions,
   } = context;
   const resolved_session_key = session_key || active_session_key_ref.current;
+  const pending_permission = pending_permissions.find(
+    (item) => item.request_id === payload.request_id,
+  );
 
   if (!pending_permission) {
     return false;
   }
   if (!resolved_session_key || active_session_key_ref.current !== resolved_session_key) {
-    set_pending_permission(null);
+    set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
     return false;
   }
   if (!isStructuredSessionKey(resolved_session_key)) {
@@ -189,7 +192,7 @@ export function sendSessionPermissionResponse(
 
   const response: WebSocketMessage = {
     type: 'permission_response',
-    request_id: pending_permission.request_id,
+    request_id: payload.request_id,
     session_key: resolved_session_key,
     agent_id: resolveAgentId(agent_id),
     decision: payload.decision,
@@ -205,7 +208,7 @@ export function sendSessionPermissionResponse(
   }
 
   ws_send(response);
-  set_pending_permission(null);
+  set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
   set_is_loading(true);
   set_error(null);
   return true;

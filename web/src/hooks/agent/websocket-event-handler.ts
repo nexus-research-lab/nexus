@@ -26,7 +26,7 @@ export function handleAgentConversationWebSocketMessage({
   set_error,
   set_is_loading,
   set_messages,
-  set_pending_permission,
+  set_pending_permissions,
   enqueue_stream_payload,
   on_background_message,
   set_agent_thinking,
@@ -57,15 +57,21 @@ export function handleAgentConversationWebSocketMessage({
       return;
     }
     const data = event.data || {};
-    set_pending_permission({
-      request_id: data.request_id,
-      tool_name: data.tool_name,
-      tool_input: data.tool_input || {},
-      risk_level: data.risk_level,
-      risk_label: data.risk_label,
-      summary: data.summary,
-      suggestions: data.suggestions || [],
-      expires_at: data.expires_at,
+    set_pending_permissions((prev) => {
+      const next_permission = {
+        request_id: data.request_id,
+        tool_name: data.tool_name,
+        tool_input: data.tool_input || {},
+        risk_level: data.risk_level,
+        risk_label: data.risk_label,
+        summary: data.summary,
+        suggestions: data.suggestions || [],
+        expires_at: data.expires_at,
+      };
+      return [
+        ...prev.filter((item) => item.request_id !== data.request_id),
+        next_permission,
+      ];
     });
     return;
   }
@@ -217,7 +223,7 @@ export function handleAgentConversationWebSocketMessage({
 
   set_messages((prev) => upsertMessage(prev, payload));
   if (payload.role === 'result') {
-    set_pending_permission(null);
+    set_pending_permissions([]);
     track_result_message?.(payload as ResultMessage);
     if (!track_result_message) {
       set_is_loading(false);
