@@ -381,6 +381,12 @@ Room 消息不会默认广播给所有 Agent。
 4. 为每个 Agent 创建独立子轮次
 5. 并发执行所有 Agent
 
+补充规则：
+
+- `msg_id` 只表示 Room 前端占位槽位和中断定位键
+- `msg_id` 不是 assistant 消息 ID
+- Room 的真实 assistant turn 必须继续使用 SDK 自己的 `message_id`
+
 子轮次规则：
 
 - 单 Agent 时，直接复用用户 `round_id`
@@ -418,7 +424,7 @@ result 到达后还必须：
 Room 当前核心事件包括：
 
 - `chat_ack`
-  - 服务器已为目标 Agent 分配占位消息槽位
+  - 服务器已为目标 Agent 分配占位槽位
 - `stream_start`
   - 某个占位消息进入 streaming
 - `stream_end`
@@ -436,7 +442,14 @@ Room 当前核心事件包括：
 
 补充规则：
 
-- `chat_ack` 是 Room UI 能够立即渲染占位卡片的前提
+- `chat_ack` 是 Room UI 能够立即渲染 pending slot 的前提
+- `chat_ack` 不是 assistant 消息
+- 前端不能把 `chat_ack.msg_id` 写入共享消息流
+- `permission_request` 必须携带并保留事件路由元信息：
+  - `agent_id`
+  - `message_id`
+  - `caused_by`
+- Room 前端应优先用这些元信息把权限请求挂到正确的 Agent 卡片 / Thread
 - `room_resync_required` 表示前端不应继续假设本地上下文绝对正确，应回源刷新
 
 ## 11. 中断与状态修复规范
@@ -524,7 +537,6 @@ Thread 只表示“某一轮中某个 Agent 的完整明细”。
 
 - 当前轮的用户消息
 - 目标 Agent 的 assistant 消息
-- 目标 Agent 的 result 消息
 
 Thread 规则：
 
@@ -536,7 +548,10 @@ Thread 规则：
 
 - Thread 不是独立消息源
 - Thread 只对共享流消息做过滤视图
+- Thread 只消费真实 assistant 执行链，不消费占位槽位
 - Agent 的流式过程先体现在 Thread
+- 但权限确认不能只藏在 Thread 里
+- 如果某个 Agent 正在等待权限，主时间线中的 pending card 也必须给出明确提示
 - 子轮次完成后，最终回答进入主时间线
 
 ## 14. 命名与边界规则

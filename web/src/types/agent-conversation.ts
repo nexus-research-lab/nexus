@@ -9,7 +9,14 @@
 
 import { Dispatch, RefObject, SetStateAction } from 'react';
 
-import { AssistantMessage, ChatAckData, Message, ResultMessage, StreamMessage } from '@/types';
+import {
+  AssistantMessage,
+  ChatAckData,
+  Message,
+  ResultMessage,
+  RoomPendingAgentSlotState,
+  StreamMessage,
+} from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import { WebSocketMessage, WebSocketState } from '@/types/websocket';
 import { WorkspaceEventPayload } from '@/types/workspace-live';
@@ -32,6 +39,7 @@ export interface UseAgentConversationReturn {
   ws_state: WebSocketState;
   is_loading: boolean;
   error: string | null;
+  pending_agent_slots: RoomPendingAgentSlotState[];
   send_message: (content: string) => Promise<void>;
   bind_session_key: (key: string | null) => void;
   start_session: () => void;
@@ -63,10 +71,12 @@ export interface AgentConversationActionContext {
   ws_send: (message: WebSocketMessage) => void;
   active_session_key_ref: RefObject<string | null>;
   pending_permissions: PendingPermission[];
+  pending_agent_slots: RoomPendingAgentSlotState[];
   messages: Message[];
   set_error: Dispatch<SetStateAction<string | null>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
 }
 
@@ -79,6 +89,7 @@ export interface AgentConversationLifecycleContext {
   chat_type?: 'dm' | 'group';
   set_session_key: Dispatch<SetStateAction<string | null>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;
   set_error: Dispatch<SetStateAction<string | null>>;
@@ -110,6 +121,7 @@ export interface HandleAgentConversationWebSocketMessageParams {
   set_error: Dispatch<SetStateAction<string | null>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
   /** Enqueue a stream payload into the rAF batch buffer instead of calling set_messages directly */
   enqueue_stream_payload?: (payload: StreamMessage) => void;

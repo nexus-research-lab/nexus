@@ -184,6 +184,13 @@ export interface PendingAgentSlot {
   msg_id: string;
 }
 
+/** Room 前端占位槽位状态。 */
+export interface RoomPendingAgentSlotState extends PendingAgentSlot {
+  round_id: string;
+  status: AssistantMessageStatus;
+  timestamp: number;
+}
+
 /** chat_ack event data */
 export interface ChatAckData {
   req_id: string;

@@ -71,6 +71,7 @@ class AgentMessenger:
             target_client = await agent_runtime.get_or_create_client(
                 session_key=target_session_key,
                 agent_id=to_agent_id,
+                permission_strategy=self._permission_strategy,
             )
 
             logger.info(

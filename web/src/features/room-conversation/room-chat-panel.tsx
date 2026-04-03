@@ -8,7 +8,8 @@ import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { buildRoomSharedSessionKey } from "@/lib/session-key";
 import { RoomConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
-import { Message } from "@/types/message";
+import { AssistantMessage, Message } from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { TodoItem } from "@/types/todo";
 import { Agent } from "@/types/agent";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
@@ -17,8 +18,11 @@ import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-l
 import {
   buildRoomAgentRoundEntries,
   getRoomAgentRoundEntry,
+  getRoomBaseRoundId,
   getRoomThreadMessages,
   get_latest_reply_timestamp,
+  groupRoomPendingPermissionsByRound,
+  groupRoomPendingSlotsByRound,
   groupRoomMessagesByRound,
   isAgentRoundActive,
 } from "@/features/conversation-shared/utils";
@@ -53,6 +57,88 @@ export interface RoomChatPanelProps {
   on_create_conversation?: (title?: string) => void | Promise<string | null>;
   on_select_conversation?: (conversation_id: string) => void;
   on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
+}
+
+function build_permission_signature(tool_name: string, tool_input: Record<string, unknown>): string {
+  const sorted_entries = Object.entries(tool_input ?? {}).sort(([left], [right]) => left.localeCompare(right));
+  return `${tool_name}:${JSON.stringify(sorted_entries)}`;
+}
+
+function get_thread_pending_permissions(
+  round_id: string,
+  agent_id: string,
+  thread_messages: Message[],
+  pending_permissions: PendingPermission[],
+): PendingPermission[] {
+  if (pending_permissions.length === 0) {
+    return [];
+  }
+
+  const direct_permissions = pending_permissions.filter((permission) => (
+    permission.agent_id === agent_id &&
+    permission.caused_by &&
+    getRoomBaseRoundId(permission.caused_by, permission.agent_id) === round_id
+  ));
+  if (direct_permissions.length > 0) {
+    return direct_permissions;
+  }
+  if (thread_messages.length === 0) {
+    return [];
+  }
+
+  const resolved_tool_use_ids = new Set<string>();
+  const unresolved_tool_signatures: string[] = [];
+
+  for (const message of thread_messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    for (const block of (message as AssistantMessage).content) {
+      if (block.type === "tool_result") {
+        resolved_tool_use_ids.add(block.tool_use_id);
+      }
+    }
+  }
+
+  for (const message of thread_messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    for (const block of (message as AssistantMessage).content) {
+      if (block.type !== "tool_use" || resolved_tool_use_ids.has(block.id)) {
+        continue;
+      }
+
+      unresolved_tool_signatures.push(
+        build_permission_signature(block.name, block.input as Record<string, unknown>),
+      );
+    }
+  }
+
+  if (unresolved_tool_signatures.length === 0) {
+    return [];
+  }
+
+  const permission_queue_map = new Map<string, PendingPermission[]>();
+  for (const permission of pending_permissions) {
+    const signature = build_permission_signature(permission.tool_name, permission.tool_input);
+    const queue = permission_queue_map.get(signature) ?? [];
+    queue.push(permission);
+    permission_queue_map.set(signature, queue);
+  }
+
+  const matched_permissions: PendingPermission[] = [];
+  for (const signature of unresolved_tool_signatures) {
+    const queue = permission_queue_map.get(signature);
+    const permission = queue?.shift();
+    if (permission) {
+      matched_permissions.push(permission);
+    }
+  }
+
+  return matched_permissions;
 }
 
 /**
@@ -103,6 +189,7 @@ export function RoomChatPanel({
     error,
     messages,
     is_loading,
+    pending_agent_slots,
     pending_permissions,
     send_message,
     stop_generation,
@@ -162,18 +249,28 @@ export function RoomChatPanel({
   });
 
   const message_groups = useMemo(() => groupRoomMessagesByRound(messages), [messages]);
+  const pending_slot_groups = useMemo(
+    () => groupRoomPendingSlotsByRound(pending_agent_slots),
+    [pending_agent_slots],
+  );
+  const pending_permission_groups = useMemo(
+    () => groupRoomPendingPermissionsByRound(pending_permissions),
+    [pending_permissions],
+  );
   const round_ids = Array.from(message_groups.keys());
   const mention_unavailable_agent_ids = useMemo(() => {
     const next_ids = new Set<string>();
-    for (const round_messages of message_groups.values()) {
-      for (const entry of buildRoomAgentRoundEntries(round_messages)) {
+    for (const round_id of round_ids) {
+      const round_messages = message_groups.get(round_id) ?? [];
+      const round_pending_slots = pending_slot_groups.get(round_id) ?? [];
+      for (const entry of buildRoomAgentRoundEntries(round_messages, round_pending_slots)) {
         if (isAgentRoundActive(entry.status)) {
           next_ids.add(entry.agent_id);
         }
       }
     }
     return Array.from(next_ids);
-  }, [message_groups]);
+  }, [message_groups, pending_slot_groups, round_ids]);
 
   const handle_send_message = async (content: string) => {
     if (!content.trim()) return;
@@ -201,9 +298,13 @@ export function RoomChatPanel({
   }, [active_thread, thread_round_messages]);
   const thread_entry = useMemo(
     () => active_thread
-      ? getRoomAgentRoundEntry(thread_round_messages, active_thread.agent_id)
+      ? getRoomAgentRoundEntry(
+        thread_round_messages,
+        active_thread.agent_id,
+        pending_slot_groups.get(active_thread.round_id) ?? [],
+      )
       : null,
-    [active_thread, thread_round_messages],
+    [active_thread, pending_slot_groups, thread_round_messages],
   );
   const thread_is_loading = useMemo(
     () => Boolean(thread_entry && isAgentRoundActive(thread_entry.status)),
@@ -212,6 +313,17 @@ export function RoomChatPanel({
   const thread_agent_name = active_thread && agent_name_map
     ? agent_name_map[active_thread.agent_id] ?? active_thread.agent_id
     : null;
+  const thread_pending_permissions = useMemo(
+    () => active_thread
+      ? get_thread_pending_permissions(
+        active_thread.round_id,
+        active_thread.agent_id,
+        thread_messages,
+        pending_permission_groups.get(active_thread.round_id) ?? [],
+      )
+      : [],
+    [active_thread, pending_permission_groups, thread_messages],
+  );
 
   useEffect(() => {
     if (!active_thread) {
@@ -241,10 +353,22 @@ export function RoomChatPanel({
       messages: thread_messages,
       agent_name: thread_agent_name,
       is_loading: thread_is_loading,
+      pending_permissions: thread_pending_permissions,
+      on_permission_response: send_permission_response,
       on_stop_message: handle_stop_message,
       on_open_workspace_file,
     });
-  }, [active_thread, thread_messages, thread_agent_name, thread_is_loading, handle_stop_message, set_thread_panel_data, on_open_workspace_file]);
+  }, [
+    active_thread,
+    thread_messages,
+    thread_agent_name,
+    thread_is_loading,
+    thread_pending_permissions,
+    send_permission_response,
+    handle_stop_message,
+    set_thread_panel_data,
+    on_open_workspace_file,
+  ]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
@@ -323,6 +447,8 @@ export function RoomChatPanel({
               is_loading={is_loading}
               is_mobile_layout={is_mobile_layout}
               message_groups={message_groups}
+              pending_permission_groups={pending_permission_groups}
+              pending_slot_groups={pending_slot_groups}
               on_open_workspace_file={on_open_workspace_file}
               on_permission_response={send_permission_response}
               on_stop_message={handle_stop_message}

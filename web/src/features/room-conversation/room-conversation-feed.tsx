@@ -4,7 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageItem } from "@/features/conversation-shared/message";
 import { hasRoomAgentRoundEntries } from "@/features/conversation-shared/utils";
-import { Message } from "@/types/message";
+import { Message, RoomPendingAgentSlotState } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { estimateRoundHeights } from "@/hooks/use-message-height";
 import { RoomRoundCardGroup } from "./thread/room-round-card-group";
@@ -22,6 +22,8 @@ interface RoomConversationFeedProps {
   is_loading: boolean;
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
+  pending_permission_groups: Map<string, PendingPermission[]>;
+  pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   /** Room 并发模式：停止单条消息生成 */
@@ -59,6 +61,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
   is_loading,
   is_mobile_layout,
   message_groups,
+  pending_permission_groups,
+  pending_slot_groups,
   on_open_workspace_file,
   on_permission_response,
   on_stop_message,
@@ -79,6 +83,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         is_loading={is_loading}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
+        pending_permission_groups={pending_permission_groups}
+        pending_slot_groups={pending_slot_groups}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
         on_stop_message={on_stop_message}
@@ -94,8 +100,10 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
     >
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
+        const round_pending_permissions = pending_permission_groups.get(roundId) || [];
+        const round_pending_slots = pending_slot_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
-        const has_room_entries = hasRoomAgentRoundEntries(roundMessages);
+        const has_room_entries = hasRoomAgentRoundEntries(roundMessages, round_pending_slots);
 
         // Room 中一旦出现 Agent 回复，就统一走 RoomRoundCardGroup。
         if (has_room_entries) {
@@ -104,9 +112,12 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
               key={roundId}
               round_id={roundId}
               messages={roundMessages}
+              pending_permissions={round_pending_permissions}
+              pending_slots={round_pending_slots}
               agent_name_map={agent_name_map}
               is_last_round={isLastRound}
               is_loading={is_loading}
+              on_permission_response={on_permission_response}
               on_stop_message={on_stop_message}
               on_open_workspace_file={on_open_workspace_file}
             />
@@ -149,6 +160,8 @@ function VirtualFeed({
   is_loading,
   is_mobile_layout,
   message_groups,
+  pending_permission_groups,
+  pending_slot_groups,
   on_open_workspace_file,
   on_permission_response,
   on_stop_message,
@@ -210,8 +223,10 @@ function VirtualFeed({
         {virtual_items.map((virtual_item) => {
           const roundId = round_ids[virtual_item.index];
           const roundMessages = message_groups.get(roundId) || [];
+          const round_pending_permissions = pending_permission_groups.get(roundId) || [];
+          const round_pending_slots = pending_slot_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
-          const has_room_entries = hasRoomAgentRoundEntries(roundMessages);
+          const has_room_entries = hasRoomAgentRoundEntries(roundMessages, round_pending_slots);
 
           return (
             <div
@@ -223,9 +238,12 @@ function VirtualFeed({
                 <RoomRoundCardGroup
                   round_id={roundId}
                   messages={roundMessages}
+                  pending_permissions={round_pending_permissions}
+                  pending_slots={round_pending_slots}
                   agent_name_map={agent_name_map}
                   is_last_round={isLastRound}
                   is_loading={is_loading}
+                  on_permission_response={on_permission_response}
                   on_stop_message={on_stop_message}
                   on_open_workspace_file={on_open_workspace_file}
                 />

@@ -62,6 +62,10 @@ export function handleAgentConversationWebSocketMessage({
         request_id: data.request_id,
         tool_name: data.tool_name,
         tool_input: data.tool_input || {},
+        session_key: incoming_session_key,
+        agent_id: event.agent_id ?? null,
+        message_id: event.message_id ?? null,
+        caused_by: event.caused_by ?? null,
         risk_level: data.risk_level,
         risk_label: data.risk_label,
         summary: data.summary,
@@ -113,7 +117,7 @@ export function handleAgentConversationWebSocketMessage({
     return;
   }
 
-  // chat_ack: server pre-allocated msg_ids; insert pending placeholder bubbles immediately
+  // chat_ack: 仅登记 Room 占位槽位，不再插入假 assistant 消息
   if (event.event_type === 'chat_ack') {
     if (!is_current_session_event(incoming_session_key)) {
       return;
@@ -122,27 +126,6 @@ export function handleAgentConversationWebSocketMessage({
     if (!ack?.pending?.length) {
       return;
     }
-    const now = Date.now();
-    set_messages((prev) => {
-      let next = prev;
-      for (const slot of ack.pending) {
-        const placeholder: AssistantMessage = {
-          message_id: slot.msg_id,
-          session_key: incoming_session_key ?? '',
-          room_id: event.room_id ?? undefined,
-          conversation_id: event.conversation_id ?? undefined,
-          agent_id: slot.agent_id,
-          round_id: ack.round_id,
-          role: 'assistant',
-          content: [],
-          is_complete: false,
-          stream_status: 'pending',
-          timestamp: now,
-        };
-        next = upsertMessage(next, placeholder);
-      }
-      return next;
-    });
     track_chat_ack?.(ack, incoming_session_key);
     set_is_loading(true);
     return;

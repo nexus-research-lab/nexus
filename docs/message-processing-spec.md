@@ -161,12 +161,32 @@ Room 分成两块：
   - `tool_result`
   - `assistant text`
 - Thread 不显示 `ResultMessage`
+- Thread 的消息源必须与 DM 实时态一致：
+  - 只消费真实的 `AssistantMessage`
+  - 不消费 Room 占位槽位
+- Room 的权限确认默认应在 Thread 中展示
+- 若 Thread 未打开，主时间线里的 pending card 也必须明确显示“等待权限确认”
+- Room 前端不能把权限卡完全藏在 Thread 里，否则用户会误以为前端没收到请求
 
-### 6.3 Room 规则总结
+### 6.3 Room 占位规则
+
+- Room 仍然允许 `chat_ack`
+- 但 `chat_ack` 只表示“前端 pending slot”
+- `chat_ack` 不是 assistant 消息
+- 前端不能把 `chat_ack.msg_id` 写进 `messages`
+- 后端输出的 assistant turn 必须与 DM 保持一致，继续使用 SDK 自己的 `message_id`
+- `permission_request` 应优先按事件元信息匹配：
+  - `agent_id`
+  - `caused_by`
+  - `message_id`
+- 不能只靠工具名或命令文本猜测归属
+
+### 6.4 Room 规则总结
 
 - 主时间线 = 结果视图
 - Thread = 执行视图
 - 两者不混用
+- 占位 = 前端状态，不是消息
 
 ## 7. DM 展示规范
 

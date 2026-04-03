@@ -4,6 +4,7 @@ import { memo, useCallback, useMemo } from "react";
 import { Bot, Check, Loader2, Square, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AssistantMessage, ResultMessage } from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import {
   AgentRoundStatus,
   extractAgentPreviewText,
@@ -15,8 +16,10 @@ interface AgentStatusCardProps {
   agent_name: string;
   messages: AssistantMessage[];
   result_message?: ResultMessage;
+  pending_permissions?: PendingPermission[];
   is_thread_active: boolean;
   on_click_thread: () => void;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_stop_message?: () => void;
 }
 
@@ -25,12 +28,16 @@ function AgentStatusCardInner({
   agent_name,
   messages,
   result_message,
+  pending_permissions = [],
   is_thread_active,
   on_click_thread,
+  on_permission_response,
   on_stop_message,
 }: AgentStatusCardProps) {
   const status: AgentRoundStatus = getAgentRoundStatus(messages, result_message);
   const preview = useMemo(() => extractAgentPreviewText(messages), [messages]);
+  const primary_pending_permission = pending_permissions[0];
+  const is_waiting_permission = pending_permissions.length > 0 && (status === "pending" || status === "streaming");
 
   // result 消息中的统计信息（由父组件从 round 消息中提取传入）
   const result_msg = useMemo(() => {
@@ -64,6 +71,28 @@ function AgentStatusCardInner({
     },
     [first_msg, on_stop_message],
   );
+  const handle_allow = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!primary_pending_permission || !on_permission_response) {
+      on_click_thread();
+      return;
+    }
+    on_permission_response({
+      request_id: primary_pending_permission.request_id,
+      decision: "allow",
+    });
+  }, [on_click_thread, on_permission_response, primary_pending_permission]);
+  const handle_deny = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!primary_pending_permission || !on_permission_response) {
+      on_click_thread();
+      return;
+    }
+    on_permission_response({
+      request_id: primary_pending_permission.request_id,
+      decision: "deny",
+    });
+  }, [on_click_thread, on_permission_response, primary_pending_permission]);
 
   return (
     <div
@@ -93,14 +122,25 @@ function AgentStatusCardInner({
         {/* 状态详情 */}
         {status === "pending" && (
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
-            <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
-            <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+            {is_waiting_permission ? (
+              <p className="truncate text-xs text-amber-600">等待权限确认</p>
+            ) : (
+              <>
+                <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
+                <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
+                <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+              </>
+            )}
           </div>
         )}
 
         {status === "streaming" && (
-          <p className="mt-0.5 truncate text-xs text-slate-400">正在回复...</p>
+          <p className={cn(
+            "mt-0.5 truncate text-xs",
+            is_waiting_permission ? "text-amber-600" : "text-slate-400",
+          )}>
+            {is_waiting_permission ? "等待权限确认" : "正在回复..."}
+          </p>
         )}
 
         {status === "done" && preview && (
@@ -114,10 +154,33 @@ function AgentStatusCardInner({
         {status === "error" && (
           <p className="mt-0.5 text-xs text-rose-500 italic">执行失败</p>
         )}
+
+        {is_waiting_permission && primary_pending_permission?.summary ? (
+          <p className="mt-0.5 truncate text-xs text-slate-500">{primary_pending_permission.summary}</p>
+        ) : null}
       </div>
 
       {/* 右侧操作区 */}
       <div className="flex shrink-0 items-center gap-1">
+        {is_waiting_permission ? (
+          <>
+            <button
+              type="button"
+              onClick={handle_deny}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              拒绝
+            </button>
+            <button
+              type="button"
+              onClick={handle_allow}
+              className="rounded-md bg-[#7c6cf2] px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#6f5de8]"
+            >
+              允许
+            </button>
+          </>
+        ) : null}
+
         {/* Token 统计 (done 状态) */}
         {status === "done" && result_msg?.tokens && (
           <span className="hidden text-[10px] tabular-nums text-slate-400 sm:inline">

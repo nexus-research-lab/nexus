@@ -4,7 +4,13 @@ import { memo, useCallback, useMemo } from "react";
 import { MessageItem } from "@/features/conversation-shared/message";
 
 import { cn } from "@/lib/utils";
-import { AssistantMessage, Message, ResultMessage } from "@/types/message";
+import {
+  AssistantMessage,
+  Message,
+  ResultMessage,
+  RoomPendingAgentSlotState,
+} from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import {
   buildRoomAgentRoundEntries,
   RoomAgentRoundEntry,
@@ -16,9 +22,12 @@ import { useRoomThread } from "./room-thread-context";
 interface RoomRoundCardGroupProps {
   round_id: string;
   messages: Message[];
+  pending_permissions?: PendingPermission[];
+  pending_slots?: RoomPendingAgentSlotState[];
   agent_name_map?: Record<string, string>;
   is_last_round: boolean;
   is_loading: boolean;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
@@ -94,9 +103,12 @@ function RoomCompletedReply({
 function RoomRoundCardGroupInner({
   round_id,
   messages,
+  pending_permissions = [],
+  pending_slots = [],
   agent_name_map,
   is_last_round,
   is_loading,
+  on_permission_response,
   on_stop_message,
   on_open_workspace_file,
 }: RoomRoundCardGroupProps) {
@@ -108,11 +120,11 @@ function RoomRoundCardGroupInner({
   );
 
   const agent_entries = useMemo(() => {
-    return buildRoomAgentRoundEntries(messages).map((entry) => ({
+    return buildRoomAgentRoundEntries(messages, pending_slots).map((entry) => ({
       ...entry,
       agent_name: agent_name_map?.[entry.agent_id] ?? entry.agent_id,
     }));
-  }, [agent_name_map, messages]);
+  }, [agent_name_map, messages, pending_slots]);
 
   const completed_entries = useMemo(
     () => agent_entries
@@ -183,9 +195,9 @@ function RoomRoundCardGroupInner({
                   <div className="flex flex-col gap-2">
                     {pending_entries.map((entry) => {
                       const is_thread_active = active_thread?.round_id === round_id && active_thread.agent_id === entry.agent_id;
-                      const stoppable_message = entry.assistant_messages.find((message) => (
-                        message.stream_status === "pending" || message.stream_status === "streaming"
-                      ));
+                      const entry_pending_permissions = pending_permissions.filter(
+                        (permission) => permission.agent_id === entry.agent_id,
+                      );
 
                       return (
                         <AgentStatusCard
@@ -194,11 +206,13 @@ function RoomRoundCardGroupInner({
                           agent_name={entry.agent_name}
                           messages={entry.assistant_messages}
                           result_message={entry.result_message}
+                          pending_permissions={entry_pending_permissions}
                           is_thread_active={is_thread_active}
                           on_click_thread={() => toggle_thread(entry.agent_id, true)}
+                          on_permission_response={on_permission_response}
                           on_stop_message={
-                            stoppable_message && on_stop_message && isAgentRoundActive(entry.status)
-                              ? () => on_stop_message(stoppable_message.message_id)
+                            entry.pending_slot && on_stop_message && isAgentRoundActive(entry.status)
+                              ? () => on_stop_message(entry.pending_slot!.msg_id)
                               : undefined
                           }
                         />

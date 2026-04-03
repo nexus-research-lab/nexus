@@ -13,6 +13,7 @@ export function resetSessionView(
   next_error: string | null = null,
 ): void {
   context.set_messages([]);
+  context.set_pending_agent_slots([]);
   context.set_pending_permissions([]);
   context.set_is_loading(false);
   context.set_error(next_error);

@@ -4,7 +4,7 @@
 
 与 ChatService（DM 单 Agent）不同，RoomChatService 负责：
 1. 解析消息中的 @Agent 提及
-2. 预分配每个 Agent 回复的 message_id，通过 chat_ack 立即告知前端
+2. 为每个 Agent 预分配占位槽位，通过 chat_ack 立即告知前端
 3. 所有 Agent 并发执行（asyncio.gather），互不阻塞
 4. 所有消息存储在共享的 room session_key 下
 """
@@ -227,7 +227,7 @@ class RoomChatService:
         if not agent_dispatch_params:
             return
 
-        # 5. 立即下发 chat_ack，前端据此渲染占位气泡
+        # 5. 立即下发 chat_ack，前端据此渲染独立占位槽位
         await self._broadcast_room_event(room_id, EventMessage(
             event_type="chat_ack",
             session_key=room_session_key,
@@ -341,6 +341,7 @@ class RoomChatService:
             client = await agent_runtime.get_or_create_client(
                 session_key=sdk_session_key,
                 agent_id=agent_id,
+                permission_strategy=self._permission_strategy,
                 resolved_agent_id=agent_id,
                 force_fresh=True,
             )
@@ -389,7 +390,6 @@ class RoomChatService:
                     round_id=round_id,
                     agent_id=agent_id,
                     session_id=room_session.sdk_session_id,
-                    assistant_message_id=msg_id,
                     persist_message=self._build_room_persist_callback(
                         room_session_id=room_session.id,
                         cost_session_key=sdk_session_key,

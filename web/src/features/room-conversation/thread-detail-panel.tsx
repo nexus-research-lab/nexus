@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { ArrowLeft, Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Message } from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { MessageItem } from "@/features/conversation-shared/message";
 
 interface ThreadDetailPanelProps {
@@ -12,6 +13,8 @@ interface ThreadDetailPanelProps {
   agent_name: string;
   /** 已过滤好的 Thread 消息。 */
   messages: Message[];
+  pending_permissions?: PendingPermission[];
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_close: () => void;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
@@ -29,6 +32,8 @@ export function ThreadDetailPanel({
   agent_id,
   agent_name,
   messages,
+  pending_permissions = [],
+  on_permission_response,
   on_close,
   on_stop_message,
   on_open_workspace_file,
@@ -88,6 +93,8 @@ export function ThreadDetailPanel({
           current_agent_name={agent_name}
           round_id={round_id}
           messages={messages}
+          pending_permissions={pending_permissions}
+          on_permission_response={on_permission_response}
           assistant_content_mode="room_thread"
           is_last_round
           is_loading={is_loading}

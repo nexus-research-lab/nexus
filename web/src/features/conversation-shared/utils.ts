@@ -1,4 +1,10 @@
-import { AssistantMessage, Message, ResultMessage } from "@/types/message";
+import {
+  AssistantMessage,
+  Message,
+  ResultMessage,
+  RoomPendingAgentSlotState,
+} from "@/types/message";
+import { PendingPermission } from "@/types/permission";
 
 /** 将消息按 round_id 分组 */
 export function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
@@ -47,6 +53,26 @@ export function groupRoomMessagesByRound(messages: Message[]): Map<string, Messa
   return groups;
 }
 
+/** Room 权限请求分组：按主 round_id 归并，供主时间线与 Thread 共用。 */
+export function groupRoomPendingPermissionsByRound(
+  pending_permissions: PendingPermission[],
+): Map<string, PendingPermission[]> {
+  const groups = new Map<string, PendingPermission[]>();
+
+  for (const permission of pending_permissions) {
+    if (!permission.caused_by) {
+      continue;
+    }
+    const round_id = getRoomBaseRoundId(permission.caused_by, permission.agent_id);
+    if (!groups.has(round_id)) {
+      groups.set(round_id, []);
+    }
+    groups.get(round_id)!.push(permission);
+  }
+
+  return groups;
+}
+
 // ── 多 Agent 轮次工具函数 ──────────────────────────────────────────────
 
 /** 聚合状态：单个 Agent 在某轮中的整体状态 */
@@ -57,6 +83,7 @@ export interface RoomAgentRoundEntry {
   agent_id: string;
   assistant_messages: AssistantMessage[];
   result_message?: ResultMessage;
+  pending_slot?: RoomPendingAgentSlotState;
   status: AgentRoundStatus;
   timestamp: number;
 }
@@ -74,8 +101,11 @@ export function isMultiAgentRound(messages: Message[]): boolean {
 }
 
 /** 判断一轮 Room 消息是否已经出现可归属到 Agent 的回复。 */
-export function hasRoomAgentRoundEntries(messages: Message[]): boolean {
-  return messages.some((message) => (
+export function hasRoomAgentRoundEntries(
+  messages: Message[],
+  pending_slots: RoomPendingAgentSlotState[] = [],
+): boolean {
+  return pending_slots.length > 0 || messages.some((message) => (
     Boolean(message.agent_id) &&
     (message.role === "assistant" || message.role === "result")
   ));
@@ -106,10 +136,22 @@ function buildResultMessageMap(messages: Message[]): Map<string, ResultMessage> 
   return result_map;
 }
 
+/** 将当前主 round 下的 pending slot 按 agent_id 索引。 */
+function buildPendingSlotMap(
+  pending_slots: RoomPendingAgentSlotState[],
+): Map<string, RoomPendingAgentSlotState> {
+  const slot_map = new Map<string, RoomPendingAgentSlotState>();
+  for (const slot of pending_slots) {
+    slot_map.set(slot.agent_id, slot);
+  }
+  return slot_map;
+}
+
 /** 从一组 assistant 消息中推导该 Agent 的聚合状态 */
 export function getAgentRoundStatus(
   messages: AssistantMessage[],
   result_message?: ResultMessage | null,
+  pending_slot?: RoomPendingAgentSlotState | null,
 ): AgentRoundStatus {
   if (result_message) {
     if (result_message.subtype === "error" || result_message.is_error) {
@@ -119,6 +161,19 @@ export function getAgentRoundStatus(
       return "cancelled";
     }
     return "done";
+  }
+
+  if (pending_slot?.status === "streaming") {
+    return "streaming";
+  }
+  if (pending_slot?.status === "pending") {
+    return "pending";
+  }
+  if (pending_slot?.status === "error") {
+    return "error";
+  }
+  if (pending_slot?.status === "cancelled" && messages.length === 0) {
+    return "cancelled";
   }
 
   if (messages.length === 0) return "pending";
@@ -141,7 +196,10 @@ export function getAgentRoundStatus(
   if (has_pending) return "pending";
   if (has_error) return "error";
   if (has_cancelled) return "cancelled";
-  return "done";
+
+  // 中文注释：Room 中一个 assistant turn 收口，只代表当前这段流式结束，
+  // 不代表整轮协作已经完成。只有拿到 ResultMessage，才能进入主时间线并自动关 Thread。
+  return "streaming";
 }
 
 /** 判断某个 Agent 子轮次是否仍在执行。 */
@@ -153,6 +211,7 @@ export function isAgentRoundActive(status: AgentRoundStatus): boolean {
 export function getAgentRoundTimestamp(
   messages: AssistantMessage[],
   result_message?: ResultMessage | null,
+  pending_slot?: RoomPendingAgentSlotState | null,
 ): number {
   if (result_message?.timestamp) {
     return result_message.timestamp;
@@ -165,28 +224,39 @@ export function getAgentRoundTimestamp(
     }
   }
 
+  if (pending_slot?.timestamp) {
+    return pending_slot.timestamp;
+  }
+
   return 0;
 }
 
 /** 构造一轮中所有 Agent 的聚合回复，用于主时间线和 Thread 共用。 */
-export function buildRoomAgentRoundEntries(messages: Message[]): RoomAgentRoundEntry[] {
+export function buildRoomAgentRoundEntries(
+  messages: Message[],
+  pending_slots: RoomPendingAgentSlotState[] = [],
+): RoomAgentRoundEntry[] {
   const result_map = buildResultMessageMap(messages);
   const agent_groups = groupRoundByAgent(messages);
+  const pending_slot_map = buildPendingSlotMap(pending_slots);
   const agent_ids = new Set<string>([
     ...agent_groups.keys(),
     ...result_map.keys(),
+    ...pending_slot_map.keys(),
   ]);
 
   return Array.from(agent_ids).map((agent_id) => {
     const assistant_messages = agent_groups.get(agent_id) ?? [];
     const result_message = result_map.get(agent_id);
+    const pending_slot = pending_slot_map.get(agent_id);
 
     return {
       agent_id,
       assistant_messages,
       result_message,
-      status: getAgentRoundStatus(assistant_messages, result_message),
-      timestamp: getAgentRoundTimestamp(assistant_messages, result_message),
+      pending_slot,
+      status: getAgentRoundStatus(assistant_messages, result_message, pending_slot),
+      timestamp: getAgentRoundTimestamp(assistant_messages, result_message, pending_slot),
     };
   });
 }
@@ -195,13 +265,15 @@ export function buildRoomAgentRoundEntries(messages: Message[]): RoomAgentRoundE
 export function getRoomAgentRoundEntry(
   messages: Message[],
   agent_id: string,
+  pending_slots: RoomPendingAgentSlotState[] = [],
 ): RoomAgentRoundEntry | null {
   const result_map = buildResultMessageMap(messages);
   const agent_groups = groupRoundByAgent(messages);
   const assistant_messages = agent_groups.get(agent_id) ?? [];
   const result_message = result_map.get(agent_id);
+  const pending_slot = pending_slots.find((slot) => slot.agent_id === agent_id);
 
-  if (assistant_messages.length === 0 && !result_message) {
+  if (assistant_messages.length === 0 && !result_message && !pending_slot) {
     return null;
   }
 
@@ -209,16 +281,36 @@ export function getRoomAgentRoundEntry(
     agent_id,
     assistant_messages,
     result_message,
-    status: getAgentRoundStatus(assistant_messages, result_message),
-    timestamp: getAgentRoundTimestamp(assistant_messages, result_message),
+    pending_slot,
+    status: getAgentRoundStatus(assistant_messages, result_message, pending_slot),
+    timestamp: getAgentRoundTimestamp(assistant_messages, result_message, pending_slot),
   };
 }
 
-/** 过滤出 Thread 需要展示的用户消息和目标 Agent 消息。 */
+/** 将 Room 前端占位槽位按主 round_id 分组。 */
+export function groupRoomPendingSlotsByRound(
+  pending_slots: RoomPendingAgentSlotState[],
+): Map<string, RoomPendingAgentSlotState[]> {
+  const groups = new Map<string, RoomPendingAgentSlotState[]>();
+
+  for (const slot of pending_slots) {
+    const round_id = getRoomBaseRoundId(slot.round_id, slot.agent_id);
+    if (!groups.has(round_id)) {
+      groups.set(round_id, []);
+    }
+    groups.get(round_id)!.push(slot);
+  }
+
+  return groups;
+}
+
+/** 过滤出 Thread 需要展示的用户消息和目标 Agent 的执行链。 */
 export function getRoomThreadMessages(messages: Message[], agent_id: string): Message[] {
   return messages.filter((message) => (
     message.role === "user" ||
-    (message.agent_id === agent_id && (message.role === "assistant" || message.role === "result"))
+    // 中文注释：Thread 只看过程，不展示 result。
+    // 最终结果只留在 Room 主时间线，避免中间 assistant 被误当成最终回答。
+    (message.agent_id === agent_id && message.role === "assistant")
   ));
 }
 

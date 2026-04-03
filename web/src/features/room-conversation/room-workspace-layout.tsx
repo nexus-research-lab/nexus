@@ -396,6 +396,8 @@ function RoomInspectorSlot({
           agent_id={active_thread!.agent_id}
           agent_name={thread_panel_data!.agent_name ?? active_thread!.agent_id}
           messages={thread_panel_data!.messages}
+          pending_permissions={thread_panel_data!.pending_permissions}
+          on_permission_response={thread_panel_data!.on_permission_response}
           on_close={close_thread}
           on_stop_message={thread_panel_data!.on_stop_message}
           on_open_workspace_file={thread_panel_data!.on_open_workspace_file}

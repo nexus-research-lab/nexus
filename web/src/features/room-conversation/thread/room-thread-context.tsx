@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { Message } from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 
 interface ThreadTarget {
   round_id: string;
@@ -18,6 +19,8 @@ export interface ThreadPanelData {
   messages: Message[];
   agent_name: string | null;
   is_loading: boolean;
+  pending_permissions: PendingPermission[];
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
@@ -73,6 +76,8 @@ export function RoomThreadContextProvider({ children }: { children: React.ReactN
         data.messages === prev.messages &&
         data.is_loading === prev.is_loading &&
         data.agent_name === prev.agent_name &&
+        data.pending_permissions === prev.pending_permissions &&
+        data.on_permission_response === prev.on_permission_response &&
         data.on_stop_message === prev.on_stop_message &&
         data.on_open_workspace_file === prev.on_open_workspace_file
       ) return;

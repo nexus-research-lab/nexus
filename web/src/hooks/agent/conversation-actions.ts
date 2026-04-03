@@ -104,6 +104,7 @@ export function stopSessionGeneration(
     ws_send,
     active_session_key_ref,
     messages,
+    pending_agent_slots,
     set_error,
     set_is_loading,
     set_pending_permissions,
@@ -134,10 +135,11 @@ export function stopSessionGeneration(
   // per-msg_id interrupt for Room multi-agent scenario
   if (msg_id) {
     payload.msg_id = msg_id;
-    // 从消息列表中查找目标 agent_id，用于后端精确定位中断目标
+    // 中文注释：Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
     const target_message = messages.find((m) => m.message_id === msg_id);
-    if (target_message?.agent_id) {
-      payload.target_agent_id = target_message.agent_id;
+    const target_slot = pending_agent_slots.find((slot) => slot.msg_id === msg_id);
+    if (target_message?.agent_id || target_slot?.agent_id) {
+      payload.target_agent_id = target_message?.agent_id ?? target_slot?.agent_id;
     }
   }
   if (chat_type === 'group') {

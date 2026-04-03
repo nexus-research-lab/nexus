@@ -13,7 +13,7 @@ import {
   UseAgentConversationOptions,
   UseAgentConversationReturn,
 } from '@/types/agent-conversation';
-import { AssistantMessage, AssistantMessageStatus } from '@/types';
+import { AssistantMessage, AssistantMessageStatus, RoomPendingAgentSlotState } from '@/types';
 import { upsertMessage } from './message-helpers';
 import {
   clearAgentSession,
@@ -48,6 +48,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [is_loading, set_is_loading] = useState(false);
   const [error, set_error] = useState<string | null>(null);
   const [session_key, set_session_key] = useState<string | null>(null);
+  const [pending_agent_slots, set_pending_agent_slots] = useState<RoomPendingAgentSlotState[]>([]);
   const [pending_permissions, set_pending_permissions] = useState<UseAgentConversationReturn['pending_permissions']>([]);
   const [agent_thinking, set_agent_thinking] = useState<AgentThinkingPayload | null>(null);
 
@@ -82,6 +83,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     chat_type,
     set_session_key,
     set_messages,
+    set_pending_agent_slots,
     set_pending_permissions,
     set_is_loading,
     set_error,
@@ -93,6 +95,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     chat_type,
     set_session_key,
     set_messages,
+    set_pending_agent_slots,
     set_pending_permissions,
     set_is_loading,
     set_error,
@@ -197,6 +200,15 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
           : m,
       ),
     );
+    set_pending_agent_slots((prev) => prev.map((slot) => (
+      slot.msg_id === msg_id
+        ? {
+          ...slot,
+          round_id: round_id ?? slot.round_id,
+          status,
+        }
+        : slot
+    )));
     const existing_tracker = active_message_tracker_ref.current.get(msg_id);
     const resolved_round_id = round_id ?? existing_tracker?.round_id ?? '';
 
@@ -214,12 +226,28 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
 
   const track_chat_ack = useCallback((ack: import('@/types').ChatAckData, _session_key?: string | null) => {
     pending_round_ids_ref.current.delete(ack.round_id);
+    const pending_count = ack.pending?.length ?? 0;
     for (const slot of ack.pending ?? []) {
+      const agent_round_id = pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id;
       active_message_tracker_ref.current.set(slot.msg_id, {
-        round_id: ack.round_id,
+        round_id: agent_round_id,
         status: 'pending',
       });
     }
+    set_pending_agent_slots((prev) => {
+      const preserved_slots = prev.filter((slot) => {
+        const base_round_id = slot.round_id.split(':', 1)[0];
+        return base_round_id !== ack.round_id;
+      });
+      const next_slots = (ack.pending ?? []).map((slot) => ({
+        agent_id: slot.agent_id,
+        msg_id: slot.msg_id,
+        round_id: pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id,
+        status: 'pending' as const,
+        timestamp: Date.now(),
+      }));
+      return [...preserved_slots, ...next_slots];
+    });
     sync_loading_state();
   }, [sync_loading_state]);
 
@@ -245,12 +273,8 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [sync_loading_state]);
 
   const track_result_message = useCallback((message: import('@/types').ResultMessage) => {
-    // 中文注释：Room 多 Agent 场景下，result.parent_id 直指占位 assistant msg_id，
-    // 先按 message_id 清理可避免 round_id 不一致时残留“回复中”状态。
-    if (message.parent_id) {
-      active_message_tracker_ref.current.delete(message.parent_id);
-    }
     clear_round_tracking(message.round_id);
+    set_pending_agent_slots((prev) => prev.filter((slot) => slot.round_id !== message.round_id));
   }, [clear_round_tracking]);
 
   const handle_websocket_message = useCallback((backend_message: unknown) => {
@@ -288,6 +312,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_error,
       set_is_loading,
       set_messages,
+      set_pending_agent_slots,
       set_pending_permissions,
       enqueue_stream_payload,
       on_background_message,
@@ -438,12 +463,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     ws_send,
     active_session_key_ref,
     pending_permissions,
+    pending_agent_slots,
     messages,
     set_error,
     set_is_loading,
     set_messages,
+    set_pending_agent_slots,
     set_pending_permissions,
-  }), [agent_id, room_id, conversation_id, chat_type, session_key, ws_state, ws_send, pending_permissions, messages, set_error, set_is_loading, set_messages, set_pending_permissions]);
+  }), [agent_id, room_id, conversation_id, chat_type, session_key, ws_state, ws_send, pending_permissions, pending_agent_slots, messages, set_error, set_is_loading, set_messages, set_pending_agent_slots, set_pending_permissions]);
 
   const send_message = useCallback(async (content: string) => {
     const round_id = await sendSessionMessage(content, action_context);
@@ -459,6 +486,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     stopSessionGeneration(action_context, msg_id);
     if (msg_id) {
       active_message_tracker_ref.current.delete(msg_id);
+      set_pending_agent_slots((prev) => prev.map((slot) => (
+        slot.msg_id === msg_id
+          ? {
+            ...slot,
+            status: 'cancelled',
+          }
+          : slot
+      )));
       sync_loading_state();
       return;
     }
@@ -489,6 +524,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     active_session_key_ref.current = key;
     set_session_key(key);
     if (!key) {
+      set_pending_agent_slots([]);
       set_pending_permissions([]);
     }
   }, []);
@@ -503,6 +539,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     session_key,
     ws_state,
     is_loading,
+    pending_agent_slots,
     pending_permissions,
     agent_thinking,
     send_message,

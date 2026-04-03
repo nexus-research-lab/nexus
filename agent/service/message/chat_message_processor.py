@@ -41,7 +41,6 @@ class ChatMessageProcessor:
         round_id: Optional[str] = None,
         agent_id: str = None,
         session_id: Optional[str] = None,
-        assistant_message_id: Optional[str] = None,
         persist_message: Optional[PersistMessageCallback] = None,
         register_session: Optional[RegisterSessionCallback] = None,
     ) -> None:
@@ -50,8 +49,6 @@ class ChatMessageProcessor:
         self.agent_id = resolve_agent_id(agent_id)
         self.round_id = round_id or str(uuid.uuid4())
         self.session_id = session_id
-        # 预分配的 assistant message_id，覆盖 SDK 分配的 id
-        self._assistant_message_id: Optional[str] = assistant_message_id
         self.subtype: Optional[str] = None
         self.message_count = 0
         self._is_user_message_saved = False
@@ -152,10 +149,8 @@ class ChatMessageProcessor:
 
         if event_type == "message_start":
             message = event.get("message") or {}
-            # 使用预分配的 id（Room 并发场景），否则用 SDK 分配的 id
-            effective_message_id = self._assistant_message_id or message.get("id")
             self._segment.start(
-                message_id=effective_message_id,
+                message_id=message.get("id"),
                 model=message.get("model"),
                 usage=message.get("usage"),
             )

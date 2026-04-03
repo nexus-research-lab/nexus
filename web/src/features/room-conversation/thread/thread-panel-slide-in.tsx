@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Message } from "@/types/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { ThreadDetailPanel } from "../thread-detail-panel";
 
 interface ThreadPanelSlideInProps {
@@ -12,6 +13,8 @@ interface ThreadPanelSlideInProps {
   agent_name: string | null;
   /** 已过滤好的 Thread 消息 */
   messages: Message[];
+  pending_permissions?: PendingPermission[];
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_close: () => void;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
@@ -29,6 +32,8 @@ export function ThreadPanelSlideIn({
   agent_id,
   agent_name,
   messages,
+  pending_permissions = [],
+  on_permission_response,
   on_close,
   on_stop_message,
   on_open_workspace_file,
@@ -57,6 +62,8 @@ export function ThreadPanelSlideIn({
               agent_id={agent_id}
               agent_name={agent_name}
               messages={messages}
+              pending_permissions={pending_permissions}
+              on_permission_response={on_permission_response}
               on_close={on_close}
               on_stop_message={on_stop_message}
               on_open_workspace_file={on_open_workspace_file}
@@ -84,6 +91,8 @@ export function ThreadPanelSlideIn({
           agent_id={agent_id}
           agent_name={agent_name}
           messages={messages}
+          pending_permissions={pending_permissions}
+          on_permission_response={on_permission_response}
           on_close={on_close}
           on_stop_message={on_stop_message}
           on_open_workspace_file={on_open_workspace_file}

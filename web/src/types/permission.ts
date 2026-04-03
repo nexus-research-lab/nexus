@@ -39,6 +39,10 @@ export interface PendingPermission {
   request_id: string;
   tool_name: string;
   tool_input: Record<string, any>;
+  session_key?: string | null;
+  agent_id?: string | null;
+  message_id?: string | null;
+  caused_by?: string | null;
   risk_level?: PermissionRiskLevel;
   risk_label?: string;
   summary?: string;
