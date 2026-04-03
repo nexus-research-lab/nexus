@@ -47,6 +47,7 @@ export interface PendingPermission {
 }
 
 export interface PermissionDecisionPayload {
+  request_id: string;
   decision: PermissionDecision;
   user_answers?: UserQuestionAnswer[];
   updated_permissions?: PermissionUpdate[];

@@ -39,7 +39,7 @@ export interface UseAgentConversationReturn {
   clear_session: () => void;
   reset_session: () => void;
   stop_generation: (msg_id?: string) => void;
-  pending_permission: PendingPermission | null;
+  pending_permissions: PendingPermission[];
   send_permission_response: (payload: PermissionDecisionPayload) => boolean;
   /** Current agent thinking status (multi-agent room only) */
   agent_thinking: AgentThinkingPayload | null;
@@ -62,12 +62,12 @@ export interface AgentConversationActionContext {
   ws_state: WebSocketState;
   ws_send: (message: WebSocketMessage) => void;
   active_session_key_ref: RefObject<string | null>;
-  pending_permission: PendingPermission | null;
+  pending_permissions: PendingPermission[];
   messages: Message[];
   set_error: Dispatch<SetStateAction<string | null>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
+  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
 }
 
 export interface AgentConversationLifecycleContext {
@@ -79,7 +79,7 @@ export interface AgentConversationLifecycleContext {
   chat_type?: 'dm' | 'group';
   set_session_key: Dispatch<SetStateAction<string | null>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
+  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;
   set_error: Dispatch<SetStateAction<string | null>>;
   /** Cache of background messages received for non-active sessions */
@@ -110,7 +110,7 @@ export interface HandleAgentConversationWebSocketMessageParams {
   set_error: Dispatch<SetStateAction<string | null>>;
   set_is_loading: Dispatch<SetStateAction<boolean>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_pending_permission: Dispatch<SetStateAction<PendingPermission | null>>;
+  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
   /** Enqueue a stream payload into the rAF batch buffer instead of calling set_messages directly */
   enqueue_stream_payload?: (payload: StreamMessage) => void;
   /** Called when a complete message arrives for a non-active session (for background caching) */

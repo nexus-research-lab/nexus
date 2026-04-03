@@ -32,11 +32,21 @@ export interface ThinkingContent {
   signature?: string | null;
 }
 
+export interface TaskProgressContent {
+  type: 'task_progress';
+  task_id: string;
+  description: string;
+  tool_use_id?: string | null;
+  last_tool_name?: string | null;
+  usage?: Record<string, any>;
+}
+
 export type ContentBlock =
   | TextContent
   | ToolUseContent
   | ToolResultContent
-  | ThinkingContent;
+  | ThinkingContent
+  | TaskProgressContent;
 
 export interface BaseMessage {
   message_id: string;
