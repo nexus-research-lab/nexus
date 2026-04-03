@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo } from "react";
-import { Bot, Check, Loader2, Square, X } from "lucide-react";
+import { Bot, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AssistantMessage, ResultMessage } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
@@ -38,29 +38,32 @@ function AgentStatusCardInner({
   const preview = useMemo(() => extractAgentPreviewText(messages), [messages]);
   const primary_pending_permission = pending_permissions[0];
   const is_waiting_permission = pending_permissions.length > 0 && (status === "pending" || status === "streaming");
-
-  // result 消息中的统计信息（由父组件从 round 消息中提取传入）
-  const result_msg = useMemo(() => {
-    if (result_message) {
-      return {
-        tokens: result_message.usage
-          ? `↑${result_message.usage.input_tokens} ↓${result_message.usage.output_tokens}`
-          : null,
-      };
-    }
-
-    // 中文注释：pending 卡片没有 result 时，退回 assistant usage 作为临时摘要。
-    const last = messages[messages.length - 1];
-    if (!last) return null;
-    return {
-      tokens: last.usage
-        ? `↑${last.usage.input_tokens} ↓${last.usage.output_tokens}`
-        : null,
-    };
-  }, [messages, result_message]);
-
   const first_msg = messages[0];
+  const last_msg = messages[messages.length - 1];
   const can_stop = on_stop_message && (status === "pending" || status === "streaming");
+  const timestamp = last_msg?.timestamp ?? result_message?.timestamp ?? 0;
+  const model = last_msg?.model ?? null;
+  const summary_text = useMemo(() => {
+    if (is_waiting_permission) {
+      return primary_pending_permission?.summary || "等待权限确认";
+    }
+    if (preview) {
+      return preview;
+    }
+    if (status === "pending") {
+      return "正在准备回复...";
+    }
+    if (status === "streaming") {
+      return "正在回复...";
+    }
+    if (status === "cancelled") {
+      return "已停止";
+    }
+    if (status === "error") {
+      return "执行失败";
+    }
+    return "";
+  }, [is_waiting_permission, preview, primary_pending_permission?.summary, status]);
 
   const handle_stop = useCallback(
     (e: React.MouseEvent) => {
@@ -93,131 +96,110 @@ function AgentStatusCardInner({
       decision: "deny",
     });
   }, [on_click_thread, on_permission_response, primary_pending_permission]);
+  const handle_toggle_thread = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    on_click_thread();
+  }, [on_click_thread]);
 
   return (
     <div
       className={cn(
-        "group/card flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all duration-200 cursor-pointer",
+        "group/card grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3 px-2 py-3 transition-colors duration-200 cursor-pointer",
         is_thread_active
-          ? "border-primary/30 bg-primary/5 shadow-sm"
-          : "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-sm",
+          ? "bg-primary/5"
+          : "hover:bg-slate-50/70",
       )}
       onClick={on_click_thread}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") on_click_thread(); }}
     >
-      {/* Agent 头像 */}
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500">
-        <Bot className="h-3.5 w-3.5" />
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
+        <Bot className="h-4 w-4" />
       </div>
 
-      {/* 主体内容 */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-800">{agent_name}</span>
-          <StatusBadge status={status} />
-        </div>
-
-        {/* 状态详情 */}
-        {status === "pending" && (
-          <div className="mt-0.5 flex items-center gap-1.5">
-            {is_waiting_permission ? (
-              <p className="truncate text-xs text-amber-600">等待权限确认</p>
-            ) : (
-              <>
-                <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
-                <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
-                <span className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
-              </>
-            )}
-          </div>
-        )}
-
-        {status === "streaming" && (
-          <p className={cn(
-            "mt-0.5 truncate text-xs",
-            is_waiting_permission ? "text-amber-600" : "text-slate-400",
-          )}>
-            {is_waiting_permission ? "等待权限确认" : "正在回复..."}
-          </p>
-        )}
-
-        {status === "done" && preview && (
-          <p className="mt-0.5 truncate text-xs text-slate-500">{preview}</p>
-        )}
-
-        {status === "cancelled" && (
-          <p className="mt-0.5 text-xs text-slate-400 italic">已停止</p>
-        )}
-
-        {status === "error" && (
-          <p className="mt-0.5 text-xs text-rose-500 italic">执行失败</p>
-        )}
-
-        {is_waiting_permission && primary_pending_permission?.summary ? (
-          <p className="mt-0.5 truncate text-xs text-slate-500">{primary_pending_permission.summary}</p>
-        ) : null}
-      </div>
-
-      {/* 右侧操作区 */}
-      <div className="flex shrink-0 items-center gap-1">
-        {is_waiting_permission ? (
-          <>
-            <button
-              type="button"
-              onClick={handle_deny}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              拒绝
-            </button>
-            <button
-              type="button"
-              onClick={handle_allow}
-              className="rounded-md bg-[#7c6cf2] px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#6f5de8]"
-            >
-              允许
-            </button>
-          </>
-        ) : null}
-
-        {/* Token 统计 (done 状态) */}
-        {status === "done" && result_msg?.tokens && (
-          <span className="hidden text-[10px] tabular-nums text-slate-400 sm:inline">
-            {result_msg.tokens}
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-sm font-bold text-slate-900">{agent_name}</span>
+          {(status === "pending" || status === "streaming") && !is_waiting_permission ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
+          ) : null}
+          <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">
+            {timestamp ? formatTime(timestamp) : "--:--"}
           </span>
-        )}
+          {model ? <span className="min-w-0 truncate text-xs text-slate-400">{model}</span> : null}
+          <div className="min-w-0 flex-1" />
 
-        {/* 停止按钮 */}
-        {can_stop && (
           <button
             type="button"
-            onClick={handle_stop}
-            className="flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            onClick={handle_toggle_thread}
+            className={cn(
+              "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+              is_thread_active
+                ? "border-[#cfe0ff] bg-[#eff6ff] text-[#27539d]"
+                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+            )}
           >
-            <Square className="h-3 w-3 fill-current" />
+            {is_thread_active ? "关闭 Thread" : "查看 Thread"}
           </button>
-        )}
 
+          {is_waiting_permission ? (
+            <>
+              <button
+                type="button"
+                onClick={handle_deny}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                拒绝
+              </button>
+              <button
+                type="button"
+                onClick={handle_allow}
+                className="rounded-md bg-[#7c6cf2] px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#6f5de8]"
+              >
+                允许
+              </button>
+            </>
+          ) : null}
+
+          {can_stop ? (
+            <button
+              type="button"
+              onClick={handle_stop}
+              className="flex h-6 items-center gap-1 rounded px-1.5 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            >
+              <Square className="h-3 w-3 fill-current" />
+            </button>
+          ) : null}
+        </div>
+
+        <div className="min-w-0 pt-1">
+          <p
+            className={cn(
+              "truncate text-[15px] leading-7",
+              status === "error"
+                ? "text-rose-500"
+                : status === "cancelled"
+                  ? "text-slate-400 italic"
+                  : is_waiting_permission
+                    ? "text-slate-700"
+                    : "text-slate-900",
+            )}
+          >
+            {summary_text}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-/** 状态标记 */
-function StatusBadge({ status }: { status: AgentRoundStatus }) {
-  switch (status) {
-    case "streaming":
-      return <Loader2 className="h-3 w-3 animate-spin text-primary" />;
-    case "done":
-      return <Check className="h-3 w-3 text-emerald-500" />;
-    case "error":
-      return <X className="h-3 w-3 text-rose-500" />;
-    case "cancelled":
-      return <Square className="h-3 w-3 text-slate-400" />;
-    default:
-      return null;
-  }
-}
-
 export const AgentStatusCard = memo(AgentStatusCardInner);
+
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
