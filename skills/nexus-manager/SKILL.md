@@ -206,7 +206,8 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 <workspace>/
   .agents/skills/    # 内部技能目录（不可直接操作）
   .claude/           # Claude 配置目录（不可直接操作）
-  memory/            # 持久化记忆文件
+  diary/             # 按天记录学习、错误、需求和复盘
+  memory/            # 摘要、调研片段和记忆资产
   AGENTS.md          # Agent 身份与行为规则
   USER.md            # 用户偏好
   MEMORY.md          # 跨会话持久记忆
@@ -218,7 +219,8 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 - **受保护目录**：`.agents/`、`.claude/` 禁止直接读写，属于内部运行时目录。
 - **路径安全**：不允许路径穿越（`../`），所有操作限定在工作空间根目录内。
 - **命名文件**：`AGENTS.md`、`USER.md`、`MEMORY.md`、`RUNBOOK.md` 可通过名称直接读写，也可通过相对路径操作。
-- **memory/ 目录**：用于存放会话记忆，通过 `save_memory` 写入。
+- **diary/ 目录**：用于按天记录学习、错误和复盘。
+- **memory/ 目录**：用于存放摘要和资产文件，通过 `save_memory_asset` 写入。
 - **文件大小限制**：实时快照推送上限 128KB，超出部分不推送。
 
 ### 模板初始化规则

@@ -96,7 +96,7 @@ class WorkspaceTemplateInitializer:
         memory_readme = self._workspace_path / "memory" / "README.md"
         if not memory_readme.exists():
             memory_readme.write_text(
-                "# memory/\n\n按日期记录短期记忆，例如 `2026-03-05.md`。\n",
+                "# memory/\n\n存放摘要、调研片段、临时结论和可复用资产，例如 `task-summary.md`。\n",
                 encoding="utf-8",
             )
             logger.info(f"🧩 初始化模板: {memory_readme}")

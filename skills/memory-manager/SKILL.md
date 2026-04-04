@@ -21,7 +21,7 @@ CLI 工具路径：`python3 "{project_root}/agent/memory_cli.py" --workspace "{w
 - **SOUL.md**：行为准则、沟通偏好、长期执行原则。
 - **TOOLS.md**：工具坑点、命令经验、外部接口注意事项。
 - **diary/YYYY-MM-DD.md**：每日进展、错误记录、即时感悟、自我复盘。
-- **memory/**：存储会话的历史摘要或详细资产。
+- **memory/**：存储任务摘要、调研片段、临时结论等资产文件，不承担按天记日志职责。
 
 ## 检索工具参考
 
@@ -146,6 +146,6 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" set-statu
 ## 约束
 
 - 长期文件保持短、准、稳，不把大段过程直接堆进 `MEMORY.md`。
-- 详细过程优先写到 `diary/`，需要时再提升到长期文件。
+- 详细过程优先写到 `diary/`，摘要和附件放到 `memory/`，需要时再提升到长期文件。
 - 用户明确表达的长期偏好，不需要累计三次，直接提升。
 - 记忆模块是内部核心能力，不要把关键语义只写在 skill 文本里。

@@ -233,13 +233,13 @@ class WorkspaceFileManager:
             target_path.relative_to(self._workspace_path.resolve()).as_posix(),
         )
 
-    def save_memory(self, filename: str, content: str) -> None:
-        """保存会话摘要到 memory 目录。"""
+    def save_memory_asset(self, filename: str, content: str) -> None:
+        """保存摘要或资产文件到 memory 目录。"""
         memory_dir = self._workspace_path / "memory"
         memory_dir.mkdir(exist_ok=True)
         filepath = memory_dir / filename
         filepath.write_text(content, encoding="utf-8")
-        logger.info(f"💾 保存记忆: {filepath}")
+        logger.info(f"💾 保存记忆资产: {filepath}")
 
     def _resolve_relative_path(self, relative_path: str) -> Path:
         """解析并校验相对路径，禁止逃逸出 workspace。"""

@@ -83,6 +83,6 @@ class AgentWorkspace:
         """重命名文件或目录。"""
         return self._file_manager.rename_entry(relative_path, new_relative_path)
 
-    def save_memory(self, filename: str, content: str) -> None:
-        """保存记忆文件。"""
-        self._file_manager.save_memory(filename, content)
+    def save_memory_asset(self, filename: str, content: str) -> None:
+        """保存记忆资产文件。"""
+        self._file_manager.save_memory_asset(filename, content)
