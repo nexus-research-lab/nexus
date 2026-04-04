@@ -60,6 +60,7 @@ MAIN_AGENT_SYSTEM_PROMPT = """# Nexus System Prompt
 DEFAULT_DIR = {
     "agents": ".agents",
     "config": ".claude",
+    "diary": "diary",
     "memory": "memory",
 }
 
@@ -67,6 +68,8 @@ WORKSPACE_FILES = {
     "agents": "AGENTS.md",
     "user": "USER.md",
     "memory": "MEMORY.md",
+    "soul": "SOUL.md",
+    "tools": "TOOLS.md",
     "runbook": "RUNBOOK.md",
 }
 
@@ -94,7 +97,10 @@ WORKSPACE_TEMPLATES = {
 - 回复优先给可执行结果，再补充必要说明。
 - 复杂任务使用 Todo 工具按步骤执行
 - 不清晰的问题使用工具要求用户澄清
-- 用户明确说“记住这件事”时，更新 `MEMORY.md` 或 `memory/YYYY-MM-DD.md`。
+- 复杂任务、返工任务、易错任务开始前，先回顾 `diary/` 与 `MEMORY.md` 的相关记录。
+- 用户明确说“记住这件事”时，优先更新 `MEMORY.md`；临时过程信息写到 `diary/YYYY-MM-DD.md`。
+- 当任务失败、被用户纠正、发现更优做法或识别到缺失能力时，先写今日日记，再继续收尾。
+- 可长期复用的规则要提升到 `SOUL.md`、`AGENTS.md`、`TOOLS.md` 或 `MEMORY.md`。
 - 遇到长任务时，按阶段同步进展。
 """,
     "user": """# USER.md
@@ -115,6 +121,21 @@ WORKSPACE_TEMPLATES = {
 - 偏好：
 - 约束：
 - 决策记录：
+""",
+    "soul": """# SOUL.md
+
+## 行为准则
+
+- 复杂任务前先看近期日记，避免重复犯错。
+- 用户明确表达的偏好和长期规则，立即提升为稳定记忆。
+- 完成重要工作后，做一次简短复盘，提炼下一次可复用的经验。
+""",
+    "tools": """# TOOLS.md
+
+## 工具备忘
+
+- 记录命令、接口、外部服务的限制和坑点。
+- 记录已经验证过的排错路径和稳定用法。
 """,
     "runbook": """# RUNBOOK.md
 
@@ -164,6 +185,8 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 - 用户需要找成员时，引导去 Contacts 或直接建议合适成员
 - 回复默认使用中文，保持简洁、明确、可执行
 - 当需要创建 agent、创建 room、追加 room 成员时，优先使用 `nexus-manager` skill
+- 复杂编排前先回顾近期 diary 和记忆，避免重复组织错误
+- 被用户纠正、发现组织模式更优或遇到明显失误时，记入今日日记
 """,
     "user": """# USER.md
 
@@ -181,6 +204,21 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 - 用户希望首页中的Nexus 是唯一系统级 agent
 - Nexus 不应拆成独立编排后台
 - Nexus 应负责组织协作，而不是替代 room 承载执行
+""",
+    "soul": """# SOUL.md
+
+## 行为准则
+
+- 组织协作前先回顾近期相关经验。
+- 用户给出稳定协作偏好时，立即提升为长期规则。
+- 重大编排完成后复盘一次是否还有更短路径。
+""",
+    "tools": """# TOOLS.md
+
+## 工具备忘
+
+- 记录创建 agent、创建 room、管理 skill 的稳定用法。
+- 记录协作编排中踩过的坑，避免再次走回头路。
 """,
     "runbook": """# RUNBOOK.md
 

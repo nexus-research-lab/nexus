@@ -12,6 +12,7 @@ from typing import Optional
 
 from agent.config.config import settings
 from agent.service.agent.main_agent_profile import MainAgentProfile
+from agent.service.memory import MemoryService
 from agent.service.workspace.workspace_templates import (
     BASE_SYSTEM_PROMPT,
     MAIN_AGENT_SYSTEM_PROMPT,
@@ -21,7 +22,7 @@ from agent.service.workspace.workspace_templates import (
 class AgentPromptBuilder:
     """负责从基础提示词和 workspace 文件组装 system prompt。"""
 
-    _PROMPT_FILE_NAMES = ("agents", "user", "memory", "runbook")
+    _PROMPT_FILE_NAMES = ("agents", "user", "memory", "soul", "tools", "runbook")
 
     @staticmethod
     def load_base_system_prompt() -> Optional[str]:
@@ -59,6 +60,14 @@ class AgentPromptBuilder:
             content = workspace.read_file(name)
             if content:
                 sections.append(content)
+
+        recent_diary = MemoryService(workspace.path).build_review_markdown(
+            days=3,
+            limit=6,
+            max_chars=1200,
+        )
+        if recent_diary:
+            sections.append("## 最近日记提醒\n" + recent_diary)
 
         if not sections:
             return None

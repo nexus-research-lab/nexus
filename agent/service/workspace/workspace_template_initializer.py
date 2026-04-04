@@ -17,6 +17,7 @@ from agent.service.workspace.workspace_templates import (
     WORKSPACE_FILES,
     get_workspace_templates,
 )
+from agent.service.workspace.workspace_hook_settings import WorkspaceHookSettings
 from agent.service.workspace.workspace_skill_deployer import WorkspaceSkillDeployer
 from agent.utils.logger import logger
 
@@ -27,6 +28,7 @@ class WorkspaceTemplateInitializer:
     def __init__(self, agent_id: str, workspace_path: Path):
         self._agent_id = agent_id
         self._workspace_path = workspace_path
+        self._hook_settings = WorkspaceHookSettings(workspace_path)
         self._skill_deployer = WorkspaceSkillDeployer(agent_id, workspace_path)
         self._exists_ensured = False
         self._initialized = False
@@ -89,6 +91,7 @@ class WorkspaceTemplateInitializer:
             filepath.write_text(template + "\n", encoding="utf-8")
             logger.info(f"🧩 初始化模板: {filepath}")
         self._skill_deployer.ensure_deployed(context)
+        self._hook_settings.ensure_memory_hooks()
 
         memory_readme = self._workspace_path / "memory" / "README.md"
         if not memory_readme.exists():
@@ -97,3 +100,11 @@ class WorkspaceTemplateInitializer:
                 encoding="utf-8",
             )
             logger.info(f"🧩 初始化模板: {memory_readme}")
+
+        diary_readme = self._workspace_path / "diary" / "README.md"
+        if not diary_readme.exists():
+            diary_readme.write_text(
+                "# diary/\n\n按天记录学习、错误、需求和复盘，例如 `2026-04-04.md`。\n",
+                encoding="utf-8",
+            )
+            logger.info(f"🧩 初始化模板: {diary_readme}")
