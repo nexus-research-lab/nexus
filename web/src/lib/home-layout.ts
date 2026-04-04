@@ -15,12 +15,6 @@ export const HOME_WORKSPACE_SIDEBAR_WIDTH_CLASS =
 export const HOME_WORKSPACE_OBJECT_LIST_WIDTH_CLASS =
   "w-[208px] shrink-0 lg:w-[220px] xl:w-[clamp(224px,16vw,272px)] 2xl:w-[clamp(232px,16vw,296px)]";
 
-export const HOME_AGENT_INSPECTOR_WIDTH_CLASS =
-  "w-[208px] shrink-0 xl:w-[clamp(224px,16vw,296px)] 2xl:w-[clamp(248px,17vw,336px)]";
-
-export const HOME_AGENT_INSPECTOR_WRAPPER_CLASS =
-  "hidden lg:flex lg:min-h-0 lg:shrink-0";
-
 export const HOME_CHAT_PANEL_CLASS =
   "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent";
 

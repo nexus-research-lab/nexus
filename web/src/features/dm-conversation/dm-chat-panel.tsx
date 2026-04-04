@@ -13,49 +13,29 @@ import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
 import { ConversationFeed } from "@/features/conversation-shared/conversation-feed";
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation-shared/utils";
-import { DmConversationHeader } from "./dm-conversation-header";
-import { RoomSurfaceTabKey } from "@/types/room-surface";
-import { Conversation } from "@/types/conversation";
 
 export interface DmChatPanelProps {
   agent_id: string | null;
   current_agent_name?: string | null;
   session_key: string | null;
-  session_title?: string | null;
-  conversations?: Conversation[];
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
-  hide_header?: boolean;
-  /** Controlled tab — caller manages which surface tab is active */
-  active_tab?: RoomSurfaceTabKey;
-  on_change_tab?: (tab: RoomSurfaceTabKey) => void;
-  is_detail_panel_open?: boolean;
-  on_toggle_detail_panel?: () => void;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
   on_conversation_snapshot_change?: (snapshot: SessionSnapshotPayload) => void;
-  on_create_conversation?: (title?: string) => void | Promise<string | null>;
 }
 
 export function DmChatPanel({
   agent_id,
   current_agent_name,
   session_key,
-  session_title,
-  conversations = [],
   layout = "desktop",
   initial_draft = null,
-  hide_header = false,
-  active_tab = "chat",
-  on_change_tab,
-  is_detail_panel_open = false,
-  on_toggle_detail_panel,
   on_open_workspace_file,
   on_todos_change,
   on_loading_change,
   on_conversation_snapshot_change,
-  on_create_conversation,
 }: DmChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
 
@@ -163,18 +143,6 @@ export function DmChatPanel({
             </div>
           </div>
         </div>
-      ) : null}
-
-      {!is_mobile_layout && !hide_header ? (
-        <DmConversationHeader
-          active_tab={active_tab}
-          conversation_count={conversations.length}
-          current_agent_name={current_agent_name ?? null}
-          is_detail_panel_open={is_detail_panel_open}
-          is_loading={is_loading}
-          on_change_tab={on_change_tab ?? (() => {})}
-          on_toggle_detail_panel={on_toggle_detail_panel ?? (() => {})}
-        />
       ) : null}
 
       <div

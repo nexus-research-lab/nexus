@@ -9,28 +9,43 @@ import {
   History,
   MessageSquare,
   MessageSquarePlus,
-  PanelRight,
+  Settings,
+  UserPlus,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
+import {
+  WorkspaceSurfaceHeader,
+  WorkspaceTaskStrip,
+} from "@/shared/ui/workspace/workspace-surface-header";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
 import { Agent } from "@/types/agent";
 import { RoomConversationView } from "@/types/conversation";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
+import { TodoItem } from "@/types/todo";
+import { UpdateRoomParams } from "@/types/room";
+
+import { RoomMemberPickerDialog } from "@/features/room-members/room-member-picker-dialog";
+import { RoomSettingsPanel } from "./room-settings-panel";
 
 interface RoomConversationHeaderProps {
   conversation_id: string | null;
+  room_id: string | null;
   current_room_title: string | null;
+  room_description: string;
   conversations: RoomConversationView[];
   is_loading: boolean;
-  is_detail_panel_open: boolean;
   room_members: Agent[];
+  available_room_agents: Agent[];
+  todos: TodoItem[];
   active_tab: RoomSurfaceTabKey;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_conversation: (conversation_id: string) => void;
   on_create_conversation?: (title?: string) => Promise<string | null>;
-  on_toggle_detail_panel: () => void;
+  on_add_room_member: (agent_id: string) => Promise<void>;
+  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
+  on_delete_room: () => Promise<void>;
 }
 
 /** 获取名称首字母缩写 */
@@ -78,14 +93,14 @@ function ConversationSwitcher({
       <button
         ref={trigger_ref}
         className={cn(
-          "flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-slate-600 transition-colors",
-          "hover:bg-slate-100/60 hover:text-slate-800",
-          is_open && "bg-slate-100/60 text-slate-800",
+          "flex h-7 max-w-[168px] items-center gap-1 rounded-full border border-white/60 bg-white/72 px-2.5 text-[11px] font-medium text-slate-600 shadow-sm transition-colors",
+          "hover:bg-slate-100/70 hover:text-slate-800",
+          is_open && "bg-slate-100/80 text-slate-800",
         )}
         onClick={() => set_is_open((prev) => !prev)}
         type="button"
       >
-        <span className="max-w-[140px] truncate">{current_title}</span>
+        <span className="max-w-[124px] truncate">{current_title}</span>
         <ChevronDown className={cn("h-3 w-3 transition-transform", is_open && "rotate-180")} />
       </button>
 
@@ -155,28 +170,15 @@ function ConversationSwitcher({
 /** 成员头像堆叠组件 */
 function MemberAvatarStack({
   room_members,
-  is_detail_panel_open,
-  on_toggle_detail_panel,
 }: {
   room_members: Agent[];
-  is_detail_panel_open: boolean;
-  on_toggle_detail_panel: () => void;
 }) {
   const MAX_VISIBLE = 5;
   const visible_members = room_members.slice(0, MAX_VISIBLE);
   const overflow_count = room_members.length - MAX_VISIBLE;
 
   return (
-    <button
-      className={cn(
-        "flex items-center gap-1.5 rounded-lg px-2 py-1 transition-colors",
-        "hover:bg-slate-100/60",
-        is_detail_panel_open && "bg-slate-100/60",
-      )}
-      onClick={on_toggle_detail_panel}
-      title={is_detail_panel_open ? "收起详情面板" : "展开详情面板"}
-      type="button"
-    >
+    <div className="flex items-center rounded-lg px-2 py-1">
       <div className="flex items-center -space-x-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-[8px] font-bold text-slate-900/82 shadow-sm">
           YOU
@@ -196,12 +198,81 @@ function MemberAvatarStack({
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
 
-      <PanelRight className={cn(
-        "h-3.5 w-3.5 text-slate-400 transition-colors",
-        is_detail_panel_open && "text-slate-600",
-      )} />
-    </button>
+function RoomHeaderActions({
+  available_room_agents,
+  room_id,
+  room_name,
+  room_description,
+  on_add_room_member,
+  on_update_room,
+  on_delete_room,
+}: {
+  available_room_agents: Agent[];
+  room_id: string | null;
+  room_name: string;
+  room_description: string;
+  on_add_room_member: (agent_id: string) => Promise<void>;
+  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
+  on_delete_room: () => Promise<void>;
+}) {
+  const [is_member_picker_open, set_is_member_picker_open] = useState(false);
+  const [is_settings_open, set_is_settings_open] = useState(false);
+
+  const handle_update_room = async (next_room_id: string, params: UpdateRoomParams) => {
+    await on_update_room(next_room_id, params);
+    set_is_settings_open(false);
+  };
+
+  const handle_delete_room = async () => {
+    await on_delete_room();
+    set_is_settings_open(false);
+  };
+
+  return (
+    <>
+      <div className="hidden items-center gap-2 lg:flex">
+        <WorkspacePillButton
+          aria-label="添加成员"
+          onClick={() => set_is_member_picker_open(true)}
+          size="icon"
+          title="添加成员"
+        >
+          <UserPlus className="h-4 w-4" />
+        </WorkspacePillButton>
+        <WorkspacePillButton
+          aria-label="Room 设置"
+          onClick={() => set_is_settings_open(true)}
+          size="icon"
+          title="Room 设置"
+        >
+          <Settings className="h-4 w-4" />
+        </WorkspacePillButton>
+      </div>
+
+      <RoomMemberPickerDialog
+        agents={available_room_agents}
+        is_open={is_member_picker_open}
+        on_cancel={() => set_is_member_picker_open(false)}
+        on_select={(agent_id) => {
+          void on_add_room_member(agent_id);
+          set_is_member_picker_open(false);
+        }}
+      />
+
+      <RoomSettingsPanel
+        is_open={is_settings_open}
+        room_id={room_id}
+        room_name={room_name}
+        room_description={room_description}
+        on_update_room={handle_update_room}
+        on_delete_room={handle_delete_room}
+        on_close={() => set_is_settings_open(false)}
+      />
+    </>
   );
 }
 
@@ -213,20 +284,25 @@ const ROOM_TABS: { key: RoomSurfaceTabKey; label: string; icon: typeof MessageSq
 
 const RoomConversationHeaderView = memo(({
   conversation_id,
+  room_id,
   current_room_title,
+  room_description,
   conversations,
   is_loading,
-  is_detail_panel_open,
   room_members,
+  available_room_agents,
+  todos,
   active_tab,
   on_change_tab,
   on_select_conversation,
   on_create_conversation,
-  on_toggle_detail_panel,
+  on_add_room_member,
+  on_update_room,
+  on_delete_room,
 }: RoomConversationHeaderProps) => {
   const header_title = current_room_title?.trim() || "未命名协作";
 
-  const subtitle = (
+  const title_trailing = (
     <ConversationSwitcher
       conversations={conversations}
       conversation_id={conversation_id}
@@ -238,12 +314,17 @@ const RoomConversationHeaderView = memo(({
   const trailing = (
     <>
       <div className="hidden lg:flex">
-        <MemberAvatarStack
-          is_detail_panel_open={is_detail_panel_open}
-          on_toggle_detail_panel={on_toggle_detail_panel}
-          room_members={room_members}
-        />
+        <MemberAvatarStack room_members={room_members} />
       </div>
+      <RoomHeaderActions
+        available_room_agents={available_room_agents}
+        on_add_room_member={on_add_room_member}
+        on_delete_room={on_delete_room}
+        on_update_room={on_update_room}
+        room_description={room_description}
+        room_id={room_id}
+        room_name={header_title}
+      />
       <WorkspaceStatusBadge
         icon={<span className="text-current">●</span>}
         label={is_loading ? "协作中" : "在线"}
@@ -258,9 +339,10 @@ const RoomConversationHeaderView = memo(({
       badge="ROOM"
       leading={<Hash size={14} className="text-slate-800/72" />}
       on_change_tab={on_change_tab}
-      subtitle={subtitle}
+      tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
       tabs={ROOM_TABS}
       title={header_title}
+      title_trailing={title_trailing}
       trailing={trailing}
     />
   );

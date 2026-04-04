@@ -101,33 +101,26 @@ export function RoomMobileWorkspace({
           <DmChatPanel
             agent_id={current_agent.agent_id}
             current_agent_name={current_agent.name}
-            conversations={current_room_conversations}
             initial_draft={initial_draft}
             layout="mobile"
             on_conversation_snapshot_change={on_conversation_snapshot_change}
-            on_create_conversation={on_create_conversation}
             on_loading_change={on_loading_change}
             session_key={current_agent_conversation?.session_key ?? null}
-            session_title={current_agent_conversation?.title ?? null}
           />
         ) : (
           <RoomThreadContextProvider>
             <RoomChatPanel
               agent_id={current_agent.agent_id}
               conversation_id={conversation_id}
-              conversations={current_room_conversations}
               current_agent_name={current_agent.name}
-              current_room_title={current_room_title}
               initial_draft={initial_draft}
               layout="mobile"
               on_conversation_snapshot_change={on_conversation_snapshot_change}
               on_create_conversation={on_create_conversation}
               on_loading_change={on_loading_change}
               on_room_event={on_room_event}
-              on_select_conversation={on_select_conversation}
               room_id={room_id}
               room_members={room_members}
-              session_title={current_room_conversation?.title ?? null}
             />
             <MobileThreadOverlay />
           </RoomThreadContextProvider>

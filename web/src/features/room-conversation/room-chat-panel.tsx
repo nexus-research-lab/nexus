@@ -7,12 +7,11 @@ import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { buildRoomSharedSessionKey } from "@/lib/session-key";
-import { RoomConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
+import { RoomConversationSnapshotPayload } from "@/types/conversation";
 import { AssistantMessage, Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { TodoItem } from "@/types/todo";
 import { Agent } from "@/types/agent";
-import { RoomSurfaceTabKey } from "@/types/room-surface";
 
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import {
@@ -30,32 +29,21 @@ import { RoomConversationFeed } from "./room-conversation-feed";
 import { useRoomThread, useThreadPanelData } from "./thread/room-thread-context";
 import { RoomComposerPanel } from "./room-composer-panel";
 import { RoomConversationEmptyState } from "./room-conversation-empty-state";
-import { RoomConversationHeader } from "./room-conversation-header";
 
 export interface RoomChatPanelProps {
   agent_id: string | null;
   current_agent_name?: string | null;
-  current_room_title?: string | null;
   /** Room conversation id — used to derive the shared session_key */
   conversation_id: string | null;
   room_id?: string | null;
   room_members: Agent[];
-  conversations: RoomConversationView[];
-  session_title?: string | null;
-  /** Controlled tab — caller manages which surface tab is active */
-  active_tab?: RoomSurfaceTabKey;
-  on_change_tab?: (tab: RoomSurfaceTabKey) => void;
-  is_detail_panel_open?: boolean;
-  on_toggle_detail_panel?: () => void;
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
-  hide_header?: boolean;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
   on_conversation_snapshot_change?: (snapshot: RoomConversationSnapshotPayload) => void;
   on_create_conversation?: (title?: string) => void | Promise<string | null>;
-  on_select_conversation?: (conversation_id: string) => void;
   on_room_event?: (event_type: string, data: import("@/types/agent-conversation").RoomEventPayload) => void;
 }
 
@@ -148,25 +136,16 @@ function get_thread_pending_permissions(
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
-  current_room_title,
   conversation_id,
   room_id = null,
   room_members,
-  conversations,
-  session_title,
-  active_tab = "chat",
-  on_change_tab,
-  is_detail_panel_open = false,
-  on_toggle_detail_panel,
   layout = "desktop",
   initial_draft = null,
-  hide_header = false,
   on_open_workspace_file,
   on_todos_change,
   on_loading_change,
   on_conversation_snapshot_change,
   on_create_conversation,
-  on_select_conversation,
   on_room_event,
 }: RoomChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
@@ -400,29 +379,6 @@ export function RoomChatPanel({
         <RoomConversationEmptyState on_create_conversation={on_create_conversation ?? (() => { })} />
       ) : (
         <>
-          {!is_mobile_layout && !hide_header ? (
-            <RoomConversationHeader
-              active_tab={active_tab}
-              conversations={conversations}
-              conversation_id={conversation_id}
-              current_room_title={current_room_title ?? null}
-              is_detail_panel_open={is_detail_panel_open}
-              is_loading={is_loading}
-              on_change_tab={on_change_tab ?? (() => { })}
-              on_create_conversation={
-                on_create_conversation
-                  ? async (title) => {
-                    const result = await on_create_conversation(title);
-                    return typeof result === "string" ? result : null;
-                  }
-                  : undefined
-              }
-              on_select_conversation={on_select_conversation ?? (() => { })}
-              on_toggle_detail_panel={on_toggle_detail_panel ?? (() => { })}
-              room_members={room_members}
-            />
-          ) : null}
-
           <div
             ref={scroll_ref}
             className={

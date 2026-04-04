@@ -31,10 +31,6 @@ export function RoomPage() {
     await controller.handle_update_room(params);
   }, [controller]);
 
-  const handleSelectAgent = useCallback((agent_id: string) => {
-    controller.handle_select_agent(agent_id);
-  }, [controller]);
-
   const handleSelectConversation = useCallback((conversation_id: string) => {
     controller.handle_select_conversation(conversation_id);
     const route_room_id = params.room_id;
@@ -141,7 +137,6 @@ export function RoomPage() {
               active_workspace_path={controller.active_workspace_path}
               available_room_agents={controller.available_room_agents}
               current_agent={controller.current_agent}
-              current_agent_id={controller.current_agent_id}
               room_id={controller.route_room_id}
               current_room_type={controller.current_room_type}
               room_description={controller.current_room_description}
@@ -162,15 +157,12 @@ export function RoomPage() {
               on_back_to_directory={handleBackToLauncher}
               on_close_workspace_pane={controller.handle_close_workspace_pane}
               on_delete_conversation={handleDeleteConversation}
-              on_edit_agent={controller.handle_edit_agent}
               on_loading_change={controller.set_is_conversation_busy}
               on_create_conversation={handleCreateConversation}
               on_open_workspace_file={controller.handle_open_workspace_file}
-              on_remove_room_member={controller.handle_remove_room_member}
               on_update_room={handleUpdateRoom}
               on_delete_room={handleDeleteRoom}
               on_update_conversation_title={handleUpdateConversationTitle}
-              on_select_agent={handleSelectAgent}
               on_select_conversation={handleSelectConversation}
               on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
               on_start_editor_resize={controller.handle_start_editor_resize}

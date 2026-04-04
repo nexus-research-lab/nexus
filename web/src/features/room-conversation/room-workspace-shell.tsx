@@ -16,7 +16,6 @@ import { RoomWorkspaceLayout } from "./room-workspace-layout";
 
 interface RoomWorkspaceShellProps {
   current_agent: Agent;
-  current_agent_id: string | null;
   current_room_type: string;
   room_id: string | null;
   room_description: string;
@@ -36,14 +35,11 @@ interface RoomWorkspaceShellProps {
   is_conversation_busy: boolean;
   current_todos: TodoItem[];
   workspace_split_ref: React.RefObject<HTMLElement | null>;
-  on_select_agent: (agent_id: string) => void;
   on_back_to_directory: () => void;
-  on_edit_agent: (agent_id: string) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
-  on_remove_room_member: (agent_id: string) => Promise<void>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_delete_room: () => Promise<void>;
   on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
@@ -58,7 +54,6 @@ interface RoomWorkspaceShellProps {
 
 export function RoomWorkspaceShell({
   current_agent,
-  current_agent_id,
   current_room_type,
   room_id,
   room_description,
@@ -78,14 +73,11 @@ export function RoomWorkspaceShell({
   is_conversation_busy,
   current_todos,
   workspace_split_ref,
-  on_select_agent,
   on_back_to_directory,
-  on_edit_agent,
   on_create_conversation,
   on_select_conversation,
   on_delete_conversation,
   on_add_room_member,
-  on_remove_room_member,
   on_update_room,
   on_delete_room,
   on_update_conversation_title,
@@ -147,14 +139,11 @@ export function RoomWorkspaceShell({
         active_surface_tab={active_surface_tab}
         available_room_agents={available_room_agents}
         current_agent={current_agent}
-        current_agent_id={current_agent_id}
         current_room_type={current_room_type}
         room_id={room_id}
         room_description={room_description}
         room_members={room_members}
         current_room_title={current_room_title}
-        current_room_conversation={current_room_conversation}
-        current_agent_conversation={current_agent_conversation}
         current_agent_session_key={current_agent_session_key}
         conversation_id={conversation_id}
         current_room_conversations={current_room_conversations}
@@ -170,14 +159,11 @@ export function RoomWorkspaceShell({
         on_conversation_snapshot_change={on_conversation_snapshot_change}
         on_create_conversation={handle_create_conversation_in_shell}
         on_delete_conversation={on_delete_conversation}
-        on_edit_agent={on_edit_agent}
         on_loading_change={on_loading_change}
         on_open_workspace_file={on_open_workspace_file}
-        on_remove_room_member={on_remove_room_member}
         on_update_room={on_update_room}
         on_delete_room={on_delete_room}
         on_update_conversation_title={on_update_conversation_title}
-        on_select_agent={on_select_agent}
         on_select_conversation={handle_select_conversation_in_shell}
         on_start_editor_resize={on_start_editor_resize}
         on_todos_change={on_todos_change}
