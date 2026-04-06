@@ -80,10 +80,14 @@ export function ThreadPanelSlideIn({
   return (
     <div
       className={cn(
-        "absolute right-0 top-0 z-30 h-full w-[420px] max-w-[85%] border-l border-slate-200/60 bg-white shadow-xl",
+        "absolute right-0 top-0 z-30 h-full w-[420px] max-w-[85%] border-l shadow-xl",
         "transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
         is_open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-3 opacity-0",
       )}
+      style={{
+        background: "var(--surface-popover-background)",
+        borderColor: "var(--surface-popover-border)",
+      }}
     >
       {round_id && agent_id && agent_name ? (
         <ThreadDetailPanel

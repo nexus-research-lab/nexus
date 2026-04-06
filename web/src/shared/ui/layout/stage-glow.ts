@@ -11,11 +11,12 @@
 
 import type { CSSProperties } from "react";
 
-export type StageGlowTone = "green" | "lilac" | "peach";
+export type StageGlowTone = "green" | "lilac" | "mist" | "peach";
 
 const STAGE_GLOW_BACKGROUND_MAP: Record<StageGlowTone, string> = {
   lilac: "var(--glow-lilac)",
   green: "var(--glow-green)",
+  mist: "var(--glow-mist)",
   peach: "var(--glow-peach)",
 };
 

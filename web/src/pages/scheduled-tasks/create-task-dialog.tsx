@@ -87,7 +87,7 @@ export function CreateTaskDialog({ is_open, on_close }: CreateTaskDialogProps) {
       className="dialog-backdrop animate-in fade-in duration-150"
       role="dialog"
     >
-      <div className="dialog-shell soft-ring radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-150">
+      <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-150">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title" id="create-task-dialog-title">
@@ -102,7 +102,7 @@ export function CreateTaskDialog({ is_open, on_close }: CreateTaskDialogProps) {
             density="compact"
             onClick={on_close}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-4 w-4" />
           </WorkspacePillButton>
@@ -186,10 +186,10 @@ export function CreateTaskDialog({ is_open, on_close }: CreateTaskDialogProps) {
         </div>
 
         <div className="dialog-footer">
-          <WorkspacePillButton onClick={on_close} size="md" variant="default">
+          <WorkspacePillButton onClick={on_close} size="md" variant="tonal">
             取消
           </WorkspacePillButton>
-          <WorkspacePillButton onClick={handle_submit} size="md" variant="strong">
+          <WorkspacePillButton onClick={handle_submit} size="md" variant="primary">
             创建
           </WorkspacePillButton>
         </div>

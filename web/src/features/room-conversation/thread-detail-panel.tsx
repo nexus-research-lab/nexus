@@ -46,7 +46,7 @@ export function ThreadDetailPanel({
   return (
     <div className={cn(
       "flex h-full min-w-0 flex-col overflow-hidden",
-      is_mobile ? "bg-background" : "bg-white",
+      is_mobile ? "bg-background" : "bg-[var(--surface-popover-background)]",
     )}>
       {/* ── 头部 ────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-200/60 px-3 py-2.5">
@@ -56,13 +56,24 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-slate-500 transition-colors hover:text-slate-700"
+            style={{
+              background: "var(--surface-panel-subtle-background)",
+              borderColor: "var(--surface-panel-subtle-border)",
+            }}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
         ) : null}
 
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
+        <div
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-slate-500"
+          style={{
+            background: "var(--surface-avatar-background)",
+            borderColor: "var(--surface-avatar-border)",
+            boxShadow: "var(--surface-avatar-shadow)",
+          }}
+        >
           <Bot className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
@@ -76,7 +87,11 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-slate-500 transition-colors hover:text-slate-700"
+            style={{
+              background: "var(--surface-panel-subtle-background)",
+              borderColor: "var(--surface-panel-subtle-border)",
+            }}
           >
             <X className="h-4 w-4" />
           </button>

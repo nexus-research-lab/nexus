@@ -10,6 +10,7 @@
 import { useState, useCallback } from "react";
 import { Plus, X as XIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import type { AgentNameValidationResult } from "@/types/agent";
 import { AVAILABLE_MODELS } from "./agent-options-constants";
 
@@ -79,18 +80,12 @@ export function AgentOptionsIdentityTab({
             <User className="h-8 w-8" />
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              className="modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
-            >
+            <WorkspacePillButton size="sm" variant="tonal">
               Upload
-            </button>
-            <button
-              type="button"
-              className="modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-red-500"
-            >
+            </WorkspacePillButton>
+            <WorkspacePillButton size="sm" variant="tonal">
               Remove
-            </button>
+            </WorkspacePillButton>
           </div>
         </div>
       </div>
@@ -104,7 +99,7 @@ export function AgentOptionsIdentityTab({
           type="text"
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
-          className="modal-input rounded-xl flex h-11 w-full px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          className="dialog-input rounded-xl flex h-11 w-full px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-all"
           placeholder="例如：Coding Assistant"
         />
         {/* 名称校验反馈 */}
@@ -131,7 +126,7 @@ export function AgentOptionsIdentityTab({
         <textarea
           value={description}
           onChange={(e) => onDescriptionChange(e.target.value)}
-          className="modal-input rounded-2xl flex min-h-[80px] w-full resize-y px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          className="dialog-input rounded-2xl flex min-h-[80px] w-full resize-y px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-all"
           rows={3}
           placeholder="描述此 Agent 的目标或背景信息..."
         />
@@ -165,7 +160,7 @@ export function AgentOptionsIdentityTab({
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={handleTagKeyDown}
-              className="modal-input rounded-lg h-7 w-24 px-2 text-xs text-slate-800 placeholder:text-slate-400 focus-visible:outline-none transition-all"
+              className="dialog-input rounded-lg h-7 w-24 px-2 text-xs text-slate-800 placeholder:text-slate-400 focus-visible:outline-none transition-all"
               placeholder="添加标签"
             />
             <button
@@ -188,7 +183,7 @@ export function AgentOptionsIdentityTab({
           <select
             value={model}
             onChange={(e) => onModelChange(e.target.value)}
-            className="modal-input rounded-xl flex h-11 w-full appearance-none px-4 py-2 text-sm text-slate-800 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+            className="dialog-input rounded-xl flex h-11 w-full appearance-none px-4 py-2 text-sm text-slate-800 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-all"
           >
             {AVAILABLE_MODELS.map((m) => (
               <option key={m.value} value={m.value}>

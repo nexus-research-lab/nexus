@@ -11,22 +11,22 @@
 :root,
 :root[data-theme="light"] {
   /* 中文注释：基础主题色，直接映射到 Tailwind 的语义颜色。 */
-  --background: #d9d7d4;
-  --foreground: #111111;
-  --primary: #8577ff;
-  --primary-rgb: 133, 119, 255;
+  --background: #e7ecf0;
+  --foreground: #182230;
+  --primary: #7d72ea;
+  --primary-rgb: 125, 114, 234;
   --primary-foreground: #ffffff;
-  --secondary: #ece9e4;
-  --secondary-foreground: #222222;
-  --accent: #ff9d56;
+  --secondary: #e4e9f0;
+  --secondary-foreground: #273244;
+  --accent: #d59a66;
   --accent-foreground: #ffffff;
-  --card: rgba(239, 237, 233, 0.94);
-  --card-foreground: #111111;
-  --muted: #dfdcd6;
-  --muted-foreground: #8b8781;
-  --border: rgba(255, 255, 255, 0.72);
-  --input: rgba(255, 255, 255, 0.88);
-  --ring: rgba(133, 119, 255, 0.22);
+  --card: rgba(252, 251, 248, 0.98);
+  --card-foreground: #1f2937;
+  --muted: #e6eaf1;
+  --muted-foreground: #556173;
+  --border: rgba(148, 163, 184, 0.38);
+  --input: rgba(252, 251, 248, 0.98);
+  --ring: rgba(125, 114, 234, 0.2);
   --destructive: #eb5a51;
   --destructive-foreground: #ffffff;
   --success: #66d98f;
@@ -41,381 +41,284 @@
   --motion-duration-overlay: 700ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-ease-emphasized: cubic-bezier(0.23, 1, 0.32, 1);
-  --scrollbar-thumb: rgba(138, 132, 126, 0.28);
-  --scrollbar-thumb-hover: rgba(138, 132, 126, 0.44);
+  --scrollbar-thumb: rgba(100, 116, 139, 0.22);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.36);
   /* 中文注释：surface 负责页面级容器、舞台和内凹表面。 */
   --surface-stage-background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.36), transparent 38%),
-    radial-gradient(circle at bottom, rgba(255, 255, 255, 0.24), transparent 32%);
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.54), transparent 36%),
+    radial-gradient(circle at 76% 8%, rgba(179, 193, 255, 0.14), transparent 24%),
+    radial-gradient(circle at 20% 14%, rgba(255, 245, 237, 0.12), transparent 22%);
   --surface-body-background:
-    radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.12) 28%, transparent 42%),
-    radial-gradient(circle at 82% 70%, rgba(149, 255, 192, 0.34) 0%, rgba(149, 255, 192, 0.1) 18%, transparent 34%),
-    radial-gradient(circle at 70% 18%, rgba(172, 162, 255, 0.28) 0%, rgba(172, 162, 255, 0.08) 18%, transparent 34%),
-    linear-gradient(180deg, #d4d2cf 0%, #e3e1dd 22%, #d8d6d2 100%);
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.94) 0%, transparent 32%),
+    radial-gradient(circle at 82% 10%, rgba(205, 216, 255, 0.22) 0%, transparent 24%),
+    radial-gradient(circle at 52% 100%, rgba(247, 243, 236, 0.18) 0%, transparent 30%),
+    radial-gradient(circle at 50% 26%, rgba(184, 198, 255, 0.08) 0%, transparent 28%),
+    linear-gradient(180deg, #e6ebf0 0%, #f3f6f9 46%, #e7ecf0 100%);
   --surface-body-grid:
-    linear-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
 
   /* 中文注释：text / divider / input 是全局基础能力，不绑定具体组件名。 */
-  --text-kbd-color: #5f5a55;
-  --surface-kbd-background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(231, 228, 223, 0.94));
-  --divider-kbd-border: rgba(255, 255, 255, 0.74);
+  --text-kbd-color: #64748b;
+  --surface-kbd-background: linear-gradient(180deg, #ffffff, #f5f3ef);
+  --divider-kbd-border: rgba(148, 163, 184, 0.18);
   --surface-kbd-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.88),
-    inset -1px -1px 0 rgba(181, 176, 170, 0.32),
-    0 8px 14px rgba(122, 116, 110, 0.08);
-  --surface-shell-background: linear-gradient(180deg, rgba(247, 245, 241, 0.9), rgba(235, 232, 226, 0.94));
-  --surface-shell-border: rgba(255, 255, 255, 0.72);
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    0 8px 16px rgba(71, 85, 105, 0.08);
+  --surface-shell-background:
+    radial-gradient(circle at 14% 14%, rgba(255, 255, 255, 0.26), transparent 24%),
+    radial-gradient(circle at 84% 12%, rgba(191, 219, 254, 0.1), transparent 28%),
+    radial-gradient(circle at 52% 100%, rgba(167, 139, 250, 0.05), transparent 34%),
+    linear-gradient(180deg, rgba(252, 251, 248, 0.86), rgba(242, 245, 249, 0.78));
+  --surface-shell-border: rgba(255, 255, 255, 0.58);
   --surface-shell-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.96),
-    inset -1px -1px 0 rgba(182, 176, 169, 0.32),
-    24px 24px 64px rgba(141, 136, 129, 0.2),
-    -14px -14px 34px rgba(255, 255, 255, 0.62);
-  --surface-inset-background: linear-gradient(180deg, rgba(227, 224, 219, 0.86), rgba(240, 237, 232, 0.92));
-  --surface-inset-border: rgba(196, 190, 183, 0.42);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.3),
+    inset -1px -1px 0 rgba(156, 176, 214, 0.08),
+    0 18px 36px rgba(77, 91, 124, 0.06);
+  --surface-inset-background: rgba(243, 243, 240, 0.8);
+  --surface-inset-border: rgba(179, 190, 206, 0.2);
   --surface-inset-shadow:
-    inset 8px 8px 18px rgba(193, 187, 180, 0.28),
-    inset -6px -6px 16px rgba(255, 255, 255, 0.86);
-  --chip-pill-background: linear-gradient(180deg, rgba(250, 248, 244, 0.95), rgba(230, 227, 221, 0.94));
-  --chip-pill-border: rgba(255, 255, 255, 0.76);
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    inset 0 -1px 0 rgba(148, 163, 184, 0.1);
+  --chip-pill-background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 249, 252, 0.76));
+  --chip-pill-border: rgba(206, 214, 228, 0.54);
   --chip-pill-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.94),
-    inset -1px -1px 0 rgba(180, 174, 167, 0.26),
-    14px 14px 26px rgba(143, 137, 131, 0.12),
-    -8px -8px 18px rgba(255, 255, 255, 0.48);
-  --glow-lilac: radial-gradient(circle at center, rgba(181, 170, 255, 0.84), rgba(181, 170, 255, 0.14) 56%, transparent 72%);
-  --glow-green: radial-gradient(circle at center, rgba(136, 255, 169, 0.84), rgba(136, 255, 169, 0.16) 58%, transparent 74%);
-  --glow-peach: radial-gradient(circle at center, rgba(255, 187, 128, 0.84), rgba(255, 187, 128, 0.16) 58%, transparent 74%);
-  --divider-soft-ring-color: rgba(190, 185, 178, 0.3);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.66),
+    inset -1px -1px 0 rgba(166, 181, 214, 0.1),
+    0 8px 16px rgba(76, 88, 120, 0.06);
+  --glow-lilac: radial-gradient(circle at center, rgba(154, 140, 255, 0.2), rgba(154, 140, 255, 0.04) 58%, transparent 74%);
+  --glow-green: radial-gradient(circle at center, rgba(148, 211, 190, 0.14), rgba(148, 211, 190, 0.03) 58%, transparent 74%);
+  --glow-peach: radial-gradient(circle at center, rgba(225, 173, 123, 0.12), rgba(225, 173, 123, 0.02) 58%, transparent 74%);
+  --glow-mist: radial-gradient(circle at center, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.04) 58%, transparent 74%);
   --surface-panel-background:
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.18), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(137, 227, 214, 0.08), transparent 26%),
-    radial-gradient(circle at 52% 100%, rgba(143, 130, 255, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(246, 248, 252, 0.18), rgba(224, 230, 241, 0.12));
-  --surface-panel-border: rgba(255, 255, 255, 0.34);
-  --surface-panel-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.42),
-    inset -1px -1px 0 rgba(156, 176, 214, 0.10),
-    0 18px 34px rgba(77, 91, 124, 0.08),
-    0 2px 8px rgba(255, 255, 255, 0.06);
-  --input-shell-background:
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.2), transparent 24%),
-    linear-gradient(180deg, rgba(245, 249, 255, 0.2), rgba(216, 227, 246, 0.14));
-  --input-shell-border: rgba(255, 255, 255, 0.36);
-  --input-shell-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.46),
-    inset -1px -1px 0 rgba(164, 180, 211, 0.1),
-    0 12px 22px rgba(78, 92, 126, 0.06);
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.36), transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(215, 225, 255, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(252, 251, 249, 0.96), rgba(243, 246, 250, 0.88));
+  --surface-panel-border: rgba(210, 218, 232, 0.72);
+  --surface-panel-shadow: none;
+  --input-shell-background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 253, 0.9));
+  --input-shell-border: rgba(198, 208, 223, 0.62);
+  --input-shell-shadow: none;
   --surface-grid-background:
-    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  --surface-panel-subtle-background:
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.08), transparent 24%),
-    radial-gradient(circle at 84% 16%, rgba(137, 227, 214, 0.04), transparent 26%),
-    radial-gradient(circle at 52% 100%, rgba(143, 130, 255, 0.04), transparent 30%),
-    linear-gradient(180deg, rgba(246, 249, 255, 0.06), rgba(225, 231, 243, 0.04));
-  --surface-panel-subtle-border: rgba(255, 255, 255, 0.18);
-  --surface-panel-subtle-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(156, 176, 214, 0.04),
-    0 14px 28px rgba(77, 91, 124, 0.04),
-    0 2px 8px rgba(255, 255, 255, 0.02);
-  --divider-subtle-color: rgba(255, 255, 255, 0.24);
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  --surface-panel-subtle-background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 249, 252, 0.8));
+  --surface-panel-subtle-border: rgba(210, 218, 232, 0.64);
+  --surface-panel-subtle-shadow: none;
+  --surface-canvas-background: rgba(252, 252, 253, 0.992);
+  --surface-canvas-border: rgba(206, 214, 228, 0.54);
+  --surface-interactive-hover-background: rgba(255, 255, 255, 0.84);
+  --surface-interactive-hover-border: rgba(196, 206, 222, 0.64);
+  --surface-interactive-active-background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 253, 0.94));
+  --surface-interactive-active-border: rgba(179, 190, 211, 0.78);
+  --surface-popover-background: rgba(255, 255, 255, 0.98);
+  --surface-popover-border: rgba(214, 221, 233, 0.78);
+  --surface-popover-shadow: 0 16px 28px rgba(71, 85, 105, 0.1);
+  --surface-avatar-background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(243, 245, 249, 0.94));
+  --surface-avatar-border: rgba(233, 238, 245, 0.92);
+  --surface-avatar-foreground: rgba(56, 68, 88, 0.92);
+  --surface-avatar-shadow: none;
+  --divider-subtle-color: rgba(210, 218, 229, 0.62);
 
   /* 中文注释：card / chip / pill / segmented 归入组件语义原料。 */
   --card-default-background:
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.2), transparent 24%),
-    linear-gradient(180deg, rgba(247, 250, 255, 0.76), rgba(237, 241, 248, 0.66));
-  --card-default-border: rgba(255, 255, 255, 0.44);
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.34), transparent 24%),
+    radial-gradient(circle at 84% 14%, rgba(215, 225, 255, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 247, 250, 0.88));
+  --card-default-border: rgba(210, 218, 232, 0.74);
   --card-default-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.54),
-    inset -1px -1px 0 rgba(166, 181, 214, 0.06),
-    0 3px 10px rgba(76, 88, 120, 0.05);
+    none;
   --modal-dialog-surface-background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.6), transparent 40%),
-    radial-gradient(circle at 85% 20%, rgba(237, 245, 255, 0.4), transparent 36%),
-    radial-gradient(circle at 50% 100%, rgba(240, 237, 255, 0.3), transparent 40%),
-    linear-gradient(180deg, #fafbff 0%, #f4f6fc 100%);
-  --modal-dialog-surface-border: rgba(255, 255, 255, 0.72);
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.22), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 246, 250, 0.9));
+  --modal-dialog-surface-border: rgba(214, 221, 233, 0.8);
   --modal-dialog-surface-shadow:
-    0 32px 80px rgba(40, 50, 80, 0.18),
-    0 12px 32px rgba(40, 50, 80, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --modal-nav-background: rgba(245, 247, 252, 0.6);
-  --modal-nav-border: rgba(226, 232, 244, 0.5);
-  --modal-card-background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(248, 249, 254, 0.7));
-  --modal-card-border: rgba(226, 232, 244, 0.6);
-  --modal-card-shadow:
-    0 2px 8px rgba(40, 50, 80, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  --modal-card-active-background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 249, 254, 0.85));
-  --modal-card-active-border: rgba(226, 232, 244, 0.7);
-  --modal-card-active-shadow:
-    0 4px 12px rgba(40, 50, 80, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --modal-input-background: rgba(255, 255, 255, 0.7);
-  --modal-input-border: rgba(226, 232, 244, 0.6);
-  --modal-input-shadow: inset 0 1px 3px rgba(40, 50, 80, 0.04);
-  --modal-input-focus-background: rgba(255, 255, 255, 0.9);
-  --modal-input-focus-border: rgba(133, 119, 255, 0.4);
-  --modal-input-focus-shadow:
-    inset 0 1px 3px rgba(40, 50, 80, 0.04),
-    0 0 0 3px rgba(133, 119, 255, 0.1);
-  --modal-divider-color: rgba(226, 232, 244, 0.5);
-  --modal-btn-secondary-background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 246, 250, 0.85));
-  --modal-btn-secondary-border: rgba(226, 232, 244, 0.6);
+    0 18px 40px rgba(71, 85, 105, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  --modal-nav-background: rgba(249, 250, 252, 0.68);
+  --modal-nav-border: rgba(219, 226, 238, 0.62);
+  --modal-card-background: rgba(255, 255, 255, 0.82);
+  --modal-card-border: rgba(214, 221, 233, 0.7);
+  --modal-card-shadow: none;
+  --modal-card-active-background: rgba(255, 255, 255, 0.94);
+  --modal-card-active-border: rgba(196, 206, 236, 0.84);
+  --modal-card-active-shadow: none;
+  --modal-input-background: rgba(255, 255, 255, 0.84);
+  --modal-input-border: rgba(202, 211, 226, 0.7);
+  --modal-input-shadow: none;
+  --modal-input-focus-background: rgba(255, 255, 255, 0.96);
+  --modal-input-focus-border: rgba(125, 114, 234, 0.34);
+  --modal-input-focus-shadow: none;
+  --modal-divider-color: rgba(210, 218, 232, 0.64);
+  --modal-btn-secondary-background: rgba(255, 255, 255, 0.84);
+  --modal-btn-secondary-border: rgba(204, 213, 228, 0.68);
   --modal-btn-secondary-shadow:
-    0 1px 3px rgba(40, 50, 80, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  --modal-btn-secondary-hover-background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 249, 254, 0.95));
-  --modal-btn-secondary-hover-border: rgba(210, 218, 236, 0.7);
-  --chip-default-background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(242, 239, 234, 0.74));
-  --chip-default-border: rgba(255, 255, 255, 0.44);
+    0 6px 14px rgba(71, 85, 105, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  --modal-btn-secondary-hover-background: rgba(255, 255, 255, 0.92);
+  --modal-btn-secondary-hover-border: rgba(201, 210, 225, 0.74);
+  --chip-default-background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 252, 0.86));
+  --chip-default-border: rgba(190, 199, 214, 0.62);
   --chip-default-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.68),
-    0 1px 4px rgba(110, 117, 142, 0.05);
-  --chip-segmented-shell-background: rgba(255, 255, 255, 0.56);
-  --chip-segmented-shell-border: rgba(255, 255, 255, 0.54);
-  --chip-segmented-shell-shadow: 0 6px 16px rgba(106, 124, 158, 0.08);
-  --chip-segmented-icon-color: rgba(76, 87, 109, 0.78);
-  --chip-segmented-option-color: rgba(76, 87, 109, 0.78);
-  --chip-segmented-option-hover-background: rgba(255, 255, 255, 0.58);
-  --chip-segmented-option-hover-color: #182131;
-  --chip-segmented-option-active-background: rgba(255, 255, 255, 0.9);
-  --chip-segmented-option-active-color: #182131;
+    none;
+  --chip-segmented-shell-background: rgba(255, 255, 255, 0.82);
+  --chip-segmented-shell-border: rgba(202, 211, 226, 0.66);
+  --chip-segmented-shell-shadow: none;
+  --chip-segmented-icon-color: rgba(71, 85, 105, 0.82);
+  --chip-segmented-option-color: rgba(71, 85, 105, 0.84);
+  --chip-segmented-option-hover-background: rgba(255, 255, 255, 0.78);
+  --chip-segmented-option-hover-color: #162032;
+  --chip-segmented-option-active-background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 253, 0.94));
+  --chip-segmented-option-active-color: #162032;
   --chip-segmented-option-active-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.76),
-    0 2px 8px rgba(106, 124, 158, 0.10);
-  --input-caret-color: rgba(133, 119, 255, 0.96);
-  --input-caret-shadow: rgba(133, 119, 255, 0.22);
+    none;
+  --input-caret-color: rgba(125, 114, 234, 0.96);
+  --input-caret-shadow: rgba(125, 114, 234, 0.2);
 }
 
 :root[data-theme="dark"] {
-  --background: #1a1d23;
-  --foreground: #f4efe6;
-  --primary: #76a9ff;
-  --primary-rgb: 118, 169, 255;
+  --background: #171512;
+  --foreground: #f0e8dc;
+  --primary: #93abff;
+  --primary-rgb: 147, 171, 255;
   --primary-foreground: #09111d;
-  --secondary: #2f353f;
-  --secondary-foreground: #f4efe6;
-  --accent: #f3b86d;
+  --secondary: #26221d;
+  --secondary-foreground: #f0e8dc;
+  --accent: #d5a16e;
   --accent-foreground: #231708;
-  --card: rgba(243, 239, 231, 0.9);
-  --card-foreground: #171717;
-  --muted: #343942;
-  --muted-foreground: #b7bdc7;
-  --border: rgba(255, 255, 255, 0.22);
-  --input: rgba(255, 255, 255, 0.84);
-  --ring: rgba(118, 169, 255, 0.24);
+  --card: rgba(31, 28, 24, 0.94);
+  --card-foreground: #f0e8dc;
+  --muted: #2a2621;
+  --muted-foreground: #aaa094;
+  --border: rgba(255, 244, 228, 0.12);
+  --input: rgba(31, 28, 24, 0.92);
+  --ring: rgba(147, 171, 255, 0.22);
   --destructive: #ef6d63;
   --destructive-foreground: #ffffff;
   --success: #72d3a5;
   --success-foreground: #08130e;
   --warning: #f4c460;
-  --scrollbar-thumb: rgba(229, 235, 247, 0.18);
-  --scrollbar-thumb-hover: rgba(229, 235, 247, 0.34);
+  --scrollbar-thumb: rgba(240, 232, 220, 0.14);
+  --scrollbar-thumb-hover: rgba(240, 232, 220, 0.24);
   --surface-stage-background:
-    radial-gradient(circle at top, rgba(95, 121, 173, 0.18), transparent 36%),
-    radial-gradient(circle at bottom, rgba(244, 182, 100, 0.14), transparent 28%);
+    radial-gradient(circle at top, rgba(102, 126, 170, 0.12), transparent 34%);
   --surface-body-background:
-    radial-gradient(circle at 14% 18%, rgba(108, 126, 186, 0.22) 0%, rgba(108, 126, 186, 0) 34%),
-    radial-gradient(circle at 80% 16%, rgba(248, 190, 118, 0.18) 0%, rgba(248, 190, 118, 0) 30%),
-    radial-gradient(circle at 58% 88%, rgba(117, 218, 195, 0.16) 0%, rgba(117, 218, 195, 0) 28%),
-    linear-gradient(180deg, #14171c 0%, #1a1d23 54%, #101217 100%);
+    radial-gradient(circle at 18% 16%, rgba(104, 127, 170, 0.12) 0%, transparent 34%),
+    linear-gradient(180deg, #14120f 0%, #171512 52%, #100e0c 100%);
   --surface-body-grid:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  --text-kbd-color: #ece4d6;
-  --surface-kbd-background: linear-gradient(180deg, rgba(52, 58, 68, 0.96), rgba(34, 39, 47, 0.96));
-  --divider-kbd-border: rgba(255, 255, 255, 0.18);
+    linear-gradient(rgba(255, 244, 228, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 244, 228, 0.04) 1px, transparent 1px);
+  --text-kbd-color: #ece3d4;
+  --surface-kbd-background: linear-gradient(180deg, #322d27, #28241f);
+  --divider-kbd-border: rgba(255, 244, 228, 0.12);
   --surface-kbd-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(8, 10, 14, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 8px 16px rgba(0, 0, 0, 0.22);
-  --surface-shell-background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(228, 221, 209, 0.20));
-  --surface-shell-border: rgba(255, 255, 255, 0.22);
+  --surface-shell-background: rgba(30, 27, 23, 0.82);
+  --surface-shell-border: rgba(255, 244, 228, 0.12);
   --surface-shell-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.04),
-    24px 24px 64px rgba(0, 0, 0, 0.32),
-    -10px -10px 24px rgba(255, 255, 255, 0.04);
-  --surface-inset-background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(226, 219, 208, 0.16));
-  --surface-inset-border: rgba(255, 255, 255, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 22px 48px rgba(0, 0, 0, 0.28);
+  --surface-inset-background: rgba(23, 21, 18, 0.72);
+  --surface-inset-border: rgba(255, 244, 228, 0.08);
   --surface-inset-shadow:
-    inset 10px 10px 24px rgba(0, 0, 0, 0.16),
-    inset -6px -6px 16px rgba(255, 255, 255, 0.10);
-  --chip-pill-background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(226, 220, 208, 0.20));
-  --chip-pill-border: rgba(255, 255, 255, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  --chip-pill-background: rgba(39, 35, 30, 0.84);
+  --chip-pill-border: rgba(255, 244, 228, 0.1);
   --chip-pill-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.04),
-    14px 14px 26px rgba(0, 0, 0, 0.18),
-    -8px -8px 18px rgba(255, 255, 255, 0.04);
-  --glow-lilac: radial-gradient(circle at center, rgba(128, 155, 255, 0.46), rgba(128, 155, 255, 0.08) 60%, transparent 76%);
-  --glow-green: radial-gradient(circle at center, rgba(114, 229, 196, 0.34), rgba(114, 229, 196, 0.08) 58%, transparent 76%);
-  --glow-peach: radial-gradient(circle at center, rgba(245, 184, 109, 0.38), rgba(245, 184, 109, 0.08) 58%, transparent 76%);
-  --divider-soft-ring-color: rgba(255, 255, 255, 0.12);
-  --surface-panel-background:
-    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.14), transparent 24%),
-    radial-gradient(circle at 82% 16%, rgba(116, 229, 199, 0.10), transparent 28%),
-    radial-gradient(circle at 50% 100%, rgba(122, 154, 255, 0.12), transparent 36%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(228, 221, 209, 0.14));
-  --surface-panel-border: rgba(255, 255, 255, 0.24);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 20px rgba(0, 0, 0, 0.18);
+  --glow-lilac: radial-gradient(circle at center, rgba(147, 171, 255, 0.24), rgba(147, 171, 255, 0.04) 60%, transparent 76%);
+  --glow-green: radial-gradient(circle at center, rgba(114, 211, 165, 0.16), rgba(114, 211, 165, 0.03) 58%, transparent 76%);
+  --glow-peach: radial-gradient(circle at center, rgba(213, 161, 110, 0.18), rgba(213, 161, 110, 0.03) 58%, transparent 76%);
+  --glow-mist: radial-gradient(circle at center, rgba(147, 171, 255, 0.16), rgba(147, 171, 255, 0.03) 58%, transparent 76%);
+  --surface-panel-background: rgba(35, 31, 27, 0.74);
+  --surface-panel-border: rgba(255, 244, 228, 0.1);
   --surface-panel-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.04),
-    0 26px 54px rgba(0, 0, 0, 0.28),
-    0 4px 14px rgba(255, 255, 255, 0.02);
-  --input-shell-background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(226, 220, 208, 0.18));
-  --input-shell-border: rgba(255, 255, 255, 0.24);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 38px rgba(0, 0, 0, 0.26);
+  --input-shell-background: rgba(33, 29, 25, 0.8);
+  --input-shell-border: rgba(255, 244, 228, 0.1);
   --input-shell-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.04),
-    0 16px 28px rgba(0, 0, 0, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 28px rgba(0, 0, 0, 0.2);
   --surface-grid-background:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  --surface-panel-subtle-background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(226, 220, 208, 0.12));
-  --surface-panel-subtle-border: rgba(255, 255, 255, 0.16);
+    linear-gradient(rgba(255, 244, 228, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 244, 228, 0.03) 1px, transparent 1px);
+  --surface-panel-subtle-background: rgba(34, 30, 26, 0.46);
+  --surface-panel-subtle-border: rgba(255, 244, 228, 0.08);
   --surface-panel-subtle-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.12),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.03),
-    0 18px 40px rgba(0, 0, 0, 0.18);
-  --divider-subtle-color: rgba(255, 255, 255, 0.12);
-  --card-default-background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(229, 223, 212, 0.20));
-  --card-default-border: rgba(255, 255, 255, 0.24);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 14px 30px rgba(0, 0, 0, 0.18);
+  --surface-canvas-background: rgba(24, 22, 19, 0.86);
+  --surface-canvas-border: rgba(255, 244, 228, 0.08);
+  --surface-interactive-hover-background: rgba(255, 244, 228, 0.06);
+  --surface-interactive-hover-border: rgba(255, 244, 228, 0.1);
+  --surface-interactive-active-background: rgba(255, 244, 228, 0.1);
+  --surface-interactive-active-border: rgba(255, 244, 228, 0.14);
+  --surface-popover-background: rgba(31, 28, 24, 0.96);
+  --surface-popover-border: rgba(255, 244, 228, 0.12);
+  --surface-popover-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+  --surface-avatar-background: linear-gradient(180deg, rgba(53, 47, 41, 0.94), rgba(34, 30, 26, 0.96));
+  --surface-avatar-border: rgba(255, 244, 228, 0.18);
+  --surface-avatar-foreground: rgba(236, 227, 212, 0.84);
+  --surface-avatar-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+  --divider-subtle-color: rgba(255, 244, 228, 0.08);
+  --card-default-background: rgba(34, 30, 26, 0.84);
+  --card-default-border: rgba(255, 244, 228, 0.1);
   --card-default-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.04),
-    0 8px 18px rgba(0, 0, 0, 0.18);
-  --modal-dialog-surface-background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.24), transparent 40%),
-    radial-gradient(circle at 85% 20%, rgba(121, 168, 255, 0.14), transparent 36%),
-    radial-gradient(circle at 50% 100%, rgba(245, 184, 109, 0.12), transparent 40%),
-    linear-gradient(180deg, rgba(39, 44, 54, 0.96) 0%, rgba(28, 32, 39, 0.98) 100%);
-  --modal-dialog-surface-border: rgba(255, 255, 255, 0.16);
+    none;
+  --modal-dialog-surface-background: rgba(29, 26, 23, 0.96);
+  --modal-dialog-surface-border: rgba(255, 244, 228, 0.12);
   --modal-dialog-surface-shadow:
-    0 32px 80px rgba(0, 0, 0, 0.42),
-    0 12px 32px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --modal-nav-background: rgba(255, 255, 255, 0.08);
-  --modal-nav-border: rgba(255, 255, 255, 0.12);
-  --modal-card-background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.06));
-  --modal-card-border: rgba(255, 255, 255, 0.12);
+    0 30px 72px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --modal-nav-background: rgba(255, 244, 228, 0.06);
+  --modal-nav-border: rgba(255, 244, 228, 0.08);
+  --modal-card-background: rgba(255, 244, 228, 0.06);
+  --modal-card-border: rgba(255, 244, 228, 0.08);
   --modal-card-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --modal-card-active-background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
-  --modal-card-active-border: rgba(255, 255, 255, 0.18);
+    0 8px 18px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --modal-card-active-background: rgba(255, 244, 228, 0.1);
+  --modal-card-active-border: rgba(255, 244, 228, 0.12);
   --modal-card-active-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  --modal-input-background: rgba(255, 255, 255, 0.08);
-  --modal-input-border: rgba(255, 255, 255, 0.12);
+    0 10px 20px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --modal-input-background: rgba(255, 244, 228, 0.06);
+  --modal-input-border: rgba(255, 244, 228, 0.08);
   --modal-input-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.14);
-  --modal-input-focus-background: rgba(255, 255, 255, 0.12);
-  --modal-input-focus-border: rgba(118, 169, 255, 0.34);
+  --modal-input-focus-background: rgba(255, 244, 228, 0.08);
+  --modal-input-focus-border: rgba(147, 171, 255, 0.28);
   --modal-input-focus-shadow:
     inset 0 1px 3px rgba(0, 0, 0, 0.14),
-    0 0 0 3px rgba(118, 169, 255, 0.12);
-  --modal-divider-color: rgba(255, 255, 255, 0.12);
-  --modal-btn-secondary-background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
-  --modal-btn-secondary-border: rgba(255, 255, 255, 0.16);
+    0 0 0 3px rgba(147, 171, 255, 0.08);
+  --modal-divider-color: rgba(255, 244, 228, 0.08);
+  --modal-btn-secondary-background: rgba(255, 244, 228, 0.08);
+  --modal-btn-secondary-border: rgba(255, 244, 228, 0.1);
   --modal-btn-secondary-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --modal-btn-secondary-hover-background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
-  --modal-btn-secondary-hover-border: rgba(255, 255, 255, 0.22);
-  --chip-default-background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(226, 220, 208, 0.22));
-  --chip-default-border: rgba(255, 255, 255, 0.24);
+    0 8px 16px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --modal-btn-secondary-hover-background: rgba(255, 244, 228, 0.1);
+  --modal-btn-secondary-hover-border: rgba(255, 244, 228, 0.14);
+  --chip-default-background: rgba(39, 35, 30, 0.86);
+  --chip-default-border: rgba(255, 244, 228, 0.1);
   --chip-default-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
-    0 2px 6px rgba(0, 0, 0, 0.16);
-  --chip-segmented-shell-background: rgba(255, 255, 255, 0.10);
-  --chip-segmented-shell-border: rgba(255, 255, 255, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 14px rgba(0, 0, 0, 0.14);
+  --chip-segmented-shell-background: rgba(36, 32, 28, 0.9);
+  --chip-segmented-shell-border: rgba(255, 244, 228, 0.08);
   --chip-segmented-shell-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
-  --chip-segmented-icon-color: rgba(214, 207, 196, 0.88);
-  --chip-segmented-option-color: rgba(214, 207, 196, 0.88);
-  --chip-segmented-option-hover-background: rgba(255, 255, 255, 0.08);
-  --chip-segmented-option-hover-color: #f5ecde;
-  --chip-segmented-option-active-background: rgba(255, 255, 255, 0.18);
-  --chip-segmented-option-active-color: #f8efe3;
-  --chip-segmented-option-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-}
-
-:root[data-theme="sunny"] {
-  --background: #171412;
-  --foreground: #ece4d8;
-  --primary: #8a98ad;
-  --primary-rgb: 138, 152, 173;
-  --primary-foreground: #14110f;
-  --secondary: #26211d;
-  --secondary-foreground: #ece4d8;
-  --accent: #bc9165;
-  --accent-foreground: #16110d;
-  --card: rgba(34, 30, 27, 0.90);
-  --muted: #312b26;
-  --muted-foreground: #b5a89a;
-  --border: rgba(255, 255, 255, 0.10);
-  --input: rgba(39, 35, 31, 0.90);
-  --ring: rgba(138, 152, 173, 0.16);
-  --surface-stage-background:
-    radial-gradient(circle at top, rgba(95, 107, 128, 0.12), transparent 38%),
-    radial-gradient(circle at bottom, rgba(188, 145, 101, 0.10), transparent 30%);
-  --surface-body-background:
-    radial-gradient(circle at 14% 18%, rgba(120, 132, 152, 0.12) 0%, rgba(120, 132, 152, 0) 34%),
-    radial-gradient(circle at 82% 16%, rgba(190, 145, 98, 0.10) 0%, rgba(190, 145, 98, 0) 30%),
-    radial-gradient(circle at 56% 86%, rgba(108, 126, 120, 0.08) 0%, rgba(108, 126, 120, 0) 28%),
-    linear-gradient(180deg, #12100f 0%, #171412 52%, #100e0d 100%);
-  --surface-body-grid:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  --surface-shell-background: linear-gradient(180deg, rgba(40, 35, 31, 0.80), rgba(27, 24, 21, 0.86));
-  --surface-shell-border: rgba(255, 255, 255, 0.10);
-  --surface-shell-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.16),
-    0 20px 44px rgba(0, 0, 0, 0.26);
-  --glow-lilac: radial-gradient(circle at center, rgba(126, 142, 166, 0.18), rgba(126, 142, 166, 0.02) 60%, transparent 76%);
-  --glow-green: radial-gradient(circle at center, rgba(111, 138, 127, 0.14), rgba(111, 138, 127, 0.02) 58%, transparent 76%);
-  --glow-peach: radial-gradient(circle at center, rgba(178, 139, 98, 0.18), rgba(178, 139, 98, 0.03) 58%, transparent 76%);
-  --surface-panel-background:
-    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.08), transparent 24%),
-    radial-gradient(circle at 82% 16%, rgba(126, 142, 166, 0.08), transparent 28%),
-    radial-gradient(circle at 50% 100%, rgba(188, 145, 101, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(41, 36, 32, 0.58), rgba(28, 25, 22, 0.64));
-  --surface-panel-border: rgba(255, 255, 255, 0.12);
-  --surface-panel-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.16),
-    0 24px 48px rgba(0, 0, 0, 0.24);
-  --chip-pill-background: linear-gradient(180deg, rgba(46, 40, 35, 0.56), rgba(33, 29, 26, 0.62));
-  --chip-pill-border: rgba(255, 255, 255, 0.12);
-  --chip-pill-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
-  --input-shell-background: linear-gradient(180deg, rgba(47, 41, 36, 0.58), rgba(33, 29, 26, 0.66));
-  --input-shell-border: rgba(255, 255, 255, 0.12);
-  --input-shell-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
-  --surface-panel-subtle-background: linear-gradient(180deg, rgba(42, 37, 33, 0.20), rgba(30, 27, 24, 0.24));
-  --surface-panel-subtle-border: rgba(255, 255, 255, 0.08);
-  --divider-subtle-color: rgba(255, 255, 255, 0.08);
-  --card-default-background: linear-gradient(180deg, rgba(42, 37, 33, 0.74), rgba(30, 27, 24, 0.78));
-  --card-default-border: rgba(255, 255, 255, 0.10);
-  --card-default-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
-  --chip-default-background: linear-gradient(180deg, rgba(48, 42, 37, 0.84), rgba(36, 31, 28, 0.88));
-  --chip-default-border: rgba(255, 255, 255, 0.10);
-  --chip-default-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
-  --chip-segmented-shell-background: rgba(33, 29, 26, 0.68);
-  --chip-segmented-shell-border: rgba(255, 255, 255, 0.10);
-  --chip-segmented-shell-shadow: 0 8px 18px rgba(0, 0, 0, 0.20);
-  --chip-segmented-icon-color: rgba(217, 207, 194, 0.82);
-  --chip-segmented-option-color: rgba(217, 207, 194, 0.80);
-  --chip-segmented-option-hover-background: rgba(255, 255, 255, 0.06);
-  --chip-segmented-option-hover-color: #f3ebdf;
-  --chip-segmented-option-active-background: rgba(138, 152, 173, 0.20);
-  --chip-segmented-option-active-color: #f3ebdf;
-  --chip-segmented-option-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  --input-caret-color: rgba(118, 169, 255, 0.96);
-  --input-caret-shadow: rgba(118, 169, 255, 0.24);
+  --chip-segmented-icon-color: rgba(224, 214, 202, 0.84);
+  --chip-segmented-option-color: rgba(224, 214, 202, 0.82);
+  --chip-segmented-option-hover-background: rgba(255, 244, 228, 0.08);
+  --chip-segmented-option-hover-color: #f3eadf;
+  --chip-segmented-option-active-background: rgba(147, 171, 255, 0.16);
+  --chip-segmented-option-active-color: #f5ede2;
+  --chip-segmented-option-active-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+  --input-caret-color: rgba(147, 171, 255, 0.96);
+  --input-caret-shadow: rgba(147, 171, 255, 0.18);
 }
 
 @theme inline {

@@ -154,8 +154,12 @@ function MemberSwitcher({
               "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-medium transition-all",
               is_active
                 ? "border-primary/30 bg-primary/10 text-primary"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                : "text-slate-600 hover:text-slate-900",
             )}
+            style={!is_active ? {
+              background: "var(--card-default-background)",
+              borderColor: "var(--card-default-border)",
+            } : undefined}
           >
             <span className={cn(
               "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
@@ -204,7 +208,13 @@ export function RoomWorkspaceView({
       )}
 
       {tree.length > 0 ? (
-        <div className="rounded-xl border border-slate-200/70 bg-white/60 py-1.5">
+        <div
+          className="rounded-xl border py-1.5"
+          style={{
+            background: "var(--surface-panel-subtle-background)",
+            borderColor: "var(--surface-panel-subtle-border)",
+          }}
+        >
           {tree.map((node) => (
             <TreeRow
               key={node.entry.path}
@@ -216,7 +226,13 @@ export function RoomWorkspaceView({
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/20 bg-white/10 px-5 py-5 text-sm leading-7 text-slate-700/60">
+        <div
+          className="rounded-2xl border px-5 py-5 text-sm leading-7 text-slate-700/60"
+          style={{
+            background: "var(--surface-panel-subtle-background)",
+            borderColor: "var(--surface-panel-subtle-border)",
+          }}
+        >
           <div className="mb-2 flex items-center gap-2 font-medium text-slate-900/60">
             <FolderTree className="h-4 w-4" />
             {t("room.no_files")}

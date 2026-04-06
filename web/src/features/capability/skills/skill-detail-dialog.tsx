@@ -126,7 +126,7 @@ export function SkillDetailDialog({
             density="compact"
             onClick={on_close}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-5 w-5" />
           </WorkspacePillButton>
@@ -193,7 +193,7 @@ export function SkillDetailDialog({
               class_name="text-amber-700"
               disabled
               size="md"
-              variant="default"
+              variant="tonal"
             >
               <Lock className="h-4 w-4" />
               系统级
@@ -205,7 +205,7 @@ export function SkillDetailDialog({
                   disabled={acting}
                   onClick={() => void handle_update()}
                   size="md"
-                  variant="strong"
+                  variant="primary"
                 >
                   {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   更新技能库
@@ -230,7 +230,8 @@ export function SkillDetailDialog({
                   disabled={acting}
                   onClick={() => void handle_delete()}
                   size="md"
-                  variant="danger"
+                  tone="danger"
+                  variant="outlined"
                 >
                   {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   删除

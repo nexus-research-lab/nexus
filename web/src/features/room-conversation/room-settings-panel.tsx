@@ -95,7 +95,7 @@ export function RoomSettingsPanel({
         role="dialog"
         aria-modal="true"
       >
-          <div className="dialog-shell soft-ring radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-150">
+          <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-150">
             <div className="dialog-header">
               <div className={DIALOG_HEADER_LEADING_CLASS_NAME}>
                 <div className={DIALOG_HEADER_ICON_CLASS_NAME}>
@@ -115,7 +115,7 @@ export function RoomSettingsPanel({
               density="compact"
               onClick={on_close}
               size="icon"
-              variant="default"
+              variant="icon"
             >
               <X className="h-4 w-4" />
             </WorkspacePillButton>
@@ -147,7 +147,7 @@ export function RoomSettingsPanel({
                     size="sm"
                     onClick={() => handle_update_name(edit_name_value)}
                     disabled={is_updating}
-                    variant="strong"
+                    variant="primary"
                   >
                     {t("common.save")}
                   </WorkspacePillButton>
@@ -189,7 +189,7 @@ export function RoomSettingsPanel({
                     size="sm"
                     onClick={() => handle_update_description(edit_description_value)}
                     disabled={is_updating}
-                    variant="strong"
+                    variant="primary"
                   >
                     {t("common.save")}
                   </WorkspacePillButton>
@@ -211,7 +211,8 @@ export function RoomSettingsPanel({
 
             <div className="dialog-footer px-0 pb-0">
               <WorkspacePillButton
-                variant="danger"
+                tone="danger"
+                variant="outlined"
                 size="md"
                 onClick={() => set_is_delete_confirm_open(true)}
                 stretch

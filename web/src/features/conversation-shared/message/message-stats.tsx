@@ -27,25 +27,25 @@ export function MessageStats(
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-x-2 gap-y-1 pt-2 text-[11px] text-slate-400",
-        compact ? "flex-wrap" : "flex-wrap sm:flex-nowrap sm:gap-3",
+        "flex min-w-0 items-center gap-x-2 gap-y-1 pt-2 text-[10.5px] text-slate-500/78",
+        compact ? "flex-wrap" : "flex-wrap sm:flex-nowrap sm:gap-2.5",
       )}>
       {stats?.duration ? <span className="shrink-0 tabular-nums">耗时 {stats.duration}</span> : null}
       {stats?.tokens && (
         <>
-          {stats?.duration ? <span className="hidden text-slate-700/20 sm:inline">•</span> : null}
+          {stats?.duration ? <span className="hidden text-slate-400/40 sm:inline">•</span> : null}
           <span className="min-w-0 truncate tabular-nums">Tokens {stats.tokens}</span>
         </>
       )}
       {stats?.cost && (
         <>
-          {stats?.duration || stats?.tokens ? <span className="hidden text-slate-700/20 sm:inline">•</span> : null}
+          {stats?.duration || stats?.tokens ? <span className="hidden text-slate-400/40 sm:inline">•</span> : null}
           <span className="shrink-0 tabular-nums">成本 {stats.cost}</span>
         </>
       )}
       {stats?.cache_hit && (
         <>
-          {stats?.duration || stats?.tokens || stats?.cost ? <span className="hidden text-slate-700/20 sm:inline">•</span> : null}
+          {stats?.duration || stats?.tokens || stats?.cost ? <span className="hidden text-slate-400/40 sm:inline">•</span> : null}
           <span className="shrink-0">缓存 {stats.cache_hit}</span>
         </>
       )}
@@ -64,10 +64,11 @@ export function MessageStats(
             <button
               onClick={on_copy_assistant}
               className={cn(
-                "rounded-lg p-1 text-slate-500/80 transition-colors duration-150 hover:bg-slate-100/92 hover:text-slate-900/92",
+                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-slate-500/80 transition-[color,border-color,background] duration-150 hover:border-[var(--chip-default-border)] hover:bg-[var(--chip-default-background)] hover:text-slate-900/92",
                 copied_assistant && "text-green-500",
               )}
               title="复制回答"
+              type="button"
             >
               {copied_assistant ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}
             </button>

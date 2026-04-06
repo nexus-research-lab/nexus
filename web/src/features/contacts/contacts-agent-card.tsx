@@ -5,7 +5,7 @@ import { Bot, MessageSquareText, Users } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceCatalogCard,
-  WorkspaceCatalogMedia,
+  WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 
@@ -37,27 +37,27 @@ export function ContactsAgentCard({
       onClick={on_open_profile}
     >
       {/* 居中头像 */}
-      <WorkspaceCatalogMedia class_name="mx-auto h-16 w-16" shape="round">
+      <WorkspaceIconFrame class_name="mx-auto h-16 w-16" shape="round" size="lg">
         <Bot className="h-7 w-7 text-slate-900/88" />
-      </WorkspaceCatalogMedia>
+      </WorkspaceIconFrame>
 
       {/* 名称 */}
-      <p className="mt-4 truncate text-[18px] font-bold tracking-[-0.03em] text-slate-950/92">
+      <p className="mt-4 truncate text-[18px] font-bold tracking-[-0.03em] text-slate-950/96">
         {name}
       </p>
 
       {/* 描述：1-2 行截断 */}
-      <p className="mt-2 line-clamp-2 min-h-[40px] text-[13px] leading-5 text-slate-700/68">
+      <p className="mt-2 line-clamp-2 min-h-[40px] text-[13px] leading-5 text-slate-700/88">
         {description}
       </p>
 
       {/* 底部操作按钮 */}
-      <div className="mt-5 flex items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
-        <WorkspacePillButton onClick={on_open_room} size="sm" variant="success">
+      <div className="mt-5 flex items-center justify-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+        <WorkspacePillButton onClick={on_open_room} size="sm" variant="primary">
           <MessageSquareText className="h-3.5 w-3.5" />
           {t("contacts.chat")}
         </WorkspacePillButton>
-        <WorkspacePillButton onClick={on_create_team} size="sm">
+        <WorkspacePillButton onClick={on_create_team} size="sm" variant="outlined">
           <Users className="h-3.5 w-3.5" />
           {t("contacts.create_team")}
         </WorkspacePillButton>

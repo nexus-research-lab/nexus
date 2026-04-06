@@ -86,7 +86,7 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
       <div className="relative px-1">
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
         <input
-          className="w-full rounded-lg bg-white/40 py-1.5 pl-7 pr-2 text-[12px] text-slate-700 placeholder:text-slate-400 focus:bg-white/60 focus:outline-none"
+          className="w-full rounded-lg border border-[var(--surface-panel-subtle-border)] bg-[var(--surface-panel-subtle-background)] py-1.5 pl-7 pr-2 text-[12px] text-slate-700 placeholder:text-slate-400 focus:bg-[var(--surface-interactive-hover-background)] focus:outline-none"
           onChange={(e) => set_search_query(e.target.value)}
           placeholder="搜索私信..."
           type="text"
@@ -109,16 +109,26 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
               <button
                 key={room.room.id}
                 className={cn(
-                  "group flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-all duration-150",
+                  "group box-border flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2 py-2 text-left transition-all duration-150",
                   is_active
-                    ? "bg-white/60 shadow-sm"
-                    : "hover:bg-white/30",
+                    ? ""
+                    : "hover:bg-[var(--surface-interactive-hover-background)]",
                 )}
+                style={is_active ? {
+                  background: "var(--surface-interactive-active-background)",
+                  borderColor: "var(--surface-interactive-active-border)",
+                } : undefined}
                 onClick={() => handle_click(room.room.id)}
                 type="button"
               >
                 {/* Agent 头像 */}
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-b from-slate-100 to-slate-200 text-[11px] font-bold text-slate-600">
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{
+                    background: "var(--surface-avatar-background)",
+                    color: "var(--surface-avatar-foreground)",
+                  }}
+                >
                   {avatar}
                 </div>
 

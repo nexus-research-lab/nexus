@@ -38,14 +38,12 @@ export function WorkspaceConversationSwitcher({
   const [is_creating, set_is_creating] = useState(false);
   const trigger_style = is_open
     ? {
-      background: "rgb(255 255 255 / 0.9)",
-      border: "1px solid var(--chip-default-border)",
-      boxShadow: "0 10px 22px rgb(106 124 158 / 0.14)",
+      background: "var(--surface-popover-background)",
+      border: "1px solid var(--surface-popover-border)",
     }
     : {
       background: "var(--chip-default-background)",
       border: "1px solid var(--chip-default-border)",
-      boxShadow: "var(--chip-default-shadow)",
     };
 
   const current_title =
@@ -67,7 +65,7 @@ export function WorkspaceConversationSwitcher({
     <div className="relative">
       <button
         className={cn(
-          "flex max-w-[168px] items-center gap-1 rounded-full text-slate-600/88 transition duration-150 ease-out",
+          "flex max-w-[168px] items-center gap-1 rounded-full text-slate-700/88 transition duration-150 ease-out",
           density === "compact" ? "h-5 px-2.5 text-[10.5px]" : "h-8 px-3 text-[11px]",
         )}
         style={trigger_style}
@@ -75,7 +73,7 @@ export function WorkspaceConversationSwitcher({
         type="button"
       >
         <span className="max-w-[124px] truncate">{current_title}</span>
-        <ChevronDown className={cn("h-3 w-3 transition-transform", is_open && "rotate-180")} />
+        <ChevronDown className={cn("h-3 w-3 text-slate-500 transition-transform", is_open && "rotate-180 text-slate-700")} />
       </button>
 
       {is_open ? (
@@ -87,9 +85,8 @@ export function WorkspaceConversationSwitcher({
           <div
             className="absolute left-0 top-full z-50 mt-1.5 w-56 rounded-[18px] py-1"
             style={{
-              background: "rgb(255 255 255 / 0.95)",
-              border: "1px solid rgb(226 232 240 / 0.7)",
-              boxShadow: "0 12px 28px rgb(110 117 142 / 0.14)",
+              background: "var(--surface-popover-background)",
+              border: "1px solid var(--surface-popover-border)",
               backdropFilter: "blur(16px)",
             }}
           >
@@ -103,16 +100,21 @@ export function WorkspaceConversationSwitcher({
                       className={cn(
                         "flex w-full items-center gap-2 px-3 py-[7px] text-left text-[11px] transition duration-150 ease-out",
                         is_active
-                          ? "bg-slate-100/86 font-semibold text-slate-950/96"
-                          : "text-slate-600/92 hover:bg-slate-50/88",
+                          ? "border-y border-transparent font-semibold text-slate-950/98"
+                          : "text-slate-700/90 hover:bg-[var(--surface-interactive-hover-background)] hover:text-slate-950/96",
                       )}
+                      style={is_active ? {
+                        background:
+                          "linear-gradient(135deg, rgba(var(--primary-rgb), 0.06), rgba(255, 255, 255, 0.86) 30%, var(--surface-interactive-active-background))",
+                        borderColor: "var(--surface-interactive-active-border)",
+                      } : undefined}
                       onClick={() => {
                         on_select_conversation(conversation.conversation_id);
                         set_is_open(false);
                       }}
                       type="button"
                     >
-                      <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <Icon className={cn("h-3.5 w-3.5 shrink-0", is_active ? "text-slate-600" : "text-slate-400")} />
                       <span className="min-w-0 flex-1 truncate">
                         {conversation.title || t("room.untitled_conversation")}
                       </span>
@@ -127,7 +129,7 @@ export function WorkspaceConversationSwitcher({
                 ) : null}
                 {on_create_conversation ? (
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-[7px] text-left text-[11px] font-medium text-emerald-600 transition duration-150 ease-out hover:bg-slate-50/88 disabled:opacity-60"
+                    className="flex w-full items-center gap-2 px-3 py-[7px] text-left text-[11px] font-medium text-emerald-600 transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] disabled:opacity-60"
                     disabled={is_creating}
                     onClick={handle_create}
                     type="button"

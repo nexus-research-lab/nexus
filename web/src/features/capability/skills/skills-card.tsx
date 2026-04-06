@@ -7,7 +7,7 @@ import {
   WorkspaceCatalogAction,
   WorkspaceCatalogBadge,
   WorkspaceCatalogCard,
-  WorkspaceCatalogMedia,
+  WorkspaceIconFrame,
   WorkspaceCatalogTag,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
@@ -47,49 +47,18 @@ export function SkillsCard({
       class_name="group cursor-pointer rounded-[22px] px-5 py-4"
       onClick={on_select}
     >
-      {/* 右上角操作区 — 悬停显示 */}
-      <div
-        className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {has_update && (
-          <WorkspaceCatalogAction
-            disabled={busy}
-            onClick={on_update}
-            title="更新"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </WorkspaceCatalogAction>
-        )}
-        {deletable && (
-          <WorkspaceCatalogAction
-            disabled={busy}
-            onClick={on_delete}
-            title="从技能库删除"
-            tone="danger"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </WorkspaceCatalogAction>
-        )}
-      </div>
-
-        {/* 头部：图标 + 名称 + 来源标签 */}
+      {/* 头部：图标 + 名称 + 来源标签 */}
       <div className="flex items-center gap-3">
-        <WorkspaceCatalogMedia
-          class_name={cn(
-            "h-10 w-10 shrink-0",
-            locked
-              ? "border-amber-200/60 bg-amber-50/80 text-amber-600"
-              : source_type === "external"
-                ? "border-sky-200/60 bg-sky-50/80 text-sky-600"
-                : "border-white/44 bg-white/64 text-slate-600",
-          )}
+        <WorkspaceIconFrame
+          class_name={cn("h-10 w-10 shrink-0", source_type === "external" && "text-sky-600")}
+          size="md"
+          tone={locked ? "warning" : source_type === "external" ? "primary" : "default"}
         >
           {locked ? <Lock className="h-[18px] w-[18px]" /> : <Puzzle className="h-[18px] w-[18px]" />}
-        </WorkspaceCatalogMedia>
+        </WorkspaceIconFrame>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate text-[15px] font-bold tracking-[-0.02em] text-slate-950/90">
+            <p className="truncate text-[15px] font-bold tracking-[-0.02em] text-slate-950/98">
               {title}
             </p>
             <WorkspaceCatalogBadge class_name="shrink-0" tone="neutral">
@@ -105,7 +74,7 @@ export function SkillsCard({
       </div>
 
       {/* 描述 */}
-      <p className="mt-2.5 line-clamp-2 flex-1 text-[13px] leading-[1.6] text-slate-700/65">
+      <p className="mt-2.5 line-clamp-2 flex-1 text-[13px] leading-[1.55] text-slate-700/78">
         {description || "暂无描述"}
       </p>
 
@@ -113,18 +82,14 @@ export function SkillsCard({
       <div className="mt-3 flex items-end justify-between gap-3">
         {/* 标签 */}
         <div className="flex min-w-0 flex-wrap gap-1">
-          {tags.slice(0, 3).map((tag) => (
+          {tags.slice(0, 2).map((tag) => (
             <WorkspaceCatalogTag key={tag}>
               {tag}
             </WorkspaceCatalogTag>
           ))}
         </div>
 
-        {/* 状态/操作 */}
-        <div
-          className="flex shrink-0 items-center gap-1.5"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           {locked ? (
             <WorkspaceCatalogBadge tone="warning">
               <Lock className="h-3 w-3" />
@@ -136,11 +101,30 @@ export function SkillsCard({
               已导入
             </WorkspaceCatalogBadge>
           ) : (
-            <WorkspacePillButton density="compact" size="sm" variant="default">
+            <WorkspacePillButton density="compact" size="sm" variant="outlined">
               <Puzzle className="h-3 w-3" />
               可安装到 Agent
             </WorkspacePillButton>
           )}
+          {has_update ? (
+            <WorkspaceCatalogAction
+              disabled={busy}
+              onClick={on_update}
+              title="更新"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </WorkspaceCatalogAction>
+          ) : null}
+          {deletable ? (
+            <WorkspaceCatalogAction
+              disabled={busy}
+              onClick={on_delete}
+              title="从技能库删除"
+              tone="danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </WorkspaceCatalogAction>
+          ) : null}
         </div>
       </div>
     </WorkspaceCatalogCard>

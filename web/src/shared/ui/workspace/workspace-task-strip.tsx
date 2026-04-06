@@ -38,15 +38,13 @@ export function WorkspaceTaskStrip({
   };
   const trigger_style = is_open
     ? {
-      background: "rgb(255 255 255 / 0.92)",
-      border: "1px solid rgb(226 232 240 / 0.74)",
-      boxShadow: "0 10px 22px rgb(106 124 158 / 0.14)",
+      background: "var(--surface-popover-background)",
+      border: "1px solid var(--surface-popover-border)",
       backdropFilter: "blur(16px)",
     }
     : {
-      background: "rgb(255 255 255 / 0.68)",
-      border: "1px solid rgb(255 255 255 / 0.7)",
-      boxShadow: "0 6px 14px rgb(106 124 158 / 0.1)",
+      background: "var(--chip-default-background)",
+      border: "1px solid var(--chip-default-border)",
       backdropFilter: "blur(16px)",
     };
 
@@ -74,21 +72,21 @@ export function WorkspaceTaskStrip({
           onClick={handle_toggle_panel}
           type="button"
         >
-          <ListChecks className="h-3.5 w-3.5 text-slate-600/84"/>
-          <span className="text-[10px] font-semibold tracking-[0.08em] text-slate-700/88">
+          <ListChecks className="h-3.5 w-3.5 text-slate-700/88"/>
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-slate-700/94">
             {t("tasks.label")}
           </span>
-          <span className="text-[10px] font-medium tabular-nums text-slate-500/88">
+          <span className="text-[10px] font-medium tabular-nums text-slate-600/88">
             {completed_count}/{total_count}
           </span>
-          <div className="hidden w-14 overflow-hidden rounded-full bg-slate-200/80 sm:block">
+          <div className="hidden w-14 overflow-hidden rounded-full bg-slate-200/88 sm:block">
             <div
               className="h-1 rounded-full bg-slate-700/74 transition-[width] duration-300"
               style={{width: `${progress}%`}}
             />
           </div>
           <span
-            className="inline-flex items-center justify-center gap-1 text-[10px] font-medium tabular-nums text-slate-500/84">
+            className="inline-flex items-center justify-center gap-1 text-[10px] font-medium tabular-nums text-slate-600/84">
             {has_running_task ? (
               <LoadingOrb />
             ) : active_count > 0 ? (
@@ -98,8 +96,8 @@ export function WorkspaceTaskStrip({
           </span>
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-300",
-              is_open && "rotate-180 text-slate-600",
+              "h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-300",
+              is_open && "rotate-180 text-slate-700",
             )}
           />
         </button>
@@ -108,9 +106,8 @@ export function WorkspaceTaskStrip({
           <div
             className="absolute right-0 top-[calc(100%+10px)] z-40 w-[min(540px,calc(100vw-48px))] overflow-hidden rounded-[20px]"
             style={{
-              background: "rgb(255 255 255 / 0.94)",
-              border: "1px solid rgb(255 255 255 / 0.82)",
-              boxShadow: "0 14px 32px rgb(106 124 158 / 0.16)",
+              background: "var(--surface-popover-background)",
+              border: "1px solid var(--surface-popover-border)",
               backdropFilter: "blur(18px)",
             }}
           >
@@ -151,8 +148,11 @@ export function WorkspaceTaskStrip({
                         <button
                           className={cn(
                             "grid w-full grid-cols-[36px_76px_minmax(0,1fr)_24px] gap-3 rounded-[12px] px-2 py-1.25 text-left transition-colors",
-                            is_expanded && has_detail ? "bg-white/78" : "hover:bg-white/62",
+                            is_expanded && has_detail ? "" : "hover:bg-[var(--surface-interactive-hover-background)]",
                           )}
+                          style={is_expanded && has_detail ? {
+                            background: "var(--surface-interactive-active-background)",
+                          } : undefined}
                           onClick={() => {
                             if (!has_detail) {
                               return;
@@ -214,7 +214,6 @@ export function WorkspaceTaskStrip({
                                 style={{
                                   background: "var(--card-default-background)",
                                   border: "1px solid var(--card-default-border)",
-                                  boxShadow: "var(--card-default-shadow)",
                                 }}
                               >
                                 {detail_text}

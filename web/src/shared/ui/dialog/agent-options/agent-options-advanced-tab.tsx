@@ -95,8 +95,8 @@ export function AgentOptionsAdvancedTab({
               className={cn(
                 "radius-shell-md relative overflow-hidden p-4 text-left transition-all duration-200",
                 permissionMode === pm.value
-                  ? "modal-card-active bg-primary/5 ring-1 ring-primary/30 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
-                  : "modal-card hover:border-primary/20 hover:bg-white/80"
+                  ? "dialog-card-active"
+                  : "dialog-card hover:border-primary/20 hover:bg-white/80"
               )}
             >
               <div className="mb-2 flex items-center justify-between">
@@ -192,8 +192,8 @@ export function AgentOptionsAdvancedTab({
                 className={cn(
                   "radius-shell-md flex items-center justify-between p-4 transition-all duration-200",
                   isChecked
-                    ? "modal-card-active bg-primary/5 ring-1 ring-primary/20 shadow-[0_8px_22px_rgba(15,23,42,0.05)]"
-                    : "modal-card hover:border-primary/20 hover:bg-white/80"
+                    ? "dialog-card-active"
+                    : "dialog-card hover:border-primary/20 hover:bg-white/80"
                 )}
               >
                 <div className="mr-4 flex-1">

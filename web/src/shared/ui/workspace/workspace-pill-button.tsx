@@ -4,9 +4,13 @@ import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
+type WorkspacePillButtonVariant = "primary" | "outlined" | "tonal" | "text" | "icon";
+type WorkspacePillButtonTone = "default" | "danger";
+
 interface WorkspacePillButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
   children: ReactNode;
-  variant?: "default" | "strong" | "success" | "danger";
+  variant?: WorkspacePillButtonVariant;
+  tone?: WorkspacePillButtonTone;
   size?: "sm" | "md" | "lg" | "icon";
   density?: "default" | "compact";
   stretch?: boolean;
@@ -19,12 +23,15 @@ export const WorkspacePillButton = forwardRef<HTMLButtonElement, WorkspacePillBu
     children,
     class_name,
     type = "button",
-    variant = "default",
+    variant,
+    tone = "default",
     size = "md",
     density = "default",
     stretch = false,
     ...props
   }: WorkspacePillButtonProps, ref) {
+    const resolved_variant = variant ?? (size === "icon" ? "icon" : "tonal");
+
     return (
       <button
         className={cn(
@@ -34,7 +41,8 @@ export const WorkspacePillButton = forwardRef<HTMLButtonElement, WorkspacePillBu
         data-density={density}
         data-size={size}
         data-stretch={stretch}
-        data-variant={variant}
+        data-tone={tone}
+        data-variant={resolved_variant}
         ref={ref}
         type={type}
         {...props}

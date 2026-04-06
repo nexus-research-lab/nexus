@@ -207,7 +207,7 @@ export function EditorPanel({
                 density="compact"
                 onClick={() => void handle_save()}
                 size="md"
-                variant={is_dirty ? "success" : "default"}
+                variant={is_dirty ? "primary" : "tonal"}
               >
                 <Save className="h-4 w-4" />
                 {is_saving ? "保存中" : "保存"}
@@ -217,7 +217,7 @@ export function EditorPanel({
                 density="compact"
                 onClick={on_close}
                 size="icon"
-                variant="default"
+                variant="icon"
               >
                 <Minimize2 className="h-4 w-4" />
               </WorkspacePillButton>

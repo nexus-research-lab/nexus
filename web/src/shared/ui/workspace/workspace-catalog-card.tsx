@@ -16,11 +16,13 @@ import { cn } from "@/lib/utils";
 type CatalogBadgeTone = "neutral" | "info" | "success" | "warning";
 type CatalogMediaShape = "round" | "rounded";
 type CatalogActionTone = "default" | "danger";
+type IconFrameTone = "default" | "primary" | "success" | "warning";
+type IconFrameSize = "sm" | "md" | "lg";
 
 const BADGE_STYLE_MAP: Record<CatalogBadgeTone, { background: string; border: string; color: string }> = {
   neutral: {
-    background: "rgb(255 255 255 / 0.72)",
-    border: "1px solid rgb(226 232 240 / 0.78)",
+    background: "var(--surface-panel-subtle-background)",
+    border: "1px solid var(--surface-panel-subtle-border)",
     color: "rgb(100 116 139 / 0.84)",
   },
   info: {
@@ -40,6 +42,19 @@ const BADGE_STYLE_MAP: Record<CatalogBadgeTone, { background: string; border: st
   },
 };
 
+const ICON_FRAME_TONE_CLASS_MAP: Record<IconFrameTone, string> = {
+  default: "border-[color:var(--chip-default-border)] bg-[var(--chip-default-background)] text-slate-700/90",
+  primary: "border-primary/14 bg-primary/8 text-primary",
+  success: "border-emerald-200/70 bg-emerald-50/92 text-emerald-700",
+  warning: "border-amber-200/72 bg-amber-50/92 text-amber-700",
+};
+
+const ICON_FRAME_SIZE_CLASS_MAP: Record<IconFrameSize, string> = {
+  sm: "h-9 w-9 rounded-[14px]",
+  md: "h-11 w-11 rounded-[16px]",
+  lg: "h-14 w-14 rounded-[20px]",
+};
+
 /** 中文注释：这组目录卡片是高频共享块，长相收回组件层，避免全局 CSS 继续膨胀。 */
 export function WorkspaceCatalogCard({
   children,
@@ -55,7 +70,7 @@ export function WorkspaceCatalogCard({
   return (
     <article
       className={cn(
-        "relative flex flex-col border border-[color:var(--card-default-border)] bg-[var(--card-default-background)] shadow-[var(--card-default-shadow)] transition duration-150 ease-out hover:-translate-y-px hover:border-white/50 hover:bg-white/45 hover:shadow-[0_18px_36px_rgb(106_124_158/0.12)]",
+        "relative flex flex-col overflow-hidden border border-[color:var(--card-default-border)] bg-[var(--card-default-background)] before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-20 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.4),transparent)] before:opacity-100 after:pointer-events-none after:absolute after:right-[-2.5rem] after:top-[-2rem] after:h-28 after:w-28 after:rounded-full after:bg-[radial-gradient(circle,rgba(var(--primary-rgb),0.08),transparent_72%)] transition duration-150 ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(246,248,251,0.92))]",
         onClick && "cursor-pointer",
         muted && "opacity-70",
         class_name,
@@ -81,8 +96,39 @@ export function WorkspaceCatalogMedia({
   return (
     <div
       className={cn(
-        "flex items-center justify-center border border-[color:var(--chip-default-border)] bg-[var(--chip-default-background)] shadow-[var(--chip-default-shadow)]",
+        "relative flex items-center justify-center overflow-hidden border border-[color:var(--chip-default-border)] bg-[var(--chip-default-background)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.56),transparent_68%)]",
         shape === "round" ? "rounded-full" : "rounded-[14px]",
+        class_name,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 中文注释：统一高频图标容器，侧栏、卡片和弹窗都用这套边界语法。 */
+export function WorkspaceIconFrame({
+  children,
+  class_name,
+  shape = "rounded",
+  size = "md",
+  tone = "default",
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  children: ReactNode;
+  class_name?: string;
+  shape?: CatalogMediaShape;
+  size?: IconFrameSize;
+  tone?: IconFrameTone;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative flex shrink-0 items-center justify-center overflow-hidden border before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.56),transparent_68%)]",
+        ICON_FRAME_SIZE_CLASS_MAP[size],
+        ICON_FRAME_TONE_CLASS_MAP[tone],
+        shape === "round" && "rounded-full",
         class_name,
       )}
       {...props}
@@ -106,8 +152,8 @@ export function WorkspaceCatalogAction({
   return (
     <button
       className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500/80 transition duration-150 ease-out hover:bg-slate-50/92 hover:text-slate-900/92",
-        tone === "danger" && "hover:bg-rose-50/92 hover:text-rose-600/90",
+        "inline-flex h-8 w-8 items-center justify-center rounded-[12px] border border-[color:var(--chip-default-border)] bg-[var(--chip-default-background)] text-slate-600/88 transition duration-150 ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-active-background)] hover:text-slate-950/92",
+        tone === "danger" && "hover:border-rose-100 hover:bg-rose-50/92 hover:text-rose-600/90",
         class_name,
       )}
       type={type}
@@ -147,12 +193,12 @@ export function WorkspaceCatalogTag({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-500/80",
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-600/84",
         class_name,
       )}
       style={{
-        background: "rgb(255 255 255 / 0.68)",
-        border: "1px solid rgb(226 232 240 / 0.74)",
+        background: "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(247,249,252,0.84))",
+        border: "1px solid var(--surface-panel-subtle-border)",
       }}
     >
       {children}
@@ -172,7 +218,7 @@ export function WorkspaceCatalogGhostCard({
   return (
     <article
       className={cn(
-        "flex flex-col items-center justify-center rounded-[26px] border border-dashed border-slate-400/30 bg-[var(--card-default-background)] text-center shadow-[var(--card-default-shadow)] transition duration-150 ease-out hover:-translate-y-px hover:border-slate-400/45 hover:bg-white/45",
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-[26px] border border-dashed border-slate-400/38 bg-[var(--card-default-background)] text-center before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-16 before:bg-[linear-gradient(180deg,rgba(255,255,255,0.28),transparent)] transition duration-150 ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)]",
         onClick && "cursor-pointer",
         class_name,
       )}
@@ -195,7 +241,7 @@ export function WorkspaceCatalogEmptyShell({
   return (
     <div
       className={cn(
-        "flex min-h-80 items-center justify-center rounded-[28px] border border-[color:var(--card-default-border)] bg-[var(--card-default-background)] px-8 text-center shadow-[var(--card-default-shadow)]",
+        "flex min-h-80 items-center justify-center rounded-[28px] border border-[color:var(--card-default-border)] bg-[var(--card-default-background)] px-8 text-center",
         class_name,
       )}
       {...props}

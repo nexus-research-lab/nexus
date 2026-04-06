@@ -3,7 +3,7 @@
 import { Link2 } from "lucide-react";
 
 import type { ConnectorController } from "@/hooks/use-connector-controller";
-import { cn } from "@/lib/utils";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
 
 /** 类别列表 */
@@ -17,9 +17,6 @@ const CATEGORIES = [
   { key: "marketing", label: "营销分析" },
   { key: "automation", label: "自动化" },
 ];
-
-const FILTER_CHIP_CLASS_NAME =
-  "inline-flex items-center gap-1.5 rounded-full px-[0.82rem] py-[0.38rem] text-[12px] font-semibold transition-[background,color,box-shadow] duration-150";
 
 interface ConnectorsSearchBarProps {
   ctrl: ConnectorController;
@@ -36,28 +33,24 @@ export function ConnectorsSearchBar({ ctrl }: ConnectorsSearchBarProps) {
           placeholder="搜索应用授权..."
           value={ctrl.search_query}
         />
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+        <div className="inline-flex items-center gap-1.5 px-1 text-xs font-medium text-slate-500/86">
           <Link2 className="h-3.5 w-3.5" />
           <span>{ctrl.connectors.length} 个应用授权</span>
         </div>
       </div>
 
       {/* 类别筛选 */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="soft-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto">
         {CATEGORIES.map((cat) => (
-          <button
+          <WorkspacePillButton
             key={cat.key}
-            className={cn(
-              FILTER_CHIP_CLASS_NAME,
-              ctrl.active_category === cat.key
-                ? "chip-default text-slate-950/96"
-                : "text-slate-500/84 hover:bg-white/40 hover:text-slate-950/94",
-            )}
+            density="compact"
             onClick={() => ctrl.set_active_category(cat.key)}
-            type="button"
+            size="sm"
+            variant={ctrl.active_category === cat.key ? "tonal" : "text"}
           >
             {cat.label}
-          </button>
+          </WorkspacePillButton>
         ))}
       </div>
     </div>

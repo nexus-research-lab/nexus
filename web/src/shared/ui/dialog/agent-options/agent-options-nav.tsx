@@ -35,7 +35,7 @@ interface AgentOptionsNavProps {
 /** 左侧图标导航栏组件 */
 export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps) {
   return (
-    <div className="flex w-44 flex-col border-r modal-divider modal-nav-surface px-3 py-4">
+    <div className="flex w-44 flex-col border-r dialog-divider bg-transparent px-3 py-4">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.key;
@@ -47,8 +47,8 @@ export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps
             className={cn(
               "relative flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left transition-all duration-200",
               isActive
-                ? "modal-card-active text-primary shadow-sm ring-1 ring-primary/20"
-                : "text-slate-500 hover:bg-white/60 hover:text-slate-900"
+                ? "surface-card border-white/46 text-primary shadow-none"
+                : "text-slate-500 hover:bg-white/38 hover:text-slate-900"
             )}
           >
             {isActive && (
@@ -59,7 +59,7 @@ export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps
                 "flex h-9 w-9 items-center justify-center rounded-[12px]",
                 isActive
                   ? "bg-primary/10 text-primary"
-                  : "bg-white/75 text-slate-600"
+                  : "bg-transparent text-slate-600"
               )}
             >
               <Icon className="h-4 w-4" />

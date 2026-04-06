@@ -10,6 +10,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DIALOG_HEADER_ICON_CLASS_NAME,
+  DIALOG_HEADER_LEADING_CLASS_NAME,
+  DIALOG_TAG_CLASS_NAME,
+  getDialogNoteClassName,
+} from "@/shared/ui/dialog/dialog-styles";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
 
 interface PermissionDialogProps {
@@ -146,7 +153,7 @@ export function PermissionDialog(
           <h3 className="mt-1 text-base font-semibold text-slate-900">参数</h3>
         </div>
         {readableFields.map((field) => (
-          <div key={field.key} className="modal-card radius-shell-md px-4 py-3">
+          <div key={field.key} className="dialog-card radius-shell-md px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               {field.label}
             </p>
@@ -166,64 +173,69 @@ export function PermissionDialog(
 
   return createPortal(
     <div
-      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
+      className="dialog-backdrop z-9999 animate-in fade-in duration-150"
       onClick={on_close}
     >
       <div
-        className="modal-dialog-surface radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="dialog-shell radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(event) => event.stopPropagation()}
         style={{ maxHeight: "80vh" }}
       >
-        <div className="flex items-center justify-between border-b modal-divider px-6 py-5">
-          <div className="flex items-start gap-3">
+        <div className="dialog-header">
+          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
             <div
               className={cn(
-                "modal-card flex h-10 w-10 items-center justify-center rounded-xl",
+                DIALOG_HEADER_ICON_CLASS_NAME,
+                "h-14 w-14 rounded-[20px]",
                 risk_level === "high" && "bg-red-100 text-red-600",
                 risk_level === "medium" && "bg-amber-100 text-amber-600",
                 (!risk_level || risk_level === "low") && "bg-emerald-100 text-emerald-600",
               )}
             >
-              <AlertTriangle className="h-5 w-5" />
+              <AlertTriangle className="h-7 w-7" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-800">
+            <div className="min-w-0">
+              <h2 className="dialog-title truncate" data-size="hero">
                 {tool_name}
               </h2>
-              <p className="text-xs text-slate-500">{risk_label || "需要确认"}</p>
+              <p className="dialog-subtitle">{risk_label || "需要确认"}</p>
             </div>
           </div>
-          <button
+          <WorkspacePillButton
+            aria-label="关闭"
+            density="compact"
             onClick={on_close}
-            className="modal-btn-secondary rounded-xl p-2 text-slate-400 transition-colors hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-primary/50"
+            size="icon"
+            variant="icon"
           >
             <X className="h-5 w-5" />
-          </button>
+          </WorkspacePillButton>
         </div>
 
-        <div className="soft-scrollbar flex-1 space-y-5 overflow-y-auto px-6 py-5">
-          <div className="modal-card radius-shell-lg px-5 py-5">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {risk_label ? (
-                <span className={risk_level ? cn("rounded-full px-2.5 py-1 font-medium", riskColorMap[risk_level]) : "rounded-full bg-slate-200 px-2.5 py-1 font-medium text-slate-600"}>
-                  {risk_label}
-                </span>
-              ) : null}
-              {expires_at ? (
-                <span className="text-slate-400">
-                  {new Date(expires_at).toLocaleString()} 前确认
-                </span>
-              ) : null}
-            </div>
-            <p className="mt-4 text-[15px] leading-8 break-words text-slate-800">
+        <div className="dialog-body dialog-body--scroll soft-scrollbar space-y-5">
+          <div className="mb-1 flex flex-wrap gap-2">
+            {risk_label ? (
+              <span className={cn(DIALOG_TAG_CLASS_NAME, risk_level === "high" && "text-rose-700", risk_level === "medium" && "text-amber-700", (!risk_level || risk_level === "low") && "text-emerald-700")}>
+                {risk_label}
+              </span>
+            ) : null}
+            {expires_at ? (
+              <span className={DIALOG_TAG_CLASS_NAME}>
+                {new Date(expires_at).toLocaleString()} 前确认
+              </span>
+            ) : null}
+          </div>
+
+          <div className={getDialogNoteClassName("default")}>
+            <div className="text-[15px] leading-8 break-words text-slate-800">
               {summary || "确认后继续执行"}
-            </p>
+            </div>
           </div>
 
           {readableSuggestions.length > 0 && (
             <div className="space-y-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Policy</p>
+                <p className="dialog-label">Policy</p>
                 <h3 className="mt-1 text-base font-semibold text-slate-900">授权范围</h3>
               </div>
               <div className="space-y-2">
@@ -231,8 +243,8 @@ export function PermissionDialog(
                   className={cn(
                     "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-200",
                     selectedSuggestionIndex === -1
-                      ? "modal-card-active bg-primary/5 ring-1 ring-primary/30 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
-                      : "modal-card hover:border-primary/20 hover:bg-white/80",
+                      ? "dialog-card-active"
+                      : "dialog-card hover:border-primary/20 hover:bg-white/80",
                   )}
                 >
                   <input
@@ -253,8 +265,8 @@ export function PermissionDialog(
                     className={cn(
                       "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-200",
                       selectedSuggestionIndex === suggestion.index
-                        ? "modal-card-active bg-primary/5 ring-1 ring-primary/30 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
-                        : "modal-card hover:border-primary/20 hover:bg-white/80",
+                        ? "dialog-card-active"
+                        : "dialog-card hover:border-primary/20 hover:bg-white/80",
                     )}
                   >
                     <input
@@ -277,14 +289,15 @@ export function PermissionDialog(
           {formatToolInput()}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t modal-divider px-6 py-5">
-          <button
+        <div className="dialog-footer">
+          <WorkspacePillButton
             onClick={() => on_deny()}
-            className="modal-btn-secondary rounded-xl px-5 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-primary/50"
+            size="md"
+            variant="tonal"
           >
             拒绝
-          </button>
-          <button
+          </WorkspacePillButton>
+          <WorkspacePillButton
             ref={confirmButtonRef}
             onClick={() => {
               const selectedUpdate = selectedSuggestionIndex >= 0
@@ -292,10 +305,11 @@ export function PermissionDialog(
                 : undefined;
               on_allow(selectedUpdate);
             }}
-            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-[0_8px_24px_rgba(133,119,255,0.25)] transition-all hover:bg-primary/90 hover:shadow-[0_12px_32px_rgba(133,119,255,0.3)] focus-visible:ring-2 focus-visible:ring-primary/50"
+            size="md"
+            variant="primary"
           >
             允许
-          </button>
+          </WorkspacePillButton>
         </div>
       </div>
     </div>,

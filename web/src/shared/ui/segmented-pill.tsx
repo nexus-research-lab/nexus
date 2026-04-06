@@ -20,7 +20,7 @@ interface SegmentedPillOption<T extends string> {
 
 interface SegmentedPillProps<T extends string> {
   class_name?: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   on_change: (value: T) => void;
   options: SegmentedPillOption<T>[];
   title: string;
@@ -38,18 +38,24 @@ export function SegmentedPill<T extends string>({
   return (
     <div
       aria-label={title}
-      className={cn("segmented-pill inline-flex items-center gap-0.5 rounded-full p-[3px]", class_name)}
+      className={cn(
+        "segmented-pill inline-flex items-center gap-0.5 rounded-full p-[3px]",
+        !Icon && "gap-0 p-[2px]",
+        class_name,
+      )}
       role="group"
       title={title}
     >
-      <span className="segmented-pill-icon flex h-[26px] w-[26px] items-center justify-center rounded-full">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
+      {Icon ? (
+        <span className="segmented-pill-icon flex h-[26px] w-[26px] items-center justify-center rounded-full">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+      ) : null}
 
       {options.map((option) => (
         <button
           key={option.value}
-          className="segmented-pill-option rounded-full px-2 py-[5px] text-[10px] font-semibold tracking-[0.02em]"
+          className="segmented-pill-option rounded-full px-2.5 py-[5px] text-[10px] font-semibold tracking-[0.02em]"
           data-active={value === option.value}
           onClick={() => on_change(option.value)}
           type="button"

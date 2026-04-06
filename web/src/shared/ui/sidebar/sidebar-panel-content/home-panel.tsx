@@ -74,7 +74,6 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const [starred] = useState<StarredItem[]>(load_starred_items);
 
   // 对话框状态
-  const [rename_target, set_rename_target] = useState<{ id: string; name: string } | null>(null);
   const [delete_target, set_delete_target] = useState<{ id: string; name: string } | null>(null);
   const [is_create_room_open, set_is_create_room_open] = useState(false);
   const [is_creating_room, set_is_creating_room] = useState(false);
@@ -140,14 +139,6 @@ export const HomePanelContent = memo(function HomePanelContent() {
     }
   }, [navigate, refresh_rooms]);
 
-  // 重命名 Room
-  const handle_rename_room = useCallback(async (value: string) => {
-    if (!rename_target) return;
-    await updateRoom(rename_target.id, { name: value.trim() });
-    set_rename_target(null);
-    refresh_rooms();
-  }, [rename_target, refresh_rooms]);
-
   // 删除 Room
   const handle_delete_room = useCallback(async () => {
     if (!delete_target) return;
@@ -201,7 +192,6 @@ export const HomePanelContent = memo(function HomePanelContent() {
               is_active={active_item_id === room.room.id}
               label={room.room.name?.trim() || untitled_room_label}
               on_click={() => navigate_to_room(room.room.id)}
-              on_rename={() => set_rename_target({ id: room.room.id, name: room.room.name?.trim() || "" })}
               on_delete={() => set_delete_target({ id: room.room.id, name: room.room.name?.trim() || untitled_room_label })}
             />
           ))
@@ -253,16 +243,6 @@ export const HomePanelContent = memo(function HomePanelContent() {
           <p className="px-2 py-2 text-[11px] text-slate-400">{t("home.no_agents")}</p>
         )}
       </CollapsibleSection>
-
-      {/* 重命名对话框 */}
-      <PromptDialog
-        default_value={rename_target?.name ?? ""}
-        is_open={rename_target !== null}
-        on_cancel={() => set_rename_target(null)}
-        on_confirm={(value) => void handle_rename_room(value)}
-        placeholder={t("home.rename_placeholder")}
-        title={t("home.rename")}
-      />
 
       {/* 删除确认对话框 */}
       <ConfirmDialog

@@ -110,18 +110,22 @@ function ConversationHistoryItem({
       className={cn(
         "group flex w-full items-center justify-between gap-4 rounded-2xl border px-4 py-[0.7rem] text-left transition duration-150 ease-out",
         is_active
-          ? "border-white/55 bg-white/45 shadow-[0_12px_24px_rgb(106_124_158/0.12)]"
-          : "border-[color:var(--card-default-border)] bg-[var(--card-default-background)] hover:border-white/45 hover:bg-white/38",
+          ? ""
+          : "border-[color:var(--card-default-border)] bg-[var(--card-default-background)] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]",
       )}
-      style={!is_active ? { boxShadow: "var(--card-default-shadow)" } : undefined}
+      style={is_active
+        ? {
+          background: "var(--surface-interactive-active-background)",
+          borderColor: "var(--surface-interactive-active-border)",
+        }
+        : undefined}
     >
       <div className="min-w-0 flex-1">
         {is_editing ? (
           <div className="flex items-center gap-1.5">
             <input
               autoFocus
-              className="min-w-0 flex-1 rounded-[10px] border border-[color:var(--input-shell-border)] bg-[var(--input-shell-background)] px-3 py-1.5 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-sky-200/90 focus:ring-4 focus:ring-sky-500/10"
-              style={{ boxShadow: "var(--input-shell-shadow)" }}
+              className="min-w-0 flex-1 rounded-[10px] border border-[color:var(--input-shell-border)] bg-[var(--input-shell-background)] px-3 py-1.5 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-[var(--surface-interactive-active-border)]"
               maxLength={64}
               onChange={(e) => set_edit_value(e.target.value)}
               onKeyDown={(e) => {
@@ -136,9 +140,9 @@ function ConversationHistoryItem({
               onClick={confirm_edit}
               density="compact"
               size="icon"
-              variant="success"
+              variant="icon"
             >
-              <Check className="h-3 w-3 text-emerald-600" />
+              <Check className="h-3 w-3 text-primary" />
             </WorkspacePillButton>
             <WorkspacePillButton
               aria-label="取消"
@@ -196,7 +200,8 @@ function ConversationHistoryItem({
             onClick={on_delete}
             density="compact"
             size="icon"
-            variant="danger"
+            tone="danger"
+            variant="icon"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </WorkspacePillButton>

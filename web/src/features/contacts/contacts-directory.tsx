@@ -9,7 +9,7 @@ import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-
 import {
   WorkspaceCatalogEmptyShell,
   WorkspaceCatalogGhostCard,
-  WorkspaceCatalogMedia,
+  WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
@@ -108,13 +108,13 @@ export function ContactsDirectory({
               class_name="px-6 py-8"
               onClick={on_create_agent}
             >
-              <WorkspaceCatalogMedia class_name="h-16 w-16" shape="round">
+              <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg">
                 <Plus className="h-7 w-7 text-slate-600"/>
-              </WorkspaceCatalogMedia>
-              <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-slate-950/80">
+              </WorkspaceIconFrame>
+              <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-slate-950/92">
                 {t("contacts.new_agent")}
               </p>
-              <p className="mt-2 text-[13px] leading-5 text-slate-700/60">
+              <p className="mt-2 text-[13px] leading-5 text-slate-700/72">
                 {t("contacts.new_agent_description")}
               </p>
             </WorkspaceCatalogGhostCard>

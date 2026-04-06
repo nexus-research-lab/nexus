@@ -4,8 +4,8 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import { Loader2, Lock, Search } from "lucide-react";
 
 import { getAgentSkillsApi, installSkillApi, uninstallSkillApi } from "@/lib/skill-api";
+import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import type { AgentSkillEntry } from "@/types/skill";
-import { cn } from "@/lib/utils";
 
 interface AgentOptionsSkillsTabProps {
   agent_id?: string;
@@ -115,7 +115,7 @@ export function AgentOptionsSkillsTab({
     return (
       <div
         key={skill.name}
-        className="modal-card rounded-[22px] px-5 py-4 transition-all duration-200 hover:border-primary/20 hover:bg-white/80"
+        className="dialog-card rounded-[22px] px-5 py-4 transition-all duration-200 hover:border-primary/20 hover:bg-white/80"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
@@ -147,19 +147,14 @@ export function AgentOptionsSkillsTab({
               已启用
             </span>
           ) : (
-            <button
-              type="button"
-              onClick={() => void handleToggle(skill)}
+            <WorkspacePillButton
               disabled={isBusy}
-              className={cn(
-                "inline-flex h-9 min-w-24 items-center justify-center rounded-full px-3 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-60",
-                tone === "installed"
-                  ? "bg-emerald-50 text-emerald-600 hover:bg-red-50 hover:text-red-500"
-                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-              )}
+              onClick={() => void handleToggle(skill)}
+              size="sm"
+              variant={tone === "installed" ? "tonal" : "primary"}
             >
               {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
-            </button>
+            </WorkspacePillButton>
           )}
         </div>
       </div>
@@ -182,13 +177,13 @@ export function AgentOptionsSkillsTab({
       ) : null}
 
       {loading ? (
-        <div className="modal-card radius-shell-md flex items-center justify-center py-12 text-slate-400">
+        <div className="surface-card radius-shell-md flex items-center justify-center py-12 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : null}
 
       {!agent_id ? (
-        <div className="modal-card radius-shell-md px-5 py-6 text-sm text-slate-600">
+        <div className="surface-card radius-shell-md px-5 py-6 text-sm text-slate-600">
           创建后可安装 skill。
         </div>
       ) : null}
@@ -202,7 +197,7 @@ export function AgentOptionsSkillsTab({
             </div>
 
             {installedSkills.length === 0 ? (
-              <div className="modal-card radius-shell-md px-5 py-6 text-sm text-slate-600">
+              <div className="surface-card radius-shell-md px-5 py-6 text-sm text-slate-600">
                 暂无已安装 skill。
               </div>
             ) : (
@@ -220,7 +215,7 @@ export function AgentOptionsSkillsTab({
               </span>
             </div>
 
-            <div className="modal-card radius-shell-md p-4">
+            <div className="surface-card radius-shell-md p-4">
               <div className="flex items-center gap-3 rounded-[18px] border border-slate-200/80 bg-white px-4 py-3">
                 <Search className="h-4 w-4 text-slate-400" />
                 <input
@@ -234,13 +229,13 @@ export function AgentOptionsSkillsTab({
             </div>
 
             {skills.length === 0 ? (
-              <div className="modal-card radius-shell-md px-5 py-6 text-sm text-slate-600">
+              <div className="surface-card radius-shell-md px-5 py-6 text-sm text-slate-600">
                 当前没有可用 skill。
               </div>
             ) : null}
 
             {skills.length > 0 && filteredAddableSkills.length === 0 ? (
-              <div className="modal-card radius-shell-md px-5 py-6 text-sm text-slate-600">
+              <div className="surface-card radius-shell-md px-5 py-6 text-sm text-slate-600">
                 {addableSkills.length === 0
                   ? "没有更多可添加 skill。"
                   : "没有匹配的 skill。"}

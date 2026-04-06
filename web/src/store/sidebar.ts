@@ -12,6 +12,34 @@ import { persist } from "zustand/middleware";
 export const WIDE_PANEL_MIN_WIDTH = 180;
 export const WIDE_PANEL_MAX_WIDTH = 400;
 export const WIDE_PANEL_DEFAULT_WIDTH = 240;
+export const SIDEBAR_CAPABILITY_ITEM_IDS = {
+  skills: "capability:skills",
+  connectors: "capability:connectors",
+  scheduled_tasks: "capability:scheduled-tasks",
+  channels: "capability:channels",
+  pairings: "capability:pairings",
+} as const;
+
+/** 根据当前路由派生侧栏高亮条目，保证整套导航只走一个状态源。 */
+export function derive_sidebar_item_id_from_path(pathname: string): string | null {
+  if (pathname.startsWith("/capability/skills")) return SIDEBAR_CAPABILITY_ITEM_IDS.skills;
+  if (pathname.startsWith("/capability/connectors")) return SIDEBAR_CAPABILITY_ITEM_IDS.connectors;
+  if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks;
+  if (pathname.startsWith("/capability/channels")) return SIDEBAR_CAPABILITY_ITEM_IDS.channels;
+  if (pathname.startsWith("/capability/pairings")) return SIDEBAR_CAPABILITY_ITEM_IDS.pairings;
+
+  if (pathname.startsWith("/rooms/")) {
+    const room_id = pathname.split("/")[2];
+    return room_id ? decodeURIComponent(room_id) : null;
+  }
+
+  if (pathname.startsWith("/contacts/")) {
+    const agent_id = pathname.split("/")[2];
+    return agent_id ? decodeURIComponent(agent_id) : null;
+  }
+
+  return null;
+}
 
 /** 将宽度限制在合法范围内 */
 function clamp_panel_width(width: number): number {

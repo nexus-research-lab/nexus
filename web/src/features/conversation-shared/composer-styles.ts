@@ -25,8 +25,8 @@ export function getComposerShellClassName(disabled: boolean) {
 export function getComposerShellStyle(compact: boolean) {
   return {
     background: "var(--surface-shell-background)",
-    border: `1px solid ${"color-mix(in srgb, var(--surface-shell-border) 88%, white)"}`,
-    boxShadow: compact ? "none" : "0 6px 14px rgb(15 23 42 / 0.05)",
+    border: `1px solid ${"color-mix(in srgb, var(--surface-shell-border) 94%, transparent)"}`,
+    boxShadow: compact ? "none" : "0 8px 18px rgb(71 85 105 / 0.05)",
   } as const;
 }
 

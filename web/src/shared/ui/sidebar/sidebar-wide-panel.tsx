@@ -10,7 +10,7 @@
 
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,13 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { LanguageSwitch } from "@/shared/ui/i18n/language-switch";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { ThemeSwitch } from "@/shared/ui/theme/theme-switch";
-import { WIDE_PANEL_MIN_WIDTH, WIDE_PANEL_MAX_WIDTH, useSidebarStore } from "@/store/sidebar";
+import { WorkspaceIconFrame } from "@/shared/ui/workspace/workspace-catalog-card";
+import {
+  derive_sidebar_item_id_from_path,
+  WIDE_PANEL_MIN_WIDTH,
+  WIDE_PANEL_MAX_WIDTH,
+  useSidebarStore,
+} from "@/store/sidebar";
 
 import { HomePanelContent } from "./sidebar-panel-content/home-panel";
 import { CapabilitiesPanelContent } from "./sidebar-panel-content/capabilities-panel";
@@ -27,6 +33,9 @@ const CAPABILITY_SECTION_COUNT = 5;
 
 export function SidebarWidePanel() {
   const { t } = useI18n();
+  const location = useLocation();
+  const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
+  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
 
@@ -74,6 +83,15 @@ export function SidebarWidePanel() {
     return () => document.removeEventListener("selectstart", handle_select_start);
   }, []);
 
+  /** 路由变化时统一同步侧栏高亮，避免能力和房间走两套状态。 */
+  useEffect(() => {
+    const next_active_item_id = derive_sidebar_item_id_from_path(location.pathname);
+    if (next_active_item_id === active_panel_item_id) {
+      return;
+    }
+    set_active_panel_item(next_active_item_id);
+  }, [active_panel_item_id, location.pathname, set_active_panel_item]);
+
   return (
     <div
       className="relative flex h-full shrink-0 flex-col px-2.5 py-3"
@@ -85,11 +103,13 @@ export function SidebarWidePanel() {
           <div className="flex items-center gap-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <Link
-                className="chip-default flex h-9 w-9 shrink-0 items-center justify-center rounded-[15px] text-[15px] font-black tracking-[-0.06em] text-slate-900 transition-transform duration-200 hover:translate-y-[-0.5px]"
+                className="shrink-0 transition-transform duration-200 hover:translate-y-[-0.5px]"
                 to={AppRouteBuilders.launcher()}
                 title={t("sidebar.back_to_launcher")}
               >
-                N
+                <WorkspaceIconFrame class_name="text-[15px] font-black tracking-[-0.06em] text-slate-900" size="sm">
+                  N
+                </WorkspaceIconFrame>
               </Link>
               <div className="min-w-0">
                 <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500/68">
@@ -116,11 +136,13 @@ export function SidebarWidePanel() {
 
         <div className="flex items-center justify-between gap-2.5 border-t glass-divider px-3 py-2.5">
           <Link
-            className="chip-default flex h-8 w-8 items-center justify-center rounded-[14px] text-slate-600 transition-all duration-200 hover:text-slate-900"
+            className="transition-all duration-200 hover:text-slate-900"
             title={t("sidebar.settings")}
             to={AppRouteBuilders.settings()}
           >
-            <Settings className="h-4 w-4" />
+            <WorkspaceIconFrame class_name="h-8 w-8 text-slate-600" size="sm">
+              <Settings className="h-4 w-4" />
+            </WorkspaceIconFrame>
           </Link>
 
           <div className="flex flex-wrap items-center justify-end gap-1.5">

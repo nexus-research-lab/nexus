@@ -244,7 +244,7 @@ const RoomComposerPanelView = memo(({
   return (
     <div
       className={cn(
-        "w-full border-t border-slate-200/80 bg-[#f8fafc]",
+        "w-full border-t border-[var(--surface-canvas-border)] bg-[var(--surface-canvas-background)]",
         compact ? "px-2 pb-2 pt-2" : "px-3 pb-3 pt-3 sm:px-5 xl:px-6",
       )}
     >
@@ -308,7 +308,7 @@ const RoomComposerPanelView = memo(({
                 disabled={disabled}
                 onClick={() => file_input_ref.current?.click()}
                 size="icon"
-                variant="default"
+                variant="icon"
               >
                 <Paperclip size={16} />
               </WorkspacePillButton>
@@ -372,7 +372,7 @@ const RoomComposerPanelView = memo(({
                 disabled={is_input_empty || disabled || is_over_limit}
                 onClick={handle_send}
                 size="icon"
-                variant="success"
+                variant="primary"
               >
                 <Send size={16} />
               </WorkspacePillButton>

@@ -6,9 +6,9 @@ import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SEARCH_INPUT_SHELL_CLASS_NAME =
-  "input-shell inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm text-slate-700/62";
+  "input-shell inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm text-slate-700/86 transition duration-150 ease-out hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] focus-within:border-[var(--surface-interactive-active-border)] focus-within:bg-[var(--surface-interactive-active-background)]";
 const SEARCH_INPUT_FIELD_CLASS_NAME =
-  "min-w-0 flex-1 bg-transparent text-sm text-slate-900/86 outline-none placeholder:text-slate-500/80";
+  "min-w-0 flex-1 bg-transparent text-sm text-slate-950/98 outline-none placeholder:text-slate-500/80";
 
 interface WorkspaceSearchInputProps {
   value: string;
@@ -36,7 +36,7 @@ export function WorkspaceSearchInput({
       SEARCH_INPUT_SHELL_CLASS_NAME,
       class_name,
     )}>
-      <Search className="h-4 w-4" />
+      <Search className="h-4 w-4 text-slate-600/84" />
       <input
         className={cn(
           SEARCH_INPUT_FIELD_CLASS_NAME,

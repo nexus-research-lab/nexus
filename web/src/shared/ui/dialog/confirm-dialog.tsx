@@ -66,7 +66,7 @@ export function ConfirmDialog({
       aria-labelledby="confirm-dialog-title"
       aria-describedby="confirm-dialog-message"
     >
-      <div className="dialog-shell soft-ring radius-shell-lg w-full max-w-md animate-in zoom-in-95 duration-150">
+      <div className="dialog-shell radius-shell-lg w-full max-w-md animate-in zoom-in-95 duration-150">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 id="confirm-dialog-title" className="dialog-title">
@@ -78,7 +78,7 @@ export function ConfirmDialog({
             density="compact"
             onClick={on_cancel}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-4 w-4" />
           </WorkspacePillButton>
@@ -91,14 +91,15 @@ export function ConfirmDialog({
         </div>
 
         <div className="dialog-footer">
-          <WorkspacePillButton onClick={on_cancel} size="md" variant="default">
+          <WorkspacePillButton onClick={on_cancel} size="md" variant="tonal">
             {cancel_text}
           </WorkspacePillButton>
           <WorkspacePillButton
             ref={confirmButtonRef}
             onClick={on_confirm}
             size="md"
-            variant={variant === "danger" ? "danger" : "strong"}
+            tone={variant === "danger" ? "danger" : "default"}
+            variant="primary"
           >
             {confirm_text}
           </WorkspacePillButton>
@@ -160,7 +161,7 @@ export function PromptDialog({
       aria-modal="true"
       aria-labelledby="prompt-dialog-title"
     >
-      <div className="dialog-shell soft-ring radius-shell-lg w-full max-w-md animate-in zoom-in-95 duration-150">
+      <div className="dialog-shell radius-shell-lg w-full max-w-md animate-in zoom-in-95 duration-150">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 id="prompt-dialog-title" className="dialog-title">
@@ -175,7 +176,7 @@ export function PromptDialog({
               on_cancel();
             }}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-4 w-4" />
           </WorkspacePillButton>
@@ -203,11 +204,11 @@ export function PromptDialog({
               on_cancel();
             }}
             size="md"
-            variant="default"
+            variant="tonal"
           >
             取消
           </WorkspacePillButton>
-          <WorkspacePillButton onClick={() => on_confirm(value)} size="md" variant="strong">
+          <WorkspacePillButton onClick={() => on_confirm(value)} size="md" variant="primary">
             确认
           </WorkspacePillButton>
         </div>

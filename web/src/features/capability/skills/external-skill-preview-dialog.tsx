@@ -74,7 +74,7 @@ export function ExternalSkillPreviewDialog({
             density="compact"
             onClick={on_close}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-5 w-5" />
           </WorkspacePillButton>
@@ -98,7 +98,7 @@ export function ExternalSkillPreviewDialog({
             打开原始页面
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <WorkspacePillButton disabled={busy || already_imported} onClick={on_import_only} variant="strong">
+            <WorkspacePillButton disabled={busy || already_imported} onClick={on_import_only} variant="primary">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
               导入到技能库
             </WorkspacePillButton>

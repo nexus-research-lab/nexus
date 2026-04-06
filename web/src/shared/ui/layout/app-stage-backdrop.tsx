@@ -61,17 +61,12 @@ export function AppStageBackdrop({ is_sunny }: AppStageBackdropProps) {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
       <div
-        className="app-stage__glow absolute left-[6%] top-[9%] h-64 w-64 rounded-full opacity-42 blur-[8px]"
+        className="app-stage__glow absolute left-[7%] top-[8%] h-72 w-72 rounded-full opacity-32 blur-[14px]"
         style={getStageGlowStyle("lilac")}
       />
-      <div className="app-stage__glow absolute bottom-[7%] left-[22%] h-72 w-72 rounded-full bg-white/28 blur-3xl" />
       <div
-        className="app-stage__glow absolute right-[9%] top-[20%] h-64 w-64 rounded-full opacity-28 blur-[14px]"
-        style={getStageGlowStyle("peach")}
-      />
-      <div
-        className="app-stage__glow absolute right-[12%] bottom-[8%] h-72 w-72 rounded-full opacity-30 blur-[14px]"
-        style={getStageGlowStyle("green")}
+        className="app-stage__glow absolute right-[10%] bottom-[8%] h-80 w-80 rounded-full opacity-22 blur-[18px]"
+        style={getStageGlowStyle("mist")}
       />
       {is_sunny ? <SunnyVideoOverlay is_active={is_sunny} /> : null}
     </div>

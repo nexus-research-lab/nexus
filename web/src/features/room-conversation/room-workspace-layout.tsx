@@ -258,7 +258,14 @@ function RoomThreadOverlaySlot({
 
   return (
     <div className="pointer-events-none absolute inset-y-3 right-3 z-30 flex w-[clamp(320px,34vw,436px)] max-w-[calc(100%-1.5rem)] justify-end">
-      <div className="pointer-events-auto flex h-full w-full min-w-0 overflow-hidden rounded-[30px] border border-white/70 bg-white/92 shadow-[0_24px_60px_rgba(92,107,134,0.22)] backdrop-blur-[20px]">
+      <div
+        className="pointer-events-auto flex h-full w-full min-w-0 overflow-hidden rounded-[30px] border backdrop-blur-[20px]"
+        style={{
+          background: "var(--surface-popover-background)",
+          borderColor: "var(--surface-popover-border)",
+          boxShadow: "0 24px 56px rgb(71 85 105 / 0.16)",
+        }}
+      >
         <ThreadDetailPanel
           round_id={active_thread.round_id}
           agent_id={active_thread.agent_id}

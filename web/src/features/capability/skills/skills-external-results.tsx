@@ -106,7 +106,7 @@ function ExternalResultCard({
               density="compact"
               onClick={on_import}
               size="sm"
-              variant="strong"
+              variant="primary"
             >
               {is_busy ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

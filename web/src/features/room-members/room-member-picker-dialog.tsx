@@ -32,7 +32,7 @@ export function RoomMemberPickerDialog({
       role="dialog"
       aria-modal="true"
     >
-      <div className="dialog-shell soft-ring radius-shell-lg w-full max-w-lg">
+      <div className="dialog-shell radius-shell-lg w-full max-w-lg">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title">{t("room.add_member_dialog_title")}</h3>
@@ -45,7 +45,7 @@ export function RoomMemberPickerDialog({
             density="compact"
             onClick={on_cancel}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-4 w-4" />
           </WorkspacePillButton>

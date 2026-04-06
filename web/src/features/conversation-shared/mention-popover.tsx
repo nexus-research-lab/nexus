@@ -98,11 +98,14 @@ export const MentionPopover = memo(({
 
     const popover = (
         <div
-            className="fixed z-[9999] max-h-48 overflow-y-auto rounded-2xl border border-slate-200/82 bg-white/94 shadow-[0_18px_36px_rgb(15_23_42/0.16)] backdrop-blur-[18px]"
+            className="fixed z-[9999] max-h-48 overflow-y-auto rounded-2xl backdrop-blur-[18px]"
             style={{
                 top,
                 left,
                 minWidth: min_width,
+                background: "var(--surface-popover-background)",
+                border: "1px solid var(--surface-popover-border)",
+                boxShadow: "var(--surface-popover-shadow)",
             }}
         >
             <div ref={list_ref} className="py-1">
@@ -111,8 +114,9 @@ export const MentionPopover = memo(({
                         key={member.agent_id}
                         className={cn(
                             "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150",
-                            index === active_index ? "bg-slate-100/92 text-slate-900/94" : "text-slate-600/90 hover:bg-slate-50/92",
+                            index === active_index ? "text-slate-900/94" : "text-slate-600/90 hover:bg-[var(--surface-interactive-hover-background)]",
                         )}
+                        style={index === active_index ? { background: "var(--surface-interactive-active-background)" } : undefined}
                         onMouseDown={(e) => {
                             e.preventDefault();
                             on_select(member);
@@ -120,7 +124,14 @@ export const MentionPopover = memo(({
                         onMouseEnter={() => set_active_index(index)}
                         type="button"
                     >
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100/92 text-xs font-semibold text-emerald-700">
+                        <span
+                            className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
+                            style={{
+                                background: "var(--surface-avatar-background)",
+                                color: "var(--surface-avatar-foreground)",
+                                boxShadow: "var(--surface-avatar-shadow)",
+                            }}
+                        >
                             {member.name.charAt(0).toUpperCase()}
                         </span>
                         <span className="truncate font-medium">{member.name}</span>

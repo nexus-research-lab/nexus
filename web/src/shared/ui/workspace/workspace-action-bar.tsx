@@ -5,7 +5,7 @@ import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const ACTION_CARD_CLASS_NAME =
-  "surface-card rounded-[24px] px-4 py-4 text-left transition-[transform,background,border-color] duration-150 hover:-translate-y-px hover:bg-white/46 hover:border-white/48";
+  "surface-card rounded-[24px] px-4 py-4 text-left transition-[transform,background,border-color] duration-150 hover:-translate-y-px hover:bg-[var(--surface-interactive-hover-background)] hover:border-[var(--surface-interactive-hover-border)]";
 
 interface WorkspaceActionBarProps {
   children: ReactNode;

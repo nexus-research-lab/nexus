@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   WorkspaceCatalogBadge,
   WorkspaceCatalogCard,
-  WorkspaceCatalogMedia,
+  WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { ConnectorInfo } from "@/types/connector";
@@ -46,23 +46,20 @@ export function ConnectorCard({
       {/* 顶部：图标 + 标题 + 状态 */}
       <div className="flex items-start gap-3">
         {/* 品牌图标 */}
-        <WorkspaceCatalogMedia
-          class_name={cn(
-            "h-10 w-10 shrink-0 border-white/50 text-sm font-bold",
-            colors.bg,
-            colors.text,
-          )}
+        <WorkspaceIconFrame
+          class_name={cn("h-10 w-10 shrink-0 text-sm font-bold", colors.bg, colors.text)}
+          size="md"
         >
           {letter}
-        </WorkspaceCatalogMedia>
+        </WorkspaceIconFrame>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[14px] font-semibold text-slate-900">
+            <h3 className="truncate text-[15px] font-semibold text-slate-950/98">
               {title}
             </h3>
           </div>
-          <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-slate-500">
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.55] text-slate-700/78">
             {is_configured ? description : config_error || description}
           </p>
         </div>
@@ -92,14 +89,14 @@ export function ConnectorCard({
 
       {/* 底部操作 —— 可用的连接器才显示 */}
       {!is_coming_soon && (
-        <div className="mt-3 flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-3 flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
           {is_connected ? (
             <WorkspacePillButton
               disabled={busy}
               density="compact"
               onClick={on_disconnect}
               size="sm"
-              variant="danger"
+              variant="outlined"
             >
               <Unplug className="h-3 w-3" />
               断开
@@ -110,7 +107,7 @@ export function ConnectorCard({
               density="compact"
               onClick={on_connect}
               size="sm"
-              variant={is_configured ? "strong" : "default"}
+              variant={is_configured ? "primary" : "outlined"}
             >
               <Link2 className="h-3 w-3" />
               {is_configured ? "连接" : "未配置"}

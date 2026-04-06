@@ -16,15 +16,15 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { useSidebarStore } from "@/store/sidebar";
 
 const CONTEXT_MENU_CLASS_NAME =
-  "fixed z-[9990] w-36 rounded-xl border border-slate-200/70 bg-white/95 py-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)] backdrop-blur-[16px] animate-in fade-in zoom-in-95 duration-100";
+  "fixed z-[9990] w-36 rounded-xl py-1 backdrop-blur-[16px] animate-in fade-in zoom-in-95 duration-100";
 const CONTEXT_MENU_ITEM_CLASS_NAME =
   "flex w-full items-center gap-2 px-3 py-1.5 text-[12px] transition-[background,color] duration-150";
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
-  "group/item flex w-full items-center gap-2.5 rounded-[14px] px-2.5 py-[7px] text-left text-[12px] transition-[background,color,box-shadow] duration-150";
+  "group/item box-border flex w-full items-center gap-2.5 rounded-[14px] border border-transparent px-2.5 py-[7px] text-left text-[12px] transition-[background,color,box-shadow,border-color] duration-150";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
-  "flex flex-1 items-center gap-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500/84 transition-colors duration-150 hover:text-slate-600/96";
+  "flex flex-1 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600/88 transition-colors duration-150 hover:text-slate-700";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
-  "flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-[background,color] duration-150 hover:bg-white/40 hover:text-slate-600";
+  "flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-[background,color] duration-150 hover:bg-[var(--surface-interactive-hover-background)] hover:text-slate-700";
 
 interface CollapsibleSectionProps {
   section_id: string;
@@ -90,14 +90,24 @@ export function SidebarListItem({
         className={cn(
           SIDEBAR_LIST_ITEM_CLASS_NAME,
           is_active
-            ? "chip-default font-medium text-slate-950/96"
-            : "text-slate-700/90 hover:bg-white/34 hover:text-slate-950/96",
+            ? "font-medium text-slate-950"
+            : "text-slate-700/95 hover:bg-[var(--surface-interactive-hover-background)] hover:text-slate-950/98",
         )}
+        style={is_active ? {
+          background:
+            "linear-gradient(135deg, rgba(var(--primary-rgb), 0.08), rgba(255, 255, 255, 0.78) 24%, var(--surface-interactive-active-background))",
+          borderColor: "var(--surface-interactive-active-border)",
+        } : undefined}
         onClick={on_click}
         onContextMenu={handle_context_menu}
         type="button"
       >
-        <span className="flex h-4.5 w-4.5 shrink-0 items-center justify-center text-slate-500">
+        <span
+          className={cn(
+            "flex h-4.5 w-4.5 shrink-0 items-center justify-center",
+            is_active ? "text-slate-700" : "text-slate-500/95",
+          )}
+        >
           {icon}
         </span>
         <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -111,19 +121,31 @@ export function SidebarListItem({
             <MoreHorizontal className="h-3 w-3" />
           </span>
         ) : meta ? (
-          <span className="shrink-0 text-[10px] font-medium tabular-nums text-slate-400">{meta}</span>
+          <span
+            className={cn(
+              "shrink-0 text-[10px] font-medium tabular-nums",
+              is_active ? "text-slate-500" : "text-slate-400/90",
+            )}
+          >
+            {meta}
+          </span>
         ) : null}
       </button>
 
       {menu_pos ? createPortal(
         <div
           className={CONTEXT_MENU_CLASS_NAME}
-          style={{ top: menu_pos.y, left: menu_pos.x }}
+          style={{
+            top: menu_pos.y,
+            left: menu_pos.x,
+            background: "var(--surface-popover-background)",
+            border: "1px solid var(--surface-popover-border)",
+          }}
           onMouseDown={(e) => e.stopPropagation()}
         >
           {on_rename ? (
             <button
-              className={cn(CONTEXT_MENU_ITEM_CLASS_NAME, "text-slate-700 hover:bg-slate-50/90")}
+              className={cn(CONTEXT_MENU_ITEM_CLASS_NAME, "text-slate-700 hover:bg-[var(--surface-interactive-hover-background)]")}
               onClick={() => {
                 set_menu_pos(null);
                 on_rename();
@@ -186,7 +208,7 @@ export function CollapsibleSection({
           {icon ? <span className="flex items-center">{icon}</span> : null}
           <span>{title}</span>
           {typeof count === "number" ? (
-            <span className="text-[10px] font-medium tabular-nums text-slate-400">{count}</span>
+            <span className="text-[10px] font-medium tabular-nums text-slate-500/92">{count}</span>
           ) : null}
         </button>
 

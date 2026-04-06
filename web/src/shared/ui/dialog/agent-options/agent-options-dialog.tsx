@@ -15,6 +15,10 @@ import type {
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent";
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
+import {
+  DIALOG_HEADER_ICON_CLASS_NAME,
+  DIALOG_HEADER_LEADING_CLASS_NAME,
+} from "@/shared/ui/dialog/dialog-styles";
 
 import { AgentOptionsNav, type TabKey } from "./agent-options-nav";
 import { AgentOptionsIdentityTab } from "./agent-options-identity-tab";
@@ -200,20 +204,21 @@ export function AgentOptions({
 
   return (
     <div className="dialog-backdrop animate-in fade-in duration-200">
-      <div className="modal-dialog-surface radius-shell-xl flex h-[85vh] w-full max-w-[980px] flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* 头部 */}
-        <div className="flex items-center justify-between border-b modal-divider px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl modal-card text-primary">
-              <Settings className="h-4 w-4" />
+      <div className="dialog-shell radius-shell-xl flex h-[85vh] w-full max-w-[980px] flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="dialog-header">
+          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px] text-primary")}>
+              <Settings className="h-7 w-7" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-800">
+            <div className="min-w-0">
+              <h2 className="dialog-title truncate" data-size="hero">
                 {mode === "create" ? "创建 Agent" : title}
               </h2>
               {mode === "edit" && agent_id ? (
-                <p className="text-xs text-slate-500">ID: {agent_id}</p>
-              ) : null}
+                <p className="dialog-subtitle">ID: {agent_id}</p>
+              ) : (
+                <p className="dialog-subtitle">配置身份、技能、权限和行为方式</p>
+              )}
             </div>
           </div>
           <WorkspacePillButton
@@ -221,7 +226,7 @@ export function AgentOptions({
             onClick={on_close}
             density="compact"
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-5 w-5" />
           </WorkspacePillButton>
@@ -278,25 +283,22 @@ export function AgentOptions({
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-end gap-3 border-t modal-divider px-6 py-5">
-          <button
+        <div className="dialog-footer">
+          <WorkspacePillButton
             onClick={on_close}
-            className="modal-btn-secondary rounded-xl px-5 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
+            size="md"
+            variant="tonal"
           >
             取消
-          </button>
-          <button
+          </WorkspacePillButton>
+          <WorkspacePillButton
             onClick={handleSave}
             disabled={!canSave}
-            className={cn(
-              "rounded-xl px-5 py-2.5 text-sm font-medium transition-all",
-              canSave
-                ? "bg-primary text-primary-foreground shadow-[0_8px_24px_rgba(133,119,255,0.25)] hover:bg-primary/90 hover:shadow-[0_12px_32px_rgba(133,119,255,0.3)]"
-                : "modal-card cursor-not-allowed text-slate-400"
-            )}
+            size="md"
+            variant={canSave ? "primary" : "tonal"}
           >
             {mode === "create" ? "创建 Agent" : "保存更改"}
-          </button>
+          </WorkspacePillButton>
         </div>
       </div>
     </div>

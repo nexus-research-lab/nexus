@@ -72,7 +72,7 @@ export function RoomConversationEmptyState({
               void on_create_conversation();
             }}
             size="lg"
-            variant="success"
+            variant="primary"
           >
             <MessageSquarePlus className="h-5 w-5" />
             <span>创建新会话</span>

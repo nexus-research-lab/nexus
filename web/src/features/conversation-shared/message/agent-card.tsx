@@ -60,17 +60,23 @@ export const AgentCard = memo(function AgentCard({
         "group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-150 ease-out",
         is_active
           ? "border-sky-200/85 bg-sky-50/75 shadow-[0_10px_22px_rgb(59_130_246/0.08)]"
-          : "border-slate-200/80 bg-white/95 hover:bg-slate-50/85",
+          : "border-[var(--card-default-border)] bg-[var(--card-default-background)] hover:bg-[var(--surface-interactive-hover-background)]",
       )}
     >
       {/* Agent 头像 */}
       <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border",
-          is_active
-            ? "border-sky-200/85 bg-sky-50/85 text-blue-600"
-            : "border-slate-200/90 bg-slate-50/90 text-slate-500/90",
-        )}
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border",
+            is_active
+              ? "border-sky-200/85 bg-sky-50/85 text-blue-600"
+              : "",
+          )}
+          style={!is_active ? {
+            background: "var(--surface-avatar-background)",
+            borderColor: "var(--surface-avatar-border)",
+            color: "var(--surface-avatar-foreground)",
+            boxShadow: "var(--surface-avatar-shadow)",
+          } : undefined}
       >
         <Bot className="h-3.5 w-3.5" />
       </div>

@@ -66,17 +66,27 @@ export const ContactsPanelContent = memo(function ContactsPanelContent() {
               <button
                 key={agent.agent_id}
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-all duration-150",
+                  "box-border flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 text-left transition-all duration-150",
                   is_active
-                    ? "bg-white/60 shadow-sm"
-                    : "hover:bg-white/30",
+                    ? ""
+                    : "hover:bg-[var(--surface-interactive-hover-background)]",
                 )}
+                style={is_active ? {
+                  background: "var(--surface-interactive-active-background)",
+                  borderColor: "var(--surface-interactive-active-border)",
+                } : undefined}
                 onClick={() => handle_click(agent.agent_id)}
                 type="button"
               >
                 {/* 头像 + 状态指示器 */}
                 <div className="relative">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-b from-slate-100 to-slate-200 text-[10px] font-bold text-slate-600">
+                  <div
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold"
+                    style={{
+                      background: "var(--surface-avatar-background)",
+                      color: "var(--surface-avatar-foreground)",
+                    }}
+                  >
                     {avatar_letter}
                   </div>
                   {/* 在线状态圆点 */}

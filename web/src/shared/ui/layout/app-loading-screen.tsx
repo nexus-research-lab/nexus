@@ -13,7 +13,7 @@ export function AppLoadingScreen() {
         className="pointer-events-none absolute bottom-[10%] right-[12%] h-64 w-64 rounded-full opacity-60 blur-[14px]"
         style={getStageGlowStyle("green")}
       />
-      <div className="soft-ring radius-shell-lg glass-surface px-10 py-9 text-center">
+      <div className="radius-shell-lg glass-surface px-10 py-9 text-center">
         <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
         <p className="mt-4 text-sm text-muted-foreground">正在加载...</p>
       </div>

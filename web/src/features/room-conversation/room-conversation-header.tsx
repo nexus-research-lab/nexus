@@ -18,6 +18,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/workspace-conversation-switcher";
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
+import { WorkspaceIconFrame } from "@/shared/ui/workspace/workspace-catalog-card";
 import { Agent } from "@/types/agent";
 import { RoomConversationView } from "@/types/conversation";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
@@ -67,24 +68,40 @@ function MemberAvatarStack({
   const overflow_count = room_members.length - MAX_VISIBLE;
 
   return (
-    <div className="flex items-center rounded-full border border-white/42 bg-white/36 px-[7px] py-[3px]">
+    <div
+      className="flex items-center rounded-full px-[7px] py-[3px]"
+      style={{
+        background: "var(--chip-default-background)",
+        border: "1px solid var(--chip-default-border)",
+      }}
+    >
       <div className="ml-1 flex items-center gap-0">
-        <div className="ml-0 flex h-[27px] w-[27px] items-center justify-center rounded-full border-2 border-white/92 bg-white/92 text-[8px] font-bold text-slate-900/86 shadow-[0_6px_14px_rgba(106,124,158,0.12)]">
+        <WorkspaceIconFrame
+          class_name="ml-0 h-[27px] w-[27px] rounded-full text-[8px] font-bold text-slate-900/86"
+          shape="round"
+          size="sm"
+        >
           {t("room.you")}
-        </div>
+        </WorkspaceIconFrame>
         {visible_members.map((member) => (
-          <div
+          <WorkspaceIconFrame
             key={member.agent_id}
-            className="-ml-[6px] flex h-[27px] w-[27px] items-center justify-center rounded-full border-2 border-white/92 bg-linear-to-b from-slate-50/95 to-slate-200/94 text-[8px] font-bold text-slate-600/88 shadow-[0_6px_14px_rgba(106,124,158,0.12)]"
+            class_name="-ml-[6px] h-[27px] w-[27px] rounded-full text-[8px] font-bold"
+            shape="round"
+            size="sm"
             title={member.name}
           >
             {getInitials(member.name)}
-          </div>
+          </WorkspaceIconFrame>
         ))}
         {overflow_count > 0 ? (
-          <div className="-ml-[6px] flex h-[27px] w-[27px] items-center justify-center rounded-full border-2 border-white/92 bg-slate-200/92 text-[8px] font-semibold text-slate-600/82 shadow-[0_6px_14px_rgba(106,124,158,0.12)]">
+          <WorkspaceIconFrame
+            class_name="-ml-[6px] h-[27px] w-[27px] rounded-full text-[8px] font-semibold"
+            shape="round"
+            size="sm"
+          >
             +{overflow_count}
-          </div>
+          </WorkspaceIconFrame>
         ) : null}
       </div>
     </div>
@@ -130,6 +147,7 @@ function RoomHeaderActions({
           onClick={() => set_is_member_picker_open(true)}
           density="compact"
           size="icon"
+          variant="icon"
           title={t("room.add_member")}
         >
           <UserPlus className="h-4 w-4" />
@@ -139,6 +157,7 @@ function RoomHeaderActions({
           onClick={() => set_is_settings_open(true)}
           density="compact"
           size="icon"
+          variant="icon"
           title={t("room.settings")}
         >
           <Settings className="h-4 w-4" />

@@ -7,6 +7,55 @@
  * =====================================================
  */
 
+/* 中文注释：让核心颜色变量具备插值能力，主题切换时可以平滑过渡。 */
+@property --background {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e8ebef;
+}
+
+@property --foreground {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #211c17;
+}
+
+@property --primary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #7d72ea;
+}
+
+@property --secondary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e4e8ee;
+}
+
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #d59a66;
+}
+
+@property --muted {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e2e6ec;
+}
+
+@property --border {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.28);
+}
+
+@property --input {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.92);
+}
+
 /* 中文注释：这里只放元素基线和浏览器层的默认行为，不承载组件视觉。 */
 @layer base {
   * {
@@ -21,7 +70,8 @@
 
   body {
     position: relative;
-    background: var(--surface-body-background);
+    background-color: var(--background);
+    background-image: var(--surface-body-background);
     color: var(--foreground);
     font-family: var(--font-sans);
     line-height: 1.5;
@@ -30,7 +80,7 @@
     overflow: hidden;
     isolation: isolate;
     transition:
-      background var(--motion-duration-normal) ease,
+      background-color var(--motion-duration-normal) var(--motion-ease-standard),
       color var(--motion-duration-normal) ease;
   }
 

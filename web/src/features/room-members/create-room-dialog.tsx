@@ -1,7 +1,7 @@
 /**
  * 创建 Room 弹窗
  *
- * 复用 modal-dialog-surface 设计系统，与 AgentOptions / SkillDetailDialog 风格统一。
+ * 复用 dialog-shell 设计系统，与 AgentOptions / SkillDetailDialog 风格统一。
  * 使用 createPortal 渲染到 document.body，确保全页面居中显示。
  */
 
@@ -13,6 +13,11 @@ import { Bot, Check, Hash, Plus, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  DIALOG_HEADER_ICON_CLASS_NAME,
+  DIALOG_HEADER_LEADING_CLASS_NAME,
+} from "@/shared/ui/dialog/dialog-styles";
+import { WorkspaceIconFrame } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { Agent } from "@/types/agent";
 
@@ -98,21 +103,20 @@ export function CreateRoomDialog({
       aria-modal="true"
     >
       <div
-        className="modal-dialog-surface radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+        className="dialog-shell radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
         style={{ maxHeight: "80vh" }}
       >
-        {/* 头部 — 与 AgentOptions / SkillDetailDialog 一致 */}
-        <div className="flex items-center justify-between border-b modal-divider px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl modal-card text-primary">
-              <Hash className="h-5 w-5" />
+        <div className="dialog-header">
+          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px] text-primary")}>
+              <Hash className="h-7 w-7" />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold tracking-tight text-slate-800">
+              <h2 className="dialog-title truncate" data-size="hero">
                 {t("room.create_dialog_title")}
               </h2>
-              <p className="truncate text-xs text-slate-500">
+              <p className="dialog-subtitle truncate">
                 {t("room.create_dialog_subtitle")}
               </p>
             </div>
@@ -122,21 +126,21 @@ export function CreateRoomDialog({
             density="compact"
             onClick={on_cancel}
             size="icon"
-            variant="default"
+            variant="icon"
           >
             <X className="h-5 w-5" />
           </WorkspacePillButton>
         </div>
 
         {/* 内容区：左右两栏 */}
-        <div className="soft-scrollbar flex flex-1 gap-5 overflow-y-auto px-6 py-5">
+        <div className="dialog-body dialog-body--scroll soft-scrollbar flex gap-5">
           {/* 左栏：Agent 列表 */}
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* 搜索框 */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
-                className="modal-card w-full rounded-xl py-2 pl-8 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+                className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
                 onChange={(e) => set_search_query(e.target.value)}
                 placeholder={t("room.search_agent_placeholder")}
                 type="text"
@@ -145,7 +149,7 @@ export function CreateRoomDialog({
             </div>
 
             {/* Agent 计数 */}
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            <p className="dialog-label">
               {t("room.all_agents", { count: filtered_agents.length })}
             </p>
 
@@ -157,16 +161,20 @@ export function CreateRoomDialog({
                   <button
                     key={agent.agent_id}
                     className={cn(
-                      "modal-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-all duration-200",
-                      is_selected && "modal-card-active ring-1 ring-primary/30",
+                      "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-all duration-200",
+                      is_selected && "dialog-card-active",
                     )}
                     onClick={() => toggle_agent(agent.agent_id)}
                     type="button"
                   >
                     {/* Agent 头像 */}
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100/80 text-[11px] font-bold text-slate-600">
+                    <WorkspaceIconFrame
+                      class_name="text-slate-600"
+                      shape="round"
+                      size="sm"
+                    >
                       <Bot className="h-4 w-4" />
-                    </div>
+                    </WorkspaceIconFrame>
 
                     {/* Agent 信息 */}
                     <div className="min-w-0 flex-1">
@@ -203,20 +211,24 @@ export function CreateRoomDialog({
 
           {/* 右栏：已选成员 */}
           <div className="flex w-[220px] shrink-0 flex-col gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+            <p className="dialog-label">
               {t("room.selected_members", { count: selected_ids.length, max: MAX_MEMBERS })}
             </p>
 
-            <div className="modal-card flex flex-1 flex-col gap-1 overflow-y-auto rounded-2xl p-2.5">
+            <div className="surface-card flex flex-1 flex-col gap-1 overflow-y-auto rounded-2xl p-2.5">
               {selected_agents.length > 0 ? (
                 selected_agents.map((agent) => (
                   <div
                     key={agent.agent_id}
                     className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-black/3"
                   >
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100/80 text-slate-600">
+                    <WorkspaceIconFrame
+                      class_name="h-6 w-6 text-slate-600"
+                      shape="round"
+                      size="sm"
+                    >
                       <Bot className="h-3 w-3" />
-                    </div>
+                    </WorkspaceIconFrame>
                     <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-slate-800">
                       {agent.name}
                     </span>
@@ -239,14 +251,14 @@ export function CreateRoomDialog({
         </div>
 
         {/* 底部栏 — 与 AgentOptions footer 一致 */}
-        <div className="flex items-center justify-between gap-4 border-t modal-divider px-6 py-5">
+        <div className="dialog-footer justify-between gap-4">
           {/* Room 名称输入 */}
           <div className="flex items-center gap-2.5">
-            <label className="shrink-0 text-[13px] font-semibold text-slate-700">
+            <label className="dialog-label shrink-0">
               {t("room.name_label")}
             </label>
             <input
-              className="modal-card w-48 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+              className="dialog-input w-48 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
               maxLength={64}
               onChange={(e) => set_room_name(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && can_create) handle_create(); }}
@@ -258,14 +270,14 @@ export function CreateRoomDialog({
 
           {/* 操作按钮 */}
           <div className="flex items-center gap-3">
-            <WorkspacePillButton onClick={on_cancel} size="md" variant="default">
+            <WorkspacePillButton onClick={on_cancel} size="md" variant="tonal">
               {t("common.cancel")}
             </WorkspacePillButton>
             <WorkspacePillButton
               disabled={!can_create}
               onClick={handle_create}
               size="md"
-              variant={can_create ? "strong" : "default"}
+              variant={can_create ? "primary" : "tonal"}
             >
               {is_creating ? t("room.creating_action") : t("room.create_action")}
             </WorkspacePillButton>

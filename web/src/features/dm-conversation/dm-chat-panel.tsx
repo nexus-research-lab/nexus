@@ -150,7 +150,7 @@ export function DmChatPanel({
         className={
           is_mobile_layout
             ? "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2"
-            : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#fcfcfd]/86 px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
+            : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--surface-canvas-background)] px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
         }
         style={{ overflowAnchor: "none" }}
         onScroll={on_scroll}

@@ -51,7 +51,6 @@ export function getDialogChoiceStyle(is_active: boolean): CSSProperties | undefi
 
   return {
     background: "color-mix(in srgb, var(--primary) 82%, white)",
-    boxShadow: "0 12px 22px color-mix(in srgb, var(--primary) 18%, transparent)",
     color: "var(--primary-foreground)",
   };
 }
