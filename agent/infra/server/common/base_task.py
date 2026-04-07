@@ -97,7 +97,7 @@ def repeat_every(
                     try:
                         await _handle_func(func)
 
-                    except Exception as e:
+                    except Exception as exc:
                         if logger is not None:
                             warnings.warn(
                                 "'logger' is to be deprecated in favor of 'on_exception' in the 1.0 release.",
