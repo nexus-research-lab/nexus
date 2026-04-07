@@ -186,11 +186,12 @@ class Settings(BaseSettings):
     def __str__(self):
         text = "\n".join(
             [
-                attr + ": " + str(getattr(self, attr))
+                attr + ": " + str(self._mask_sensitive_value(attr, getattr(self, attr)))
                 for attr in dir(self)
                 if not attr.startswith("__") and
                 not callable(getattr(self, attr)) and
-                attr not in ["LOGO", "SECRET_KEY"]
+                attr not in ["LOGO", "SECRET_KEY", "_abc_impl"] and
+                not attr.startswith("model_")
             ]
         )
         return "\n" + text
