@@ -155,6 +155,19 @@ class MessageHistoryStore:
         """检查指定轮次是否已有 result 消息。"""
         return await session_repository.has_round_result(session_key, round_id)
 
+    async def repair_unfinished_round(
+        self,
+        session_key: str,
+        round_id: str,
+        result_text: str,
+    ) -> List[Message]:
+        """把未收口的轮次修复为 interrupted，并返回补发消息。"""
+        return await session_repository.repair_unfinished_round(
+            session_key=session_key,
+            round_id=round_id,
+            result_text=result_text,
+        )
+
     async def get_session_cost_summary(self, session_key: str):
         """获取 Session 成本汇总。"""
         return await cost_repository.get_session_cost_summary(session_key)

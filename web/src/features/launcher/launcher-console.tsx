@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState, useEffect } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { ArrowUp, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -18,12 +18,9 @@ import { useSidebarStore } from "@/store/sidebar";
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
-import {
-  queryLauncher,
-  getLauncherSuggestions,
-  LauncherSuggestion,
-} from "@/lib/launcher-api";
+import { queryLauncher } from "@/lib/launcher-api";
 import { ensureDirectRoom, getRoomContexts } from "@/lib/room-api";
+import { parseSessionKey } from "@/lib/session-key";
 
 import { AgentPile } from "./launcher-agent-pile";
 import { AnimatedHeroText, FadeSlideIn } from "@/shared/ui/feedback/animated-hero-text";
@@ -47,13 +44,22 @@ interface HeroStageProps {
   is_app_conversation_open: boolean;
   on_query_change: (value: string) => void;
   on_select_agent: (agent_id: string) => void;
-  on_open_room: (room_id: string) => void;
+  on_open_recent_entry: (entry: RecentLauncherEntry) => void;
   on_submit: () => void;
   query: string;
-  recent_agents: LauncherSuggestion[];
-  recent_rooms: LauncherSuggestion[];
+  recent_entries: RecentLauncherEntry[];
   surface: "launcher" | "app";
   is_query_loading: boolean;
+}
+
+interface RecentLauncherEntry {
+  key: string;
+  type: "dm" | "room";
+  label: string;
+  last_activity_at: number;
+  agent_id?: string;
+  room_id?: string;
+  conversation_id?: string;
 }
 
 
@@ -143,6 +149,57 @@ function buildDecorativeTokens(
 
 const MemoAgentPile = memo(AgentPile);
 
+function buildRecentLauncherEntries(
+  conversations_with_owners: ConversationWithOwner[],
+): RecentLauncherEntry[] {
+  const latest_dm_by_agent = new Map<string, RecentLauncherEntry>();
+  const latest_room_by_id = new Map<string, RecentLauncherEntry>();
+
+  for (const { conversation, owner } of conversations_with_owners) {
+    const parsed_session_key = parseSessionKey(conversation.session_key);
+    if (parsed_session_key.ref?.startsWith("launcher-app-")) {
+      continue;
+    }
+
+    if (conversation.room_id && conversation.conversation_id) {
+      const existing_room = latest_room_by_id.get(conversation.room_id);
+      if (!existing_room || conversation.last_activity_at > existing_room.last_activity_at) {
+        latest_room_by_id.set(conversation.room_id, {
+          key: `room-${conversation.room_id}`,
+          type: "room",
+          room_id: conversation.room_id,
+          conversation_id: conversation.conversation_id,
+          label: conversation.title || "未命名 Room",
+          last_activity_at: conversation.last_activity_at,
+        });
+      }
+      continue;
+    }
+
+    if (!conversation.agent_id || !owner) {
+      continue;
+    }
+
+    const existing_dm = latest_dm_by_agent.get(conversation.agent_id);
+    if (!existing_dm || conversation.last_activity_at > existing_dm.last_activity_at) {
+      latest_dm_by_agent.set(conversation.agent_id, {
+        key: `dm-${conversation.agent_id}`,
+        type: "dm",
+        agent_id: conversation.agent_id,
+        label: owner.name,
+        last_activity_at: conversation.last_activity_at,
+      });
+    }
+  }
+
+  return [
+    ...Array.from(latest_dm_by_agent.values()),
+    ...Array.from(latest_room_by_id.values()),
+  ]
+    .sort((left, right) => right.last_activity_at - left.last_activity_at)
+    .slice(0, 3);
+}
+
 const HeroStage = memo(function HeroStage({
   current_agent_id,
   decorative_tokens,
@@ -151,11 +208,10 @@ const HeroStage = memo(function HeroStage({
   is_app_conversation_open,
   on_query_change,
   on_select_agent,
-  on_open_room,
+  on_open_recent_entry,
   on_submit,
   query,
-  recent_agents,
-  recent_rooms,
+  recent_entries,
   surface,
   is_query_loading,
 }: HeroStageProps) {
@@ -239,51 +295,43 @@ const HeroStage = memo(function HeroStage({
           </FadeSlideIn>
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:mt-4">
-            {recent_agents.map((agent, index) => (
-              <FadeSlideIn key={agent.id} delay_ms={580 + index * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
+            {recent_entries.map((entry, index) => (
+              <FadeSlideIn key={entry.key} delay_ms={580 + index * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
                 <button
                   className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
                   style={{
-                    background: "var(--launcher-agent-chip-background)",
-                    boxShadow: "inset 0 0 0 1px var(--launcher-agent-chip-border)",
-                    color: "var(--launcher-agent-chip-text)",
+                    background: entry.type === "room"
+                      ? "var(--launcher-room-chip-background)"
+                      : "var(--launcher-agent-chip-background)",
+                    boxShadow: entry.type === "room"
+                      ? "inset 0 0 0 1px var(--launcher-room-chip-border)"
+                      : "inset 0 0 0 1px var(--launcher-agent-chip-border)",
+                    color: entry.type === "room"
+                      ? "var(--launcher-room-chip-text)"
+                      : "var(--launcher-agent-chip-text)",
                   }}
-                  onClick={() => on_select_agent(agent.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    on_open_recent_entry(entry);
+                  }}
                   type="button"
                 >
-                  <span
-                    className="h-4 w-4 rounded-full"
-                    style={{
-                      backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
-                      border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
-                    }}
-                  />
-                  {agent.name}
+                  {entry.type === "dm" ? (
+                    <span
+                      className="h-4 w-4 rounded-full"
+                      style={{
+                        backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
+                        border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
+                      }}
+                    />
+                  ) : null}
+                  {entry.type === "room" ? "#" : ""}
+                  {truncate(entry.label, 18)}
                 </button>
               </FadeSlideIn>
             ))}
 
-            {recent_rooms.map((room, index) => (
-              <FadeSlideIn key={room.id} delay_ms={580 + (recent_agents.length + index) * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
-                <button
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
-                  style={{
-                    background: "var(--launcher-room-chip-background)",
-                    boxShadow: "inset 0 0 0 1px var(--launcher-room-chip-border)",
-                    color: "var(--launcher-room-chip-text)",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    on_open_room(room.id);
-                  }}
-                  type="button"
-                >
-                  #{truncate(room.name, 18)}
-                </button>
-              </FadeSlideIn>
-            ))}
-
-            <FadeSlideIn delay_ms={580 + (recent_agents.length + recent_rooms.length) * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
+            <FadeSlideIn delay_ms={580 + recent_entries.length * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
               <button
                 className="px-2 text-xs font-medium transition-colors duration-150 ease-out hover:text-[color:var(--launcher-handoff-hover-color)] sm:text-sm"
                 style={{ color: "var(--launcher-handoff-color)" }}
@@ -319,24 +367,8 @@ export function LauncherConsole({
 }: LauncherConsoleProps) {
   const [query, setQuery] = useState("");
   const [isQueryLoading, setIsQueryLoading] = useState(false);
-  const [recentAgents, setRecentAgents] = useState<LauncherSuggestion[]>([]);
-  const [recentRooms, setRecentRooms] = useState<LauncherSuggestion[]>([]);
   const navigate = useNavigate();
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-
-  // 加载 Launcher 推荐列表
-  useEffect(() => {
-    const loadSuggestions = async () => {
-      try {
-        const suggestions = await getLauncherSuggestions();
-        setRecentAgents(suggestions.agents);
-        setRecentRooms(suggestions.rooms);
-      } catch (error) {
-        console.error("Failed to load launcher suggestions:", error);
-      }
-    };
-    loadSuggestions();
-  }, []);
 
   const agents_by_id = useMemo(
     () => new Map(agents.map((agent) => [agent.agent_id, agent])),
@@ -357,19 +389,41 @@ export function LauncherConsole({
     [agents, conversations_with_owners],
   );
 
-  const handle_open_suggested_room = useCallback((room_id: string) => {
+  const recent_entries = useMemo(
+    () => buildRecentLauncherEntries(conversations_with_owners),
+    [conversations_with_owners],
+  );
+
+  const handle_open_recent_entry = useCallback((entry: RecentLauncherEntry) => {
     void (async () => {
       try {
-        const contexts = await getRoomContexts(room_id);
+        if (entry.type === "dm" && entry.agent_id) {
+          on_select_agent(entry.agent_id);
+          return;
+        }
+
+        if (!entry.room_id) {
+          return;
+        }
+
+        if (entry.conversation_id) {
+          set_active_panel_item(entry.room_id);
+          navigate(
+            AppRouteBuilders.room_conversation(entry.room_id, entry.conversation_id),
+          );
+          return;
+        }
+
+        const contexts = await getRoomContexts(entry.room_id);
         if (contexts.length > 0) {
-          set_active_panel_item(room_id);
-          navigate(AppRouteBuilders.room_conversation(room_id, contexts[0].conversation.id));
+          set_active_panel_item(entry.room_id);
+          navigate(AppRouteBuilders.room_conversation(entry.room_id, contexts[0].conversation.id));
         }
       } catch (error) {
-        console.error("Failed to open suggested room:", error);
+        console.error("Failed to open recent entry:", error);
       }
     })();
-  }, [navigate, set_active_panel_item]);
+  }, [navigate, on_select_agent, set_active_panel_item]);
 
   const handle_submit = useCallback(async () => {
     const trimmed = query.trim();
@@ -443,12 +497,11 @@ export function LauncherConsole({
           on_close_app_conversation={on_close_app_conversation}
           is_app_conversation_open={is_app_conversation_open}
           on_query_change={setQuery}
-          on_open_room={handle_open_suggested_room}
           on_select_agent={on_select_agent}
+          on_open_recent_entry={handle_open_recent_entry}
           on_submit={handle_submit}
           query={query}
-          recent_agents={recentAgents}
-          recent_rooms={recentRooms}
+          recent_entries={recent_entries}
           surface={surface}
           is_query_loading={isQueryLoading}
         />

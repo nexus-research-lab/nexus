@@ -201,13 +201,17 @@ class SessionRepository:
         session_key: str,
         meta: Dict[str, Any],
         message_rows: List[Dict[str, Any]],
+        active_round_ids: Optional[set[str]] = None,
     ) -> List[Dict[str, Any]]:
         """为未完成轮次补齐中断态工具结果和 result。"""
         rows = [dict(row) for row in message_rows]
         round_status = dict(meta.get("round_status") or self._build_round_status(rows))
+        active_round_ids = active_round_ids or set()
 
         for round_id, status in round_status.items():
             if not round_id or status != "running":
+                continue
+            if round_id in active_round_ids:
                 continue
 
             round_rows = [row for row in rows if row.get("round_id") == round_id]
@@ -297,6 +301,16 @@ class SessionRepository:
 
         rows.sort(key=lambda item: parse_timestamp(item.get("timestamp")))
         return rows
+
+    @staticmethod
+    def _get_running_ws_round_ids(session_key: str) -> set[str]:
+        """返回当前仍在后台运行的 round_id 集合。"""
+        # 中文注释：只应跳过“当前正在跑的那一轮”补偿，旧轮次如果早就停了，
+        # 仍然必须补成 interrupted；否则前端会把旧工具块一直显示成处理中。
+        from agent.service.channels.ws.ws_chat_task_registry import ws_chat_task_registry
+
+        round_id = ws_chat_task_registry.get_running_round_id(session_key)
+        return {round_id} if round_id else set()
 
     async def create_session(
         self,
@@ -479,13 +493,152 @@ class SessionRepository:
             logger.error(f"❌ 保存消息失败: {exc}", exc_info=True)
             return False
 
+    async def repair_unfinished_round(
+        self,
+        session_key: str,
+        round_id: str,
+        result_text: str,
+    ) -> List[Message]:
+        """把指定轮次补齐为 interrupted，返回需要同步给前端的消息。"""
+        try:
+            meta_path = self._find_session_meta_path(session_key)
+            log_path = self._find_message_log_path(session_key)
+            if not meta_path or not log_path:
+                return []
+
+            repaired_messages: List[Message] = []
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+            with self._lock:
+                raw_rows = self._load_raw_message_rows(log_path)
+                if not raw_rows:
+                    return []
+                meta = JsonFileStore.read_json(meta_path, {})
+                compacted_rows = self._bootstrap.compact_messages(raw_rows)
+                round_rows = [
+                    dict(row)
+                    for row in compacted_rows
+                    if row.get("round_id") == round_id
+                ]
+                if not round_rows:
+                    return []
+                if any(row.get("role") == "result" for row in round_rows):
+                    return []
+
+                tool_result_ids: set[str] = set()
+                for row in round_rows:
+                    content = row.get("content")
+                    if not isinstance(content, list):
+                        continue
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("tool_use_id"):
+                            tool_result_ids.add(str(block["tool_use_id"]))
+
+                last_row = round_rows[-1]
+                last_assistant_message_id = next(
+                    (
+                        row.get("message_id")
+                        for row in reversed(round_rows)
+                        if row.get("role") == "assistant"
+                    ),
+                    last_row.get("message_id"),
+                )
+
+                for row in round_rows:
+                    if row.get("role") != "assistant":
+                        continue
+                    content = row.get("content")
+                    if not isinstance(content, list):
+                        continue
+
+                    updated_content = list(content)
+                    changed = False
+                    for block in list(updated_content):
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") != "tool_use" or not block.get("id"):
+                            continue
+                        tool_use_id = str(block["id"])
+                        if tool_use_id in tool_result_ids:
+                            continue
+                        updated_content.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "content": result_text,
+                                "is_error": True,
+                            }
+                        )
+                        tool_result_ids.add(tool_use_id)
+                        changed = True
+
+                    if not changed:
+                        continue
+
+                    updated_row = dict(row)
+                    updated_row["content"] = updated_content
+                    raw_rows.append(updated_row)
+                    repaired_messages.append(parse_message(updated_row))
+
+                result_payload = {
+                    "message_id": f"interrupted_result_{round_id}_{uuid.uuid4().hex[:8]}",
+                    "parent_id": last_assistant_message_id,
+                    "session_key": session_key,
+                    "agent_id": resolve_agent_id(last_row.get("agent_id") or meta.get("agent_id")),
+                    "round_id": round_id,
+                    "session_id": last_row.get("session_id") or meta.get("session_id") or "",
+                    "role": "result",
+                    "subtype": "interrupted",
+                    "duration_ms": 0,
+                    "duration_api_ms": 0,
+                    "num_turns": 0,
+                    "total_cost_usd": 0,
+                    "usage": {
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                    "result": result_text,
+                    "is_error": True,
+                    "timestamp": now_ms,
+                }
+                raw_rows.append(result_payload)
+                JsonFileStore.write_jsonl(log_path, raw_rows)
+                refreshed_meta = self._refresh_meta_from_messages(meta, raw_rows)
+                self._write_session_meta(meta_path, refreshed_meta)
+                repaired_messages.append(parse_message(result_payload))
+
+            return repaired_messages
+        except Exception as exc:
+            logger.error(
+                "❌ 修复未完成轮次失败: key=%s, round=%s, error=%s",
+                session_key,
+                round_id,
+                exc,
+                exc_info=True,
+            )
+            return []
+
     async def get_session_messages(self, session_key: str) -> List[Message]:
         """获取会话的所有历史消息。"""
         try:
             meta_path = self._find_session_meta_path(session_key)
             meta = JsonFileStore.read_json(meta_path, {}) if meta_path else {}
             compacted_rows = self._load_compacted_message_rows(self._find_message_log_path(session_key))
-            materialized_rows = self._materialize_unfinished_rounds(session_key, meta, compacted_rows)
+            active_round_ids = self._get_running_ws_round_ids(session_key)
+            if active_round_ids:
+                logger.info(
+                    "⏭️ 跳过活跃轮次补偿: session=%s, rounds=%s",
+                    session_key,
+                    ",".join(sorted(active_round_ids)),
+                )
+            materialized_rows = self._materialize_unfinished_rounds(
+                session_key,
+                meta,
+                compacted_rows,
+                active_round_ids=active_round_ids,
+            )
 
             message_list: List[Message] = []
             for row in materialized_rows:

@@ -15,6 +15,7 @@ from typing import Any, Dict
 from agent.schema.model_message import build_error_event, EventMessage
 from agent.service.agent.agent_runtime import agent_runtime
 from agent.service.channels.message_sender import MessageSender
+from agent.service.channels.ws.ws_chat_task_registry import ws_chat_task_registry
 from agent.service.message.chat_message_processor import ChatMessageProcessor
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.session.session_manager import session_manager
@@ -46,10 +47,13 @@ class ChatService:
 
         if session_key in chat_tasks and not chat_tasks[session_key].done():
             logger.info(f"⚠️ 取消旧 chat 任务: {session_key}")
-            chat_tasks[session_key].cancel()
+            await self._interrupt_previous_round(
+                session_key=session_key,
+                task=chat_tasks[session_key],
+            )
 
         task = asyncio.create_task(self.handle_chat_message(message))
-        chat_tasks[session_key] = task
+        ws_chat_task_registry.register(session_key, task, message.get("round_id"))
         task.add_done_callback(
             lambda current_task: self._on_task_done(session_key, current_task, chat_tasks)
         )
@@ -107,6 +111,46 @@ class ChatService:
 
             logger.info(f"✅ 消息处理完成: key={session_key}, 共 {processor.message_count} 条响应")
 
+    async def _interrupt_previous_round(
+        self,
+        session_key: str,
+        task: asyncio.Task,
+    ) -> None:
+        """在同会话开启新一轮前，先把上一轮收口为 interrupted。"""
+        round_id = ws_chat_task_registry.get_running_round_id(session_key)
+        if not round_id:
+            round_id = await session_store.get_latest_round_id(session_key)
+
+        client = await session_manager.get_session(session_key)
+        if client is not None:
+            try:
+                await client.interrupt()
+            except Exception as exc:
+                logger.warning(f"⚠️ 中断旧会话失败: key={session_key}, error={exc}")
+
+        self._permission_strategy.cancel_requests_for_session(
+            session_key,
+            message="收到新的用户消息，上一轮已停止",
+        )
+
+        if not task.done():
+            try:
+                await asyncio.wait_for(task, timeout=3.0)
+            except asyncio.TimeoutError:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+        if not round_id:
+            return
+
+        repaired_messages = await session_store.repair_unfinished_round(
+            session_key=session_key,
+            round_id=round_id,
+            result_text="收到新的用户消息，上一轮已停止",
+        )
+        for repaired_message in repaired_messages:
+            await self._sender.send(repaired_message)
+
     async def _resolve_session_key(self, message: Dict[str, Any]) -> str | None:
         """解析并校验聊天消息的结构化 session_key。"""
         raw_session_key = message.get("session_key")
@@ -139,7 +183,7 @@ class ChatService:
         chat_tasks: Dict[str, Any],
     ) -> None:
         """聊天任务完成回调。"""
-        chat_tasks.pop(session_key, None)
+        ws_chat_task_registry.unregister(session_key, task)
         if task.cancelled():
             logger.info(f"🛑 任务被取消: {session_key}")
         elif task.exception():
