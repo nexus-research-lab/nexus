@@ -189,25 +189,25 @@ class RoomCollaborationService:
                     last_activity_at=created_at,
                 )
 
-            # 4. 广播消息到所有在线的 Agent 会话
-            await self.broadcast_to_room_sessions(
-                room_id=room_id,
-                conversation_id=conversation_id,
-                message={
-                    "type": "agent_message",
-                    "room_id": room_id,
-                    "conversation_id": conversation_id,
-                    "sender_agent_id": sender_agent_id,
-                    "content": content,
-                    "timestamp": 0,
-                },
-            )
-
             await session.commit()
-            logger.info(
-                f"✅ Agent message broadcasted: room={room_id}, "
-                f"sender={sender_agent_id}, content={content[:50]}"
-            )
+
+        # 4. 广播消息到所有在线的 Agent 会话（事务提交后执行，避免嵌套 DB session）
+        await self.broadcast_to_room_sessions(
+            room_id=room_id,
+            conversation_id=conversation_id,
+            message={
+                "type": "agent_message",
+                "room_id": room_id,
+                "conversation_id": conversation_id,
+                "sender_agent_id": sender_agent_id,
+                "content": content,
+                "timestamp": 0,
+            },
+        )
+        logger.info(
+            f"✅ Agent message broadcasted: room={room_id}, "
+            f"sender={sender_agent_id}, content={content[:50]}"
+        )
 
     async def broadcast_to_room_sessions(
         self,
