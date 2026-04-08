@@ -3,12 +3,15 @@
 import { memo, useCallback, useMemo } from "react";
 import { Bot, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AssistantMessage, ResultMessage } from "@/types/message";
+import {
+  AssistantMessage,
+  ResultMessage,
+  RoomPendingAgentSlotState,
+} from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import {
   AgentRoundStatus,
   extractAgentPreviewText,
-  getAgentRoundStatus,
 } from "@/features/conversation-shared/utils";
 
 interface AgentStatusCardProps {
@@ -16,6 +19,8 @@ interface AgentStatusCardProps {
   agent_name: string;
   messages: AssistantMessage[];
   result_message?: ResultMessage;
+  pending_slot?: RoomPendingAgentSlotState;
+  status: AgentRoundStatus;
   pending_permissions?: PendingPermission[];
   is_thread_active: boolean;
   on_click_thread: () => void;
@@ -28,20 +33,21 @@ function AgentStatusCardInner({
   agent_name,
   messages,
   result_message,
+  pending_slot,
+  status,
   pending_permissions = [],
   is_thread_active,
   on_click_thread,
   on_permission_response,
   on_stop_message,
 }: AgentStatusCardProps) {
-  const status: AgentRoundStatus = getAgentRoundStatus(messages, result_message);
   const preview = useMemo(() => extractAgentPreviewText(messages), [messages]);
   const primary_pending_permission = pending_permissions[0];
   const is_waiting_permission = pending_permissions.length > 0 && (status === "pending" || status === "streaming");
   const first_msg = messages[0];
   const last_msg = messages[messages.length - 1];
   const can_stop = on_stop_message && (status === "pending" || status === "streaming");
-  const timestamp = last_msg?.timestamp ?? result_message?.timestamp ?? 0;
+  const timestamp = last_msg?.timestamp ?? result_message?.timestamp ?? pending_slot?.timestamp ?? 0;
   const model = last_msg?.model ?? null;
   const summary_text = useMemo(() => {
     if (is_waiting_permission) {

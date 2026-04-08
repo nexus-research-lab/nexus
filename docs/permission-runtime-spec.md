@@ -192,8 +192,10 @@ Claude SDK client
 1. `PermissionStrategy.request_permission(...)` 被调用
 2. 若是交互式策略，则转发给 `PermissionRuntimeContext`
 3. `PermissionRuntimeContext` 根据 `runtime session_key` 找到 `route_session_key`
-4. 再根据 `route_session_key` 找到当前活跃 sender
-5. 向前端发送 `permission_request`
+4. DM / 单会话：再根据 `route_session_key` 找到当前活跃 sender
+5. Room：优先按 `room_id + conversation_id` 找到当前 `subscribe_room` 订阅者集合
+6. 若 Room 此刻还未恢复订阅，再回退到 `route_session_key` 对应的活跃 sender
+7. 向前端发送 `permission_request`
 
 ### 7.3 WebSocket 断开
 
@@ -318,6 +320,12 @@ runtime session_key -> route_session_key
 ```
 
 不允许省略这层映射，否则权限请求会发到错误的前端面板。
+
+除此之外还必须满足：
+
+- Room 权限请求的主派发通道是 `subscribe_room`
+- `bind_session` 只负责回退 sender 和 pending request 重投入口
+- 只要房间重新订阅成功，后续权限卡就必须继续可见
 
 ## 10. DM 特殊规则
 

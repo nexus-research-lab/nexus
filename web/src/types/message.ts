@@ -185,6 +185,9 @@ export interface EventMessage {
 export interface PendingAgentSlot {
   agent_id: string;
   msg_id: string;
+  round_id?: string;
+  status?: AssistantMessageStatus;
+  timestamp?: number;
 }
 
 /** Room 前端占位槽位状态。 */

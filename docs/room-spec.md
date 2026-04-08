@@ -445,11 +445,20 @@ Room 当前核心事件包括：
 - `chat_ack` 是 Room UI 能够立即渲染 pending slot 的前提
 - `chat_ack` 不是 assistant 消息
 - 前端不能把 `chat_ack.msg_id` 写入共享消息流
+- `chat_ack.msg_id` 同时也是 Room 单 Agent 中断的后端句柄
+- 因此 slot 不能在“assistant 已开始输出”时就被前端提前删掉
+- 只有该 Agent 子轮次真正拿到 `result` 后，slot 才能清理
+- 前端整页刷新后，后端必须在 `subscribe_room` 后重新补发当前仍在执行的 slot
+- 补发的 slot 必须携带真实：
+  - `round_id`
+  - `status`
+  - `timestamp`
 - `permission_request` 必须携带并保留事件路由元信息：
   - `agent_id`
   - `message_id`
   - `caused_by`
 - Room 前端应优先用这些元信息把权限请求挂到正确的 Agent 卡片 / Thread
+- Room 权限恢复必须优先依赖 `subscribe_room` 广播链，不能复用 DM 的单 sender 派发语义
 - `room_resync_required` 表示前端不应继续假设本地上下文绝对正确，应回源刷新
 
 ## 11. 中断与状态修复规范

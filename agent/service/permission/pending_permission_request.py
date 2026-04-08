@@ -32,4 +32,4 @@ class PendingPermissionRequest:
     event: asyncio.Event
     expires_at: datetime
     route_context: PermissionRouteContext | None = None
-    dispatched_sender_id: int | None = None
+    dispatched_target_key: str | None = None

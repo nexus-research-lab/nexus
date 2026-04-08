@@ -76,6 +76,19 @@ class RoomMessageStore:
         """把毫秒时间戳转换为数据库使用的 naive 时间。"""
         return datetime.fromtimestamp(timestamp_ms / 1000)
 
+    @staticmethod
+    def _resolve_parent_message_status(message: Message) -> Optional[str]:
+        """根据 result 终态推导占位消息状态。"""
+        if message.role != "result":
+            return None
+        if message.subtype == "success":
+            return "completed"
+        if message.subtype == "interrupted":
+            return "cancelled"
+        if message.subtype == "error" or message.is_error:
+            return "error"
+        return None
+
     async def save_message(
         self,
         message: Message,
@@ -117,6 +130,13 @@ class RoomMessageStore:
                     updated_at=created_at,
                 )
             )
+            parent_status = self._resolve_parent_message_status(message)
+            if parent_status and message.parent_id:
+                await message_repository.update_message_status(
+                    message_id=message.parent_id,
+                    status=parent_status,
+                    updated_at=created_at,
+                )
             await conversation_repository.touch(conversation_id, touched_at=created_at)
             if room_session_id:
                 await session_repository.touch(room_session_id, last_activity_at=created_at)
@@ -221,6 +241,29 @@ class RoomMessageStore:
             except Exception:
                 continue
         return messages
+
+    async def get_active_slots(self, conversation_id: str) -> list[dict[str, Any]]:
+        """读取当前对话内仍在执行的 slot。"""
+        if not conversation_id:
+            return []
+
+        async with self._db.session() as session:
+            repository = MessageSqlRepository(session)
+            records = await repository.list_inflight_by_conversation(conversation_id)
+
+        active_slots: list[dict[str, Any]] = []
+        for record in records:
+            if not record.sender_agent_id or not record.round_id:
+                continue
+            timestamp = record.updated_at or record.created_at
+            active_slots.append({
+                "agent_id": record.sender_agent_id,
+                "msg_id": record.id,
+                "round_id": record.round_id,
+                "status": record.status,
+                "timestamp": int(timestamp.timestamp() * 1000) if timestamp else 0,
+            })
+        return active_slots
 
     async def get_latest_round_id(self, session_key: str) -> Optional[str]:
         """获取最新 round_id。"""

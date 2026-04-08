@@ -46,7 +46,7 @@ async def require_http_auth(request: Request):
     if not auth_service.is_auth_required():
         return
 
-    identity = auth_service.resolve_http_identity(request)
+    identity = await auth_service.resolve_http_identity(request)
     if identity:
         request.state.auth_user = identity
         return

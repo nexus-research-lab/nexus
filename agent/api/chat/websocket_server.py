@@ -29,12 +29,13 @@ async def chat(websocket: WebSocket):
 
     try:
         if auth_service.is_auth_required():
-            identity = auth_service.resolve_websocket_identity(websocket)
+            identity = await auth_service.resolve_websocket_identity(websocket)
             if not identity:
                 await websocket.accept()
                 await websocket.close(code=4401, reason="Unauthorized")
                 logger.warning("❌WebSocket 未通过鉴权: %s", websocket.client)
                 return
+            websocket.state.auth_user = identity
 
         # 为每个连接创建独立的WebSocketHandler实例
         handler = WebSocketHandler()

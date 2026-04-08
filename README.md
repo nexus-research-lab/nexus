@@ -61,8 +61,8 @@ cp web/env.example web/.env.local
 
 ```bash
 # web/.env.local
-VITE_WS_URL=ws://localhost:8010/agent/v1/chat/ws
-VITE_API_URL=http://localhost:8010/agent/v1
+VITE_WS_URL=/agent/v1/chat/ws
+VITE_API_URL=/agent/v1
 ```
 
 后端至少需要：
@@ -78,15 +78,16 @@ ANTHROPIC_MODEL=your_model
 # .env
 AUTH_LOGIN_USERNAME=admin
 AUTH_LOGIN_PASSWORD=change-this-password
-AUTH_SESSION_SECRET=replace-with-a-random-secret
 AUTH_SESSION_TTL_HOURS=168
 AUTH_COOKIE_SECURE=true   # HTTPS 反向代理下开启
 AUTH_COOKIE_SAMESITE=lax
+BACKEND_CORS_ORIGINS=https://your-domain.com
 ```
 
 说明：
 
-- 登录成功后后端会签发 `HttpOnly` 会话 Cookie，前端不会暴露访问密钥
+- 登录成功后后端会签发 `HttpOnly` 会话 Cookie，并在服务端保存会话记录
+- 退出登录会立即撤销当前会话，不再依赖前端单纯删除 Cookie
 - 反向代理生产环境优先使用前后端同源部署
 - 如果仍然保留旧的 `ACCESS_TOKEN`，后端也会继续兼容 Bearer Token 调用
 
@@ -184,9 +185,9 @@ make stop
 - `WEBSOCKET_ENABLED`
 - `AUTH_LOGIN_USERNAME`
 - `AUTH_LOGIN_PASSWORD`
-- `AUTH_SESSION_SECRET`
 - `AUTH_SESSION_TTL_HOURS`
 - `AUTH_COOKIE_SECURE`
+- `BACKEND_CORS_ORIGINS`
 - `DISCORD_ENABLED`
 - `TELEGRAM_ENABLED`
 

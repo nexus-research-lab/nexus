@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, RefObject } from "react";
+import { Fragment, RefObject, useCallback } from "react";
 
 import { EditorPanel } from "@/features/conversation-shared/context/editor-panel";
 import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
@@ -118,7 +118,9 @@ function RoomWorkspaceLayoutInner({
 }: RoomWorkspaceLayoutProps) {
   const is_dm = current_room_type === "dm";
 
-  const handle_open_workspace_file = (path: string) => on_open_workspace_file(path);
+  const handle_open_workspace_file = useCallback((path: string | null) => {
+    on_open_workspace_file(path);
+  }, [on_open_workspace_file]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">

@@ -147,7 +147,7 @@ export function SidebarWidePanel() {
                 </WorkspaceIconFrame>
               </Link>
               <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[color:var(--text-soft)]">
+                <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-[color:var(--text-soft)]">
                   {t("sidebar.workspace_label")}
                 </p>
                 <h2 className="truncate text-[15px] font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">{t("sidebar.workspace_title")}</h2>
@@ -192,7 +192,7 @@ export function SidebarWidePanel() {
                 }}
               >
                 <Link
-                  className="flex items-center justify-between rounded-[12px] px-2.5 py-2 text-[11px] font-medium text-[color:var(--text-default)] transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
+                  className="flex items-center justify-between rounded-[12px] px-2.5 py-2 text-[12px] font-medium text-[color:var(--text-default)] transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
                   onClick={() => set_settings_open(false)}
                   to={AppRouteBuilders.settings()}
                 >
@@ -202,14 +202,14 @@ export function SidebarWidePanel() {
 
                 <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
                   <div className="px-1">
-                    <p className="px-1.5 pb-1 text-[9px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                    <p className="px-1.5 pb-1 text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                       {t("theme.switch_title")}
                     </p>
                     <ThemeSwitch class_name="w-full" density="compact" stretch />
                   </div>
 
                   <div className="mt-1.5 px-1">
-                    <p className="px-1.5 pb-1 text-[9px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                    <p className="px-1.5 pb-1 text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                       {t("language.switch_title")}
                     </p>
                     <LanguageSwitch class_name="w-full" density="compact" show_icon={false} stretch />
@@ -217,7 +217,7 @@ export function SidebarWidePanel() {
 
                   <div className="mt-1.5 border-t px-1 pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
                     <button
-                      className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-[11px] font-medium text-[color:var(--text-default)] transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
+                      className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-[12px] font-medium text-[color:var(--text-default)] transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
                       onClick={() => {
                         set_settings_open(false);
                         void logout();

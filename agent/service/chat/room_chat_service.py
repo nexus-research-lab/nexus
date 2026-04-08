@@ -27,6 +27,7 @@ from agent.schema.model_message import (
 from agent.service.agent.agent_manager import AgentManager
 from agent.service.agent.agent_runtime import agent_runtime
 from agent.service.channels.message_sender import MessageSender
+from agent.service.channels.ws.ws_chat_task_registry import ws_chat_task_registry
 from agent.service.message.chat_message_processor import ChatMessageProcessor
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.permission.permission_route_context import PermissionRouteContext
@@ -84,6 +85,7 @@ class RoomChatService:
             chat_tasks[task_key].cancel()
 
         task = asyncio.create_task(self._handle_room_message(message, chat_tasks))
+        ws_chat_task_registry.register(room_session_key, task, message.get("round_id"))
         chat_tasks[task_key] = task
         task.add_done_callback(
             lambda t: self._on_task_done(task_key, t, chat_tasks)
@@ -221,7 +223,13 @@ class RoomChatService:
                 round_id=agent_round_id,
                 room_session_id=room_session.id,
             )
-            pending.append({"agent_id": agent_id, "msg_id": msg_id})
+            pending.append({
+                "agent_id": agent_id,
+                "msg_id": msg_id,
+                "round_id": agent_round_id,
+                "status": "pending",
+                "timestamp": trigger_timestamp_ms,
+            })
             agent_dispatch_params.append((agent_id, room_session, agent_round_id, msg_id))
 
         if not agent_dispatch_params:
@@ -610,6 +618,8 @@ class RoomChatService:
         chat_tasks: Dict[str, Any],
     ) -> None:
         """任务完成回调。"""
+        room_session_key = task_key.removeprefix("room:")
+        ws_chat_task_registry.unregister(room_session_key, task)
         chat_tasks.pop(task_key, None)
         if task.cancelled():
             logger.info(f"🛑 Room 任务被取消: {task_key}")

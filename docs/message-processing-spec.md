@@ -174,6 +174,12 @@ Room 分成两块：
 - 但 `chat_ack` 只表示“前端 pending slot”
 - `chat_ack` 不是 assistant 消息
 - 前端不能把 `chat_ack.msg_id` 写进 `messages`
+- `chat_ack.msg_id` 也是 Room 单 Agent 停止所依赖的后端句柄
+- 因此刷新恢复时，后端必须重新下发当前仍在执行的 slot
+- 恢复下发的 slot 必须携带真实：
+  - `round_id`
+  - `status`
+  - `timestamp`
 - 后端输出的 assistant turn 必须与 DM 保持一致，继续使用 SDK 自己的 `message_id`
 - `permission_request` 应优先按事件元信息匹配：
   - `agent_id`

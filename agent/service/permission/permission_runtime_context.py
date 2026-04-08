@@ -16,6 +16,7 @@ from claude_agent_sdk import PermissionResult, PermissionResultAllow, Permission
 from agent.config.config import settings
 from agent.schema.model_message import EventMessage
 from agent.service.channels.message_sender import MessageSender
+from agent.service.permission.permission_dispatch_router import PermissionDispatchRouter
 from agent.service.permission.pending_permission_request import PendingPermissionRequest
 from agent.service.permission.permission_request_presenter import PermissionRequestPresenter
 from agent.service.permission.permission_route_context import PermissionRouteContext
@@ -32,6 +33,7 @@ class PermissionRuntimeContext:
         self._session_routes: Dict[str, PermissionRouteContext] = {}
         self._active_senders: Dict[str, MessageSender] = {}
         self._sender_sessions: Dict[int, Set[str]] = {}
+        self._dispatch_router = PermissionDispatchRouter()
 
     async def request_permission(
         self,
@@ -104,11 +106,9 @@ class PermissionRuntimeContext:
     def bind_session_route(self, session_key: str, route_context: PermissionRouteContext) -> None:
         """记录运行时 session 到前端路由会话的映射。"""
         self._session_routes[session_key] = route_context
-
     def unbind_session_route(self, session_key: str) -> None:
         """移除运行时 session 的路由映射。"""
         self._session_routes.pop(session_key, None)
-
     def resolve_dispatch_session_key(self, session_key: str) -> str:
         """把运行时 session_key 解析成前端路由 session_key。"""
         route_context = self._session_routes.get(session_key)
@@ -147,8 +147,7 @@ class PermissionRuntimeContext:
                     self._sender_sessions.pop(id(previous_sender), None)
         self._active_senders[session_key] = sender
         self._sender_sessions.setdefault(id(sender), set()).add(session_key)
-        # 中文注释：重连成功后，旧请求需要重新投递到新连接，
-        # 否则前端已经恢复，但权限卡片仍留在后端内存里不可见。
+        # 中文注释：重连成功后，旧请求要立即重投到新连接。
         asyncio.create_task(self._replay_pending_requests(session_key))
     def bind_sender_for_runtime_session(self, session_key: str, sender: MessageSender) -> None:
         """按运行时 session 语义把 sender 绑定到正确的前端路由 session。"""
@@ -171,29 +170,32 @@ class PermissionRuntimeContext:
             await self._dispatch_request_if_possible(pending_request)
     async def _dispatch_request_if_possible(self, pending_request: PendingPermissionRequest) -> bool:
         """在当前存在活跃 sender 时推送权限请求。"""
-        sender = self._resolve_sender(pending_request.dispatch_session_key)
-        if sender is None:
-            logger.info(
-                "⏳ 权限请求等待连接恢复: session=%s tool=%s",
-                pending_request.session_key,
-                pending_request.tool_name,
-            )
-            return False
-        sender_id = id(sender)
-        if pending_request.dispatched_sender_id == sender_id:
-            return True
         try:
-            await sender.send(self._build_permission_event(pending_request))
-            pending_request.dispatched_sender_id = sender_id
+            dispatched = await self._dispatch_router.dispatch(
+                pending_request=pending_request,
+                build_event=self._build_permission_event,
+                resolve_sender=self._resolve_sender,
+            )
+            if not dispatched:
+                logger.info(
+                    "⏳ 权限请求等待连接恢复: session=%s tool=%s dispatch=%s room=%s",
+                    pending_request.session_key,
+                    pending_request.tool_name,
+                    pending_request.dispatch_session_key,
+                    pending_request.route_context.room_id if pending_request.route_context else None,
+                )
+                return False
             logger.info(
-                "📨 权限请求已投递: request=%s session=%s tool=%s dispatch=%s",
+                "📨 权限请求已投递: request=%s session=%s tool=%s dispatch=%s target=%s",
                 pending_request.request_id,
                 pending_request.session_key,
                 pending_request.tool_name,
                 pending_request.dispatch_session_key,
+                pending_request.dispatched_target_key,
             )
             return True
         except Exception as exc:
+            sender = self._resolve_sender(pending_request.dispatch_session_key)
             logger.warning(
                 "⚠️ 发送权限请求失败，等待后续重连重投: request=%s session=%s tool=%s error=%s",
                 pending_request.request_id,
@@ -201,8 +203,9 @@ class PermissionRuntimeContext:
                 pending_request.tool_name,
                 exc,
             )
-            self.unregister_sender(sender)
-            pending_request.dispatched_sender_id = None
+            if sender is not None:
+                self.unregister_sender(sender)
+            pending_request.dispatched_target_key = None
             return False
     async def _await_initial_dispatch(
         self,
@@ -236,7 +239,6 @@ class PermissionRuntimeContext:
                 pending_request.suggestion_updates,
             ),
         )
-
     def _resolve_sender(self, session_key: str) -> MessageSender | None:
         """解析某个前端 session 当前活跃的 sender。"""
         sender = self._active_senders.get(session_key)
@@ -246,7 +248,6 @@ class PermissionRuntimeContext:
             self.unregister_sender(sender)
             return None
         return sender
-
     def resolve_session_sender(self, session_key: str) -> MessageSender | None:
         """对外暴露当前 session 的活跃发送通道。"""
         return self._resolve_sender(session_key)
@@ -257,10 +258,7 @@ class PermissionRuntimeContext:
     @staticmethod
     def _build_denied_result(tool_name: str, message: str) -> PermissionResult:
         """构建系统侧拒绝结果。"""
-        return PermissionResultDeny(
-            message=message,
-            interrupt=(tool_name == "AskUserQuestion"),
-        )
+        return PermissionResultDeny(message=message, interrupt=(tool_name == "AskUserQuestion"))
     def _build_permission_result(self, tool_name: str, input_data: dict[str, Any], response: Dict[str, Any]) -> PermissionResult:
         """将前端权限响应转换为 Claude SDK 结果。"""
         decision = response.get("decision", "deny")
@@ -272,9 +270,7 @@ class PermissionRuntimeContext:
                     input_data,
                     response["user_answers"],
                 )
-            updated_permissions = PermissionUpdateCodec.deserialize_updates(
-                response.get("updated_permissions")
-            )
+            updated_permissions = PermissionUpdateCodec.deserialize_updates(response.get("updated_permissions"))
             return PermissionResultAllow(updated_input=updated_input, updated_permissions=updated_permissions or None)
         logger.info("🚫 用户拒绝工具权限: tool=%s", tool_name)
         return PermissionResultDeny(

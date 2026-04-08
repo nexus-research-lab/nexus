@@ -7,38 +7,32 @@
 # 2026/4/7 18:24   Create
 # =====================================================
 
-"""统一处理密码登录、Cookie 会话与 Bearer Token 兼容鉴权。"""
+"""统一处理密码登录、服务端会话与 Bearer Token 兼容鉴权。"""
 
 from __future__ import annotations
 
-import base64
-import binascii
 import hashlib
 import hmac
-import json
-import time
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import Request, WebSocket
 
 from agent.config.config import settings
-
-
-def _encode_payload(raw_bytes: bytes) -> str:
-    """把字节编码为 URL 安全字符串。"""
-    return base64.urlsafe_b64encode(raw_bytes).decode("ascii").rstrip("=")
-
-
-def _decode_payload(raw_value: str) -> bytes:
-    """解码 URL 安全字符串。"""
-    padding = "=" * (-len(raw_value) % 4)
-    return base64.urlsafe_b64decode(f"{raw_value}{padding}".encode("ascii"))
+from agent.infra.database.get_db import get_db
+from agent.infra.database.repositories.auth_session_sql_repository import (
+    AuthSessionSqlRepository,
+)
+from agent.schema.model_auth import AuthSessionRecord
+from agent.utils.snowflake import worker
 
 
 class AuthService:
     """登录鉴权服务。"""
 
-    _TOKEN_VERSION = "v1"
+    def __init__(self) -> None:
+        self._db = get_db("async_sqlite")
 
     def is_auth_required(self) -> bool:
         """是否启用了任意鉴权方案。"""
@@ -95,28 +89,6 @@ class AuthService:
         hours = max(int(settings.AUTH_SESSION_TTL_HOURS or 24), 1)
         return hours * 3600
 
-    def build_login_cookie(self, username: str) -> str:
-        """为登录用户签发会话 Cookie。"""
-        now = int(time.time())
-        payload = {
-            "username": username,
-            "iat": now,
-            "exp": now + self.get_session_ttl_seconds(),
-        }
-        payload_bytes = json.dumps(
-            payload,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("utf-8")
-        encoded_payload = _encode_payload(payload_bytes)
-        signature = hmac.new(
-            self._get_session_secret().encode("utf-8"),
-            encoded_payload.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-        return f"{self._TOKEN_VERSION}.{encoded_payload}.{signature}"
-
     def verify_login(self, username: str, password: str) -> str:
         """校验登录凭据，成功时返回规范化用户名。"""
         if not self.is_password_login_enabled():
@@ -133,16 +105,51 @@ class AuthService:
             raise ValueError("用户名或密码错误")
         return normalized_username
 
-    def resolve_http_identity(self, request: Request) -> Optional[str]:
+    async def create_login_session(self, username: str) -> str:
+        """创建服务端登录会话并返回原始会话令牌。"""
+        now = datetime.now()
+        token = secrets.token_urlsafe(32)
+        token_hash = self._hash_session_token(token)
+        expires_at = now + timedelta(seconds=self.get_session_ttl_seconds())
+        record = AuthSessionRecord(
+            id=str(worker.get_id()),
+            session_token_hash=token_hash,
+            username=username,
+            expires_at=expires_at,
+        )
+
+        async with self._db.session() as session:
+            repository = AuthSessionSqlRepository(session)
+            await repository.delete_expired(now)
+            await repository.create(record)
+            await session.commit()
+
+        return token
+
+    async def clear_login_session(self, session_token: str | None) -> None:
+        """撤销指定浏览器会话。"""
+        normalized_token = (session_token or "").strip()
+        if not normalized_token:
+            return
+
+        async with self._db.session() as session:
+            repository = AuthSessionSqlRepository(session)
+            deleted = await repository.delete_by_token_hash(
+                self._hash_session_token(normalized_token)
+            )
+            if deleted:
+                await session.commit()
+
+    async def resolve_http_identity(self, request: Request) -> Optional[str]:
         """解析 HTTP 请求身份。"""
         session_cookie = request.cookies.get(self.get_cookie_name())
         authorization = request.headers.get("Authorization")
-        return self._resolve_identity(
+        return await self._resolve_identity(
             session_cookie=session_cookie,
             authorization=authorization,
         )
 
-    def resolve_websocket_identity(self, websocket: WebSocket) -> Optional[str]:
+    async def resolve_websocket_identity(self, websocket: WebSocket) -> Optional[str]:
         """解析 WebSocket 连接身份。"""
         session_cookie = self._extract_cookie_value(
             websocket.headers.get("cookie"),
@@ -153,32 +160,39 @@ class AuthService:
             websocket.query_params.get("access_token")
             or websocket.query_params.get("token")
         )
-        return self._resolve_identity(
+        return await self._resolve_identity(
             session_cookie=session_cookie,
             authorization=authorization,
             query_token=query_token,
         )
 
-    def build_status_payload(self, request: Request) -> dict:
+    async def build_status_payload(self, request: Request) -> dict:
         """构建前端可消费的登录状态。"""
-        username = self.resolve_http_identity(request)
+        username = await self.resolve_http_identity(request)
         auth_required = self.is_auth_required()
+        return self.build_auth_payload(
+            authenticated=True if not auth_required else username is not None,
+            username=username,
+        )
+
+    def build_auth_payload(self, authenticated: bool, username: str | None) -> dict:
+        """构建统一认证状态响应。"""
         return {
-            "auth_required": auth_required,
+            "auth_required": self.is_auth_required(),
             "password_login_enabled": self.is_password_login_enabled(),
-            "authenticated": True if not auth_required else username is not None,
+            "authenticated": authenticated,
             "username": username,
         }
 
-    def _resolve_identity(
+    async def _resolve_identity(
         self,
         session_cookie: Optional[str],
         authorization: Optional[str],
         query_token: Optional[str] = None,
     ) -> Optional[str]:
-        """按优先级解析 Cookie 会话与 Bearer Token。"""
+        """按优先级解析浏览器会话与 Bearer Token。"""
         if self.is_password_login_enabled() and session_cookie:
-            username = self._verify_session_cookie(session_cookie)
+            username = await self._resolve_session_username(session_cookie)
             if username:
                 return username
 
@@ -191,45 +205,28 @@ class AuthService:
             return "access-token"
         return None
 
-    def _verify_session_cookie(self, raw_cookie: str) -> Optional[str]:
-        """校验会话 Cookie。"""
-        try:
-            version, encoded_payload, provided_signature = raw_cookie.split(".", 2)
-        except ValueError:
-            return None
+    async def _resolve_session_username(self, session_token: str) -> Optional[str]:
+        """根据服务端会话令牌解析用户名。"""
+        token_hash = self._hash_session_token(session_token)
+        now = datetime.now()
 
-        if version != self._TOKEN_VERSION:
-            return None
+        async with self._db.session() as session:
+            repository = AuthSessionSqlRepository(session)
+            record = await repository.get_by_token_hash(token_hash)
+            if record is None:
+                return None
+            if record.expires_at <= now:
+                await repository.delete_by_token_hash(token_hash)
+                await session.commit()
+                return None
+            if record.username != self.get_login_username():
+                return None
+            return record.username
 
-        expected_signature = hmac.new(
-            self._get_session_secret().encode("utf-8"),
-            encoded_payload.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(provided_signature, expected_signature):
-            return None
-
-        try:
-            payload = json.loads(_decode_payload(encoded_payload).decode("utf-8"))
-        except (ValueError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError):
-            return None
-
-        username = payload.get("username")
-        expires_at = payload.get("exp")
-        if not isinstance(username, str) or not isinstance(expires_at, int):
-            return None
-        if expires_at <= int(time.time()):
-            return None
-        if username != self.get_login_username():
-            return None
-        return username
-
-    def _get_session_secret(self) -> str:
-        """返回签名密钥。"""
-        configured_secret = (settings.AUTH_SESSION_SECRET or "").strip()
-        if configured_secret:
-            return configured_secret
-        return self.get_login_password()
+    @staticmethod
+    def _hash_session_token(session_token: str) -> str:
+        """对会话令牌做不可逆摘要，避免数据库保存明文凭据。"""
+        return hashlib.sha256(session_token.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _extract_bearer_token(authorization: Optional[str]) -> str:

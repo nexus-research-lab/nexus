@@ -163,17 +163,17 @@ export function getAgentRoundStatus(
     return "done";
   }
 
+  if (pending_slot?.status === "error") {
+    return "error";
+  }
+  if (pending_slot?.status === "cancelled") {
+    return "cancelled";
+  }
   if (pending_slot?.status === "streaming") {
     return "streaming";
   }
   if (pending_slot?.status === "pending") {
     return "pending";
-  }
-  if (pending_slot?.status === "error") {
-    return "error";
-  }
-  if (pending_slot?.status === "cancelled" && messages.length === 0) {
-    return "cancelled";
   }
 
   if (messages.length === 0) return "pending";
@@ -197,9 +197,10 @@ export function getAgentRoundStatus(
   if (has_error) return "error";
   if (has_cancelled) return "cancelled";
 
-  // 中文注释：Room 中一个 assistant turn 收口，只代表当前这段流式结束，
-  // 不代表整轮协作已经完成。只有拿到 ResultMessage，才能进入主时间线并自动关 Thread。
-  return "streaming";
+  // 中文注释：Room 的执行态必须由 pending slot 或 ResultMessage 驱动。
+  // 仅凭“历史里留着 assistant 过程消息”不能继续判成 streaming，
+  // 否则刷新后已经结束的协作会被误判成仍在执行。
+  return "cancelled";
 }
 
 /** 判断某个 Agent 子轮次是否仍在执行。 */

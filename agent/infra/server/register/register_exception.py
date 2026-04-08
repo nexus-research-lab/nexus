@@ -57,21 +57,20 @@ async def log_error(
         except Exception:
             request_id = "unknown"
 
-    response.detail = error_msg
-    response.request_id = request_id
-
-    logger.error(
+    log = logger.warning if 400 <= response.http_status < 500 else logger.error
+    traceback_text = "" if 400 <= response.http_status < 500 else traceback.format_exc()
+    log(
         f"{TermColors.RED}Exception  : {error_msg}\n"
         f"====================ERROR======================\n"
         f"RequestId  : {request_id}\n"
         f"Host       : {request.client.host}\n"
         f"URL        : {request.method} {request.url}\n"
         f"UserAgent  : {request.headers.get('user-agent')}\n\n"
-        f"{traceback.format_exc()}\n"
+        f"{traceback_text}\n"
         f"===============================================\n{TermColors.RESET}"
     )
 
-    return fail(response)
+    return fail(response, detail=error_msg, request_id=request_id)
 
 
 def register_exception(app: FastAPI) -> None:

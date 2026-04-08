@@ -27,6 +27,7 @@ export function handleAgentConversationWebSocketMessage({
   set_error,
   set_is_loading,
   set_messages,
+  set_pending_agent_slots,
   set_pending_permissions,
   enqueue_stream_payload,
   on_background_message,
@@ -35,6 +36,7 @@ export function handleAgentConversationWebSocketMessage({
   update_message_status,
   clear_round_tracking,
   reset_loading_tracking,
+  reconcile_stopped_session,
   track_chat_ack,
   track_assistant_message,
   track_result_message,
@@ -153,13 +155,26 @@ export function handleAgentConversationWebSocketMessage({
     return;
   }
 
-  // session_status: 重连后后端告知该 session 是否仍在生成，恢复 loading 态
+  // session_status: 重连后后端告知该 session 是否仍在生成，恢复/收口 loading 态
   if (event.event_type === 'session_status') {
     if (!is_current_session_event(incoming_session_key)) {
       return;
     }
     if (event.data?.is_generating) {
       set_is_loading(true);
+      return;
+    }
+    set_agent_thinking?.(null);
+    reconcile_stopped_session?.();
+    if (!reconcile_stopped_session) {
+      reset_loading_tracking?.();
+      set_pending_agent_slots((prev) => prev.map((slot) => (
+        slot.status === 'cancelled' || slot.status === 'error'
+          ? slot
+          : { ...slot, status: 'cancelled' }
+      )));
+      set_pending_permissions([]);
+      set_is_loading(false);
     }
     return;
   }

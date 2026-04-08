@@ -49,12 +49,12 @@ class Resp(AModel):
     message: str = "success"
     success: bool = True
     http_status: int = http_status.HTTP_200_OK
-    detail: str = ""
+    detail: Any = ""
     request_id: Union[str, int] = ""
     data: Union[list, dict, str] = None
     info_data: str = ""
 
-    def set_detail(self, detail: str):
+    def set_detail(self, detail: Any):
         self.detail = detail
 
     @property
@@ -129,6 +129,26 @@ def build_log_payload(response: Resp) -> dict[str, Any]:
     return payload
 
 
+def _build_fail_payload(
+        response: Resp,
+        detail: Any | None = None,
+        request_id: Union[str, int, None] = None
+) -> dict[str, Any]:
+    """构建失败响应，避免修改固定响应模板。"""
+    current_detail = response.detail if detail is None else detail
+    current_request_id = response.request_id if request_id is None else request_id
+    code = response.code if response.code != "0000" else "9999"
+    return {
+        "code": code,
+        "message": "failed",
+        "success": False,
+        "data": {
+            "request_id": current_request_id,
+            "detail": current_detail,
+        },
+    }
+
+
 def ok(response: Resp, data=None) -> Response:
     logger.info(
         f"\n\n=====================DONE========================\n"
@@ -142,21 +162,21 @@ def ok(response: Resp, data=None) -> Response:
     )
 
 
-def fail(response: Resp) -> Response:
-    response.data = {"request_id": response.request_id, "detail": response.detail}
-    response.message = "failed"
-    response.success = False
-    if response.code == "0000":
-        response.code = "9999"
-
-    logger.error(
+def fail(
+        response: Resp,
+        detail: Any | None = None,
+        request_id: Union[str, int, None] = None
+) -> Response:
+    payload = _build_fail_payload(response, detail=detail, request_id=request_id)
+    log = logger.warning if 400 <= response.http_status < 500 else logger.error
+    log(
         f"{TermColors.RED}\n\n=====================DONE========================\n"
-        f"{build_log_payload(response)}\n"
+        f"{_clip_payload(payload)}\n"
     )
 
     return JSONResponse(
         status_code=response.http_status,
-        content=jsonable_encoder(response.resp_dict)
+        content=jsonable_encoder(payload)
     )
 
 

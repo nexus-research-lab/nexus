@@ -195,6 +195,8 @@ function RoomRoundCardGroupInner({
                       agent_name={entry.agent_name}
                       messages={entry.assistant_messages}
                       result_message={entry.result_message}
+                      pending_slot={entry.pending_slot}
+                      status={entry.status}
                       pending_permissions={entry_pending_permissions}
                       is_thread_active={is_thread_active}
                       on_click_thread={() => toggle_thread(entry.agent_id, true)}

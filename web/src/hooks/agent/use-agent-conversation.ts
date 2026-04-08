@@ -276,7 +276,16 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     snapshot_messages: Message[],
   ) => {
     const completed_round_ids = collectCompletedRoundIds(snapshot_messages);
-    const snapshot_open_round_ids = collectOpenRoundIds(snapshot_messages);
+    // 中文注释：Room 刷新恢复时，不能根据“历史里存在未产出 result 的 assistant”
+    // 就推断该轮仍在执行。Room 的真实活跃态只信两类来源：
+    // 1. subscribe_room 后恢复出来的 pending slot
+    // 2. bind_session 返回的 session_status=true
+    // 否则半截历史会被误判成“仍在协作中”。
+    const snapshot_open_round_ids = (
+      chat_type === 'group'
+        ? new Set<string>()
+        : collectOpenRoundIds(snapshot_messages)
+    );
     const terminal_message_ids = new Set<string>();
 
     for (const message of snapshot_messages) {
@@ -303,19 +312,21 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       }
       next_trackers.set(message_id, tracker);
     }
-    for (const message of snapshot_messages) {
-      if (
-        message.role !== 'assistant' ||
-        message.is_complete ||
-        message.stop_reason ||
-        isTerminalAssistantStatus(message.stream_status)
-      ) {
-        continue;
+    if (chat_type !== 'group') {
+      for (const message of snapshot_messages) {
+        if (
+          message.role !== 'assistant' ||
+          message.is_complete ||
+          message.stop_reason ||
+          isTerminalAssistantStatus(message.stream_status)
+        ) {
+          continue;
+        }
+        next_trackers.set(message.message_id, {
+          round_id: message.round_id,
+          status: message.stream_status ?? 'streaming',
+        });
       }
-      next_trackers.set(message.message_id, {
-        round_id: message.round_id,
-        status: message.stream_status ?? 'streaming',
-      });
     }
     active_message_tracker_ref.current = next_trackers;
 
@@ -326,7 +337,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       filterPendingPermissionsFromSnapshot(pending_permissions_ref.current, snapshot_messages),
     );
     sync_loading_state();
-  }, [set_pending_agent_slots, set_pending_permissions, sync_loading_state]);
+  }, [chat_type, set_pending_agent_slots, set_pending_permissions, sync_loading_state]);
 
   const lifecycle_context: AgentConversationLifecycleContext = useMemo(() => ({
     active_session_key_ref,
@@ -427,6 +438,44 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     sync_loading_state();
   }, [sync_loading_state]);
 
+  const reconcile_stopped_session = useCallback(() => {
+    reset_loading_tracker();
+    set_pending_permissions([]);
+    set_pending_agent_slots((prev) => prev.map((slot) => (
+      slot.status === 'cancelled' || slot.status === 'error'
+        ? slot
+        : {
+          ...slot,
+          status: 'cancelled',
+        }
+    )));
+    set_messages((prev) => {
+      const completed_round_ids = collectCompletedRoundIds(prev);
+      let has_changes = false;
+      const next_messages = prev.map((message) => {
+        if (message.role !== 'assistant') {
+          return message;
+        }
+        if (completed_round_ids.has(message.round_id)) {
+          return message;
+        }
+        if (
+          message.is_complete ||
+          message.stop_reason ||
+          isTerminalAssistantStatus(message.stream_status)
+        ) {
+          return message;
+        }
+        has_changes = true;
+        return {
+          ...message,
+          stream_status: 'cancelled' as const,
+        };
+      });
+      return has_changes ? next_messages : prev;
+    });
+  }, [reset_loading_tracker, set_pending_agent_slots, set_pending_permissions]);
+
   const update_message_status = useCallback((
     msg_id: string,
     status: AssistantMessageStatus,
@@ -467,11 +516,12 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     pending_round_ids_ref.current.delete(ack.round_id);
     const pending_count = ack.pending?.length ?? 0;
     for (const slot of ack.pending ?? []) {
-      const agent_round_id = pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id;
+      const agent_round_id = slot.round_id || (pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id);
+      const slot_status = slot.status ?? 'pending';
       active_round_ids_ref.current.add(agent_round_id);
       active_message_tracker_ref.current.set(slot.msg_id, {
         round_id: agent_round_id,
-        status: 'pending',
+        status: slot_status,
       });
     }
     set_pending_agent_slots((prev) => {
@@ -482,9 +532,9 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       const next_slots = (ack.pending ?? []).map((slot) => ({
         agent_id: slot.agent_id,
         msg_id: slot.msg_id,
-        round_id: pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id,
-        status: 'pending' as const,
-        timestamp: Date.now(),
+        round_id: slot.round_id || (pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id),
+        status: (slot.status ?? 'pending') as AssistantMessageStatus,
+        timestamp: slot.timestamp ?? Date.now(),
       }));
       return [...preserved_slots, ...next_slots];
     });
@@ -587,6 +637,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       update_message_status,
       clear_round_tracking,
       reset_loading_tracking: reset_loading_tracker,
+      reconcile_stopped_session,
       track_chat_ack,
       track_assistant_message,
       track_result_message,
@@ -602,6 +653,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     room_id,
     session_key,
     reload_current_session,
+    reconcile_stopped_session,
     reset_loading_tracker,
     set_pending_agent_slots,
     set_pending_permissions,

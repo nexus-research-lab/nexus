@@ -303,6 +303,30 @@ export function RoomChatPanel({
       : [],
     [active_thread, pending_permission_groups, thread_messages],
   );
+  const thread_panel_data = useMemo(() => {
+    if (!active_thread) {
+      return null;
+    }
+
+    return {
+      messages: thread_messages,
+      agent_name: thread_agent_name,
+      is_loading: thread_is_loading,
+      pending_permissions: thread_pending_permissions,
+      on_permission_response: send_permission_response,
+      on_stop_message: handle_stop_message,
+      on_open_workspace_file,
+    };
+  }, [
+    active_thread,
+    handle_stop_message,
+    on_open_workspace_file,
+    send_permission_response,
+    thread_agent_name,
+    thread_is_loading,
+    thread_messages,
+    thread_pending_permissions,
+  ]);
 
   useEffect(() => {
     if (!active_thread) {
@@ -324,30 +348,8 @@ export function RoomChatPanel({
   }, [active_thread, close_thread, thread_is_loading]);
 
   useEffect(() => {
-    if (!active_thread) {
-      set_thread_panel_data(null);
-      return;
-    }
-    set_thread_panel_data({
-      messages: thread_messages,
-      agent_name: thread_agent_name,
-      is_loading: thread_is_loading,
-      pending_permissions: thread_pending_permissions,
-      on_permission_response: send_permission_response,
-      on_stop_message: handle_stop_message,
-      on_open_workspace_file,
-    });
-  }, [
-    active_thread,
-    thread_messages,
-    thread_agent_name,
-    thread_is_loading,
-    thread_pending_permissions,
-    send_permission_response,
-    handle_stop_message,
-    set_thread_panel_data,
-    on_open_workspace_file,
-  ]);
+    set_thread_panel_data(thread_panel_data);
+  }, [set_thread_panel_data, thread_panel_data]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">

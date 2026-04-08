@@ -149,6 +149,8 @@ export interface HandleAgentConversationWebSocketMessageParams {
   clear_round_tracking?: (round_id?: string | null) => void;
   /** 清空当前 session 的 loading 跟踪 */
   reset_loading_tracking?: () => void;
+  /** 后端明确告知当前 session 已停止时，收口前端残留运行态 */
+  reconcile_stopped_session?: () => void;
   /** 记录本轮 chat_ack 预分配的活跃消息槽位 */
   track_chat_ack?: (ack: ChatAckData, session_key: string | null) => void;
   /** 同步 assistant 完整消息的终态 */

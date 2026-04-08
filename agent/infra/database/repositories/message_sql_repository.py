@@ -119,6 +119,24 @@ class MessageSqlRepository(BaseSqlRepository):
         result = await self._session.execute(stmt)
         return [MessageRecord.model_validate(entity) for entity in result.scalars().all()]
 
+    async def list_inflight_by_conversation(
+        self,
+        conversation_id: str,
+        limit: int = 200,
+    ) -> list[MessageRecord]:
+        """查询对话内所有仍未结束的消息索引。"""
+        stmt = (
+            select(Message)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.status.in_(("pending", "streaming")),
+            )
+            .order_by(Message.created_at.asc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return [MessageRecord.model_validate(entity) for entity in result.scalars().all()]
+
     async def update_message_status(
         self,
         message_id: str,

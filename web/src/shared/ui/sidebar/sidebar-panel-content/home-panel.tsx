@@ -196,7 +196,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[11px] text-slate-400">{t("home.no_rooms")}</p>
+          <p className="px-2 py-2 text-[12px] text-slate-400">{t("home.no_rooms")}</p>
         )}
       </CollapsibleSection>
 
@@ -218,7 +218,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[11px] text-slate-400">{t("home.no_dms")}</p>
+          <p className="px-2 py-2 text-[12px] text-slate-400">{t("home.no_dms")}</p>
         )}
       </CollapsibleSection>
 
@@ -240,7 +240,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[11px] text-slate-400">{t("home.no_agents")}</p>
+          <p className="px-2 py-2 text-[12px] text-slate-400">{t("home.no_agents")}</p>
         )}
       </CollapsibleSection>
 

@@ -20,9 +20,9 @@ const CONTEXT_MENU_CLASS_NAME =
 const CONTEXT_MENU_ITEM_CLASS_NAME =
   "flex w-full items-center gap-2 px-3 py-1.5 text-[12px] transition-[background,color] duration-150";
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
-  "group/item box-border flex w-full items-center gap-2.5 rounded-[14px] border border-transparent px-2.5 py-[7px] text-left text-[12px] transition-[background,color,box-shadow,border-color] duration-150";
+  "group/item box-border flex w-full items-center gap-2.5 rounded-[14px] border border-transparent px-2.5 py-[7px] text-left text-[13px] transition-[background,color,box-shadow,border-color] duration-150";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
-  "flex flex-1 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-default)] transition-colors duration-150 hover:text-[color:var(--text-strong)]";
+  "flex flex-1 items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-default)] transition-colors duration-150 hover:text-[color:var(--text-strong)]";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
   "flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full text-[color:var(--icon-muted)] transition-[background,color] duration-150 hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-default)]";
 
@@ -122,7 +122,7 @@ export function SidebarListItem({
         ) : meta ? (
           <span
             className={cn(
-              "shrink-0 text-[10px] font-medium tabular-nums",
+              "shrink-0 text-[11px] font-medium tabular-nums",
               is_active ? "text-[color:var(--text-muted)]" : "text-[color:var(--text-soft)]",
             )}
           >
@@ -207,7 +207,7 @@ export function CollapsibleSection({
           {icon ? <span className="flex items-center">{icon}</span> : null}
           <span>{title}</span>
           {typeof count === "number" ? (
-            <span className="text-[10px] font-medium tabular-nums text-[color:var(--text-muted)]">{count}</span>
+            <span className="text-[11px] font-medium tabular-nums text-[color:var(--text-muted)]">{count}</span>
           ) : null}
         </button>
 

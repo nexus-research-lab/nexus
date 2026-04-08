@@ -38,6 +38,14 @@ logo = r"""
 """
 
 
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+]
+
+
 class Settings(BaseSettings):
     # 项目信息, 服务配置
     LOGO: str = logo
@@ -59,7 +67,7 @@ class Settings(BaseSettings):
     LOGGER_FORMAT: str = f"\033[97m[ \033[90m%(asctime)s \033[97m]\033[35m %(levelname)-7s \033[97m| \033[36m%(filename)s %(lineno)4d \033[97m - \033[32m%(message)s\033[97m"
 
     # 跨域配置
-    BACKEND_CORS_ORIGINS: list = ["*"]
+    BACKEND_CORS_ORIGINS: list[str] | str = DEFAULT_CORS_ORIGINS
 
     # 权限配置，如果需要开启权限验证，请在.env文件中设置 ACCESS_TOKEN 的值
     # 采用Access Token模式，需要在请求头中添加Authorization字段，值以Bearer开头，后面跟上Access Token
@@ -67,7 +75,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN: Optional[str] = None
     AUTH_LOGIN_USERNAME: str = "admin"
     AUTH_LOGIN_PASSWORD: str = ""
-    AUTH_SESSION_SECRET: str = ""
     AUTH_SESSION_TTL_HOURS: int = 24 * 7
     AUTH_SESSION_COOKIE_NAME: str = "nexus_session"
     AUTH_COOKIE_SECURE: bool = False

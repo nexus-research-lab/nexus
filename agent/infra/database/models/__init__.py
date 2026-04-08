@@ -10,6 +10,7 @@
 """数据库 ORM 模型集合。"""
 
 from agent.infra.database.models.agent import Agent
+from agent.infra.database.models.auth_session import AuthSession
 from agent.infra.database.models.contact import Contact
 from agent.infra.database.models.conversation import Conversation
 from agent.infra.database.models.member import Member
@@ -23,6 +24,7 @@ from agent.infra.database.models.connector import ConnectorConnection
 
 __all__ = [
     "Agent",
+    "AuthSession",
     "ConnectorConnection",
     "Profile",
     "Runtime",
@@ -41,6 +43,7 @@ def load_models() -> tuple[type, ...]:
     """显式加载所有 ORM 模型，确保 Base.metadata 完整。"""
     return (
         Agent,
+        AuthSession,
         ConnectorConnection,
         Profile,
         Runtime,

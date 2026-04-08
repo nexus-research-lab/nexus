@@ -27,7 +27,9 @@ from agent.service.chat.room_chat_service import RoomChatService
 from agent.service.permission.strategy.permission_interactive import (
     InteractivePermissionStrategy,
 )
+from agent.service.room.room_message_store import room_message_store
 from agent.service.room.room_route_guard import room_route_guard
+from agent.service.room.room_session_keys import build_room_shared_session_key
 from agent.service.session.session_router import (
     get_session_key_validation_error,
     is_room_session_key,
@@ -140,6 +142,10 @@ class ChannelDispatcher:
                         last_seen_room_seq if isinstance(last_seen_room_seq, int) else None
                     ),
                 )
+                await self._restore_room_pending_slots(
+                    room_id=room_id,
+                    conversation_id=conversation_id if isinstance(conversation_id, str) else None,
+                )
             return
 
         if msg_type == "unsubscribe_room":
@@ -175,6 +181,51 @@ class ChannelDispatcher:
         if isinstance(session_key, str) and is_room_session_key(session_key):
             return True
         return False
+
+    async def _restore_room_pending_slots(
+        self,
+        room_id: str,
+        conversation_id: str | None,
+    ) -> None:
+        """在 Room 重连后恢复仍在执行的 slot。"""
+        if not conversation_id:
+            return
+
+        room_session_key = build_room_shared_session_key(conversation_id)
+        running_round_id = ws_chat_task_registry.get_running_round_id(room_session_key)
+        if not running_round_id:
+            return
+
+        active_slots = await room_message_store.get_active_slots(conversation_id)
+        if not active_slots:
+            return
+
+        slots_by_round: dict[str, list[dict[str, Any]]] = {}
+        for slot in active_slots:
+            round_id = str(slot.get("round_id") or "")
+            base_round_id = round_id.split(":", 1)[0] if round_id else ""
+            # 中文注释：Room 重连恢复只允许补发“当前仍在运行的主 round”。
+            # 这样可以把 SQL 中历史遗留的 inflight 记录挡在外面，避免旧消息重新被点亮成执行中。
+            if not base_round_id or base_round_id != running_round_id:
+                continue
+            slots_by_round.setdefault(base_round_id, []).append(slot)
+
+        for base_round_id, pending in slots_by_round.items():
+            await self._sender.send_event_message(
+                EventMessage(
+                    event_type="chat_ack",
+                    delivery_mode="ephemeral",
+                    session_key=room_session_key,
+                    room_id=room_id,
+                    conversation_id=conversation_id,
+                    caused_by=base_round_id,
+                    data={
+                        "req_id": base_round_id,
+                        "round_id": base_round_id,
+                        "pending": pending,
+                    },
+                )
+            )
 
     async def _reject_invalid_browser_session_key(
         self,

@@ -227,7 +227,7 @@ const HeroStage = memo(function HeroStage({
       >
         <div className="space-y-3">
           <FadeSlideIn delay_ms={0} duration_ms={380} y_offset={6}>
-            <p className="text-[9px] font-medium uppercase tracking-[0.32em] text-muted-foreground/70">
+            <p className="text-[12px] font-medium uppercase tracking-[0.32em] text-muted-foreground/70">
               {t("launcher.collaboration_hub")}
             </p>
           </FadeSlideIn>

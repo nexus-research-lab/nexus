@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""全局 WebSocket 连接注册表。
-
-允许 REST 路由向所有已连接的前端广播事件，
-例如 Room 删除、成员变更等非 chat 触发的服务端事件。
-"""
+"""全局 WebSocket 连接注册表。"""
 
 from __future__ import annotations
 
@@ -21,13 +17,9 @@ class WsConnectionRegistry:
     """轻量全局 WS 连接注册表，支持 room 级别订阅。"""
 
     def __init__(self) -> None:
-        # WeakSet 避免持有 sender 导致连接无法 GC
         self._senders: "WeakSet" = WeakSet()
-        # room_id -> sender_id -> conversation_id 过滤条件
         self._room_subscriptions: Dict[str, Dict[int, Optional[str]]] = {}
-        # sender_id -> sender object (for broadcasting to room subscribers)
         self._sender_by_id: Dict[int, "object"] = {}
-        # room 级顺序号与有界回放缓冲，作为重连补偿的最小骨架。
         self._room_sequences: Dict[str, int] = {}
         self._room_replay_buffers: Dict[str, Deque[EventMessage]] = {}
         self._room_replay_buffer_size = 128
@@ -42,7 +34,6 @@ class WsConnectionRegistry:
         self._senders.discard(sender)
         sender_id = id(sender)
         self._sender_by_id.pop(sender_id, None)
-        # Clean up room subscriptions for this sender
         for room_id in list(self._room_subscriptions.keys()):
             self._room_subscriptions[room_id].pop(sender_id, None)
             if not self._room_subscriptions[room_id]:
@@ -62,15 +53,10 @@ class WsConnectionRegistry:
         self._room_subscriptions[room_id][sender_id] = conversation_id
         logger.debug(
             "WS subscribe_room: room_id=%s, conversation_id=%s, sender_id=%s, last_seen_room_seq=%s",
-            room_id,
-            conversation_id,
-            sender_id,
-            last_seen_room_seq,
+            room_id, conversation_id, sender_id, last_seen_room_seq,
         )
-
         if last_seen_room_seq is None or last_seen_room_seq <= 0:
             return
-
         await self._replay_room_events(
             sender=sender,
             room_id=room_id,
@@ -100,17 +86,21 @@ class WsConnectionRegistry:
         room_id: str,
         event: EventMessage,
         fallback_sender: "object" | None = None,
-    ) -> None:
+    ) -> tuple[int, ...]:
         """只向订阅了指定 room 的连接广播事件。
 
         当发起方连接尚未来得及完成 room 订阅时，允许回退直发给
         fallback_sender，避免首轮实时消息因为订阅时序竞争而丢失。
         """
         subscribers = self._room_subscriptions.get(room_id, {}).copy()
-
         prepared_event = self._prepare_room_event(room_id, event)
         payload = prepared_event.model_dump(mode="json", exclude_none=True)
         tasks = []
+        recipient_sender_ids = self.resolve_room_recipient_ids(
+            room_id=room_id,
+            conversation_id=prepared_event.conversation_id,
+            fallback_sender=fallback_sender,
+        )
         for sender_id, subscribed_conversation_id in subscribers.items():
             if not self._conversation_matches(
                 subscribed_conversation_id,
@@ -140,6 +130,35 @@ class WsConnectionRegistry:
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        return recipient_sender_ids
+
+    def resolve_room_recipient_ids(
+        self,
+        room_id: str,
+        conversation_id: str | None,
+        fallback_sender: "object" | None = None,
+    ) -> tuple[int, ...]:
+        """解析当前 room 广播会命中的连接集合。"""
+        subscribers = self._room_subscriptions.get(room_id, {}).copy()
+        recipient_sender_ids: list[int] = []
+        for sender_id, subscribed_conversation_id in subscribers.items():
+            if not self._conversation_matches(
+                subscribed_conversation_id,
+                conversation_id,
+            ):
+                continue
+            if self._sender_by_id.get(sender_id) is not None:
+                recipient_sender_ids.append(sender_id)
+        if (
+            fallback_sender is not None and
+            not self._is_sender_subscribed_to_room(
+                fallback_sender,
+                room_id,
+                conversation_id,
+            )
+        ):
+            recipient_sender_ids.append(id(fallback_sender))
+        return tuple(sorted(set(recipient_sender_ids)))
 
     async def _replay_room_events(
         self,
@@ -152,7 +171,6 @@ class WsConnectionRegistry:
         latest_room_seq = self._room_sequences.get(room_id, 0)
         if latest_room_seq <= last_seen_room_seq:
             return
-
         buffer = list(self._room_replay_buffers.get(room_id, ()))
         if not buffer:
             await self._send_room_resync_required(
@@ -168,9 +186,6 @@ class WsConnectionRegistry:
         earliest_room_seq = buffer[0].room_seq
         if earliest_room_seq is None:
             return
-
-        # 如果客户端游标已落到缓冲区之外，就明确要求走一次全量重拉，
-        # 避免用不完整的增量把前端状态拼坏。
         if last_seen_room_seq < earliest_room_seq - 1:
             await self._send_room_resync_required(
                 sender=sender,
@@ -189,10 +204,7 @@ class WsConnectionRegistry:
             and self._conversation_matches(conversation_id, event.conversation_id)
         ]
         for replay_event in replay_events:
-            await self._safe_send(
-                sender,
-                replay_event.model_dump(mode="json", exclude_none=True),
-            )
+            await self._safe_send(sender, replay_event.model_dump(mode="json", exclude_none=True))
 
     async def _send_room_resync_required(
         self,
