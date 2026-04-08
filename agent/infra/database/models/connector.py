@@ -29,7 +29,7 @@ class ConnectorConnection(TimestampMixin, Base):
     connector_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     # 连接状态：connected / disconnected / expired
     state: Mapped[str] = mapped_column(String(32), default="disconnected", nullable=False)
-    # 授权凭证（加密存储），JSON 格式
+    # 授权凭证，JSON 格式（当前明文存储，后续需加密，见 connector_service.py）
     credentials: Mapped[str] = mapped_column(Text, default="", nullable=False)
     # 授权方式
     auth_type: Mapped[str] = mapped_column(String(32), default="oauth2", nullable=False)

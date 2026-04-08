@@ -26,7 +26,7 @@ class BaseHandler:
             try:
                 return BaseSchema(**request_data.model_dump())
             except Exception as e:
-                logging.warning(f"Error in get_base_schema: {request.url}, error: {e}")
+                logging.warning(f"Error in get_base_schema: {request.url}, error: {e}", exc_info=True)
                 return None
         return None
 

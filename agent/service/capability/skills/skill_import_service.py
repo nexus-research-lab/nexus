@@ -155,6 +155,12 @@ class SkillImportService:
             raise ValueError("本地导入仅支持目录或 .zip 压缩包")
         extract_dir = temp_root / "unzipped"
         with zipfile.ZipFile(source_path, "r") as archive:
+            # 校验 zip 成员路径不逃出目标目录，防止 Zip Slip 攻击
+            dest_resolved = extract_dir.resolve()
+            for member in archive.infolist():
+                member_path = (extract_dir / member.filename).resolve()
+                if not member_path.is_relative_to(dest_resolved):
+                    raise ValueError(f"Zip 成员路径逃逸: {member.filename}")
             archive.extractall(extract_dir)
         return self._resolve_skill_root(extract_dir)
 
