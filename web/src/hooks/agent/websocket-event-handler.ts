@@ -33,6 +33,8 @@ export function handleAgentConversationWebSocketMessage({
   set_agent_thinking,
   on_room_event,
   update_message_status,
+  clear_round_tracking,
+  reset_loading_tracking,
   track_chat_ack,
   track_assistant_message,
   track_result_message,
@@ -52,8 +54,12 @@ export function handleAgentConversationWebSocketMessage({
     }
     if (event.message_id) {
       update_message_status?.(event.message_id, 'error', event.caused_by);
+      clear_round_tracking?.(event.caused_by ?? event.data?.round_id ?? null);
     } else {
-      set_is_loading(false);
+      reset_loading_tracking?.();
+      if (!reset_loading_tracking) {
+        set_is_loading(false);
+      }
     }
     set_error(event.data?.message || 'Unknown error');
     return;
@@ -205,6 +211,7 @@ export function handleAgentConversationWebSocketMessage({
     if (msg_id) {
       update_message_status?.(msg_id, 'cancelled', event.data?.round_id);
     }
+    clear_round_tracking?.(event.data?.round_id ?? event.caused_by ?? null);
     return;
   }
 

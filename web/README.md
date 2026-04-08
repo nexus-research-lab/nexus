@@ -40,6 +40,8 @@ VITE_API_URL=http://localhost:8010/agent/v1
 VITE_DEFAULT_MODEL=glm-5
 ```
 
+如果后端启用了 `AUTH_LOGIN_PASSWORD`，前端会自动走浏览器登录页并通过 `HttpOnly` Cookie 维持会话，无需在前端配置任何访问令牌。
+
 ## 启动
 
 ```bash
@@ -74,3 +76,4 @@ npx tsc --noEmit
 
 - HTTP：`VITE_API_URL`
 - WebSocket：`VITE_WS_URL`
+- 认证：浏览器登录成功后自动携带 Cookie

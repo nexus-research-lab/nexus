@@ -5,7 +5,7 @@ import { ToolBlock } from './block/tool-block';
 import { AskUserQuestionBlock } from './block/ask-user-question-block';
 import { CodeBlock } from './block/code-block';
 import { ThinkingBlock } from './block/thinking-block';
-import { ContentBlock, ToolResultContent } from '@/types/message';
+import { ContentBlock, TaskProgressContent, ToolResultContent, ToolUseContent } from '@/types/message';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/permission';
 import {
   MessageCallout,
@@ -13,6 +13,7 @@ import {
   MessageRail,
   MessageResultLabel,
 } from './message-rail';
+import { MessageActivityState, MessageActivityStatus } from './message-primitives';
 
 interface ContentRendererProps {
   content: string | ContentBlock[];
@@ -47,7 +48,11 @@ export function ContentRenderer(
 
   // Handle structured content (ContentBlock[])
   // 首先构建 tool_use 到 tool_result 的映射
-  const toolUseMap = new Map<string, { use: any; result?: any; index: number }>();
+  const toolUseMap = new Map<string, {
+    use: ToolUseContent;
+    result?: ToolResultContent;
+    index: number;
+  }>();
   const renderedIndices = new Set<number>();
 
   // 第一遍：收集所有 tool_use 和对应的 tool_result
@@ -59,19 +64,34 @@ export function ContentRenderer(
 
   // 第二遍：匹配 tool_result 到 tool_use
   content.forEach((block, index) => {
-    if (block.type === 'tool_result') {
-      const toolUseData = toolUseMap.get(block.tool_use_id);
-      if (toolUseData) {
-        toolUseData.result = block;
-        renderedIndices.add(index); // 标记这个 result 已被处理
+      if (block.type === 'tool_result') {
+        const toolUseData = toolUseMap.get(block.tool_use_id);
+        if (toolUseData) {
+          toolUseData.result = block;
+          renderedIndices.add(index); // 标记这个 result 已被处理
+        }
       }
-    }
   });
+
+  // 中文注释：只有真实的 streaming block 才保留文本尾光标；
+  // 工具阶段、权限阶段等没有活跃文本时，统一改成块尾状态行。
+  const shouldRenderActivityStatus = (
+    is_streaming && (!streaming_block_indexes || streaming_block_indexes.size === 0)
+  );
+  const activityState = shouldRenderActivityStatus
+    ? resolveActivityState({
+      content,
+      tool_use_map: toolUseMap,
+      rendered_indices: renderedIndices,
+      pending_permissions_by_tool_use_id,
+      hidden_tool_names,
+    })
+    : null;
 
   return (
     <div className="min-w-0 space-y-2.5">
       {content.map((block, index) => {
-        const blockIsStreaming = streaming_block_indexes?.has(index) ?? is_streaming;
+        const blockIsStreaming = streaming_block_indexes?.has(index) ?? false;
 
         // 跳过已经被组合渲染的 tool_result
         if (renderedIndices.has(index)) {
@@ -218,6 +238,149 @@ export function ContentRenderer(
 
         return null;
       })}
+      {activityState ? (
+        <MessageActivityStatus class_name="pt-1" state={activityState} />
+      ) : null}
     </div>
   );
+}
+
+function resolveActivityState({
+  content,
+  tool_use_map,
+  rendered_indices,
+  pending_permissions_by_tool_use_id,
+  hidden_tool_names,
+}: {
+  content: ContentBlock[];
+  tool_use_map: ReadonlyMap<string, {
+    use: ToolUseContent;
+    result?: ToolResultContent;
+    index: number;
+  }>;
+  rendered_indices: ReadonlySet<number>;
+  pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
+  hidden_tool_names: string[];
+}): MessageActivityState {
+  const latest_pending_tool = findLatestPendingToolUse(
+    content,
+    tool_use_map,
+    hidden_tool_names,
+  );
+  if (latest_pending_tool) {
+    const pending_permission = pending_permissions_by_tool_use_id?.get(latest_pending_tool.id);
+    if (pending_permission) {
+      if (latest_pending_tool.name === 'AskUserQuestion') {
+        return 'waiting_input';
+      }
+      return 'waiting_permission';
+    }
+    return mapToolNameToActivityState(latest_pending_tool.name);
+  }
+
+  const latest_visible_block = findLatestVisibleBlock(
+    content,
+    rendered_indices,
+    hidden_tool_names,
+  );
+  if (!latest_visible_block) {
+    return 'thinking';
+  }
+
+  if (latest_visible_block.type === 'task_progress') {
+    return mapProgressToActivityState(latest_visible_block);
+  }
+
+  if (latest_visible_block.type === 'tool_use') {
+    if (latest_visible_block.name === 'AskUserQuestion') {
+      return 'waiting_input';
+    }
+    return mapToolNameToActivityState(latest_visible_block.name);
+  }
+
+  return 'thinking';
+}
+
+function findLatestPendingToolUse(
+  content: ContentBlock[],
+  tool_use_map: ReadonlyMap<string, {
+    use: ToolUseContent;
+    result?: ToolResultContent;
+    index: number;
+  }>,
+  hidden_tool_names: string[],
+): ToolUseContent | null {
+  for (let index = content.length - 1; index >= 0; index -= 1) {
+    const block = content[index];
+    if (block?.type !== 'tool_use') {
+      continue;
+    }
+    if (hidden_tool_names.includes(block.name)) {
+      continue;
+    }
+
+    const tool_data = tool_use_map.get(block.id);
+    if (!tool_data?.result) {
+      return block;
+    }
+  }
+
+  return null;
+}
+
+function findLatestVisibleBlock(
+  content: ContentBlock[],
+  rendered_indices: ReadonlySet<number>,
+  hidden_tool_names: string[],
+): ContentBlock | null {
+  for (let index = content.length - 1; index >= 0; index -= 1) {
+    const block = content[index];
+    if (!block) {
+      continue;
+    }
+    if (rendered_indices.has(index)) {
+      continue;
+    }
+    if (block.type === 'tool_use' && hidden_tool_names.includes(block.name)) {
+      continue;
+    }
+    if (block.type === 'text' && !block.text.trim()) {
+      continue;
+    }
+    if (block.type === 'thinking' && !block.thinking.trim()) {
+      continue;
+    }
+    return block;
+  }
+
+  return null;
+}
+
+function mapProgressToActivityState(block: TaskProgressContent): MessageActivityState {
+  return mapToolNameToActivityState(block.last_tool_name ?? null);
+}
+
+function mapToolNameToActivityState(tool_name?: string | null): MessageActivityState {
+  if (!tool_name) {
+    return 'executing';
+  }
+
+  const browsing_tools = new Set([
+    'Read',
+    'Glob',
+    'LS',
+    'Grep',
+    'WebSearch',
+    'WebFetch',
+  ]);
+
+  if (tool_name === 'AskUserQuestion') {
+    return 'waiting_input';
+  }
+
+  if (browsing_tools.has(tool_name)) {
+    return 'browsing';
+  }
+
+  return 'executing';
 }

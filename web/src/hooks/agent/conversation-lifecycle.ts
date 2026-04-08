@@ -54,17 +54,21 @@ export async function loadAgentSession(
   context.active_session_key_ref.current = session_key;
   context.set_session_key(session_key);
 
-  // Pre-fill with cached background messages before the API round-trip
-  const cached = context.bg_message_cache_ref?.current.get(session_key);
-  if (cached && cached.length > 0) {
-    context.set_messages(sortMessages(cached));
-    context.set_pending_permissions([]);
-    if (!is_reload) {
-      context.set_is_loading(false);
-    }
+  // 中文注释：同 session 重拉只刷新消息快照，不要顺手清空运行时状态，
+  // 否则执行中的轮次会在前端闪断成“可输入”后再恢复。
+  if (is_reload) {
     context.set_error(null);
   } else {
-    resetSessionView(context, null, is_reload);
+    // Pre-fill with cached background messages before the API round-trip
+    const cached = context.bg_message_cache_ref?.current.get(session_key);
+    if (cached && cached.length > 0) {
+      context.set_messages(sortMessages(cached));
+      context.set_pending_permissions([]);
+      context.set_is_loading(false);
+      context.set_error(null);
+    } else {
+      resetSessionView(context);
+    }
   }
 
   try {
@@ -76,7 +80,12 @@ export async function loadAgentSession(
       return;
     }
     if (Array.isArray(data)) {
-      context.set_messages(sortMessages(data));
+      const sorted_messages = sortMessages(data);
+      context.set_messages(sorted_messages);
+      context.on_session_messages_loaded?.(sorted_messages, {
+        session_key,
+        is_reload,
+      });
     }
     // Cache is now stale — clear it
     context.bg_message_cache_ref?.current.delete(session_key);

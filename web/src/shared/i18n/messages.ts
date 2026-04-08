@@ -34,6 +34,7 @@ const zh_messages = {
   "sidebar.workspace_label": "工作区",
   "sidebar.workspace_title": "工作台",
   "sidebar.settings": "设置",
+  "sidebar.logout": "退出登录",
   "sidebar.capabilities": "能力",
   "sidebar.docs": "文档",
   "sidebar.feedback": "反馈",
@@ -141,6 +142,17 @@ const zh_messages = {
   "launcher.query_placeholder": "描述意图，@提及 Agent 或 #Room 来启动协作...",
   "launcher.handoff": "交给 Nexus",
   "launcher.new_collaboration": "新协作",
+  "login.title": "登录 Nexus",
+  "login.username": "用户名",
+  "login.password": "密码",
+  "login.username_placeholder": "输入用户名",
+  "login.password_placeholder": "输入登录密码",
+  "login.submit": "进入工作台",
+  "login.submitting": "登录中...",
+  "login.refresh": "重新检查配置",
+  "login.disabled_title": "当前实例未启用密码登录",
+  "login.disabled_description": "服务端目前只配置了其他鉴权方式，Web 界面无法直接完成登录。请在后端环境变量中设置 AUTH_LOGIN_PASSWORD 后刷新本页。",
+  "login.unknown_error": "登录失败，请稍后重试。",
 } as const;
 
 export type TranslationKey = keyof typeof zh_messages;
@@ -170,6 +182,7 @@ const en_messages: Record<TranslationKey, string> = {
   "sidebar.workspace_label": "Workspace",
   "sidebar.workspace_title": "Workbench",
   "sidebar.settings": "Settings",
+  "sidebar.logout": "Sign out",
   "sidebar.capabilities": "Capabilities",
   "sidebar.docs": "Docs",
   "sidebar.feedback": "Feedback",
@@ -277,6 +290,17 @@ const en_messages: Record<TranslationKey, string> = {
   "launcher.query_placeholder": "Describe your intent, mention an Agent with @ or a Room with # to start...",
   "launcher.handoff": "Hand off to Nexus",
   "launcher.new_collaboration": "New collaboration",
+  "login.title": "Sign in to Nexus",
+  "login.username": "Username",
+  "login.password": "Password",
+  "login.username_placeholder": "Enter username",
+  "login.password_placeholder": "Enter password",
+  "login.submit": "Enter workspace",
+  "login.submitting": "Signing in...",
+  "login.refresh": "Refresh status",
+  "login.disabled_title": "Password sign-in is disabled",
+  "login.disabled_description": "This instance currently uses another auth mode, so the web UI cannot sign in directly. Configure AUTH_LOGIN_PASSWORD on the backend and refresh this page.",
+  "login.unknown_error": "Sign-in failed. Please try again.",
 };
 
 export const DEFAULT_LOCALE: Locale = "zh";

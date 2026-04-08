@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
+import { SetStateAction, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import { getAgentWsUrl } from '@/config/options';
 import { areEquivalentSessionKeys } from '@/lib/session-key';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import { EventMessage, Message } from '@/types';
-import { PermissionDecisionPayload } from '@/types/permission';
+import {
+  PendingPermission,
+  PermissionDecisionPayload,
+  buildPermissionSignature,
+} from '@/types/permission';
 import {
   AgentConversationActionContext,
   AgentConversationLifecycleContext,
@@ -34,6 +38,121 @@ interface ActiveMessageTracker {
   status: AssistantMessageStatus;
 }
 
+function isTerminalAssistantStatus(status?: AssistantMessageStatus): boolean {
+  return status === 'done' || status === 'cancelled' || status === 'error';
+}
+
+function collectCompletedRoundIds(messages: Message[]): Set<string> {
+  const completed_round_ids = new Set<string>();
+  for (const message of messages) {
+    if (message.role === 'result') {
+      completed_round_ids.add(message.round_id);
+    }
+  }
+  return completed_round_ids;
+}
+
+function collectOpenRoundIds(messages: Message[]): Set<string> {
+  const completed_round_ids = collectCompletedRoundIds(messages);
+  const open_round_ids = new Set<string>();
+  for (const message of messages) {
+    if (message.role === 'assistant' && !completed_round_ids.has(message.round_id)) {
+      open_round_ids.add(message.round_id);
+    }
+  }
+  return open_round_ids;
+}
+
+function filterPendingSlotsFromSnapshot(
+  current_slots: RoomPendingAgentSlotState[],
+  messages: Message[],
+): RoomPendingAgentSlotState[] {
+  if (current_slots.length === 0) {
+    return current_slots;
+  }
+
+  const completed_round_ids = collectCompletedRoundIds(messages);
+  const loaded_message_ids = new Set(
+    messages
+      .filter((message): message is AssistantMessage => message.role === 'assistant')
+      .map((message) => message.message_id),
+  );
+
+  return current_slots.filter((slot) => (
+    !completed_round_ids.has(slot.round_id) &&
+    !loaded_message_ids.has(slot.msg_id)
+  ));
+}
+
+function filterPendingPermissionsFromSnapshot(
+  current_permissions: PendingPermission[],
+  messages: Message[],
+): PendingPermission[] {
+  if (current_permissions.length === 0) {
+    return current_permissions;
+  }
+
+  const completed_round_ids = collectCompletedRoundIds(messages);
+  const unresolved_permission_queues = new Map<string, string[]>();
+  const loaded_assistant_message_ids = new Set<string>();
+
+  for (const message of messages) {
+    if (message.role !== 'assistant') {
+      continue;
+    }
+    loaded_assistant_message_ids.add(message.message_id);
+
+    const resolved_tool_use_ids = new Set<string>();
+    for (const block of message.content) {
+      if (block.type === 'tool_result') {
+        resolved_tool_use_ids.add(block.tool_use_id);
+      }
+    }
+
+    for (const block of message.content) {
+      if (block.type !== 'tool_use' || resolved_tool_use_ids.has(block.id)) {
+        continue;
+      }
+
+      const signature = buildPermissionSignature(
+        block.name,
+        block.input as Record<string, unknown>,
+      );
+      const queue = unresolved_permission_queues.get(signature) ?? [];
+      queue.push(message.message_id);
+      unresolved_permission_queues.set(signature, queue);
+    }
+  }
+
+  return current_permissions.filter((permission) => {
+    if (permission.caused_by && completed_round_ids.has(permission.caused_by)) {
+      return false;
+    }
+
+    const signature = buildPermissionSignature(
+      permission.tool_name,
+      permission.tool_input,
+    );
+    const queue = unresolved_permission_queues.get(signature);
+    if (permission.message_id) {
+      const matched_index = queue?.indexOf(permission.message_id) ?? -1;
+      if (matched_index < 0) {
+        return !loaded_assistant_message_ids.has(permission.message_id);
+      }
+      queue?.splice(matched_index, 1);
+      return true;
+    }
+
+    if (!queue?.length) {
+      // 中文注释：message_id 缺失时，快照无法证明权限已经结束，
+      // 这里优先保留现有卡片，等待后续 replay / result 再收口。
+      return true;
+    }
+    queue.shift();
+    return true;
+  });
+}
+
 export function useAgentConversation(options: UseAgentConversationOptions = {}): UseAgentConversationReturn {
   const ws_url = options.ws_url || getAgentWsUrl();
   const agent_id = options.agent_id;
@@ -48,8 +167,8 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [is_loading, set_is_loading] = useState(false);
   const [error, set_error] = useState<string | null>(null);
   const [session_key, set_session_key] = useState<string | null>(null);
-  const [pending_agent_slots, set_pending_agent_slots] = useState<RoomPendingAgentSlotState[]>([]);
-  const [pending_permissions, set_pending_permissions] = useState<UseAgentConversationReturn['pending_permissions']>([]);
+  const [pending_agent_slots, set_pending_agent_slots_state] = useState<RoomPendingAgentSlotState[]>([]);
+  const [pending_permissions, set_pending_permissions_state] = useState<UseAgentConversationReturn['pending_permissions']>([]);
   const [agent_thinking, set_agent_thinking] = useState<AgentThinkingPayload | null>(null);
 
   const active_session_key_ref = useRef<string | null>(null);
@@ -57,7 +176,10 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const session_seq_cursor_ref = useRef(0);
   const room_seq_cursor_ref = useRef(0);
   const pending_round_ids_ref = useRef<Set<string>>(new Set());
+  const active_round_ids_ref = useRef<Set<string>>(new Set());
   const active_message_tracker_ref = useRef<Map<string, ActiveMessageTracker>>(new Map());
+  const pending_agent_slots_ref = useRef<RoomPendingAgentSlotState[]>([]);
+  const pending_permissions_ref = useRef<UseAgentConversationReturn['pending_permissions']>([]);
   const pending_permission_count_ref = useRef(0);
   // Per-session message cache: accumulates messages received for non-active sessions
   // so they are not lost when the user switches conversations.
@@ -75,41 +197,39 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const stream_buffer_ref = useRef<import('@/types').StreamMessage[]>([]);
   const stream_raf_ref = useRef<number | null>(null);
 
-  const lifecycle_context: AgentConversationLifecycleContext = useMemo(() => ({
-    active_session_key_ref,
-    load_request_id_ref,
-    agent_id,
-    room_id,
-    conversation_id,
-    chat_type,
-    set_session_key,
-    set_messages,
-    set_pending_agent_slots,
-    set_pending_permissions,
-    set_is_loading,
-    set_error,
-    bg_message_cache_ref,
-  }), [
-    agent_id,
-    room_id,
-    conversation_id,
-    chat_type,
-    set_session_key,
-    set_messages,
-    set_pending_agent_slots,
-    set_pending_permissions,
-    set_is_loading,
-    set_error,
-  ]);
-
-  const reload_current_session = useCallback(async () => {
-    const active_session_key = active_session_key_ref.current;
-    if (!active_session_key) {
+  const set_pending_agent_slots = useCallback((
+    next_state: SetStateAction<RoomPendingAgentSlotState[]>,
+  ) => {
+    if (typeof next_state !== 'function') {
+      pending_agent_slots_ref.current = next_state;
+      set_pending_agent_slots_state(next_state);
       return;
     }
 
-    await loadAgentSession(active_session_key, lifecycle_context, true);
-  }, [lifecycle_context]);
+    set_pending_agent_slots_state((prev) => {
+      const next = next_state(prev);
+      pending_agent_slots_ref.current = next;
+      return next;
+    });
+  }, []);
+
+  const set_pending_permissions = useCallback((
+    next_state: SetStateAction<UseAgentConversationReturn['pending_permissions']>,
+  ) => {
+    if (typeof next_state !== 'function') {
+      pending_permissions_ref.current = next_state;
+      pending_permission_count_ref.current = next_state.length;
+      set_pending_permissions_state(next_state);
+      return;
+    }
+
+    set_pending_permissions_state((prev) => {
+      const next = next_state(prev);
+      pending_permissions_ref.current = next;
+      pending_permission_count_ref.current = next.length;
+      return next;
+    });
+  }, []);
 
   const is_current_session_event = useCallback((incoming_session_key?: string | null) => {
     if (!incoming_session_key) {
@@ -132,6 +252,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const sync_loading_state = useCallback(() => {
     const next_is_loading = (
       pending_round_ids_ref.current.size > 0 ||
+      active_round_ids_ref.current.size > 0 ||
       active_message_tracker_ref.current.size > 0 ||
       pending_permission_count_ref.current > 0
     );
@@ -140,6 +261,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
 
   const reset_loading_tracker = useCallback(() => {
     pending_round_ids_ref.current.clear();
+    active_round_ids_ref.current.clear();
     active_message_tracker_ref.current.clear();
     pending_permission_count_ref.current = 0;
     set_is_loading(false);
@@ -149,6 +271,105 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     pending_permission_count_ref.current = pending_permissions.length;
     sync_loading_state();
   }, [pending_permissions.length, sync_loading_state]);
+
+  const reconcile_runtime_state_from_snapshot = useCallback((
+    snapshot_messages: Message[],
+  ) => {
+    const completed_round_ids = collectCompletedRoundIds(snapshot_messages);
+    const snapshot_open_round_ids = collectOpenRoundIds(snapshot_messages);
+    const terminal_message_ids = new Set<string>();
+
+    for (const message of snapshot_messages) {
+      if (message.role !== 'assistant') {
+        continue;
+      }
+      if (message.is_complete || message.stop_reason || isTerminalAssistantStatus(message.stream_status)) {
+        terminal_message_ids.add(message.message_id);
+      }
+    }
+
+    pending_round_ids_ref.current = new Set(
+      [...pending_round_ids_ref.current].filter((round_id) => !completed_round_ids.has(round_id)),
+    );
+    active_round_ids_ref.current = new Set([
+      ...[...active_round_ids_ref.current].filter((round_id) => !completed_round_ids.has(round_id)),
+      ...snapshot_open_round_ids,
+    ]);
+
+    const next_trackers = new Map<string, ActiveMessageTracker>();
+    for (const [message_id, tracker] of active_message_tracker_ref.current.entries()) {
+      if (completed_round_ids.has(tracker.round_id) || terminal_message_ids.has(message_id)) {
+        continue;
+      }
+      next_trackers.set(message_id, tracker);
+    }
+    for (const message of snapshot_messages) {
+      if (
+        message.role !== 'assistant' ||
+        message.is_complete ||
+        message.stop_reason ||
+        isTerminalAssistantStatus(message.stream_status)
+      ) {
+        continue;
+      }
+      next_trackers.set(message.message_id, {
+        round_id: message.round_id,
+        status: message.stream_status ?? 'streaming',
+      });
+    }
+    active_message_tracker_ref.current = next_trackers;
+
+    set_pending_agent_slots(
+      filterPendingSlotsFromSnapshot(pending_agent_slots_ref.current, snapshot_messages),
+    );
+    set_pending_permissions(
+      filterPendingPermissionsFromSnapshot(pending_permissions_ref.current, snapshot_messages),
+    );
+    sync_loading_state();
+  }, [set_pending_agent_slots, set_pending_permissions, sync_loading_state]);
+
+  const lifecycle_context: AgentConversationLifecycleContext = useMemo(() => ({
+    active_session_key_ref,
+    load_request_id_ref,
+    agent_id,
+    room_id,
+    conversation_id,
+    chat_type,
+    set_session_key,
+    set_messages,
+    set_pending_agent_slots,
+    set_pending_permissions,
+    set_is_loading,
+    set_error,
+    bg_message_cache_ref,
+    on_session_messages_loaded: (loaded_messages) => {
+      reconcile_runtime_state_from_snapshot(loaded_messages);
+    },
+  }), [
+    active_session_key_ref,
+    load_request_id_ref,
+    agent_id,
+    room_id,
+    conversation_id,
+    chat_type,
+    set_session_key,
+    set_messages,
+    set_pending_agent_slots,
+    set_pending_permissions,
+    set_is_loading,
+    set_error,
+    bg_message_cache_ref,
+    reconcile_runtime_state_from_snapshot,
+  ]);
+
+  const reload_current_session = useCallback(async () => {
+    const active_session_key = active_session_key_ref.current;
+    if (!active_session_key) {
+      return;
+    }
+
+    await loadAgentSession(active_session_key, lifecycle_context, true);
+  }, [lifecycle_context]);
 
   const flush_stream_buffer = useCallback(() => {
     stream_raf_ref.current = null;
@@ -177,11 +398,28 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     }
   }, [flush_stream_buffer]);
 
-  const clear_round_tracking = useCallback((round_id?: string | null) => {
+  const clear_round_tracking = useCallback((
+    round_id?: string | null,
+    include_related_rounds: boolean = false,
+  ) => {
     if (round_id) {
-      pending_round_ids_ref.current.delete(round_id);
+      const should_clear_round = (tracked_round_id: string) => (
+        tracked_round_id === round_id ||
+        (include_related_rounds && tracked_round_id.startsWith(`${round_id}:`))
+      );
+
+      for (const tracked_round_id of [...pending_round_ids_ref.current]) {
+        if (should_clear_round(tracked_round_id)) {
+          pending_round_ids_ref.current.delete(tracked_round_id);
+        }
+      }
+      for (const tracked_round_id of [...active_round_ids_ref.current]) {
+        if (should_clear_round(tracked_round_id)) {
+          active_round_ids_ref.current.delete(tracked_round_id);
+        }
+      }
       for (const [message_id, tracker] of active_message_tracker_ref.current.entries()) {
-        if (tracker.round_id === round_id) {
+        if (should_clear_round(tracker.round_id)) {
           active_message_tracker_ref.current.delete(message_id);
         }
       }
@@ -223,13 +461,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     }
 
     sync_loading_state();
-  }, [sync_loading_state]);
+  }, [set_pending_agent_slots, sync_loading_state]);
 
   const track_chat_ack = useCallback((ack: import('@/types').ChatAckData, _session_key?: string | null) => {
     pending_round_ids_ref.current.delete(ack.round_id);
     const pending_count = ack.pending?.length ?? 0;
     for (const slot of ack.pending ?? []) {
       const agent_round_id = pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id;
+      active_round_ids_ref.current.add(agent_round_id);
       active_message_tracker_ref.current.set(slot.msg_id, {
         round_id: agent_round_id,
         status: 'pending',
@@ -250,10 +489,11 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       return [...preserved_slots, ...next_slots];
     });
     sync_loading_state();
-  }, [sync_loading_state]);
+  }, [set_pending_agent_slots, sync_loading_state]);
 
   const track_assistant_message = useCallback((message: AssistantMessage) => {
     pending_round_ids_ref.current.delete(message.round_id);
+    active_round_ids_ref.current.add(message.round_id);
 
     if (
       message.stream_status === 'cancelled' ||
@@ -276,7 +516,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const track_result_message = useCallback((message: import('@/types').ResultMessage) => {
     clear_round_tracking(message.round_id);
     set_pending_agent_slots((prev) => prev.filter((slot) => slot.round_id !== message.round_id));
-  }, [clear_round_tracking]);
+  }, [clear_round_tracking, set_pending_agent_slots]);
 
   const handle_websocket_message = useCallback((backend_message: unknown) => {
     const event = backend_message as EventMessage;
@@ -345,6 +585,8 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_agent_thinking,
       on_room_event,
       update_message_status,
+      clear_round_tracking,
+      reset_loading_tracking: reset_loading_tracker,
       track_chat_ack,
       track_assistant_message,
       track_result_message,
@@ -356,9 +598,13 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     on_background_message,
     on_room_event,
     on_room_event_callback,
+    clear_round_tracking,
     room_id,
     session_key,
     reload_current_session,
+    reset_loading_tracker,
+    set_pending_agent_slots,
+    set_pending_permissions,
     track_assistant_message,
     track_chat_ack,
     track_result_message,
@@ -504,7 +750,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const stop_generation = useCallback((msg_id?: string) => {
     stopSessionGeneration(action_context, msg_id);
     if (msg_id) {
+      const tracked_round_id = (
+        pending_agent_slots_ref.current.find((slot) => slot.msg_id === msg_id)?.round_id
+        ?? active_message_tracker_ref.current.get(msg_id)?.round_id
+      );
       active_message_tracker_ref.current.delete(msg_id);
+      if (tracked_round_id) {
+        active_round_ids_ref.current.delete(tracked_round_id);
+      }
       set_pending_agent_slots((prev) => prev.map((slot) => (
         slot.msg_id === msg_id
           ? {
@@ -520,8 +773,8 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     const latest_user_round_id = [...messages]
       .reverse()
       .find((message) => message.role === 'user')?.round_id;
-    clear_round_tracking(latest_user_round_id);
-  }, [action_context, clear_round_tracking, messages, sync_loading_state]);
+    clear_round_tracking(latest_user_round_id, true);
+  }, [action_context, clear_round_tracking, messages, set_pending_agent_slots, sync_loading_state]);
 
   const send_permission_response = useCallback((payload: PermissionDecisionPayload) => {
     return sendSessionPermissionResponse(payload, action_context);
@@ -557,7 +810,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
         current_permissions.length ? [] : current_permissions
       ));
     }
-  }, []);
+  }, [set_pending_agent_slots, set_pending_permissions]);
 
   const reset_session = useCallback(() => {
     resetAgentSession(lifecycle_context);

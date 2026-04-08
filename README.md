@@ -72,6 +72,24 @@ ANTHROPIC_AUTH_TOKEN=your_token
 ANTHROPIC_MODEL=your_model
 ```
 
+如果要把服务放到公网，建议同时开启浏览器登录：
+
+```bash
+# .env
+AUTH_LOGIN_USERNAME=admin
+AUTH_LOGIN_PASSWORD=change-this-password
+AUTH_SESSION_SECRET=replace-with-a-random-secret
+AUTH_SESSION_TTL_HOURS=168
+AUTH_COOKIE_SECURE=true   # HTTPS 反向代理下开启
+AUTH_COOKIE_SAMESITE=lax
+```
+
+说明：
+
+- 登录成功后后端会签发 `HttpOnly` 会话 Cookie，前端不会暴露访问密钥
+- 反向代理生产环境优先使用前后端同源部署
+- 如果仍然保留旧的 `ACCESS_TOKEN`，后端也会继续兼容 Bearer Token 调用
+
 数据库默认使用本地 SQLite，通常不需要额外配置：
 
 ```bash
@@ -164,6 +182,11 @@ make stop
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`
 - `WEBSOCKET_ENABLED`
+- `AUTH_LOGIN_USERNAME`
+- `AUTH_LOGIN_PASSWORD`
+- `AUTH_SESSION_SECRET`
+- `AUTH_SESSION_TTL_HOURS`
+- `AUTH_COOKIE_SECURE`
 - `DISCORD_ENABLED`
 - `TELEGRAM_ENABLED`
 

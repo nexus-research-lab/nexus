@@ -3,7 +3,7 @@
  */
 
 import { getAgentApiBaseUrl } from '@/config/options';
-import { ApiResponse } from '@/types/api';
+import { request_api } from '@/lib/http';
 
 export interface LauncherQueryParams {
   query: string;
@@ -32,35 +32,20 @@ export interface LauncherSuggestionsResponse {
  * 解析 Launcher 查询
  */
 export async function queryLauncher(params: LauncherQueryParams): Promise<LauncherQueryResponse> {
-  const response = await fetch(`${getAgentApiBaseUrl()}/launcher/query`, {
+  return request_api<LauncherQueryResponse>(`${getAgentApiBaseUrl()}/launcher/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(params),
   });
-
-  if (!response.ok) {
-    throw new Error(`Launcher 查询失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<LauncherQueryResponse> = await response.json();
-  return result.data;
 }
 
 /**
  * 获取 Launcher 推荐列表
  */
 export async function getLauncherSuggestions(): Promise<LauncherSuggestionsResponse> {
-  const response = await fetch(`${getAgentApiBaseUrl()}/launcher/suggestions`, {
+  return request_api<LauncherSuggestionsResponse>(`${getAgentApiBaseUrl()}/launcher/suggestions`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
   });
-
-  if (!response.ok) {
-    throw new Error(`获取推荐列表失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<LauncherSuggestionsResponse> = await response.json();
-  return result.data;
 }

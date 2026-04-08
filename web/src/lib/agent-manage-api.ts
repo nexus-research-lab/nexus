@@ -19,8 +19,8 @@ import {
     WorkspaceEntryRenameResponse,
 } from '@/types/agent';
 import { AgentCostSummary } from '@/types/cost';
-import { ApiResponse } from '@/types/api';
 import { getAgentApiBaseUrl } from '@/config/options';
+import { request_api } from '@/lib/http';
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
@@ -41,20 +41,15 @@ function transformApiAgent(api_agent: ApiAgent): Agent {
 
 /** 获取所有 Agent 列表 */
 export const getAgents = async (): Promise<Agent[]> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents`, {
+    const result = await request_api<ApiAgent[]>(`${AGENT_API_BASE_URL}/agents`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`获取 Agent 列表失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<ApiAgent[]> = await response.json();
-    return result.data.map(transformApiAgent);
+    return result.map(transformApiAgent);
 };
 
 /** 创建 Agent */
 export const createAgentApi = async (params: CreateAgentParams): Promise<Agent> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents`, {
+    const result = await request_api<ApiAgent>(`${AGENT_API_BASE_URL}/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -62,18 +57,14 @@ export const createAgentApi = async (params: CreateAgentParams): Promise<Agent> 
             options: params.options || null,
         }),
     });
-    if (!response.ok) {
-        throw new Error(`创建 Agent 失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<ApiAgent> = await response.json();
-    return transformApiAgent(result.data);
+    return transformApiAgent(result);
 };
 
 
 
 /** 更新 Agent */
 export const updateAgentApi = async (agent_id: string, params: UpdateAgentParams): Promise<Agent> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}`, {
+    const result = await request_api<ApiAgent>(`${AGENT_API_BASE_URL}/agents/${agent_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,24 +72,14 @@ export const updateAgentApi = async (agent_id: string, params: UpdateAgentParams
             options: params.options || null,
         }),
     });
-    if (!response.ok) {
-        throw new Error(`更新 Agent 失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<ApiAgent> = await response.json();
-    return transformApiAgent(result.data);
+    return transformApiAgent(result);
 };
 
 /** 删除 Agent */
 export const deleteAgentApi = async (agent_id: string): Promise<{ success: boolean }> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}`, {
+    return request_api<{ success: boolean }>(`${AGENT_API_BASE_URL}/agents/${agent_id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`删除 Agent 失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<{ success: boolean }> = await response.json();
-    return result.data;
 };
 
 /** 校验 Agent 名称 */
@@ -111,27 +92,15 @@ export const validateAgentNameApi = async (
         query.set('exclude_agent_id', exclude_agent_id);
     }
 
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/validate/name?${query.toString()}`, {
+    return request_api<AgentNameValidationResult>(`${AGENT_API_BASE_URL}/agents/validate/name?${query.toString()}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`校验 Agent 名称失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<AgentNameValidationResult> = await response.json();
-    return result.data;
 };
 
 export const getWorkspaceFilesApi = async (agent_id: string): Promise<WorkspaceFileEntry[]> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/files`, {
+    return request_api<WorkspaceFileEntry[]>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/files`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`获取 Workspace 文件列表失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<WorkspaceFileEntry[]> = await response.json();
-    return result.data;
 };
 
 export const getWorkspaceFileContentApi = async (
@@ -139,15 +108,9 @@ export const getWorkspaceFileContentApi = async (
     path: string
 ): Promise<WorkspaceFileContent> => {
     const query = new URLSearchParams({ path });
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file?${query.toString()}`, {
+    return request_api<WorkspaceFileContent>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file?${query.toString()}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`读取 Workspace 文件失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<WorkspaceFileContent> = await response.json();
-    return result.data;
 };
 
 export const updateWorkspaceFileContentApi = async (
@@ -155,16 +118,11 @@ export const updateWorkspaceFileContentApi = async (
     path: string,
     content: string
 ): Promise<WorkspaceFileContent> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file`, {
+    return request_api<WorkspaceFileContent>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, content }),
     });
-    if (!response.ok) {
-        throw new Error(`更新 Workspace 文件失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<WorkspaceFileContent> = await response.json();
-    return result.data;
 };
 
 export const createWorkspaceEntryApi = async (
@@ -173,16 +131,11 @@ export const createWorkspaceEntryApi = async (
     entry_type: 'file' | 'directory',
     content: string = ''
 ): Promise<WorkspaceEntryMutationResponse> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`, {
+    return request_api<WorkspaceEntryMutationResponse>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, entry_type, content }),
     });
-    if (!response.ok) {
-        throw new Error(`创建 Workspace 条目失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<WorkspaceEntryMutationResponse> = await response.json();
-    return result.data;
 };
 
 export const renameWorkspaceEntryApi = async (
@@ -190,16 +143,11 @@ export const renameWorkspaceEntryApi = async (
     path: string,
     new_path: string
 ): Promise<WorkspaceEntryRenameResponse> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`, {
+    return request_api<WorkspaceEntryRenameResponse>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, new_path }),
     });
-    if (!response.ok) {
-        throw new Error(`重命名 Workspace 条目失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<WorkspaceEntryRenameResponse> = await response.json();
-    return result.data;
 };
 
 export const deleteWorkspaceEntryApi = async (
@@ -207,25 +155,13 @@ export const deleteWorkspaceEntryApi = async (
     path: string
 ): Promise<WorkspaceEntryMutationResponse> => {
     const query = new URLSearchParams({ path });
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry?${query.toString()}`, {
+    return request_api<WorkspaceEntryMutationResponse>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry?${query.toString()}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`删除 Workspace 条目失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<WorkspaceEntryMutationResponse> = await response.json();
-    return result.data;
 };
 
 export const getAgentCostSummaryApi = async (agent_id: string): Promise<AgentCostSummary> => {
-    const response = await fetch(`${AGENT_API_BASE_URL}/agents/${agent_id}/cost/summary`, {
+    return request_api<AgentCostSummary>(`${AGENT_API_BASE_URL}/agents/${agent_id}/cost/summary`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-        throw new Error(`获取 Agent 成本失败: ${response.statusText}`);
-    }
-    const result: ApiResponse<AgentCostSummary> = await response.json();
-    return result.data;
 };

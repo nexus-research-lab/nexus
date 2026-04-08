@@ -1,4 +1,5 @@
 export const APP_ROUTE_PATHS = {
+  login: "/login",
   launcher: "/",
   home: "/app",
   dm_directory: "/dms",
@@ -31,6 +32,7 @@ function createLauncherSearchParams(params: Record<string, string | null | undef
 }
 
 export const AppRouteBuilders = {
+  login: () => APP_ROUTE_PATHS.login,
   launcher: () => APP_ROUTE_PATHS.launcher,
   launcher_app: (app_prompt?: string) =>
     createLauncherSearchParams({

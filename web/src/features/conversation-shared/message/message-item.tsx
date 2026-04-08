@@ -21,7 +21,7 @@ import {
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
-import { MessageActionButton, MessageAvatar, MessageLoadingDots, MessageShell } from "./message-primitives";
+import { MessageActionButton, MessageActivityStatus, MessageAvatar, MessageShell } from "./message-primitives";
 
 interface OrderedAssistantEntry {
   block: ContentBlock;
@@ -602,7 +602,22 @@ function MessageItemInner(
     }
   }, [finalAssistantText]);
 
-  const showCursor = is_last_round && is_loading && streamingBlockIndexes.size > 0;
+  const showCursor = Boolean(
+    is_last_round
+    && is_loading
+    && (
+      streamingBlockIndexes.size > 0
+      || assistantMessages.length > 0
+      || pending_permissions.length > 0
+      || stream_status === 'pending'
+      || stream_status === 'streaming'
+    ),
+  );
+  const finalAssistantIsStreaming = Boolean(
+    showCursor
+    && typeof finalAssistantContent !== "string"
+    && finalAssistantStreamingIndexes.size > 0,
+  );
   const canCopyAssistant = Boolean(finalAssistantText?.trim());
   const shouldShowAssistantFooter = (
     assistant_content_mode === "dm_archived" || assistant_content_mode === "room_result"
@@ -840,7 +855,7 @@ function MessageItemInner(
 
                   {/* Room 并发：pending 占位动画 */}
                   {stream_status === 'pending' && mergedContent.length === 0 && (
-                    <MessageLoadingDots class_name="py-1" size="md" />
+                    <MessageActivityStatus class_name="py-1" state="thinking" />
                   )}
 
                   {/* Room 并发：已取消标记 */}
@@ -905,7 +920,7 @@ function MessageItemInner(
                     <div className={cn(shouldRenderProcessCallchain)}>
                       <ContentRenderer
                         content={finalAssistantContent ?? []}
-                        is_streaming={showCursor}
+                        is_streaming={finalAssistantIsStreaming}
                         streaming_block_indexes={finalAssistantStreamingIndexes}
                         on_open_workspace_file={on_open_workspace_file}
                       />

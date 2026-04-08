@@ -8,6 +8,7 @@ import {
   WebSocketMessage,
   WebSocketState,
 } from '@/types/websocket';
+import { notify_auth_required } from '@/lib/http';
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -179,6 +180,13 @@ export class WebSocketClient {
     if (this.isIntentionalDisconnect) {
       this.ws = null;
       this.setState('disconnected');
+      return;
+    }
+
+    if (event.code === 4401) {
+      this.ws = null;
+      this.setState('failed');
+      notify_auth_required();
       return;
     }
 

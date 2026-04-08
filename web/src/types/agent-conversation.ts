@@ -95,6 +95,14 @@ export interface AgentConversationLifecycleContext {
   set_error: Dispatch<SetStateAction<string | null>>;
   /** Cache of background messages received for non-active sessions */
   bg_message_cache_ref?: RefObject<Map<string, Message[]>>;
+  /** Session 快照完成加载后，允许 Hook 对运行时状态做对账 */
+  on_session_messages_loaded?: (
+    messages: Message[],
+    meta: {
+      session_key: string;
+      is_reload: boolean;
+    },
+  ) => void;
 }
 
 export interface AgentThinkingPayload {
@@ -137,6 +145,10 @@ export interface HandleAgentConversationWebSocketMessageParams {
     status: import('@/types/message').AssistantMessageStatus,
     round_id?: string | null,
   ) => void;
+  /** 清理某个 round 的运行态跟踪 */
+  clear_round_tracking?: (round_id?: string | null) => void;
+  /** 清空当前 session 的 loading 跟踪 */
+  reset_loading_tracking?: () => void;
   /** 记录本轮 chat_ack 预分配的活跃消息槽位 */
   track_chat_ack?: (ack: ChatAckData, session_key: string | null) => void;
   /** 同步 assistant 完整消息的终态 */

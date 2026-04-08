@@ -1,5 +1,5 @@
 import { getAgentApiBaseUrl } from "@/config/options";
-import { ApiResponse } from "@/types/api";
+import { request_api } from "@/lib/http";
 import {
   CreateRoomConversationParams,
   CreateRoomParams,
@@ -20,49 +20,31 @@ function normalizeConversationTitle(value: unknown): string | undefined {
 }
 
 export async function listRooms(limit = 50): Promise<RoomAggregate[]> {
-  const response = await fetch(
+  return request_api<RoomAggregate[]>(
     `${AGENT_API_BASE_URL}/rooms?limit=${encodeURIComponent(String(limit))}`,
     {
       method: "GET",
-      headers: {"Content-Type": "application/json"},
     },
   );
-  if (!response.ok) {
-    throw new Error(`获取 room 列表失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomAggregate[]> = await response.json();
-  return result.data;
 }
 
 export async function getRoom(room_id: string): Promise<RoomAggregate> {
-  const response = await fetch(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
+  return request_api<RoomAggregate>(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
     method: "GET",
-    headers: {"Content-Type": "application/json"},
   });
-  if (!response.ok) {
-    throw new Error(`获取 room 失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomAggregate> = await response.json();
-  return result.data;
 }
 
 export async function getRoomContexts(room_id: string): Promise<RoomContextAggregate[]> {
-  const response = await fetch(
+  return request_api<RoomContextAggregate[]>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/contexts`,
     {
       method: "GET",
-      headers: {"Content-Type": "application/json"},
     },
   );
-  if (!response.ok) {
-    throw new Error(`获取 room 上下文失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate[]> = await response.json();
-  return result.data;
 }
 
 export async function createRoom(params: CreateRoomParams): Promise<RoomContextAggregate> {
-  const response = await fetch(`${AGENT_API_BASE_URL}/rooms`, {
+  return request_api<RoomContextAggregate>(`${AGENT_API_BASE_URL}/rooms`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
@@ -72,18 +54,13 @@ export async function createRoom(params: CreateRoomParams): Promise<RoomContextA
       title: params.title,
     }),
   });
-  if (!response.ok) {
-    throw new Error(`创建 room 失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function updateRoom(
   room_id: string,
   params: UpdateRoomParams,
 ): Promise<RoomContextAggregate> {
-  const response = await fetch(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
+  return request_api<RoomContextAggregate>(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
     method: "PATCH",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
@@ -92,11 +69,6 @@ export async function updateRoom(
       title: params.title,
     }),
   });
-  if (!response.ok) {
-    throw new Error(`更新 room 失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function createRoomConversation(
@@ -104,7 +76,7 @@ export async function createRoomConversation(
   params: CreateRoomConversationParams = {},
 ): Promise<RoomContextAggregate> {
   const normalized_title = normalizeConversationTitle(params.title);
-  const response = await fetch(
+  return request_api<RoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations`,
     {
       method: "POST",
@@ -114,11 +86,6 @@ export async function createRoomConversation(
       }),
     },
   );
-  if (!response.ok) {
-    throw new Error(`创建对话失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function updateRoomConversation(
@@ -126,7 +93,7 @@ export async function updateRoomConversation(
   conversation_id: string,
   params: UpdateRoomConversationParams,
 ): Promise<RoomContextAggregate> {
-  const response = await fetch(
+  return request_api<RoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
     {
       method: "PATCH",
@@ -136,36 +103,25 @@ export async function updateRoomConversation(
       }),
     },
   );
-  if (!response.ok) {
-    throw new Error(`更新对话失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function deleteRoomConversation(
   room_id: string,
   conversation_id: string,
 ): Promise<RoomContextAggregate> {
-  const response = await fetch(
+  return request_api<RoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
     {
       method: "DELETE",
-      headers: {"Content-Type": "application/json"},
     },
   );
-  if (!response.ok) {
-    throw new Error(`删除对话失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function addRoomMember(
   room_id: string,
   agent_id: string,
 ): Promise<RoomContextAggregate> {
-  const response = await fetch(
+  return request_api<RoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/members`,
     {
       method: "POST",
@@ -175,54 +131,31 @@ export async function addRoomMember(
       }),
     },
   );
-  if (!response.ok) {
-    throw new Error(`添加成员失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function removeRoomMember(
   room_id: string,
   agent_id: string,
 ): Promise<RoomContextAggregate> {
-  const response = await fetch(
+  return request_api<RoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/members/${encodeURIComponent(agent_id)}`,
     {
       method: "DELETE",
-      headers: {"Content-Type": "application/json"},
     },
   );
-  if (!response.ok) {
-    throw new Error(`移除成员失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }
 
 export async function deleteRoom(room_id: string): Promise<{success: boolean}> {
-  const response = await fetch(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
+  return request_api<{success: boolean}>(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
     method: "DELETE",
-    headers: {"Content-Type": "application/json"},
   });
-  if (!response.ok) {
-    throw new Error(`删除 room 失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<{success: boolean}> = await response.json();
-  return result.data;
 }
 
 export async function ensureDirectRoom(agent_id: string): Promise<RoomContextAggregate> {
-  const response = await fetch(
+  return request_api<RoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agent_id)}`,
     {
       method: "GET",
-      headers: {"Content-Type": "application/json"},
     },
   );
-  if (!response.ok) {
-    throw new Error(`获取或创建 DM room 失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<RoomContextAggregate> = await response.json();
-  return result.data;
 }

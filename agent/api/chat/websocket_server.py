@@ -11,6 +11,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from agent.service.channels.ws.handler import WebSocketHandler
+from agent.service.auth import auth_service
 from agent.utils.logger import logger
 
 router = APIRouter()
@@ -27,6 +28,14 @@ async def chat(websocket: WebSocket):
     logger.info("🌐新的WebSocket连接请求")
 
     try:
+        if auth_service.is_auth_required():
+            identity = auth_service.resolve_websocket_identity(websocket)
+            if not identity:
+                await websocket.accept()
+                await websocket.close(code=4401, reason="Unauthorized")
+                logger.warning("❌WebSocket 未通过鉴权: %s", websocket.client)
+                return
+
         # 为每个连接创建独立的WebSocketHandler实例
         handler = WebSocketHandler()
         await handler.handle_websocket_connection(websocket)

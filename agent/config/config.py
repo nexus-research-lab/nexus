@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     # 采用Access Token模式，需要在请求头中添加Authorization字段，值以Bearer开头，后面跟上Access Token
     # Token 生成参考：openssl rand -hex 32
     ACCESS_TOKEN: Optional[str] = None
+    AUTH_LOGIN_USERNAME: str = "admin"
+    AUTH_LOGIN_PASSWORD: str = ""
+    AUTH_SESSION_SECRET: str = ""
+    AUTH_SESSION_TTL_HOURS: int = 24 * 7
+    AUTH_SESSION_COOKIE_NAME: str = "nexus_session"
+    AUTH_COOKIE_SECURE: bool = False
+    AUTH_COOKIE_SAMESITE: str = "lax"
 
     # 缓存配置
     CACHE_FILE_DIR: str = os.path.abspath(os.path.join(os.getcwd(), "cache"))

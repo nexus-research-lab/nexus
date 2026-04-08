@@ -1,6 +1,5 @@
 "use client";
 
-import { InlineStreamingCursor } from "@/shared/ui/feedback/streaming-cursor";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 
@@ -29,6 +28,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     <div
       className={cn(
         MARKDOWN_BODY_CLASS_NAME,
+        is_streaming && "animate-in fade-in-0",
         class_name,
       )}
     >
@@ -39,7 +39,6 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
       >
         {content}
       </ReactMarkdown>
-      {is_streaming && <InlineStreamingCursor />}
     </div>
   );
 }

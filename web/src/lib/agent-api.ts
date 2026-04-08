@@ -15,8 +15,8 @@ import {
 } from '@/types/conversation';
 import { Message as ChatMessage } from '@/types/message';
 import { ConversationCostSummary } from '@/types/cost';
-import { ApiResponse } from '@/types/api';
 import { getAgentApiBaseUrl } from '@/config/options';
+import { request_api } from '@/lib/http';
 import { assertStructuredSessionKey } from '@/lib/session-key';
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
@@ -44,54 +44,31 @@ export function transformApiConversation(api: ApiConversation): Conversation {
 // ==================== 对话 API ====================
 
 export const getConversations = async (): Promise<Conversation[]> => {
-  const response = await fetch(`${AGENT_API_BASE_URL}/sessions`, {
+  const result = await request_api<ApiConversation[]>(`${AGENT_API_BASE_URL}/sessions`, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
   });
-  if (!response.ok) {
-    throw new Error(`获取会话列表失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<ApiConversation[]> = await response.json();
-  return result.data.map(transformApiConversation);
+  return result.map(transformApiConversation);
 };
 
 export const getConversationMessages = async (session_key: string): Promise<ChatMessage[]> => {
   const normalized_session_key = assertStructuredSessionKey(session_key);
-  const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}/messages`, {
+  return request_api<ChatMessage[]>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}/messages`, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
   });
-  if (!response.ok) {
-    throw new Error(`获取会话消息失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<ChatMessage[]> = await response.json();
-  return result.data;
 };
 
 export const getConversationCostSummary = async (session_key: string): Promise<ConversationCostSummary> => {
   const normalized_session_key = assertStructuredSessionKey(session_key);
-  const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}/cost/summary`, {
+  return request_api<ConversationCostSummary>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}/cost/summary`, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
   });
-  if (!response.ok) {
-    throw new Error(`获取会话成本失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<ConversationCostSummary> = await response.json();
-  return result.data;
 };
 
 export const deleteConversation = async (session_key: string): Promise<{ success: boolean }> => {
   const normalized_session_key = assertStructuredSessionKey(session_key);
-  const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
+  return request_api<{ success: boolean }>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
   });
-  if (!response.ok) {
-    throw new Error(`删除会话失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<{ success: boolean }> = await response.json();
-  return result.data;
 };
 
 export const createConversation = async (
@@ -99,7 +76,7 @@ export const createConversation = async (
   params: CreateConversationParams,
 ): Promise<Conversation> => {
   const normalized_session_key = assertStructuredSessionKey(session_key);
-  const response = await fetch(`${AGENT_API_BASE_URL}/sessions`, {
+  const result = await request_api<ApiConversation>(`${AGENT_API_BASE_URL}/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -108,11 +85,7 @@ export const createConversation = async (
       title: params.title,
     }),
   });
-  if (!response.ok) {
-    throw new Error(`创建会话失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<ApiConversation> = await response.json();
-  return transformApiConversation(result.data);
+  return transformApiConversation(result);
 };
 
 export const updateConversation = async (
@@ -120,16 +93,12 @@ export const updateConversation = async (
   params: UpdateConversationParams,
 ): Promise<Conversation> => {
   const normalized_session_key = assertStructuredSessionKey(session_key);
-  const response = await fetch(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
+  const result = await request_api<ApiConversation>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title: params.title,
     }),
   });
-  if (!response.ok) {
-    throw new Error(`更新会话失败: ${response.statusText}`);
-  }
-  const result: ApiResponse<ApiConversation> = await response.json();
-  return transformApiConversation(result.data);
+  return transformApiConversation(result);
 };

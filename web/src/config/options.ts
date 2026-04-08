@@ -5,6 +5,8 @@
  * 且页面实际通过局域网 IP 打开，则自动对齐到当前页面 host。
  */
 
+import { request_api } from "@/lib/http";
+
 export const initialOptions = {
   model: import.meta.env.VITE_DEFAULT_MODEL || 'glm-5',
   permissionMode: 'default',
@@ -94,20 +96,22 @@ function alignUrlHost(rawUrl: string): string {
     return rawUrl;
   }
 
-  const browserHost = getBrowserHost();
-  if (browserHost === "localhost") {
-    return rawUrl;
-  }
-
   try {
     const parsed = new URL(rawUrl);
     if (!isLocalHost(parsed.hostname)) {
       return rawUrl;
     }
 
+    const browserHost = getBrowserHost();
+    if (!browserHost) {
+      return rawUrl;
+    }
+
+    // 中文注释：本地开发必须统一使用同一个 host，避免 localhost 与
+    // 127.0.0.1 混用后把登录 Cookie 降级成跨站请求，导致后续接口不带会话。
     parsed.hostname = browserHost;
-    if (!parsed.port && window.location.port) {
-      parsed.port = window.location.port;
+    if (!parsed.port && shouldUseLocalBackendOrigin()) {
+      parsed.port = DEFAULT_LOCAL_BACKEND_PORT;
     }
     if (parsed.protocol === "ws:" || parsed.protocol === "wss:") {
       parsed.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -153,21 +157,14 @@ export function resolveAgentId(agent_id?: string | null): string {
 }
 
 export async function hydrateRuntimeOptions(): Promise<void> {
-  const response = await fetch(`${getAgentApiBaseUrl()}/runtime/options`);
-  if (!response.ok) {
-    throw new Error(`加载运行时配置失败: ${response.status}`);
-  }
-
-  const content_type = response.headers.get("content-type") ?? "";
-  if (!content_type.includes("application/json")) {
-    const body_preview = (await response.text()).slice(0, 120).trim();
-    throw new Error(
-      `运行时配置接口返回了非 JSON 响应（content-type: ${content_type || "unknown"}）: ${body_preview}`,
-    );
-  }
-
-  const payload = await response.json();
-  const next_default_agent_id = payload?.data?.default_agent_id;
+  const payload = await request_api<{ default_agent_id: string }>(
+    `${getAgentApiBaseUrl()}/runtime/options`,
+    {
+      method: "GET",
+      notify_on_401: false,
+    },
+  );
+  const next_default_agent_id = payload?.default_agent_id;
   if (!next_default_agent_id || typeof next_default_agent_id !== "string") {
     throw new Error("运行时配置缺少 default_agent_id");
   }
