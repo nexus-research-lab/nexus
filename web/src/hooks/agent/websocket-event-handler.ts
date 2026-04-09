@@ -14,7 +14,7 @@ import {
 } from '@/types/agent-conversation';
 import { WorkspaceEventPayload } from '@/types/workspace-live';
 
-import { applyStreamMessage, upsertMessage } from './message-helpers';
+import { applyStreamMessage, normalizeAssistantMessage, upsertMessage } from './message-helpers';
 
 /**
  * 处理 Agent 会话的 WebSocket 事件。
@@ -243,13 +243,19 @@ export function handleAgentConversationWebSocketMessage({
     return;
   }
 
-  set_messages((prev) => upsertMessage(prev, payload));
+  const normalized_payload = (
+    payload.role === 'assistant'
+      ? normalizeAssistantMessage(payload as AssistantMessage)
+      : payload
+  );
+
+  set_messages((prev) => upsertMessage(prev, normalized_payload));
   if (payload.role === 'result') {
     set_pending_permissions([]);
     track_result_message?.(payload as ResultMessage);
     return;
   }
-  if (payload.role === 'assistant') {
-    track_assistant_message?.(payload as AssistantMessage);
+  if (normalized_payload.role === 'assistant') {
+    track_assistant_message?.(normalized_payload as AssistantMessage);
   }
 }

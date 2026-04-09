@@ -38,17 +38,29 @@ function normalize_completed_assistant_states(messages: Message[]): Message[] {
 }
 
 /**
+ * 将后端 assistant 快照统一归一化为前端运行态语义。
+ *
+ * 中文说明：
+ * 后端的 is_complete 主要服务于持久化与非 Web 渠道发送，不等价于“这一轮已经结束”。
+ * Web 运行态必须以 stop_reason / 显式 stream_status / ResultMessage 为准，
+ * 否则工具执行与权限确认后的空档会被误判成 idle。
+ */
+export function normalizeAssistantMessage(incoming: AssistantMessage): AssistantMessage {
+  return {
+    ...incoming,
+    stream_status: incoming.stream_status ?? (
+      incoming.stop_reason ? 'done' : 'streaming'
+    ),
+  };
+}
+
+/**
  * 按 message_id 合并完整消息。
  */
 export function upsertMessage(messages: Message[], incoming: Message): Message[] {
   const normalized_incoming = (
     incoming.role === 'assistant'
-      ? {
-        ...incoming,
-        stream_status: incoming.stream_status ?? (
-          incoming.is_complete || incoming.stop_reason ? 'done' : 'streaming'
-        ),
-      }
+      ? normalizeAssistantMessage(incoming)
       : incoming
   );
   const existingIndex = messages.findIndex(

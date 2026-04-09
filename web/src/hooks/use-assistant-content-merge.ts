@@ -58,7 +58,12 @@ export function useAssistantContentMerge({
 
     for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
       const message = assistantMessages[index];
-      if (message.is_complete === false) {
+      if (
+        message.stream_status !== 'done'
+        && message.stream_status !== 'cancelled'
+        && message.stream_status !== 'error'
+        && !message.stop_reason
+      ) {
         return message.message_id;
       }
     }

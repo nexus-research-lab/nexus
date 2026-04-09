@@ -342,7 +342,6 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
           return message;
         }
         if (
-          message.is_complete ||
           message.stop_reason ||
           message.stream_status === 'done' ||
           message.stream_status === 'cancelled' ||
