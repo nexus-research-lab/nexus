@@ -10,7 +10,7 @@ import {
   HeroBlobShell,
   HeroInputShell,
 } from "@/features/launcher/launcher-glass-shell";
-import { cn, truncate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
@@ -103,6 +103,23 @@ function getInitials(name: string) {
     return parts[0].slice(0, 2).toUpperCase();
   }
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function truncateLauncherChipLabel(label: string, max_chars: number = 8): string {
+  const chars = Array.from(label.trim());
+  if (chars.length <= max_chars) {
+    return label.trim();
+  }
+
+  // 中文注释：Hero 推荐项空间很窄，超长名称改为中间省略，
+  // 保留首尾辨识信息，避免纯尾部截断导致 DM/Room 名称难以分辨。
+  const head_count = Math.max(2, Math.ceil((max_chars - 1) / 2));
+  const tail_count = Math.max(2, max_chars - 1 - head_count);
+  return `${chars.slice(0, head_count).join("")}…${chars.slice(-tail_count).join("")}`;
+}
+
+function isLauncherChipTruncated(label: string, max_chars: number = 6): boolean {
+  return Array.from(label.trim()).length > max_chars;
 }
 
 function buildDecorativeTokens(
@@ -527,37 +544,55 @@ const HeroStage = memo(function HeroStage({
           )}>
             {recent_entries.map((entry, index) => (
               <FadeSlideIn key={entry.key} delay_ms={580 + index * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
-                <button
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
-                  style={{
-                    background: entry.type === "room"
-                      ? "var(--launcher-room-chip-background)"
-                      : "var(--launcher-agent-chip-background)",
-                    boxShadow: entry.type === "room"
-                      ? "inset 0 0 0 1px var(--launcher-room-chip-border)"
-                      : "inset 0 0 0 1px var(--launcher-agent-chip-border)",
-                    color: entry.type === "room"
-                      ? "var(--launcher-room-chip-text)"
-                      : "var(--launcher-agent-chip-text)",
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    on_open_recent_entry(entry);
-                  }}
-                  type="button"
-                >
-                  {entry.type === "dm" ? (
-                    <span
-                      className="h-4 w-4 rounded-full"
+                <div className="group relative inline-flex">
+                  {isLauncherChipTruncated(entry.label) ? (
+                    <div
+                      className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[220px] -translate-x-1/2 translate-y-1 rounded-2xl px-3 py-2 text-center text-xs font-medium leading-5 opacity-0 shadow-[0_18px_42px_rgba(38,52,76,0.16)] transition duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
                       style={{
-                        backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
-                        border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
+                        background: "color-mix(in srgb, rgba(247, 249, 253, 0.96) 88%, rgba(255, 255, 255, 0.72))",
+                        boxShadow: "0 18px 42px rgba(38, 52, 76, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.58)",
+                        color: "rgba(39, 50, 74, 0.88)",
+                        backdropFilter: "blur(14px)",
+                        WebkitBackdropFilter: "blur(14px)",
                       }}
-                    />
+                    >
+                      {entry.type === "room" ? "#" : ""}
+                      {entry.label}
+                    </div>
                   ) : null}
-                  {entry.type === "room" ? "#" : ""}
-                  {truncate(entry.label, 18)}
-                </button>
+                  <button
+                    aria-label={entry.type === "room" ? `房间 ${entry.label}` : `私聊 ${entry.label}`}
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
+                    style={{
+                      background: entry.type === "room"
+                        ? "var(--launcher-room-chip-background)"
+                        : "var(--launcher-agent-chip-background)",
+                      boxShadow: entry.type === "room"
+                        ? "inset 0 0 0 1px var(--launcher-room-chip-border)"
+                        : "inset 0 0 0 1px var(--launcher-agent-chip-border)",
+                      color: entry.type === "room"
+                        ? "var(--launcher-room-chip-text)"
+                        : "var(--launcher-agent-chip-text)",
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      on_open_recent_entry(entry);
+                    }}
+                    type="button"
+                  >
+                    {entry.type === "dm" ? (
+                      <span
+                        className="h-4 w-4 rounded-full"
+                        style={{
+                          backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
+                          border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
+                        }}
+                      />
+                    ) : null}
+                    {entry.type === "room" ? "#" : ""}
+                    {truncateLauncherChipLabel(entry.label)}
+                  </button>
+                </div>
               </FadeSlideIn>
             ))}
 
