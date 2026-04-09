@@ -26,12 +26,10 @@ export const ContactsPanelContent = memo(function ContactsPanelContent() {
   const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
 
-  // 初始化加载
   useEffect(() => {
     void load_agents();
   }, [load_agents]);
 
-  // 点击 Agent 条目
   const handle_click = useCallback(
     (agent_id: string) => {
       set_active_item(agent_id);
@@ -40,7 +38,6 @@ export const ContactsPanelContent = memo(function ContactsPanelContent() {
     [navigate, set_active_item],
   );
 
-  // 新建 Agent（导航到 contacts 页面）
   const handle_create = useCallback(() => {
     navigate(AppRouteBuilders.contacts());
   }, [navigate]);
@@ -89,22 +86,21 @@ export const ContactsPanelContent = memo(function ContactsPanelContent() {
                   >
                     {avatar_letter}
                   </div>
-                  {/* 在线状态圆点 */}
                   <span
                     className={cn(
-                      "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white",
-                      is_running ? "bg-emerald-400" : "bg-slate-300",
+                      "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface-panel-background)]",
+                      is_running ? "bg-emerald-400" : "bg-[var(--divider-subtle-color)]",
                     )}
                   />
                 </div>
 
                 {/* 名称 */}
-                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-slate-700">
+                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[color:var(--text-default)]">
                   {agent.name}
                 </span>
 
                 {/* 状态文字 */}
-                <span className="shrink-0 text-[10px] text-slate-400">
+                <span className="shrink-0 text-[10px] text-[color:var(--text-muted)]">
                   {is_running ? "运行中" : "空闲"}
                 </span>
               </button>
@@ -112,8 +108,8 @@ export const ContactsPanelContent = memo(function ContactsPanelContent() {
           })
         ) : (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <Users className="h-5 w-5 text-slate-300" />
-            <p className="text-[11px] text-slate-400">暂无成员</p>
+            <Users className="h-5 w-5 text-[color:var(--icon-muted)]" />
+            <p className="text-[11px] text-[color:var(--text-soft)]">暂无成员</p>
           </div>
         )}
       </CollapsibleSection>

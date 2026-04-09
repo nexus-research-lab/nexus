@@ -52,7 +52,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
           set_connector_count(count);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => {
       cancelled = true;
@@ -68,7 +68,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   return (
     <Fragment>
       <SidebarListItem
-        icon={<Puzzle className="h-3.5 w-3.5" />}
+        icon={<Puzzle className="h-4 w-4" />}
         is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.skills}
         label={t("capability.skills")}
         meta={String(skill_count)}
@@ -79,7 +79,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       />
 
       <SidebarListItem
-        icon={<Link2 className="h-3.5 w-3.5" />}
+        icon={<Link2 className="h-4 w-4" />}
         is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.connectors}
         label={t("capability.connectors")}
         meta={String(connector_count)}
@@ -90,7 +90,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       />
 
       <SidebarListItem
-        icon={<Calendar className="h-3.5 w-3.5" />}
+        icon={<Calendar className="h-4 w-4" />}
         is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks}
         label={t("capability.scheduled")}
         meta={String(scheduled_task_count)}
@@ -101,7 +101,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       />
 
       <SidebarListItem
-        icon={<Radio className="h-3.5 w-3.5" />}
+        icon={<Radio className="h-4 w-4" />}
         is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.channels}
         label={t("capability.channels")}
         meta={String(channel_count)}
@@ -112,7 +112,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       />
 
       <SidebarListItem
-        icon={<Users2 className="h-3.5 w-3.5" />}
+        icon={<Users2 className="h-4 w-4" />}
         is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.pairings}
         label={t("capability.pairings")}
         meta={String(pairing_count)}

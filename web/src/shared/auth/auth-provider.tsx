@@ -31,6 +31,7 @@ const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, set_status] = useState<AuthStatus | null>(null);
   const [loading, set_loading] = useState(true);
+  const [is_bootstrapped, set_is_bootstrapped] = useState(false);
   const [error, set_error] = useState<string | null>(null);
 
   const refresh_status = useCallback(async (): Promise<AuthStatus> => {
@@ -40,12 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       startTransition(() => {
         set_status(next_status);
         set_error(null);
+        set_is_bootstrapped(true);
       });
       return next_status;
     } catch (err) {
       const message = err instanceof Error ? err.message : "加载登录状态失败";
       startTransition(() => {
         set_error(message);
+        set_is_bootstrapped(true);
       });
       throw err;
     } finally {
@@ -64,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const handle_auth_required = () => {
       startTransition(() => {
+        set_is_bootstrapped(true);
         set_status((current_status) => {
           if (!current_status) {
             return DEFAULT_UNAUTHORIZED_STATUS;
@@ -88,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     startTransition(() => {
       set_status(next_status);
       set_error(null);
+      set_is_bootstrapped(true);
     });
     return next_status;
   }, []);
@@ -97,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     startTransition(() => {
       set_status(next_status);
       set_error(null);
+      set_is_bootstrapped(true);
     });
     return next_status;
   }, []);
@@ -106,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         status,
         loading,
+        is_bootstrapped,
         error,
         refresh_status,
         login,

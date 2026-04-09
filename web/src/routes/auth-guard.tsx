@@ -47,15 +47,10 @@ function GuardState({
 
 export function AuthGuard() {
   const location = useLocation();
-  const { status, loading, error, refresh_status } = useAuth();
+  const { status, is_bootstrapped, error, refresh_status } = useAuth();
 
-  if (loading) {
-    return (
-      <GuardState
-        title="正在校验登录状态"
-        description="等待服务端确认当前会话是否有效。"
-      />
-    );
+  if (!is_bootstrapped) {
+    return <main className="min-h-screen bg-background text-foreground" />;
   }
 
   if (error && !status) {

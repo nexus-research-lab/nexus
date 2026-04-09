@@ -1,10 +1,26 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
+
+export interface MentionTargetItem {
+    id: string;
+    label: string;
+    subtitle?: string | null;
+    kind: "agent" | "room";
+}
+
+interface MentionTargetPopoverProps {
+    items: MentionTargetItem[];
+    filter: string;
+    anchor_rect: DOMRect | null;
+    on_select: (item: MentionTargetItem) => void;
+    on_close: () => void;
+    placement?: "above" | "below" | "auto";
+}
 
 interface MentionPopoverProps {
     members: Agent[];
@@ -15,37 +31,39 @@ interface MentionPopoverProps {
 }
 
 /**
- * @mention 下拉选择面板
+ * 通用 mention 目标选择面板
  *
- * 渲染到 document.body (portal)，避免被父级 overflow:hidden 或 stacking context 截断。
- * 位置用 anchor_rect (fixed 坐标) 计算，始终显示在输入框上方。
+ * 渲染到 document.body，避免被父级的 overflow 和层叠上下文裁切。
  */
-export const MentionPopover = memo(({
-    members,
+export const MentionTargetPopover = memo(({
+    items,
     filter,
     anchor_rect,
     on_select,
     on_close,
-}: MentionPopoverProps) => {
+    placement = "auto",
+}: MentionTargetPopoverProps) => {
     const [active_index, set_active_index] = useState(0);
     const list_ref = useRef<HTMLDivElement>(null);
 
-    const filtered_members = members.filter((member) =>
-        member.name.toLowerCase().includes(filter.toLowerCase()),
-    );
+    const normalized_filter = filter.trim().toLowerCase();
+    const filtered_items = useMemo(() => items.filter((item) =>
+        item.label.toLowerCase().includes(normalized_filter)
+        || item.subtitle?.toLowerCase().includes(normalized_filter),
+    ), [items, normalized_filter]);
 
     useEffect(() => {
         set_active_index(0);
     }, [filter]);
 
     useEffect(() => {
-        if (filtered_members.length === 0) {
+        if (filtered_items.length === 0) {
             on_close();
         }
-    }, [filtered_members.length, on_close]);
+    }, [filtered_items.length, on_close]);
 
     const handle_key_down = useCallback((event: KeyboardEvent) => {
-        if (filtered_members.length === 0) {
+        if (filtered_items.length === 0) {
             return;
         }
 
@@ -53,18 +71,18 @@ export const MentionPopover = memo(({
             case "ArrowDown":
                 event.preventDefault();
                 event.stopPropagation();
-                set_active_index((prev) => (prev + 1) % filtered_members.length);
+                set_active_index((prev) => (prev + 1) % filtered_items.length);
                 break;
             case "ArrowUp":
                 event.preventDefault();
                 event.stopPropagation();
-                set_active_index((prev) => (prev - 1 + filtered_members.length) % filtered_members.length);
+                set_active_index((prev) => (prev - 1 + filtered_items.length) % filtered_items.length);
                 break;
             case "Enter":
             case "Tab":
                 event.preventDefault();
                 event.stopPropagation();
-                on_select(filtered_members[active_index]);
+                on_select(filtered_items[active_index]);
                 break;
             case "Escape":
                 event.preventDefault();
@@ -72,7 +90,7 @@ export const MentionPopover = memo(({
                 on_close();
                 break;
         }
-    }, [active_index, filtered_members, on_close, on_select]);
+    }, [active_index, filtered_items, on_close, on_select]);
 
     useEffect(() => {
         document.addEventListener("keydown", handle_key_down, true);
@@ -84,15 +102,18 @@ export const MentionPopover = memo(({
         active_element?.scrollIntoView({ block: "nearest" });
     }, [active_index]);
 
-    if (!anchor_rect || filtered_members.length === 0) {
+    if (!anchor_rect || filtered_items.length === 0) {
         return null;
     }
 
-    // Position the popover above the textarea using fixed coordinates.
-    // Max height is capped at 192px (max-h-48); we prefer top-anchored-above.
     const MAX_HEIGHT = 192;
     const GAP = 6;
-    const top = anchor_rect.top - GAP - Math.min(filtered_members.length * 40 + 8, MAX_HEIGHT);
+    const estimated_height = Math.min(filtered_items.length * 52 + 8, MAX_HEIGHT);
+    const can_place_above = anchor_rect.top - GAP - estimated_height >= 12;
+    const should_place_below = placement === "below" || (placement === "auto" && !can_place_above);
+    const top = should_place_below
+        ? anchor_rect.bottom + GAP
+        : anchor_rect.top - GAP - estimated_height;
     const left = anchor_rect.left;
     const min_width = Math.max(anchor_rect.width, 200);
 
@@ -109,9 +130,9 @@ export const MentionPopover = memo(({
             }}
         >
             <div ref={list_ref} className="py-1">
-                {filtered_members.map((member, index) => (
+                {filtered_items.map((item, index) => (
                     <button
-                        key={member.agent_id}
+                        key={item.id}
                         className={cn(
                             "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150",
                             index === active_index ? "text-[color:var(--text-strong)]" : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
@@ -119,7 +140,7 @@ export const MentionPopover = memo(({
                         style={index === active_index ? { background: "var(--surface-interactive-active-background)" } : undefined}
                         onMouseDown={(e) => {
                             e.preventDefault();
-                            on_select(member);
+                            on_select(item);
                         }}
                         onMouseEnter={() => set_active_index(index)}
                         type="button"
@@ -132,9 +153,16 @@ export const MentionPopover = memo(({
                                 boxShadow: "var(--surface-avatar-shadow)",
                             }}
                         >
-                            {member.name.charAt(0).toUpperCase()}
+                            {item.kind === "room" ? "#" : item.label.charAt(0).toUpperCase()}
                         </span>
-                        <span className="truncate font-medium">{member.name}</span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{item.label}</span>
+                            {item.subtitle ? (
+                                <span className="block truncate text-[11px] text-[color:var(--text-soft)]">
+                                    {item.subtitle}
+                                </span>
+                            ) : null}
+                        </span>
                     </button>
                 ))}
             </div>
@@ -142,6 +170,42 @@ export const MentionPopover = memo(({
     );
 
     return createPortal(popover, document.body);
+});
+
+MentionTargetPopover.displayName = "MentionTargetPopover";
+
+/**
+ * Room composer 仍然只需要 @agent 选择，这里保留兼容包装层。
+ */
+export const MentionPopover = memo(({
+    members,
+    filter,
+    anchor_rect,
+    on_select,
+    on_close,
+}: MentionPopoverProps) => {
+    const items = useMemo<MentionTargetItem[]>(() => members.map((member) => ({
+        id: member.agent_id,
+        label: member.name,
+        subtitle: null,
+        kind: "agent",
+    })), [members]);
+
+    return (
+        <MentionTargetPopover
+            anchor_rect={anchor_rect}
+            filter={filter}
+            items={items}
+            on_close={on_close}
+            on_select={(item) => {
+                const selected_member = members.find((member) => member.agent_id === item.id);
+                if (selected_member) {
+                    on_select(selected_member);
+                }
+            }}
+            placement="above"
+        />
+    );
 });
 
 MentionPopover.displayName = "MentionPopover";

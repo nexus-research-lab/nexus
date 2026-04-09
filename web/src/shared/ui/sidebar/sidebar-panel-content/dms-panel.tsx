@@ -39,31 +39,22 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
   const [search_query, set_search_query] = useState("");
   const [delete_target, set_delete_target] = useState<{ id: string; name: string } | null>(null);
 
-  // 刷新列表
   const refresh = useCallback(() => {
     void listRooms(200).then(set_rooms);
   }, []);
 
-  // 初始化加载
   useEffect(() => {
     void load_agents();
     refresh();
   }, [load_agents, refresh]);
 
-  // 过滤 DM 并按时间排序
   const dm_rooms = useMemo(() => {
     const dms = rooms.filter((r) => r.room.room_type === "dm");
-    // 按更新时间降序
     const sorted = [...dms].sort((a, b) => {
-      const ta = new Date(
-        a.room.updated_at ?? a.room.created_at ?? 0,
-      ).getTime();
-      const tb = new Date(
-        b.room.updated_at ?? b.room.created_at ?? 0,
-      ).getTime();
+      const ta = new Date(a.room.updated_at ?? a.room.created_at ?? 0).getTime();
+      const tb = new Date(b.room.updated_at ?? b.room.created_at ?? 0).getTime();
       return tb - ta;
     });
-    // 搜索过滤
     if (!search_query.trim()) return sorted;
     const q = search_query.toLowerCase();
     return sorted.filter((room) =>
@@ -71,7 +62,6 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
     );
   }, [agents, rooms, search_query]);
 
-  // 点击 DM 条目
   const handle_click = useCallback(
     (room_id: string) => {
       set_active_item(room_id);
@@ -84,9 +74,9 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
     <div className="flex flex-col gap-2">
       {/* 搜索框 */}
       <div className="relative px-1">
-        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--icon-muted)]" />
         <input
-          className="w-full rounded-lg border border-[var(--surface-panel-subtle-border)] bg-[var(--surface-panel-subtle-background)] py-1.5 pl-7 pr-2 text-[12px] text-slate-700 placeholder:text-slate-400 focus:bg-[var(--surface-interactive-hover-background)] focus:outline-none"
+          className="w-full rounded-lg border border-[var(--surface-panel-subtle-border)] bg-[var(--surface-panel-subtle-background)] py-1.5 pl-7 pr-2 text-[12px] text-[color:var(--text-default)] placeholder:text-[color:var(--text-soft)] focus:bg-[var(--surface-interactive-hover-background)] focus:outline-none"
           onChange={(e) => set_search_query(e.target.value)}
           placeholder="搜索私信..."
           type="text"
@@ -135,21 +125,21 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
                 {/* 名称 + 预览 */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="truncate text-[12px] font-semibold text-slate-800">
+                    <span className="truncate text-[12px] font-semibold text-[color:var(--text-strong)]">
                       {name}
                     </span>
-                    <span className="shrink-0 text-[10px] text-slate-400">
+                    <span className="shrink-0 text-[10px] text-[color:var(--text-muted)]">
                       {timestamp > 0 ? formatRelativeTime(timestamp) : ""}
                     </span>
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                  <p className="mt-0.5 truncate text-[11px] text-[color:var(--text-soft)]">
                     1v1
                   </p>
                 </div>
 
                 {/* 删除按钮 */}
                 <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 opacity-0 transition-all hover:text-red-500 group-hover:opacity-100"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[color:var(--icon-muted)] opacity-0 transition-all hover:text-rose-500 group-hover:opacity-100"
                   onClick={(e) => { e.stopPropagation(); set_delete_target({ id: room.room.id, name }); }}
                   role="button"
                   tabIndex={-1}
@@ -161,8 +151,8 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
           })
         ) : (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <MessageCircleMore className="h-5 w-5 text-slate-300" />
-            <p className="text-[11px] text-slate-400">
+            <MessageCircleMore className="h-5 w-5 text-[color:var(--icon-muted)]" />
+            <p className="text-[11px] text-[color:var(--text-soft)]">
               {search_query ? "没有匹配的私信" : "暂无私信"}
             </p>
           </div>

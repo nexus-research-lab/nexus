@@ -158,7 +158,7 @@ export function SidebarListItem({
 
           {on_delete ? (
             <button
-              className={cn(CONTEXT_MENU_ITEM_CLASS_NAME, "text-red-600 hover:bg-red-50/90")}
+              className={cn(CONTEXT_MENU_ITEM_CLASS_NAME, "text-rose-500 hover:bg-rose-500/10")}
               onClick={() => {
                 set_menu_pos(null);
                 on_delete();
@@ -200,14 +200,14 @@ export function CollapsibleSection({
           type="button"
         >
           {is_collapsed ? (
-            <ChevronRight className="h-3 w-3" />
+            <ChevronRight className="h-3.5 w-3.5" />
           ) : (
-            <ChevronDown className="h-3 w-3" />
+            <ChevronDown className="h-3.5 w-3.5" />
           )}
           {icon ? <span className="flex items-center">{icon}</span> : null}
           <span>{title}</span>
           {typeof count === "number" ? (
-            <span className="text-[11px] font-medium tabular-nums text-[color:var(--text-muted)]">{count}</span>
+            <span className="text-[12px] font-medium tabular-nums text-[color:var(--text-muted)]">{count}</span>
           ) : null}
         </button>
 

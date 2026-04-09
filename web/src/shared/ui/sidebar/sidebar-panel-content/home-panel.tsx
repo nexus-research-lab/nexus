@@ -159,7 +159,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           {starred.map((item) => (
             <SidebarListItem
               key={item.id}
-              icon={<Star className="h-3.5 w-3.5 text-amber-400" />}
+              icon={<Star className="h-4 w-4 text-amber-400" />}
               is_active={active_item_id === item.id}
               label={item.name}
               on_click={() => {
@@ -177,7 +177,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
 
       {/* Rooms 分区 — 带新建按钮 */}
       <CollapsibleSection
-        action_icon={<Plus className="h-3 w-3" />}
+        action_icon={<Plus className="h-3.5 w-3.5" />}
         action_title={t("home.create_room")}
         count={normal_rooms.length}
         on_action={handle_create_room}
@@ -188,7 +188,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           normal_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
-              icon={<Hash className="h-3.5 w-3.5" />}
+              icon={<Hash className="h-4 w-4" />}
               is_active={active_item_id === room.room.id}
               label={room.room.name?.trim() || untitled_room_label}
               on_click={() => navigate_to_room(room.room.id)}
@@ -196,7 +196,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[12px] text-slate-400">{t("home.no_rooms")}</p>
+          <p className="px-2 py-2 text-[13px] text-slate-400">{t("home.no_rooms")}</p>
         )}
       </CollapsibleSection>
 
@@ -210,7 +210,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           dm_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
-              icon={<MessageCircleMore className="h-3.5 w-3.5" />}
+              icon={<MessageCircleMore className="h-4 w-4" />}
               is_active={active_item_id === room.room.id}
               label={get_dm_display_name(room, agents, untitled_dm_label)}
               on_click={() => navigate_to_room(room.room.id)}
@@ -218,7 +218,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[12px] text-slate-400">{t("home.no_dms")}</p>
+          <p className="px-2 py-2 text-[13px] text-slate-400">{t("home.no_dms")}</p>
         )}
       </CollapsibleSection>
 
@@ -232,7 +232,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           agents.map((agent) => (
             <SidebarListItem
               key={agent.agent_id}
-              icon={<Bot className="h-3.5 w-3.5" />}
+              icon={<Bot className="h-4 w-4" />}
               is_active={active_item_id === agent.agent_id}
               label={agent.name}
               meta={agent.status === "running" ? "●" : t("status.idle")}
@@ -240,7 +240,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[12px] text-slate-400">{t("home.no_agents")}</p>
+          <p className="px-2 py-2 text-[13px] text-[color:var(--text-soft)]">{t("home.no_agents")}</p>
         )}
       </CollapsibleSection>
 

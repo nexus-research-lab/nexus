@@ -1,22 +1,40 @@
 "use client";
 
-import { getStageGlowStyle } from "@/shared/ui/layout/stage-glow";
+import { ANIMATIONS } from "@/config/animation-assets";
+import { cn } from "@/lib/utils";
+import { LottiePlayer } from "../feedback/lottie-player";
+
+interface AppLoadingStateProps {
+  class_name?: string;
+  animation_class_name?: string;
+  message?: string;
+}
+
+export function AppLoadingState({
+  class_name,
+  animation_class_name = "h-32 w-32 shrink-0",
+  message = "正在加载...",
+}: AppLoadingStateProps) {
+  return (
+    <div
+      className={cn(
+        "radius-shell-lg glass-surface flex flex-col items-center gap-3 px-12 py-10 text-center",
+        class_name,
+      )}
+    >
+      <LottiePlayer
+        class_name={animation_class_name}
+        src={ANIMATIONS.CAT}
+      />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
 
 export function AppLoadingScreen() {
   return (
     <main className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-background px-6 text-foreground">
-      <div
-        className="pointer-events-none absolute left-[10%] top-[12%] h-56 w-56 rounded-full opacity-70 blur-[8px]"
-        style={getStageGlowStyle("lilac")}
-      />
-      <div
-        className="pointer-events-none absolute bottom-[10%] right-[12%] h-64 w-64 rounded-full opacity-60 blur-[14px]"
-        style={getStageGlowStyle("green")}
-      />
-      <div className="radius-shell-lg glass-surface px-10 py-9 text-center">
-        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">正在加载...</p>
-      </div>
+      <AppLoadingState />
     </main>
   );
 }

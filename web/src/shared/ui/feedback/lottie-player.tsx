@@ -24,6 +24,7 @@ export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProp
     <div className={class_name} style={inline_style}>
       <DotLottieReact
         autoplay
+        className="block h-full w-full"
         dotLottieRefCallback={setDotLottieInstance}
         loop
         src={src}

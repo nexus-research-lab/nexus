@@ -32,11 +32,15 @@ export function LoginPage() {
     () => resolve_redirect_path(search_params.get("redirect")),
     [search_params],
   );
-  const { status, loading, error, login, refresh_status } = useAuth();
+  const { status, loading, is_bootstrapped, error, login, refresh_status } = useAuth();
   const [username, set_username] = useState("");
   const [password, set_password] = useState("");
   const [submit_error, set_submit_error] = useState<string | null>(null);
   const [is_submitting, set_is_submitting] = useState(false);
+
+  if (!is_bootstrapped) {
+    return <main className="min-h-screen bg-background text-foreground" />;
+  }
 
   if (!loading && status && (!status.auth_required || status.authenticated)) {
     return <Navigate replace to={redirect_path} />;
