@@ -33,6 +33,7 @@ interface AgentOptionsProps {
   mode: "create" | "edit";
   is_open: boolean;
   on_close: () => void;
+  on_delete?: (agent_id: string) => void;
   on_save: (title: string, options: AgentConfigOptions) => void;
   on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   initial_title?: string;
@@ -54,6 +55,7 @@ export function AgentOptions({
   mode,
   is_open,
   on_close,
+  on_delete,
   on_save,
   on_validate_name,
   initial_title = "",
@@ -199,6 +201,7 @@ export function AgentOptions({
     (!nameValidation.is_valid || !nameValidation.is_available)
   );
   const canSave = !!title.trim() && !isValidatingName && !isNameInvalid;
+  const canDelete = mode === "edit" && Boolean(agent_id) && Boolean(on_delete);
 
   if (!is_open) return null;
 
@@ -284,6 +287,22 @@ export function AgentOptions({
 
         {/* 底部按钮 */}
         <div className="dialog-footer">
+          {canDelete ? (
+            <WorkspacePillButton
+              onClick={() => {
+                if (!agent_id || !on_delete) {
+                  return;
+                }
+                on_delete(agent_id);
+              }}
+              size="md"
+              tone="danger"
+              variant="tonal"
+              class_name="mr-auto"
+            >
+              删除 Agent
+            </WorkspacePillButton>
+          ) : null}
           <WorkspacePillButton
             onClick={on_close}
             size="md"

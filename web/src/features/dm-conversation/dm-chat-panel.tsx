@@ -6,7 +6,7 @@ import { useAgentConversation } from "@/hooks/agent";
 import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
-import { AgentConversationIdentity } from "@/types/agent-conversation";
+import { AgentConversationIdentity, getSessionControlStatusText } from "@/types/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 
@@ -45,6 +45,8 @@ export function DmChatPanel({
     error,
     messages,
     is_loading,
+    session_control_state,
+    session_observer_count,
     pending_permissions,
     send_message,
     stop_generation,
@@ -76,6 +78,12 @@ export function DmChatPanel({
   const todos = useExtractTodos(messages, session_key);
   const last_snapshot_key_ref = useRef<string | null>(null);
   const consumed_initial_draft_ref = useRef<string | null>(null);
+  const can_control_session = session_control_state !== "observer";
+  const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
+  const session_control_text = useMemo(
+    () => getSessionControlStatusText(session_control_state, session_observer_count),
+    [session_control_state, session_observer_count],
+  );
 
   useEffect(() => { on_todos_change?.(todos); }, [on_todos_change, todos]);
   useEffect(() => { on_loading_change?.(is_loading); }, [is_loading, on_loading_change]);
@@ -128,7 +136,7 @@ export function DmChatPanel({
 
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
-    if (!session_key || !normalized_draft || is_loading) {
+    if (!session_key || !normalized_draft || is_loading || !can_control_session) {
       return;
     }
 
@@ -147,7 +155,7 @@ export function DmChatPanel({
         consumed_initial_draft_ref.current = null;
         console.error("Failed to auto send initial DM prompt:", error);
       });
-  }, [initial_draft, is_loading, on_initial_draft_consumed, scroll_to_bottom, send_message, session_key]);
+  }, [can_control_session, initial_draft, is_loading, on_initial_draft_consumed, scroll_to_bottom, send_message, session_key]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
@@ -200,6 +208,8 @@ export function DmChatPanel({
           message_groups={message_groups}
           on_open_workspace_file={on_open_workspace_file}
           on_permission_response={send_permission_response}
+          can_respond_to_permissions={can_control_session}
+          permission_read_only_reason={observer_read_only_reason}
           round_ids={round_ids}
         />
       </div>
@@ -214,9 +224,11 @@ export function DmChatPanel({
 
       <ComposerPanel
         compact={is_mobile_layout}
+        control_status_text={session_control_text}
         is_loading={is_loading}
         on_send_message={handle_send_message}
         on_stop={handle_stop}
+        disabled={!can_control_session}
       />
     </div>
   );

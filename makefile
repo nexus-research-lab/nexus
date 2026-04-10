@@ -1,6 +1,7 @@
 TAG:=0.0.1
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
+COMPOSE_CMD ?= docker compose --env-file .env -f deploy/docker-compose.yml
 
 # Default target
 .DEFAULT_GOAL := help
@@ -101,7 +102,7 @@ test: check ## Alias of check
 
 # Docker commands
 build: ## Build Docker images
-	TAG=$(TAG) docker compose -f deploy/docker-compose.yml build
+	TAG=$(TAG) $(COMPOSE_CMD) build
 
 build-backend: ## Build backend Docker image
 	docker build --progress=plain -f deploy/Dockerfile -t leemysw/nexus:app-$(TAG) .
@@ -110,25 +111,25 @@ build-web: ## Build frontend + nginx gateway image
 	docker build --progress=plain -f web/Dockerfile -t leemysw/nexus:web-$(TAG) .
 
 start: ## Start all services with Docker
-	TAG=$(TAG) docker compose -f deploy/docker-compose.yml up -d --build
+	TAG=$(TAG) $(COMPOSE_CMD) up -d --build
 	@echo ""
 	@echo "✅ Nexus Core is running!"
 	@echo "🌐 Web UI: http://localhost"
 	@echo "📋 Logs: run 'make logs' to view service logs"
 
 stop: ## Stop all Docker services
-	TAG=$(TAG) docker compose -f deploy/docker-compose.yml down
+	TAG=$(TAG) $(COMPOSE_CMD) down
 
 restart: stop start ## Restart all Docker services
 
 logs: ## Show Docker service logs
-	TAG=$(TAG) docker compose -f deploy/docker-compose.yml logs -f
+	TAG=$(TAG) $(COMPOSE_CMD) logs -f
 
 status: ## Show Docker service status
-	TAG=$(TAG) docker compose -f deploy/docker-compose.yml ps
+	TAG=$(TAG) $(COMPOSE_CMD) ps
 
 clean: ## Clean up Docker resources
-	TAG=$(TAG) docker compose -f deploy/docker-compose.yml down -v
+	TAG=$(TAG) $(COMPOSE_CMD) down -v
 	docker system prune -f
 
 # Legacy commands (for backward compatibility)

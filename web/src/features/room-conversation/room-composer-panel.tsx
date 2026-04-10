@@ -33,6 +33,7 @@ interface RoomComposerPanelProps {
   max_length?: number;
   room_members?: Agent[];
   mention_unavailable_agent_ids?: string[];
+  control_status_text?: string;
 }
 
 const RoomComposerPanelView = memo(({
@@ -44,6 +45,7 @@ const RoomComposerPanelView = memo(({
   max_length = 10000,
   room_members = [],
   mention_unavailable_agent_ids = [],
+  control_status_text,
 }: RoomComposerPanelProps) => {
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
@@ -381,16 +383,25 @@ const RoomComposerPanelView = memo(({
 
           <div className={COMPOSER_FOOTER_CLASS_NAME}>
             <div className="flex items-center gap-3 text-[10px] text-[color:var(--text-soft)]">
-              <span className="flex items-center gap-1">
-                <kbd>Enter</kbd>
-                <span>发送</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <kbd>Shift</kbd>
-                <span>+</span>
-                <kbd>Enter</kbd>
-                <span>换行</span>
-              </span>
+              {disabled && control_status_text ? (
+                <span className="text-[color:var(--text-default)]">{control_status_text}</span>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1">
+                    <kbd>Enter</kbd>
+                    <span>发送</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd>Shift</kbd>
+                    <span>+</span>
+                    <kbd>Enter</kbd>
+                    <span>换行</span>
+                  </span>
+                </>
+              )}
+              {!disabled && control_status_text ? (
+                <span className="text-[color:var(--text-default)]">{control_status_text}</span>
+              ) : null}
             </div>
 
             {history_index >= 0 ? (

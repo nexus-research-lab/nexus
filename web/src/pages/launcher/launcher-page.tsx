@@ -8,16 +8,17 @@ import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
 import { deleteConversation } from "@/lib/agent-api";
-import { areEquivalentSessionKeys } from "@/lib/session-key";
 import { createRoom, ensureDirectRoom } from "@/lib/room-api";
 import { cn } from "@/lib/utils";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 import { AgentOptions as AgentConfigOptions } from "@/types/agent";
+import { getSessionControlStatusText } from "@/types/agent-conversation";
 import { getDefaultAgentId } from "@/config/options";
 
 export function LauncherPage() {
@@ -29,8 +30,9 @@ export function LauncherPage() {
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const [should_bootstrap_room_after_create, set_should_bootstrap_room_after_create] = useState(false);
   const [pending_room_title, set_pending_room_title] = useState<string>("");
+  const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
   const consumed_route_prompt_ref = useRef<string | null>(null);
-  const hydrated_app_session_key_ref = useRef<string | null>(null);
+  const app_panel_load_signature_ref = useRef<string | null>(null);
   const pending_app_prompt_ref = useRef<string | null>(null);
   const app_conversation_identity = useMemo(() => ({
     session_key: controller.app_session_key,
@@ -48,46 +50,48 @@ export function LauncherPage() {
     messages: app_conversation_messages,
     error: app_conversation_error,
     is_loading: app_conversation_loading,
+    session_control_state,
+    session_observer_count,
     ws_state: app_conversation_ws_state,
     pending_permissions,
     send_permission_response,
     stop_generation,
   } = app_conversation;
-  const app_session_exists = useMemo(() => (
-    controller.conversations.some((conversation) => (
-      areEquivalentSessionKeys(conversation.session_key, controller.app_session_key)
-    ))
-  ), [controller.app_session_key, controller.conversations]);
-
+  const app_conversation_can_control = session_control_state !== "observer";
+  const app_conversation_control_status_text = useMemo(
+    () => getSessionControlStatusText(session_control_state, session_observer_count),
+    [session_control_state, session_observer_count],
+  );
   useEffect(() => {
     if (!controller.is_app_conversation_open) {
+      app_panel_load_signature_ref.current = null;
+      return;
+    }
+
+    if (!controller.is_hydrated) {
       return;
     }
 
     bind_session_key(controller.app_session_key);
 
-    if (!app_session_exists) {
-      hydrated_app_session_key_ref.current = null;
+    const next_load_signature = `${controller.app_session_key}:open`;
+    if (app_panel_load_signature_ref.current === next_load_signature) {
       return;
     }
 
-    if (hydrated_app_session_key_ref.current === controller.app_session_key) {
-      return;
-    }
-
-    hydrated_app_session_key_ref.current = controller.app_session_key;
+    app_panel_load_signature_ref.current = next_load_signature;
     void load_session(controller.app_session_key);
   }, [
-    app_session_exists,
     bind_session_key,
     controller.app_session_key,
+    controller.is_hydrated,
     controller.is_app_conversation_open,
     load_session,
   ]);
 
   const flush_pending_app_prompt = useCallback(async () => {
     const pending_prompt = pending_app_prompt_ref.current?.trim() ?? "";
-    if (!pending_prompt || app_conversation_ws_state !== "connected") {
+    if (!pending_prompt || app_conversation_ws_state !== "connected" || !app_conversation_can_control) {
       return;
     }
 
@@ -101,7 +105,7 @@ export function LauncherPage() {
       ));
       throw error;
     }
-  }, [app_conversation_ws_state, controller, send_message]);
+  }, [app_conversation_can_control, app_conversation_ws_state, controller, send_message]);
 
   const handle_submit_app_conversation = useCallback(async (next_prompt: string) => {
     const trimmed_prompt = next_prompt.trim();
@@ -127,12 +131,12 @@ export function LauncherPage() {
   }, [bind_session_key, controller, flush_pending_app_prompt]);
 
   useEffect(() => {
-    if (app_conversation_ws_state !== "connected" || !pending_app_prompt_ref.current) {
+    if (app_conversation_ws_state !== "connected" || !pending_app_prompt_ref.current || !app_conversation_can_control) {
       return;
     }
 
     void flush_pending_app_prompt();
-  }, [app_conversation_ws_state, flush_pending_app_prompt]);
+  }, [app_conversation_can_control, app_conversation_ws_state, flush_pending_app_prompt]);
 
   useEffect(() => {
     if (app_conversation_ws_state !== "connected") {
@@ -175,7 +179,7 @@ export function LauncherPage() {
         throw error;
       }
     }
-    hydrated_app_session_key_ref.current = null;
+    app_panel_load_signature_ref.current = null;
     clear_session();
     controller.set_app_conversation_draft("");
     await controller.refresh_conversations();
@@ -228,6 +232,26 @@ export function LauncherPage() {
     );
   }, [controller, navigate, pending_room_title, set_active_panel_item, should_bootstrap_room_after_create, t]);
 
+  const handle_request_delete_agent = useCallback((agent_id: string) => {
+    const target_agent = controller.agents.find((agent) => agent.agent_id === agent_id);
+    set_pending_room_title("");
+    set_should_bootstrap_room_after_create(false);
+    controller.set_is_dialog_open(false);
+    set_pending_delete_agent({
+      id: agent_id,
+      name: target_agent?.name ?? "该 Agent",
+    });
+  }, [controller]);
+
+  const handle_confirm_delete_agent = useCallback(async () => {
+    if (!pending_delete_agent) {
+      return;
+    }
+
+    await controller.handle_delete_agent(pending_delete_agent.id);
+    set_pending_delete_agent(null);
+  }, [controller, pending_delete_agent]);
+
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
   }
@@ -248,6 +272,8 @@ export function LauncherPage() {
           <LauncherConsole
             app_conversation_draft={controller.app_conversation_draft}
             app_conversation_loading={app_conversation_loading}
+            app_conversation_can_control={app_conversation_can_control}
+            app_conversation_control_status_text={app_conversation_control_status_text}
             agents={controller.agents}
             conversations={controller.conversations}
             rooms={controller.rooms}
@@ -280,6 +306,8 @@ export function LauncherPage() {
                 is_loading={app_conversation_loading}
                 session_key={controller.app_session_key}
                 ws_state={app_conversation_ws_state}
+                can_respond_to_permissions={app_conversation_can_control}
+                permission_read_only_reason="当前窗口是观察视图，控制权在另一窗口"
                 on_clear_session={handle_clear_app_session}
                 on_close={controller.close_app_conversation}
                 on_permission_response={send_permission_response}
@@ -291,6 +319,7 @@ export function LauncherPage() {
       </div>
 
       <AgentOptions
+        agent_id={controller.editing_agent_id ?? undefined}
         mode={controller.dialog_mode}
         is_open={controller.is_dialog_open}
         on_close={() => {
@@ -298,6 +327,7 @@ export function LauncherPage() {
           set_should_bootstrap_room_after_create(false);
           controller.set_is_dialog_open(false);
         }}
+        on_delete={handle_request_delete_agent}
         on_save={handle_save_agent_options}
         on_validate_name={controller.handle_validate_agent_name}
         initial_title={
@@ -306,6 +336,18 @@ export function LauncherPage() {
             : controller.dialog_initial_title
         }
         initial_options={controller.dialog_initial_options}
+      />
+
+      <ConfirmDialog
+        confirm_text="删除成员"
+        is_open={Boolean(pending_delete_agent)}
+        message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
+        on_cancel={() => set_pending_delete_agent(null)}
+        on_confirm={() => {
+          void handle_confirm_delete_agent();
+        }}
+        title="删除成员"
+        variant="danger"
       />
     </>
   );

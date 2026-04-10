@@ -26,6 +26,8 @@ interface AgentStatusCardProps {
   is_thread_active: boolean;
   on_click_thread: () => void;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   on_stop_message?: () => void;
 }
 
@@ -40,6 +42,8 @@ function AgentStatusCardInner({
   is_thread_active,
   on_click_thread,
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_stop_message,
 }: AgentStatusCardProps) {
   const preview = useMemo(() => extractAgentPreviewText(messages), [messages]);
@@ -58,7 +62,9 @@ function AgentStatusCardInner({
   const model = last_msg?.model ?? null;
   const summary_text = useMemo(() => {
     if (is_waiting_permission) {
-      return primary_pending_permission?.summary || "等待权限确认";
+      return can_respond_to_permissions
+        ? (primary_pending_permission?.summary || "等待权限确认")
+        : (permission_read_only_reason || "另一窗口正在处理权限确认");
     }
     if (preview) {
       return preview;
@@ -76,7 +82,7 @@ function AgentStatusCardInner({
       return "执行失败";
     }
     return "";
-  }, [is_waiting_permission, preview, primary_pending_permission?.summary, status]);
+  }, [can_respond_to_permissions, is_waiting_permission, permission_read_only_reason, preview, primary_pending_permission?.summary, status]);
   const should_render_markdown_summary = Boolean(
     preview
     && !is_waiting_permission
@@ -171,14 +177,28 @@ function AgentStatusCardInner({
               <button
                 type="button"
                 onClick={handle_deny}
-                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                disabled={!can_respond_to_permissions}
+                title={!can_respond_to_permissions ? permission_read_only_reason : undefined}
+                className={cn(
+                  "rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors",
+                  can_respond_to_permissions
+                    ? "hover:bg-slate-50"
+                    : "cursor-not-allowed opacity-50",
+                )}
               >
                 拒绝
               </button>
               <button
                 type="button"
                 onClick={handle_allow}
-                className="rounded-md bg-[#7c6cf2] px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#6f5de8]"
+                disabled={!can_respond_to_permissions}
+                title={!can_respond_to_permissions ? permission_read_only_reason : undefined}
+                className={cn(
+                  "rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors",
+                  can_respond_to_permissions
+                    ? "bg-[#7c6cf2] hover:bg-[#6f5de8]"
+                    : "cursor-not-allowed bg-slate-300",
+                )}
               >
                 {is_question_pending ? "去回答" : "允许"}
               </button>

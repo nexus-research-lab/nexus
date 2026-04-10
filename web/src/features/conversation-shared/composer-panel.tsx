@@ -35,6 +35,7 @@ interface ComposerPanelProps {
   placeholder?: string;
   max_length?: number;
   room_members?: Agent[];
+  control_status_text?: string;
 }
 
 const ComposerPanelView = memo(({
@@ -47,6 +48,7 @@ const ComposerPanelView = memo(({
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
+  control_status_text,
 }: ComposerPanelProps) => {
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
@@ -398,8 +400,10 @@ const ComposerPanelView = memo(({
 
           <div className={COMPOSER_FOOTER_CLASS_NAME}>
             <div className="flex items-center gap-3 text-[10px] text-[color:var(--text-soft)]">
-              {is_loading ? (
-                <span className="flex items-center gap-2 text-emerald-500/88">
+              {disabled && control_status_text ? (
+                <span className="text-[color:var(--text-default)]">{control_status_text}</span>
+              ) : is_loading ? (
+                <span className="flex items-center gap-2 text-emerald-900/90">
                   <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
                   <span className="animate-pulse">正在回复中…</span>
                   <span className="text-[color:var(--text-soft)]">[ESC 停止]</span>
@@ -418,6 +422,9 @@ const ComposerPanelView = memo(({
                   </span>
                 </>
               )}
+              {!disabled && control_status_text ? (
+                <span className="text-[color:var(--text-default)]">{control_status_text}</span>
+              ) : null}
             </div>
 
             {history_index >= 0 ? (

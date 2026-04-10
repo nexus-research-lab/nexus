@@ -58,6 +58,101 @@
   - 1 条用户消息
   - 多个 assistant turn
   - 0 或 1 条 `ResultMessage`
+- round 的实时生命周期必须由后端 `round_status` 事件定义
+- 正常结束链路中：
+  - Claude SDK 先产出 `ResultMessage`
+  - 后端再据此推送 `round_status=finished`
+- 前端禁止根据以下信号自行结束 round：
+  - `AssistantMessage.stop_reason`
+  - `assistant.stream_status=done`
+  - `tool_result`
+  - `permission_response`
+
+#### 2.5.1 实时数据流
+
+正常 DM / 固定 Session / Room 主 round 都必须遵循同一条实时链路：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant FE as 前端 useAgentConversation
+    participant RM as RuntimeMachine
+    participant WS as WebSocket
+    participant BE as 后端 ChatService/RoomChatService
+    participant SDK as Claude SDK
+    participant UI as 消息区
+
+    U->>FE: 发送消息
+    FE->>WS: chat(session_key, round_id, content)
+    FE->>RM: queue_round(round_id)
+    RM-->>UI: phase=queued / is_loading=true
+
+    WS->>BE: 上行 chat
+    BE->>WS: round_status(running)
+    WS->>FE: round_status(running)
+    FE->>RM: track_round_status(running)
+    RM-->>UI: phase=running
+
+    BE->>SDK: query()
+    SDK-->>BE: StreamEvent / AssistantMessage / Permission / Tool
+
+    BE->>WS: stream
+    WS->>FE: stream
+    FE->>UI: applyStreamMessage(增量文本)
+
+    BE->>WS: message(assistant/result)
+    WS->>FE: message
+    FE->>UI: upsertMessage(完整消息)
+
+    BE->>WS: permission_request
+    WS->>FE: permission_request
+    FE->>RM: pending_permission_count +1
+    RM-->>UI: phase=awaiting_permission
+
+    U->>FE: allow/deny 或填写 AskUserQuestion
+    FE->>WS: permission_response
+    WS->>BE: permission_response
+    FE->>RM: pending_permission_count -1
+    RM-->>UI: 回到 running
+
+    Note over BE,SDK: 正常结束时 SDK 先产出 ResultMessage
+    SDK-->>BE: ResultMessage
+    BE->>WS: message(result)
+    BE->>WS: round_status(finished)
+
+    WS->>FE: round_status(finished)
+    FE->>RM: track_round_status(finished)
+    FE->>UI: 清理 pending permission / slot / running state
+    RM-->>UI: phase=idle / is_loading=false
+```
+
+约束：
+
+- `message(result)` 负责最终结果内容
+- terminal `round_status` 负责 round 级结束语义
+- 输入框是否解锁、执行态是否收口，只能由 terminal `round_status` 驱动
+- `session_status` 只负责同步当前运行态与控制端归属
+  - 必须包含 `running_round_ids`
+  - 必须包含 `controller_client_id`
+  - 必须包含 `observer_count`
+
+#### 2.5.2 前端运行态状态机
+
+前端只允许维护“当前处于什么阶段”的派生状态机，不允许维护第二套 round 生命周期真相源。
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> queued: send_message + queue_round
+    queued --> running: round_status(running)
+    running --> awaiting_permission: permission_request
+    awaiting_permission --> running: permission_response
+    running --> idle: round_status(finished)
+    running --> idle: round_status(error)
+    running --> idle: round_status(interrupted)
+    awaiting_permission --> idle: round_status(error/interrupted/finished)
+```
 
 ### 2.6 thread
 
@@ -101,6 +196,7 @@ ResultMessage
 - `StreamEvent` 负责实时过程
 - `AssistantMessage` 负责 turn 级落盘
 - `ResultMessage` 负责最终结果
+- `round_status` 负责 round 级生命周期
 - 前端不能把一轮里的所有 assistant 内容粗暴合并成“一条回答”
 
 ## 4. 统一中间模型
@@ -262,6 +358,13 @@ DM 必须区分“实时态”和“归档态”。
 
 有些终端类或特殊执行链不会产出 `ResultMessage`。
 
+必须先明确：
+
+- “无 `ResultMessage` 回退”只影响展示
+- 不影响实时 round 是否结束
+- 实时 round 的结束仍以后端 `round_status` 为唯一真值
+- 正常链路里，`round_status=finished` 应由后端在收到 `ResultMessage` 后推送
+
 这类场景统一按以下规则回退：
 
 - Room 主时间线：显示最后一个 assistant turn
@@ -295,9 +398,13 @@ DM 必须区分“实时态”和“归档态”。
 - 后端若缓冲区仍覆盖该游标，按序回放：
   - `message`
   - `stream`
+  - `round_status`
 - 若缓冲区已经不够，后端发送 `session_resync_required`
 - 前端收到 `session_resync_required` 后，必须回源重拉当前会话
 - `bind_session` 完成后，后端还需要额外推送一次当前 `session_status`
+  - `session_status` 必须携带当前仍在运行的 `running_round_ids`
+  - 它只负责“当前还有哪些 round 正在跑”
+  - 不替代 durable 的 `round_status`
 
 ### 10.2 Room 补流
 
@@ -329,6 +436,11 @@ DM 必须区分“实时态”和“归档态”。
 - 实时态首先保证“看得到最新输出”
 - 归档态首先保证“历史足够干净”
 - 两者目标不同，允许不同展示
+
+### 11.5 让前端自己推导 round 是否已经结束
+
+- 前端不能靠 assistant 收口、权限提交、tool_result 或 slot 消失来结束 round
+- 输入框解锁、执行态收口、slot 清理都必须以后端 terminal `round_status` 为准
 
 ## 12. 推荐实现边界
 

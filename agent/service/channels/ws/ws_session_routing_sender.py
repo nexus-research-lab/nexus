@@ -10,6 +10,7 @@
 """按 session_key 路由到当前活跃连接的发送器。"""
 
 import uuid
+import asyncio
 
 from agent.schema.model_message import (
     EventMessage,
@@ -30,7 +31,7 @@ from agent.utils.logger import logger
 
 
 class WsSessionRoutingSender(MessageSender):
-    """将消息转发到某个 session 当前活跃的 WebSocket 连接。"""
+    """将消息转发到某个 session 的全部绑定 WebSocket 连接。"""
 
     def __init__(self, fallback_sender: WebSocketSender) -> None:
         self._fallback_sender = fallback_sender
@@ -97,7 +98,7 @@ class WsSessionRoutingSender(MessageSender):
                 logger.warning("⚠️ 自动化实时推送失败，消息已落库: session=%s error=%s", session_key, exc)
 
     async def _forward_event(self, event: EventMessage) -> None:
-        """把消息发给当前活跃连接。"""
+        """把消息发给当前 session 的全部绑定连接。"""
         session_key = event.session_key
         prepared_event = ws_session_replay_registry.prepare_session_event(event)
 
@@ -105,12 +106,15 @@ class WsSessionRoutingSender(MessageSender):
             await self._fallback_sender.send_event_message(prepared_event)
             return
 
-        active_sender = permission_runtime_context.resolve_session_sender(session_key)
-        if active_sender is None:
+        session_senders = permission_runtime_context.resolve_session_senders(session_key)
+        if not session_senders:
             # 中文注释：断线期间不应把后台运行链打断。
             # 当前没有活跃连接时直接跳过实时推送，等待前端重连后继续接收增量，
             # 并依靠前端重拉补齐断线期间已落库的完整消息。
-            logger.debug("📭 当前无活跃连接，跳过实时推送: session=%s", session_key)
+            logger.debug("📭 当前无绑定连接，跳过实时推送: session=%s", session_key)
             return
 
-        await active_sender.send(prepared_event)
+        await asyncio.gather(
+            *(sender.send(prepared_event) for sender in session_senders),
+            return_exceptions=True,
+        )

@@ -23,8 +23,12 @@ from agent.service.channels.ws.websocket_sender import WebSocketSender
 from agent.service.channels.ws.ws_session_routing_sender import (
     WsSessionRoutingSender,
 )
+from agent.service.channels.ws.ws_chat_task_registry import ws_chat_task_registry
 from agent.service.chat.chat_service import ChatService
 from agent.service.chat.room_chat_service import RoomChatService
+from agent.service.permission.permission_runtime_context import (
+    permission_runtime_context,
+)
 from agent.service.permission.strategy.permission_interactive import InteractivePermissionStrategy
 from agent.utils.logger import logger
 
@@ -64,17 +68,24 @@ class WebSocketConnectionManager:
     async def cleanup(self, chat_tasks: Dict[str, asyncio.Task]) -> None:
         """清理当前连接持有的运行时资源。"""
         logger.info("🧹 WebSocket连接清理")
+        changed_session_keys: tuple[str, ...] = ()
         if self.sender:
-            InteractivePermissionStrategy.unregister_sender(self.sender)
+            changed_session_keys = InteractivePermissionStrategy.unregister_sender(self.sender)
         if self.permission_strategy:
             self.permission_strategy.close()
 
         # 中文注释：WebSocket 断线不再中断后台任务。
-        # 运行中的 DM/Room 任务继续执行，前端重连后由新的活跃 sender 接管实时推送。
+        # 运行中的 DM/Room 任务继续执行，前端重连后由新的控制端/观察端集合继续接管实时推送。
         # chat_tasks 作为全局运行表继续保留，供重连后的 interrupt 与新消息复用。
 
         if self.sender:
             self.sender.unsubscribe_all_workspace()
+
+        for session_key in changed_session_keys:
+            await permission_runtime_context.broadcast_session_status(
+                session_key=session_key,
+                running_round_ids=ws_chat_task_registry.get_running_round_ids(session_key),
+            )
 
         self.permission_strategy = None
         self.sender = None

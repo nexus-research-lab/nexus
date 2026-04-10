@@ -98,6 +98,8 @@ interface MessageItemProps {
   runtime_phase?: AgentConversationRuntimePhase | null;
   pending_permissions?: PendingPermission[];
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   hidden_tool_names?: string[];
   on_edit_user_message?: (message_id: string, new_content: string) => void;
   on_open_workspace_file?: (path: string) => void;
@@ -123,6 +125,8 @@ function MessageItemInner(
     runtime_phase,
     pending_permissions = [],
     on_permission_response,
+    can_respond_to_permissions = true,
+    permission_read_only_reason,
     hidden_tool_names = ['TodoWrite'],
     on_edit_user_message,
     on_open_workspace_file,
@@ -785,6 +789,8 @@ function MessageItemInner(
               updated_permissions,
             }),
           }}
+          interaction_disabled={!can_respond_to_permissions}
+          interaction_disabled_reason={permission_read_only_reason}
         />
       ))}
     </div>
@@ -999,6 +1005,8 @@ function MessageItemInner(
                         fallback_activity_state={liveActivityState}
                         pending_permissions_by_tool_use_id={matchedPendingPermissionsByToolUseId}
                         on_permission_response={on_permission_response}
+                        can_respond_to_permissions={can_respond_to_permissions}
+                        permission_read_only_reason={permission_read_only_reason}
                         on_open_workspace_file={on_open_workspace_file}
                         hidden_tool_names={hidden_tool_names}
                       />
@@ -1031,6 +1039,8 @@ function MessageItemInner(
                             fallback_activity_state={liveActivityState}
                             pending_permissions_by_tool_use_id={matchedPendingPermissionsByToolUseId}
                             on_permission_response={on_permission_response}
+                            can_respond_to_permissions={can_respond_to_permissions}
+                            permission_read_only_reason={permission_read_only_reason}
                             on_open_workspace_file={on_open_workspace_file}
                             hidden_tool_names={hidden_tool_names}
                           />
@@ -1089,6 +1099,8 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.compact !== next.compact) return false;
   if (prev.current_agent_name !== next.current_agent_name) return false;
   if (prev.pending_permissions !== next.pending_permissions) return false;
+  if (prev.can_respond_to_permissions !== next.can_respond_to_permissions) return false;
+  if (prev.permission_read_only_reason !== next.permission_read_only_reason) return false;
   if (prev.assistant_header_action !== next.assistant_header_action) return false;
   if (prev.assistant_content_mode !== next.assistant_content_mode) return false;
   if (prev.class_name !== next.class_name) return false;

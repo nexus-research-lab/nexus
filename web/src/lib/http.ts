@@ -12,8 +12,12 @@ import { ApiResponse } from "@/types/api";
 export const AUTH_REQUIRED_EVENT = "nexus:auth-required";
 
 interface ApiErrorPayload {
-  detail?: string;
-  message?: string;
+  detail?: unknown;
+  message?: unknown;
+  data?: {
+    detail?: unknown;
+    request_id?: unknown;
+  };
 }
 
 interface RequestApiOptions extends RequestInit {
@@ -51,6 +55,67 @@ async function parse_response_body<T>(
   }
 }
 
+function normalize_error_detail(value: unknown): string | null {
+  if (typeof value === "string") {
+    const normalized_value = value.trim();
+    return normalized_value || null;
+  }
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (value instanceof Error) {
+    return value.message.trim() || value.name;
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function to_record(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function read_nested_error_detail(
+  payload: ApiResponse<unknown> | ApiErrorPayload | null,
+): string | null {
+  if (!payload || !("data" in payload)) {
+    return null;
+  }
+  const nested_payload = to_record(payload.data);
+  if (!nested_payload) {
+    return null;
+  }
+  return normalize_error_detail(nested_payload.detail);
+}
+
+function read_error_request_id(
+  payload: ApiResponse<unknown> | ApiErrorPayload | null,
+): string | null {
+  if (!payload || !("data" in payload)) {
+    return null;
+  }
+  const nested_payload = to_record(payload.data);
+  if (!nested_payload) {
+    return null;
+  }
+  return normalize_error_detail(nested_payload.request_id);
+}
+
+function append_request_id(message: string, request_id: string | null): string {
+  if (!request_id) {
+    return message;
+  }
+  return `${message}（request_id: ${request_id}）`;
+}
+
 function build_error_message(
   response: Response,
   payload: ApiResponse<unknown> | ApiErrorPayload | null,
@@ -59,13 +124,30 @@ function build_error_message(
     return `请求失败: ${response.status} ${response.statusText}`;
   }
 
-  if ("detail" in payload && payload.detail) {
-    return payload.detail;
+  const request_id = read_error_request_id(payload);
+
+  const direct_detail = "detail" in payload
+    ? normalize_error_detail(payload.detail)
+    : null;
+  if (direct_detail) {
+    return append_request_id(direct_detail, request_id);
   }
-  if ("message" in payload && payload.message) {
-    return payload.message;
+
+  const nested_detail = read_nested_error_detail(payload);
+  if (nested_detail) {
+    return append_request_id(nested_detail, request_id);
   }
-  return `请求失败: ${response.status} ${response.statusText}`;
+
+  const direct_message = "message" in payload
+    ? normalize_error_detail(payload.message)
+    : null;
+  if (direct_message) {
+    return append_request_id(direct_message, request_id);
+  }
+  return append_request_id(
+    `请求失败: ${response.status} ${response.statusText}`,
+    request_id,
+  );
 }
 
 export async function request_api<T>(
@@ -93,7 +175,7 @@ export async function request_api<T>(
     throw new Error("接口响应格式错误");
   }
 
-  return payload.data;
+  return payload.data as T;
 }
 
 export function notify_auth_required() {

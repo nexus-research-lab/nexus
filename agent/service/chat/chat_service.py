@@ -10,9 +10,15 @@
 """对话编排服务。"""
 
 import asyncio
+import uuid
 from typing import Any, Dict
 
-from agent.schema.model_message import build_error_event, EventMessage
+from agent.schema.model_message import (
+    EventMessage,
+    Message,
+    build_error_event,
+    build_round_status_event,
+)
 from agent.service.agent.agent_runtime import agent_runtime
 from agent.service.channels.message_sender import MessageSender
 from agent.service.channels.ws.ws_chat_task_registry import ws_chat_task_registry
@@ -44,6 +50,7 @@ class ChatService:
         session_key = await self._resolve_session_key(message)
         if not session_key:
             return
+        message["round_id"] = str(message.get("round_id") or uuid.uuid4())
 
         if session_key in chat_tasks and not chat_tasks[session_key].done():
             logger.info(f"⚠️ 取消旧 chat 任务: {session_key}")
@@ -53,6 +60,7 @@ class ChatService:
             )
 
         task = asyncio.create_task(self.handle_chat_message(message))
+        chat_tasks[session_key] = task
         ws_chat_task_registry.register(session_key, task, message.get("round_id"))
         task.add_done_callback(
             lambda current_task: self._on_task_done(session_key, current_task, chat_tasks)
@@ -65,7 +73,8 @@ class ChatService:
             return
         requested_agent_id = message.get("agent_id", "")
         content = message.get("content")
-        round_id = message.get("round_id")
+        round_id = str(message.get("round_id") or uuid.uuid4())
+        message["round_id"] = round_id
         existing_session = await session_store.get_session_info(session_key)
         real_agent_id = resolve_agent_id(
             existing_session.agent_id if existing_session else requested_agent_id
@@ -87,13 +96,18 @@ class ChatService:
                     agent_id=real_agent_id,
                 )
             )
+            await self._sender.send(
+                build_round_status_event(
+                    round_id=round_id,
+                    status="error",
+                    session_key=session_key,
+                    agent_id=real_agent_id,
+                )
+            )
             return
 
         async with session_manager.get_lock(session_key):
             logger.info(f"📨 处理消息: key={session_key}, round_id={round_id}")
-
-            await client.query(content)
-
             processor = ChatMessageProcessor(
                 session_key=session_key,
                 query=content,
@@ -101,13 +115,74 @@ class ChatService:
                 agent_id=real_agent_id,
                 session_id=existing_session.session_id if existing_session else None,
             )
+            round_started = False
+            round_finished = False
 
-            async for response_msg in client.receive_messages():
-                processed_messages = await processor.process_messages(response_msg)
-                for a_message in processed_messages:
-                    await self._sender.send(a_message)
-                if processor.subtype in ["success", "error"]:
-                    break
+            try:
+                await self._sender.send(
+                    build_round_status_event(
+                        round_id=round_id,
+                        status="running",
+                        session_key=session_key,
+                        agent_id=real_agent_id,
+                        session_id=processor.session_id,
+                    )
+                )
+                round_started = True
+
+                client = await agent_runtime.query_with_recovery(
+                    session_key=session_key,
+                    agent_id=real_agent_id,
+                    permission_strategy=self._permission_strategy,
+                    prompt=content,
+                    client=client,
+                    resolved_agent_id=real_agent_id,
+                )
+
+                async for response_msg in client.receive_messages():
+                    processed_messages = await processor.process_messages(response_msg)
+                    for a_message in processed_messages:
+                        await self._sender.send(a_message)
+                        if isinstance(a_message, Message) and a_message.role == "result":
+                            await self._sender.send(
+                                build_round_status_event(
+                                    round_id=round_id,
+                                    status="finished",
+                                    session_key=session_key,
+                                    agent_id=real_agent_id,
+                                    session_id=processor.session_id,
+                                    message_id=a_message.message_id,
+                                    result_subtype=a_message.subtype,
+                                )
+                            )
+                            round_finished = True
+                    if processor.subtype in ["success", "error"]:
+                        break
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error(f"❌ 消息处理失败: key={session_key}, round_id={round_id}, error={exc}")
+                await self._sender.send(
+                    self._build_error(
+                        error_type="chat_error",
+                        message=str(exc),
+                        session_key=session_key,
+                        agent_id=real_agent_id,
+                        session_id=processor.session_id,
+                        details={"round_id": round_id},
+                    )
+                )
+                if round_started and not round_finished:
+                    await self._sender.send(
+                        build_round_status_event(
+                            round_id=round_id,
+                            status="error",
+                            session_key=session_key,
+                            agent_id=real_agent_id,
+                            session_id=processor.session_id,
+                        )
+                    )
+                raise
 
             logger.info(f"✅ 消息处理完成: key={session_key}, 共 {processor.message_count} 条响应")
 
@@ -150,6 +225,18 @@ class ChatService:
         )
         for repaired_message in repaired_messages:
             await self._sender.send(repaired_message)
+        if not repaired_messages:
+            return
+        session_info = await session_store.get_session_info(session_key)
+        await self._sender.send(
+            build_round_status_event(
+                round_id=round_id,
+                status="interrupted",
+                session_key=session_key,
+                agent_id=resolve_agent_id(session_info.agent_id if session_info else None),
+                session_id=session_info.session_id if session_info else None,
+            )
+        )
 
     async def _resolve_session_key(self, message: Dict[str, Any]) -> str | None:
         """解析并校验聊天消息的结构化 session_key。"""
@@ -184,6 +271,7 @@ class ChatService:
     ) -> None:
         """聊天任务完成回调。"""
         ws_chat_task_registry.unregister(session_key, task)
+        chat_tasks.pop(session_key, None)
         if task.cancelled():
             logger.info(f"🛑 任务被取消: {session_key}")
         elif task.exception():

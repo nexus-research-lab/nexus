@@ -11,8 +11,10 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       args:
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+        APT_MIRROR: ${APT_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian-security}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
     env_file:
@@ -22,13 +24,13 @@ services:
       SERVER_TYPE: gunicorn
       HOST: 0.0.0.0
       PORT: 8010
-      WORKERS: ${WORKERS:-2}
+      WORKERS: ${WORKERS:-1}
       DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:////home/agent/.nexus/data/nexus.db}
       CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/home/agent/.nexus/cache}
       LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
     volumes:
-      - nexus_home:/home/agent/.nexus
+      - ${NEXUS_HOME_DIR:-./data/nexus}:/home/agent/.nexus
     expose:
       - "8010"
     healthcheck:
@@ -44,6 +46,8 @@ services:
       context: ..
       dockerfile: web/Dockerfile
       args:
+        APK_MIRROR: ${APK_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         VITE_WS_URL: ${VITE_WS_URL:-}
         VITE_API_URL: ${VITE_API_URL:-}
         VITE_DEFAULT_MODEL: ${VITE_DEFAULT_MODEL:-glm-5}
@@ -63,6 +67,3 @@ services:
       retries: 5
       start_period: 10s
     logging: *default-logging
-
-volumes:
-  nexus_home:

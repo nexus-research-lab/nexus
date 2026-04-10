@@ -24,6 +24,13 @@ from agent.utils.logger import logger
 class SessionManager:
     """管理活跃的 ClaudeSDKClient 会话。"""
 
+    RECOVERABLE_CLIENT_ERROR_MARKERS = (
+        "Cannot write to terminated process",
+        "ProcessTransport is not ready for writing",
+        "Cannot write to process that exited with error",
+        "Not connected. Call connect() first.",
+    )
+
     def __init__(self):
         self._sessions: Dict[str, ClaudeSDKClient] = {}
         self._locks: Dict[str, asyncio.Lock] = {}
@@ -32,7 +39,21 @@ class SessionManager:
 
     async def get_session(self, session_key: str) -> Optional[ClaudeSDKClient]:
         """获取现有 SDK client。"""
-        return self._sessions.get(session_key)
+        client = self._sessions.get(session_key)
+        if client is None:
+            return None
+
+        health_issue = self._inspect_client_health_issue(client)
+        if not health_issue:
+            return client
+
+        # 中文注释：Claude CLI 子进程退出后，旧 client 会继续留在内存里。
+        # 如果这里不主动淘汰，后续消息会反复命中同一个坏会话。
+        self.invalidate_session(
+            session_key,
+            reason=f"检测到失效的 SDK 会话: {health_issue}",
+        )
+        return None
 
     async def create_session(
         self,
@@ -135,6 +156,12 @@ class SessionManager:
         self._key_sdk_map[session_key] = session_id
         self._sdk_key_map[session_id] = session_key
 
+    @classmethod
+    def is_recoverable_client_error(cls, exc: Exception) -> bool:
+        """判断异常是否属于可自动重建的会话失效错误。"""
+        error_message = str(exc)
+        return any(marker in error_message for marker in cls.RECOVERABLE_CLIENT_ERROR_MARKERS)
+
     async def register_sdk_session(self, session_key: str, session_id: str) -> None:
         """注册 session_key 与 SDK session_id 的映射。"""
         await self.register_session_mapping(session_key=session_key, session_id=session_id)
@@ -173,20 +200,65 @@ class SessionManager:
         self.remove_session(session_key)
         return existed
 
+    def invalidate_session(self, session_key: str, reason: str | None = None) -> bool:
+        """淘汰已损坏的会话缓存，不再尝试复用。"""
+        existed = (
+            session_key in self._sessions
+            or session_key in self._key_sdk_map
+        )
+        if reason:
+            logger.warning(f"⚠️ 淘汰失效 SDK 会话: key={session_key}, reason={reason}")
+        self._drop_session_runtime(session_key, preserve_lock=True)
+        return existed
+
     def remove_session(self, session_key: str) -> None:
         """移除会话。"""
+        self._drop_session_runtime(session_key, preserve_lock=False)
+        logger.info(f"✅ 已移除 session: {session_key}")
+
+    @staticmethod
+    def _inspect_client_health_issue(client: ClaudeSDKClient) -> str | None:
+        """检测 SDK client 是否仍可安全复用。"""
+        query = getattr(client, "_query", None)
+        if query is not None and getattr(query, "_closed", False):
+            return "query 已关闭"
+
+        transport = getattr(client, "_transport", None)
+        if transport is None:
+            return None
+
+        exit_error = getattr(transport, "_exit_error", None)
+        if exit_error is not None:
+            return f"transport 已记录退出错误: {exit_error}"
+
+        process = getattr(transport, "_process", None)
+        if process is not None:
+            return_code = getattr(process, "returncode", None)
+            if return_code is not None:
+                return f"Claude CLI 子进程已退出，exit_code={return_code}"
+
+        is_ready = getattr(transport, "is_ready", None)
+        if callable(is_ready) and process is not None:
+            try:
+                if not bool(is_ready()):
+                    return "transport 未处于可写状态"
+            except Exception as exc:
+                return f"transport 健康检查失败: {exc}"
+
+        return None
+
+    def _drop_session_runtime(self, session_key: str, preserve_lock: bool) -> None:
+        """删除会话运行态缓存，可选择保留并发锁。"""
         if session_key in self._sessions:
             del self._sessions[session_key]
             logger.debug(f"🗑️ 已移除 client: {session_key}")
 
-        if session_key in self._locks:
+        if not preserve_lock and session_key in self._locks:
             del self._locks[session_key]
 
         sdk_id = self._key_sdk_map.pop(session_key, None)
         if sdk_id:
             self._sdk_key_map.pop(sdk_id, None)
-
-        logger.info(f"✅ 已移除 session: {session_key}")
 
 
 session_manager = SessionManager()

@@ -190,7 +190,7 @@ export function getAgentRoundStatus(
     else if (status === "pending") has_pending = true;
     else if (status === "error") has_error = true;
     else if (status === "cancelled") has_cancelled = true;
-    else if (status === "done" || msg.is_complete || Boolean(msg.stop_reason)) has_done = true;
+    else if (status === "done" || Boolean(msg.stop_reason)) has_done = true;
   }
 
   // 优先级：streaming > pending > error > cancelled > done

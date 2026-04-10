@@ -48,6 +48,9 @@ function GuardState({
 export function AuthGuard() {
   const location = useLocation();
   const { status, is_bootstrapped, error, refresh_status } = useAuth();
+  const handle_refresh = () => {
+    void refresh_status().catch(() => undefined);
+  };
 
   if (!is_bootstrapped) {
     return <main className="min-h-screen bg-background text-foreground" />;
@@ -59,9 +62,7 @@ export function AuthGuard() {
         title="无法连接认证服务"
         description={error}
         action_label="重试"
-        on_action={() => {
-          void refresh_status();
-        }}
+        on_action={handle_refresh}
       />
     );
   }
@@ -72,9 +73,7 @@ export function AuthGuard() {
         title="认证状态不可用"
         description="服务端没有返回可用的登录状态，请稍后重试。"
         action_label="重试"
-        on_action={() => {
-          void refresh_status();
-        }}
+        on_action={handle_refresh}
       />
     );
   }

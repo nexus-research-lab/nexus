@@ -21,6 +21,7 @@ from agent.schema.model_message import (
     Message,
     StreamMessage,
     build_error_event,
+    build_round_status_event,
     build_transport_event,
     current_timestamp_ms,
 )
@@ -37,6 +38,7 @@ from agent.service.room.room_agent_runtime_factory import (
 from agent.service.room.room_conversation_orchestrator import (
     room_conversation_orchestrator,
 )
+from agent.service.room.room_interrupt_service import room_interrupt_service
 from agent.service.room.room_message_store import room_message_store
 from agent.service.room.room_round_store import room_round_store
 from agent.service.room.room_session_keys import (
@@ -77,12 +79,18 @@ class RoomChatService:
         if not room_session_key:
             room_session_key = build_room_session_key(conversation_id)
             message["session_key"] = room_session_key
+        message["round_id"] = str(message.get("round_id") or uuid.uuid4())
 
         # 取消该 Room 会话下的旧整体任务
         task_key = f"room:{room_session_key}"
         if task_key in chat_tasks and not chat_tasks[task_key].done():
             logger.info(f"⚠️ 取消旧 room chat 任务: {task_key}")
-            chat_tasks[task_key].cancel()
+            await self._interrupt_previous_room_round(
+                room_session_key=room_session_key,
+                room_id=message.get("room_id", ""),
+                conversation_id=conversation_id,
+                task=chat_tasks[task_key],
+            )
 
         task = asyncio.create_task(self._handle_room_message(message, chat_tasks))
         ws_chat_task_registry.register(room_session_key, task, message.get("round_id"))
@@ -108,6 +116,13 @@ class RoomChatService:
                 conversation_id=conversation_id or None,
                 caused_by=round_id,
             )
+            await self._broadcast_room_event(room_id, build_round_status_event(
+                round_id=round_id,
+                status="error",
+                session_key=room_session_key,
+                room_id=room_id or None,
+                conversation_id=conversation_id or None,
+            ))
             return
 
         # 1. 构建 Room 成员的 name→id 映射
@@ -121,6 +136,13 @@ class RoomChatService:
                 conversation_id=conversation_id,
                 caused_by=round_id,
             )
+            await self._broadcast_room_event(room_id, build_round_status_event(
+                round_id=round_id,
+                status="error",
+                session_key=room_session_key,
+                room_id=room_id or None,
+                conversation_id=conversation_id,
+            ))
             return
         if not agent_name_to_id:
             await self._send_error(
@@ -130,6 +152,13 @@ class RoomChatService:
                 conversation_id=conversation_id,
                 caused_by=round_id,
             )
+            await self._broadcast_room_event(room_id, build_round_status_event(
+                round_id=round_id,
+                status="error",
+                session_key=room_session_key,
+                room_id=room_id or None,
+                conversation_id=conversation_id,
+            ))
             return
 
         # 2. 解析 @mention — 确定要回复的 Agent
@@ -166,6 +195,15 @@ class RoomChatService:
             )
             await room_message_store.save_message(hint_msg)
             await self._broadcast_room_message(room_id, hint_msg)
+            await self._broadcast_room_event(room_id, build_round_status_event(
+                round_id=round_id,
+                status="finished",
+                session_key=room_session_key,
+                room_id=room_id or None,
+                conversation_id=conversation_id,
+                message_id=hint_msg.message_id,
+                result_subtype=hint_msg.subtype,
+            ))
             return
 
         # 3. 保存用户消息
@@ -233,7 +271,22 @@ class RoomChatService:
             agent_dispatch_params.append((agent_id, room_session, agent_round_id, msg_id))
 
         if not agent_dispatch_params:
+            await self._broadcast_room_event(room_id, build_round_status_event(
+                round_id=round_id,
+                status="error",
+                session_key=room_session_key,
+                room_id=room_id or None,
+                conversation_id=conversation_id,
+            ))
             return
+
+        await self._broadcast_room_event(room_id, build_round_status_event(
+            round_id=round_id,
+            status="running",
+            session_key=room_session_key,
+            room_id=room_id or None,
+            conversation_id=conversation_id,
+        ))
 
         # 5. 立即下发 chat_ack，前端据此渲染独立占位槽位
         await self._broadcast_room_event(room_id, EventMessage(
@@ -322,6 +375,14 @@ class RoomChatService:
                 agent_id = agent_dispatch_params[i][0]
                 logger.error(f"❌ Room agent 异常: agent={agent_id}, error={result}")
 
+        await self._broadcast_room_event(room_id, build_round_status_event(
+            round_id=round_id,
+            status="finished",
+            session_key=room_session_key,
+            room_id=room_id or None,
+            conversation_id=conversation_id,
+        ))
+
     async def _dispatch_to_agent(
         self,
         room_id: str,
@@ -390,7 +451,15 @@ class RoomChatService:
                     data={"msg_id": msg_id, "agent_id": agent_id, "round_id": round_id},
                 ))
 
-                await client.query(dispatch_query)
+                client = await agent_runtime.query_with_recovery(
+                    session_key=sdk_session_key,
+                    agent_id=agent_id,
+                    permission_strategy=self._permission_strategy,
+                    prompt=dispatch_query,
+                    client=client,
+                    resolved_agent_id=agent_id,
+                    force_fresh=True,
+                )
 
                 processor = ChatMessageProcessor(
                     session_key=room_session_key,
@@ -629,6 +698,51 @@ class RoomChatService:
             )
         else:
             logger.debug(f"✅ Room 任务完成: {task_key}")
+
+    async def _interrupt_previous_room_round(
+        self,
+        room_session_key: str,
+        room_id: str,
+        conversation_id: str,
+        task: asyncio.Task,
+    ) -> None:
+        """把旧的 Room 主轮次收口为 interrupted。"""
+        running_round_id = ws_chat_task_registry.get_running_round_id(room_session_key)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+        if not running_round_id:
+            return
+
+        repair_result = await room_interrupt_service.repair_cancelled_slots(
+            session_key=room_session_key,
+            round_id=running_round_id,
+        )
+        repaired_room_id = repair_result.get("room_id") or room_id or None
+        repaired_conversation_id = repair_result.get("conversation_id") or conversation_id
+        for slot in repair_result.get("slots") or []:
+            await self._broadcast_room_event(repaired_room_id, EventMessage(
+                event_type="stream_cancelled",
+                session_key=room_session_key,
+                room_id=repaired_room_id,
+                conversation_id=repaired_conversation_id,
+                agent_id=slot.get("agent_id"),
+                message_id=slot.get("msg_id"),
+                caused_by=slot.get("round_id") or running_round_id,
+                data={
+                    "msg_id": slot.get("msg_id"),
+                    "agent_id": slot.get("agent_id"),
+                    "round_id": slot.get("round_id") or running_round_id,
+                },
+            ))
+
+        await self._broadcast_room_event(repaired_room_id, build_round_status_event(
+            round_id=running_round_id,
+            status="interrupted",
+            session_key=room_session_key,
+            room_id=repaired_room_id,
+            conversation_id=repaired_conversation_id,
+        ))
 
     async def _get_room_session(
         self,

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
@@ -10,7 +10,7 @@ import {
   HeroBlobShell,
   HeroInputShell,
 } from "@/features/launcher/launcher-glass-shell";
-import { cn, truncate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
@@ -30,6 +30,8 @@ import { AnimatedHeroText, FadeSlideIn } from "@/shared/ui/feedback/animated-her
 interface LauncherConsoleProps {
   app_conversation_draft: string;
   app_conversation_loading: boolean;
+  app_conversation_can_control: boolean;
+  app_conversation_control_status_text?: string;
   agents: Agent[];
   conversations: Conversation[];
   rooms: RoomAggregate[];
@@ -47,6 +49,9 @@ interface LauncherConsoleProps {
 interface HeroStageProps {
   current_agent_id: string | null;
   decorative_tokens: SpotlightToken[];
+  input_disabled?: boolean;
+  input_placeholder?: string;
+  input_status_text?: string;
   mention_targets: MentionTargetItem[];
   on_enter_home: () => void;
   on_open_app_conversation: (initial_prompt?: string) => void;
@@ -103,6 +108,23 @@ function getInitials(name: string) {
     return parts[0].slice(0, 2).toUpperCase();
   }
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function truncateLauncherChipLabel(label: string, max_chars: number = 8): string {
+  const chars = Array.from(label.trim());
+  if (chars.length <= max_chars) {
+    return label.trim();
+  }
+
+  // 中文注释：Hero 推荐项空间很窄，超长名称改为中间省略，
+  // 保留首尾辨识信息，避免纯尾部截断导致 DM/Room 名称难以分辨。
+  const head_count = Math.max(2, Math.ceil((max_chars - 1) / 2));
+  const tail_count = Math.max(2, max_chars - 1 - head_count);
+  return `${chars.slice(0, head_count).join("")}…${chars.slice(-tail_count).join("")}`;
+}
+
+function isLauncherChipTruncated(label: string, max_chars: number = 6): boolean {
+  return Array.from(label.trim()).length > max_chars;
 }
 
 function buildDecorativeTokens(
@@ -287,6 +309,9 @@ function buildRecentLauncherEntries(
 const HeroStage = memo(function HeroStage({
   current_agent_id,
   decorative_tokens,
+  input_disabled = false,
+  input_placeholder,
+  input_status_text,
   mention_targets,
   on_enter_home,
   on_open_app_conversation,
@@ -485,15 +510,16 @@ const HeroStage = memo(function HeroStage({
                     const target = event.target as HTMLInputElement;
                     sync_mention_match(target.value, target.selectionStart ?? target.value.length);
                   }}
-                  placeholder={surface === "app" ? "告诉 Nexus 你要推进什么..." : t("launcher.query_placeholder")}
                   value={local_query}
-                  disabled={surface === "launcher" ? is_query_loading : false}
+                  placeholder={input_placeholder || (surface === "app" ? "告诉 Nexus 你要推进什么..." : t("launcher.query_placeholder"))}
+                  disabled={surface === "launcher" ? is_query_loading : input_disabled}
                 />
                 <HeroActionOrbShell class_name="shrink-0" is_active={!is_query_loading}>
                   <button
                     className={cn(
                       "inline-flex h-full w-full items-center justify-center rounded-full transition duration-150 ease-out hover:-translate-y-0.5",
-                      surface === "launcher" && is_query_loading && "cursor-not-allowed opacity-50 hover:translate-y-0",
+                      ((surface === "launcher" && is_query_loading) || (surface === "app" && input_disabled))
+                        && "cursor-not-allowed opacity-50 hover:translate-y-0",
                     )}
                     style={{
                       background: "var(--launcher-submit-background)",
@@ -502,7 +528,7 @@ const HeroStage = memo(function HeroStage({
                     }}
                     onClick={handle_submit}
                     type="button"
-                    disabled={surface === "launcher" ? is_query_loading : false}
+                    disabled={surface === "launcher" ? is_query_loading : input_disabled}
                   >
                     {surface === "app" ? (
                       is_query_loading ? (
@@ -519,6 +545,11 @@ const HeroStage = memo(function HeroStage({
                 </HeroActionOrbShell>
               </div>
             </HeroInputShell>
+            {surface === "app" && input_status_text ? (
+              <p className="mt-2 px-2 text-center text-[11px] text-[color:var(--launcher-handoff-color)]">
+                {input_status_text}
+              </p>
+            ) : null}
           </FadeSlideIn>
 
           <div className={cn(
@@ -527,37 +558,55 @@ const HeroStage = memo(function HeroStage({
           )}>
             {recent_entries.map((entry, index) => (
               <FadeSlideIn key={entry.key} delay_ms={580 + index * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
-                <button
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
-                  style={{
-                    background: entry.type === "room"
-                      ? "var(--launcher-room-chip-background)"
-                      : "var(--launcher-agent-chip-background)",
-                    boxShadow: entry.type === "room"
-                      ? "inset 0 0 0 1px var(--launcher-room-chip-border)"
-                      : "inset 0 0 0 1px var(--launcher-agent-chip-border)",
-                    color: entry.type === "room"
-                      ? "var(--launcher-room-chip-text)"
-                      : "var(--launcher-agent-chip-text)",
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    on_open_recent_entry(entry);
-                  }}
-                  type="button"
-                >
-                  {entry.type === "dm" ? (
-                    <span
-                      className="h-4 w-4 rounded-full"
+                <div className="group relative inline-flex">
+                  {isLauncherChipTruncated(entry.label) ? (
+                    <div
+                      className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[220px] -translate-x-1/2 translate-y-1 rounded-2xl px-3 py-2 text-center text-xs font-medium leading-5 opacity-0 shadow-[0_18px_42px_rgba(38,52,76,0.16)] transition duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
                       style={{
-                        backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
-                        border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
+                        background: "color-mix(in srgb, rgba(247, 249, 253, 0.96) 88%, rgba(255, 255, 255, 0.72))",
+                        boxShadow: "0 18px 42px rgba(38, 52, 76, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.58)",
+                        color: "rgba(39, 50, 74, 0.88)",
+                        backdropFilter: "blur(14px)",
+                        WebkitBackdropFilter: "blur(14px)",
                       }}
-                    />
+                    >
+                      {entry.type === "room" ? "#" : ""}
+                      {entry.label}
+                    </div>
                   ) : null}
-                  {entry.type === "room" ? "#" : ""}
-                  {truncate(entry.label, 18)}
-                </button>
+                  <button
+                    aria-label={entry.type === "room" ? `房间 ${entry.label}` : `私聊 ${entry.label}`}
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
+                    style={{
+                      background: entry.type === "room"
+                        ? "var(--launcher-room-chip-background)"
+                        : "var(--launcher-agent-chip-background)",
+                      boxShadow: entry.type === "room"
+                        ? "inset 0 0 0 1px var(--launcher-room-chip-border)"
+                        : "inset 0 0 0 1px var(--launcher-agent-chip-border)",
+                      color: entry.type === "room"
+                        ? "var(--launcher-room-chip-text)"
+                        : "var(--launcher-agent-chip-text)",
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      on_open_recent_entry(entry);
+                    }}
+                    type="button"
+                  >
+                    {entry.type === "dm" ? (
+                      <span
+                        className="h-4 w-4 rounded-full"
+                        style={{
+                          backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
+                          border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
+                        }}
+                      />
+                    ) : null}
+                    {entry.type === "room" ? "#" : ""}
+                    {truncateLauncherChipLabel(entry.label)}
+                  </button>
+                </div>
               </FadeSlideIn>
             ))}
 
@@ -568,7 +617,17 @@ const HeroStage = memo(function HeroStage({
                 onClick={() => is_app_conversation_open ? on_close_app_conversation() : on_open_app_conversation(query)}
                 type="button"
               >
-                {t("launcher.handoff")} →
+                {is_app_conversation_open ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    {t("launcher.back_to_hub")}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {t("launcher.handoff")}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                )}
               </button>
             </FadeSlideIn>
           </div>
@@ -590,6 +649,8 @@ const HeroStage = memo(function HeroStage({
 export function LauncherConsole({
   app_conversation_draft,
   app_conversation_loading,
+  app_conversation_can_control,
+  app_conversation_control_status_text,
   agents,
   conversations,
   rooms,
@@ -746,6 +807,9 @@ export function LauncherConsole({
 
   const handle_primary_action = useCallback((submitted_input: string) => {
     if (surface === "app") {
+      if (!app_conversation_can_control) {
+        return false;
+      }
       if (app_conversation_loading) {
         on_stop_app_conversation();
         return false;
@@ -774,6 +838,7 @@ export function LauncherConsole({
     void handle_submit(trimmed_query);
     return true;
   }, [
+    app_conversation_can_control,
     app_conversation_loading,
     handle_submit,
     isQueryLoading,
@@ -809,6 +874,8 @@ export function LauncherConsole({
         <HeroStage
           current_agent_id={current_agent_id}
           decorative_tokens={decorative_tokens}
+          input_disabled={surface === "app" ? !app_conversation_can_control : false}
+          input_status_text={surface === "app" ? app_conversation_control_status_text : undefined}
           mention_targets={mention_targets}
           on_enter_home={handle_enter_home}
           on_open_app_conversation={on_open_app_conversation}

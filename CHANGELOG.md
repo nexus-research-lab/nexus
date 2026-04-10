@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 首页 App 对话交互完整打通：双态过渡、消息收发、权限决策、中断/重试、创建协作直达首条对话。
 - 支持 `AskUserQuestion` 自定义回答选项。
 - 新增 `room conversation` CRUD API，并接通 room 页面真实的新建/删除对话、重命名 room、增删成员与删除 room 管理能力。
+- 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
 
 ### Changed
 - 定时任务前后端契约升级为结构化自动化模型：前端不再使用扁平 `cron_expression/source_type` 占位字段，统一改为 `schedule`、`session_target`、`delivery` 结构。
@@ -57,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Conversation Store 移除 `current_session_key`、CRUD actions 与 `utils`，会话管理上升到页面层。
 - 前端 sidebar 字号微调（10→11、11→12、12→13），Launcher placeholder 精简。
 - Launcher 页面控制器移除 `use-home-agent-conversation-controller` 和 `use-initialize-conversations`，直接使用 store + agent dialog hook。
+- WebSocket session 绑定从“单活 sender”升级为“多绑定 + 单控制端”，`bind_session` 新增 `client_id / request_control` 语义，`session_status` 同步控制端与观察者数量。
+- Room 权限请求不再广播给全部房间订阅者，改为只投递给当前 session 控制端；Room 普通协作事件仍保留 room 广播。
 
 ### Fixed
 - 修复 `session_repository` / `cost_repository` 模块级初始化产生的导入副作用（#11）。
@@ -82,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修正 `credentials` 字段误导注释（#25）。
 - 移除 `requirements.txt` 中重复的 `alembic>=1.14.0`（#29）。
 - 移除与 `requires-python>=3.11` 矛盾的 Python 3.10 classifier（#30）。
+- 修复同一会话多窗口场景下最后绑定窗口独占实时流、权限卡重复弹出、非主窗口仍可误发 `chat / interrupt / permission_response` 的问题。
 
 ### Removed
 - 删除 `backfill_service` 旧数据回填服务及全部回填调用链。
@@ -101,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 更新 `web/README.md`，修正前端技术栈、目录结构、路由与 `VITE_*` 环境变量说明。
 - 更新 `env.example` 与部署说明，补充公网部署场景的 `AUTH_LOGIN_*` / Cookie / `BACKEND_CORS_ORIGINS` 配置项。
 - 更新 `docs/message-processing-spec.md`、`docs/permission-runtime-spec.md`、`docs/room-spec.md` 补充 Room slot 恢复与权限派发规范。
+- 更新 `docs/permission-runtime-spec.md`，补充多观察者 / 单控制者、控制权抢占、`bind_session` 新字段与 `session_status` 扩展约束。
 
 ## [0.0.3] - 2026-03-18
 

@@ -35,6 +35,8 @@ export function RoomThreadContextProvider({ children }: { children: ReactNode })
         data.agent_name === prev.agent_name &&
         data.pending_permissions === prev.pending_permissions &&
         data.on_permission_response === prev.on_permission_response &&
+        data.can_respond_to_permissions === prev.can_respond_to_permissions &&
+        data.permission_read_only_reason === prev.permission_read_only_reason &&
         data.on_stop_message === prev.on_stop_message &&
         data.on_open_workspace_file === prev.on_open_workspace_file
       ) return;

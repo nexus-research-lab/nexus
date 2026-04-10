@@ -19,6 +19,7 @@ export async function sendSessionMessage(
     identity,
     session_key,
     ws_state,
+    session_control_state,
     ws_send,
     active_session_key_ref,
     set_error,
@@ -44,6 +45,10 @@ export async function sendSessionMessage(
   }
   if (ws_state !== 'connected') {
     set_error('WebSocket未连接,请稍候重试');
+    return null;
+  }
+  if (session_control_state === 'observer') {
+    set_error('当前窗口是观察视图，无法发送消息');
     return null;
   }
 
@@ -97,6 +102,7 @@ export function stopSessionGeneration(
     identity,
     session_key,
     ws_state,
+    session_control_state,
     ws_send,
     active_session_key_ref,
     messages,
@@ -115,6 +121,10 @@ export function stopSessionGeneration(
   }
   if (!isStructuredSessionKey(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，无法中断');
+    return;
+  }
+  if (session_control_state === 'observer') {
+    set_error('当前窗口是观察视图，无法停止生成');
     return;
   }
 
@@ -159,6 +169,7 @@ export function sendSessionPermissionResponse(
     identity,
     session_key,
     ws_state,
+    session_control_state,
     ws_send,
     active_session_key_ref,
     pending_permissions,
@@ -184,6 +195,10 @@ export function sendSessionPermissionResponse(
   }
   if (ws_state !== 'connected') {
     set_error('WebSocket未连接，无法提交权限决策');
+    return false;
+  }
+  if (session_control_state === 'observer') {
+    set_error('当前窗口是观察视图，无法确认权限');
     return false;
   }
   if (

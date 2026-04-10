@@ -16,6 +16,8 @@ interface ThreadDetailPanelProps {
   messages: Message[];
   pending_permissions?: PendingPermission[];
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   on_close: () => void;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
@@ -35,6 +37,8 @@ export function ThreadDetailPanel({
   messages,
   pending_permissions = [],
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_close,
   on_stop_message,
   on_open_workspace_file,
@@ -134,6 +138,8 @@ export function ThreadDetailPanel({
             messages={messages}
             pending_permissions={pending_permissions}
             on_permission_response={on_permission_response}
+            can_respond_to_permissions={can_respond_to_permissions}
+            permission_read_only_reason={permission_read_only_reason}
             assistant_content_mode="room_thread"
             is_last_round
             is_loading={is_loading}

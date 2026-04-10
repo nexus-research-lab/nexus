@@ -28,7 +28,7 @@ export function ContactsPage() {
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [dialog_mode, set_dialog_mode] = useState<"create" | "edit">("create");
   const [editing_agent_id, set_editing_agent_id] = useState<string | null>(null);
-  const [pending_delete_agent_id, set_pending_delete_agent_id] = useState<string | null>(null);
+  const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
 
   const editing_agent = useMemo(
     () => agents.find((agent) => agent.agent_id === editing_agent_id) ?? null,
@@ -125,13 +125,22 @@ export function ContactsPage() {
   }, [create_agent, dialog_mode, editing_agent_id, update_agent]);
 
   const handle_confirm_delete_agent = useCallback(async () => {
-    if (!pending_delete_agent_id) {
+    if (!pending_delete_agent) {
       return;
     }
 
-    await delete_agent(pending_delete_agent_id);
-    set_pending_delete_agent_id(null);
-  }, [delete_agent, pending_delete_agent_id]);
+    await delete_agent(pending_delete_agent.id);
+    set_pending_delete_agent(null);
+  }, [delete_agent, pending_delete_agent]);
+
+  const handle_request_delete_agent = useCallback((agent_id: string) => {
+    const target_agent = agents.find((agent) => agent.agent_id === agent_id);
+    set_is_dialog_open(false);
+    set_pending_delete_agent({
+      id: agent_id,
+      name: target_agent?.name ?? "该 Agent",
+    });
+  }, [agents]);
 
   useEffect(() => {
     void load_agents_from_server();
@@ -172,15 +181,16 @@ export function ContactsPage() {
         is_open={is_dialog_open}
         mode={dialog_mode}
         on_close={() => set_is_dialog_open(false)}
+        on_delete={handle_request_delete_agent}
         on_save={handle_save_agent}
         on_validate_name={handle_validate_agent_name}
       />
 
       <ConfirmDialog
         confirm_text="删除成员"
-        is_open={Boolean(pending_delete_agent_id)}
-        message="删除后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。"
-        on_cancel={() => set_pending_delete_agent_id(null)}
+        is_open={Boolean(pending_delete_agent)}
+        message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。`}
+        on_cancel={() => set_pending_delete_agent(null)}
         on_confirm={() => {
           void handle_confirm_delete_agent();
         }}

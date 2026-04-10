@@ -204,6 +204,7 @@ class SessionRepository:
         active_round_ids: Optional[set[str]] = None,
     ) -> List[Dict[str, Any]]:
         """为未完成轮次补齐中断态工具结果和 result。"""
+        interrupted_text = "任务已中断（未收到最终结束事件）"
         rows = [dict(row) for row in message_rows]
         round_status = dict(meta.get("round_status") or self._build_round_status(rows))
         active_round_ids = active_round_ids or set()
@@ -254,7 +255,7 @@ class SessionRepository:
                         {
                             "type": "tool_result",
                             "tool_use_id": tool_use_id,
-                            "content": "任务已中断（页面刷新或连接断开）",
+                            "content": interrupted_text,
                             "is_error": True,
                         }
                     )
@@ -288,7 +289,7 @@ class SessionRepository:
                         "cache_creation_input_tokens": 0,
                         "cache_read_input_tokens": 0,
                     },
-                    "result": "任务已中断（页面刷新或连接断开）",
+                    "result": interrupted_text,
                     "is_error": True,
                     "timestamp": last_row.get("timestamp") or int(datetime.now(timezone.utc).timestamp() * 1000),
                 }
@@ -382,6 +383,7 @@ class SessionRepository:
         title: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
         status: Optional[str] = None,
+        clear_session_id: bool = False,
     ) -> bool:
         """更新会话信息。"""
         try:
@@ -393,7 +395,9 @@ class SessionRepository:
                 meta = JsonFileStore.read_json(meta_path, {})
                 if not meta:
                     return False
-                if session_id is not None:
+                if clear_session_id:
+                    meta["session_id"] = None
+                elif session_id is not None:
                     meta["session_id"] = session_id
                 if title is not None:
                     meta["title"] = title
@@ -408,6 +412,13 @@ class SessionRepository:
         except Exception as exc:
             logger.error(f"❌ 更新会话失败: {exc}", exc_info=True)
             return False
+
+    async def clear_session_id(self, session_key: str) -> bool:
+        """清空持久化的 SDK session_id，避免继续恢复已损坏会话。"""
+        return await self.update_session(
+            session_key=session_key,
+            clear_session_id=True,
+        )
 
     async def get_all_sessions(self) -> List[ASession]:
         """获取所有会话。"""

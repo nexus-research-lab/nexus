@@ -35,6 +35,8 @@ interface AskUserQuestionBlockProps {
     on_submit?: (tool_use_id: string, answers: UserQuestionAnswer[]) => boolean | Promise<boolean>;
     is_submitted?: boolean;
     is_ready?: boolean;
+    interaction_disabled?: boolean;
+    interaction_disabled_reason?: string;
 }
 
 function normalizeQuestion(question: UserQuestion): UserQuestion {
@@ -237,6 +239,8 @@ export function AskUserQuestionBlock({
     on_submit,
     is_submitted: initialSubmitted = false,
     is_ready = true,
+    interaction_disabled = false,
+    interaction_disabled_reason,
 }: AskUserQuestionBlockProps) {
     // 解析输入
     const input = tool_use.input as AskUserQuestionInput;
@@ -264,6 +268,7 @@ export function AskUserQuestionBlock({
     const isFailed = Boolean(tool_result?.is_error && !isTimedOut);
     const [hasLocalSubmission, setHasLocalSubmission] = useState(false);
     const isSubmitted = initialSubmitted || hasLocalSubmission;
+    const isObserverReadOnly = interaction_disabled && !isSubmitted && !isTimedOut && !isFailed;
     const shouldStartCollapsed = initialSubmitted || isTimedOut || isFailed;
     // 展开/收起状态：首帧就按最终状态初始化，避免先展开再收起的闪动
     const [isExpanded, setIsExpanded] = useState(() => !shouldStartCollapsed);
@@ -341,7 +346,7 @@ export function AskUserQuestionBlock({
 
     // 提交回答
     const handleSubmit = useCallback(async () => {
-        if (!canSubmit || isSubmitted || !is_ready) return;
+        if (!canSubmit || isSubmitted || !is_ready || interaction_disabled) return;
 
         const answers: UserQuestionAnswer[] = questions.map((_, index) => {
             const selectedOptions = Array.from(selections.get(index) || []);
@@ -362,7 +367,7 @@ export function AskUserQuestionBlock({
         }
         setHasLocalSubmission(true);
         setIsExpanded(false); // 提交后收起
-    }, [canSubmit, customAnswers, isSubmitted, is_ready, on_submit, questions, selections, tool_use.id]);
+    }, [canSubmit, customAnswers, interaction_disabled, isSubmitted, is_ready, on_submit, questions, selections, tool_use.id]);
 
     // 计算已选数量
     const totalSelected = useMemo(() => {
@@ -394,7 +399,7 @@ export function AskUserQuestionBlock({
         return null;
     }
 
-    const isReadOnly = isSubmitted || isTimedOut || isFailed;
+    const isReadOnly = isSubmitted || isTimedOut || isFailed || isObserverReadOnly;
     const headerToneClassName = isTimedOut || isFailed
         ? "text-amber-500"
         : isSubmitted
@@ -404,6 +409,8 @@ export function AskUserQuestionBlock({
         ? "提问已超时"
         : isFailed
             ? "提问未完成"
+            : isObserverReadOnly
+                ? "等待另一窗口回应"
             : isSubmitted
                 ? "已收到你的回应"
                 : "需要你的回应";
@@ -496,6 +503,8 @@ export function AskUserQuestionBlock({
                     <span className="text-[11px] leading-none text-muted-foreground">
                         {!is_ready
                             ? '等待提问就绪'
+                            : isObserverReadOnly
+                                ? (interaction_disabled_reason || '当前窗口是观察视图')
                             : canSubmit
                                 ? '✓ 所有问题都已回应'
                                 : '每个问题至少回应一次'}
@@ -506,10 +515,11 @@ export function AskUserQuestionBlock({
                             e.stopPropagation();
                             void handleSubmit();
                         }}
-                        disabled={!canSubmit || !is_ready}
+                        disabled={!canSubmit || !is_ready || interaction_disabled}
+                        title={interaction_disabled ? interaction_disabled_reason : undefined}
                         className={cn(
                             "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium leading-none transition-colors",
-                            canSubmit && is_ready
+                            canSubmit && is_ready && !interaction_disabled
                                 ? "border-primary/24 bg-primary/10 text-primary hover:bg-primary/14"
                                 : "border-white/14 bg-white/6 text-slate-400",
                         )}

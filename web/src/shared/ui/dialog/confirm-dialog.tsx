@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
@@ -58,9 +59,9 @@ export function ConfirmDialog({
 
   if (!is_open) return null;
 
-  return (
+  const dialog = (
     <div
-      className="dialog-backdrop animate-in fade-in duration-150"
+      className="dialog-backdrop z-[9999] animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
@@ -107,6 +108,12 @@ export function ConfirmDialog({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(dialog, document.body);
 }
 
 export function PromptDialog({
@@ -154,9 +161,9 @@ export function PromptDialog({
 
   if (!is_open) return null;
 
-  return (
+  const dialog = (
     <div
-      className="dialog-backdrop animate-in fade-in duration-150"
+      className="dialog-backdrop z-[9999] animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-labelledby="prompt-dialog-title"
@@ -215,4 +222,10 @@ export function PromptDialog({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(dialog, document.body);
 }

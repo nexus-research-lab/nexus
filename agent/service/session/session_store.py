@@ -99,6 +99,10 @@ class MessageHistoryStore:
         )
         return success
 
+    async def clear_session_id(self, session_key: str) -> bool:
+        """清空持久化的 SDK session_id。"""
+        return await session_repository.clear_session_id(session_key)
+
     async def get_all_sessions(self) -> List[ASession]:
         """获取所有会话列表"""
         return await session_repository.get_all_sessions()

@@ -38,17 +38,29 @@ function normalize_completed_assistant_states(messages: Message[]): Message[] {
 }
 
 /**
+ * 将后端 assistant 快照统一归一化为前端运行态语义。
+ *
+ * 中文说明：
+ * 后端的 is_complete 主要服务于持久化与非 Web 渠道发送，不等价于“这一轮已经结束”。
+ * assistant turn 自身是否收口可以看 stop_reason / 显式 stream_status，
+ * 但整轮 round 的结束必须以后端推送的 round_status 为准。
+ */
+export function normalizeAssistantMessage(incoming: AssistantMessage): AssistantMessage {
+  return {
+    ...incoming,
+    stream_status: incoming.stream_status ?? (
+      incoming.stop_reason ? 'done' : 'streaming'
+    ),
+  };
+}
+
+/**
  * 按 message_id 合并完整消息。
  */
 export function upsertMessage(messages: Message[], incoming: Message): Message[] {
   const normalized_incoming = (
     incoming.role === 'assistant'
-      ? {
-        ...incoming,
-        stream_status: incoming.stream_status ?? (
-          incoming.is_complete || incoming.stop_reason ? 'done' : 'streaming'
-        ),
-      }
+      ? normalizeAssistantMessage(incoming)
       : incoming
   );
   const existingIndex = messages.findIndex(
@@ -134,4 +146,34 @@ export function sortMessages(messages: Message[]): Message[] {
   return normalize_completed_assistant_states(
     [...messages].sort((left, right) => left.timestamp - right.timestamp),
   );
+}
+
+/**
+ * 合并服务端快照与本地消息，保留尚未落库的本地 optimistic 消息。
+ *
+ * 规则：
+ * 1. 同 message_id 的消息始终以服务端快照为准；
+ * 2. 仅把服务端中不存在的本地消息补回去；
+ * 3. 最终统一排序，避免 session 首屏加载把用户刚发出的消息冲掉。
+ */
+export function mergeLoadedMessages(
+  loaded_messages: Message[],
+  local_messages: Message[],
+): Message[] {
+  if (local_messages.length === 0) {
+    return loaded_messages;
+  }
+
+  const loaded_message_ids = new Set(
+    loaded_messages.map((message) => message.message_id),
+  );
+  const merged_messages = [...loaded_messages];
+
+  for (const local_message of local_messages) {
+    if (!loaded_message_ids.has(local_message.message_id)) {
+      merged_messages.push(local_message);
+    }
+  }
+
+  return sortMessages(merged_messages);
 }

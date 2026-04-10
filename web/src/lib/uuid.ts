@@ -37,3 +37,24 @@ export function generateUuid(): string {
 
   return fallbackUuidFromRandomValues();
 }
+
+export function getBrowserClientId(): string {
+  const storage_key = 'nexus.browser_client_id';
+  const storage = globalThis.sessionStorage;
+  if (!storage) {
+    return generateUuid();
+  }
+
+  try {
+    const existing_client_id = storage.getItem(storage_key)?.trim();
+    if (existing_client_id) {
+      return existing_client_id;
+    }
+
+    const next_client_id = generateUuid();
+    storage.setItem(storage_key, next_client_id);
+    return next_client_id;
+  } catch {
+    return generateUuid();
+  }
+}

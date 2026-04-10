@@ -29,6 +29,8 @@ export interface ThreadPanelData {
   is_loading: boolean;
   pending_permissions: PendingPermission[];
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }

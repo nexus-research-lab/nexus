@@ -33,6 +33,8 @@ interface ToolBlockProps {
   start_time?: number;
   end_time?: number;
   permission_request?: ToolPermissionRequest;
+  interaction_disabled?: boolean;
+  interaction_disabled_reason?: string;
 }
 
 // ==================== 辅助函数 ====================
@@ -201,6 +203,8 @@ export function ToolBlock({
   start_time,
   end_time,
   permission_request,
+  interaction_disabled = false,
+  interaction_disabled_reason,
 }: ToolBlockProps) {
   const {
     is_open: isExpanded,
@@ -289,6 +293,9 @@ export function ToolBlock({
   const waitingConfirmationText = permission_request?.expires_at
     ? `${new Date(permission_request.expires_at).toLocaleTimeString()} 前确认`
     : '确认后继续执行';
+  const waitingActionHint = interaction_disabled
+    ? interaction_disabled_reason || '当前窗口是观察视图'
+    : waitingConfirmationText;
 
   useEffect(() => {
     setSelectedSuggestionIndex(-1);
@@ -328,7 +335,7 @@ export function ToolBlock({
               {toolTitle}
             </span>
             {isWaiting ? (
-              <span className="shrink-0 text-[11px] text-[color:var(--text-soft)]">{waitingConfirmationText}</span>
+              <span className="shrink-0 text-[11px] text-[color:var(--text-soft)]">{waitingActionHint}</span>
             ) : durationText ? (
               <span className="shrink-0 text-[11px] text-[color:var(--text-soft)]">{durationText}</span>
             ) : null}
@@ -351,15 +358,24 @@ export function ToolBlock({
         {isWaiting && permission_request ? (
           <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
             <button
+              type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 permission_request.on_deny();
               }}
-              className="modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text-strong)]"
+              disabled={interaction_disabled}
+              title={interaction_disabled ? interaction_disabled_reason : undefined}
+              className={cn(
+                "modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-[color:var(--text-muted)] transition-colors",
+                interaction_disabled
+                  ? "cursor-not-allowed opacity-50"
+                  : "hover:text-[color:var(--text-strong)]",
+              )}
             >
               拒绝
             </button>
             <button
+              type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 const selectedUpdate = selectedSuggestionIndex >= 0 && permission_request.suggestions
@@ -367,7 +383,14 @@ export function ToolBlock({
                   : undefined;
                 permission_request.on_allow(selectedUpdate);
               }}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              disabled={interaction_disabled}
+              title={interaction_disabled ? interaction_disabled_reason : undefined}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors",
+                interaction_disabled
+                  ? "cursor-not-allowed bg-slate-300"
+                  : "bg-primary hover:bg-primary/90",
+              )}
             >
               允许
             </button>
@@ -465,6 +488,7 @@ export function ToolBlock({
                   type="radio"
                   name={`permission-suggestion-${permission_request.request_id}`}
                   checked={selectedSuggestionIndex === -1}
+                  disabled={interaction_disabled}
                   onChange={() => setSelectedSuggestionIndex(-1)}
                   className="sr-only"
                 />
@@ -479,6 +503,7 @@ export function ToolBlock({
                     type="radio"
                     name={`permission-suggestion-${permission_request.request_id}`}
                     checked={selectedSuggestionIndex === suggestion.index}
+                    disabled={interaction_disabled}
                     onChange={() => setSelectedSuggestionIndex(suggestion.index)}
                     className="sr-only"
                   />
@@ -486,6 +511,11 @@ export function ToolBlock({
                 </label>
               ))}
               </div>
+            </div>
+          ) : null}
+          {interaction_disabled && interaction_disabled_reason ? (
+            <div className="text-[11px] text-[color:var(--text-soft)]">
+              {interaction_disabled_reason}
             </div>
           ) : null}
         </div>

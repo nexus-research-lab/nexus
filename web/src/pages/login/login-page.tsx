@@ -33,6 +33,9 @@ export function LoginPage() {
     [search_params],
   );
   const { status, loading, is_bootstrapped, error, login, refresh_status } = useAuth();
+  const handle_refresh = () => {
+    void refresh_status().catch(() => undefined);
+  };
   const [username, set_username] = useState("");
   const [password, set_password] = useState("");
   const [submit_error, set_submit_error] = useState<string | null>(null);
@@ -100,9 +103,7 @@ export function LoginPage() {
 
             <button
               className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[color:var(--button-tonal-border)] bg-[color:var(--button-tonal-background)] px-5 text-[14px] font-semibold text-[color:var(--button-tonal-color)] transition hover:bg-[color:var(--button-tonal-hover-background)] hover:text-[color:var(--button-tonal-hover-color)]"
-              onClick={() => {
-                void refresh_status();
-              }}
+              onClick={handle_refresh}
               type="button"
             >
               {t("login.refresh")}

@@ -12,10 +12,20 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/opt/app
 
-ARG PIP_INDEX_URL=
-ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
+ARG DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG NPM_REGISTRY=https://registry.npmmirror.com/
 
 RUN --mount=type=cache,target=/var/cache/apt \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
+        sed -i -E "s#https?://(deb|security).debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list && \
+        sed -i -E "s#https?://(deb|security).debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list; \
+    fi && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     bash \
@@ -30,14 +40,12 @@ WORKDIR /opt/app
 COPY agent/requirements.txt /tmp/requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    if [ -n "${PIP_INDEX_URL}" ]; then \
-        pip config set global.index-url "${PIP_INDEX_URL}"; \
-    fi && \
+    pip config set global.index-url "${PIP_INDEX_URL}" && \
     pip install --upgrade pip && \
     pip install -r /tmp/requirements.txt
 
 RUN npm config set registry "${NPM_REGISTRY}" && \
-    npm install -g @anthropic-ai/claude-code && \
+    npm install -g @anthropic-ai/claude-code --registry "${NPM_REGISTRY}" && \
     npm cache clean --force
 
 RUN groupadd --system --gid 1001 agent && \

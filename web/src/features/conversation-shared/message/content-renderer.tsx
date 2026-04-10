@@ -22,6 +22,8 @@ interface ContentRendererProps {
   fallback_activity_state?: MessageActivityState | null;
   pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   on_open_workspace_file?: (path: string) => void;
   hidden_tool_names?: string[];
 }
@@ -34,6 +36,8 @@ export function ContentRenderer(
     fallback_activity_state,
     pending_permissions_by_tool_use_id,
     on_permission_response,
+    can_respond_to_permissions = true,
+    permission_read_only_reason,
     on_open_workspace_file,
     hidden_tool_names = [],
   }: ContentRendererProps) {
@@ -150,6 +154,8 @@ export function ContentRenderer(
                   tool_result={toolResult}
                   is_submitted={hasResult && !toolResult?.is_error}
                   is_ready={Boolean(isThisToolPending)}
+                  interaction_disabled={!can_respond_to_permissions}
+                  interaction_disabled_reason={permission_read_only_reason}
                   on_submit={(_, answers) => {
                     if (!pending_permission) {
                       return false;
@@ -207,6 +213,8 @@ export function ContentRenderer(
                     updated_permissions,
                   }),
                 } : undefined}
+                interaction_disabled={!can_respond_to_permissions}
+                interaction_disabled_reason={permission_read_only_reason}
               />
             </div>
           );

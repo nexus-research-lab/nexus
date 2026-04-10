@@ -213,6 +213,8 @@ function MobileThreadOverlay() {
         messages={thread_panel_data.messages}
         pending_permissions={thread_panel_data.pending_permissions}
         on_permission_response={thread_panel_data.on_permission_response}
+        can_respond_to_permissions={thread_panel_data.can_respond_to_permissions}
+        permission_read_only_reason={thread_panel_data.permission_read_only_reason}
         on_close={close_thread}
         on_stop_message={thread_panel_data.on_stop_message}
         on_open_workspace_file={thread_panel_data.on_open_workspace_file}

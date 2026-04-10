@@ -8,6 +8,7 @@ import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-
 import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
 import { useRoomPageController } from "@/hooks/use-room-page-controller";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { RoomRouteParams } from "@/types/route";
 import { UpdateRoomParams } from "@/types/room";
@@ -17,6 +18,7 @@ export function RoomPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [pending_initial_prompt, set_pending_initial_prompt] = useState<string | null>(null);
+  const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
   const controller = useRoomPageController({
     room_id: params.room_id,
     conversation_id: params.conversation_id,
@@ -100,6 +102,24 @@ export function RoomPage() {
     // room_member_added / room_member_removed are handled by the next server-rendered
     // room context fetch; no extra action needed here.
   }, [controller, navigate]);
+
+  const handle_request_delete_agent = useCallback((agent_id: string) => {
+    const target_agent = controller.agents.find((agent) => agent.agent_id === agent_id);
+    controller.set_is_dialog_open(false);
+    set_pending_delete_agent({
+      id: agent_id,
+      name: target_agent?.name ?? "该 Agent",
+    });
+  }, [controller]);
+
+  const handle_confirm_delete_agent = useCallback(async () => {
+    if (!pending_delete_agent) {
+      return;
+    }
+
+    await controller.handle_delete_agent(pending_delete_agent.id);
+    set_pending_delete_agent(null);
+  }, [controller, pending_delete_agent]);
 
   useEffect(() => {
     // 原有逻辑：自动导航到当前对话
@@ -193,13 +213,27 @@ export function RoomPage() {
         </WorkspacePageFrame>
 
         <AgentOptions
+          agent_id={controller.editing_agent_id ?? undefined}
           mode={controller.dialog_mode}
           is_open={controller.is_dialog_open}
           on_close={() => controller.set_is_dialog_open(false)}
+          on_delete={handle_request_delete_agent}
           on_save={controller.handle_save_agent_options}
           on_validate_name={controller.handle_validate_agent_name}
           initial_title={controller.dialog_initial_title}
           initial_options={controller.dialog_initial_options}
+        />
+
+        <ConfirmDialog
+          confirm_text="删除成员"
+          is_open={Boolean(pending_delete_agent)}
+          message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
+          on_cancel={() => set_pending_delete_agent(null)}
+          on_confirm={() => {
+            void handle_confirm_delete_agent();
+          }}
+          title="删除成员"
+          variant="danger"
         />
       </>
     );

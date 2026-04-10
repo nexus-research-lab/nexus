@@ -24,6 +24,8 @@ interface ConversationFeedProps {
   message_groups: Map<string, Message[]>;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   /** Room 并发模式：停止单条消息生成 */
   on_stop_message?: (msg_id: string) => void;
   round_ids: string[];
@@ -62,6 +64,8 @@ export const ConversationFeed = memo(function ConversationFeed({
   message_groups,
   on_open_workspace_file,
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_stop_message,
   round_ids,
 }: ConversationFeedProps) {
@@ -83,6 +87,8 @@ export const ConversationFeed = memo(function ConversationFeed({
         message_groups={message_groups}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
+        can_respond_to_permissions={can_respond_to_permissions}
+        permission_read_only_reason={permission_read_only_reason}
         on_stop_message={on_stop_message}
         round_ids={round_ids}
       />
@@ -115,6 +121,8 @@ export const ConversationFeed = memo(function ConversationFeed({
             runtime_phase={isLastRound ? runtime_phase : null}
             pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
+            can_respond_to_permissions={can_respond_to_permissions}
+            permission_read_only_reason={permission_read_only_reason}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
           />
@@ -141,6 +149,8 @@ function VirtualFeed({
   message_groups,
   on_open_workspace_file,
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_stop_message,
   round_ids,
 }: Omit<ConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
@@ -223,6 +233,8 @@ function VirtualFeed({
                 runtime_phase={isLastRound ? runtime_phase : null}
                 pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
                 on_permission_response={on_permission_response}
+                can_respond_to_permissions={can_respond_to_permissions}
+                permission_read_only_reason={permission_read_only_reason}
                 on_open_workspace_file={on_open_workspace_file}
                 on_stop_message={on_stop_message}
               />

@@ -216,6 +216,9 @@ class EventMessage(BaseModel):
     model_config = {"extra": "allow"}
 
 
+RoundLifecycleStatus = Literal["running", "finished", "interrupted", "error"]
+
+
 def build_transport_event(message: Message | StreamMessage) -> EventMessage:
     """将完整消息或流式消息包装为统一 Envelope。"""
     event_type = "message" if isinstance(message, Message) else "stream"
@@ -285,4 +288,39 @@ def build_error_event(
             "message": message,
             "details": details or {},
         },
+    )
+
+
+def build_round_status_event(
+    round_id: str,
+    status: RoundLifecycleStatus,
+    session_key: Optional[str] = None,
+    room_id: Optional[str] = None,
+    conversation_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    message_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    caused_by: Optional[str] = None,
+    result_subtype: Optional[str] = None,
+) -> EventMessage:
+    """构造统一 round 生命周期事件。"""
+    data: Dict[str, Any] = {
+        "round_id": round_id,
+        "status": status,
+        "is_terminal": status != "running",
+    }
+    if result_subtype:
+        data["result_subtype"] = result_subtype
+
+    return EventMessage(
+        event_type="round_status",
+        delivery_mode="durable",
+        session_key=session_key,
+        room_id=room_id,
+        conversation_id=conversation_id,
+        agent_id=agent_id,
+        message_id=message_id,
+        session_id=session_id,
+        caused_by=caused_by or round_id,
+        data=data,
     )

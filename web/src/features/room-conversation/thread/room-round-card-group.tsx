@@ -28,6 +28,8 @@ interface RoomRoundCardGroupProps {
   is_last_round: boolean;
   is_loading: boolean;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   on_stop_message?: (msg_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
@@ -107,6 +109,8 @@ function RoomRoundCardGroupInner({
   pending_slots = [],
   agent_name_map,
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_stop_message,
   on_open_workspace_file,
 }: RoomRoundCardGroupProps) {
@@ -201,6 +205,8 @@ function RoomRoundCardGroupInner({
                       is_thread_active={is_thread_active}
                       on_click_thread={() => toggle_thread(entry.agent_id, true)}
                       on_permission_response={on_permission_response}
+                      can_respond_to_permissions={can_respond_to_permissions}
+                      permission_read_only_reason={permission_read_only_reason}
                       on_stop_message={
                         entry.pending_slot && on_stop_message && isAgentRoundActive(entry.status)
                           ? () => on_stop_message(entry.pending_slot!.msg_id)

@@ -104,6 +104,7 @@ export function useRoomPageAgentDialog({
   return {
     is_dialog_open,
     dialog_mode,
+    editing_agent_id,
     dialog_initial_title,
     dialog_initial_options,
     set_is_dialog_open,

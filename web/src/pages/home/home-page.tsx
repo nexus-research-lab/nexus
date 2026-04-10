@@ -2,9 +2,9 @@
  * 工作台（/app）
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { listRooms } from "@/lib/room-api";
+import { listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { useAgentStore } from "@/store/agent";
 import { RoomAggregate } from "@/types/room";
 
@@ -15,12 +15,17 @@ export function HomePage() {
   const agents = useAgentStore((s) => s.agents);
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
+  const refresh_rooms = useCallback(() => {
+    void listRooms(200).then(set_rooms).catch(() => {
+    });
+  }, []);
 
   useEffect(() => {
     void load_agents();
-    void listRooms(200).then(set_rooms).catch(() => {
-    });
-  }, [load_agents]);
+    refresh_rooms();
+  }, [load_agents, refresh_rooms]);
+
+  useEffect(() => subscribe_room_list_updates(refresh_rooms), [refresh_rooms]);
 
   return (
     <WorkspacePageFrame>

@@ -28,6 +28,8 @@ interface RoomConversationFeedProps {
   pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
+  can_respond_to_permissions?: boolean;
+  permission_read_only_reason?: string;
   /** Room 并发模式：停止单条消息生成 */
   on_stop_message?: (msg_id: string) => void;
   round_ids: string[];
@@ -68,6 +70,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
   pending_slot_groups,
   on_open_workspace_file,
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_stop_message,
   round_ids,
 }: RoomConversationFeedProps) {
@@ -91,6 +95,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         pending_slot_groups={pending_slot_groups}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
+        can_respond_to_permissions={can_respond_to_permissions}
+        permission_read_only_reason={permission_read_only_reason}
         on_stop_message={on_stop_message}
         round_ids={round_ids}
       />
@@ -122,6 +128,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
               is_last_round={isLastRound}
               is_loading={is_loading}
               on_permission_response={on_permission_response}
+              can_respond_to_permissions={can_respond_to_permissions}
+              permission_read_only_reason={permission_read_only_reason}
               on_stop_message={on_stop_message}
               on_open_workspace_file={on_open_workspace_file}
             />
@@ -142,6 +150,8 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
             runtime_phase={isLastRound ? runtime_phase : null}
             pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
+            can_respond_to_permissions={can_respond_to_permissions}
+            permission_read_only_reason={permission_read_only_reason}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
           />
@@ -170,6 +180,8 @@ function VirtualFeed({
   pending_slot_groups,
   on_open_workspace_file,
   on_permission_response,
+  can_respond_to_permissions = true,
+  permission_read_only_reason,
   on_stop_message,
   round_ids,
 }: Omit<RoomConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
@@ -250,6 +262,8 @@ function VirtualFeed({
                   is_last_round={isLastRound}
                   is_loading={is_loading}
                   on_permission_response={on_permission_response}
+                  can_respond_to_permissions={can_respond_to_permissions}
+                  permission_read_only_reason={permission_read_only_reason}
                   on_stop_message={on_stop_message}
                   on_open_workspace_file={on_open_workspace_file}
                 />
@@ -264,6 +278,8 @@ function VirtualFeed({
                   runtime_phase={isLastRound ? runtime_phase : null}
                   pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
                   on_permission_response={on_permission_response}
+                  can_respond_to_permissions={can_respond_to_permissions}
+                  permission_read_only_reason={permission_read_only_reason}
                   on_open_workspace_file={on_open_workspace_file}
                   on_stop_message={on_stop_message}
                 />

@@ -3,11 +3,11 @@ import { buildRoomSharedSessionKey, buildWsDmSessionKey } from '@/lib/session-ke
 import { generateUuid } from '@/lib/uuid';
 import { AgentConversationLifecycleContext } from '@/types/agent-conversation';
 
-import { sortMessages } from './message-helpers';
+import { mergeLoadedMessages, sortMessages } from './message-helpers';
 
 /**
  * 重置当前会话视图状态。
- * preserve_loading=true 时保留 is_loading 态（重连 reload 场景下由 session_status 事件控制）。
+ * preserve_loading=true 时保留 is_loading 态（重连 reload 场景下由后端 round_status / session_status 控制）。
  */
 export function resetSessionView(
   context: AgentConversationLifecycleContext,
@@ -83,8 +83,12 @@ export async function loadAgentSession(
     }
     if (Array.isArray(data)) {
       const sorted_messages = sortMessages(data);
-      context.set_messages(sorted_messages);
-      context.on_session_messages_loaded?.(sorted_messages, {
+      let merged_messages = sorted_messages;
+      context.set_messages((current_messages) => {
+        merged_messages = mergeLoadedMessages(sorted_messages, current_messages);
+        return merged_messages;
+      });
+      context.on_session_messages_loaded?.(merged_messages, {
         session_key,
         is_reload,
       });

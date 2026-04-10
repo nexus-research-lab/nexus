@@ -7,7 +7,7 @@ import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { buildRoomSharedSessionKey } from "@/lib/session-key";
-import { AgentConversationIdentity } from "@/types/agent-conversation";
+import { AgentConversationIdentity, getSessionControlStatusText } from "@/types/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation";
 import { PendingPermission } from "@/types/permission";
 import { TodoItem } from "@/types/todo";
@@ -128,6 +128,8 @@ export function RoomChatPanel({
     error,
     messages,
     is_loading,
+    session_control_state,
+    session_observer_count,
     pending_agent_slots,
     pending_permissions,
     send_message,
@@ -159,6 +161,12 @@ export function RoomChatPanel({
   });
 
   const todos = useExtractTodos(messages, session_key);
+  const can_control_session = session_control_state !== "observer";
+  const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
+  const session_control_text = useMemo(
+    () => getSessionControlStatusText(session_control_state, session_observer_count),
+    [session_control_state, session_observer_count],
+  );
 
   useEffect(() => { on_todos_change?.(todos); }, [on_todos_change, todos]);
   useEffect(() => { on_loading_change?.(is_loading); }, [is_loading, on_loading_change]);
@@ -222,7 +230,7 @@ export function RoomChatPanel({
 
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
-    if (!session_key || !normalized_draft || is_loading) {
+    if (!session_key || !normalized_draft || is_loading || !can_control_session) {
       return;
     }
 
@@ -241,7 +249,7 @@ export function RoomChatPanel({
         consumed_initial_draft_ref.current = null;
         console.error("Failed to auto send initial room prompt:", error);
       });
-  }, [initial_draft, is_loading, on_initial_draft_consumed, scroll_to_bottom, send_message, session_key]);
+  }, [can_control_session, initial_draft, is_loading, on_initial_draft_consumed, scroll_to_bottom, send_message, session_key]);
 
   // Thread 面板数据：推送到 Context，由 Layout 读取渲染 inspector
   const thread_round_messages = useMemo(
@@ -293,13 +301,17 @@ export function RoomChatPanel({
       is_loading: thread_is_loading,
       pending_permissions: thread_pending_permissions,
       on_permission_response: send_permission_response,
-      on_stop_message: handle_stop_message,
+      can_respond_to_permissions: can_control_session,
+      permission_read_only_reason: observer_read_only_reason,
+      on_stop_message: can_control_session ? handle_stop_message : undefined,
       on_open_workspace_file,
     };
   }, [
     active_thread,
+    can_control_session,
     handle_stop_message,
     on_open_workspace_file,
+    observer_read_only_reason,
     send_permission_response,
     thread_agent_name,
     thread_is_loading,
@@ -388,7 +400,9 @@ export function RoomChatPanel({
               pending_slot_groups={pending_slot_groups}
               on_open_workspace_file={on_open_workspace_file}
               on_permission_response={send_permission_response}
-              on_stop_message={handle_stop_message}
+              can_respond_to_permissions={can_control_session}
+              permission_read_only_reason={observer_read_only_reason}
+              on_stop_message={can_control_session ? handle_stop_message : undefined}
               round_ids={round_ids}
             />
           </div>
@@ -403,9 +417,11 @@ export function RoomChatPanel({
 
           <RoomComposerPanel
             compact={is_mobile_layout}
+            control_status_text={session_control_text}
             mention_unavailable_agent_ids={mention_unavailable_agent_ids}
             on_send_message={handle_send_message}
             room_members={room_members}
+            disabled={!can_control_session}
           />
         </>
       )}

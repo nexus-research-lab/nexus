@@ -33,9 +33,6 @@ class InteractivePermissionStrategy(PermissionStrategy):
         context: ToolPermissionContext | None = None,
     ) -> PermissionResult:
         """委托全局上下文处理权限确认。"""
-        # 中文注释：即使前端之前已经发送过 bind_session，
-        # 当前连接在真正发起权限请求时也再绑定一次，避免活跃 sender 映射被意外清掉。
-        permission_runtime_context.bind_sender_for_runtime_session(session_key, self.sender)
         return await permission_runtime_context.request_permission(
             session_key=session_key,
             tool_name=tool_name,
@@ -83,20 +80,27 @@ class InteractivePermissionStrategy(PermissionStrategy):
         cls,
         session_key: str,
         sender: MessageSender,
-    ) -> None:
-        """注册某个前端 session 当前活跃的发送通道。"""
-        permission_runtime_context.register_session_sender(session_key, sender)
+        client_id: str,
+        request_control: bool,
+    ) -> dict[str, Any]:
+        """绑定某个前端 session 的发送通道。"""
+        return permission_runtime_context.bind_session_sender(
+            session_key=session_key,
+            sender=sender,
+            client_id=client_id,
+            request_control=request_control,
+        )
 
     @classmethod
-    def unregister_sender(cls, sender: MessageSender) -> None:
+    def unregister_sender(cls, sender: MessageSender) -> tuple[str, ...]:
         """注销某个连接持有的全部前端 session。"""
-        permission_runtime_context.unregister_sender(sender)
+        return permission_runtime_context.unregister_sender(sender)
 
     @classmethod
     def unregister_session_sender(
         cls,
         session_key: str,
         sender: MessageSender,
-    ) -> None:
+    ) -> dict[str, Any]:
         """注销某个连接持有的单个前端 session。"""
-        permission_runtime_context.unregister_session_sender(session_key, sender)
+        return permission_runtime_context.unbind_session_sender(session_key, sender)

@@ -91,7 +91,14 @@ class AgentMessenger:
             )
 
             # 发送消息给目标 agent
-            await target_client.query(content)
+            target_client = await agent_runtime.query_with_recovery(
+                session_key=target_session_key,
+                agent_id=to_agent_id,
+                permission_strategy=self._permission_strategy,
+                prompt=content,
+                client=target_client,
+                resolved_agent_id=to_agent_id,
+            )
 
             # 记录委派完成消息
             await self._sender.send(
