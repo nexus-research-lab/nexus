@@ -30,7 +30,7 @@ services:
       LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
     volumes:
-      - nexus_home:/home/agent/.nexus
+      - ${NEXUS_HOME_DIR:-./data/nexus}:/home/agent/.nexus
     expose:
       - "8010"
     healthcheck:
@@ -67,6 +67,3 @@ services:
       retries: 5
       start_period: 10s
     logging: *default-logging
-
-volumes:
-  nexus_home:

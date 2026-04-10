@@ -179,6 +179,15 @@ Docker 构建与启动命令默认使用当前用户执行，不需要 `sudo`。
 sudo usermod -aG docker $USER
 ```
 
+生产部署默认把持久化目录挂载到 `${NEXUS_HOME_DIR:-./data/nexus}`，容器内路径固定为 `/home/agent/.nexus`。
+如果要挂到宿主机指定目录，例如 `/data/nexus`，启动前执行：
+
+```bash
+export NEXUS_HOME_DIR=/data/nexus
+mkdir -p "$NEXUS_HOME_DIR"
+chown -R 1001:1001 "$NEXUS_HOME_DIR"
+```
+
 ## 关键配置
 
 ### 后端
