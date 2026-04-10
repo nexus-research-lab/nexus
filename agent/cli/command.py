@@ -45,9 +45,14 @@ from agent.service.agent.main_agent_profile import MainAgentProfile
 ServiceCall = Callable[["MainAgentOrchestrationService"], Awaitable[Any]]
 CommandRunner = Callable[[ServiceCall], None]
 AgentIdsParser = Callable[[str], list[str]]
+OutputConfigurator = Callable[..., None]
 
 
-def build_typer_app(run_service_call: CommandRunner, parse_agent_ids: AgentIdsParser) -> typer.Typer:
+def build_typer_app(
+    run_service_call: CommandRunner,
+    parse_agent_ids: AgentIdsParser,
+    configure_output: OutputConfigurator,
+) -> typer.Typer:
     """构建 Typer 应用。"""
     app = typer.Typer(
         name=f"{MainAgentProfile.display_name()}_orchestration_cli",
@@ -57,6 +62,14 @@ def build_typer_app(run_service_call: CommandRunner, parse_agent_ids: AgentIdsPa
         rich_markup_mode=None,
         pretty_exceptions_enable=False,
     )
+
+    @app.callback()
+    def main(
+            verbose: Annotated[bool, typer.Option("--verbose", help="输出过程日志")] = False,
+            pretty: Annotated[bool, typer.Option("--pretty", help="格式化 JSON 输出")] = False,
+    ) -> None:
+        """配置 CLI 输出模式。"""
+        configure_output(verbose=verbose, pretty=pretty)
 
     @app.command("list_agents", help="列出成员 agent")
     def list_agents(

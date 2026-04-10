@@ -12,9 +12,13 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import logging
 import sys
 from collections.abc import Awaitable, Callable
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from dataclasses import dataclass
 from pathlib import Path
 
 import click
@@ -32,13 +36,23 @@ from agent.service.agent.main_agent_profile import MainAgentProfile  # noqa: E40
 ServiceCall = Callable[[object], Awaitable[object]]
 
 
+@dataclass(slots=True)
+class CliOutputOptions:
+    """CLI 输出选项。"""
+
+    verbose: bool = False
+    pretty: bool = False
+
+
 class MainAgentOrchestrationCli:
     """封装主智能体的协作编排命令行。"""
 
     def __init__(self) -> None:
+        self._output_options = CliOutputOptions()
         self._app = build_typer_app(
             run_service_call=self._run_service_call,
             parse_agent_ids=self._parse_agent_ids,
+            configure_output=self._configure_output,
         )
 
     def run(self, argv: list[str] | None = None) -> int:
@@ -59,12 +73,17 @@ class MainAgentOrchestrationCli:
     def _run_service_call(self, service_call: ServiceCall) -> None:
         """执行服务调用并统一输出 JSON。"""
         try:
-            result = asyncio.run(self._execute(service_call))
+            with self._service_execution_context():
+                result = asyncio.run(self._execute(service_call))
         except Exception as exc:  # pylint: disable=broad-except
             self._print({"ok": False, "error": str(exc)})
             raise typer.Exit(code=1) from exc
 
         self._print({"ok": True, "data": result})
+
+    def _configure_output(self, *, verbose: bool, pretty: bool) -> None:
+        """更新 CLI 输出行为。"""
+        self._output_options = CliOutputOptions(verbose=verbose, pretty=pretty)
 
     @staticmethod
     async def _execute(service_call: ServiceCall) -> object:
@@ -82,10 +101,36 @@ class MainAgentOrchestrationCli:
             raise ValueError("agent_ids 不能为空")
         return agent_ids
 
-    @staticmethod
-    def _print(payload: dict[str, object]) -> None:
+    @contextmanager
+    def _service_execution_context(self):
+        """在默认模式下静默执行服务调用。"""
+        if self._output_options.verbose:
+            yield
+            return
+
+        suppressed_output = io.StringIO()
+        previous_disable_level = logging.root.manager.disable
+
+        # 中文注释：CLI 默认只输出最终结果，服务层 logger 和 SDK print
+        # 都会污染 stdout，既影响可读性，也会让主智能体额外消耗 token。
+        logging.disable(logging.CRITICAL)
+        try:
+            with redirect_stdout(suppressed_output), redirect_stderr(suppressed_output):
+                yield
+        finally:
+            logging.disable(previous_disable_level)
+
+    def _print(self, payload: dict[str, object]) -> None:
         """统一输出 JSON。"""
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        json_kwargs = {
+            "ensure_ascii": False,
+        }
+        if self._output_options.pretty:
+            json_kwargs["indent"] = 2
+        else:
+            json_kwargs["separators"] = (",", ":")
+
+        sys.stdout.write(f"{json.dumps(payload, **json_kwargs)}\n")
 
 
 def main() -> int:

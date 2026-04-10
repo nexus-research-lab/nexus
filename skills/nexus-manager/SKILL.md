@@ -9,6 +9,24 @@ description: 管理 Nexus 的 Agent、Room、Workspace 与 Skill 系统操作。
 
 CLI 工具路径：`python3 "{project_root}/agent/cli.py"`
 
+## CLI 输出约定
+
+- 默认调用不要加 `--verbose`，CLI 正常模式只读取最终 JSON 结果，避免把过程日志灌回上下文。
+- 只有在排查异常、确认 skill 部署过程或追踪系统初始化问题时，才显式加 `--verbose`。
+- 需要人工阅读结构化结果时，再加 `--pretty`；正常推理链路优先使用默认紧凑 JSON。
+- 如果命令执行失败，先看返回的 `error`；只有 `error` 信息不足以定位问题时，再用 `--verbose` 重跑一次。
+
+```bash
+# 正常调用：默认只读结果 JSON
+python3 "{project_root}/agent/cli.py" list_agents
+
+# 排查问题：显式打开过程日志
+python3 "{project_root}/agent/cli.py" --verbose list_agents
+
+# 人工查看结果：格式化输出
+python3 "{project_root}/agent/cli.py" --pretty list_agents
+```
+
 ## 核心概念
 
 - **Agent（成员）**：具有独立工作空间的智能体，可被邀请加入 Room 协作。

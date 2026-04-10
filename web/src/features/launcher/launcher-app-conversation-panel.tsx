@@ -18,6 +18,7 @@ import { WebSocketState } from "@/types/websocket";
 
 interface LauncherAppConversationPanelProps {
   app_conversation_messages: Message[];
+  control_status_text?: string;
   error: string | null;
   is_info_mode?: boolean;
   is_loading: boolean;
@@ -46,6 +47,7 @@ function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
 
 export function LauncherAppConversationPanel({
   app_conversation_messages,
+  control_status_text,
   error,
   is_info_mode = false,
   is_loading,
@@ -191,9 +193,9 @@ export function LauncherAppConversationPanel({
   return (
     <HeroSidePanelShell class_name="h-full min-h-[620px] w-full max-w-[512px]">
       <div className="flex h-full min-h-0 flex-col mx-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <HeroActionPillShell class_name="w-fit">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <HeroActionPillShell class_name="w-fit shrink-0">
               <span
                 className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground/72">
                 <span className={cn("h-3 w-3 rounded-full", connection_meta.dot_class_name)} />
@@ -203,6 +205,11 @@ export function LauncherAppConversationPanel({
                 {connection_meta.label}
               </span>
             </HeroActionPillShell>
+            {control_status_text ? (
+              <p className="min-w-0 truncate text-[11px] leading-5 text-[rgba(99,111,133,0.82)]">
+                {control_status_text}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">

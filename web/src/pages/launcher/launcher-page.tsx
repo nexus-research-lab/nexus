@@ -273,7 +273,6 @@ export function LauncherPage() {
             app_conversation_draft={controller.app_conversation_draft}
             app_conversation_loading={app_conversation_loading}
             app_conversation_can_control={app_conversation_can_control}
-            app_conversation_control_status_text={app_conversation_control_status_text}
             agents={controller.agents}
             conversations={controller.conversations}
             rooms={controller.rooms}
@@ -307,6 +306,7 @@ export function LauncherPage() {
                 session_key={controller.app_session_key}
                 ws_state={app_conversation_ws_state}
                 can_respond_to_permissions={app_conversation_can_control}
+                control_status_text={app_conversation_control_status_text}
                 permission_read_only_reason="当前窗口是观察视图，控制权在另一窗口"
                 on_clear_session={handle_clear_app_session}
                 on_close={controller.close_app_conversation}

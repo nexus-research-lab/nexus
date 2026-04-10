@@ -190,7 +190,9 @@ class RoomChatService:
                 agent_id="",
                 round_id=round_id,
                 role="result",
-                subtype="info",
+                # 中文注释：Room 的提示结果也必须遵守统一 result subtype 协议。
+                # 这里语义上是一次正常完成的提示，不能再塞一个未定义的 info。
+                subtype="success",
                 result="请使用 @AgentName 指定要对话的成员",
             )
             await room_message_store.save_message(hint_msg)

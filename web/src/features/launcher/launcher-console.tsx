@@ -31,7 +31,6 @@ interface LauncherConsoleProps {
   app_conversation_draft: string;
   app_conversation_loading: boolean;
   app_conversation_can_control: boolean;
-  app_conversation_control_status_text?: string;
   agents: Agent[];
   conversations: Conversation[];
   rooms: RoomAggregate[];
@@ -51,7 +50,6 @@ interface HeroStageProps {
   decorative_tokens: SpotlightToken[];
   input_disabled?: boolean;
   input_placeholder?: string;
-  input_status_text?: string;
   mention_targets: MentionTargetItem[];
   on_enter_home: () => void;
   on_open_app_conversation: (initial_prompt?: string) => void;
@@ -311,7 +309,6 @@ const HeroStage = memo(function HeroStage({
   decorative_tokens,
   input_disabled = false,
   input_placeholder,
-  input_status_text,
   mention_targets,
   on_enter_home,
   on_open_app_conversation,
@@ -545,11 +542,6 @@ const HeroStage = memo(function HeroStage({
                 </HeroActionOrbShell>
               </div>
             </HeroInputShell>
-            {surface === "app" && input_status_text ? (
-              <p className="mt-2 px-2 text-center text-[11px] text-[color:var(--launcher-handoff-color)]">
-                {input_status_text}
-              </p>
-            ) : null}
           </FadeSlideIn>
 
           <div className={cn(
@@ -650,7 +642,6 @@ export function LauncherConsole({
   app_conversation_draft,
   app_conversation_loading,
   app_conversation_can_control,
-  app_conversation_control_status_text,
   agents,
   conversations,
   rooms,
@@ -875,7 +866,6 @@ export function LauncherConsole({
           current_agent_id={current_agent_id}
           decorative_tokens={decorative_tokens}
           input_disabled={surface === "app" ? !app_conversation_can_control : false}
-          input_status_text={surface === "app" ? app_conversation_control_status_text : undefined}
           mention_targets={mention_targets}
           on_enter_home={handle_enter_home}
           on_open_app_conversation={on_open_app_conversation}
