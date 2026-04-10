@@ -376,6 +376,7 @@ Room 消息不会默认广播给所有 Agent。
   - 仍保存用户消息到共享流
   - 不触发 Claude 执行
   - 追加一条 info result 提示用户先 `@成员名`
+  - 同时必须发送 terminal `round_status=finished` 收口本轮
 
 ### 9.3 多 Agent 并发执行
 
@@ -392,6 +393,11 @@ Room 消息不会默认广播给所有 Agent。
 - `msg_id` 只表示 Room 前端占位槽位和中断定位键
 - `msg_id` 不是 assistant 消息 ID
 - Room 的真实 assistant turn 必须继续使用 SDK 自己的 `message_id`
+- 用户主 round 必须由后端显式推送生命周期：
+  - 调度开始时 `round_status=running`
+  - 全部目标 Agent 收口后再推 terminal `round_status`
+  - 验证失败 / 调度失败时推 `round_status=error`
+  - 用户中断或新一轮覆盖旧一轮时推 `round_status=interrupted`
 
 子轮次规则：
 
@@ -431,6 +437,8 @@ Room 当前核心事件包括：
 
 - `chat_ack`
   - 服务器已为目标 Agent 分配占位槽位
+- `round_status`
+  - 共享用户主 round 的权威生命周期事件
 - `stream_start`
   - 某个占位消息进入 streaming
 - `stream_end`
@@ -453,12 +461,13 @@ Room 当前核心事件包括：
 - 前端不能把 `chat_ack.msg_id` 写入共享消息流
 - `chat_ack.msg_id` 同时也是 Room 单 Agent 中断的后端句柄
 - 因此 slot 不能在“assistant 已开始输出”时就被前端提前删掉
-- 只有该 Agent 子轮次真正拿到 `result` 后，slot 才能清理
+- 只有用户主 round 收到 terminal `round_status` 后，相关 slot 才能统一清理
 - 前端整页刷新后，后端必须在 `subscribe_room` 后重新补发当前仍在执行的 slot
 - 补发的 slot 必须携带真实：
   - `round_id`
   - `status`
   - `timestamp`
+- `round_status` 必须作为 durable 事件参与重放
 - `permission_request` 必须携带并保留事件路由元信息：
   - `agent_id`
   - `message_id`
@@ -485,6 +494,7 @@ Room 中断必须以“共享流路由 + 子轮次状态机”收口。
    - `target_agent_id`
 3. 中断后仍处于 `pending / streaming` 的槽位必须统一修复为 `cancelled`
 4. 对应 `rounds` 记录也必须同步标记为 `cancelled`
+5. 中断修复完成后，后端必须广播 terminal `round_status=interrupted`
 
 ## 12. 前端工作区规范
 

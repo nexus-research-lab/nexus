@@ -14,7 +14,8 @@ import {
   AssistantMessage,
   ChatAckData,
   Message,
-  ResultMessage,
+  RoundLifecycleStatus,
+  SessionStatusEventPayload,
   RoomPendingAgentSlotState,
   StreamMessage,
 } from '@/types';
@@ -171,18 +172,12 @@ export interface HandleAgentConversationWebSocketMessageParams {
     status: import('@/types/message').AssistantMessageStatus,
     round_id?: string | null,
   ) => void;
-  /** 清理某个 round 的运行态跟踪 */
-  clear_round_tracking?: (round_id?: string | null) => void;
-  /** 清空当前 session 的 loading 跟踪 */
-  reset_loading_tracking?: () => void;
-  /** 后端告知当前 session 仍在执行时，恢复运行态 */
-  mark_session_generating?: () => void;
-  /** 后端明确告知当前 session 已停止时，收口前端残留运行态 */
-  reconcile_stopped_session?: () => void;
+  /** 后端同步当前 session 的权威运行态 */
+  sync_session_status?: (payload: SessionStatusEventPayload) => void;
+  /** 后端同步单个 round 的权威生命周期 */
+  apply_round_status?: (round_id: string, status: RoundLifecycleStatus) => void;
   /** 记录本轮 chat_ack 预分配的活跃消息槽位 */
   track_chat_ack?: (ack: ChatAckData, session_key: string | null) => void;
   /** 同步 assistant 完整消息的终态 */
   track_assistant_message?: (message: AssistantMessage) => void;
-  /** result 到达后清理当前 round 的活跃状态 */
-  track_result_message?: (message: ResultMessage) => void;
 }

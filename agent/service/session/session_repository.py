@@ -204,6 +204,7 @@ class SessionRepository:
         active_round_ids: Optional[set[str]] = None,
     ) -> List[Dict[str, Any]]:
         """为未完成轮次补齐中断态工具结果和 result。"""
+        interrupted_text = "任务已中断（未收到最终结束事件）"
         rows = [dict(row) for row in message_rows]
         round_status = dict(meta.get("round_status") or self._build_round_status(rows))
         active_round_ids = active_round_ids or set()
@@ -254,7 +255,7 @@ class SessionRepository:
                         {
                             "type": "tool_result",
                             "tool_use_id": tool_use_id,
-                            "content": "任务已中断（页面刷新或连接断开）",
+                            "content": interrupted_text,
                             "is_error": True,
                         }
                     )
@@ -288,7 +289,7 @@ class SessionRepository:
                         "cache_creation_input_tokens": 0,
                         "cache_read_input_tokens": 0,
                     },
-                    "result": "任务已中断（页面刷新或连接断开）",
+                    "result": interrupted_text,
                     "is_error": True,
                     "timestamp": last_row.get("timestamp") or int(datetime.now(timezone.utc).timestamp() * 1000),
                 }

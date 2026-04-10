@@ -277,11 +277,14 @@ class ChannelDispatcher:
 
     async def _push_session_status(self, session_key: str) -> None:
         """向当前连接推送 session 运行状态，供前端恢复 loading 态。"""
-        is_generating = ws_chat_task_registry.is_running(session_key)
+        running_round_ids = ws_chat_task_registry.get_running_round_ids(session_key)
         await self._sender.send_event_message(
             EventMessage(
                 event_type="session_status",
                 session_key=session_key,
-                data={"is_generating": is_generating},
+                data={
+                    "is_generating": len(running_round_ids) > 0,
+                    "running_round_ids": running_round_ids,
+                },
             )
         )

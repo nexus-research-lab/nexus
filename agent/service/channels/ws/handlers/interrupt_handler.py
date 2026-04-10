@@ -24,7 +24,7 @@ from agent.service.session.session_router import (
     require_structured_session_key,
     resolve_agent_id,
 )
-from agent.schema.model_message import EventMessage, Message
+from agent.schema.model_message import EventMessage, Message, build_round_status_event
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -196,6 +196,16 @@ class InterruptHandler(BaseHandler):
                     },
                 ),
             )
+        await self._broadcast_room_interrupt_event(
+            room_id=room_id,
+            event=build_round_status_event(
+                round_id=round_id,
+                status="interrupted",
+                session_key=session_key,
+                room_id=room_id,
+                conversation_id=conversation_id,
+            ),
+        )
         logger.info(
             "🛑 Room 中断完成: key=%s, round_id=%s, tasks=%s, repaired=%s",
             session_key,
@@ -303,3 +313,14 @@ class InterruptHandler(BaseHandler):
         await session_store.save_message(result_message)
         logger.info(f"💾 保存中断消息: key={session_key}, round_id={round_id}")
         await self.send(result_message)
+        await self.send(
+            build_round_status_event(
+                round_id=round_id,
+                status="interrupted",
+                session_key=session_key,
+                agent_id=resolve_agent_id(session_info.agent_id if session_info else None),
+                session_id=session_id,
+                message_id=result_message.message_id,
+                result_subtype=result_message.subtype,
+            )
+        )

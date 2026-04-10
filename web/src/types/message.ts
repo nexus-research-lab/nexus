@@ -118,6 +118,20 @@ export interface ResultMessage extends BaseMessage {
 
 export type Message = UserMessage | AssistantMessage | SystemMessage | ResultMessage;
 
+export type RoundLifecycleStatus = 'running' | 'finished' | 'interrupted' | 'error';
+
+export interface RoundStatusEventPayload {
+  round_id: string;
+  status: RoundLifecycleStatus;
+  is_terminal: boolean;
+  result_subtype?: ResultMessage['subtype'] | null;
+}
+
+export interface SessionStatusEventPayload {
+  is_generating: boolean;
+  running_round_ids?: string[];
+}
+
 export type StreamMessageType =
   | 'message_start'
   | 'content_block_start'
@@ -166,6 +180,7 @@ export interface EventMessage {
   | 'room_resync_required'
   | 'session_resync_required'
   | 'chat_ack'
+  | 'round_status'
   | 'stream_start'
   | 'stream_end'
   | 'stream_cancelled'

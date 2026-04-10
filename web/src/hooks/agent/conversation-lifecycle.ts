@@ -7,7 +7,7 @@ import { sortMessages } from './message-helpers';
 
 /**
  * 重置当前会话视图状态。
- * preserve_loading=true 时保留 is_loading 态（重连 reload 场景下由 session_status 事件控制）。
+ * preserve_loading=true 时保留 is_loading 态（重连 reload 场景下由后端 round_status / session_status 控制）。
  */
 export function resetSessionView(
   context: AgentConversationLifecycleContext,

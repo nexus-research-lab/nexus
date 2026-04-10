@@ -47,5 +47,10 @@ class WsChatTaskRegistry:
             return None
         return self._round_ids.get(session_key)
 
+    def get_running_round_ids(self, session_key: str) -> list[str]:
+        """返回指定 session 当前运行中的 round_id 列表。"""
+        round_id = self.get_running_round_id(session_key)
+        return [round_id] if round_id else []
+
 
 ws_chat_task_registry = WsChatTaskRegistry()

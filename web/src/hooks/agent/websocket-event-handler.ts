@@ -1,10 +1,10 @@
 import {
   AssistantMessage,
-  AssistantMessageStatus,
   ChatAckData,
   EventMessage,
   Message,
-  ResultMessage,
+  RoundStatusEventPayload,
+  SessionStatusEventPayload,
   StreamMessage,
 } from '@/types';
 import {
@@ -32,13 +32,10 @@ export function handleAgentConversationWebSocketMessage({
   set_agent_thinking,
   on_room_event,
   update_message_status,
-  clear_round_tracking,
-  reset_loading_tracking,
-  mark_session_generating,
-  reconcile_stopped_session,
+  sync_session_status,
+  apply_round_status,
   track_chat_ack,
   track_assistant_message,
-  track_result_message,
 }: HandleAgentConversationWebSocketMessageParams): void {
   const clearTimedOutQuestionPermissions = (incoming_session: string | null) => {
     set_pending_permissions((prev) => prev.filter((item) => !(
@@ -55,9 +52,6 @@ export function handleAgentConversationWebSocketMessage({
     }
     if (event.message_id) {
       update_message_status?.(event.message_id, 'error', event.caused_by);
-      clear_round_tracking?.(event.caused_by ?? event.data?.round_id ?? null);
-    } else {
-      reset_loading_tracking?.();
     }
     set_error(event.data?.message || 'Unknown error');
     return;
@@ -135,20 +129,25 @@ export function handleAgentConversationWebSocketMessage({
     if (!is_current_session_event(incoming_session_key)) {
       return;
     }
-    if (event.data?.is_generating) {
-      mark_session_generating?.();
+    const payload = (event.data ?? {}) as SessionStatusEventPayload;
+    sync_session_status?.(payload);
+    if (!payload.is_generating) {
+      set_agent_thinking?.(null);
+    }
+    return;
+  }
+
+  if (event.event_type === 'round_status') {
+    if (!is_current_session_event(incoming_session_key)) {
       return;
     }
-    set_agent_thinking?.(null);
-    reconcile_stopped_session?.();
-    if (!reconcile_stopped_session) {
-      reset_loading_tracking?.();
-      set_pending_agent_slots((prev) => prev.map((slot) => (
-        slot.status === 'cancelled' || slot.status === 'error'
-          ? slot
-          : { ...slot, status: 'cancelled' }
-      )));
-      set_pending_permissions([]);
+    const payload = (event.data ?? {}) as RoundStatusEventPayload;
+    if (!payload.round_id || !payload.status) {
+      return;
+    }
+    apply_round_status?.(payload.round_id, payload.status);
+    if (payload.status !== 'running') {
+      set_agent_thinking?.(null);
     }
     return;
   }
@@ -199,7 +198,6 @@ export function handleAgentConversationWebSocketMessage({
     if (msg_id) {
       update_message_status?.(msg_id, 'cancelled', event.data?.round_id);
     }
-    clear_round_tracking?.(event.data?.round_id ?? event.caused_by ?? null);
     return;
   }
 
@@ -251,8 +249,6 @@ export function handleAgentConversationWebSocketMessage({
 
   set_messages((prev) => upsertMessage(prev, normalized_payload));
   if (payload.role === 'result') {
-    set_pending_permissions([]);
-    track_result_message?.(payload as ResultMessage);
     return;
   }
   if (normalized_payload.role === 'assistant') {
