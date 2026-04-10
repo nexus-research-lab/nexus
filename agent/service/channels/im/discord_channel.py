@@ -162,6 +162,26 @@ class DiscordChannel(MessageChannel):
             logger.error(f"❌ Discord 消息处理失败: {e}")
             await channel.send(f"⚠️ 处理失败: {str(e)[:500]}")
 
+    async def send_delivery_text(
+            self,
+            *,
+            to: str,
+            text: str,
+            account_id: str | None = None,
+            thread_id: str | None = None,
+    ) -> None:
+        """向指定 Discord 目标发送自动化文本。"""
+        del account_id
+        target_id = int(thread_id or to)
+        target_channel = self._bot.get_channel(target_id)
+        if target_channel is None:
+            target_channel = await self._bot.fetch_channel(target_id)
+        if target_channel is None or not hasattr(target_channel, "send"):
+            raise LookupError(f"discord target is not available: {target_id}")
+
+        for chunk in DiscordSender._split_message(text):
+            await target_channel.send(chunk)
+
     async def start(self) -> None:
         """启动 Discord Bot（在后台任务中运行）"""
         if not self._bot_token:

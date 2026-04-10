@@ -44,6 +44,16 @@ class WsSessionRoutingSender(MessageSender):
         """发送事件消息。"""
         await self._forward_event(event)
 
+    async def send_text(self, session_key: str, text: str) -> None:
+        """向指定 session 推送自动化文本。"""
+        event = EventMessage(
+            event_type="automation_delivery",
+            delivery_mode="durable",
+            session_key=session_key,
+            data={"text": text},
+        )
+        await self._forward_event(event)
+
     async def _forward_event(self, event: EventMessage) -> None:
         """把消息发给当前活跃连接。"""
         session_key = event.session_key
