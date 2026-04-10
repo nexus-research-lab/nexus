@@ -21,7 +21,7 @@ import type { ScheduledTaskItem } from "@/types/scheduled-task";
 import { CreateTaskDialog } from "./create-task-dialog";
 
 interface FeedbackState {
-  tone: "success" | "error";
+  tone: "success" | "warning" | "error";
   title: string;
   message: string;
 }
@@ -35,6 +35,27 @@ function notify_scheduled_tasks_mutated(agent_id: string) {
   window.dispatchEvent(new CustomEvent(SCHEDULED_TASKS_MUTATED_EVENT, { detail: { agent_id } }));
 }
 
+async function refresh_tasks_best_effort(
+  automation: ReturnType<typeof useAutomationController>,
+  agent_id: string,
+  success_feedback: Omit<FeedbackState, "tone">,
+  refresh_warning_message: string,
+  set_feedback: (feedback: FeedbackState) => void,
+) {
+  try {
+    await automation.refresh_tasks();
+    notify_scheduled_tasks_mutated(agent_id);
+    set_feedback({ tone: "success", ...success_feedback });
+  } catch (error) {
+    notify_scheduled_tasks_mutated(agent_id);
+    set_feedback({
+      tone: "warning",
+      title: success_feedback.title,
+      message: `${success_feedback.message}；${refresh_warning_message}${error instanceof Error ? `（${error.message}）` : ""}`,
+    });
+  }
+}
+
 export function ScheduledTasksPage() {
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [history_task, set_history_task] = useState<ScheduledTaskItem | null>(null);
@@ -44,14 +65,17 @@ export function ScheduledTasksPage() {
   const [toggle_pending_job_id, set_toggle_pending_job_id] = useState<string | null>(null);
   const automation = useAutomationController();
 
-  const handle_create_success = async (task: ScheduledTaskItem) => {
-    await automation.refresh_tasks();
-    notify_scheduled_tasks_mutated(automation.agent_id);
-    set_feedback({
-      tone: "success",
-      title: "任务已创建",
-      message: `${task.name} 已加入自动化任务列表`,
-    });
+  const handle_create_success = (task: ScheduledTaskItem) => {
+    void refresh_tasks_best_effort(
+      automation,
+      automation.agent_id,
+      {
+        title: "任务已创建",
+        message: `${task.name} 已加入自动化任务列表`,
+      },
+      "任务列表刷新失败，稍后会自动同步",
+      set_feedback,
+    );
   };
 
   const handle_refresh_all = async () => {
@@ -90,14 +114,18 @@ export function ScheduledTasksPage() {
     set_run_pending_job_id(task.job_id);
     try {
       const result = await runScheduledTaskApi(task.job_id);
-      await automation.refresh_tasks();
-      set_feedback({
-        tone: "success",
-        title: "任务已触发",
-        message: result.status === "queued_to_main_session"
-          ? `${task.name} 已排入主会话执行`
-          : `${task.name} 已开始执行`,
-      });
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: "任务已触发",
+          message: result.status === "queued_to_main_session"
+            ? `${task.name} 已排入主会话执行`
+            : `${task.name} 已开始执行`,
+        },
+        "任务列表刷新失败，运行状态稍后会同步",
+        set_feedback,
+      );
     } catch (error) {
       set_feedback({
         tone: "error",
@@ -113,15 +141,18 @@ export function ScheduledTasksPage() {
     set_toggle_pending_job_id(task.job_id);
     try {
       await updateScheduledTaskStatusApi(task.job_id, { enabled: !task.enabled });
-      await automation.refresh_tasks();
-      notify_scheduled_tasks_mutated(automation.agent_id);
-      set_feedback({
-        tone: "success",
-        title: task.enabled ? "任务已暂停" : "任务已启用",
-        message: task.enabled
-          ? `${task.name} 不再参与后续调度`
-          : `${task.name} 已恢复自动调度`,
-      });
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: task.enabled ? "任务已暂停" : "任务已启用",
+          message: task.enabled
+            ? `${task.name} 不再参与后续调度`
+            : `${task.name} 已恢复自动调度`,
+        },
+        "任务列表刷新失败，状态稍后会同步",
+        set_feedback,
+      );
     } catch (error) {
       set_feedback({
         tone: "error",

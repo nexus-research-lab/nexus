@@ -246,7 +246,7 @@ export function CreateTaskDialog({
         delivery: { mode: "none" },
         enabled,
       });
-      await on_created?.(created);
+      void on_created?.(created);
       on_close();
     } catch (error) {
       set_error_message(error instanceof Error ? error.message : "创建任务失败");
