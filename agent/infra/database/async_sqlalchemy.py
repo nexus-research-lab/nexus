@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, declared_attr
 
@@ -55,6 +56,14 @@ class AsyncDatabase:
             # JSON 字段写入数据库时保留中文，不转义为 \uXXXX
             json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
         )
+
+        if database_url.startswith("sqlite"):
+            # SQLite 默认不会启用外键约束，必须在每个连接上显式打开。
+            @event.listens_for(self.engine.sync_engine, "connect")
+            def _set_sqlite_foreign_keys(dbapi_connection, _connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
 
         self.session_factory = async_sessionmaker(
             self.engine,

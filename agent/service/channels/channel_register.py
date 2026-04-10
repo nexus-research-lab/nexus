@@ -17,7 +17,7 @@
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from agent.service.channels.message_channel import MessageChannel
 from agent.utils.logger import logger
@@ -54,9 +54,16 @@ class ChannelRegister:
             except Exception as e:
                 logger.error(f"❌ 通道停止失败: {channel_type}, error={e}")
 
-    def get(self, channel_type: str) -> MessageChannel:
+    def get(self, channel_type: str) -> Optional[MessageChannel]:
         """获取指定类型的通道"""
         return self._channels.get(channel_type)
+
+    def get_required(self, channel_type: str) -> MessageChannel:
+        """获取指定类型的通道，不存在时抛错。"""
+        channel = self.get(channel_type)
+        if channel is None:
+            raise LookupError(f"channel is not registered: {channel_type}")
+        return channel
 
     @property
     def active_channels(self) -> List[str]:

@@ -6,6 +6,8 @@ L2 | 父级: web/CLAUDE.md
 
 - `agent-api.ts`: Conversation CRUD + 消息/成本/轮次 API 封装
 - `agent-manage-api.ts`: Agent CRUD + Workspace 文件操作 + 名称校验 API 封装
+- `heartbeat-api.ts`: Heartbeat 自动化状态快照读取 / 手动唤醒 API 封装
+- `scheduled-task-api.ts`: 定时任务能力 CRUD / 立即运行 / 运行记录 API 封装
 - `utils.ts`: 通用工具函数（cn/格式化/截断）
 - `websocket/index.ts`: WebSocket 模块统一导出
 - `websocket/socket-client.ts`: WebSocket 客户端封装（重连/心跳）

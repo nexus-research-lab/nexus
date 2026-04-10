@@ -30,6 +30,8 @@ AGENT_SESSION_PREFIX = "agent"
 ROOM_SESSION_PREFIX = "room"
 ROOM_SHARED_CHAT_TYPE = "group"
 TOPIC_SEGMENT = "topic"
+AUTOMATION_CHANNEL = "automation"
+AUTOMATION_MAIN_REF = "main"
 
 
 class StructuredSessionKeyError(ValueError):
@@ -170,6 +172,32 @@ def build_room_shared_session_key(conversation_id: str) -> str:
     """构建 Room/DM 共享消息流的 gateway session_key。"""
     resolved_conversation_id = conversation_id.strip()
     return f"{ROOM_SESSION_PREFIX}:{ROOM_SHARED_CHAT_TYPE}:{resolved_conversation_id}"
+
+
+def build_automation_main_session_key(agent_id: Optional[str] = None) -> str:
+    """构建 automation main session 的结构化键。"""
+    return build_session_key(
+        channel=AUTOMATION_CHANNEL,
+        chat_type="dm",
+        ref=AUTOMATION_MAIN_REF,
+        agent_id=agent_id,
+    )
+
+
+def is_automation_session_key(session_key: str) -> bool:
+    """判断是否为 automation 运行时会话。"""
+    parsed = parse_session_key(session_key)
+    return parsed.get("kind") == "agent" and parsed.get("channel") == AUTOMATION_CHANNEL
+
+
+def is_automation_main_session_key(session_key: str) -> bool:
+    """判断是否为 automation main session。"""
+    parsed = parse_session_key(session_key)
+    return (
+        is_automation_session_key(session_key)
+        and parsed.get("chat_type") == "dm"
+        and parsed.get("ref") == AUTOMATION_MAIN_REF
+    )
 
 
 def parse_session_key(session_key: str) -> dict:

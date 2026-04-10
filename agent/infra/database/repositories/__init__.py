@@ -10,6 +10,21 @@
 """SQL 数据仓库包。"""
 
 from agent.infra.database.repositories.agent_sql_repository import AgentSqlRepository
+from agent.infra.database.repositories.automation_cron_job_sql_repository import (
+    AutomationCronJobSqlRepository,
+)
+from agent.infra.database.repositories.automation_cron_run_sql_repository import (
+    AutomationCronRunSqlRepository,
+)
+from agent.infra.database.repositories.automation_delivery_route_sql_repository import (
+    AutomationDeliveryRouteSqlRepository,
+)
+from agent.infra.database.repositories.automation_heartbeat_state_sql_repository import (
+    AutomationHeartbeatStateSqlRepository,
+)
+from agent.infra.database.repositories.automation_system_event_sql_repository import (
+    AutomationSystemEventSqlRepository,
+)
 from agent.infra.database.repositories.auth_session_sql_repository import (
     AuthSessionSqlRepository,
 )
@@ -25,6 +40,11 @@ from agent.infra.database.repositories.session_sql_repository import SessionSqlR
 
 __all__ = [
     "AgentSqlRepository",
+    "AutomationCronJobSqlRepository",
+    "AutomationCronRunSqlRepository",
+    "AutomationDeliveryRouteSqlRepository",
+    "AutomationHeartbeatStateSqlRepository",
+    "AutomationSystemEventSqlRepository",
     "AuthSessionSqlRepository",
     "ConnectorSqlRepository",
     "ConversationSqlRepository",

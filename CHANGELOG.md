@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 新增自动化运行时基础设施：`heartbeat` 主会话轮询、`cron` 精确定时调度、system event queue、wake bookkeeping、统一 delivery router、scheduled task run ledger。
+- 新增自动化后端 API：`/agent/v1/automation/heartbeat/*` 与 `/agent/v1/capability/scheduled/tasks*`，支持 heartbeat 状态/唤醒、定时任务 CRUD、立即运行、启停与运行记录查询。
+- 新增自动化测试覆盖：`tests/automation/*` 与 `tests/api/test_automation_api.py`，覆盖模型、仓储、投递、运行时、heartbeat、cron 与 API 基本行为。
+- 新增定时任务控制台：Heartbeat 状态卡片、定时任务列表、结构化创建对话框、运行历史弹窗，以及侧栏实时任务数。
 - 新增 `capability` 能力模块，统一管理技能市场、连接器、定时任务、渠道与配对能力。
 - 技能系统数据持久化：新增 `pool_skills` / `agent_skills` 数据库表与 Alembic 迁移，技能安装状态、全局开关、Agent-Skill 关联全部写入 SQLite，取代旧 JSON 文件存储。
 - 新增 `SkillSqlRepository` 与 `SkillRepository` 数据访问层。
@@ -30,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
 
 ### Changed
+- 定时任务前后端契约升级为结构化自动化模型：前端不再使用扁平 `cron_expression/source_type` 占位字段，统一改为 `schedule`、`session_target`、`delivery` 结构。
 - 技能市场代码从 `service/workspace/` 迁移至 `service/capability/skills/`，API 从 `api/agent/` 迁移至 `api/capability/`。
 - `SkillCatalog` 改为无状态设计，状态由调用方通过数据库查询后传入。
 - `SkillService` 全面改用 `skill_repository` 进行状态读写。

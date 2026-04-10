@@ -11,7 +11,7 @@ function splitFeedbackItems(message: string): string[] {
 }
 
 interface FeedbackBannerProps {
-  tone: "success" | "error";
+  tone: "success" | "warning" | "error";
   title: string;
   message: string;
   on_dismiss?: () => void;
@@ -20,23 +20,24 @@ interface FeedbackBannerProps {
 export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBannerProps) {
   const items = splitFeedbackItems(message);
   const is_success = tone === "success";
+  const is_warning = tone === "warning";
   const Icon = is_success ? CheckCircle2 : AlertCircle;
-  const auto_dismiss_ms = is_success ? 2200 : 3600;
+  const auto_dismiss_ms = is_success ? 2200 : is_warning ? 2800 : 3600;
   const shell_class_name = cn(
     "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[18px] border bg-[var(--surface-panel-background)] px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.18)] backdrop-blur-[18px]",
-    is_success ? "border-emerald-500/20" : "border-rose-500/20",
+    is_success ? "border-emerald-500/20" : is_warning ? "border-amber-500/20" : "border-rose-500/20",
   );
   const icon_class_name = cn(
     "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-    is_success ? "bg-emerald-500/12 text-emerald-500" : "bg-rose-500/12 text-rose-500",
+    is_success ? "bg-emerald-500/12 text-emerald-500" : is_warning ? "bg-amber-500/12 text-amber-600" : "bg-rose-500/12 text-rose-500",
   );
   const title_class_name = cn(
     "text-[12px] font-bold",
-    is_success ? "text-emerald-500" : "text-rose-500",
+    is_success ? "text-emerald-500" : is_warning ? "text-amber-600" : "text-rose-500",
   );
   const item_class_name = cn(
     "inline-flex rounded-full bg-[var(--chip-default-background)] border border-[var(--chip-default-border)] px-2 py-0.5 text-[10px] font-medium",
-    is_success ? "text-emerald-500" : "text-rose-500",
+    is_success ? "text-emerald-500" : is_warning ? "text-amber-600" : "text-rose-500",
   );
 
   useEffect(() => {

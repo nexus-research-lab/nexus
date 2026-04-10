@@ -17,6 +17,8 @@ from agent.api.router import api_router
 from agent.config.config import settings
 from agent.service.channels.channel_register import ChannelRegister
 from agent.service.agent.agent_service import agent_service
+from agent.service.automation.cron.cron_service import get_cron_service
+from agent.service.automation.heartbeat.heartbeat_service import heartbeat_service
 from agent.infra.server.register import register_exception, register_hook, register_middleware
 from agent.utils.logger import logger
 
@@ -26,6 +28,7 @@ channel_manager = ChannelRegister()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    cron_service = get_cron_service()
     try:
         logger.info("📁 使用 workspace 文件存储模式启动")
 
@@ -37,6 +40,9 @@ async def lifespan(app: FastAPI):
 
         # 注册并启动消息通道
         await _register_channels()
+        heartbeat_service.set_channel_register(channel_manager)
+        await heartbeat_service.start()
+        await cron_service.start()
 
         gc.collect()
         gc.freeze()
@@ -44,6 +50,8 @@ async def lifespan(app: FastAPI):
         yield
 
     finally:
+        await cron_service.stop()
+        await heartbeat_service.stop()
         await channel_manager.stop_all()
         logger.info("Model shutdown complete.")
 

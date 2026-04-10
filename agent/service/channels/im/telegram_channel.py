@@ -124,6 +124,30 @@ class TelegramChannel(MessageChannel):
                 text=f"⚠️ 处理失败: {str(e)[:500]}",
             )
 
+    async def send_delivery_text(
+            self,
+            *,
+            to: str,
+            text: str,
+            account_id: str | None = None,
+            thread_id: str | None = None,
+    ) -> None:
+        """向指定 Telegram 会话发送自动化文本。"""
+        del account_id
+        if self._app is None:
+            raise RuntimeError("telegram channel is not started")
+
+        chat_id = int(to)
+        message_thread_id = int(thread_id) if thread_id else None
+        for chunk in TelegramSender._split_message(text):
+            payload = {
+                "chat_id": chat_id,
+                "text": chunk,
+            }
+            if message_thread_id is not None:
+                payload["message_thread_id"] = message_thread_id
+            await self._app.bot.send_message(**payload)
+
     async def start(self) -> None:
         """启动 Telegram Bot"""
         if not self._bot_token:

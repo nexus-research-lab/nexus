@@ -45,6 +45,17 @@ export interface RoomSessionRecord {
   updated_at?: string | null;
 }
 
+export interface RoomSessionSelection {
+  session_key: string;
+  agent_id: string;
+  room_id: string;
+  conversation_id: string;
+  room_type: RoomRecord["room_type"];
+  title: string;
+  session: RoomSessionRecord;
+  label: string;
+}
+
 export interface RoomContextAggregate {
   room: RoomRecord;
   members: RoomMember[];
