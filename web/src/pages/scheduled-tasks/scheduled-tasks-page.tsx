@@ -197,7 +197,7 @@ export function ScheduledTasksPage() {
               error_message={automation.heartbeat_error}
               heartbeat={automation.heartbeat}
               is_loading={automation.heartbeat_loading}
-              on_refresh={() => void automation.refresh_heartbeat()}
+              on_refresh={() => void automation.refresh_heartbeat().catch(() => undefined)}
               on_wake={() => void handle_wake()}
               wake_pending={wake_pending}
             />
@@ -207,7 +207,7 @@ export function ScheduledTasksPage() {
               items={automation.scheduled_tasks}
               on_create={() => set_is_dialog_open(true)}
               on_open_history={set_history_task}
-              on_refresh={() => void automation.refresh_tasks()}
+              on_refresh={() => void automation.refresh_tasks().catch(() => undefined)}
               on_run_now={(task) => void handle_run_now(task)}
               on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
               run_pending_job_id={run_pending_job_id}

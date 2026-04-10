@@ -111,6 +111,7 @@ export function useAutomationController(
         return;
       }
       set_tasks_error(error instanceof Error ? error.message : "加载定时任务失败");
+      throw error;
     } finally {
       if (!is_active_tasks_request(request_agent_id, request_token)) {
         return;
@@ -134,7 +135,7 @@ export function useAutomationController(
   }, [agent_id, refresh_heartbeat]);
 
   useEffect(() => {
-    void refresh_all();
+    void refresh_all().catch(() => undefined);
   }, [refresh_all]);
 
   const visible_heartbeat = heartbeat?.agent_id === agent_id ? heartbeat : null;
