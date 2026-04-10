@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import importlib
 import sys
 from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
@@ -440,61 +440,7 @@ def test_cron_service_run_now_routes_non_main_targets_through_orchestrator_and_t
 
 def test_app_lifespan_starts_and_stops_cron_runtime(monkeypatch):
     async def scenario():
-        os.environ["ENV_FILE"] = "/dev/null"
-        os.environ["DEBUG"] = "false"
-        sys.modules.pop("agent.config.config", None)
-        sys.modules.pop("agent.app", None)
-        sys.modules["agent.api.router"] = ModuleType("agent.api.router")
-        sys.modules["agent.api.router"].api_router = SimpleNamespace(routes=[])
-        sys.modules["agent.config.config"] = ModuleType("agent.config.config")
-        sys.modules["agent.config.config"].settings = SimpleNamespace(
-            DEBUG=False,
-            PROJECT_NAME="Nexus",
-            ENABLE_SWAGGER_DOC=False,
-        )
-        sys.modules["agent.service.channels.channel_register"] = ModuleType(
-            "agent.service.channels.channel_register"
-        )
-        sys.modules["agent.service.channels.channel_register"].ChannelRegister = lambda: SimpleNamespace(
-            stop_all=lambda: asyncio.sleep(0),
-            start_all=lambda: asyncio.sleep(0),
-            register=lambda *_args, **_kwargs: None,
-        )
-        sys.modules["agent.service.agent.agent_service"] = ModuleType("agent.service.agent.agent_service")
-        sys.modules["agent.service.agent.agent_service"].agent_service = SimpleNamespace()
-        sys.modules["agent.infra.server.register"] = ModuleType("agent.infra.server.register")
-        sys.modules["agent.infra.server.register"].register_exception = lambda _app: None
-        sys.modules["agent.infra.server.register"].register_hook = lambda _app: None
-        sys.modules["agent.infra.server.register"].register_middleware = lambda _app: None
-        sys.modules["agent.utils.logger"] = ModuleType("agent.utils.logger")
-        sys.modules["agent.utils.logger"].logger = SimpleNamespace(info=lambda *_args, **_kwargs: None)
-        sys.modules["agent.service.automation.heartbeat.heartbeat_service"] = ModuleType(
-            "agent.service.automation.heartbeat.heartbeat_service"
-        )
-        sys.modules["agent.service.automation.heartbeat.heartbeat_service"].heartbeat_service = (
-            FakeHeartbeatService()
-        )
-        sys.modules["agent.service.automation.cron.cron_service"] = ModuleType(
-            "agent.service.automation.cron.cron_service"
-        )
-        sys.modules["agent.service.automation.cron.cron_service"].get_cron_service = (
-            lambda: FakeHeartbeatService()
-        )
-        sys.modules["agent.service.session.session_repository"] = ModuleType(
-            "agent.service.session.session_repository"
-        )
-        sys.modules["agent.service.session.session_repository"].session_repository = SimpleNamespace(
-            ensure_ready=lambda: None
-        )
-        sys.modules["agent.service.session.cost_repository"] = ModuleType(
-            "agent.service.session.cost_repository"
-        )
-        sys.modules["agent.service.session.cost_repository"].cost_repository = SimpleNamespace(
-            ensure_ready=lambda: None
-        )
-
-        from agent.app import lifespan
-
+        original_router_module = sys.modules.get("agent.api.router")
         heartbeat = FakeHeartbeatService()
         cron = FakeHeartbeatService()
         channel_manager = SimpleNamespace(stop_all=lambda: asyncio.sleep(0))
@@ -502,16 +448,119 @@ def test_app_lifespan_starts_and_stops_cron_runtime(monkeypatch):
         async def register_channels() -> None:
             return None
 
-        monkeypatch.setattr("agent.app.heartbeat_service", heartbeat)
-        monkeypatch.setattr("agent.app.get_cron_service", lambda: cron)
-        monkeypatch.setattr("agent.app.channel_manager", channel_manager)
-        monkeypatch.setattr("agent.app._register_channels", register_channels)
+        with monkeypatch.context() as module_patch:
+            module_patch.setenv("ENV_FILE", "/dev/null")
+            module_patch.setenv("DEBUG", "false")
+            for module_name in (
+                "agent.app",
+                "agent.api.router",
+                "agent.config.config",
+                "agent.service.channels.channel_register",
+                "agent.service.agent.agent_service",
+                "agent.infra.server.register",
+                "agent.utils.logger",
+                "agent.service.automation.heartbeat.heartbeat_service",
+                "agent.service.automation.cron.cron_service",
+                "agent.service.session.session_repository",
+                "agent.service.session.cost_repository",
+            ):
+                module_patch.delitem(sys.modules, module_name, raising=False)
 
-        async with lifespan(SimpleNamespace()):
-            assert heartbeat.start_calls == 1
-            assert cron.start_calls == 1
+            api_router_module = ModuleType("agent.api.router")
+            api_router_module.api_router = SimpleNamespace(routes=[])
+            module_patch.setitem(sys.modules, "agent.api.router", api_router_module)
+
+            config_module = ModuleType("agent.config.config")
+            config_module.settings = SimpleNamespace(
+                DEBUG=False,
+                PROJECT_NAME="Nexus",
+                ENABLE_SWAGGER_DOC=False,
+            )
+            module_patch.setitem(sys.modules, "agent.config.config", config_module)
+
+            channel_register_module = ModuleType("agent.service.channels.channel_register")
+            channel_register_module.ChannelRegister = lambda: SimpleNamespace(
+                stop_all=lambda: asyncio.sleep(0),
+                start_all=lambda: asyncio.sleep(0),
+                register=lambda *_args, **_kwargs: None,
+            )
+            module_patch.setitem(
+                sys.modules,
+                "agent.service.channels.channel_register",
+                channel_register_module,
+            )
+
+            agent_service_module = ModuleType("agent.service.agent.agent_service")
+            agent_service_module.agent_service = SimpleNamespace()
+            module_patch.setitem(
+                sys.modules,
+                "agent.service.agent.agent_service",
+                agent_service_module,
+            )
+
+            register_module = ModuleType("agent.infra.server.register")
+            register_module.register_exception = lambda _app: None
+            register_module.register_hook = lambda _app: None
+            register_module.register_middleware = lambda _app: None
+            module_patch.setitem(sys.modules, "agent.infra.server.register", register_module)
+
+            logger_module = ModuleType("agent.utils.logger")
+            logger_module.logger = SimpleNamespace(
+                info=lambda *_args, **_kwargs: None,
+            )
+            module_patch.setitem(sys.modules, "agent.utils.logger", logger_module)
+
+            heartbeat_module = ModuleType("agent.service.automation.heartbeat.heartbeat_service")
+            heartbeat_module.heartbeat_service = FakeHeartbeatService()
+            module_patch.setitem(
+                sys.modules,
+                "agent.service.automation.heartbeat.heartbeat_service",
+                heartbeat_module,
+            )
+
+            cron_module = ModuleType("agent.service.automation.cron.cron_service")
+            cron_module.get_cron_service = lambda: FakeHeartbeatService()
+            module_patch.setitem(
+                sys.modules,
+                "agent.service.automation.cron.cron_service",
+                cron_module,
+            )
+
+            session_repository_module = ModuleType("agent.service.session.session_repository")
+            session_repository_module.session_repository = SimpleNamespace(
+                ensure_ready=lambda: None
+            )
+            module_patch.setitem(
+                sys.modules,
+                "agent.service.session.session_repository",
+                session_repository_module,
+            )
+
+            cost_repository_module = ModuleType("agent.service.session.cost_repository")
+            cost_repository_module.cost_repository = SimpleNamespace(
+                ensure_ready=lambda: None
+            )
+            module_patch.setitem(
+                sys.modules,
+                "agent.service.session.cost_repository",
+                cost_repository_module,
+            )
+
+            app_module = importlib.import_module("agent.app")
+            module_patch.setattr(app_module, "heartbeat_service", heartbeat)
+            module_patch.setattr(app_module, "get_cron_service", lambda: cron)
+            module_patch.setattr(app_module, "channel_manager", channel_manager)
+            module_patch.setattr(app_module, "_register_channels", register_channels)
+
+            async with app_module.lifespan(SimpleNamespace()):
+                assert heartbeat.start_calls == 1
+                assert cron.start_calls == 1
 
         assert heartbeat.stop_calls == 1
         assert cron.stop_calls == 1
+        if original_router_module is None:
+            assert "agent.api.router" not in sys.modules
+        else:
+            assert sys.modules.get("agent.api.router") is original_router_module
 
     asyncio.run(scenario())
