@@ -75,10 +75,14 @@ class HeartbeatDispatcher:
         """执行一次主会话 heartbeat。"""
         session_key = build_automation_main_session_key(agent_id)
         events = await self._claim_events(agent_id)
-        wake_requests = self._wake_service.list_next_heartbeat(agent_id)
-        instruction = await self._build_instruction(agent_id, events)
-        if wake_requests:
-            instruction = f"{instruction}\n\nPending wake requests: {len(wake_requests)}".strip()
+        immediate_wake_requests = self._wake_service.drain_now(agent_id)
+        deferred_wake_requests = self._wake_service.list_next_heartbeat(agent_id)
+        instruction = await self._build_instruction(
+            agent_id,
+            events,
+            immediate_wake_requests,
+            deferred_wake_requests,
+        )
 
         if not instruction.strip():
             self._wake_service.clear(session_key)
@@ -120,7 +124,13 @@ class HeartbeatDispatcher:
             text=filtered.text,
         )
 
-    async def _build_instruction(self, agent_id: str, events: list[object]) -> str:
+    async def _build_instruction(
+        self,
+        agent_id: str,
+        events: list[object],
+        immediate_wake_requests: list[object],
+        deferred_wake_requests: list[object],
+    ) -> str:
         sections: list[str] = []
         heartbeat_text = await self._read_heartbeat_text(agent_id)
         if heartbeat_text:
@@ -144,6 +154,16 @@ class HeartbeatDispatcher:
             event_lines.append(text or getattr(item, "event_type", "heartbeat.event"))
         if event_lines:
             sections.append("System events:\n" + "\n".join(f"- {item}" for item in event_lines))
+
+        wake_lines = []
+        for item in [*immediate_wake_requests, *deferred_wake_requests]:
+            text = str(getattr(item, "metadata", {}).get("text") or "").strip()
+            if text:
+                wake_lines.append(text)
+            else:
+                wake_lines.append(f"wake request ({getattr(item, 'wake_mode', 'unknown')})")
+        if wake_lines:
+            sections.append("Wake requests:\n" + "\n".join(f"- {item}" for item in wake_lines))
         return "\n\n".join(part for part in sections if part.strip())
 
     async def _read_heartbeat_text(self, agent_id: str) -> str:

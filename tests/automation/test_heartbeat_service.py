@@ -5,16 +5,22 @@ import sys
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 
 class FakeStateStore:
     """返回固定状态的测试替身。"""
 
-    def __init__(self, row=None) -> None:
+    def __init__(self, row=None, enabled_rows=None) -> None:
         self.row = row
+        self.enabled_rows = list(enabled_rows or [])
 
     async def get_state(self, agent_id: str):
         del agent_id
         return self.row
+
+    async def list_enabled_states(self):
+        return list(self.enabled_rows)
 
 
 class FakeEventQueue:
@@ -22,10 +28,26 @@ class FakeEventQueue:
 
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
+        self.pending_events: list[object] = []
 
     async def enqueue(self, **fields):
         self.calls.append(fields)
         return SimpleNamespace(**fields)
+
+    async def list_pending_events(self):
+        return list(self.pending_events)
+
+    async def mark_processing(self, event_id: str):
+        del event_id
+        return None
+
+    async def mark_processed(self, event_id: str):
+        del event_id
+        return None
+
+    async def mark_failed(self, event_id: str):
+        del event_id
+        return None
 
 
 class FakeScheduler:
@@ -68,6 +90,114 @@ class FakeDispatcher:
     async def dispatch(self, *, agent_id: str, config):
         self.calls.append((agent_id, config))
         return None
+
+
+class FakeWakeService:
+    """记录 wake bookkeeping 的替身。"""
+
+    def __init__(self) -> None:
+        self.now_calls: list[dict[str, object]] = []
+        self.next_calls: list[dict[str, object]] = []
+        self._now_requests: list[SimpleNamespace] = []
+        self._next_requests: list[SimpleNamespace] = []
+
+    def request_now(self, *, agent_id: str, session_key: str, metadata=None):
+        request = SimpleNamespace(
+            agent_id=agent_id,
+            session_key=session_key,
+            wake_mode="now",
+            metadata=dict(metadata or {}),
+        )
+        self.now_calls.append(
+            {
+                "agent_id": agent_id,
+                "session_key": session_key,
+                "metadata": dict(metadata or {}),
+            }
+        )
+        self._now_requests.append(request)
+        return request
+
+    def request_next_heartbeat(self, *, agent_id: str, session_key: str, metadata=None):
+        request = SimpleNamespace(
+            agent_id=agent_id,
+            session_key=session_key,
+            wake_mode="next-heartbeat",
+            metadata=dict(metadata or {}),
+        )
+        self.next_calls.append(
+            {
+                "agent_id": agent_id,
+                "session_key": session_key,
+                "metadata": dict(metadata or {}),
+            }
+        )
+        self._next_requests.append(request)
+        return request
+
+    def drain_now(self, agent_id: str | None = None):
+        matched = [item for item in self._now_requests if agent_id is None or item.agent_id == agent_id]
+        self._now_requests = [item for item in self._now_requests if item not in matched]
+        return matched
+
+    def list_next_heartbeat(self, agent_id: str | None = None):
+        return [item for item in self._next_requests if agent_id is None or item.agent_id == agent_id]
+
+    def clear(self, session_key: str) -> None:
+        self._now_requests = [item for item in self._now_requests if item.session_key != session_key]
+        self._next_requests = [item for item in self._next_requests if item.session_key != session_key]
+
+
+class FakeWorkspaceReader:
+    """返回固定 HEARTBEAT.md 内容。"""
+
+    def __init__(self, text: str = "") -> None:
+        self.text = text
+
+    async def get_workspace_file(self, agent_id: str, path: str) -> str:
+        assert agent_id
+        assert path == "HEARTBEAT.md"
+        return self.text
+
+
+class FakeOrchestrator:
+    """记录 dispatcher 生成的 heartbeat 指令。"""
+
+    def __init__(self, result=None) -> None:
+        self.calls: list[object] = []
+        self.result = result or SimpleNamespace(ok=True, round_id="round-1")
+
+    async def run_turn(self, ctx):
+        self.calls.append(ctx)
+        return self.result
+
+
+class FakeMessageStore:
+    """返回固定的主会话结果消息。"""
+
+    def __init__(self, messages=None) -> None:
+        self.messages = list(messages or [])
+
+    async def get_session_messages(self, session_key: str):
+        del session_key
+        return list(self.messages)
+
+
+class FakeDeliveryRouter:
+    """记录 dispatcher 是否尝试外发。"""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def send_text(self, *, agent_id: str, text: str, target):
+        self.calls.append(
+            {
+                "agent_id": agent_id,
+                "text": text,
+                "target": target,
+            }
+        )
+        return target
 
 
 def _prepare_service_import(monkeypatch) -> None:
@@ -163,6 +293,165 @@ def test_heartbeat_service_wake_enqueues_event_text_and_delegates_to_scheduler(m
                 },
             }
         ]
+
+    _prepare_service_import(monkeypatch)
+    asyncio.run(scenario())
+
+
+def test_heartbeat_service_start_preloads_enabled_states(monkeypatch):
+    async def scenario():
+        from agent.service.automation.heartbeat.heartbeat_service import HeartbeatService
+
+        scheduler = FakeScheduler()
+        service = HeartbeatService(
+            state_store=FakeStateStore(
+                enabled_rows=[
+                    SimpleNamespace(
+                        agent_id="enabled-agent",
+                        enabled=True,
+                        every_seconds=90,
+                        target_mode="last",
+                        ack_max_chars=80,
+                        last_heartbeat_at=None,
+                        last_ack_at=None,
+                    )
+                ]
+            ),
+            scheduler=scheduler,
+            dispatcher=FakeDispatcher(),
+            system_event_queue=FakeEventQueue(),
+        )
+
+        await service.start()
+
+        assert scheduler.start_calls == 1
+        assert scheduler.sync_calls
+        synced_agent_id, synced_config = scheduler.sync_calls[0]
+        assert synced_agent_id == "enabled-agent"
+        assert synced_config.enabled is True
+        assert synced_config.every_seconds == 90
+        assert synced_config.target_mode == "last"
+
+    _prepare_service_import(monkeypatch)
+    asyncio.run(scenario())
+
+
+def test_heartbeat_service_rejects_persisted_explicit_target_mode(monkeypatch):
+    async def scenario():
+        from agent.service.automation.heartbeat.heartbeat_service import HeartbeatService
+
+        service = HeartbeatService(
+            state_store=FakeStateStore(
+                enabled_rows=[
+                    SimpleNamespace(
+                        agent_id="nexus",
+                        enabled=True,
+                        every_seconds=60,
+                        target_mode="explicit",
+                        ack_max_chars=120,
+                        last_heartbeat_at=None,
+                        last_ack_at=None,
+                    )
+                ]
+            ),
+            scheduler=FakeScheduler(),
+            dispatcher=FakeDispatcher(),
+            system_event_queue=FakeEventQueue(),
+        )
+
+        with pytest.raises(ValueError, match="explicit"):
+            await service.start()
+
+    _prepare_service_import(monkeypatch)
+    asyncio.run(scenario())
+
+
+def test_heartbeat_service_wake_records_wake_service_bookkeeping(monkeypatch):
+    async def scenario():
+        from agent.service.automation.heartbeat.heartbeat_service import HeartbeatService
+
+        scheduler = FakeScheduler()
+        wake_service = FakeWakeService()
+        service = HeartbeatService(
+            state_store=FakeStateStore(),
+            scheduler=scheduler,
+            dispatcher=FakeDispatcher(),
+            system_event_queue=FakeEventQueue(),
+            wake_service=wake_service,
+        )
+
+        await service.wake(agent_id="nexus", mode="now", text="ping")
+        await service.wake(agent_id="nexus", mode="next-heartbeat")
+
+        assert wake_service.now_calls == [
+            {
+                "agent_id": "nexus",
+                "session_key": "agent:nexus:automation:dm:main",
+                "metadata": {"text": "ping"},
+            }
+        ]
+        assert wake_service.next_calls == [
+            {
+                "agent_id": "nexus",
+                "session_key": "agent:nexus:automation:dm:main",
+                "metadata": {},
+            }
+        ]
+        assert scheduler.request_calls == [
+            ("nexus", "now"),
+            ("nexus", "next-heartbeat"),
+        ]
+
+    _prepare_service_import(monkeypatch)
+    asyncio.run(scenario())
+
+
+def test_heartbeat_dispatcher_consumes_wake_bookkeeping(monkeypatch):
+    async def scenario():
+        from agent.schema.model_automation import AutomationHeartbeatConfig
+        from agent.service.automation.heartbeat.heartbeat_dispatcher import HeartbeatDispatcher
+
+        wake_service = FakeWakeService()
+        wake_service.request_now(
+            agent_id="nexus",
+            session_key="agent:nexus:automation:dm:main",
+            metadata={"text": "urgent ping"},
+        )
+        wake_service.request_next_heartbeat(
+            agent_id="nexus",
+            session_key="agent:nexus:automation:dm:main",
+            metadata={"text": "follow up soon"},
+        )
+        orchestrator = FakeOrchestrator(
+            result=SimpleNamespace(ok=True, round_id="round-1")
+        )
+        dispatcher = HeartbeatDispatcher(
+            orchestrator=orchestrator,
+            delivery_router=FakeDeliveryRouter(),
+            system_event_queue=FakeEventQueue(),
+            wake_service=wake_service,
+            workspace_reader=FakeWorkspaceReader(""),
+            message_store=FakeMessageStore(
+                messages=[SimpleNamespace(round_id="round-1", role="result", result="HEARTBEAT_OK")]
+            ),
+        )
+
+        result = await dispatcher.dispatch(
+            agent_id="nexus",
+            config=AutomationHeartbeatConfig(
+                agent_id="nexus",
+                enabled=True,
+                every_seconds=60,
+                target_mode="none",
+            ),
+        )
+
+        assert result.acknowledged is True
+        assert orchestrator.calls
+        assert "urgent ping" in orchestrator.calls[0].instruction
+        assert "follow up soon" in orchestrator.calls[0].instruction
+        assert wake_service.drain_now("nexus") == []
+        assert wake_service.list_next_heartbeat("nexus") == []
 
     _prepare_service_import(monkeypatch)
     asyncio.run(scenario())

@@ -17,11 +17,13 @@ from typing import TYPE_CHECKING
 from agent.infra.schemas.model_cython import AModel
 from agent.schema.model_automation import AutomationHeartbeatConfig, AutomationSessionWakeMode
 from agent.service.automation.heartbeat.heartbeat_scheduler import HeartbeatScheduler
+from agent.service.session.session_router import build_automation_main_session_key
 
 if TYPE_CHECKING:
     from agent.service.automation.heartbeat.heartbeat_dispatcher import HeartbeatDispatcher
     from agent.service.automation.heartbeat.heartbeat_state_store import HeartbeatStateStore
     from agent.service.automation.runtime.system_event_queue import SystemEventQueue
+    from agent.service.automation.runtime.wake_service import WakeService
 
 
 class HeartbeatStatus(AModel):
@@ -57,6 +59,7 @@ class HeartbeatService:
         scheduler: HeartbeatScheduler | None = None,
         dispatcher: HeartbeatDispatcher | None = None,
         system_event_queue: SystemEventQueue | None = None,
+        wake_service: WakeService | None = None,
     ) -> None:
         if state_store is None:
             from agent.service.automation.heartbeat.heartbeat_state_store import HeartbeatStateStore
@@ -66,13 +69,21 @@ class HeartbeatService:
             from agent.service.automation.runtime.system_event_queue import SystemEventQueue
 
             system_event_queue = SystemEventQueue()
+        if wake_service is None:
+            from agent.service.automation.runtime.wake_service import WakeService
+
+            wake_service = WakeService()
         if dispatcher is None:
             from agent.service.automation.heartbeat.heartbeat_dispatcher import HeartbeatDispatcher
 
-            dispatcher = HeartbeatDispatcher(system_event_queue=system_event_queue)
+            dispatcher = HeartbeatDispatcher(
+                system_event_queue=system_event_queue,
+                wake_service=wake_service,
+            )
 
         self._state_store = state_store
         self._system_event_queue = system_event_queue
+        self._wake_service = wake_service
         self._dispatcher = dispatcher
         self._scheduler = scheduler or HeartbeatScheduler(
             dispatcher=self._dispatcher,
@@ -80,6 +91,10 @@ class HeartbeatService:
 
     async def start(self) -> None:
         """启动 heartbeat 运行态。"""
+        rows = await self._state_store.list_enabled_states()
+        for row in rows:
+            config = self._config_from_row(row)
+            await self._scheduler.sync_agent(config.agent_id, config)
         await self._scheduler.start()
 
     async def stop(self) -> None:
@@ -118,6 +133,20 @@ class HeartbeatService:
         """登记一次 heartbeat wake 请求。"""
         config, _row = await self._load_config(agent_id)
         await self._scheduler.sync_agent(agent_id, config)
+        session_key = build_automation_main_session_key(agent_id)
+        metadata = {"text": text} if text else {}
+        if mode == "now":
+            self._wake_service.request_now(
+                agent_id=agent_id,
+                session_key=session_key,
+                metadata=metadata,
+            )
+        else:
+            self._wake_service.request_next_heartbeat(
+                agent_id=agent_id,
+                session_key=session_key,
+                metadata=metadata,
+            )
         if text:
             await self._system_event_queue.enqueue(
                 event_type="heartbeat.wake",
@@ -140,15 +169,22 @@ class HeartbeatService:
         row = await self._state_store.get_state(agent_id)
         if row is None:
             return AutomationHeartbeatConfig(agent_id=agent_id), None
-        return (
-            AutomationHeartbeatConfig(
-                agent_id=agent_id,
-                enabled=bool(row.enabled),
-                every_seconds=int(row.every_seconds),
-                target_mode=str(row.target_mode),
-                ack_max_chars=int(row.ack_max_chars),
-            ),
-            row,
+        return self._config_from_row(row), row
+
+    @staticmethod
+    def _config_from_row(row) -> AutomationHeartbeatConfig:
+        """把持久化状态规范化为运行时配置。"""
+        target_mode = str(row.target_mode)
+        # 中文注释：Task 6 仅落 heartbeat runtime，不持久化 explicit 目标明细，
+        # 因此这里提前拒绝 explicit，避免调度后期才因缺少 channel/to 崩溃。
+        if target_mode == "explicit":
+            raise ValueError("heartbeat target_mode=explicit is not supported in Task 6 runtime")
+        return AutomationHeartbeatConfig(
+            agent_id=str(row.agent_id),
+            enabled=bool(row.enabled),
+            every_seconds=int(row.every_seconds),
+            target_mode=target_mode,
+            ack_max_chars=int(row.ack_max_chars),
         )
 
 
