@@ -130,7 +130,14 @@ class ChatService:
                 )
                 round_started = True
 
-                await client.query(content)
+                client = await agent_runtime.query_with_recovery(
+                    session_key=session_key,
+                    agent_id=real_agent_id,
+                    permission_strategy=self._permission_strategy,
+                    prompt=content,
+                    client=client,
+                    resolved_agent_id=real_agent_id,
+                )
 
                 async for response_msg in client.receive_messages():
                     processed_messages = await processor.process_messages(response_msg)

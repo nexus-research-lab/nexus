@@ -451,7 +451,15 @@ class RoomChatService:
                     data={"msg_id": msg_id, "agent_id": agent_id, "round_id": round_id},
                 ))
 
-                await client.query(dispatch_query)
+                client = await agent_runtime.query_with_recovery(
+                    session_key=sdk_session_key,
+                    agent_id=agent_id,
+                    permission_strategy=self._permission_strategy,
+                    prompt=dispatch_query,
+                    client=client,
+                    resolved_agent_id=agent_id,
+                    force_fresh=True,
+                )
 
                 processor = ChatMessageProcessor(
                     session_key=room_session_key,

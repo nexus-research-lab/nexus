@@ -62,6 +62,17 @@ class AgentRuntime:
         if session_id:
             sdk_options["resume"] = session_id
 
+        def handle_sdk_stderr(line: str) -> None:
+            """把 Claude CLI stderr 直接打进服务日志，便于排查异常退出原因。"""
+            logger.warning(
+                "⚠️ Claude CLI stderr: key=%s, agent=%s, line=%s",
+                session_key,
+                real_agent_id,
+                line,
+            )
+
+        sdk_options.setdefault("stderr", handle_sdk_stderr)
+
         async def can_use_tool(
             name: str,
             data: dict[str, Any],
@@ -75,10 +86,62 @@ class AgentRuntime:
             session_id=session_id,
             session_options=sdk_options,
         )
-        await client.connect()
+        try:
+            await client.connect()
+        except Exception as exc:
+            session_manager.invalidate_session(
+                session_key,
+                reason=f"SDK client 连接失败: {exc}",
+            )
+            raise
 
         logger.info(f"✅ Client 就绪: key={session_key}, agent={real_agent_id}, session_id={session_id}")
         return client
+
+    async def query_with_recovery(
+        self,
+        *,
+        session_key: str,
+        agent_id: str,
+        permission_strategy: PermissionStrategy,
+        prompt: str,
+        client: ClaudeSDKClient | None = None,
+        resume_session_id: str | None = None,
+        resolved_agent_id: str | None = None,
+        force_fresh: bool = False,
+    ) -> ClaudeSDKClient:
+        """对可恢复的会话失效错误执行一次自动重建并重试。"""
+        active_client = client or await self.get_or_create_client(
+            session_key=session_key,
+            agent_id=agent_id,
+            permission_strategy=permission_strategy,
+            resume_session_id=resume_session_id,
+            resolved_agent_id=resolved_agent_id,
+            force_fresh=force_fresh,
+        )
+
+        has_retried = False
+        while True:
+            try:
+                await active_client.query(prompt)
+                return active_client
+            except Exception as exc:
+                if has_retried or not session_manager.is_recoverable_client_error(exc):
+                    raise
+
+                has_retried = True
+                session_manager.invalidate_session(
+                    session_key,
+                    reason=f"查询前检测到 SDK 会话不可写，准备自动重建: {exc}",
+                )
+                active_client = await self.get_or_create_client(
+                    session_key=session_key,
+                    agent_id=agent_id,
+                    permission_strategy=permission_strategy,
+                    resume_session_id=resume_session_id,
+                    resolved_agent_id=resolved_agent_id,
+                    force_fresh=force_fresh,
+                )
 
 
 agent_runtime = AgentRuntime()

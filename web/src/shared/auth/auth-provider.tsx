@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh_status();
+    void refresh_status().catch(() => undefined);
   }, [refresh_status]);
 
   useEffect(() => {
