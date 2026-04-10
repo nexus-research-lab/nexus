@@ -24,7 +24,7 @@ services:
       SERVER_TYPE: gunicorn
       HOST: 0.0.0.0
       PORT: 8010
-      WORKERS: ${WORKERS:-2}
+      WORKERS: ${WORKERS:-1}
       DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:////home/agent/.nexus/data/nexus.db}
       CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/home/agent/.nexus/cache}
       LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
