@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_dm_display_name } from "@/lib/dm-utils";
-import { deleteRoom, listRooms } from "@/lib/room-api";
+import { deleteRoom, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useAgentStore } from "@/store/agent";
@@ -47,6 +47,8 @@ export const DmsPanelContent = memo(function DmsPanelContent() {
     void load_agents();
     refresh();
   }, [load_agents, refresh]);
+
+  useEffect(() => subscribe_room_list_updates(refresh), [refresh]);
 
   const dm_rooms = useMemo(() => {
     const dms = rooms.filter((r) => r.room.room_type === "dm");

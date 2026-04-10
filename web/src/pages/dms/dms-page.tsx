@@ -11,7 +11,7 @@ import { MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { listRooms, getRoomContexts } from "@/lib/room-api";
+import { listRooms, getRoomContexts, subscribe_room_list_updates } from "@/lib/room-api";
 import { sort_rooms_by_recency } from "@/lib/room-utils";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { RoomAggregate } from "@/types/room";
@@ -38,6 +38,10 @@ export function DmsPage() {
     void bootstrap();
     return () => { is_cancelled = true; };
   }, []);
+
+  useEffect(() => subscribe_room_list_updates(() => {
+    void listRooms(200).then(set_rooms);
+  }), []);
 
   // 找到最近的 DM Room
   const latest_dm_room = useMemo(() => (

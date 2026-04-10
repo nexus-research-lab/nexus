@@ -147,3 +147,33 @@ export function sortMessages(messages: Message[]): Message[] {
     [...messages].sort((left, right) => left.timestamp - right.timestamp),
   );
 }
+
+/**
+ * 合并服务端快照与本地消息，保留尚未落库的本地 optimistic 消息。
+ *
+ * 规则：
+ * 1. 同 message_id 的消息始终以服务端快照为准；
+ * 2. 仅把服务端中不存在的本地消息补回去；
+ * 3. 最终统一排序，避免 session 首屏加载把用户刚发出的消息冲掉。
+ */
+export function mergeLoadedMessages(
+  loaded_messages: Message[],
+  local_messages: Message[],
+): Message[] {
+  if (local_messages.length === 0) {
+    return loaded_messages;
+  }
+
+  const loaded_message_ids = new Set(
+    loaded_messages.map((message) => message.message_id),
+  );
+  const merged_messages = [...loaded_messages];
+
+  for (const local_message of local_messages) {
+    if (!loaded_message_ids.has(local_message.message_id)) {
+      merged_messages.push(local_message);
+    }
+  }
+
+  return sortMessages(merged_messages);
+}

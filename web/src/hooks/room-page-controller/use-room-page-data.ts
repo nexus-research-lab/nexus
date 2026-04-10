@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { getRoom, getRoomContexts, listRooms } from "@/lib/room-api";
+import { getRoom, getRoomContexts, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { RoomAggregate, RoomContextAggregate } from "@/types/room";
 
 interface UseRoomPageDataOptions {
@@ -60,6 +60,10 @@ export function useRoomPageData({
     set_rooms(next_rooms);
     return next_rooms;
   }, []);
+
+  useEffect(() => subscribe_room_list_updates(() => {
+    void refresh_rooms();
+  }), [refresh_rooms]);
 
   const load_room_contexts = useCallback(async (next_room_id: string): Promise<RoomContextAggregate[]> => {
     const [room, contexts] = await Promise.all([

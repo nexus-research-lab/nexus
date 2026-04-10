@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_dm_display_name } from "@/lib/dm-utils";
 import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
-import { createRoom, deleteRoom, listRooms, updateRoom } from "@/lib/room-api";
+import { createRoom, deleteRoom, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
@@ -90,6 +90,8 @@ export const HomePanelContent = memo(function HomePanelContent() {
     void load_agents();
     refresh_rooms();
   }, [load_agents, refresh_rooms]);
+
+  useEffect(() => subscribe_room_list_updates(refresh_rooms), [refresh_rooms]);
 
   // 分离 Room 和 DM
   const { normal_rooms, dm_rooms } = useMemo(() => {

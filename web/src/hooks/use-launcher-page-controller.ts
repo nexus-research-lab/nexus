@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { getDefaultAgentId } from "@/config/options";
 import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-page-agent-dialog";
-import { listRooms } from "@/lib/room-api";
+import { listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { buildLauncherAppSessionKey } from "@/lib/session-key";
 import { useConversationStore } from "@/store/conversation";
 import { useAgentStore } from "@/store/agent";
@@ -62,6 +62,9 @@ export function useLauncherPageController() {
   const surface: LauncherSurface = search_params.get("surface") === "app" ? "app" : "launcher";
   const route_app_prompt = search_params.get("app_prompt")?.trim() ?? "";
   const [app_conversation_draft, set_app_conversation_draft] = useState("");
+  const refresh_rooms = useCallback(() => {
+    void listRooms(200).then(set_rooms);
+  }, []);
 
   useEffect(() => {
     let is_cancelled = false;
@@ -84,6 +87,8 @@ export function useLauncherPageController() {
       is_cancelled = true;
     };
   }, [load_agents_from_server, load_conversations_from_server]);
+
+  useEffect(() => subscribe_room_list_updates(refresh_rooms), [refresh_rooms]);
 
   useEffect(() => {
     if (search_params.get("blobDebug") !== "1" || surface === "app") {

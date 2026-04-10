@@ -8,7 +8,6 @@ import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
 import { deleteConversation } from "@/lib/agent-api";
-import { areEquivalentSessionKeys } from "@/lib/session-key";
 import { createRoom, ensureDirectRoom } from "@/lib/room-api";
 import { cn } from "@/lib/utils";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
@@ -30,7 +29,7 @@ export function LauncherPage() {
   const [should_bootstrap_room_after_create, set_should_bootstrap_room_after_create] = useState(false);
   const [pending_room_title, set_pending_room_title] = useState<string>("");
   const consumed_route_prompt_ref = useRef<string | null>(null);
-  const hydrated_app_session_key_ref = useRef<string | null>(null);
+  const app_panel_load_signature_ref = useRef<string | null>(null);
   const pending_app_prompt_ref = useRef<string | null>(null);
   const app_conversation_identity = useMemo(() => ({
     session_key: controller.app_session_key,
@@ -53,34 +52,29 @@ export function LauncherPage() {
     send_permission_response,
     stop_generation,
   } = app_conversation;
-  const app_session_exists = useMemo(() => (
-    controller.conversations.some((conversation) => (
-      areEquivalentSessionKeys(conversation.session_key, controller.app_session_key)
-    ))
-  ), [controller.app_session_key, controller.conversations]);
-
   useEffect(() => {
     if (!controller.is_app_conversation_open) {
+      app_panel_load_signature_ref.current = null;
+      return;
+    }
+
+    if (!controller.is_hydrated) {
       return;
     }
 
     bind_session_key(controller.app_session_key);
 
-    if (!app_session_exists) {
-      hydrated_app_session_key_ref.current = null;
+    const next_load_signature = `${controller.app_session_key}:open`;
+    if (app_panel_load_signature_ref.current === next_load_signature) {
       return;
     }
 
-    if (hydrated_app_session_key_ref.current === controller.app_session_key) {
-      return;
-    }
-
-    hydrated_app_session_key_ref.current = controller.app_session_key;
+    app_panel_load_signature_ref.current = next_load_signature;
     void load_session(controller.app_session_key);
   }, [
-    app_session_exists,
     bind_session_key,
     controller.app_session_key,
+    controller.is_hydrated,
     controller.is_app_conversation_open,
     load_session,
   ]);
@@ -175,7 +169,7 @@ export function LauncherPage() {
         throw error;
       }
     }
-    hydrated_app_session_key_ref.current = null;
+    app_panel_load_signature_ref.current = null;
     clear_session();
     controller.set_app_conversation_draft("");
     await controller.refresh_conversations();

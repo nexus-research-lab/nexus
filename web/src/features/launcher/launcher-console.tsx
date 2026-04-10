@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
@@ -603,7 +603,17 @@ const HeroStage = memo(function HeroStage({
                 onClick={() => is_app_conversation_open ? on_close_app_conversation() : on_open_app_conversation(query)}
                 type="button"
               >
-                {t("launcher.handoff")} →
+                {is_app_conversation_open ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    {t("launcher.back_to_hub")}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {t("launcher.handoff")}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                )}
               </button>
             </FadeSlideIn>
           </div>
