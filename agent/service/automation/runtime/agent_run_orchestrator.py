@@ -42,12 +42,12 @@ class AgentRunOrchestrator:
             return await self._run_locked(ctx)
 
     async def _run_locked(self, ctx: AutomationRunContext) -> AutomationRunResult:
-        resolved_agent_id = resolve_agent_id(ctx.agent_id)
         metadata = self._build_result_metadata(ctx)
         session_info = await self._session_store.get_session_info(ctx.session_key)
         if session_info is None:
             session_info = await self._create_session(ctx)
             if session_info is None:
+                resolved_agent_id = resolve_agent_id(ctx.agent_id)
                 return AutomationRunResult(
                     agent_id=resolved_agent_id,
                     session_key=ctx.session_key,
@@ -55,11 +55,14 @@ class AgentRunOrchestrator:
                     error_message="failed to create automation session",
                     metadata=metadata,
                 )
+        resolved_agent_id = resolve_agent_id(session_info.agent_id if session_info else ctx.agent_id)
+        known_session_id = session_info.session_id if session_info else None
 
         processor = self._processor_cls(
             session_key=ctx.session_key,
             query=ctx.instruction,
             agent_id=resolved_agent_id,
+            session_id=known_session_id,
         )
 
         try:
@@ -67,6 +70,8 @@ class AgentRunOrchestrator:
                 session_key=ctx.session_key,
                 agent_id=resolved_agent_id,
                 permission_strategy=AutoAllowPermissionStrategy(),
+                resume_session_id=known_session_id,
+                resolved_agent_id=resolved_agent_id,
             )
             await client.query(ctx.instruction)
 

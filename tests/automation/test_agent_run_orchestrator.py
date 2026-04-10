@@ -60,14 +60,22 @@ class FakeProcessor:
     """按预设终态消费 SDK 消息。"""
 
     outcomes: list[str | None] = []
+    success_session_id: str | None = "sdk-session-1"
     instances: list["FakeProcessor"] = []
 
-    def __init__(self, *, session_key: str, query: str, agent_id: str) -> None:
+    def __init__(
+        self,
+        *,
+        session_key: str,
+        query: str,
+        agent_id: str,
+        session_id: str | None = None,
+    ) -> None:
         self.session_key = session_key
         self.query = query
         self.agent_id = agent_id
         self.round_id = "round-1"
-        self.session_id = None
+        self.session_id = session_id
         self.subtype = None
         self.message_count = 0
         self.messages: list[object] = []
@@ -79,8 +87,8 @@ class FakeProcessor:
         outcome = type(self).outcomes[self.message_count - 1]
         if outcome is not None:
             self.subtype = outcome
-            if outcome == "success":
-                self.session_id = "sdk-session-1"
+            if outcome == "success" and type(self).success_session_id is not None:
+                self.session_id = type(self).success_session_id
         return []
 
 
@@ -106,6 +114,7 @@ def test_agent_run_orchestrator_creates_missing_session_and_stops_on_success(mon
 
         FakeProcessor.instances = []
         FakeProcessor.outcomes = [None, "success", "error"]
+        FakeProcessor.success_session_id = "sdk-session-1"
         client = FakeClient(messages=["system", "assistant", "result"])
         runtime = FakeAgentRuntime(client)
         store = FakeSessionStore(existing_session=None)
@@ -152,6 +161,7 @@ def test_agent_run_orchestrator_returns_error_result_when_query_fails(monkeypatc
 
         FakeProcessor.instances = []
         FakeProcessor.outcomes = []
+        FakeProcessor.success_session_id = "sdk-session-1"
         runtime = FakeAgentRuntime(FakeClient(messages=[], query_error=RuntimeError("boom")))
         store = FakeSessionStore(
             existing_session=SimpleNamespace(
@@ -182,5 +192,48 @@ def test_agent_run_orchestrator_returns_error_result_when_query_fails(monkeypatc
         assert result.error_message == "boom"
         assert result.message_count == 0
         assert FakeProcessor.instances[0].messages == []
+
+    asyncio.run(scenario())
+
+
+def test_agent_run_orchestrator_reuses_persisted_agent_and_session_metadata(monkeypatch):
+    async def scenario():
+        from agent.service.automation.runtime.agent_run_orchestrator import AgentRunOrchestrator
+        from agent.service.automation.runtime.run_context import AutomationRunContext
+        import agent.service.automation.runtime.agent_run_orchestrator as module
+
+        FakeProcessor.instances = []
+        FakeProcessor.outcomes = ["success"]
+        FakeProcessor.success_session_id = None
+        runtime = FakeAgentRuntime(FakeClient(messages=["result"]))
+        store = FakeSessionStore(
+            existing_session=SimpleNamespace(
+                session_key="agent:nexus:automation:dm:main",
+                agent_id="persisted-agent",
+                status="active",
+                session_id="sdk-existing",
+            )
+        )
+
+        monkeypatch.setattr(module, "agent_runtime", runtime)
+        monkeypatch.setattr(module, "session_store", store)
+        monkeypatch.setattr(module, "ChatMessageProcessor", FakeProcessor)
+
+        orchestrator = AgentRunOrchestrator()
+        result = await orchestrator.run_turn(
+            AutomationRunContext(
+                agent_id="ctx-agent",
+                session_key="agent:nexus:automation:dm:main",
+                instruction="reuse persisted session",
+                trigger_kind="heartbeat",
+            )
+        )
+
+        assert store.created_calls == []
+        assert runtime.calls[0]["agent_id"] == "persisted-agent"
+        assert FakeProcessor.instances[0].agent_id == "persisted-agent"
+        assert FakeProcessor.instances[0].session_id == "sdk-existing"
+        assert result.ok is True
+        assert result.session_id == "sdk-existing"
 
     asyncio.run(scenario())
