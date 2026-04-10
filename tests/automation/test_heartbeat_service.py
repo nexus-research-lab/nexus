@@ -35,7 +35,15 @@ class FakeEventQueue:
 
     async def enqueue(self, **fields):
         self.calls.append(fields)
-        return SimpleNamespace(**fields)
+        event = SimpleNamespace(
+            event_id=fields.get("event_id", f"event-{len(self.calls)}"),
+            event_type=fields.get("event_type"),
+            source_type=fields.get("source_type"),
+            source_id=fields.get("source_id"),
+            payload=dict(fields.get("payload") or {}),
+        )
+        self.pending_events.append(event)
+        return event
 
     async def list_pending_events(self):
         return list(self.pending_events)
@@ -533,6 +541,56 @@ def test_heartbeat_dispatcher_cleans_up_after_delivery_failure(monkeypatch):
         assert event_queue.processed_ids == ["evt-1"]
         assert event_queue.failed_ids == []
         assert wake_service.list_next_heartbeat("nexus") == []
+
+    _prepare_service_import(monkeypatch)
+    asyncio.run(scenario())
+
+
+def test_heartbeat_dispatcher_does_not_duplicate_wake_text_from_queue_and_bookkeeping(monkeypatch):
+    async def scenario():
+        from agent.schema.model_automation import AutomationHeartbeatConfig
+        from agent.service.automation.heartbeat.heartbeat_dispatcher import HeartbeatDispatcher
+        from agent.service.automation.heartbeat.heartbeat_service import HeartbeatService
+
+        wake_service = FakeWakeService()
+        event_queue = FakeEventQueue()
+        scheduler = FakeScheduler()
+        service = HeartbeatService(
+            state_store=FakeStateStore(),
+            scheduler=scheduler,
+            dispatcher=FakeDispatcher(),
+            system_event_queue=event_queue,
+            wake_service=wake_service,
+        )
+        await service.wake(agent_id="nexus", mode="now", text="urgent ping")
+
+        orchestrator = FakeOrchestrator(
+            result=SimpleNamespace(ok=True, round_id="round-1")
+        )
+        dispatcher = HeartbeatDispatcher(
+            orchestrator=orchestrator,
+            delivery_router=FakeDeliveryRouter(),
+            system_event_queue=event_queue,
+            wake_service=wake_service,
+            workspace_reader=FakeWorkspaceReader(""),
+            message_store=FakeMessageStore(
+                messages=[SimpleNamespace(round_id="round-1", role="result", result="HEARTBEAT_OK")]
+            ),
+        )
+
+        result = await dispatcher.dispatch(
+            agent_id="nexus",
+            config=AutomationHeartbeatConfig(
+                agent_id="nexus",
+                enabled=True,
+                every_seconds=60,
+                target_mode="none",
+            ),
+        )
+
+        assert result.acknowledged is True
+        assert orchestrator.calls
+        assert orchestrator.calls[0].instruction.count("urgent ping") == 1
 
     _prepare_service_import(monkeypatch)
     asyncio.run(scenario())

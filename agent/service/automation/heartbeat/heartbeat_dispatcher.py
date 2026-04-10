@@ -157,12 +157,15 @@ class HeartbeatDispatcher:
             sections.append("System events:\n" + "\n".join(f"- {item}" for item in event_lines))
 
         wake_lines = []
+        existing_lines = set(event_lines)
         for item in [*immediate_wake_requests, *deferred_wake_requests]:
             text = str(getattr(item, "metadata", {}).get("text") or "").strip()
-            if text:
+            if text and text not in existing_lines:
                 wake_lines.append(text)
             else:
-                wake_lines.append(f"wake request ({getattr(item, 'wake_mode', 'unknown')})")
+                fallback = f"wake request ({getattr(item, 'wake_mode', 'unknown')})"
+                if not text and fallback not in existing_lines:
+                    wake_lines.append(fallback)
         if wake_lines:
             sections.append("Wake requests:\n" + "\n".join(f"- {item}" for item in wake_lines))
         return "\n\n".join(part for part in sections if part.strip())
