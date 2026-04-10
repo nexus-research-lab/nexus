@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 from sqlalchemy import event
@@ -81,6 +82,88 @@ class StaticMemory:
     async def get_last_route(self, agent_id: str):
         del agent_id
         return self._target
+
+
+class DeliveryContractChannel:
+    """实现 outbound contract 的通道替身。"""
+
+    channel_type = "telegram"
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str | None]] = []
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def send_delivery_text(
+        self,
+        *,
+        to: str,
+        text: str,
+        account_id: str | None = None,
+        thread_id: str | None = None,
+    ) -> None:
+        self.calls.append(
+            {
+                "to": to,
+                "text": text,
+                "account_id": account_id,
+                "thread_id": thread_id,
+            }
+        )
+
+
+class PlainChannel:
+    """不实现 outbound contract 的通道替身。"""
+
+    channel_type = "telegram"
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+
+class ActiveMessageRecorder:
+    """记录 websocket 在线推送走的是消息路径还是事件路径。"""
+
+    def __init__(self) -> None:
+        self.messages = []
+        self.events = []
+
+    async def send_message(self, message) -> None:
+        self.messages.append(message)
+
+    async def send_stream_message(self, message) -> None:
+        raise AssertionError(f"unexpected stream push: {message}")
+
+    async def send_event_message(self, event) -> None:
+        self.events.append(event)
+
+    async def send(self, message) -> None:
+        from agent.service.channels.message_sender import MessageSender
+
+        await MessageSender.send(self, message)
+
+
+class FallbackEventRecorder:
+    """记录 websocket fallback 发送。"""
+
+    def __init__(self) -> None:
+        self.events = []
+
+    async def send_message(self, message) -> None:
+        raise AssertionError(f"unexpected fallback message: {message}")
+
+    async def send_stream_message(self, message) -> None:
+        raise AssertionError(f"unexpected fallback stream: {message}")
+
+    async def send_event_message(self, event) -> None:
+        self.events.append(event)
 
 
 def test_resolve_delivery_target_defaults_to_none():
@@ -170,6 +253,60 @@ def test_delivery_router_routes_explicit_target():
     asyncio.run(scenario())
 
 
+def test_delivery_router_lazily_resolves_channel_delivery_contract():
+    async def scenario():
+        from agent.service.automation.delivery.delivery_router import DeliveryRouter
+        from agent.service.channels.channel_register import ChannelRegister
+
+        register = ChannelRegister()
+        channel = DeliveryContractChannel()
+        register.register(channel)
+        router = DeliveryRouter(
+            memory=StaticMemory(),
+            channel_register=register,
+        )
+
+        target = await router.send_text(
+            agent_id="nexus",
+            text="hello lazy channel",
+            target={"mode": "explicit", "channel": "telegram", "to": "10001"},
+        )
+
+        assert target.channel == "telegram"
+        assert channel.calls == [
+            {
+                "to": "10001",
+                "text": "hello lazy channel",
+                "account_id": None,
+                "thread_id": None,
+            }
+        ]
+
+    asyncio.run(scenario())
+
+
+def test_delivery_router_rejects_channel_without_delivery_contract():
+    async def scenario():
+        from agent.service.automation.delivery.delivery_router import DeliveryRouter
+        from agent.service.channels.channel_register import ChannelRegister
+
+        register = ChannelRegister()
+        register.register(PlainChannel())
+        router = DeliveryRouter(
+            memory=StaticMemory(),
+            channel_register=register,
+        )
+
+        with pytest.raises(TypeError, match="send_delivery_text"):
+            await router.send_text(
+                agent_id="nexus",
+                text="hello lazy channel",
+                target={"mode": "explicit", "channel": "telegram", "to": "10001"},
+            )
+
+    asyncio.run(scenario())
+
+
 def test_delivery_router_routes_to_last_route(async_session_factory):
     async def scenario():
         from agent.service.automation.delivery.delivery_memory import DeliveryMemory
@@ -177,7 +314,7 @@ def test_delivery_router_routes_to_last_route(async_session_factory):
 
         sender = RecordingSender()
         memory = DeliveryMemory(session_factory=async_session_factory)
-        await memory.remember_route(agent_id="nexus", channel="discord", to="channel-9")
+        await memory.remember_route(agent_id="nexus", channel="discord", to="9001")
 
         router = DeliveryRouter(
             memory=memory,
@@ -191,11 +328,11 @@ def test_delivery_router_routes_to_last_route(async_session_factory):
         )
 
         assert target.channel == "discord"
-        assert target.to == "channel-9"
+        assert target.to == "9001"
         assert len(sender.calls) == 1
         sent_target, sent_text = sender.calls[0]
         assert sent_target.channel == "discord"
-        assert sent_target.to == "channel-9"
+        assert sent_target.to == "9001"
         assert sent_text == "heartbeat"
 
     asyncio.run(scenario())
@@ -216,5 +353,79 @@ def test_delivery_router_rejects_last_route_without_memory():
                 text="heartbeat",
                 target={"mode": "last"},
             )
+
+    asyncio.run(scenario())
+
+
+def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkeypatch):
+    async def scenario():
+        from agent.service.channels.ws.ws_session_routing_sender import WsSessionRoutingSender
+        from agent.service.permission.permission_runtime_context import (
+            permission_runtime_context,
+        )
+        from agent.service.session.session_router import build_session_key
+        from agent.service.session.session_store import session_store
+        from agent.service.session.session_repository import session_repository
+
+        workspace_path = tmp_path / "ws-agent"
+        workspace_path.mkdir(parents=True, exist_ok=True)
+
+        async def resolve_workspace_path(_agent_id: str) -> Path:
+            return workspace_path
+
+        monkeypatch.setattr(
+            session_repository,
+            "_resolve_workspace_path",
+            resolve_workspace_path,
+        )
+        monkeypatch.setattr(
+            session_repository,
+            "_iter_known_workspace_paths",
+            lambda: [workspace_path],
+        )
+
+        session_key = build_session_key(
+            channel="ws",
+            chat_type="dm",
+            ref="delivery-test",
+            agent_id="nexus",
+        )
+        created = await session_store.create_session_by_key(
+            session_key=session_key,
+            channel_type="websocket",
+            chat_type="dm",
+        )
+        assert created is not None
+
+        active_sender = ActiveMessageRecorder()
+        fallback_sender = FallbackEventRecorder()
+        monkeypatch.setattr(
+            permission_runtime_context,
+            "resolve_session_sender",
+            lambda key: active_sender if key == session_key else None,
+        )
+
+        sender = WsSessionRoutingSender(fallback_sender)
+        await sender.send_text(session_key=session_key, text="durable websocket delivery")
+
+        messages = await session_store.get_session_messages(session_key)
+
+        assert [message.role for message in messages] == ["assistant", "result"]
+        assistant_message, result_message = messages
+        assert assistant_message.session_key == session_key
+        assert len(assistant_message.content or []) == 1
+        assert assistant_message.content[0].type == "text"
+        assert assistant_message.content[0].text == "durable websocket delivery"
+        assert result_message.session_key == session_key
+        assert result_message.subtype == "success"
+        assert result_message.result == "durable websocket delivery"
+
+        assert [message.role for message in active_sender.messages] == ["assistant", "result"]
+        assert len(active_sender.messages[0].content or []) == 1
+        assert active_sender.messages[0].content[0].type == "text"
+        assert active_sender.messages[0].content[0].text == "durable websocket delivery"
+        assert active_sender.messages[1].result == "durable websocket delivery"
+        assert active_sender.events == []
+        assert fallback_sender.events == []
 
     asyncio.run(scenario())

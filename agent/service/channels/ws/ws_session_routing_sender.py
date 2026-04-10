@@ -9,10 +9,13 @@
 
 """按 session_key 路由到当前活跃连接的发送器。"""
 
+import uuid
+
 from agent.schema.model_message import (
     EventMessage,
     Message,
     StreamMessage,
+    TextContent,
     build_transport_event,
 )
 from agent.service.channels.message_sender import MessageSender
@@ -46,13 +49,57 @@ class WsSessionRoutingSender(MessageSender):
 
     async def send_text(self, session_key: str, text: str) -> None:
         """向指定 session 推送自动化文本。"""
-        event = EventMessage(
-            event_type="automation_delivery",
-            delivery_mode="durable",
+        from agent.service.session.session_store import session_store
+        from agent.service.session.session_repository import session_repository
+
+        session_info = await session_store.get_session_info(session_key)
+        if session_info is None:
+            raise LookupError(f"websocket delivery target session is not available: {session_key}")
+
+        round_id = str(uuid.uuid4())
+        assistant_message = Message(
+            message_id=str(uuid.uuid4()),
             session_key=session_key,
-            data={"text": text},
+            agent_id=session_info.agent_id,
+            round_id=round_id,
+            session_id=session_info.session_id,
+            role="assistant",
+            content=[TextContent(text=text)],
         )
-        await self._forward_event(event)
+        result_message = Message(
+            message_id=str(uuid.uuid4()),
+            session_key=session_key,
+            agent_id=session_info.agent_id,
+            round_id=round_id,
+            session_id=session_info.session_id,
+            parent_id=assistant_message.message_id,
+            role="result",
+            subtype="success",
+            duration_ms=0,
+            duration_api_ms=0,
+            num_turns=0,
+            total_cost_usd=0,
+            usage={"input_tokens": 0, "output_tokens": 0},
+            result=text,
+            is_error=False,
+        )
+
+        persisted_assistant = await session_repository.create_message(assistant_message)
+        persisted_result = await session_repository.create_message(result_message)
+        if not persisted_assistant or not persisted_result:
+            raise LookupError(f"websocket delivery target session is not available: {session_key}")
+
+        active_sender = permission_runtime_context.resolve_session_sender(session_key)
+        if active_sender is None:
+            logger.debug("📭 当前无活跃连接，跳过自动化实时推送: session=%s", session_key)
+            return
+
+        try:
+            await active_sender.send(assistant_message)
+            await active_sender.send(result_message)
+        except Exception as exc:
+            # 中文注释：消息已先落库，实时推送失败不应回滚 durable delivery。
+            logger.warning("⚠️ 自动化实时推送失败，消息已落库: session=%s error=%s", session_key, exc)
 
     async def _forward_event(self, event: EventMessage) -> None:
         """把消息发给当前活跃连接。"""

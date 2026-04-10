@@ -46,7 +46,7 @@ class ChannelAutomationOutboundSender(AutomationOutboundSender):
     """把通道对象适配成自动化发送器。"""
 
     def __init__(self, channel: SupportsChannelDelivery) -> None:
-        self._channel = channel
+        self._channel = require_channel_delivery_support(channel)
 
     async def send_text(self, target: DeliveryTarget, text: str) -> None:
         """转发到 IM 通道的统一文本投递入口。"""
@@ -72,6 +72,14 @@ class WebsocketAutomationOutboundSender(AutomationOutboundSender):
         if not session_key:
             raise ValueError("websocket delivery target requires session_key")
         await self._sender.send_text(session_key=session_key, text=text)
+
+
+def require_channel_delivery_support(channel: object) -> SupportsChannelDelivery:
+    """要求通道实现统一 outbound contract。"""
+    send_delivery_text = getattr(channel, "send_delivery_text", None)
+    if not callable(send_delivery_text):
+        raise TypeError("channel must implement send_delivery_text(to=..., text=..., ...)")
+    return channel
 
 
 def build_delivery_senders(
