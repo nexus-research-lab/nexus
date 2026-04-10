@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import select
 
 from agent.infra.database.models.automation_delivery_route import AutomationDeliveryRoute
@@ -28,8 +30,6 @@ class AutomationDeliveryRouteSqlRepository(BaseSqlRepository):
         "account_id",
         "thread_id",
         "enabled",
-        "created_at",
-        "updated_at",
     }
 
     async def get_latest_route(self, agent_id: str) -> AutomationDeliveryRoute | None:
@@ -71,6 +71,7 @@ class AutomationDeliveryRouteSqlRepository(BaseSqlRepository):
             entity = AutomationDeliveryRoute(
                 route_id=route_id or random_uuid(),
                 agent_id=agent_id,
+                updated_at=datetime.now(),
                 **payload,
             )
             self._session.add(entity)
@@ -79,6 +80,7 @@ class AutomationDeliveryRouteSqlRepository(BaseSqlRepository):
             # 保持最新路由覆盖显式传入的字段，不碰未传入的旧值。
             for field_name, value in fields.items():
                 setattr(entity, field_name, value)
+            entity.updated_at = datetime.now()
         await self.flush()
         await self.refresh(entity)
         return entity

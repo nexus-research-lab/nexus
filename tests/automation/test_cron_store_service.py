@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -16,6 +17,7 @@ def async_session_factory(tmp_path):
     """为仓储测试准备一个独立的 SQLite 会话工厂。"""
     load_models()
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'automation.db'}")
+    _enable_sqlite_foreign_keys(engine)
     asyncio.run(_create_tables(engine))
 
     session_factory = async_sessionmaker(
@@ -27,6 +29,15 @@ def async_session_factory(tmp_path):
     yield session_factory
 
     asyncio.run(engine.dispose())
+
+
+def _enable_sqlite_foreign_keys(engine):
+    """让测试用 SQLite 也严格执行外键约束。"""
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_foreign_keys(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 async def _create_tables(engine):
@@ -84,6 +95,33 @@ def test_cron_job_repository_roundtrip(async_session_factory):
             fetched = await repo.get_job("job-1")
             assert fetched is not None
             assert fetched.name == "daily"
+
+    asyncio.run(scenario())
+
+
+def test_cron_job_delete_cascades_runs(async_session_factory):
+    async def scenario():
+        from agent.infra.database.repositories.automation_cron_job_sql_repository import (
+            AutomationCronJobSqlRepository,
+        )
+        from agent.infra.database.repositories.automation_cron_run_sql_repository import (
+            AutomationCronRunSqlRepository,
+        )
+
+        async with async_session_factory() as session:
+            job_repo = AutomationCronJobSqlRepository(session)
+            await job_repo.upsert_job(
+                job_id="job-1",
+                name="daily",
+                agent_id="nexus",
+                schedule_kind="every",
+            )
+
+            run_repo = AutomationCronRunSqlRepository(session)
+            await run_repo.create_run(run_id="run-1", job_id="job-1")
+            await job_repo.delete_job("job-1")
+
+            assert await run_repo.get_run("run-1") is None
 
     asyncio.run(scenario())
 
@@ -273,7 +311,6 @@ def test_delivery_route_repository_returns_latest_route(async_session_factory):
                 route_id="route-1",
                 agent_id="nexus",
                 mode="explicit",
-                updated_at=datetime(2026, 12, 31, 23, 59, 59),
             )
 
             latest = await repo.get_latest_route("nexus")
