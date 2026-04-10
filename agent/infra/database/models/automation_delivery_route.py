@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, CheckConstraint, Index, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agent.infra.database.async_sqlalchemy import Base
@@ -24,14 +24,18 @@ class AutomationDeliveryRoute(TimestampMixin, Base):
     __tablename__ = "automation_delivery_routes"
     __table_args__ = (
         CheckConstraint(
-            "mode IN ('none', 'direct', 'thread')",
+            "mode IN ('none', 'last', 'explicit')",
             name="ck_automation_delivery_routes_mode",
         ),
         Index("idx_automation_delivery_routes_agent", "agent_id"),
     )
 
     route_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    agent_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("agents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     mode: Mapped[str] = mapped_column(String(32), default="none", nullable=False)
     channel: Mapped[str | None] = mapped_column(String(64))
     to: Mapped[str | None] = mapped_column(String(255))

@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, CheckConstraint, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agent.infra.database.async_sqlalchemy import Base
@@ -28,15 +28,15 @@ class AutomationCronJob(TimestampMixin, Base):
             name="ck_automation_cron_jobs_schedule_kind",
         ),
         CheckConstraint(
-            "session_target_kind IN ('isolated', 'bound', 'named')",
+            "session_target_kind IN ('isolated', 'main', 'bound', 'named')",
             name="ck_automation_cron_jobs_session_target_kind",
         ),
         CheckConstraint(
-            "wake_mode IN ('next-heartbeat', 'immediate')",
+            "wake_mode IN ('now', 'next-heartbeat')",
             name="ck_automation_cron_jobs_wake_mode",
         ),
         CheckConstraint(
-            "delivery_mode IN ('none', 'direct', 'thread')",
+            "delivery_mode IN ('none', 'last', 'explicit')",
             name="ck_automation_cron_jobs_delivery_mode",
         ),
         Index("idx_automation_cron_jobs_agent", "agent_id"),
@@ -44,7 +44,11 @@ class AutomationCronJob(TimestampMixin, Base):
 
     job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    agent_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("agents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     schedule_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     run_at: Mapped[str | None] = mapped_column(String(32))
     interval_seconds: Mapped[int | None] = mapped_column(Integer)

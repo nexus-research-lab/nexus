@@ -24,7 +24,12 @@ def upgrade() -> None:
         "automation_cron_jobs",
         sa.Column("job_id", sa.String(length=64), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("agent_id", sa.String(length=64), nullable=False),
+        sa.Column(
+            "agent_id",
+            sa.String(length=64),
+            sa.ForeignKey("agents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("schedule_kind", sa.String(length=32), nullable=False),
         sa.Column("run_at", sa.String(length=32)),
         sa.Column("interval_seconds", sa.Integer()),
@@ -68,15 +73,15 @@ def upgrade() -> None:
             name="ck_automation_cron_jobs_schedule_kind",
         ),
         sa.CheckConstraint(
-            "session_target_kind IN ('isolated', 'bound', 'named')",
+            "session_target_kind IN ('isolated', 'main', 'bound', 'named')",
             name="ck_automation_cron_jobs_session_target_kind",
         ),
         sa.CheckConstraint(
-            "wake_mode IN ('next-heartbeat', 'immediate')",
+            "wake_mode IN ('now', 'next-heartbeat')",
             name="ck_automation_cron_jobs_wake_mode",
         ),
         sa.CheckConstraint(
-            "delivery_mode IN ('none', 'direct', 'thread')",
+            "delivery_mode IN ('none', 'last', 'explicit')",
             name="ck_automation_cron_jobs_delivery_mode",
         ),
         sa.PrimaryKeyConstraint("job_id"),
@@ -117,7 +122,12 @@ def upgrade() -> None:
     op.create_table(
         "automation_heartbeat_states",
         sa.Column("state_id", sa.String(length=64), nullable=False),
-        sa.Column("agent_id", sa.String(length=64), nullable=False),
+        sa.Column(
+            "agent_id",
+            sa.String(length=64),
+            sa.ForeignKey("agents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
         sa.Column("every_seconds", sa.Integer(), nullable=False, server_default=sa.text("1800")),
         sa.Column(
@@ -132,7 +142,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.CheckConstraint(
-            "target_mode IN ('none', 'delivery', 'session')",
+            "target_mode IN ('none', 'last', 'explicit')",
             name="ck_automation_heartbeat_states_target_mode",
         ),
         sa.PrimaryKeyConstraint("state_id"),
@@ -142,7 +152,12 @@ def upgrade() -> None:
     op.create_table(
         "automation_delivery_routes",
         sa.Column("route_id", sa.String(length=64), nullable=False),
-        sa.Column("agent_id", sa.String(length=64), nullable=False),
+        sa.Column(
+            "agent_id",
+            sa.String(length=64),
+            sa.ForeignKey("agents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column(
             "mode",
             sa.String(length=32),
@@ -157,7 +172,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.CheckConstraint(
-            "mode IN ('none', 'direct', 'thread')",
+            "mode IN ('none', 'last', 'explicit')",
             name="ck_automation_delivery_routes_mode",
         ),
         sa.PrimaryKeyConstraint("route_id"),
