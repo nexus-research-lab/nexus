@@ -20,6 +20,26 @@ from agent.infra.database.repositories.base_sql_repository import BaseSqlReposit
 class AutomationCronJobSqlRepository(BaseSqlRepository):
     """定时任务定义的 CRUD 仓储。"""
 
+    _UPDATABLE_FIELDS = {
+        "run_at",
+        "interval_seconds",
+        "cron_expression",
+        "timezone",
+        "instruction",
+        "session_target_kind",
+        "bound_session_key",
+        "named_session_key",
+        "wake_mode",
+        "delivery_mode",
+        "delivery_channel",
+        "delivery_to",
+        "delivery_account_id",
+        "delivery_thread_id",
+        "enabled",
+        "created_at",
+        "updated_at",
+    }
+
     async def get_job(self, job_id: str) -> AutomationCronJob | None:
         """按 job_id 读取任务定义。"""
         return await self._session.get(AutomationCronJob, job_id)
@@ -43,6 +63,7 @@ class AutomationCronJobSqlRepository(BaseSqlRepository):
         **fields,
     ) -> AutomationCronJob:
         """创建或更新任务定义。"""
+        self._reject_unknown_fields(fields)
         defaults = {
             "run_at": None,
             "interval_seconds": None,
@@ -87,3 +108,9 @@ class AutomationCronJobSqlRepository(BaseSqlRepository):
         stmt = delete(AutomationCronJob).where(AutomationCronJob.job_id == job_id)
         await self._session.execute(stmt)
         await self.flush()
+
+    def _reject_unknown_fields(self, fields: dict[str, object]) -> None:
+        """阻止把未知字段挂到 ORM 实体上。"""
+        unexpected = set(fields) - self._UPDATABLE_FIELDS
+        if unexpected:
+            raise ValueError(f"unknown cron job fields: {sorted(unexpected)}")

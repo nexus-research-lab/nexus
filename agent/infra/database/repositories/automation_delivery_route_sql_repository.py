@@ -21,13 +21,24 @@ from agent.utils.utils import random_uuid
 class AutomationDeliveryRouteSqlRepository(BaseSqlRepository):
     """消息投递路由的 CRUD 仓储。"""
 
+    _UPDATABLE_FIELDS = {
+        "mode",
+        "channel",
+        "to",
+        "account_id",
+        "thread_id",
+        "enabled",
+        "created_at",
+        "updated_at",
+    }
+
     async def get_latest_route(self, agent_id: str) -> AutomationDeliveryRoute | None:
         """读取指定 agent 的最新路由配置。"""
         stmt = (
             select(AutomationDeliveryRoute)
             .where(AutomationDeliveryRoute.agent_id == agent_id)
             .order_by(
-                AutomationDeliveryRoute.created_at.desc(),
+                AutomationDeliveryRoute.updated_at.desc(),
                 AutomationDeliveryRoute.route_id.desc(),
             )
             .limit(1)
@@ -43,6 +54,7 @@ class AutomationDeliveryRouteSqlRepository(BaseSqlRepository):
         **fields,
     ) -> AutomationDeliveryRoute:
         """插入或更新路由配置。"""
+        self._reject_unknown_fields(fields)
         defaults = {
             "mode": "none",
             "channel": None,
@@ -70,3 +82,9 @@ class AutomationDeliveryRouteSqlRepository(BaseSqlRepository):
         await self.flush()
         await self.refresh(entity)
         return entity
+
+    def _reject_unknown_fields(self, fields: dict[str, object]) -> None:
+        """阻止把未知字段挂到 ORM 实体上。"""
+        unexpected = set(fields) - self._UPDATABLE_FIELDS
+        if unexpected:
+            raise ValueError(f"unknown delivery route fields: {sorted(unexpected)}")

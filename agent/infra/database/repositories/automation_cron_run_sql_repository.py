@@ -19,6 +19,8 @@ from agent.infra.database.models.automation_cron_run import AutomationCronRun
 from agent.infra.database.repositories.base_sql_repository import BaseSqlRepository
 from agent.utils.utils import random_uuid
 
+_MISSING = object()
+
 
 class AutomationCronRunSqlRepository(BaseSqlRepository):
     """定时任务执行记录的 CRUD 仓储。"""
@@ -65,23 +67,23 @@ class AutomationCronRunSqlRepository(BaseSqlRepository):
         *,
         run_id: str,
         status: str,
-        started_at: datetime | None = None,
-        finished_at: datetime | None = None,
+        started_at: datetime | None | object = _MISSING,
+        finished_at: datetime | None | object = _MISSING,
         attempts: int | None = None,
-        error_message: str | None = None,
+        error_message: str | None | object = _MISSING,
     ) -> AutomationCronRun | None:
         """更新执行状态和结果字段。"""
         entity = await self.get_run(run_id)
         if entity is None:
             return None
         entity.status = status
-        if started_at is not None:
+        if started_at is not _MISSING:
             entity.started_at = started_at
-        if finished_at is not None:
+        if finished_at is not _MISSING:
             entity.finished_at = finished_at
         if attempts is not None:
             entity.attempts = attempts
-        if error_message is not None:
+        if error_message is not _MISSING:
             entity.error_message = error_message
         await self.flush()
         await self.refresh(entity)

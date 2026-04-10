@@ -53,7 +53,7 @@ class AutomationSystemEventSqlRepository(BaseSqlRepository):
         """列出尚未终态处理的事件。"""
         stmt = (
             select(AutomationSystemEvent)
-            .where(AutomationSystemEvent.status.in_(("new", "processing")))
+            .where(AutomationSystemEvent.status == "new")
             .order_by(
                 AutomationSystemEvent.created_at.asc(),
                 AutomationSystemEvent.event_id.asc(),
@@ -77,6 +77,17 @@ class AutomationSystemEventSqlRepository(BaseSqlRepository):
     ) -> AutomationSystemEvent | None:
         """标记事件处理失败。"""
         return await self._mark_status(event_id, "failed", processed_at)
+
+    async def mark_processing(self, event_id: str) -> AutomationSystemEvent | None:
+        """标记事件正在处理中。"""
+        entity = await self._session.get(AutomationSystemEvent, event_id)
+        if entity is None:
+            return None
+        entity.status = "processing"
+        entity.processed_at = None
+        await self.flush()
+        await self.refresh(entity)
+        return entity
 
     async def _mark_status(
         self,
