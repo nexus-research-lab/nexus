@@ -360,6 +360,9 @@ def test_delivery_router_rejects_last_route_without_memory():
 def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkeypatch):
     async def scenario():
         from agent.service.channels.ws.ws_session_routing_sender import WsSessionRoutingSender
+        from agent.service.channels.ws.ws_session_replay_registry import (
+            ws_session_replay_registry,
+        )
         from agent.service.permission.permission_runtime_context import (
             permission_runtime_context,
         )
@@ -404,6 +407,8 @@ def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkey
             "resolve_session_sender",
             lambda key: active_sender if key == session_key else None,
         )
+        ws_session_replay_registry._session_sequences.clear()
+        ws_session_replay_registry._session_replay_buffers.clear()
 
         sender = WsSessionRoutingSender(fallback_sender)
         await sender.send_text(session_key=session_key, text="durable websocket delivery")
@@ -420,12 +425,15 @@ def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkey
         assert result_message.subtype == "success"
         assert result_message.result == "durable websocket delivery"
 
-        assert [message.role for message in active_sender.messages] == ["assistant", "result"]
-        assert len(active_sender.messages[0].content or []) == 1
-        assert active_sender.messages[0].content[0].type == "text"
-        assert active_sender.messages[0].content[0].text == "durable websocket delivery"
-        assert active_sender.messages[1].result == "durable websocket delivery"
-        assert active_sender.events == []
+        assert active_sender.messages == []
+        assert len(active_sender.events) == 2
+        assert [event.session_seq for event in active_sender.events] == [1, 2]
+        assert active_sender.events[0].event_type == "message"
+        assert active_sender.events[0].data["role"] == "assistant"
+        assert active_sender.events[0].data["content"] == [{"type": "text", "text": "durable websocket delivery"}]
+        assert active_sender.events[1].event_type == "message"
+        assert active_sender.events[1].data["role"] == "result"
+        assert active_sender.events[1].data["result"] == "durable websocket delivery"
         assert fallback_sender.events == []
 
     asyncio.run(scenario())

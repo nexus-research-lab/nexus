@@ -89,14 +89,9 @@ class WsSessionRoutingSender(MessageSender):
         if not persisted_assistant or not persisted_result:
             raise LookupError(f"websocket delivery target session is not available: {session_key}")
 
-        active_sender = permission_runtime_context.resolve_session_sender(session_key)
-        if active_sender is None:
-            logger.debug("📭 当前无活跃连接，跳过自动化实时推送: session=%s", session_key)
-            return
-
         try:
-            await active_sender.send(assistant_message)
-            await active_sender.send(result_message)
+            await self.send_message(assistant_message)
+            await self.send_message(result_message)
         except Exception as exc:
             # 中文注释：消息已先落库，实时推送失败不应回滚 durable delivery。
             logger.warning("⚠️ 自动化实时推送失败，消息已落库: session=%s error=%s", session_key, exc)
