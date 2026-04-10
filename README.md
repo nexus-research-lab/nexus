@@ -175,13 +175,14 @@ make stop
 Docker 构建与启动命令默认使用当前用户执行。
 如果当前用户还没有 Docker 权限，请先完成服务器上的 Docker 用户权限配置，再重新登录终端。
 
-生产部署默认把持久化目录挂载到 `${NEXUS_HOME_DIR:-./data/nexus}`，容器内路径固定为 `/home/agent/.nexus`。
-如果要挂到宿主机指定目录，例如 `/data/nexus`，启动前执行：
+生产部署默认使用单一宿主机根目录变量 `${HOST_DATA_DIR:-./data}`。
+其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`。
+如果要把数据统一放到宿主机目录 `/data`，启动前执行：
 
 ```bash
-export NEXUS_HOME_DIR=/data/nexus
-mkdir -p "$NEXUS_HOME_DIR"
-chown -R 1001:1001 "$NEXUS_HOME_DIR"
+export HOST_DATA_DIR=/data
+mkdir -p "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
+chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
 ```
 
 ## 关键配置

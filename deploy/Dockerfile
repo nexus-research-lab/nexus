@@ -50,7 +50,7 @@ RUN npm config set registry "${NPM_REGISTRY}" && \
 
 RUN groupadd --system --gid 1001 agent && \
     useradd --system --uid 1001 --gid agent --shell /bin/bash --create-home agent && \
-    mkdir -p /opt/app/deploy /home/agent/.nexus
+    mkdir -p /opt/app/deploy /home/agent/.nexus /home/agent/.claude
 
 COPY main.py pyproject.toml alembic.ini /opt/app/
 COPY alembic /opt/app/alembic

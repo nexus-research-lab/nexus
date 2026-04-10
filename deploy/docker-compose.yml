@@ -30,7 +30,8 @@ services:
       LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
     volumes:
-      - ${NEXUS_HOME_DIR:-./data/nexus}:/home/agent/.nexus
+      - ${HOST_DATA_DIR:-./data}/.nexus:/home/agent/.nexus
+      - ${HOST_DATA_DIR:-./data}/.claude:/home/agent/.claude
     expose:
       - "8010"
     healthcheck:
