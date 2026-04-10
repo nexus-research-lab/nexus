@@ -39,6 +39,7 @@ class HeartbeatStatus(AModel):
     next_run_at: datetime | None = None
     last_heartbeat_at: datetime | None = None
     last_ack_at: datetime | None = None
+    delivery_error: str | None = None
 
 
 class HeartbeatWakeResult(AModel):
@@ -93,7 +94,7 @@ class HeartbeatService:
         """启动 heartbeat 运行态。"""
         rows = await self._state_store.list_enabled_states()
         for row in rows:
-            config = self._config_from_row(row)
+            config, _delivery_error = self._config_from_row(row)
             await self._scheduler.sync_agent(config.agent_id, config)
         await self._scheduler.start()
 
@@ -107,7 +108,7 @@ class HeartbeatService:
 
     async def get_status(self, agent_id: str) -> HeartbeatStatus:
         """读取配置与调度运行态。"""
-        config, row = await self._load_config(agent_id)
+        config, row, delivery_error = await self._load_config(agent_id)
         await self._scheduler.sync_agent(agent_id, config)
         runtime = self._scheduler.get_runtime_status(agent_id)
         return HeartbeatStatus(
@@ -121,6 +122,7 @@ class HeartbeatService:
             next_run_at=runtime.get("next_run_at"),
             last_heartbeat_at=getattr(row, "last_heartbeat_at", None),
             last_ack_at=getattr(row, "last_ack_at", None),
+            delivery_error=delivery_error,
         )
 
     async def wake(
@@ -131,7 +133,7 @@ class HeartbeatService:
         text: str | None = None,
     ) -> HeartbeatWakeResult:
         """登记一次 heartbeat wake 请求。"""
-        config, _row = await self._load_config(agent_id)
+        config, _row, _delivery_error = await self._load_config(agent_id)
         await self._scheduler.sync_agent(agent_id, config)
         session_key = build_automation_main_session_key(agent_id)
         metadata = {"text": text} if text else {}
@@ -165,26 +167,36 @@ class HeartbeatService:
             scheduled=bool(wake.get("scheduled")),
         )
 
-    async def _load_config(self, agent_id: str) -> tuple[AutomationHeartbeatConfig, object | None]:
+    async def _load_config(
+        self,
+        agent_id: str,
+    ) -> tuple[AutomationHeartbeatConfig, object | None, str | None]:
         row = await self._state_store.get_state(agent_id)
         if row is None:
-            return AutomationHeartbeatConfig(agent_id=agent_id), None
-        return self._config_from_row(row), row
+            return AutomationHeartbeatConfig(agent_id=agent_id), None, None
+        config, delivery_error = self._config_from_row(row)
+        return config, row, delivery_error
 
     @staticmethod
-    def _config_from_row(row) -> AutomationHeartbeatConfig:
+    def _config_from_row(row) -> tuple[AutomationHeartbeatConfig, str | None]:
         """把持久化状态规范化为运行时配置。"""
         target_mode = str(row.target_mode)
         # 中文注释：Task 6 仅落 heartbeat runtime，不持久化 explicit 目标明细，
-        # 因此这里提前拒绝 explicit，避免调度后期才因缺少 channel/to 崩溃。
+        # 因此这里把 explicit 降级为 none，并通过状态字段显式暴露限制，
+        # 避免 start/get_status/wake 等入口因坏配置直接抛错。
+        delivery_error = None
         if target_mode == "explicit":
-            raise ValueError("heartbeat target_mode=explicit is not supported in Task 6 runtime")
-        return AutomationHeartbeatConfig(
-            agent_id=str(row.agent_id),
-            enabled=bool(row.enabled),
-            every_seconds=int(row.every_seconds),
-            target_mode=target_mode,
-            ack_max_chars=int(row.ack_max_chars),
+            target_mode = "none"
+            delivery_error = "heartbeat target_mode=explicit is not supported in Task 6 runtime"
+        return (
+            AutomationHeartbeatConfig(
+                agent_id=str(row.agent_id),
+                enabled=bool(row.enabled),
+                every_seconds=int(row.every_seconds),
+                target_mode=target_mode,
+                ack_max_chars=int(row.ack_max_chars),
+            ),
+            delivery_error,
         )
 
 

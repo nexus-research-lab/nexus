@@ -77,52 +77,53 @@ class HeartbeatDispatcher:
         events = await self._claim_events(agent_id)
         immediate_wake_requests = self._wake_service.drain_now(agent_id)
         deferred_wake_requests = self._wake_service.list_next_heartbeat(agent_id)
-        instruction = await self._build_instruction(
-            agent_id,
-            events,
-            immediate_wake_requests,
-            deferred_wake_requests,
-        )
-
-        if not instruction.strip():
-            self._wake_service.clear(session_key)
-            await self._finish_events(events, succeeded=True)
-            return HeartbeatDispatchResult(dispatched=False, delivered=False, acknowledged=False)
-
-        result = await self._orchestrator.run_turn(
-            AutomationRunContext(
-                agent_id=agent_id,
-                session_key=session_key,
-                instruction=instruction,
-                trigger_kind="heartbeat",
-                delivery_mode=config.target_mode,
-                metadata={"event_ids": [item.event_id for item in events]},
+        finalize_as_success = False
+        try:
+            instruction = await self._build_instruction(
+                agent_id,
+                events,
+                immediate_wake_requests,
+                deferred_wake_requests,
             )
-        )
-        if not result.ok:
-            self._wake_service.clear(session_key)
-            await self._finish_events(events, succeeded=False)
-            return HeartbeatDispatchResult(dispatched=False, delivered=False, acknowledged=False)
 
-        response_text = await self._extract_result_text(session_key, result.round_id)
-        filtered = filter_heartbeat_response(response_text, ack_max_chars=config.ack_max_chars)
-        delivered = False
-        if filtered.should_deliver and filtered.text.strip() and config.target_mode != "none":
-            await self._delivery_router.send_text(
-                agent_id=agent_id,
+            if not instruction.strip():
+                finalize_as_success = True
+                return HeartbeatDispatchResult(dispatched=False, delivered=False, acknowledged=False)
+
+            result = await self._orchestrator.run_turn(
+                AutomationRunContext(
+                    agent_id=agent_id,
+                    session_key=session_key,
+                    instruction=instruction,
+                    trigger_kind="heartbeat",
+                    delivery_mode=config.target_mode,
+                    metadata={"event_ids": [item.event_id for item in events]},
+                )
+            )
+            if not result.ok:
+                return HeartbeatDispatchResult(dispatched=False, delivered=False, acknowledged=False)
+
+            finalize_as_success = True
+            response_text = await self._extract_result_text(session_key, result.round_id)
+            filtered = filter_heartbeat_response(response_text, ack_max_chars=config.ack_max_chars)
+            delivered = False
+            if filtered.should_deliver and filtered.text.strip() and config.target_mode != "none":
+                await self._delivery_router.send_text(
+                    agent_id=agent_id,
+                    text=filtered.text,
+                    target={"mode": config.target_mode},
+                )
+                delivered = True
+
+            return HeartbeatDispatchResult(
+                dispatched=True,
+                delivered=delivered,
+                acknowledged=not filtered.should_deliver,
                 text=filtered.text,
-                target={"mode": config.target_mode},
             )
-            delivered = True
-
-        self._wake_service.clear(session_key)
-        await self._finish_events(events, succeeded=True)
-        return HeartbeatDispatchResult(
-            dispatched=True,
-            delivered=delivered,
-            acknowledged=not filtered.should_deliver,
-            text=filtered.text,
-        )
+        finally:
+            self._wake_service.clear(session_key)
+            await self._finish_events(events, succeeded=finalize_as_success)
 
     async def _build_instruction(
         self,

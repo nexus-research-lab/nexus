@@ -29,6 +29,9 @@ class FakeEventQueue:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
         self.pending_events: list[object] = []
+        self.processing_ids: list[str] = []
+        self.processed_ids: list[str] = []
+        self.failed_ids: list[str] = []
 
     async def enqueue(self, **fields):
         self.calls.append(fields)
@@ -38,15 +41,18 @@ class FakeEventQueue:
         return list(self.pending_events)
 
     async def mark_processing(self, event_id: str):
-        del event_id
+        self.processing_ids.append(event_id)
+        for item in self.pending_events:
+            if getattr(item, "event_id", None) == event_id:
+                return item
         return None
 
     async def mark_processed(self, event_id: str):
-        del event_id
+        self.processed_ids.append(event_id)
         return None
 
     async def mark_failed(self, event_id: str):
-        del event_id
+        self.failed_ids.append(event_id)
         return None
 
 
@@ -200,6 +206,14 @@ class FakeDeliveryRouter:
         return target
 
 
+class FailingDeliveryRouter(FakeDeliveryRouter):
+    """模拟投递阶段失败。"""
+
+    async def send_text(self, *, agent_id: str, text: str, target):
+        await super().send_text(agent_id=agent_id, text=text, target=target)
+        raise RuntimeError("delivery boom")
+
+
 def _prepare_service_import(monkeypatch) -> None:
     monkeypatch.setenv("ENV_FILE", "/dev/null")
     monkeypatch.setenv("DEBUG", "false")
@@ -342,6 +356,15 @@ def test_heartbeat_service_rejects_persisted_explicit_target_mode(monkeypatch):
 
         service = HeartbeatService(
             state_store=FakeStateStore(
+                row=SimpleNamespace(
+                    agent_id="nexus",
+                    enabled=True,
+                    every_seconds=60,
+                    target_mode="explicit",
+                    ack_max_chars=120,
+                    last_heartbeat_at=None,
+                    last_ack_at=None,
+                ),
                 enabled_rows=[
                     SimpleNamespace(
                         agent_id="nexus",
@@ -359,8 +382,14 @@ def test_heartbeat_service_rejects_persisted_explicit_target_mode(monkeypatch):
             system_event_queue=FakeEventQueue(),
         )
 
-        with pytest.raises(ValueError, match="explicit"):
-            await service.start()
+        await service.start()
+
+        status = await service.get_status("nexus")
+        wake = await service.wake(agent_id="nexus", mode="now")
+
+        assert status.target_mode == "none"
+        assert status.delivery_error == "heartbeat target_mode=explicit is not supported in Task 6 runtime"
+        assert wake.scheduled is True
 
     _prepare_service_import(monkeypatch)
     asyncio.run(scenario())
@@ -451,6 +480,58 @@ def test_heartbeat_dispatcher_consumes_wake_bookkeeping(monkeypatch):
         assert "urgent ping" in orchestrator.calls[0].instruction
         assert "follow up soon" in orchestrator.calls[0].instruction
         assert wake_service.drain_now("nexus") == []
+        assert wake_service.list_next_heartbeat("nexus") == []
+
+    _prepare_service_import(monkeypatch)
+    asyncio.run(scenario())
+
+
+def test_heartbeat_dispatcher_cleans_up_after_delivery_failure(monkeypatch):
+    async def scenario():
+        from agent.schema.model_automation import AutomationHeartbeatConfig
+        from agent.service.automation.heartbeat.heartbeat_dispatcher import HeartbeatDispatcher
+
+        wake_service = FakeWakeService()
+        wake_service.request_next_heartbeat(
+            agent_id="nexus",
+            session_key="agent:nexus:automation:dm:main",
+            metadata={"text": "follow up soon"},
+        )
+        event_queue = FakeEventQueue()
+        event_queue.pending_events = [
+            SimpleNamespace(
+                event_id="evt-1",
+                event_type="heartbeat.wake",
+                payload={"agent_id": "nexus", "text": "queued event"},
+            )
+        ]
+        dispatcher = HeartbeatDispatcher(
+            orchestrator=FakeOrchestrator(
+                result=SimpleNamespace(ok=True, round_id="round-1")
+            ),
+            delivery_router=FailingDeliveryRouter(),
+            system_event_queue=event_queue,
+            wake_service=wake_service,
+            workspace_reader=FakeWorkspaceReader(""),
+            message_store=FakeMessageStore(
+                messages=[SimpleNamespace(round_id="round-1", role="result", result="alert: deliver this")]
+            ),
+        )
+
+        with pytest.raises(RuntimeError, match="delivery boom"):
+            await dispatcher.dispatch(
+                agent_id="nexus",
+                config=AutomationHeartbeatConfig(
+                    agent_id="nexus",
+                    enabled=True,
+                    every_seconds=60,
+                    target_mode="last",
+                ),
+            )
+
+        assert event_queue.processing_ids == ["evt-1"]
+        assert event_queue.processed_ids == ["evt-1"]
+        assert event_queue.failed_ids == []
         assert wake_service.list_next_heartbeat("nexus") == []
 
     _prepare_service_import(monkeypatch)
