@@ -45,6 +45,42 @@ export interface ApiAgent {
     status: string;
 }
 
+/** API 响应中的 Agent 会话数据（后端格式） */
+export interface ApiAgentSession {
+    session_key: string;
+    agent_id: string;
+    session_id: string | null;
+    room_session_id?: string | null;
+    room_id?: string | null;
+    conversation_id?: string | null;
+    channel_type: string;
+    chat_type: string;
+    status: string;
+    created_at: string;
+    last_activity: string;
+    title: string | null;
+    message_count: number;
+    options: Record<string, any> | null;
+}
+
+/** 标准化的 Agent 会话数据结构 */
+export interface AgentSession {
+    session_key: string;
+    agent_id: string;
+    session_id: string | null;
+    room_session_id: string | null;
+    room_id: string | null;
+    conversation_id: string | null;
+    channel_type: string;
+    chat_type: string;
+    status: string;
+    created_at: number;
+    last_activity_at: number;
+    title: string;
+    message_count: number;
+    options: Record<string, unknown>;
+}
+
 // ==================== 操作参数 ====================
 
 /** 创建 Agent 参数 */

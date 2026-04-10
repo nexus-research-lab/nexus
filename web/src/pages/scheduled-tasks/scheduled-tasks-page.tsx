@@ -68,7 +68,7 @@ export function ScheduledTasksPage() {
   const handle_create_success = (task: ScheduledTaskItem) => {
     void refresh_tasks_best_effort(
       automation,
-      automation.agent_id,
+      task.agent_id,
       {
         title: "任务已创建",
         message: `${task.name} 已加入自动化任务列表`,
