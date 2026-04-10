@@ -15,6 +15,7 @@ from agent.api.agent.api_agent import router as agent_router
 from agent.api.agent.api_agent_workspace import router as agent_workspace_router
 from agent.api.auth.api_auth import router as auth_router
 from agent.api.capability.api_connector import router as connector_router
+from agent.api.capability.api_scheduled_task import router as scheduled_task_router
 from agent.api.capability.api_skill import router as capability_skill_router
 from agent.api.chat.websocket_server import router as websocket_router
 from agent.api.common.api_runtime import router as runtime_router
@@ -38,6 +39,7 @@ api_router.include_router(auth_router, prefix="/v1")
 api_router.include_router(agent_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
 api_router.include_router(agent_workspace_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
 api_router.include_router(connector_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
+api_router.include_router(scheduled_task_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
 api_router.include_router(capability_skill_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
 
 # Include to session router
