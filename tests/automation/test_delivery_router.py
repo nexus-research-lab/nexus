@@ -166,6 +166,31 @@ class FallbackEventRecorder:
         self.events.append(event)
 
 
+class FailFirstEventRecorder:
+    """首条 event 推送失败，但后续推送继续工作的替身。"""
+
+    def __init__(self) -> None:
+        self.events = []
+        self.failures = 0
+
+    async def send_message(self, message) -> None:
+        raise AssertionError(f"unexpected direct message push: {message}")
+
+    async def send_stream_message(self, message) -> None:
+        raise AssertionError(f"unexpected stream push: {message}")
+
+    async def send_event_message(self, event) -> None:
+        self.events.append(event)
+        if self.failures == 0:
+            self.failures += 1
+            raise RuntimeError("simulated first push failure")
+
+    async def send(self, message) -> None:
+        from agent.service.channels.message_sender import MessageSender
+
+        await MessageSender.send(self, message)
+
+
 def test_resolve_delivery_target_defaults_to_none():
     from agent.service.automation.delivery.delivery_target import resolve_delivery_target
 
@@ -434,6 +459,75 @@ def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkey
         assert active_sender.events[1].event_type == "message"
         assert active_sender.events[1].data["role"] == "result"
         assert active_sender.events[1].data["result"] == "durable websocket delivery"
+        assert fallback_sender.events == []
+
+    asyncio.run(scenario())
+
+
+def test_websocket_delivery_buffers_later_events_after_first_live_push_failure(tmp_path, monkeypatch):
+    async def scenario():
+        from agent.service.channels.ws.ws_session_routing_sender import WsSessionRoutingSender
+        from agent.service.channels.ws.ws_session_replay_registry import (
+            ws_session_replay_registry,
+        )
+        from agent.service.permission.permission_runtime_context import (
+            permission_runtime_context,
+        )
+        from agent.service.session.session_router import build_session_key
+        from agent.service.session.session_store import session_store
+        from agent.service.session.session_repository import session_repository
+
+        workspace_path = tmp_path / "ws-agent-fail-once"
+        workspace_path.mkdir(parents=True, exist_ok=True)
+
+        async def resolve_workspace_path(_agent_id: str) -> Path:
+            return workspace_path
+
+        monkeypatch.setattr(
+            session_repository,
+            "_resolve_workspace_path",
+            resolve_workspace_path,
+        )
+        monkeypatch.setattr(
+            session_repository,
+            "_iter_known_workspace_paths",
+            lambda: [workspace_path],
+        )
+
+        session_key = build_session_key(
+            channel="ws",
+            chat_type="dm",
+            ref="delivery-fail-once",
+            agent_id="nexus",
+        )
+        created = await session_store.create_session_by_key(
+            session_key=session_key,
+            channel_type="websocket",
+            chat_type="dm",
+        )
+        assert created is not None
+
+        active_sender = FailFirstEventRecorder()
+        fallback_sender = FallbackEventRecorder()
+        monkeypatch.setattr(
+            permission_runtime_context,
+            "resolve_session_sender",
+            lambda key: active_sender if key == session_key else None,
+        )
+        ws_session_replay_registry._session_sequences.clear()
+        ws_session_replay_registry._session_replay_buffers.clear()
+
+        sender = WsSessionRoutingSender(fallback_sender)
+        await sender.send_text(session_key=session_key, text="deliver despite first push failure")
+
+        replay_buffer = list(
+            ws_session_replay_registry._session_replay_buffers.get(session_key, ())
+        )
+
+        assert [event.session_seq for event in replay_buffer] == [1, 2]
+        assert replay_buffer[0].data["role"] == "assistant"
+        assert replay_buffer[1].data["role"] == "result"
+        assert [event.session_seq for event in active_sender.events] == [1, 2]
         assert fallback_sender.events == []
 
     asyncio.run(scenario())
