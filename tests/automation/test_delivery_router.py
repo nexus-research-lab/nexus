@@ -429,8 +429,8 @@ def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkey
         fallback_sender = FallbackEventRecorder()
         monkeypatch.setattr(
             permission_runtime_context,
-            "resolve_session_sender",
-            lambda key: active_sender if key == session_key else None,
+            "resolve_session_senders",
+            lambda key: (active_sender,) if key == session_key else (),
         )
         ws_session_replay_registry._session_sequences.clear()
         ws_session_replay_registry._session_replay_buffers.clear()
@@ -511,8 +511,8 @@ def test_websocket_delivery_buffers_later_events_after_first_live_push_failure(t
         fallback_sender = FallbackEventRecorder()
         monkeypatch.setattr(
             permission_runtime_context,
-            "resolve_session_sender",
-            lambda key: active_sender if key == session_key else None,
+            "resolve_session_senders",
+            lambda key: (active_sender,) if key == session_key else (),
         )
         ws_session_replay_registry._session_sequences.clear()
         ws_session_replay_registry._session_replay_buffers.clear()
