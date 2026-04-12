@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from main import create_app
+
 
 class FakePayload:
     """提供与 AModel 兼容的最小导出接口。"""
@@ -120,3 +122,21 @@ def test_post_heartbeat_wake_route_delegates_to_service(monkeypatch):
             },
         )
     ]
+
+
+def test_root_health_route_stays_available(monkeypatch):
+    monkeypatch.setenv("ENV_FILE", "/dev/null")
+    monkeypatch.setenv("DEBUG", "false")
+
+    with TestClient(create_app()) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": "0000",
+        "message": "success",
+        "success": True,
+        "data": {
+            "status": "ok",
+        },
+    }
