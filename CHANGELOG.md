@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - 重构 `/app` 与 `launcher` 前端视觉骨架：收口 surface recipe、统一目录卡片语法、移除多余玻璃壳与中间 wrapper，整体层级更薄、更接近桌面端结构。
+- Agent Options 全面接入 i18n：导航、标题、身份/设定/技能/工具页文案统一走国际化字典，工具预授权说明补齐中英文描述，并明确默认语言兜底为中文、首次加载优先遵循浏览器语言。
 - 简化 Launcher Hero、右侧 Nexus 信息面板与输入/动作区结构，恢复 `/app` 首页原有 `nexus` ASCII 文字动画入口。
 - 定时任务前后端契约升级为结构化自动化模型：前端不再使用扁平 `cron_expression/source_type` 占位字段，统一改为 `schedule`、`session_target`、`delivery` 结构。
 - 技能市场代码从 `service/workspace/` 迁移至 `service/capability/skills/`，API 从 `api/agent/` 迁移至 `api/capability/`。

@@ -7,54 +7,63 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 
 /** 权限模式选项 */
-const PERMISSION_MODES = [
+const PERMISSION_MODES: ReadonlyArray<{
+  value: string;
+  label_key: TranslationKey;
+  description_key: TranslationKey;
+}> = [
   {
     value: "default",
-    label: "默认（继续前询问）",
-    description: "只读工具会自动预先授权，其它操作仍需权限。",
+    label_key: "agent_options.advanced.permission.default.label",
+    description_key: "agent_options.advanced.permission.default.description",
   },
   {
     value: "plan",
-    label: "规划模式",
-    description: "继承默认的只读工具集，并会在执行行为前呈现计划。",
+    label_key: "agent_options.advanced.permission.plan.label",
+    description_key: "agent_options.advanced.permission.plan.description",
   },
   {
     value: "acceptEdits",
-    label: "自动授权文件编辑",
-    description: "默认的只读工具会自动预先授权，但执行仍被禁用。",
+    label_key: "agent_options.advanced.permission.accept_edits.label",
+    description_key: "agent_options.advanced.permission.accept_edits.description",
   },
   {
     value: "bypassPermissions",
-    label: "跳过所有权限检查",
-    description: "所有工具都会在无审批情况下执行。",
+    label_key: "agent_options.advanced.permission.bypass.label",
+    description_key: "agent_options.advanced.permission.bypass.description",
   },
 ] as const;
 
 /** 常用工具列表 */
-const AVAILABLE_TOOLS = [
-  { name: "Task", description: "Executes tasks" },
-  { name: "TaskOutput", description: "Displays task output" },
-  { name: "Bash", description: "Executes shell commands in your environment" },
-  { name: "Glob", description: "Matches file names and patterns" },
-  { name: "Grep", description: "Searches for patterns in files" },
-  { name: "ExitPlanMode", description: "Exits planning mode" },
-  { name: "Read", description: "Reads files" },
-  { name: "Edit", description: "Edits files" },
-  { name: "Write", description: "Creates or overwrites files" },
-  { name: "NotebookEdit", description: "Edits Jupyter Notebooks" },
-  { name: "WebFetch", description: "Fetches web pages" },
-  { name: "TodoWrite", description: "Creates or updates to-do lists" },
+const AVAILABLE_TOOLS: ReadonlyArray<{
+  name: string;
+  description_key: TranslationKey;
+}> = [
+  { name: "Task", description_key: "agent_options.advanced.tool.task" },
+  { name: "TaskOutput", description_key: "agent_options.advanced.tool.task_output" },
+  { name: "Bash", description_key: "agent_options.advanced.tool.bash" },
+  { name: "Glob", description_key: "agent_options.advanced.tool.glob" },
+  { name: "Grep", description_key: "agent_options.advanced.tool.grep" },
+  { name: "ExitPlanMode", description_key: "agent_options.advanced.tool.exit_plan_mode" },
+  { name: "Read", description_key: "agent_options.advanced.tool.read" },
+  { name: "Edit", description_key: "agent_options.advanced.tool.edit" },
+  { name: "Write", description_key: "agent_options.advanced.tool.write" },
+  { name: "NotebookEdit", description_key: "agent_options.advanced.tool.notebook_edit" },
+  { name: "WebFetch", description_key: "agent_options.advanced.tool.web_fetch" },
+  { name: "TodoWrite", description_key: "agent_options.advanced.tool.todo_write" },
   {
     name: "WebSearch",
-    description: "Performs web searches with domain filtering",
+    description_key: "agent_options.advanced.tool.web_search",
   },
-  { name: "KillShell", description: "Kills the shell process" },
-  { name: "AskUserQuestion", description: "Asks the user a question" },
-  { name: "Skill", description: "Executes a skill" },
-  { name: "EnterPlanMode", description: "Enters planning mode" },
+  { name: "KillShell", description_key: "agent_options.advanced.tool.kill_shell" },
+  { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
+  { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
+  { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
 ];
 
 interface AgentOptionsAdvancedTabProps {
@@ -71,6 +80,8 @@ export function AgentOptionsAdvancedTab({
   allowedTools,
   onToggleTool,
 }: AgentOptionsAdvancedTabProps) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       {/* 权限模式 */}
@@ -78,14 +89,14 @@ export function AgentOptionsAdvancedTab({
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
-              Runtime Policy
+              {t("agent_options.advanced.runtime_policy")}
             </p>
             <h3 className="mt-1 text-[15px] font-semibold text-(--text-strong)">
-              权限控制
+              {t("agent_options.advanced.permission_control")}
             </h3>
           </div>
           <p className="max-w-[240px] text-right text-xs leading-5 text-(--text-soft)">
-            这里决定 Agent 在执行命令、编辑文件和联网操作时的审批边界。
+            {t("agent_options.advanced.permission_control_hint")}
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -99,9 +110,9 @@ export function AgentOptionsAdvancedTab({
                   ? "dialog-card-active"
                   : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
               )}
-            >
+              >
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[13px] font-semibold">{pm.label}</span>
+                <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
                 {permissionMode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <svg
@@ -123,7 +134,7 @@ export function AgentOptionsAdvancedTab({
                 )}
               </div>
               <p className="text-[12px] leading-5 text-muted-foreground">
-                {pm.description}
+                {t(pm.description_key)}
               </p>
             </button>
           ))}
@@ -133,10 +144,7 @@ export function AgentOptionsAdvancedTab({
         {permissionMode === "bypassPermissions" &&
           allowedTools.length > 0 && (
             <div className="radius-shell-md border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] p-4 text-xs leading-relaxed text-(--warning)">
-              `bypassPermissions` 会放行所有工具，`allowed_tools`
-              只代表预授权集合，并不能限制其它工具。
-              如果你想在全放行模式下屏蔽个别危险工具，请改用
-              `disallowed_tools`。
+              {t("agent_options.advanced.bypass_warning")}
             </div>
           )}
       </div>
@@ -145,14 +153,14 @@ export function AgentOptionsAdvancedTab({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
-              Tool Access
+              {t("agent_options.advanced.tool_access")}
             </p>
             <h3 className="mt-1 text-[15px] font-semibold text-(--text-strong)">
-              工具预授权
+              {t("agent_options.advanced.tool_access")}
             </h3>
           </div>
           <span className="text-[11px] text-(--text-soft)">
-            已启用 {allowedTools.length} 个工具
+            {t("agent_options.advanced.enabled_tools", { count: allowedTools.length })}
           </span>
         </div>
 
@@ -175,10 +183,9 @@ export function AgentOptionsAdvancedTab({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-medium text-[color:color-mix(in_srgb,var(--warning)_80%,white)]">安全提示</p>
+            <p className="text-sm font-medium text-[color:color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
             <p className="mt-1 text-xs leading-relaxed text-[color:color-mix(in_srgb,var(--warning)_70%,white)]">
-              被选中的工具将被`预先授权`，Agent
-              调用这些工具时将不会请求您的确认。请仅为您完全信任的工具开启此选项。
+              {t("agent_options.advanced.security_hint")}
             </p>
           </div>
         </div>
@@ -195,7 +202,7 @@ export function AgentOptionsAdvancedTab({
                 <div className="mr-4 flex-1">
                   <div className="text-[13px] font-semibold">{tool.name}</div>
                   <div className="mt-1 text-[12px] leading-5 text-muted-foreground">
-                    {tool.description}
+                    {t(tool.description_key)}
                   </div>
                 </div>
                 <GlassSwitch

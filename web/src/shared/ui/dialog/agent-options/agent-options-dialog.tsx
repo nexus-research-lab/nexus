@@ -22,6 +22,7 @@ import {
   DIALOG_HEADER_LEADING_CLASS_NAME,
   getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { AgentOptionsNav, type TabKey } from "./agent-options-nav";
 import { AgentOptionsIdentityTab } from "./agent-options-identity-tab";
@@ -68,13 +69,14 @@ export function AgentOptions({
   initial_description = "",
   initial_vibe_tags = [],
 }: AgentOptionsProps) {
+  const { t } = useI18n();
   const sourceOptions = initial_options as AgentDialogInitialOptions;
 
   // ---- 导航状态 ----
   const [activeTab, setActiveTab] = useState<TabKey>("identity");
 
   // ---- Identity 状态 ----
-  const [title, setTitle] = useState(initial_title || "Agent");
+  const [title, setTitle] = useState(initial_title || t("agent_options.default_name"));
   const [avatar, setAvatar] = useState(initial_avatar);
   const [description, setDescription] = useState(initial_description);
   const [vibeTags, setVibeTags] = useState<string[]>(initial_vibe_tags);
@@ -106,7 +108,7 @@ export function AgentOptions({
     if (!is_open) return;
     const opts = initial_options as AgentDialogInitialOptions;
     setActiveTab("identity");
-    setTitle(initial_title || "Agent");
+    setTitle(initial_title || t("agent_options.default_name"));
     setAvatar(initial_avatar);
     setDescription(initial_description);
     setVibeTags(initial_vibe_tags);
@@ -117,7 +119,7 @@ export function AgentOptions({
     setDisallowedTools(opts.disallowed_tools || []);
     setNameValidation(null);
     setIsValidatingName(false);
-  }, [initial_avatar, initial_description, initial_options, initial_title, initial_vibe_tags, is_open]);
+  }, [initial_avatar, initial_description, initial_options, initial_title, initial_vibe_tags, is_open, t]);
 
   useEffect(() => {
     if (!is_open) {
@@ -163,7 +165,9 @@ export function AgentOptions({
             is_valid: false,
             is_available: false,
             reason:
-              error instanceof Error ? error.message : "名称校验失败",
+              error instanceof Error
+                ? error.message
+                : t("agent_options.identity.validation_failed"),
             workspace_path: null,
           });
         }
@@ -176,7 +180,7 @@ export function AgentOptions({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [title, is_open, on_validate_name]);
+  }, [title, is_open, on_validate_name, t]);
 
   // ---- 切换工具授权 ----
   const toggleTool = (
@@ -244,18 +248,18 @@ export function AgentOptions({
             </div>
             <div className="min-w-0">
               <h2 className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]">
-                {mode === "create" ? "创建 Agent" : title}
+                {mode === "create" ? t("agent_options.title_create") : title}
               </h2>
               {mode === "edit" && agent_id ? (
-                <p className="dialog-subtitle">ID: {agent_id}</p>
+                <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agent_id}</p>
               ) : (
-                <p className="dialog-subtitle">配置身份、技能、权限和行为方式</p>
+                <p className="dialog-subtitle">{t("agent_options.subtitle_create")}</p>
               )}
             </div>
           </div>
           <button
             className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            aria-label="关闭对话框"
+            aria-label={t("agent_options.close_dialog")}
             onClick={on_close}
             type="button"
           >
@@ -328,7 +332,7 @@ export function AgentOptions({
               }}
               type="button"
             >
-              删除 Agent
+              {t("agent_options.delete_agent")}
             </button>
           ) : null}
           <button
@@ -336,7 +340,7 @@ export function AgentOptions({
             onClick={on_close}
             type="button"
           >
-            取消
+            {t("common.cancel")}
           </button>
           <button
             className={getDialogActionClassName(canSave ? "primary" : "default")}
@@ -344,7 +348,7 @@ export function AgentOptions({
             disabled={!canSave}
             type="button"
           >
-            {mode === "create" ? "创建 Agent" : "保存更改"}
+            {mode === "create" ? t("agent_options.title_create") : t("agent_options.save_changes")}
           </button>
         </div>
       </div>

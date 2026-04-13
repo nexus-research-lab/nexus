@@ -11,6 +11,7 @@ import { useState, useCallback } from "react";
 import { Plus, X as XIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AgentNameValidationResult } from "@/types/agent";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { getIconAvatarSrc } from "@/lib/utils";
 import { AVAILABLE_MODELS } from "./agent-options-constants";
@@ -45,6 +46,7 @@ export function AgentOptionsIdentityTab({
   nameValidation,
   isValidatingName,
 }: AgentOptionsIdentityTabProps) {
+  const { t } = useI18n();
   const [tagInput, setTagInput] = useState("");
 
   /** 添加标签 */
@@ -83,7 +85,7 @@ export function AgentOptionsIdentityTab({
             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
               {getIconAvatarSrc(avatar) ? (
                 <img
-                  alt="agent-avatar"
+                  alt={t("agent_options.identity.avatar_alt")}
                   className="h-full w-full object-cover"
                   src={getIconAvatarSrc(avatar) ?? undefined}
                 />
@@ -93,14 +95,14 @@ export function AgentOptionsIdentityTab({
             </div>
             <div className="min-w-0 flex-1 space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
-                Name <span className="text-red-500">*</span>
+                {t("agent_options.identity.name")} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => onTitleChange(e.target.value)}
                 className="dialog-input rounded-xl flex h-10 w-full px-3.5 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                placeholder="例如：Coding Assistant"
+                placeholder={t("agent_options.identity.name_placeholder")}
               />
             </div>
           </div>
@@ -117,7 +119,7 @@ export function AgentOptionsIdentityTab({
 
           <div className="min-h-5 text-xs">
             {isValidatingName ? (
-              <span className="text-muted-foreground">正在校验名称...</span>
+              <span className="text-muted-foreground">{t("agent_options.identity.validating_name")}</span>
             ) : null}
             {!isValidatingName && nameValidation?.reason ? (
               <span className="text-red-500">{nameValidation.reason}</span>
@@ -126,7 +128,9 @@ export function AgentOptionsIdentityTab({
               nameValidation?.is_valid &&
               nameValidation?.is_available ? (
               <span className="text-emerald-600">
-                名称可用，工作区将自动创建到：{nameValidation.workspace_path}
+                {t("agent_options.identity.name_available", {
+                  path: nameValidation.workspace_path ?? "",
+                })}
               </span>
             ) : null}
           </div>
@@ -134,7 +138,7 @@ export function AgentOptionsIdentityTab({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold text-(--text-muted)">Vibe Tags</label>
+            <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.vibe_tags")}</label>
             <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 {vibeTags.map((tag) => (
@@ -161,7 +165,7 @@ export function AgentOptionsIdentityTab({
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={handleTagKeyDown}
                     className="dialog-input rounded-lg h-7 w-24 px-2 text-xs text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none transition-all"
-                    placeholder="添加标签"
+                    placeholder={t("agent_options.identity.add_tag")}
                   />
                   <button
                     type="button"
@@ -177,7 +181,7 @@ export function AgentOptionsIdentityTab({
 
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">
-              Model Provider <span className="text-red-500">*</span>
+              {t("agent_options.identity.model")} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
@@ -214,13 +218,13 @@ export function AgentOptionsIdentityTab({
       </div>
 
       <div className="space-y-2">
-        <label className="text-[11px] font-semibold text-(--text-muted)">Description</label>
+        <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.description")}</label>
         <textarea
           value={description}
           onChange={(e) => onDescriptionChange(e.target.value)}
           className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
           rows={3}
-          placeholder="描述此 Agent 的目标或背景信息..."
+          placeholder={t("agent_options.identity.description_placeholder")}
         />
       </div>
     </div>
