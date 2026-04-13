@@ -15,9 +15,9 @@ from typing import Any, Dict, Optional
 
 from claude_agent_sdk import CanUseTool, ClaudeAgentOptions, ClaudeSDKClient
 
-from agent.service.session.session_store import session_store
-from agent.service.session.session_router import parse_session_key
 from agent.infra.server.common.base_exception import ServerException
+from agent.service.session.session_router import parse_session_key
+from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
 
@@ -56,11 +56,11 @@ class SessionManager:
         return None
 
     async def create_session(
-        self,
-        session_key: str,
-        can_use_tool: Optional[CanUseTool],
-        session_id: Optional[str] = None,
-        session_options: Optional[Dict[str, Any]] = None,
+            self,
+            session_key: str,
+            can_use_tool: Optional[CanUseTool],
+            session_id: Optional[str] = None,
+            session_options: Optional[Dict[str, Any]] = None,
     ) -> ClaudeSDKClient:
         """创建新会话或返回现有会话。"""
         if session_key in self._sessions:
@@ -193,9 +193,9 @@ class SessionManager:
                 logger.warning(f"⚠️ 中断 SDK 会话失败: key={session_key}, error={exc}")
 
         existed = (
-            session_key in self._sessions
-            or session_key in self._locks
-            or session_key in self._key_sdk_map
+                session_key in self._sessions
+                or session_key in self._locks
+                or session_key in self._key_sdk_map
         )
         self.remove_session(session_key)
         return existed
@@ -203,8 +203,8 @@ class SessionManager:
     def invalidate_session(self, session_key: str, reason: str | None = None) -> bool:
         """淘汰已损坏的会话缓存，不再尝试复用。"""
         existed = (
-            session_key in self._sessions
-            or session_key in self._key_sdk_map
+                session_key in self._sessions
+                or session_key in self._key_sdk_map
         )
         if reason:
             logger.warning(f"⚠️ 淘汰失效 SDK 会话: key={session_key}, reason={reason}")

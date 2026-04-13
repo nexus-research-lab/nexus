@@ -78,7 +78,7 @@ export function AgentOptions({
   const [avatar, setAvatar] = useState(initial_avatar);
   const [description, setDescription] = useState(initial_description);
   const [vibeTags, setVibeTags] = useState<string[]>(initial_vibe_tags);
-  const [model, setModel] = useState(sourceOptions.model || "glm-5");
+  const [model, setModel] = useState(sourceOptions.model || "glm-5.1");
 
   // ---- Persona 状态 ----
   const [systemPrompt, setSystemPrompt] = useState(
@@ -110,7 +110,7 @@ export function AgentOptions({
     setAvatar(initial_avatar);
     setDescription(initial_description);
     setVibeTags(initial_vibe_tags);
-    setModel(opts.model || "glm-5");
+    setModel(opts.model || "glm-5.1");
     setSystemPrompt(opts.system_prompt || "");
     setPermissionMode(opts.permission_mode || "default");
     setAllowedTools(opts.allowed_tools || []);

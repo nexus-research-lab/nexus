@@ -91,6 +91,9 @@ class AgentRuntime:
 
         sdk_options.setdefault("stderr", handle_sdk_stderr)
 
+        # 暂时移除 model
+        del sdk_options["model"]
+
         async def can_use_tool(
             name: str,
             data: dict[str, Any],
