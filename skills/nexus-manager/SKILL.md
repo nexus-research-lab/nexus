@@ -7,25 +7,13 @@ description: 管理 Nexus 的 Agent、Room、Workspace 与 Skill 系统操作。
 
 管理 Nexus 平台的 Agent、Room、Workspace 与 Skill。通过 CLI 工具执行系统操作。
 
-CLI 工具路径：`python3 "{project_root}/agent/cli.py"`
+CLI 工具路径：`go run "{project_root}/cmd/nexusctl"`
 
 ## CLI 输出约定
 
-- 默认调用不要加 `--verbose`，CLI 正常模式只读取最终 JSON 结果，避免把过程日志灌回上下文。
-- 只有在排查异常、确认 skill 部署过程或追踪系统初始化问题时，才显式加 `--verbose`。
-- 需要人工阅读结构化结果时，再加 `--pretty`；正常推理链路优先使用默认紧凑 JSON。
-- 如果命令执行失败，先看返回的 `error`；只有 `error` 信息不足以定位问题时，再用 `--verbose` 重跑一次。
-
-```bash
-# 正常调用：默认只读结果 JSON
-python3 "{project_root}/agent/cli.py" list_agents
-
-# 排查问题：显式打开过程日志
-python3 "{project_root}/agent/cli.py" --verbose list_agents
-
-# 人工查看结果：格式化输出
-python3 "{project_root}/agent/cli.py" --pretty list_agents
-```
+- `nexusctl` 默认输出 JSON，可以直接作为推理上下文输入。
+- 子命令按领域拆分：`agent`、`room`、`conversation`、`workspace`、`skill`、`launcher`。
+- 失败时优先读 JSON 中的错误，不要假设命令名仍旧是旧 Python 风格。
 
 ## 核心概念
 
@@ -40,178 +28,147 @@ python3 "{project_root}/agent/cli.py" --pretty list_agents
 
 ### Agent 管理
 
-#### list_agents — 列出所有成员
+#### 列出成员
 
 ```bash
-python3 "{project_root}/agent/cli.py" list_agents
-python3 "{project_root}/agent/cli.py" list_agents --include_main
+go run "{project_root}/cmd/nexusctl" agent list
 ```
 
-- 默认不包含主智能体；加 `--include_main` 可包含。
-- 返回字段：`agent_id`、`name`、`status`、`workspace_path`、`model`、`skills_enabled`
-
-#### validate_agent_name — 校验成员名称
+#### 创建成员
 
 ```bash
-python3 "{project_root}/agent/cli.py" validate_agent_name --name "Research"
+go run "{project_root}/cmd/nexusctl" agent create --name "Research"
 ```
 
-- 创建成员前应先校验名称，避免冲突或非法字符。
-- 返回校验结果，包含是否通过及原因。
-
-#### create_agent — 创建成员
+#### 读取成员详情
 
 ```bash
-python3 "{project_root}/agent/cli.py" create_agent --name "Research"
-python3 "{project_root}/agent/cli.py" create_agent --name "Research" --model "glm-5"
+go run "{project_root}/cmd/nexusctl" agent get research
 ```
 
-- `--name` 必填；`--model` 可选，不指定则使用默认模型。
-- 返回字段：`agent_id`、`name`、`workspace_path`、`model`、`skills_enabled`、`status`
-
-#### get_agent — 读取成员详情
+#### 读取成员会话
 
 ```bash
-python3 "{project_root}/agent/cli.py" get_agent --agent_id "research"
-```
-
-#### get_agent_sessions — 读取成员会话
-
-```bash
-python3 "{project_root}/agent/cli.py" get_agent_sessions --agent_id "research"
-```
-
-#### delete_agent — 删除成员
-
-```bash
-python3 "{project_root}/agent/cli.py" delete_agent --agent_id "research"
+go run "{project_root}/cmd/nexusctl" session list --agent-id research
 ```
 
 ### Room 管理
 
-#### list_rooms — 查看最近 Room 列表
+#### 查看 Room 列表
 
 ```bash
-python3 "{project_root}/agent/cli.py" list_rooms
-python3 "{project_root}/agent/cli.py" list_rooms --limit 10
+go run "{project_root}/cmd/nexusctl" room list
 ```
 
-- 返回字段：`room_id`、`room_type`、`name`、`description`、`member_agent_ids`、`updated_at`
-
-#### get_room — 读取 Room
+#### 读取 Room
 
 ```bash
-python3 "{project_root}/agent/cli.py" get_room --room_id "abc123"
+go run "{project_root}/cmd/nexusctl" room get abc123
 ```
 
-#### get_room_contexts — 读取 Room 上下文
+#### 读取 Room 上下文
 
 ```bash
-python3 "{project_root}/agent/cli.py" get_room_contexts --room_id "abc123"
+go run "{project_root}/cmd/nexusctl" room contexts abc123
 ```
 
-#### create_room — 创建 Room
+#### 创建 Room
 
 ```bash
-python3 "{project_root}/agent/cli.py" create_room --agent_ids "research,writer" --name "内容团队" --title "Kickoff" --description "内容生产协作空间"
+go run "{project_root}/cmd/nexusctl" room create --agent-id research --agent-id writer --name "内容团队" --title "Kickoff" --description "内容生产协作空间"
 ```
 
-- `--agent_ids` 必填，逗号分隔的成员 ID 列表。
-- `--name`、`--title`、`--description` 可选，不指定则自动生成。
-- 单成员时类型为 `dm`（私聊），多成员时类型为 `room`（群组）。
-- 返回字段：`room_id`、`room_type`、`room_name`、`conversation_id`、`conversation_title`、`member_agent_ids`
-
-#### update_room — 更新 Room
+#### 更新 Room
 
 ```bash
-python3 "{project_root}/agent/cli.py" update_room --room_id "abc123" --name "内容团队" --title "本周计划"
+go run "{project_root}/cmd/nexusctl" room update abc123 --name "内容团队" --title "本周计划"
 ```
 
-#### add_room_member — 向 Room 追加成员
+#### 向 Room 追加成员
 
 ```bash
-python3 "{project_root}/agent/cli.py" add_room_member --room_id "abc123" --agent_id "translator"
+go run "{project_root}/cmd/nexusctl" room add-member abc123 --agent-id translator
 ```
 
 - `--room_id` 和 `--agent_id` 均必填。
 - 仅支持群组类型 Room（`room`），不支持私聊（`dm`）。
 - 返回字段：`room_id`、`room_name`、`conversation_id`、`member_agent_ids`
 
-#### remove_room_member — 移除 Room 成员
+#### 移除 Room 成员
 
 ```bash
-python3 "{project_root}/agent/cli.py" remove_room_member --room_id "abc123" --agent_id "translator"
+go run "{project_root}/cmd/nexusctl" room remove-member abc123 --agent-id translator
 ```
 
-#### delete_room — 删除 Room
+#### 删除 Room
 
 ```bash
-python3 "{project_root}/agent/cli.py" delete_room --room_id "abc123"
+go run "{project_root}/cmd/nexusctl" room delete abc123
 ```
 
 ### Workspace 操作
 
-#### list_workspace_files — 列出工作区文件
+#### 列出工作区文件
 
 ```bash
-python3 "{project_root}/agent/cli.py" list_workspace_files --agent_id "research"
+go run "{project_root}/cmd/nexusctl" workspace list --agent-id research
 ```
 
-#### read_workspace_file — 读取工作区文件
+#### 读取工作区文件
 
 ```bash
-python3 "{project_root}/agent/cli.py" read_workspace_file --agent_id "research" --path "RUNBOOK.md"
+go run "{project_root}/cmd/nexusctl" workspace get --agent-id research --path "RUNBOOK.md"
 ```
 
-#### update_workspace_file — 更新工作区文件
+#### 更新工作区文件
 
 ```bash
-python3 "{project_root}/agent/cli.py" update_workspace_file --agent_id "research" --path "RUNBOOK.md" --content "# 新计划"
+go run "{project_root}/cmd/nexusctl" workspace update --agent-id research --path "RUNBOOK.md" --content "# 新计划"
 ```
 
-#### create_workspace_entry — 创建工作区条目
+#### 创建工作区条目
 
 ```bash
-python3 "{project_root}/agent/cli.py" create_workspace_entry --agent_id "research" --path "notes/todo.md" --entry_type "file" --content "- kickoff"
-python3 "{project_root}/agent/cli.py" create_workspace_entry --agent_id "research" --path "notes" --entry_type "dir"
+go run "{project_root}/cmd/nexusctl" workspace create --agent-id research --path "notes/todo.md" --type file --content "- kickoff"
+go run "{project_root}/cmd/nexusctl" workspace create --agent-id research --path "notes" --type directory
 ```
 
-#### rename_workspace_entry — 重命名工作区条目
+#### 重命名工作区条目
 
 ```bash
-python3 "{project_root}/agent/cli.py" rename_workspace_entry --agent_id "research" --path "notes/todo.md" --new_path "notes/plan.md"
+go run "{project_root}/cmd/nexusctl" workspace rename --agent-id research --path "notes/todo.md" --new-path "notes/plan.md"
 ```
 
-#### delete_workspace_entry — 删除工作区条目
+#### 删除工作区条目
 
 ```bash
-python3 "{project_root}/agent/cli.py" delete_workspace_entry --agent_id "research" --path "notes/plan.md"
+go run "{project_root}/cmd/nexusctl" workspace delete --agent-id research --path "notes/plan.md"
 ```
 
 ### Skill 管理
 
-#### list_skills — 列出可用 Skill
+#### 列出 Skill
 
 ```bash
-python3 "{project_root}/agent/cli.py" list_skills
+go run "{project_root}/cmd/nexusctl" skill list
 ```
 
-#### get_agent_skills — 读取成员 Skill 状态
+#### 读取成员 Skill 状态
 
 ```bash
-python3 "{project_root}/agent/cli.py" get_agent_skills --agent_id "research"
+go run "{project_root}/cmd/nexusctl" skill agent-list --agent-id research
 ```
 
-#### install_skill — 安装 Skill
+#### 安装 Skill
 
 ```bash
-python3 "{project_root}/agent/cli.py" install_skill --agent_id "research" --skill_name "planner"
+go run "{project_root}/cmd/nexusctl" skill install --agent-id research --skill-name planner
 ```
 
-#### uninstall_skill — 卸载 Skill
+#### 卸载 Skill
 
 ```bash
-python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --skill_name "planner"
+go run "{project_root}/cmd/nexusctl" skill uninstall --agent-id research --skill-name planner
 ```
 
 ## Workspace 规则
@@ -236,7 +193,7 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 - **受保护目录**：`.agents/`、`.claude/` 禁止直接读写，属于内部运行时目录。
 - **路径安全**：不允许路径穿越（`../`），所有操作限定在工作空间根目录内。
 - **命名文件**：`AGENTS.md`、`USER.md`、`MEMORY.md`、`RUNBOOK.md` 可通过名称直接读写，也可通过相对路径操作。
-- **memory/ 目录**：统一用于按天日志、摘要和资产文件，通过 `save_memory_file` 写入。
+- **memory/ 目录**：统一用于按天日志、摘要和资产文件，通过 `nexusctl memory` 维护。
 - **文件大小限制**：实时快照推送上限 128KB，超出部分不推送。
 
 ### 模板初始化规则
@@ -254,10 +211,10 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 
 ## 操作流程
 
-1. 查询结构：`list_agents` / `get_room` / `get_room_contexts`
-2. 管理成员：`validate_agent_name` → `create_agent` / `delete_agent`
-3. 管理协作：`create_room` / `update_room` / `add_room_member` / `remove_room_member` / `delete_room`
-4. 管理工作区：`list_workspace_files` → `read_workspace_file` → `update_workspace_file`
+1. 查询结构：`agent list` / `room get` / `room contexts`
+2. 管理成员：`agent create` / `agent get`
+3. 管理协作：`room create` / `room update` / `room add-member` / `room remove-member` / `room delete`
+4. 管理工作区：`workspace list` → `workspace get` → `workspace update`
 5. 管理技能：`list_skills` → `get_agent_skills` → `install_skill` / `uninstall_skill`
 
 ## 使用规则

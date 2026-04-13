@@ -21,11 +21,10 @@ services:
       - ../.env
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-      SERVER_TYPE: gunicorn
       HOST: 0.0.0.0
       PORT: 8010
-      WORKERS: ${WORKERS:-1}
-      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:////home/agent/.nexus/data/nexus.db}
+      DATABASE_DRIVER: ${DATABASE_DRIVER:-sqlite}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////home/agent/.nexus/data/nexus.db}
       CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/home/agent/.nexus/cache}
       LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
@@ -36,7 +35,7 @@ services:
     expose:
       - "8010"
     healthcheck:
-      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8010/agent/v1/health').read()"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8010/agent/v1/health >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5

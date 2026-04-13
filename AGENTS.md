@@ -1,34 +1,30 @@
 # AGENTS.md
 
-This file provides guidance to agents when working with code in this repository.
+本仓库已经切换到 Go 后端实现，协作时不要再引入旧 Python 运行链路。
 
 ## Build & Validation Commands
-- `make dev` — start backend (port 8010) + frontend (port 3000) concurrently
-- `make check` — runs `check-backend` + `lint-web` + `typecheck-web` (the full pre-PR validation suite)
-- `make check-backend` — `py_compile` on all `agent/**/*.py` via `rg --files`
-- `cd web && npx tsc --noEmit` — TypeScript type check
-- `cd web && npm run lint` — ESLint on `src/**/*.{ts,tsx}`
-- `make db-init` — run Alembic migrations (auto-detects `.venv` / system Python)
-- `make install` — installs backend deps (prefers `.venv`, then `uv`, then `pip`) + `npm install` in `web/`
+- `make dev`：同时启动 Go 后端（8010）和前端（3000）
+- `make check`：运行 `go test ./...`、前端 lint、前端 typecheck
+- `make check-backend`：Go 后端校验，等价于 `make check-go`
+- `make db-init`：执行 Goose 数据库迁移
+- `make install`：执行 `go mod tidy` 并安装前端依赖
+- `go run ./cmd/nexusctl ...`：主智能体操作系统 CLI
 
 ## Critical Conventions
-- **Python file size hard limit: 300 lines**, target 100–200. One class per file. Split proactively.
-- **Chinese comments** required for non-trivial logic blocks.
-- All API routes live under prefix `/agent/v1/...` (set in [`config.py`](agent/config/config.py:47)).
-- Settings use `pydantic-settings` with `case_sensitive=True` and `extra="allow"` — env vars must match field names exactly.
-- Pydantic models must extend [`AModel`](agent/infra/schemas/model_cython.py:23) (not raw `BaseModel`) to handle CyFunction detection.
-- API responses use [`resp.ok()`](agent/infra/server/common/base_resp.py:22) / [`resp.fail()`](agent/infra/server/common/base_resp.py:23) pattern from `agent.infra.server.common`.
-- Exceptions extend [`ServerException`](agent/infra/server/common/base_exception.py:14) with a `.resp` attribute mapping to HTTP response.
-- Use [`@exception_to_base_error`](agent/infra/server/common/base_error_warp.py:21) decorator to auto-wrap service-layer exceptions.
-- ID generation uses custom [Snowflake](agent/utils/snowflake.py) (not UUID).
+- Go 代码遵循 Google 风格，复杂逻辑注释使用中文。
+- 后端入口在 `cmd/`，业务实现放在 `internal/`，协议真相源在 `internal/protocol/`。
+- 所有 API 路由统一挂在 `/agent/v1/...` 下，WebSocket 入口固定为 `/agent/v1/chat/ws`。
+- 数据库迁移统一走 Goose，目录为 `db/migrations/sqlite` 和 `db/migrations/postgres`。
+- Workspace、session JSONL、telemetry cost 文件继续作为文件侧真相源保留。
 
 ## Architecture Flow
-- Entry: [`main.py`](main.py) → [`agent/app.py`](agent/app.py) (FastAPI app with lifespan)
-- Lifespan registers message channels (WebSocket, Discord, Telegram) via [`ChannelRegister`](agent/service/channels/channel_register.py:26)
-- WebSocket messages routed through [`ChannelDispatcher`](agent/service/channels/ws/dispatcher.py:23) → handler chain (interrupt, permission, ping, error)
-- Chat processing: [`ChatService`](agent/service/chat/chat_service.py) → [`ChatMessageProcessor`](agent/service/message/chat_message_processor.py:30) → Claude Agent SDK
-- Storage dual-layer: file-based JSON/JSONL in [`agent/storage/`](agent/storage/) + SQLite via SQLAlchemy in [`agent/storage/sqlite/`](agent/storage/sqlite/)
-- Frontend: React 19 + Vite 7 + Zustand stores. Path alias `@/` → `web/src/`. WebSocket client in [`lib/websocket/`](web/src/lib/websocket/).
+- 服务入口：`cmd/nexus-server`
+- 迁移入口：`cmd/nexus-migrate`
+- 主 CLI：`cmd/nexusctl`
+- HTTP / WebSocket 网关：`internal/gateway`
+- Claude Code runtime：`internal/runtime` + 独立 Go SDK
+- 会话与协议：`internal/chat`、`internal/room`、`internal/session`、`internal/protocol`
+- Workspace / Skills / Connectors / Automation：`internal/workspace`、`internal/skills`、`internal/connectors`、`internal/automation`
 
 ## Commit Style
-Emoji-prefixed Conventional commits with Chinese summaries (e.g., `:sparkles: 添加新功能`). Update `CHANGELOG.md` for user-visible changes.
+提交信息保持 emoji 前缀 + 中文摘要，例如 `:sparkles: 切换 Go 默认运行链路`。用户可见变更同步更新 `CHANGELOG.md`。

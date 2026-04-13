@@ -154,7 +154,7 @@ const zh_messages = {
   "login.submitting": "登录中...",
   "login.refresh": "重新检查配置",
   "login.disabled_title": "当前实例未启用密码登录",
-  "login.disabled_description": "服务端目前只配置了其他鉴权方式，Web 界面无法直接完成登录。请在后端环境变量中设置 AUTH_LOGIN_PASSWORD 后刷新本页。",
+  "login.disabled_description": "服务端尚未初始化浏览器登录。请先执行 nexusctl auth init-owner 创建 owner 账户，再刷新本页。",
   "login.unknown_error": "登录失败，请稍后重试。",
 } as const;
 
@@ -305,7 +305,7 @@ const en_messages: Record<TranslationKey, string> = {
   "login.submitting": "Signing in...",
   "login.refresh": "Refresh status",
   "login.disabled_title": "Password sign-in is disabled",
-  "login.disabled_description": "This instance currently uses another auth mode, so the web UI cannot sign in directly. Configure AUTH_LOGIN_PASSWORD on the backend and refresh this page.",
+  "login.disabled_description": "Browser login has not been initialized yet. Run nexusctl auth init-owner to create the owner account, then refresh this page.",
   "login.unknown_error": "Sign-in failed. Please try again.",
 };
 

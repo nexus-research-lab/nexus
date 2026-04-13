@@ -17,6 +17,12 @@ export interface AuthStatus {
   password_login_enabled: boolean;
   authenticated: boolean;
   username: string | null;
+  user_id?: string | null;
+  display_name?: string | null;
+  role?: string | null;
+  auth_method?: string | null;
+  setup_required?: boolean;
+  access_token_enabled?: boolean;
 }
 
 export interface LoginParams {

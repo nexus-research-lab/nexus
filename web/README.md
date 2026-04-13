@@ -42,7 +42,7 @@ VITE_DEFAULT_MODEL=glm-5
 
 如果不写 `VITE_API_URL` / `VITE_WS_URL`，前端会默认跟随当前域名访问 `/agent/...`，开发环境由 Vite 代理转发到后端。
 
-如果后端启用了 `AUTH_LOGIN_PASSWORD`，前端会自动走浏览器登录页并通过 `HttpOnly` Cookie 维持会话，无需在前端配置任何访问令牌。
+如果后端已经通过 `nexusctl auth init-owner` 初始化 owner 账户，前端会自动走浏览器登录页并通过 `HttpOnly` Cookie 维持会话，无需在前端配置任何访问令牌。
 
 ## 启动
 

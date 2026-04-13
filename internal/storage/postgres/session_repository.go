@@ -1,0 +1,199 @@
+// # !/usr/bin/env go
+// -*- coding: utf-8 -*-
+// =====================================================
+// @File   ：session_repository.go
+// @Date   ：2026/04/11 00:10:00
+// @Author ：leemysw
+// 2026/04/11 00:10:00   Create
+// =====================================================
+
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"github.com/nexus-research-lab/nexus-core/internal/protocol"
+	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
+	"time"
+)
+
+// SessionRepository 提供 PostgreSQL 的 Room Session 视图查询。
+type SessionRepository struct {
+	db *sql.DB
+}
+
+// NewSessionRepository 创建 SessionRepository。
+func NewSessionRepository(db *sql.DB) *SessionRepository {
+	return &SessionRepository{db: db}
+}
+
+// ListRoomSessions 列出全部 Room 成员会话视图。
+func (r *SessionRepository) ListRoomSessions(ctx context.Context) ([]sessiondomain.Session, error) {
+	rows, err := r.db.QueryContext(ctx, postgresRoomSessionSelect+`
+WHERE s.is_primary = TRUE
+ORDER BY s.last_activity_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanRoomSessions(rows)
+}
+
+// ListRoomSessionsByAgent 列出指定 Agent 的 Room 成员会话视图。
+func (r *SessionRepository) ListRoomSessionsByAgent(ctx context.Context, agentID string) ([]sessiondomain.Session, error) {
+	rows, err := r.db.QueryContext(ctx, postgresRoomSessionSelect+`
+WHERE s.is_primary = TRUE AND s.agent_id = $1
+ORDER BY s.last_activity_at DESC`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanRoomSessions(rows)
+}
+
+// GetRoomSessionByKey 按结构化 key 查找 Room 成员会话。
+func (r *SessionRepository) GetRoomSessionByKey(ctx context.Context, key protocol.SessionKey) (*sessiondomain.Session, error) {
+	if key.Kind != protocol.SessionKeyKindAgent || key.AgentID == "" || key.Ref == "" {
+		return nil, nil
+	}
+
+	row := r.db.QueryRowContext(ctx, postgresRoomSessionSelect+`
+WHERE s.is_primary = TRUE AND s.agent_id = $1 AND c.id = $2
+LIMIT 1`, key.AgentID, key.Ref)
+	item, err := scanRoomSession(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// GetConversationLogPath 返回 Room 对话的 JSONL 路径。
+func (r *SessionRepository) GetConversationLogPath(ctx context.Context, conversationID string) (string, error) {
+	var logPath sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+SELECT jsonl_path
+FROM messages
+WHERE conversation_id = $1 AND jsonl_path IS NOT NULL AND jsonl_path != ''
+ORDER BY created_at DESC
+LIMIT 1`, conversationID).Scan(&logPath)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return logPath.String, nil
+}
+
+const postgresRoomSessionSelect = `
+SELECT
+    s.id,
+    s.agent_id,
+    COALESCE(s.sdk_session_id, ''),
+    s.status,
+    s.last_activity_at,
+    s.created_at,
+    c.id,
+    COALESCE(c.title, ''),
+    r.id,
+    r.room_type,
+    COALESCE(r.name, ''),
+    COALESCE(mc.message_count, 0)
+FROM sessions s
+JOIN conversations c ON c.id = s.conversation_id
+JOIN rooms r ON r.id = c.room_id
+LEFT JOIN (
+    SELECT conversation_id, COUNT(id) AS message_count
+    FROM messages
+    GROUP BY conversation_id
+) mc ON mc.conversation_id = c.id
+`
+
+func scanRoomSessions(rows *sql.Rows) ([]sessiondomain.Session, error) {
+	result := make([]sessiondomain.Session, 0)
+	for rows.Next() {
+		item, err := scanRoomSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func scanRoomSession(scanner interface{ Scan(...any) error }) (sessiondomain.Session, error) {
+	var (
+		roomSessionID  string
+		agentID        string
+		sdkSessionID   string
+		status         string
+		lastActivity   time.Time
+		createdAt      time.Time
+		conversationID string
+		title          string
+		roomID         string
+		roomType       string
+		roomName       string
+		messageCount   int
+	)
+	if err := scanner.Scan(
+		&roomSessionID,
+		&agentID,
+		&sdkSessionID,
+		&status,
+		&lastActivity,
+		&createdAt,
+		&conversationID,
+		&title,
+		&roomID,
+		&roomType,
+		&roomName,
+		&messageCount,
+	); err != nil {
+		return sessiondomain.Session{}, err
+	}
+
+	resolvedTitle := title
+	if resolvedTitle == "" {
+		resolvedTitle = roomName
+	}
+	if resolvedTitle == "" {
+		resolvedTitle = "New Chat"
+	}
+	return sessiondomain.Session{
+		SessionKey:     protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType),
+		AgentID:        agentID,
+		SessionID:      nullableStringPointer(sdkSessionID),
+		RoomSessionID:  nullableStringPointer(roomSessionID),
+		RoomID:         nullableStringPointer(roomID),
+		ConversationID: nullableStringPointer(conversationID),
+		ChannelType:    "ws",
+		ChatType:       roomChatType(roomType),
+		Status:         status,
+		CreatedAt:      createdAt.UTC(),
+		LastActivity:   lastActivity.UTC(),
+		Title:          resolvedTitle,
+		MessageCount:   messageCount,
+		Options:        map[string]any{},
+		IsActive:       status == "active",
+	}, nil
+}
+
+func roomChatType(roomType string) string {
+	if roomType == "dm" {
+		return "dm"
+	}
+	return "group"
+}
+
+func nullableStringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	copyValue := value
+	return &copyValue
+}

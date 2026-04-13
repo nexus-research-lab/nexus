@@ -7,8 +7,9 @@ COMPOSE_CMD ?= docker compose --env-file .env -f deploy/docker-compose.yml
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web start stop restart logs clean status \
-	dev install db-init lint-web typecheck-web check-backend check test \
-	run-web run-backend up down log reboot
+	dev install db-init gen-protocol-types lint-web typecheck-web \
+	check-backend check-go check test run-web run-backend run-backend-go \
+	up down log reboot
 
 # Show help
 help: ## Show this help message
@@ -20,29 +21,31 @@ help: ## Show this help message
 run-web: ## Run frontend in development mode
 	cd web && npm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
-db-init: ## Run Alembic migrations for local database
-	@if [ -x .venv/bin/python ]; then \
-		.venv/bin/python -m alembic upgrade head; \
-	elif command -v python3 >/dev/null 2>&1; then \
-		python3 -m alembic upgrade head; \
-	elif command -v python >/dev/null 2>&1; then \
-		python -m alembic upgrade head; \
+db-init: ## Run Goose migrations for local database
+	@if command -v go >/dev/null 2>&1; then \
+		DATABASE_DRIVER=$${DATABASE_DRIVER:-sqlite} DATABASE_URL="$${DATABASE_URL:-sqlite:////$$HOME/.nexus/data/nexus.db}" go run ./cmd/nexus-migrate up; \
 	else \
-		echo "No usable Python runtime found"; \
+		echo "No usable Go runtime found"; \
 		exit 1; \
 	fi
 
-run-backend: db-init ## Run backend in development mode
-	@if [ -x .venv/bin/python ]; then \
-		PORT=$(BACKEND_PORT) .venv/bin/python main.py; \
-	elif command -v python3 >/dev/null 2>&1; then \
-		PORT=$(BACKEND_PORT) python3 main.py; \
-	elif command -v python >/dev/null 2>&1; then \
-		PORT=$(BACKEND_PORT) python main.py; \
+gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
+	@if command -v go >/dev/null 2>&1; then \
+		go run ./cmd/protocol-tsgen; \
 	else \
-		echo "No usable Python runtime found"; \
+		echo "No usable Go runtime found"; \
 		exit 1; \
 	fi
+
+run-backend: db-init ## Run Go backend in development mode
+	@if command -v go >/dev/null 2>&1; then \
+		PORT=$(BACKEND_PORT) go run ./cmd/nexus-server; \
+	else \
+		echo "No usable Go runtime found"; \
+		exit 1; \
+	fi
+
+run-backend-go: run-backend ## Alias of run-backend
 
 dev: ## Run both frontend and backend in development mode
 	@echo "Starting development servers..."
@@ -62,17 +65,11 @@ dev: ## Run both frontend and backend in development mode
 	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
 install: ## Install all dependencies
-	@echo "Installing backend dependencies..."
-	@if [ -x .venv/bin/python ] && .venv/bin/python -m pip --version >/dev/null 2>&1; then \
-		PYTHON=.venv/bin/python; \
-		$$PYTHON -m pip install -r agent/requirements.txt; \
-	elif command -v uv >/dev/null 2>&1; then \
-		uv pip install -r agent/requirements.txt --index-url https://mirrors.aliyun.com/pypi/simple; \
-	elif command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then \
-		PYTHON=$$(command -v python3); \
-		$$PYTHON -m pip install -r agent/requirements.txt; \
+	@echo "Installing Go dependencies..."
+	@if command -v go >/dev/null 2>&1; then \
+		go mod tidy; \
 	else \
-		echo "No usable Python package installer found (.venv pip, uv, or python3 -m pip)"; \
+		echo "No usable Go runtime found"; \
 		exit 1; \
 	fi
 	@echo "Installing frontend dependencies..."
@@ -84,19 +81,17 @@ lint-web: ## Run frontend lint
 typecheck-web: ## Run frontend type check
 	cd web && npx tsc --noEmit
 
-check-backend: ## Run backend syntax check
-	@if [ -x .venv/bin/python ]; then \
-		.venv/bin/python -m py_compile $$(find agent -type f -name '*.py'); \
-	elif command -v python3 >/dev/null 2>&1; then \
-		python3 -m py_compile $$(find agent -type f -name '*.py'); \
-	elif command -v python >/dev/null 2>&1; then \
-		python -m py_compile $$(find agent -type f -name '*.py'); \
+check-go: ## Run Go build and test checks
+	@if command -v go >/dev/null 2>&1; then \
+		go test ./...; \
 	else \
-		echo "No usable Python runtime found"; \
+		echo "No usable Go runtime found"; \
 		exit 1; \
 	fi
 
-check: check-backend lint-web typecheck-web ## Run basic validation checks
+check-backend: check-go ## Alias of Go backend checks
+
+check: check-go lint-web typecheck-web ## Run basic validation checks
 
 test: check ## Alias of check
 

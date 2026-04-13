@@ -7,13 +7,13 @@ description: 管理和检索 Agent 的长期记忆（MEMORY.md）与记忆目录
 
 负责管理 Agent 的记忆系统。它不只保存长期记忆，还负责把失败、纠正、需求和复盘沉淀到 `memory/` 的按天日志，再把稳定规则提升到长期文件。
 
-`memory-manager` 只是使用入口；真正的记忆能力已经沉到内部模块 `agent.service.memory`。  
+`memory-manager` 只是使用入口；真正的记忆能力已经沉到 `nexusctl memory`。  
 也就是说：
 
 - **内部模块** 负责条目建模、相似归并、次数累计、状态流转、长期提升
 - **skill** 负责告诉模型何时该查、何时该记、何时该提升
 
-CLI 工具路径：`python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}"`
+CLI 工具路径：`go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}"`
 
 ## 记忆分层规则
 
@@ -28,7 +28,7 @@ CLI 工具路径：`python3 "{project_root}/agent/memory_cli.py" --workspace "{w
 ### search — 语义/关键词检索
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" search --query "用户偏好 饮食"
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" search --query "用户偏好 饮食"
 ```
 
 - 返回匹配的文件路径、行号和内容。
@@ -37,7 +37,7 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" search --
 ### get — 获取文件片段
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" get --path "memory/2026-03-27.md" --from_line 1 --lines 50
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" get --path "memory/2026-03-27.md" --from_line 1 --lines 50
 ```
 
 - 当 `search` 给出的片段不够完整时，使用 `get` 获取上下文内容。
@@ -45,7 +45,7 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" get --pat
 ### review — 回顾近期日记
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" review --days 3 --limit 6
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" review --days 3 --limit 6
 ```
 
 - 在复杂任务、返工任务、重大决策前先执行。
@@ -65,7 +65,7 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" review --
 学习条目示例：
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" log \
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" log \
   --kind LRN \
   --category correction \
   --title "用户要求注释使用中文" \
@@ -78,11 +78,11 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" log \
 错误条目示例：
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" log \
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" log \
   --kind ERR \
   --title "list_skills 因死引用失败" \
   --field "错误=No module named 'agent.infra.database.models.skill'" \
-  --field "上下文=执行 agent/cli.py list_skills" \
+  --field "上下文=执行 nexusctl skill list" \
   --field "修复=删除合并残留的 skill_sql_repository" \
   --field "可复现=yes"
 ```
@@ -90,7 +90,7 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" log \
 ### promote — 提升为长期规则
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" promote \
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" promote \
   --target soul \
   --title "回复风格" \
   --content "默认简洁直接，不写冗长导语"
@@ -99,7 +99,7 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" promote \
 ### resolve — 标记已解决
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" resolve \
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" resolve \
   --entry-id "LRN-20260404-010203-123456789" \
   --note "已经把规范写入 AGENTS.md"
 ```
@@ -107,7 +107,7 @@ python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" resolve \
 ### set-status — 更新条目状态
 
 ```bash
-python3 "{project_root}/agent/memory_cli.py" --workspace "{workspace}" set-status \
+go run "{project_root}/cmd/nexusctl" memory --workspace "{workspace}" set-status \
   --entry-id "LRN-20260404-010203-123456789" \
   --status case_by_case \
   --note "只在当前仓库生效"

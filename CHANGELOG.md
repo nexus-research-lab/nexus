@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 新增 workspace live 订阅链路：`subscribe_workspace / unsubscribe_workspace` 现已接通 Go 端文件事件与 `agent_runtime_event` 实时广播，前端可直接消费 `workspace_event` 与运行态快照。
+- 新增 Discord / Telegram 真入口适配器：Go 后端启动后可直接接收外部通道消息并统一路由到现有 `session_key + EventMessage` 聊天主链。
+- 新增 Go 后端双仓库骨架：主仓库引入 `cmd/nexus-server`、`cmd/nexus-migrate`、`cmd/nexusctl`、`cmd/protocol-tsgen`，并建立 `internal/gateway`、`internal/protocol`、`internal/runtime`、`internal/chat`、`internal/room`、`internal/permission`、`internal/storage`、`internal/automation`、`internal/channels`、`internal/skills`、`internal/connectors`、`internal/workspace` 与 `internal/cli` 分层骨架。
+- 新增独立 `nexus-agent-sdk-go` 仓库骨架，承载 Claude Code/Claude CLI agent core 封装、消息类型、client 生命周期与示例程序。
+- 新增 Goose schema migration 基础设施：`db/migrations/sqlite`、`db/migrations/postgres`、`sqlc.yaml` 与双数据库初始 schema。
+- 新增 Go 端协议生成链路：`cmd/protocol-tsgen` 与 `web/src/types/generated/protocol.ts`，开始将前端共享类型的真相源收敛到 Go 协议层。
 - 新增自动化运行时基础设施：`heartbeat` 主会话轮询、`cron` 精确定时调度、system event queue、wake bookkeeping、统一 delivery router、scheduled task run ledger。
 - 新增自动化后端 API：`/agent/v1/automation/heartbeat/*` 与 `/agent/v1/capability/scheduled/tasks*`，支持 heartbeat 状态/唤醒、定时任务 CRUD、立即运行、启停与运行记录查询。
 - 新增自动化测试覆盖：`tests/automation/*` 与 `tests/api/test_automation_api.py`，覆盖模型、仓储、投递、运行时、heartbeat、cron 与 API 基本行为。
@@ -34,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
 
 ### Changed
+- `make dev`、`make run-backend`、`make check`、`deploy/Dockerfile`、`deploy/docker-compose.yml` 默认切换为 Go 后端链路；Python 入口降级为 `make run-backend-python` / `make dev-python` 兼容命令。
+- Docker 后端镜像改为 Go 多阶段构建，并通过 vendored SDK 依赖消除本地绝对路径 `replace` 对容器构建的阻塞。
+- `make db-init` 迁移到 Goose 执行链路，并新增 `dev-go`、`run-backend-go`、`check-go`、`gen-protocol-types` 目标，为 Go 服务与协议生成提供基础工作流。
 - 定时任务前后端契约升级为结构化自动化模型：前端不再使用扁平 `cron_expression/source_type` 占位字段，统一改为 `schedule`、`session_target`、`delivery` 结构。
 - 技能市场代码从 `service/workspace/` 迁移至 `service/capability/skills/`，API 从 `api/agent/` 迁移至 `api/capability/`。
 - `SkillCatalog` 改为无状态设计，状态由调用方通过数据库查询后传入。
