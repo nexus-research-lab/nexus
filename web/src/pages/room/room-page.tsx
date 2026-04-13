@@ -87,7 +87,11 @@ export function RoomPage() {
 
   const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent-conversation").RoomEventPayload) => {
     if (event_type === "room_deleted") {
-      navigate(AppRouteBuilders.launcher());
+      if (controller.current_room?.room_type === "dm") {
+        navigate(AppRouteBuilders.dm_directory());
+      } else {
+        navigate(AppRouteBuilders.home());
+      }
       return;
     }
 

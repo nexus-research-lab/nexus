@@ -109,7 +109,11 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const [starred] = useState<StarredItem[]>(load_starred_items);
 
   // 对话框状态
-  const [delete_target, set_delete_target] = useState<{ id: string; name: string } | null>(null);
+  const [delete_target, set_delete_target] = useState<{
+    id: string;
+    name: string;
+    room_type: "room" | "dm";
+  } | null>(null);
   const [is_create_room_open, set_is_create_room_open] = useState(false);
   const [is_creating_room, set_is_creating_room] = useState(false);
   const untitled_room_label = t("home.untitled_room");
@@ -243,10 +247,14 @@ export const HomePanelContent = memo(function HomePanelContent() {
     const deleted_room_id = delete_target.id;
     await deleteRoom(deleted_room_id);
     set_delete_target(null);
-    // 中文注释：如果删除的是当前激活房间，先退出到 Launcher，避免继续停留在失效路由。
+    // 中文注释：删除当前激活房间时，优先回到同类列表入口。
     if (active_item_id === deleted_room_id) {
       set_active_item(null);
-      navigate(AppRouteBuilders.launcher());
+      if (delete_target?.room_type === "dm") {
+        navigate(AppRouteBuilders.dm_directory());
+      } else {
+        navigate(AppRouteBuilders.home());
+      }
     }
     refresh_rooms();
   }, [active_item_id, delete_target, navigate, refresh_rooms, set_active_item]);
@@ -313,7 +321,11 @@ export const HomePanelContent = memo(function HomePanelContent() {
               is_active={active_item_id === room.room.id}
               label={room.room.name?.trim() || untitled_room_label}
               on_click={() => navigate_to_room(room.room.id)}
-              on_delete={() => set_delete_target({ id: room.room.id, name: room.room.name?.trim() || untitled_room_label })}
+              on_delete={() => set_delete_target({
+                id: room.room.id,
+                name: room.room.name?.trim() || untitled_room_label,
+                room_type: "room",
+              })}
             />
           ))
         ) : (
@@ -345,7 +357,11 @@ export const HomePanelContent = memo(function HomePanelContent() {
               is_active={active_item_id === room.room.id}
               label={get_dm_display_name(room, agents, untitled_dm_label)}
               on_click={() => navigate_to_room(room.room.id)}
-              on_delete={() => set_delete_target({ id: room.room.id, name: get_dm_display_name(room, agents, untitled_dm_label) })}
+              on_delete={() => set_delete_target({
+                id: room.room.id,
+                name: get_dm_display_name(room, agents, untitled_dm_label),
+                room_type: "dm",
+              })}
             />
           ))
         ) : (
