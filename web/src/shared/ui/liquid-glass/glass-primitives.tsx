@@ -20,12 +20,15 @@ type GlassPrimitiveProps<T extends GlassPrimitiveTagName> =
     true_glass?: boolean;
   };
 
-function getDefaultRadius(variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch"): number {
+function getDefaultRadius(variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier"): number {
   if (variant === "panel") {
     return 28;
   }
   if (variant === "dialog") {
     return 34;
+  }
+  if (variant === "magnifier") {
+    return 999;
   }
   return 999;
 }
@@ -34,7 +37,7 @@ function BaseGlassPrimitive<T extends GlassPrimitiveTagName>({
   radius,
   true_glass = false,
   ...props
-}: GlassPrimitiveProps<T> & { variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" }) {
+}: GlassPrimitiveProps<T> & { variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier" }) {
   return (
     <LiquidGlassPanel
       {...props}
@@ -92,4 +95,14 @@ export function GlassChip<T extends GlassPrimitiveTagName = "div">(
   props: GlassPrimitiveProps<T>,
 ) {
   return <BaseGlassPrimitive {...props} variant="chip" />;
+}
+
+/**
+ * 中文注释：GlassMagnifier 用于放大镜效果，高折射产生真实放大感，
+ * 强阴影多层叠加模拟深度，用于 logo 按钮等视觉焦点。
+ */
+export function GlassMagnifier<T extends GlassPrimitiveTagName = "div">(
+  props: GlassPrimitiveProps<T>,
+) {
+  return <BaseGlassPrimitive {...props} variant="magnifier" />;
 }

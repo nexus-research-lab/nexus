@@ -9,7 +9,7 @@
 # =====================================================
 */
 
-export type LiquidGlassVariant = "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch";
+export type LiquidGlassVariant = "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier";
 
 export interface LiquidGlassVariantPreset {
   bezel: number;
@@ -119,5 +119,23 @@ export const LIQUID_GLASS_VARIANTS: Record<LiquidGlassVariant, LiquidGlassVarian
     shadow: "0 4px 22px rgba(0,0,0,0.10)",
     specular_power: 1.9,
     specular_opacity: 0.5,
+  },
+  /**
+   * 中文注释：Magnifier 材质 — 放大镜效果，高折射产生真实放大感，
+   * 强阴影多层叠加模拟深度，用于 logo 按钮等视觉焦点。
+   */
+  magnifier: {
+    bezel: 24,
+    blur: 4,
+    distortion: 48,
+    saturation: 900,
+    surface_profile: "convex",
+    background: "var(--surface-avatar-background)",
+    border_color: "var(--surface-avatar-border)",
+    highlight_background: "radial-gradient(86% 72% at 22% 8%, rgba(255,255,255,0.32), rgba(255,255,255,0) 64%), linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04) 52%, rgba(255,255,255,0) 100%)",
+    highlight_opacity: 0.96,
+    shadow: "var(--surface-avatar-shadow)",
+    specular_power: 2.8,
+    specular_opacity: 0.64,
   },
 };
