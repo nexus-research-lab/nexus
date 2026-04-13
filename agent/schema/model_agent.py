@@ -60,6 +60,7 @@ class AAgent(BaseModel):
     avatar: Optional[str] = Field(default=None, description="头像标识（emoji 或图标名称）")
     description: Optional[str] = Field(default=None, description="Agent 描述文本")
     vibe_tags: Optional[list[str]] = Field(default=None, description="氛围标签列表")
+    skills_count: Optional[int] = Field(default=None, description="已安装的 Skill 数量")
 
     model_config = {"from_attributes": True}
 

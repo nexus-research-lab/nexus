@@ -36,6 +36,7 @@ export interface Agent {
     avatar?: string | null;
     description?: string | null;
     vibe_tags?: string[] | null;
+    skills_count?: number | null;
 }
 
 export interface AgentRuntimeStatus {
@@ -55,6 +56,7 @@ export interface ApiAgent {
     avatar?: string | null;
     description?: string | null;
     vibe_tags?: string[] | null;
+    skills_count?: number | null;
 }
 
 /** API 响应中的 Agent 会话数据（后端格式） */

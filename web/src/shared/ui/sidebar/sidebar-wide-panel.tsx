@@ -188,19 +188,18 @@ export function SidebarWidePanel() {
       {/* 面板头部 */}
       <div className={cn("flex items-center gap-3 border-b divider-subtle px-4", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
         <Link
-          className="shrink-0 transition-transform duration-[var(--motion-duration-normal)] hover:translate-y-[-0.5px]"
+          className="shrink-0 transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
           to={AppRouteBuilders.launcher()}
           title={t("sidebar.back_to_launcher")}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[15px] font-black tracking-[-0.06em] text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-(--surface-avatar-border) bg-[var(--surface-avatar-background)] text-[15px] font-black tracking-[-0.06em] text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]">
             N
           </div>
         </Link>
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--text-soft)]">
+          <p className="text-[32px] font-semibold uppercase tracking-[0.24em] text-(--text-strong)">
             NEXUS
           </p>
-          <h2 className="truncate text-[17px] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">Nexus</h2>
         </div>
       </div>
 

@@ -84,7 +84,15 @@ class AgentRepository:
         aggregate = await self._get_aggregate(agent_id)
         if aggregate is None or aggregate.agent.status != "active":
             return None
-        return AgentSqlMapper.to_model(aggregate)
+        agent = AgentSqlMapper.to_model(aggregate)
+
+        # 添加 skills_count
+        from agent.service.workspace.workspace_skill_deployer import WorkspaceSkillDeployer
+
+        deployer = WorkspaceSkillDeployer(agent_id, Path(agent.workspace_path))
+        agent.skills_count = len(deployer.list_deployed())
+
+        return agent
 
     async def get_all_agents(self) -> List[AAgent]:
         """获取所有活跃 Agent。"""
@@ -92,7 +100,16 @@ class AgentRepository:
         async with self._db.session() as session:
             repository = AgentSqlRepository(session)
             aggregates = await repository.list_active()
-        return [AgentSqlMapper.to_model(item) for item in aggregates]
+        agents = [AgentSqlMapper.to_model(item) for item in aggregates]
+
+        # 为每个 Agent 添加 skills_count
+        from agent.service.workspace.workspace_skill_deployer import WorkspaceSkillDeployer
+
+        for agent in agents:
+            deployer = WorkspaceSkillDeployer(agent.agent_id, Path(agent.workspace_path))
+            agent.skills_count = len(deployer.list_deployed())
+
+        return agents
 
     async def exists_active_agent_name(
             self,

@@ -38,6 +38,7 @@ function transformApiAgent(api_agent: ApiAgent): Agent {
         avatar: api_agent.avatar ?? null,
         description: api_agent.description ?? null,
         vibe_tags: api_agent.vibe_tags ?? [],
+        skills_count: api_agent.skills_count ?? null,
     };
 }
 

@@ -4,6 +4,7 @@ import { Bot, MessageSquareText, Users } from "lucide-react";
 
 import { getIconAvatarSrc } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { Agent } from "@/types/agent";
 import {
   WorkspaceCatalogBody,
   WorkspaceCatalogCard,
@@ -15,11 +16,7 @@ import {
 } from "@/shared/ui/workspace/workspace-catalog-card";
 
 interface ContactsAgentCardProps {
-  /** Agent 名称 */
-  name: string;
-  avatar?: string | null;
-  /** Agent 描述（system_prompt 摘要） */
-  description: string;
+  agent: Agent;
   /** 点击卡片本身 → 打开 AgentOptions 对话框（edit 模式） */
   on_open_profile: () => void;
   /** 💬 Chat 按钮 → ensureDirectRoom 发起 DM */
@@ -30,14 +27,19 @@ interface ContactsAgentCardProps {
 
 /** Agent 卡片 — 居中布局，底部动作收为轻量文本按钮，避免主区继续堆胶囊层。 */
 export function ContactsAgentCard({
-  name,
-  avatar,
-  description,
+  agent,
   on_open_profile,
   on_open_room,
   on_create_team,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
+
+  // 提取配置信息
+  const permissionMode = agent.options.permission_mode || "default";
+  const model = agent.options.model || "claude-sonnet-4-5";
+  const allowedToolsCount = agent.options.allowed_tools?.length || 0;
+  const skillsCount = agent.skills_count || 0;
+
   return (
     <WorkspaceCatalogCard
       align="center"
@@ -46,34 +48,60 @@ export function ContactsAgentCard({
       onClick={on_open_profile}
       size="comfort"
     >
-      <WorkspaceIconFrame class_name="mx-auto h-16 w-16 overflow-hidden" shape="round" size="lg">
-        {getIconAvatarSrc(avatar) ? (
+      <WorkspaceIconFrame
+        class_name="mx-auto h-14 w-14 overflow-hidden transition-all duration-300 hover:scale-110 hover:shadow-lg"
+        shape="round"
+        size="lg"
+      >
+        {getIconAvatarSrc(agent.avatar) ? (
           <img
-            alt={name}
-            className="h-full w-full object-cover"
-            src={getIconAvatarSrc(avatar) ?? undefined}
+            alt={agent.name}
+            className="h-full w-full object-cover transition-transform duration-300 hover:scale-105 hover:rotate-3"
+            src={getIconAvatarSrc(agent.avatar) ?? undefined}
           />
         ) : (
-          <Bot className="h-7 w-7 text-[color:var(--icon-strong)]" />
+          <Bot className="h-6 w-6 text-[color:var(--icon-strong)] transition-transform duration-300 hover:scale-110 hover:rotate-6" />
         )}
       </WorkspaceIconFrame>
 
-      <WorkspaceCatalogBody class_name="mt-4 w-full" grow={false}>
+      <WorkspaceCatalogBody class_name="mt-3 w-full" grow={false}>
         <WorkspaceCatalogTitle size="lg" truncate>
-        {name}
+          {agent.name}
         </WorkspaceCatalogTitle>
-        <WorkspaceCatalogDescription class_name="mt-2" min_height>
-          {description}
-        </WorkspaceCatalogDescription>
+
+        {/* Agent 描述 */}
+        {agent.description && (
+          <WorkspaceCatalogDescription class_name="mt-1.5 line-clamp-2 text-[13px] leading-tight" min_height={false}>
+            {agent.description}
+          </WorkspaceCatalogDescription>
+        )}
+
+        {/* 运行配置信息 */}
+        <div className="mt-2 flex flex-col gap-1 text-[11px] text-(--text-soft) items-center justify-center text-center">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-(--text-default)">权限:</span>
+            <span className="text-(--text-muted)">{permissionMode}</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center justify-center">
+            <span className="text-(--text-default)">模型:</span>
+            <span className="text-(--text-muted)">{model}</span>
+            <span className="mx-0.5">•</span>
+            <span className="text-(--text-default)">工具:</span>
+            <span className="text-(--text-muted)">{allowedToolsCount}</span>
+            <span className="mx-0.5">•</span>
+            <span className="text-(--text-default)">Skill:</span>
+            <span className="text-(--text-muted)">{skillsCount}</span>
+          </div>
+        </div>
       </WorkspaceCatalogBody>
 
-      <WorkspaceCatalogFooter class_name="mt-5 w-full gap-3" justify="center" onClick={(e) => e.stopPropagation()}>
+      <WorkspaceCatalogFooter class_name="mt-2 w-full gap-4" justify="center" onClick={(e) => e.stopPropagation()}>
         <WorkspaceCatalogTextAction onClick={on_open_room} tone="primary">
-          <MessageSquareText className="h-3.5 w-3.5" />
+          <MessageSquareText className="h-3 w-3" />
           {t("contacts.chat")}
         </WorkspaceCatalogTextAction>
         <WorkspaceCatalogTextAction onClick={on_create_team}>
-          <Users className="h-3.5 w-3.5" />
+          <Users className="h-3 w-3" />
           {t("contacts.create_team")}
         </WorkspaceCatalogTextAction>
       </WorkspaceCatalogFooter>

@@ -92,12 +92,12 @@ export function ContactsDirectory({
             size="comfort"
           >
             <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg">
-              <Plus className="h-7 w-7 text-[color:var(--icon-default)]" />
+              <Plus className="h-7 w-7 text-(--icon-default)" />
             </WorkspaceIconFrame>
-            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">
+            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-(--text-strong)">
               {t("contacts.new_agent")}
             </p>
-            <p className="mt-2 text-[13px] leading-5 text-[color:var(--text-default)]">
+            <p className="mt-2 text-[13px] leading-5 text-(--text-default)">
               {t("contacts.new_agent_description")}
             </p>
           </WorkspaceCatalogGhostCard>
@@ -106,9 +106,7 @@ export function ContactsDirectory({
           {filtered_agents.map((agent) => (
             <ContactsAgentCard
               key={agent.agent_id}
-              avatar={agent.avatar}
-              description={get_contacts_agent_description(agent, t("contacts.default_description"))}
-              name={agent.name}
+              agent={agent}
               on_create_team={() => on_create_team(agent.agent_id)}
               on_open_profile={() => on_edit_agent(agent.agent_id)}
               on_open_room={() => on_open_direct_room(agent.agent_id)}
