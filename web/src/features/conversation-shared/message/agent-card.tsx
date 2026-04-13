@@ -57,10 +57,10 @@ export const AgentCard = memo(function AgentCard({
       type="button"
       onClick={on_click}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-[var(--motion-duration-fast)] ease-out",
+        "group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-(--motion-duration-fast) ease-out",
         is_active
-          ? "border-[var(--surface-interactive-active-border)] bg-[var(--surface-interactive-active-background)]"
-          : "border-[var(--card-default-border)] bg-[var(--card-default-background)] hover:bg-[var(--surface-interactive-hover-background)]",
+          ? "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background)"
+          : "border-(--card-default-border) bg-(--card-default-background) hover:bg-(--surface-interactive-hover-background)",
       )}
     >
       {/* Agent 头像 */}
@@ -68,7 +68,7 @@ export const AgentCard = memo(function AgentCard({
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border",
           is_active
-            ? "border-[var(--surface-interactive-active-border)] bg-[var(--surface-interactive-active-background)] text-(--icon-default)"
+            ? "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--icon-default)"
             : "",
         )}
         style={!is_active ? {
@@ -104,7 +104,7 @@ export const AgentCard = memo(function AgentCard({
             e.stopPropagation();
             on_stop();
           }}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-(--icon-muted) opacity-0 transition duration-[var(--motion-duration-fast)] ease-out group-hover:opacity-100 hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-default)"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-(--icon-muted) opacity-0 transition duration-(--motion-duration-fast) ease-out group-hover:opacity-100 hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
         >
           <Square className="h-3 w-3 fill-current" />
         </button>
@@ -112,7 +112,7 @@ export const AgentCard = memo(function AgentCard({
 
       {/* 展开箭头提示 */}
       <svg
-        className="h-4 w-4 shrink-0 text-(--icon-muted) transition-colors duration-[var(--motion-duration-fast)] ease-out group-hover:text-(--icon-default)"
+        className="h-4 w-4 shrink-0 text-(--icon-muted) transition-colors duration-(--motion-duration-fast) ease-out group-hover:text-(--icon-default)"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

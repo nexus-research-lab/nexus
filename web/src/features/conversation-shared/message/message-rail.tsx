@@ -77,7 +77,7 @@ export function MessageCallout({
   class_name?: string;
 }) {
   return (
-    <div className={cn("rounded-[14px] border border-[var(--status-info-soft-border)] bg-[var(--status-info-soft-bg)] px-3.5 py-2.5 text-xs text-(--status-info-soft-text)", class_name)}>
+    <div className={cn("rounded-[14px] border border-(--status-info-soft-border) bg-(--status-info-soft-bg) px-3.5 py-2.5 text-xs text-(--status-info-soft-text)", class_name)}>
       {children}
     </div>
   );

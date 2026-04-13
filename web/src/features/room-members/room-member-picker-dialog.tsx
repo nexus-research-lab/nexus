@@ -79,12 +79,12 @@ export function RoomMemberPickerDialog({
                   <button
                     key={agent.agent_id}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-[20px] border border-[var(--divider-subtle-color)] px-4 py-3 text-left transition-colors duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)]",
+                      "flex w-full items-center gap-3 rounded-[20px] border border-(--divider-subtle-color) px-4 py-3 text-left transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)",
                     )}
                     onClick={() => on_select(agent.agent_id)}
                     type="button"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[11px] font-bold text-(--text-strong) shadow-[var(--surface-avatar-shadow)]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
                       {getIconAvatarSrc(agent.avatar) ? (
                         <img
                           alt={agent.name}

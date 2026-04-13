@@ -69,7 +69,7 @@ export function RoomMobileWorkspace({
       <div className="px-2 pb-2 pt-2">
         <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
           <button
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-[var(--interaction-hover-background)] hover:text-(--text-strong)"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
             onClick={on_back_to_directory}
             type="button"
           >
@@ -77,11 +77,11 @@ export function RoomMobileWorkspace({
           </button>
 
           <button
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-[var(--divider-subtle-color)] px-3 py-2 text-left transition hover:bg-[var(--interaction-hover-background)]"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
             onClick={() => setIsConversationSheetOpen(true)}
             type="button"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[11px] font-bold text-(--text-strong) shadow-[var(--surface-avatar-shadow)]">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
               {current_agent_avatar_src ? (
                 <img
                   alt={current_agent.name}
@@ -103,7 +103,7 @@ export function RoomMobileWorkspace({
             <ChevronDown className="h-4 w-4 shrink-0 text-(--text-muted)" />
           </button>
 
-          <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--divider-subtle-color)] text-(--text-muted)">
+          <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-(--divider-subtle-color) text-(--text-muted)">
             <MessageSquare className="h-4 w-4" />
           </div>
         </div>
@@ -147,13 +147,13 @@ export function RoomMobileWorkspace({
         <>
           <button
             aria-label="关闭会话列表"
-            className="absolute inset-0 z-30 bg-[var(--dialog-backdrop-color)]"
+            className="absolute inset-0 z-30 bg-(--dialog-backdrop-color)"
             onClick={() => setIsConversationSheetOpen(false)}
             type="button"
           />
 
-          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-[var(--surface-panel-border)] bg-[var(--surface-panel-background)] px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)]">
-            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[var(--divider-strong-color)]" />
+          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-(--surface-panel-border) bg-(--surface-panel-background) px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)]">
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-(--divider-strong-color)" />
 
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -164,7 +164,7 @@ export function RoomMobileWorkspace({
               </div>
 
               <button
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--text-muted) transition hover:bg-[var(--interaction-hover-background)] hover:text-(--text-strong)"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--text-muted) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
                 onClick={() => setIsConversationSheetOpen(false)}
                 type="button"
               >
@@ -178,14 +178,14 @@ export function RoomMobileWorkspace({
                 return (
                   <button
                     key={conversation.conversation_id}
-                    className="flex w-full items-start gap-3 rounded-2xl border border-[var(--divider-subtle-color)] px-3 py-3 text-left transition hover:bg-[var(--interaction-hover-background)]"
+                    className="flex w-full items-start gap-3 rounded-2xl border border-(--divider-subtle-color) px-3 py-3 text-left transition hover:bg-(--interaction-hover-background)"
                     onClick={() => {
                       on_select_conversation(conversation.conversation_id);
                       setIsConversationSheetOpen(false);
                     }}
                     type="button"
                   >
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--divider-subtle-color)] text-(--text-strong)">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) text-(--text-strong)">
                       {is_active ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
                     </div>
 
@@ -216,7 +216,7 @@ function MobileThreadOverlay() {
   if (!active_thread || !thread_panel_data) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[var(--surface-panel-background)]">
+    <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
       <ThreadDetailPanel
         round_id={active_thread.round_id}
         agent_id={active_thread.agent_id}

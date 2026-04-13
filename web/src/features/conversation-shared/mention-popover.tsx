@@ -134,8 +134,8 @@ export const MentionTargetPopover = memo(({
                     <button
                         key={item.id}
                         className={cn(
-                            "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-[var(--motion-duration-fast)]",
-                            index === active_index ? "text-(--text-strong)" : "text-(--text-default) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)",
+                            "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-(--motion-duration-fast)",
+                            index === active_index ? "text-(--text-strong)" : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                         )}
                         style={index === active_index ? { background: "var(--surface-interactive-active-background)" } : undefined}
                         onMouseDown={(e) => {

@@ -136,10 +136,10 @@ function AgentStatusCardInner({
   return (
     <div
       className={cn(
-        "group/card grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3 px-2 py-3 transition-colors duration-[var(--motion-duration-normal)] cursor-pointer",
+        "group/card grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3 px-2 py-3 transition-colors duration-(--motion-duration-normal) cursor-pointer",
         is_thread_active
           ? "bg-primary/5"
-          : "hover:bg-[var(--interaction-hover-background)]",
+          : "hover:bg-(--interaction-hover-background)",
       )}
       onClick={on_click_thread}
       role="button"
@@ -168,8 +168,8 @@ function AgentStatusCardInner({
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
-                ? "border-[var(--status-info-soft-border)] bg-[var(--status-info-soft-bg)] text-(--status-info-soft-text)"
-                : "border-[var(--divider-subtle-color)] bg-[var(--material-chip-background)] text-(--text-muted) hover:bg-[var(--interaction-hover-background)] hover:text-(--text-default)",
+                ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
+                : "border-(--divider-subtle-color) bg-(--material-chip-background) text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
           >
             {is_thread_active ? "关闭 Thread" : "查看 Thread"}
@@ -183,10 +183,10 @@ function AgentStatusCardInner({
                 disabled={!can_respond_to_permissions}
                 title={!can_respond_to_permissions ? permission_read_only_reason : undefined}
                 className={cn(
-                  "rounded-md border border-[var(--divider-subtle-color)] bg-[var(--material-chip-background)] px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors",
+                  "rounded-md border border-(--divider-subtle-color) bg-(--material-chip-background) px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors",
                   can_respond_to_permissions
-                    ? "hover:bg-[var(--interaction-hover-background)]"
-                    : "cursor-not-allowed opacity-[var(--disabled-opacity)]",
+                    ? "hover:bg-(--interaction-hover-background)"
+                    : "cursor-not-allowed opacity-(--disabled-opacity)",
                 )}
               >
                 拒绝
@@ -200,7 +200,7 @@ function AgentStatusCardInner({
                   "rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors",
                   can_respond_to_permissions
                     ? "bg-primary hover:bg-primary/88"
-                    : "cursor-not-allowed bg-[var(--muted)]",
+                    : "cursor-not-allowed bg-(--muted)",
                 )}
               >
                 {is_question_pending ? "去回答" : "允许"}
@@ -212,7 +212,7 @@ function AgentStatusCardInner({
             <button
               type="button"
               onClick={handle_stop}
-              className="flex h-6 items-center gap-1 rounded px-1.5 text-xs text-(--icon-muted) transition-colors hover:bg-[var(--interaction-hover-background)] hover:text-(--icon-default)"
+              className="flex h-6 items-center gap-1 rounded px-1.5 text-xs text-(--icon-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--icon-default)"
             >
               <Square className="h-3 w-3 fill-current" />
             </button>

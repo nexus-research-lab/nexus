@@ -62,7 +62,7 @@ export function SkillMarkdown({ markdown }: SkillMarkdownProps) {
             </li>
           ),
           pre: ({ children }) => (
-            <pre className="mt-4 overflow-x-auto rounded-[18px] bg-[var(--surface-inset-background)] border border-[var(--divider-subtle-color)] p-4 text-xs text-(--text-default) shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
+            <pre className="mt-4 overflow-x-auto rounded-[18px] bg-(--surface-inset-background) border border-(--divider-subtle-color) p-4 text-xs text-(--text-default) shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
               {children}
             </pre>
           ),
@@ -76,7 +76,7 @@ export function SkillMarkdown({ markdown }: SkillMarkdownProps) {
             }
 
             return (
-              <code className="rounded-lg bg-[var(--surface-inset-background)] border border-[var(--divider-subtle-color)] px-[0.42rem] py-[0.16rem] text-[12px] text-(--text-default)">
+              <code className="rounded-lg bg-(--surface-inset-background) border border-(--divider-subtle-color) px-[0.42rem] py-[0.16rem] text-[12px] text-(--text-default)">
                 {children as ReactNode}
               </code>
             );

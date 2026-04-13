@@ -7,7 +7,7 @@ import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/w
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 
-const METRIC_ROW_CLASS_NAME = "flex items-center justify-between gap-3 border-b border-[var(--divider-subtle-color)] py-3 last:border-b-0";
+const METRIC_ROW_CLASS_NAME = "flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) py-3 last:border-b-0";
 
 interface RoomRouteEntryProps {
   room_id?: string;
@@ -34,7 +34,7 @@ export function RoomRouteEntry({
 
   return (
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-      <section className="radius-shell-xl border border-[var(--divider-subtle-color)] px-6 py-6">
+      <section className="radius-shell-xl border border-(--divider-subtle-color) px-6 py-6">
         <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-(--text-strong)">
           {room_agent ? room_agent.name : t("room.route_empty_title")}
         </h2>
@@ -60,7 +60,7 @@ export function RoomRouteEntry({
         </WorkspaceActionBar>
       </section>
 
-      <aside className="radius-shell-xl border border-[var(--divider-subtle-color)] px-6 py-6">
+      <aside className="radius-shell-xl border border-(--divider-subtle-color) px-6 py-6">
         <div className="mt-4">
           <div className={METRIC_ROW_CLASS_NAME}>
             <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
@@ -77,7 +77,7 @@ export function RoomRouteEntry({
           {recent_room_conversations.length ? (
             <div className="pt-3">
               <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
-              <div className="mt-3 divide-y divide-[var(--divider-subtle-color)]">
+              <div className="mt-3 divide-y divide-(--divider-subtle-color)">
                 {recent_room_conversations.map((conversation) => (
                   <button
                     key={conversation.conversation_id}

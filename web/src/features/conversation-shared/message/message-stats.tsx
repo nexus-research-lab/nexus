@@ -64,7 +64,7 @@ export function MessageStats(
             <button
               onClick={on_copy_assistant}
               className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-(--icon-default) transition-[color,border-color,background] duration-[var(--motion-duration-fast)] hover:border-[var(--chip-default-border)] hover:bg-[var(--chip-default-background)] hover:text-(--icon-strong)",
+                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-(--icon-default) transition-[color,border-color,background] duration-(--motion-duration-fast) hover:border-(--chip-default-border) hover:bg-(--chip-default-background) hover:text-(--icon-strong)",
                 copied_assistant && "text-green-500",
               )}
               title="复制回答"

@@ -71,7 +71,7 @@ export function ThreadDetailPanel({
   return (
     <div className={cn(
       "flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
-      is_mobile ? "bg-[var(--surface-panel-background)]" : "bg-transparent",
+      is_mobile ? "bg-(--surface-panel-background)" : "bg-transparent",
     )}>
       {/* ── 头部 ────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>
@@ -81,7 +81,7 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -101,7 +101,7 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           >
             <X className="h-4 w-4" />
           </button>

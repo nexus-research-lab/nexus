@@ -87,15 +87,15 @@ const TreeRow = memo(function TreeRow({
         type="button"
         onClick={handle_click}
         className={cn(
-          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors duration-[var(--motion-duration-fast)]",
+          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors duration-(--motion-duration-fast)",
           is_active
             ? "bg-primary/10 text-primary"
-            : "text-(--text-default) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)",
+            : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         )}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
       >
         {entry.is_dir ? (
-          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-[var(--motion-duration-fast)]", open && "rotate-90")} />
+          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-fast)", open && "rotate-90")} />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
@@ -163,7 +163,7 @@ function MemberSwitcher({
           >
             <span className={cn(
               "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
-              is_active ? "bg-primary/20 text-primary" : "bg-[var(--surface-interactive-hover-background)] text-(--text-default)",
+              is_active ? "bg-primary/20 text-primary" : "bg-(--surface-interactive-hover-background) text-(--text-default)",
             )}>
               {m.name.slice(0, 1).toUpperCase()}
             </span>

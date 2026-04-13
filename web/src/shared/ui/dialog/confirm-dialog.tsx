@@ -2,11 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 
 import {
+  DIALOG_BACKDROP_CLASS_NAME,
+  DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
   getDialogActionClassName,
+  getDialogNoteClassName,
+  getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
 
 interface ConfirmDialogProps {
@@ -62,20 +66,43 @@ export function ConfirmDialog({
 
   if (!is_open) return null;
 
+  const is_danger = variant === "danger";
+
   const dialog = (
     <div
-      className="dialog-backdrop z-[9999] animate-in fade-in duration-[var(--motion-duration-fast)]"
+      className={`${DIALOG_BACKDROP_CLASS_NAME} z-[9999]`}
+      data-modal-root="true"
+      onClick={on_cancel}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
       aria-describedby="confirm-dialog-message"
     >
-      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
+      <section
+        className="dialog-shell radius-shell-xl flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="dialog-header">
-          <div className="min-w-0 flex-1">
-            <h3 id="confirm-dialog-title" className="dialog-title">
-              {title}
-            </h3>
+          <div className="flex min-w-0 flex-1 items-start gap-3.5">
+            <div
+              className={DIALOG_HEADER_ICON_CLASS_NAME}
+              style={is_danger ? {
+                background: "color-mix(in srgb, var(--destructive) 12%, var(--modal-card-background))",
+                border: "1px solid color-mix(in srgb, var(--destructive) 22%, var(--modal-card-border))",
+                color: "var(--destructive)",
+              } : undefined}
+            >
+              <AlertTriangle className="h-4.5 w-4.5" />
+            </div>
+
+            <div className="min-w-0 flex-1 pt-0.5">
+              <h3 id="confirm-dialog-title" className="dialog-title">
+                {title}
+              </h3>
+              <p className="mt-1 text-[12px] text-(--text-soft)">
+                {is_danger ? "此操作会立即生效，且不可恢复。" : "请确认是否继续执行该操作。"}
+              </p>
+            </div>
           </div>
           <button
             aria-label="关闭"
@@ -88,17 +115,25 @@ export function ConfirmDialog({
         </div>
 
         <div className="dialog-body">
-          <p id="confirm-dialog-message" className="text-sm leading-6 text-muted-foreground">
+          <div
+            className={getDialogNoteClassName(is_danger ? "danger" : "default")}
+            id="confirm-dialog-message"
+            style={getDialogNoteStyle(is_danger ? "danger" : "default")}
+          >
             {message}
-          </p>
+          </div>
         </div>
 
-        <div className="dialog-footer">
-          <button className={getDialogActionClassName("default")} onClick={on_cancel} type="button">
+        <div className="dialog-footer border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--modal-card-background)_84%,transparent)]">
+          <button
+            className={getDialogActionClassName("default")}
+            onClick={on_cancel}
+            type="button"
+          >
             {cancel_text}
           </button>
           <button
-            className={getDialogActionClassName(variant === "danger" ? "danger" : "primary")}
+            className={getDialogActionClassName(is_danger ? "danger" : "primary", "min-w-[110px]")}
             ref={confirmButtonRef}
             onClick={on_confirm}
             type="button"
@@ -164,12 +199,13 @@ export function PromptDialog({
 
   const dialog = (
     <div
-      className="dialog-backdrop z-[9999] animate-in fade-in duration-[var(--motion-duration-fast)]"
+      className="dialog-backdrop z-[9999] animate-in fade-in duration-(--motion-duration-fast)"
+      data-modal-root="true"
       role="dialog"
       aria-modal="true"
       aria-labelledby="prompt-dialog-title"
     >
-      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
+      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 id="prompt-dialog-title" className="dialog-title">

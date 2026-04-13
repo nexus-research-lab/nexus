@@ -101,8 +101,8 @@ export function GlassSwitch({
     <button
       aria-checked={checked}
       className={cn(
-        "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-[var(--motion-duration-fast)] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(88,196,94,0.32)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
-        disabled && "cursor-not-allowed opacity-[var(--disabled-opacity)]",
+        "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(88,196,94,0.32)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+        disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         class_name,
       )}
       onClick={() => {
@@ -225,7 +225,7 @@ export function GlassSwitch({
       ) : null}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-[var(--motion-duration-fast)] ease-out will-change-transform"
+        className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
         style={{
           width: `${THUMB_WIDTH}px`,
           height: `${THUMB_HEIGHT}px`,
@@ -240,7 +240,7 @@ export function GlassSwitch({
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-[var(--motion-duration-fast)] ease-out will-change-transform"
+        className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
         onTransitionEnd={(event) => {
           if (event.propertyName === "transform") {
             set_is_transitioning(false);

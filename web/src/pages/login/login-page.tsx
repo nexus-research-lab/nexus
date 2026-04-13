@@ -72,7 +72,7 @@ export function LoginPage() {
       <div className="pointer-events-none absolute left-[-12%] top-[8%] h-72 w-72 rounded-full bg-[rgba(var(--primary-rgb),0.08)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-10%] right-[-4%] h-80 w-80 rounded-full bg-[rgba(196,154,108,0.10)] blur-3xl" />
 
-      <section className="surface-panel radius-shell-xl relative w-full max-w-[430px] overflow-hidden border px-8 py-8 shadow-[var(--surface-popover-shadow)]">
+      <section className="surface-panel radius-shell-xl relative w-full max-w-[430px] overflow-hidden border px-8 py-8 shadow-(--surface-popover-shadow)">
         {/* <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,rgba(var(--primary-rgb),0.88),rgba(196,154,108,0.88))]" /> */}
 
         <div className="flex items-start justify-between gap-4">

@@ -188,7 +188,7 @@ const getPermissionChoiceClassName = (selected: boolean) =>
     "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
     selected
       ? "border-white/12 bg-primary/8 text-primary"
-      : "border-white/12 bg-white/6 text-(--text-muted) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)",
+      : "border-white/12 bg-white/6 text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   );
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
@@ -368,7 +368,7 @@ export function ToolBlock({
               className={cn(
                 "dialog-button-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-(--text-muted) transition-colors",
                 interaction_disabled
-                  ? "cursor-not-allowed opacity-[var(--disabled-opacity)]"
+                  ? "cursor-not-allowed opacity-(--disabled-opacity)"
                   : "hover:text-(--text-strong)",
               )}
             >
@@ -388,7 +388,7 @@ export function ToolBlock({
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors",
                 interaction_disabled
-                  ? "cursor-not-allowed bg-[var(--muted)]"
+                  ? "cursor-not-allowed bg-(--muted)"
                   : "bg-primary hover:bg-primary/90",
               )}
             >
@@ -406,7 +406,7 @@ export function ToolBlock({
               "rounded px-1.5 py-0.5 text-[10px] transition-all",
               copied
                 ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
-                : "text-(--icon-muted) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)"
+                : "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
             )}
           >
             {copied ? '✓' : '复制'}

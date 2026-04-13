@@ -89,12 +89,12 @@ export function IconPicker({
                         <button
                             key={icon_id}
                             className={cn(
-                                "relative inline-flex items-center justify-center rounded-[12px] transition-[background,transform,border-color,box-shadow] duration-[var(--motion-duration-fast)] cursor-pointer",
+                                "relative inline-flex items-center justify-center rounded-[12px] transition-[background,transform,border-color,box-shadow] duration-(--motion-duration-fast) cursor-pointer",
                                 ICON_SIZE_MAP[icon_size],
                                 layout === "row" && "shrink-0",
                                 is_selected
                                     ? "bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] border border-(--primary) shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_16%,transparent)]"
-                                    : "bg-[var(--surface-inset-background)] border border-[var(--surface-inset-border)] hover:bg-[var(--surface-card-background)] hover:-translate-y-[1px]",
+                                    : "bg-(--surface-inset-background) border border-(--surface-inset-border) hover:bg-(--surface-card-background) hover:-translate-y-[1px]",
                                 disabled && "cursor-not-allowed opacity-50",
                             )}
                             onClick={() => !disabled && on_select(icon_id)}

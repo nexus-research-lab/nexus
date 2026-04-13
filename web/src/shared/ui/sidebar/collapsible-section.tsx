@@ -15,13 +15,13 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { useSidebarStore } from "@/store/sidebar";
 
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
-  "relative box-border flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] transition-[background,color,transform] duration-[var(--motion-duration-fast)]";
+  "relative box-border flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] transition-[background,color,transform] duration-(--motion-duration-fast)";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
-  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-[var(--motion-duration-fast)] hover:text-(--text-strong)";
+  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color,transform] duration-[var(--motion-duration-fast)] hover:-translate-y-[1px] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-default)";
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)";
 const SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME =
-  "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-transparent text-(--icon-muted) transition-[background,color,border-color,opacity,transform] duration-[var(--motion-duration-fast)] focus-visible:opacity-100 focus-visible:outline-none";
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-transparent text-(--icon-muted) transition-[background,color,border-color,opacity,transform] duration-(--motion-duration-fast) focus-visible:opacity-100 focus-visible:outline-none";
 
 interface CollapsibleSectionProps {
   section_id: string;
@@ -63,17 +63,17 @@ export function SidebarListItem({
   return (
     <div
       className={cn(
-        "group/item relative flex min-w-0 items-center gap-1.5 rounded-[12px] transition-[background,color,transform] duration-[var(--motion-duration-fast)]",
+        "group/item relative flex min-w-0 items-center gap-1.5 rounded-[12px] transition-[background,color,transform] duration-(--motion-duration-fast)",
         is_active
           ? "text-(--text-strong)"
-          : "text-(--text-default) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)",
+          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
       )}
       style={is_active ? {
         background: "color-mix(in srgb, var(--surface-interactive-active-background) 72%, transparent)",
       } : undefined}
     >
       {is_active ? (
-        <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-[var(--primary)]" />
+        <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
       ) : null}
 
       <button
@@ -116,8 +116,8 @@ export function SidebarListItem({
               className={cn(
                 SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME,
                 is_active
-                  ? "opacity-100 hover:-translate-y-[1px] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-default)"
-                  : "opacity-60 hover:-translate-y-[1px] hover:opacity-100 hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-default)",
+                  ? "opacity-100 hover:-translate-y-[1px] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                  : "opacity-60 hover:-translate-y-[1px] hover:opacity-100 hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)",
               )}
               onClick={(e) => {
                 e.stopPropagation();

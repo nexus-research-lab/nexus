@@ -50,7 +50,7 @@ const BADGE_STYLE_MAP: Record<CatalogBadgeTone, { background: string; border: st
 };
 
 const ICON_FRAME_TONE_CLASS_MAP: Record<IconFrameTone, string> = {
-  default: "border-transparent bg-[var(--chip-default-background)] text-(--text-default)",
+  default: "border-transparent bg-(--chip-default-background) text-(--text-default)",
   primary: "",
   success: "",
   warning: "",
@@ -136,10 +136,10 @@ export function WorkspaceCatalogCard({
   return (
     <article
       className={cn(
-        "surface-card flex flex-col transition duration-[var(--motion-duration-fast)] ease-out",
+        "surface-card flex flex-col transition duration-(--motion-duration-fast) ease-out",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         align === "center" && "items-center text-center",
-        is_interactive && "cursor-pointer hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)]",
+        is_interactive && "cursor-pointer hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
         muted && "opacity-70",
         class_name,
       )}
@@ -348,7 +348,7 @@ export function WorkspaceCatalogAction({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-[10px] border border-transparent bg-transparent text-(--icon-default) transition duration-[var(--motion-duration-fast)] ease-out hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)",
+        "inline-flex items-center justify-center rounded-[10px] border border-transparent bg-transparent text-(--icon-default) transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
         size === "sm"
           ? "h-6 w-6 rounded-[8px]"
           : "h-8 w-8 rounded-[10px]",
@@ -377,7 +377,7 @@ export function WorkspaceCatalogTextAction({
   return (
     <button
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-semibold transition duration-[var(--motion-duration-fast)] ease-out",
+        "inline-flex items-center gap-1.5 text-xs font-semibold transition duration-(--motion-duration-fast) ease-out",
         tone === "default" && "text-(--text-default) hover:text-(--text-strong)",
         tone === "primary" && "text-(--primary) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
         tone === "danger" && "text-rose-600/88 hover:text-rose-700",
@@ -447,7 +447,7 @@ export function WorkspaceCatalogGhostCard({
   return (
     <article
       className={cn(
-        "surface-card flex flex-col items-center justify-center border border-dashed border-[var(--surface-panel-subtle-border)] text-center transition duration-[var(--motion-duration-fast)] ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)]",
+        "surface-card flex flex-col items-center justify-center border border-dashed border-(--surface-panel-subtle-border) text-center transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         onClick && "cursor-pointer",
         class_name,

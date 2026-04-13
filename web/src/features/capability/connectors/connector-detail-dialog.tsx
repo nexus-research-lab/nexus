@@ -42,7 +42,7 @@ export function ConnectorDetailDialog({
     [on_close],
   );
 
-  const colors = detail ? getConnectorColors(detail.icon) : { bg: "bg-[var(--surface-panel-subtle-background)]", text: "text-(--text-muted)" };
+  const colors = detail ? getConnectorColors(detail.icon) : { bg: "bg-(--surface-panel-subtle-background)", text: "text-(--text-muted)" };
   const letter = detail ? getConnectorLetter(detail.icon, detail.title) : "?";
   const is_connected = detail?.connection_state === "connected";
   const is_coming_soon = detail?.status === "coming_soon";
@@ -70,7 +70,7 @@ export function ConnectorDetailDialog({
             </div>
             <div className="min-w-0 flex-1">
               {loading ? (
-                <div className="h-5 w-32 animate-pulse rounded bg-[var(--surface-panel-subtle-background)]" />
+                <div className="h-5 w-32 animate-pulse rounded bg-(--surface-panel-subtle-background)" />
               ) : (
                 <>
                   <h2 className="dialog-title" data-size="hero">

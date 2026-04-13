@@ -31,7 +31,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
 
   if (ctrl.external_query && !ctrl.external_results.length) {
     return (
-      <div className="rounded-[18px] border border-dashed border-[var(--divider-subtle-color)] px-5 py-8 text-center text-sm text-(--text-soft)">
+      <div className="rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         暂无匹配结果，试试更具体的关键词
       </div>
     );

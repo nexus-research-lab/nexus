@@ -510,7 +510,7 @@ const HeroStage = memo(function HeroStage({
                   className={cn(
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition duration-150 ease-out hover:-translate-y-0.5 sm:h-11 sm:w-11",
                     ((surface === "launcher" && is_query_loading) || (surface === "app" && input_disabled))
-                    && "cursor-not-allowed opacity-[var(--disabled-opacity)] hover:translate-y-0",
+                    && "cursor-not-allowed opacity-(--disabled-opacity) hover:translate-y-0",
                   )}
                   style={{
                     background: "var(--launcher-submit-background)",
@@ -529,7 +529,7 @@ const HeroStage = memo(function HeroStage({
                       <ArrowUp className="h-4 w-4" />
                     )
                   ) : is_query_loading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--divider-strong-color)] border-t-transparent" />
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
                     <ArrowUp className="h-4 w-4" />
                   )}

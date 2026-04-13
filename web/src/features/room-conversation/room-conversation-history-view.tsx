@@ -81,8 +81,8 @@ export function RoomConversationHistoryView({
           })}
         </div>
       ) : (
-        <div className="rounded-[24px] border border-[var(--divider-subtle-color)] px-6 py-10 text-center">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-(--icon-default) shadow-[var(--surface-avatar-shadow)]">
+        <div className="rounded-[24px] border border-(--divider-subtle-color) px-6 py-10 text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
             <Clock3 className="h-4 w-4" />
           </div>
           <p className="mt-4 text-[15px] font-semibold text-(--text-strong)">
@@ -93,7 +93,7 @@ export function RoomConversationHistoryView({
           </p>
           {can_manage_conversations ? (
             <button
-              className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-(--primary) transition duration-[var(--motion-duration-fast)] ease-out hover:text-[color:color-mix(in_srgb,var(--primary)_84%,var(--foreground)_16%)]"
+              className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) ease-out hover:text-[color:color-mix(in_srgb,var(--primary)_84%,var(--foreground)_16%)]"
               onClick={() => {
                 void on_create_conversation();
               }}
@@ -152,10 +152,10 @@ function ConversationHistoryItem({
   return (
     <article
       className={cn(
-        "group relative w-full rounded-[22px] border p-4 text-left transition duration-[var(--motion-duration-fast)] ease-out",
+        "group relative w-full rounded-[22px] border p-4 text-left transition duration-(--motion-duration-fast) ease-out",
         is_active
           ? "border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))]"
-          : "border-[var(--divider-subtle-color)] hover:-translate-y-[1px] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]",
+          : "border-(--divider-subtle-color) hover:-translate-y-[1px] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
       )}
       style={is_active
         ? {
@@ -167,7 +167,7 @@ function ConversationHistoryItem({
       {is_active ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-4 bottom-4 w-[2px] rounded-full bg-[var(--primary)]"
+          className="absolute left-0 top-4 bottom-4 w-[2px] rounded-full bg-(--primary)"
         />
       ) : null}
 
@@ -177,7 +177,7 @@ function ConversationHistoryItem({
             <div className="flex items-center gap-1.5">
               <input
                 autoFocus
-                className="min-w-0 flex-1 rounded-[12px] border border-(--input-shell-border) bg-transparent px-3 py-2 text-[13px] font-semibold text-(--text-strong) outline-none transition focus:border-[var(--surface-interactive-active-border)]"
+                className="min-w-0 flex-1 rounded-[12px] border border-(--input-shell-border) bg-transparent px-3 py-2 text-[13px] font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
                 maxLength={64}
                 onChange={(e) => set_edit_value(e.target.value)}
                 onKeyDown={(e) => {
@@ -188,7 +188,7 @@ function ConversationHistoryItem({
               />
               <button
                 aria-label="确认"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--primary) transition duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)]"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
                 onClick={confirm_edit}
                 type="button"
               >
@@ -196,7 +196,7 @@ function ConversationHistoryItem({
               </button>
               <button
                 aria-label="取消"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
                 onClick={cancel_edit}
                 type="button"
               >
@@ -205,7 +205,7 @@ function ConversationHistoryItem({
             </div>
           ) : (
             <button
-              className="block w-full rounded-[14px] text-left outline-none transition duration-[var(--motion-duration-fast)] ease-out focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]"
+              className="block w-full rounded-[14px] text-left outline-none transition duration-(--motion-duration-fast) ease-out focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]"
               onClick={on_select}
               type="button"
             >
@@ -253,7 +253,7 @@ function ConversationHistoryItem({
             <button
               aria-label="重命名"
               className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)",
+                "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
                 is_active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
               )}
               onClick={start_edit}
@@ -268,7 +268,7 @@ function ConversationHistoryItem({
               <button
                 aria-label="删除对话"
                 className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--destructive) transition duration-[var(--motion-duration-fast)] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
+                  "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--destructive) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
                   is_active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                 )}
                 onClick={on_delete}
@@ -291,7 +291,7 @@ function ConversationHistoryItem({
                     className={cn(
                       "pointer-events-none absolute bottom-full right-0 z-10 mb-2 w-max max-w-52 rounded-xl border px-2.5 py-1.5 text-[11px] leading-5 text-(--text-strong) shadow-lg",
                       "whitespace-normal break-words",
-                      "translate-y-1 opacity-0 transition duration-[var(--motion-duration-fast)] ease-out group-hover/delete-hint:translate-y-0 group-hover/delete-hint:opacity-100",
+                      "translate-y-1 opacity-0 transition duration-(--motion-duration-fast) ease-out group-hover/delete-hint:translate-y-0 group-hover/delete-hint:opacity-100",
                     )}
                     style={{
                       background: "var(--surface-popover-background)",

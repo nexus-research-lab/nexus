@@ -150,7 +150,7 @@ export function PermissionDialog(
           <h3 className="mt-1 text-base font-semibold text-(--text-strong)">参数</h3>
         </div>
         {readableFields.map((field) => (
-          <div key={field.key} className="rounded-[16px] border border-[var(--divider-subtle-color)] px-4 py-3">
+          <div key={field.key} className="rounded-[16px] border border-(--divider-subtle-color) px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
               {field.label}
             </p>
@@ -170,12 +170,12 @@ export function PermissionDialog(
 
   return createPortal(
     <div
-      className="dialog-backdrop z-9999 animate-in fade-in duration-[var(--motion-duration-fast)]"
+      className="dialog-backdrop z-9999 animate-in fade-in duration-(--motion-duration-fast)"
       onClick={on_close}
     >
       <GlassPanel
         true_glass
-        class_name="radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-[var(--motion-duration-fast)]"
+        class_name="radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)"
         content_layout="fill-flex"
         content_class_name="min-h-0"
         onClick={(event) => event.stopPropagation()}
@@ -241,10 +241,10 @@ export function PermissionDialog(
               <div className="space-y-2">
                 <label
                   className={cn(
-                    "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-[var(--motion-duration-normal)]",
+                    "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-(--motion-duration-normal)",
                     selectedSuggestionIndex === -1
                       ? "dialog-card-active"
-                      : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]",
+                      : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
                   )}
                 >
                   <input
@@ -263,10 +263,10 @@ export function PermissionDialog(
                   <label
                     key={suggestion.index}
                     className={cn(
-                      "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-[var(--motion-duration-normal)]",
+                      "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-(--motion-duration-normal)",
                       selectedSuggestionIndex === suggestion.index
                         ? "dialog-card-active"
-                        : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]",
+                        : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
                     )}
                   >
                     <input

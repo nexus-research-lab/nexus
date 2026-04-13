@@ -161,7 +161,7 @@ export function ScheduledTaskRunHistoryDialog({
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--text-default) transition duration-[var(--motion-duration-fast)] hover:text-(--text-strong)"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--text-default) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
               onClick={() => void handle_refresh()}
               type="button"
             >
@@ -170,7 +170,7 @@ export function ScheduledTaskRunHistoryDialog({
             </button>
             <button
               aria-label="关闭"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
               onClick={on_close}
               type="button"
             >
@@ -185,7 +185,7 @@ export function ScheduledTaskRunHistoryDialog({
               {Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-[108px] animate-pulse rounded-[16px] border border-[var(--divider-subtle-color)]"
+                  className="h-[108px] animate-pulse rounded-[16px] border border-(--divider-subtle-color)"
                 />
               ))}
             </div>
@@ -197,8 +197,8 @@ export function ScheduledTaskRunHistoryDialog({
               </p>
             </div>
           ) : runs.length === 0 ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-dashed border-[var(--divider-subtle-color)] px-5 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-[var(--divider-subtle-color)]">
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-(--divider-subtle-color)">
                 <History className="h-6 w-6 text-(--icon-strong)" />
               </div>
               <h4 className="mt-5 text-lg font-bold tracking-[-0.03em] text-(--text-strong)">
@@ -209,7 +209,7 @@ export function ScheduledTaskRunHistoryDialog({
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-[var(--divider-subtle-color)]">
+            <div className="divide-y divide-(--divider-subtle-color)">
               {runs.map((run) => {
                 const status = get_status_meta(run.status);
                 return (

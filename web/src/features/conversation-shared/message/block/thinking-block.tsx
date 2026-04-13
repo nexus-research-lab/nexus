@@ -36,8 +36,8 @@ export function ThinkingBlock({ thinking, is_streaming }: ThinkingBlockProps) {
         <span className="shrink-0 text-(--icon-muted)">
           <ChevronRight
             className={is_expanded
-              ? "h-3.5 w-3.5 rotate-90 transition-transform duration-[var(--motion-duration-fast)]"
-              : "h-3.5 w-3.5 transition-transform duration-[var(--motion-duration-fast)]"}
+              ? "h-3.5 w-3.5 rotate-90 transition-transform duration-(--motion-duration-fast)"
+              : "h-3.5 w-3.5 transition-transform duration-(--motion-duration-fast)"}
           />
         </span>
       </button>

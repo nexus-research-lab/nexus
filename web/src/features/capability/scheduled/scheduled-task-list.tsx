@@ -134,7 +134,7 @@ export function ScheduledTaskList({
             {Array.from({ length: 3 }).map((_, index) => (
               <div
                 key={index}
-                className="h-[132px] animate-pulse rounded-[16px] border border-[var(--divider-subtle-color)]"
+                className="h-[132px] animate-pulse rounded-[16px] border border-(--divider-subtle-color)"
               />
             ))}
           </div>
@@ -149,7 +149,7 @@ export function ScheduledTaskList({
             </WorkspaceCatalogTextAction>
           </div>
         ) : items.length === 0 ? (
-          <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[18px] border border-dashed border-[var(--divider-subtle-color)] px-5 text-center">
+          <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
             <div className="chip-default flex h-14 w-14 items-center justify-center rounded-[20px]">
               <Clock3 className="h-6 w-6 text-(--icon-strong)" />
             </div>
@@ -164,7 +164,7 @@ export function ScheduledTaskList({
             </WorkspaceCatalogTextAction>
           </div>
         ) : (
-          <div className="divide-y divide-[var(--divider-subtle-color)]">
+          <div className="divide-y divide-(--divider-subtle-color)">
             {items.map((task) => {
               const status = get_primary_status(task);
               const run_pending = run_pending_job_id === task.job_id;

@@ -37,7 +37,7 @@ const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 
 export const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkBreaks];
 export const REHYPE_PLUGINS = [rehypeKatex];
-export const MARKDOWN_BODY_CLASS_NAME = "w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-[var(--divider-subtle-color)]";
+export const MARKDOWN_BODY_CLASS_NAME = "w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-(--divider-subtle-color)";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
 
 function normalizeWorkspaceReference(value: string): string {
@@ -208,7 +208,7 @@ export function createMarkdownComponents(
       return <h3 className="mb-2 mt-4 max-w-full break-words text-lg font-bold text-foreground">{children}</h3>;
     },
     table({ children }) {
-      return <table className="my-4 w-full max-w-full table-fixed border-collapse overflow-hidden rounded-[14px] border border-[var(--divider-subtle-color)] text-left text-sm sm:table-auto">{children}</table>;
+      return <table className="my-4 w-full max-w-full table-fixed border-collapse overflow-hidden rounded-[14px] border border-(--divider-subtle-color) text-left text-sm sm:table-auto">{children}</table>;
     },
     thead({ children }) {
       return <thead className="uppercase text-(--text-muted) font-semibold" style={{ background: "color-mix(in srgb, var(--surface-panel-background) 68%, var(--divider-subtle-color))" }}>{children}</thead>;

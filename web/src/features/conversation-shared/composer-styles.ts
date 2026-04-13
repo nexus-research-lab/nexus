@@ -13,24 +13,24 @@ export const COMPOSER_ATTACHMENT_CLASS_NAME =
   "chip-default group relative inline-flex items-center gap-2 rounded-[14px] px-3 py-[0.45rem]";
 
 export const COMPOSER_ATTACHMENT_ROW_CLASS_NAME =
-  "flex flex-wrap gap-2 border-b border-[var(--divider-subtle-color)] px-2.5 py-2";
+  "flex flex-wrap gap-2 border-b border-(--divider-subtle-color) px-2.5 py-2";
 
 export const COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME =
-  "ml-1 rounded-full p-0.5 text-red-500/76 opacity-60 transition-[background,opacity] duration-[var(--motion-duration-fast)] hover:bg-red-50/90 focus-visible:ring-2 focus-visible:ring-primary/50";
+  "ml-1 rounded-full p-0.5 text-red-500/76 opacity-60 transition-[background,opacity] duration-(--motion-duration-fast) hover:bg-red-50/90 focus-visible:ring-2 focus-visible:ring-primary/50";
 
 export const COMPOSER_ACTION_BUTTON_CLASS_NAME =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[var(--divider-subtle-color)] bg-transparent text-(--icon-default) transition-[background,border-color,color] duration-[var(--motion-duration-fast)] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]";
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-(--icon-default) transition-[background,border-color,color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
 export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-[var(--button-primary-border)] bg-[var(--button-primary-background)] text-[var(--button-primary-color)] transition-[background,border-color,color] duration-[var(--motion-duration-fast)] hover:bg-[var(--button-primary-hover-background)] hover:border-[var(--button-primary-hover-border)] disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]";
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-(--button-primary-border) bg-(--button-primary-background) text-(--button-primary-color) transition-[background,border-color,color] duration-(--motion-duration-fast) hover:bg-(--button-primary-hover-background) hover:border-(--button-primary-hover-border) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-[color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[color-mix(in_srgb,var(--destructive)_86%,var(--foreground)_14%)] transition-[background,border-color,color] duration-[var(--motion-duration-fast)] hover:bg-[color-mix(in_srgb,var(--destructive)_14%,transparent)] hover:border-[color-mix(in_srgb,var(--destructive)_36%,transparent)] disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]";
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-[color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[color-mix(in_srgb,var(--destructive)_86%,var(--foreground)_14%)] transition-[background,border-color,color] duration-(--motion-duration-fast) hover:bg-[color-mix(in_srgb,var(--destructive)_14%,transparent)] hover:border-[color-mix(in_srgb,var(--destructive)_36%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
 export function getComposerShellClassName(disabled: boolean) {
   return cn(
-    "rounded-[18px] transition-[border-color,background,box-shadow] duration-[var(--motion-duration-fast)] focus-within:shadow-[0_0_0_1px_var(--material-input-focus-border)]",
-    disabled && "cursor-not-allowed opacity-[var(--disabled-opacity)]",
+    "rounded-[18px] transition-[border-color,background,box-shadow] duration-(--motion-duration-fast) focus-within:shadow-[0_0_0_1px_var(--material-input-focus-border)]",
+    disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
   );
 }
 
@@ -45,4 +45,4 @@ export function getComposerShellStyle(compact: boolean) {
 }
 
 export const COMPOSER_FOOTER_CLASS_NAME =
-  "flex items-center justify-between gap-3 border-t border-[var(--divider-subtle-color)] px-2.5 py-1.5 text-(--text-soft)";
+  "flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) px-2.5 py-1.5 text-(--text-soft)";

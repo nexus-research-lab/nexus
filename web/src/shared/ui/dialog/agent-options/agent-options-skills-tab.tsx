@@ -115,7 +115,7 @@ export function AgentOptionsSkillsTab({
     return (
       <div
         key={skill.name}
-        className="dialog-card rounded-[20px] px-4 py-3.5 transition-all duration-[var(--motion-duration-normal)] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]"
+        className="dialog-card rounded-[20px] px-4 py-3.5 transition-all duration-(--motion-duration-normal) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">

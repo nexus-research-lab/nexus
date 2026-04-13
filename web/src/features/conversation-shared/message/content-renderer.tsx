@@ -234,7 +234,7 @@ export function ContentRenderer(
                 </MessageResultLabel>
                 <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                   {typeof block.content === 'string' ? (
-                    <pre className="rounded-2xl border border-[var(--divider-subtle-color)] bg-[var(--surface-inset-background)] p-3 text-xs text-(--text-default) whitespace-pre-wrap break-words">
+                    <pre className="rounded-2xl border border-(--divider-subtle-color) bg-(--surface-inset-background) p-3 text-xs text-(--text-default) whitespace-pre-wrap break-words">
                       {block.content}
                     </pre>
                   ) : (

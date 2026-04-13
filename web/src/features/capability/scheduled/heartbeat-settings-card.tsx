@@ -99,7 +99,7 @@ export function HeartbeatSettingsCard({
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="h-20 animate-pulse rounded-[16px] border border-[var(--divider-subtle-color)]"
+                className="h-20 animate-pulse rounded-[16px] border border-(--divider-subtle-color)"
               />
             ))}
           </div>
@@ -126,7 +126,7 @@ export function HeartbeatSettingsCard({
               ) : null}
             </div>
 
-            <div className="grid gap-4 border-y border-[var(--divider-subtle-color)] py-4 sm:grid-cols-2">
+            <div className="grid gap-4 border-y border-(--divider-subtle-color) py-4 sm:grid-cols-2">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                   执行间隔
@@ -184,7 +184,7 @@ export function HeartbeatSettingsCard({
             ) : null}
           </>
         ) : (
-          <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-[18px] border border-dashed border-[var(--divider-subtle-color)] px-5 text-center">
+          <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
             <p className="text-sm font-semibold text-(--text-strong)">
               当前 Agent 还没有 heartbeat 配置
             </p>

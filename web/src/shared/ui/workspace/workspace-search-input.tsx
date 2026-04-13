@@ -6,7 +6,7 @@ import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SEARCH_INPUT_SHELL_CLASS_NAME =
-  "input-shell inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm text-(--text-default) transition duration-150 ease-out hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]";
+  "input-shell inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm text-(--text-default) transition duration-150 ease-out hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)";
 const SEARCH_INPUT_FIELD_CLASS_NAME =
   "min-w-0 flex-1 bg-transparent text-sm text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none";
 

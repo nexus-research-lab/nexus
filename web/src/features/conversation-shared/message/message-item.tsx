@@ -92,7 +92,7 @@ function getSystemMessageContainerClassName(tone: "neutral" | "warning"): string
   if (tone === "warning") {
     return "border border-amber-200/60 bg-amber-50/70 text-amber-950/88";
   }
-  return "border border-[var(--surface-panel-subtle-border)] bg-[var(--surface-inset-background)] text-(--text-default)";
+  return "border border-(--surface-panel-subtle-border) bg-(--surface-inset-background) text-(--text-default)";
 }
 
 function getSystemMessageIconClassName(tone: "neutral" | "warning"): string {
@@ -791,8 +791,8 @@ function MessageItemInner(
     <div className={cn(
       "mt-3 flex flex-col gap-3",
       is_room_thread_mode
-        ? "border-t border-[var(--divider-subtle-color)] pt-3"
-        : "rounded-2xl bg-[var(--surface-inset-background)] p-3",
+        ? "border-t border-(--divider-subtle-color) pt-3"
+        : "rounded-2xl bg-(--surface-inset-background) p-3",
     )}>
       {unmatchedPendingPermissions.map((permission) => (
         <ToolBlock
@@ -1033,7 +1033,7 @@ function MessageItemInner(
                               "flex items-start gap-2 rounded-2xl px-3 py-2.5",
                               getSystemMessageContainerClassName(display_meta.tone),
                               is_room_thread_mode && display_meta.tone === "neutral"
-                                ? "border border-[var(--divider-subtle-color)] bg-transparent text-(--text-default)"
+                                ? "border border-(--divider-subtle-color) bg-transparent text-(--text-default)"
                                 : null,
                             )}
                           >
@@ -1087,7 +1087,7 @@ function MessageItemInner(
                   {shouldRenderProcessCallchain ? (
                     <div ref={processAnchorRef as React.RefObject<HTMLDivElement>}>
                       <button
-                        className="flex w-full items-center gap-2 py-1.5 text-left text-(--text-muted) transition-colors duration-[var(--motion-duration-fast)] hover:text-(--text-strong)"
+                        className="flex w-full items-center gap-2 py-1.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
                         onClick={toggleProcessExpanded}
                         type="button"
                       >

@@ -14,7 +14,7 @@ export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
     <WorkspaceSurfaceView eyebrow="About" title={agent.name}>
       <div className="py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-[var(--divider-subtle-color)] text-(--icon-strong)">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-(--divider-subtle-color) text-(--icon-strong)">
             <Bot className="h-5 w-5" />
           </div>
           <div>
@@ -23,7 +23,7 @@ export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 border-t border-[var(--divider-subtle-color)] pt-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 border-t border-(--divider-subtle-color) pt-4 sm:grid-cols-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
               Model

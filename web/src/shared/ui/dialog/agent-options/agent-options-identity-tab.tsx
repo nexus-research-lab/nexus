@@ -80,7 +80,7 @@ export function AgentOptionsIdentityTab({
       <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] gap-5">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] shadow-[var(--surface-avatar-shadow)]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
               {getIconAvatarSrc(avatar) ? (
                 <img
                   alt="agent-avatar"
@@ -99,7 +99,7 @@ export function AgentOptionsIdentityTab({
                 type="text"
                 value={title}
                 onChange={(e) => onTitleChange(e.target.value)}
-                className="dialog-input rounded-xl flex h-10 w-full px-3.5 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] transition-all"
+                className="dialog-input rounded-xl flex h-10 w-full px-3.5 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
                 placeholder="例如：Coding Assistant"
               />
             </div>
@@ -135,7 +135,7 @@ export function AgentOptionsIdentityTab({
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">Vibe Tags</label>
-            <div className="rounded-[18px] border border-[var(--divider-subtle-color)] px-3.5 py-3">
+            <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 {vibeTags.map((tag) => (
                   <span
@@ -166,7 +166,7 @@ export function AgentOptionsIdentityTab({
                   <button
                     type="button"
                     onClick={handleAddTag}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)"
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -183,7 +183,7 @@ export function AgentOptionsIdentityTab({
               <select
                 value={model}
                 onChange={(e) => onModelChange(e.target.value)}
-                className="dialog-input rounded-xl flex h-10 w-full appearance-none px-3.5 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] transition-all"
+                className="dialog-input rounded-xl flex h-10 w-full appearance-none px-3.5 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
               >
                 {AVAILABLE_MODELS.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -218,7 +218,7 @@ export function AgentOptionsIdentityTab({
         <textarea
           value={description}
           onChange={(e) => onDescriptionChange(e.target.value)}
-          className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] transition-all"
+          className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
           rows={3}
           placeholder="描述此 Agent 的目标或背景信息..."
         />

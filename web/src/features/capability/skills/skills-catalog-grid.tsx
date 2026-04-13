@@ -23,7 +23,7 @@ export function SkillsCatalogGrid({ ctrl }: SkillsCatalogGridProps) {
   if (!ctrl.grouped_skills.length) {
     return (
       <div className="flex min-h-80 flex-col items-center justify-center gap-3 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--divider-subtle-color)] bg-[var(--surface-inset-background)]">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-(--surface-inset-background)">
           <Puzzle className="h-6 w-6 text-(--text-muted)" />
         </div>
         <div>

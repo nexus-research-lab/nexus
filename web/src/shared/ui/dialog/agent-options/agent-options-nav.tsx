@@ -45,10 +45,10 @@ export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps
             onClick={() => onTabChange(item.key)}
             title={item.label}
             className={cn(
-              "relative flex w-full items-center gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left transition-[color,background] duration-[var(--motion-duration-normal)]",
+              "relative flex w-full items-center gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left transition-[color,background] duration-(--motion-duration-normal)",
               isActive
                 ? "text-primary shadow-none"
-                : "text-(--text-muted) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)"
+                : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
             )}
           >
             {isActive ? (

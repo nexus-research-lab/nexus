@@ -42,6 +42,7 @@ interface CreateRoomDialogProps {
 }
 
 const MAX_MEMBERS = 10;
+const EMPTY_AGENT_IDS: string[] = [];
 
 export function CreateRoomDialog({
   agents,
@@ -53,7 +54,7 @@ export function CreateRoomDialog({
   confirm_label,
   initial_name = "",
   initial_avatar = "",
-  initial_selected_agent_ids = [],
+  initial_selected_agent_ids,
   on_cancel,
   on_confirm,
 }: CreateRoomDialogProps) {
@@ -62,16 +63,27 @@ export function CreateRoomDialog({
   const [selected_ids, set_selected_ids] = useState<string[]>([]);
   const [room_name, set_room_name] = useState("");
   const [selected_avatar, set_selected_avatar] = useState("");
+  const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_AGENT_IDS;
+  // 中文注释：数组 props 往往每次 render 都是新引用，依赖序列化后的稳定签名，
+  // 避免弹窗打开时因默认空数组或父层重建数组而反复 setState。
+  const initial_selected_ids_signature = useMemo(
+    () => JSON.stringify(normalized_initial_selected_ids),
+    [normalized_initial_selected_ids],
+  );
+  const stable_initial_selected_ids = useMemo(
+    () => JSON.parse(initial_selected_ids_signature) as string[],
+    [initial_selected_ids_signature],
+  );
 
   // 打开时重置状态
   useEffect(() => {
     if (is_open) {
       set_search_query("");
-      set_selected_ids(initial_selected_agent_ids);
+      set_selected_ids(stable_initial_selected_ids);
       set_room_name(initial_name);
       set_selected_avatar(initial_avatar);
     }
-  }, [initial_avatar, initial_name, initial_selected_agent_ids, is_open]);
+  }, [initial_avatar, initial_name, initial_selected_ids_signature, is_open, stable_initial_selected_ids]);
 
   // ESC 关闭
   useEffect(() => {
@@ -120,12 +132,17 @@ export function CreateRoomDialog({
   const resolved_dialog_subtitle = dialog_subtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
   const resolved_confirm_label = confirm_label ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
 
+  if (typeof document === "undefined") {
+    return null;
+  }
+
   // Portal 渲染到 body，确保弹窗不受侧边栏 overflow 限制
   return createPortal(
     <>
       <div
         aria-hidden="true"
         className={cn(DIALOG_BACKDROP_CLASS_NAME, "z-[9998]")}
+        data-modal-root="true"
         onClick={on_cancel}
       />
       <div
@@ -133,6 +150,7 @@ export function CreateRoomDialog({
         aria-modal="true"
         className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
         role="dialog"
+        onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
@@ -142,6 +160,10 @@ export function CreateRoomDialog({
             DIALOG_SHELL_CLASS_NAME,
             "flex h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden pointer-events-auto",
           )}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
         >
           <div className="dialog-header">
             <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
@@ -170,13 +192,13 @@ export function CreateRoomDialog({
           {/* 内容区：左右两栏 */}
           <div className="dialog-body flex min-h-0 flex-1 gap-5 overflow-hidden">
             {/* 左栏：房间信息 */}
-            <div className="flex min-h-0 w-[240px] shrink-0 flex-col gap-3">
+            <div className="flex min-h-0 w-60 shrink-0 flex-col gap-3">
               <p className="dialog-label">
                 {t("room.settings_title")}
               </p>
-              <div className="rounded-[18px] border border-[var(--divider-subtle-color)] px-3.5 py-3">
+              <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[14px] border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] shadow-[var(--surface-avatar-shadow)]">
+                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
                     {preview_avatar_src ? (
                       <img
                         alt="room-avatar-preview"
@@ -216,7 +238,7 @@ export function CreateRoomDialog({
               </p>
 
               <div
-                className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto rounded-2xl border border-[var(--divider-subtle-color)] p-2.5"
+                className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto rounded-2xl border border-(--divider-subtle-color) p-2.5"
               >
                 {selected_agents.length > 0 ? (
                   selected_agents.map((agent) => (
@@ -277,7 +299,7 @@ export function CreateRoomDialog({
                 {t("room.all_agents", { count: filtered_agents.length })}
               </p>
 
-              <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-[var(--divider-subtle-color)] p-2.5">
+              <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-(--divider-subtle-color) p-2.5">
                 <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
                   {filtered_agents.map((agent) => {
                     const is_selected = selected_ids.includes(agent.agent_id);
@@ -285,7 +307,7 @@ export function CreateRoomDialog({
                       <button
                         key={agent.agent_id}
                         className={cn(
-                          "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition-all duration-[var(--motion-duration-normal)]",
+                          "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition-all duration-(--motion-duration-normal)",
                           is_selected && "dialog-card-active",
                         )}
                         onClick={() => toggle_agent(agent.agent_id)}
@@ -323,7 +345,7 @@ export function CreateRoomDialog({
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
                             is_selected
                               ? "bg-primary text-white"
-                              : "border border-[var(--surface-interactive-hover-border)] text-(--text-soft)",
+                              : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
                           )}
                         >
                           {is_selected ? (

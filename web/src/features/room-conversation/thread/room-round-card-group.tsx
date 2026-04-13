@@ -70,7 +70,7 @@ function RoomCompletedReply({
   }, [assistant_messages, result_message]);
 
   return (
-    <div className="border-b border-[var(--divider-subtle-color)]">
+    <div className="border-b border-(--divider-subtle-color)">
       <MessageItem
         current_agent_name={agent_name}
         current_agent_avatar={agent_avatar}
@@ -85,8 +85,8 @@ function RoomCompletedReply({
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
-                ? "border-[var(--status-info-soft-border)] bg-[var(--status-info-soft-bg)] text-(--status-info-soft-text)"
-                : "border-[var(--divider-subtle-color)] bg-[var(--material-chip-background)] text-(--text-muted) hover:bg-[var(--interaction-hover-background)] hover:text-(--text-default)",
+                ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
+                : "border-(--divider-subtle-color) bg-(--material-chip-background) text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
             onClick={on_click_thread}
             type="button"
@@ -159,7 +159,7 @@ function RoomRoundCardGroupInner({
   return (
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {user_message ? (
-        <div className="border-b border-[var(--divider-subtle-color)]">
+        <div className="border-b border-(--divider-subtle-color)">
           {/* 仅复用用户消息样式，传入 is_loading 避免渲染空的助手区域。 */}
           <MessageItem
             round_id={round_id}
@@ -199,7 +199,7 @@ function RoomRoundCardGroupInner({
             );
 
             return (
-              <div key={entry.agent_id} className="border-b border-[var(--divider-subtle-color)]">
+              <div key={entry.agent_id} className="border-b border-(--divider-subtle-color)">
                 <div className="w-full px-2 sm:px-3">
                   <div className="mx-auto w-full max-w-[980px]">
                     <AgentStatusCard

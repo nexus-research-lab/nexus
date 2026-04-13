@@ -61,7 +61,7 @@ export function GlassSlider({
         }}
       />
       <input
-        className="relative z-[1] h-8 w-full appearance-none bg-transparent outline-none disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] [&::-webkit-slider-runnable-track]:h-4 [&::-webkit-slider-runnable-track]:appearance-none [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:mt-[-2px] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-[rgba(255,255,255,0.68)] [&::-webkit-slider-thumb]:bg-[linear-gradient(180deg,rgba(240,255,242,0.98),rgba(199,255,214,0.94))] [&::-webkit-slider-thumb]:shadow-[0_8px_18px_rgba(44,153,68,0.22)]"
+        className="relative z-[1] h-8 w-full appearance-none bg-transparent outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) [&::-webkit-slider-runnable-track]:h-4 [&::-webkit-slider-runnable-track]:appearance-none [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:mt-[-2px] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-[rgba(255,255,255,0.68)] [&::-webkit-slider-thumb]:bg-[linear-gradient(180deg,rgba(240,255,242,0.98),rgba(199,255,214,0.94))] [&::-webkit-slider-thumb]:shadow-[0_8px_18px_rgba(44,153,68,0.22)]"
         disabled={disabled}
         max={max}
         min={min}

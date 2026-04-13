@@ -12,7 +12,7 @@ import {
 export { WorkspaceTaskStrip } from "./workspace-task-strip";
 
 const SURFACE_HEADER_CLASS_NAME =
-  "border-b border-[var(--divider-subtle-color)] bg-transparent";
+  "border-b border-(--divider-subtle-color) bg-transparent";
 
 interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   key: TTabKey;
@@ -64,7 +64,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
           {leading ? (
             <div
               className={cn(
-                "flex shrink-0 items-center justify-center rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-(--icon-default) shadow-[var(--surface-avatar-shadow)]",
+                "flex shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)",
                 density === "compact" ? "h-8 w-8" : "h-10 w-10",
               )}
             >
@@ -122,9 +122,9 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
                   aria-current={is_active ? "page" : undefined}
                   key={tab.key}
                   className={cn(
-                    "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-[var(--motion-duration-fast)] ease-out",
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
                     is_active
-                      ? "border-[var(--surface-interactive-active-border)] text-(--text-strong)"
+                      ? "border-(--surface-interactive-active-border) text-(--text-strong)"
                       : "text-(--text-default) hover:text-(--text-strong)",
                     density === "compact" && "h-8 text-[10.5px]",
                   )}
@@ -157,7 +157,7 @@ export function WorkspaceSurfaceToolbarAction({
   return (
     <button
       className={cn(
-        "inline-flex items-center gap-1.5 text-[11px] font-semibold transition duration-[var(--motion-duration-fast)] ease-out disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]",
+        "inline-flex items-center gap-1.5 text-[11px] font-semibold transition duration-(--motion-duration-fast) ease-out disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
         tone === "default" && "text-(--text-default) hover:text-(--text-strong)",
         tone === "primary" && "text-(--primary) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
       )}

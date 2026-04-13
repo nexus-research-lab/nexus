@@ -24,7 +24,7 @@ export function ConnectorsGrid({ ctrl }: ConnectorsGridProps) {
   if (ctrl.connectors.length === 0) {
     return (
       <div className="flex min-h-60 flex-col items-center justify-center gap-3 text-(--text-muted)">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--divider-subtle-color)] bg-[var(--surface-inset-background)]">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-(--surface-inset-background)">
           <Link2 className="h-6 w-6" />
         </div>
         <p className="text-sm">没有找到匹配的连接器</p>

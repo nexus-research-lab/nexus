@@ -30,7 +30,7 @@ export const DIALOG_HEADER_ICON_CLASS_NAME =
   "dialog-card flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong)";
 
 export const DIALOG_ICON_BUTTON_CLASS_NAME =
-  "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--icon-strong)";
+  "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)";
 
 export const DIALOG_EMPTY_CLASS_NAME =
   "surface-inset flex items-center justify-center rounded-[20px] px-4 py-4 text-[13px] text-(--text-muted)";
@@ -43,8 +43,8 @@ export function getDialogActionClassName(
   class_name?: string,
 ): string {
   return cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-[12px] px-4 py-2.5 text-sm font-semibold transition duration-[var(--motion-duration-fast)] disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]",
-    tone === "default" && "text-(--text-default) hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)",
+    "inline-flex items-center justify-center gap-1.5 rounded-[12px] px-4 py-2.5 text-sm font-semibold transition duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    tone === "default" && "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     tone === "primary" && "border border-[color:color-mix(in_srgb,var(--primary)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
     tone === "danger" && "border border-[color:color-mix(in_srgb,var(--destructive)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_14%,transparent)]",
     class_name,
@@ -75,10 +75,10 @@ export function getDialogNoteStyle(tone: "default" | "danger"): CSSProperties | 
 
 export function getDialogChoiceClassName(is_active: boolean, class_name?: string): string {
   return cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-semibold transition-[background,color,border-color] duration-[var(--motion-duration-normal)] ease-out",
+    "inline-flex items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-semibold transition-[background,color,border-color] duration-(--motion-duration-normal) ease-out",
     is_active
-      ? "text-[var(--primary)]"
-      : "border-[var(--divider-subtle-color)] text-(--text-muted) hover:border-[var(--surface-interactive-hover-border)] hover:text-(--text-strong)",
+      ? "text-(--primary)"
+      : "border-(--divider-subtle-color) text-(--text-muted) hover:border-(--surface-interactive-hover-border) hover:text-(--text-strong)",
     class_name,
   );
 }

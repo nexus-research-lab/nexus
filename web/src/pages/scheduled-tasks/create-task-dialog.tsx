@@ -481,10 +481,10 @@ export function CreateTaskDialog({
     <div
       aria-labelledby="create-task-dialog-title"
       aria-modal="true"
-      className="dialog-backdrop animate-in fade-in duration-[var(--motion-duration-fast)]"
+      className="dialog-backdrop animate-in fade-in duration-(--motion-duration-fast)"
       role="dialog"
     >
-      <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
+      <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-(--motion-duration-fast)">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title" id="create-task-dialog-title">
@@ -756,7 +756,7 @@ export function CreateTaskDialog({
             />
           </div>
 
-          <label className="flex items-center gap-3 rounded-[18px] border border-[var(--divider-subtle-color)] bg-white/45 px-4 py-3 text-sm text-(--text-default)">
+          <label className="flex items-center gap-3 rounded-[18px] border border-(--divider-subtle-color) bg-white/45 px-4 py-3 text-sm text-(--text-default)">
             <input
               checked={enabled}
               className="h-4 w-4"

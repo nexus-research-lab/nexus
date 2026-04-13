@@ -74,7 +74,7 @@ function QuestionCard({
 
     return (
         <div className={cn(
-            "overflow-hidden rounded-[14px] border transition duration-[var(--motion-duration-fast)] ease-out",
+            "overflow-hidden rounded-[14px] border transition duration-(--motion-duration-fast) ease-out",
             hasSelection
                 ? "border-primary/18 bg-white/10"
                 : "border-white/12 bg-white/5",
@@ -82,7 +82,7 @@ function QuestionCard({
             {/* 问题头部（可点击收起） */}
             <div
                 className={cn(
-                    "flex cursor-pointer select-none items-center gap-1 px-2.5 py-1 transition duration-[var(--motion-duration-fast)] ease-out",
+                    "flex cursor-pointer select-none items-center gap-1 px-2.5 py-1 transition duration-(--motion-duration-fast) ease-out",
                     isExpanded && "border-b border-white/12",
                     !isExpanded && "hover:bg-white/6",
                 )}
@@ -90,7 +90,7 @@ function QuestionCard({
             >
                 {/* 序号 */}
                 <span className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--material-chip-background)] text-[10px] font-bold text-(--text-muted)",
+                    "flex h-5 w-5 items-center justify-center rounded-full bg-(--material-chip-background) text-[10px] font-bold text-(--text-muted)",
                     hasSelection && "bg-primary/12 text-primary",
                 )}>
                     {question_index + 1}
@@ -149,7 +149,7 @@ function QuestionCard({
                             <button
                                 key={optIndex}
                                 className={cn(
-                                    "w-full rounded-[12px] border px-2.5 py-0.5 text-left transition duration-[var(--motion-duration-fast)] ease-out",
+                                    "w-full rounded-[12px] border px-2.5 py-0.5 text-left transition duration-(--motion-duration-fast) ease-out",
                                     isSelected
                                         ? "border-primary/20 bg-primary/6"
                                         : "border-white/12 bg-white/5 hover:border-primary/16 hover:bg-primary/4",
@@ -205,7 +205,7 @@ function QuestionCard({
                             <div className="border-b border-white/14">
                                 <textarea
                                     className={cn(
-                                        "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-[var(--motion-duration-fast)] ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
+                                        "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-(--motion-duration-fast) ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                                         "placeholder:text-muted-foreground/70",
                                         is_submitted && "cursor-not-allowed opacity-60"
                                     )}
@@ -420,7 +420,7 @@ export function AskUserQuestionBlock({
             {/* ═══════════ 头部（可点击展开/收起） ═══════════ */}
             <div
                 className={cn(
-                    "flex min-h-8 cursor-pointer select-none items-center gap-2 py-0.5 text-xs transition duration-[var(--motion-duration-fast)] ease-out",
+                    "flex min-h-8 cursor-pointer select-none items-center gap-2 py-0.5 text-xs transition duration-(--motion-duration-fast) ease-out",
                 )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >

@@ -33,7 +33,7 @@ const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {
 };
 
 const ACTION_TONE_CLASS_MAP: Record<MessageActionTone, string> = {
-  default: "hover:bg-[var(--surface-interactive-hover-background)] hover:text-(--text-strong)",
+  default: "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   success: "text-green-500 hover:bg-emerald-500/10 hover:text-emerald-500",
   danger: "hover:bg-rose-500/10 hover:text-rose-500",
 };
@@ -85,10 +85,10 @@ export function MessageAvatar({
 }) {
   const resolved_avatar_url = getIconAvatarSrc(avatar_url);
   const avatar_shell_class_name = cn(
-    "overflow-hidden border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] shadow-[var(--surface-avatar-shadow)]",
-    "transition-[transform,box-shadow,border-color] duration-[var(--motion-duration-fast)] ease-out",
+    "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+    "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",
     "motion-safe:hover:-translate-y-[1px] motion-safe:hover:scale-[1.06]",
-    "motion-safe:hover:border-[var(--surface-interactive-active-border)]",
+    "motion-safe:hover:border-(--surface-interactive-active-border)",
     "motion-safe:hover:shadow-[0_10px_22px_rgba(15,23,42,0.14)]",
     AVATAR_SIZE_CLASS_MAP[size],
     class_name,
@@ -100,7 +100,7 @@ export function MessageAvatar({
         <img
           src={resolved_avatar_url}
           alt=""
-          className="h-full w-full object-cover transition-transform duration-[var(--motion-duration-fast)] ease-out motion-safe:hover:scale-[1.04]"
+          className="h-full w-full object-cover transition-transform duration-(--motion-duration-fast) ease-out motion-safe:hover:scale-[1.04]"
         />
       </div>
     );
@@ -131,7 +131,7 @@ export function MessageActionButton({
   return (
     <button
       className={cn(
-        "rounded-lg p-1 text-(--icon-default) transition-colors duration-[var(--motion-duration-fast)] focus-visible:ring-2 focus-visible:ring-primary/50",
+        "rounded-lg p-1 text-(--icon-default) transition-colors duration-(--motion-duration-fast) focus-visible:ring-2 focus-visible:ring-primary/50",
         ACTION_TONE_CLASS_MAP[tone],
         class_name,
       )}
@@ -307,7 +307,7 @@ export function MessageShell({
     <div
       className={cn(
         "w-full min-w-0",
-        separated && "border-b border-[var(--divider-subtle-color)]",
+        separated && "border-b border-(--divider-subtle-color)",
         class_name,
       )}
     >

@@ -140,7 +140,7 @@ export function RoomSettingsPanel({
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
+        <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-(--motion-duration-fast)">
           <div className="dialog-header">
             <div className={DIALOG_HEADER_LEADING_CLASS_NAME}>
               <div className={DIALOG_HEADER_ICON_CLASS_NAME}>
@@ -209,14 +209,14 @@ export function RoomSettingsPanel({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start justify-between gap-3 rounded-[16px] border border-[var(--divider-subtle-color)] px-4 py-3.5">
+                  <div className="flex items-start justify-between gap-3 rounded-[16px] border border-(--divider-subtle-color) px-4 py-3.5">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-(--text-strong)">
                         {room_name || t("room.untitled_room")}
                       </p>
                     </div>
                     <button
-                      className="text-[11px] font-semibold text-(--primary) transition duration-[var(--motion-duration-fast)] hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]"
+                      className="text-[11px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]"
                       onClick={() => set_is_editing_name(true)}
                       type="button"
                     >
@@ -271,14 +271,14 @@ export function RoomSettingsPanel({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start justify-between gap-3 rounded-[16px] border border-[var(--divider-subtle-color)] px-4 py-3.5">
+                  <div className="flex items-start justify-between gap-3 rounded-[16px] border border-(--divider-subtle-color) px-4 py-3.5">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-(--text-strong)">
                         {room_description || t("room.no_description")}
                       </p>
                     </div>
                     <button
-                      className="text-[11px] font-semibold text-(--primary) transition duration-[var(--motion-duration-fast)] hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]"
+                      className="text-[11px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]"
                       onClick={() => set_is_editing_description(true)}
                       type="button"
                     >
@@ -295,8 +295,8 @@ export function RoomSettingsPanel({
                   {t("room.avatar")}
                 </label>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-3 rounded-[16px] border border-[var(--divider-subtle-color)] px-4 py-3.5">
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[12px] border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] shadow-[var(--surface-avatar-shadow)]">
+                  <div className="flex items-center gap-3 rounded-[16px] border border-(--divider-subtle-color) px-4 py-3.5">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
                       <img
                         alt="room-avatar"
                         className="h-full w-full object-contain"

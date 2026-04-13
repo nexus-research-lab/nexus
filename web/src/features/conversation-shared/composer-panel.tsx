@@ -364,7 +364,7 @@ const ComposerPanelView = memo(({
   return (
     <section
       className={cn(
-        "mx-auto w-full max-w-[1020px] border-t border-[var(--surface-canvas-border)] bg-transparent",
+        "mx-auto w-full max-w-[1020px] border-t border-(--surface-canvas-border) bg-transparent",
         compact ? "px-2 pb-2 pt-2" : "px-3 pb-3 pt-3 sm:px-5 xl:px-6",
       )}
     >
@@ -425,7 +425,7 @@ const ComposerPanelView = memo(({
             className={cn(
               "multiline-cursor min-h-6 min-w-0 flex-1 max-h-[200px] resize-none overflow-y-auto bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
               "placeholder:text-(--text-soft)",
-              "disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]",
+              "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
               "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
             )}
             disabled={disabled || is_loading}

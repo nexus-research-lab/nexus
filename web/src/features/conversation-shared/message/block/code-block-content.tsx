@@ -33,7 +33,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       right_slot={(
         <button
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-[var(--motion-duration-fast)]",
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-(--motion-duration-fast)",
             copied && !is_dark_theme && "border-emerald-200/78 bg-emerald-100/90 text-emerald-600",
             copied && is_dark_theme && "border-green-500/22 bg-green-950/42 text-emerald-300",
           )}

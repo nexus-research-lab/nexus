@@ -94,10 +94,10 @@ export function AgentOptionsAdvancedTab({
               key={pm.value}
               onClick={() => onPermissionModeChange(pm.value)}
               className={cn(
-                "radius-shell-md relative overflow-hidden p-3.5 text-left transition-[background,border-color,color] duration-[var(--motion-duration-normal)]",
+                "radius-shell-md relative overflow-hidden p-3.5 text-left transition-[background,border-color,color] duration-(--motion-duration-normal)",
                 permissionMode === pm.value
                   ? "dialog-card-active"
-                  : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]"
+                  : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
               )}
             >
               <div className="mb-2 flex items-center justify-between">
@@ -190,7 +190,7 @@ export function AgentOptionsAdvancedTab({
             return (
               <div
                 key={tool.name}
-                className="radius-shell-md flex items-center justify-between gap-4 border border-[var(--divider-subtle-color)] bg-[var(--surface-card-background)] p-3.5"
+                className="radius-shell-md flex items-center justify-between gap-4 border border-(--divider-subtle-color) bg-(--surface-card-background) p-3.5"
               >
                 <div className="mr-4 flex-1">
                   <div className="text-[13px] font-semibold">{tool.name}</div>

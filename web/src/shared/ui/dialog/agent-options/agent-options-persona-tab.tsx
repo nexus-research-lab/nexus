@@ -31,7 +31,7 @@ export function AgentOptionsPersonaTab({
           <textarea
             value={systemPrompt}
             onChange={(e) => onSystemPromptChange(e.target.value)}
-            className="dialog-input absolute inset-0 h-full w-full resize-none rounded-2xl px-3.5 py-3 text-sm font-mono leading-relaxed text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]"
+            className="dialog-input absolute inset-0 h-full w-full resize-none rounded-2xl px-3.5 py-3 text-sm font-mono leading-relaxed text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
             placeholder="在此输入自定义系统提示词，它将决定 Agent 的行为模式、角色设定和限制条件..."
           />
         </div>
