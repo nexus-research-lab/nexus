@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增自动化运行时基础设施：`heartbeat` 主会话轮询、`cron` 精确定时调度、system event queue、wake bookkeeping、统一 delivery router、scheduled task run ledger。
 - 新增自动化后端 API：`/agent/v1/automation/heartbeat/*` 与 `/agent/v1/capability/scheduled/tasks*`，支持 heartbeat 状态/唤醒、定时任务 CRUD、立即运行、启停与运行记录查询。
 - 新增自动化测试覆盖：`tests/automation/*` 与 `tests/api/test_automation_api.py`，覆盖模型、仓储、投递、运行时、heartbeat、cron 与 API 基本行为。
+- 新增主智能体编排侧的定时任务启用/禁用 CLI 命令，以及对应的编排回归测试。
 - 新增定时任务控制台：Heartbeat 状态卡片、定时任务列表、结构化创建对话框、运行历史弹窗，以及侧栏实时任务数。
 - 新增 `capability` 能力模块，统一管理技能市场、连接器、定时任务、渠道与配对能力。
 - 技能系统数据持久化：新增 `pool_skills` / `agent_skills` 数据库表与 Alembic 迁移，技能安装状态、全局开关、Agent-Skill 关联全部写入 SQLite，取代旧 JSON 文件存储。
@@ -69,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复 Sidebar、Room/DM、技能/连接器目录、Agent Options 与 Launcher 等区域因额外背景板、空壳节点和过多动作层导致的布局抖动、容器收缩与层级堆叠问题。
 - 修复多处前端无效交互入口与显示回归，包括 Launcher 右侧“清空 Nexus 对话”、连接器卡片状态表达、Thread 面板宽度与会话切换下拉等问题。
+- 修复主智能体创建定时任务时未校验 `session_key` 归属的问题，避免把任务错误绑定到其他 Agent 的会话。
+- 修复 `nexus-manager` skill 中单次定时任务示例使用过去时间的问题，并补充 `at` 模式只会触发未来时间的说明。
 - 修复 `session_repository` / `cost_repository` 模块级初始化产生的导入副作用（#11）。
 - 修复 Alembic 迁移多 head 冲突问题。
 - 修复 `make dev` / `make db-init` 因 Alembic 双 `head` 与后端启动旧导入路径导致的本地启动失败问题。

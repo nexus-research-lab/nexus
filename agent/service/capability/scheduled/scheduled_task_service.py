@@ -62,6 +62,10 @@ class ScheduledTaskService:
     async def update_task_status(self, job_id: str, *, enabled: bool):
         return await self._service_instance.set_job_enabled(job_id, enabled=enabled)
 
+    async def set_task_enabled(self, job_id: str, *, enabled: bool):
+        """兼容主智能体编排侧的启停命名。"""
+        return await self.update_task_status(job_id, enabled=enabled)
+
     async def list_task_runs(self, job_id: str):
         return await self._service_instance.list_runs(job_id)
 

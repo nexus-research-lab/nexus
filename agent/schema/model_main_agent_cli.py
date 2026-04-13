@@ -172,3 +172,49 @@ class UninstallSkillCommand(AModel):
 
     agent_id: str = Field(..., description="agent_id")
     skill_name: str = Field(..., description="skill 名称")
+
+
+class ListScheduledTasksCommand(AModel):
+    """列出定时任务命令。"""
+
+    agent_id: str | None = Field(default=None, description="可选的 agent_id 过滤")
+
+
+class CreateScheduledTaskCommand(AModel):
+    """创建定时任务命令。"""
+
+    name: str = Field(..., description="任务名称")
+    agent_id: str = Field(..., description="目标 agent_id")
+    instruction: str = Field(..., description="任务提示词")
+    session_key: str = Field(..., description="绑定执行的 session_key")
+    schedule_kind: str = Field(..., description="调度类型 every / cron / at")
+    interval_seconds: int | None = Field(default=None, description="every 模式的秒数")
+    cron_expression: str | None = Field(default=None, description="cron 表达式")
+    run_at: str | None = Field(default=None, description="单次执行时间")
+    timezone: str = Field(default="Asia/Shanghai", description="IANA 时区")
+    enabled: bool = Field(default=True, description="创建后是否启用")
+
+
+class DeleteScheduledTaskCommand(AModel):
+    """删除定时任务命令。"""
+
+    job_id: str = Field(..., description="job_id")
+
+
+class SetScheduledTaskEnabledCommand(AModel):
+    """启用或禁用定时任务命令。"""
+
+    job_id: str = Field(..., description="job_id")
+    enabled: bool = Field(..., description="是否启用")
+
+
+class RunScheduledTaskCommand(AModel):
+    """立即运行定时任务命令。"""
+
+    job_id: str = Field(..., description="job_id")
+
+
+class GetScheduledTaskRunsCommand(AModel):
+    """读取定时任务运行记录命令。"""
+
+    job_id: str = Field(..., description="job_id")
