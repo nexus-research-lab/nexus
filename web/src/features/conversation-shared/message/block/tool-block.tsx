@@ -169,18 +169,18 @@ const getResultSummary = (content: any): string => {
 
 const TOOL_TONE_STYLES: Record<string, string> = {
   default: 'text-[color:var(--icon-muted)]',
-  error: 'text-rose-500',
-  running: 'text-sky-500',
-  success: 'text-emerald-500',
-  waiting: 'text-orange-500',
+  error: 'text-[color:var(--destructive)]',
+  running: 'text-[color:var(--primary)]',
+  success: 'text-[color:var(--success)]',
+  waiting: 'text-[color:var(--warning)]',
 };
 
 const TOOL_LABEL_STYLES: Record<string, string> = {
   default: 'text-[color:var(--text-default)]',
-  error: 'text-rose-500',
-  running: 'text-sky-500',
-  success: 'text-emerald-600',
-  waiting: 'text-orange-500',
+  error: 'text-[color:var(--destructive)]',
+  running: 'text-[color:var(--primary)]',
+  success: 'text-[color:var(--success)]',
+  waiting: 'text-[color:var(--warning)]',
 };
 
 const getPermissionChoiceClassName = (selected: boolean) =>
@@ -368,7 +368,7 @@ export function ToolBlock({
               className={cn(
                 "dialog-button-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-[color:var(--text-muted)] transition-colors",
                 interaction_disabled
-                  ? "cursor-not-allowed opacity-50"
+                  ? "cursor-not-allowed opacity-[var(--disabled-opacity)]"
                   : "hover:text-[color:var(--text-strong)]",
               )}
             >
@@ -388,7 +388,7 @@ export function ToolBlock({
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors",
                 interaction_disabled
-                  ? "cursor-not-allowed bg-slate-300"
+                  ? "cursor-not-allowed bg-[var(--muted)]"
                   : "bg-primary hover:bg-primary/90",
               )}
             >
@@ -405,7 +405,7 @@ export function ToolBlock({
               "ml-auto sm:ml-0",
               "rounded px-1.5 py-0.5 text-[10px] transition-all",
               copied
-                ? "bg-green-50 text-green-500"
+                ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-[color:var(--success)]"
                 : "text-[color:var(--icon-muted)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
             )}
           >
@@ -481,35 +481,35 @@ export function ToolBlock({
             <div className="space-y-1">
               <div className="text-[10px] font-medium text-[color:var(--text-soft)]">权限范围</div>
               <div className="flex flex-wrap items-center gap-1.5">
-              <label
-                className={getPermissionChoiceClassName(selectedSuggestionIndex === -1)}
-              >
-                <input
-                  type="radio"
-                  name={`permission-suggestion-${permission_request.request_id}`}
-                  checked={selectedSuggestionIndex === -1}
-                  disabled={interaction_disabled}
-                  onChange={() => setSelectedSuggestionIndex(-1)}
-                  className="sr-only"
-                />
-                <span>仅这次</span>
-              </label>
-              {readableSuggestions.map((suggestion) => (
                 <label
-                  key={suggestion.index}
-                  className={getPermissionChoiceClassName(selectedSuggestionIndex === suggestion.index)}
+                  className={getPermissionChoiceClassName(selectedSuggestionIndex === -1)}
                 >
                   <input
                     type="radio"
                     name={`permission-suggestion-${permission_request.request_id}`}
-                    checked={selectedSuggestionIndex === suggestion.index}
+                    checked={selectedSuggestionIndex === -1}
                     disabled={interaction_disabled}
-                    onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                    onChange={() => setSelectedSuggestionIndex(-1)}
                     className="sr-only"
                   />
-                  <span>{suggestion.label}</span>
+                  <span>仅这次</span>
                 </label>
-              ))}
+                {readableSuggestions.map((suggestion) => (
+                  <label
+                    key={suggestion.index}
+                    className={getPermissionChoiceClassName(selectedSuggestionIndex === suggestion.index)}
+                  >
+                    <input
+                      type="radio"
+                      name={`permission-suggestion-${permission_request.request_id}`}
+                      checked={selectedSuggestionIndex === suggestion.index}
+                      disabled={interaction_disabled}
+                      onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                      className="sr-only"
+                    />
+                    <span>{suggestion.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
           ) : null}

@@ -10,7 +10,14 @@
 /* 中文注释：整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌。 */
 :root,
 :root[data-theme="light"] {
-  --background: #e7eceb;
+  --nexus-page-background-light: transparent;
+  --nexus-page-background-dark: transparent;
+  --nexus-page-background-rain: transparent;
+  --nexus-page-pattern-size: 0 0;
+  --nexus-page-pattern-light: none;
+  --nexus-page-pattern-dark: none;
+  --nexus-page-pattern-rain: none;
+  --background: var(--nexus-page-background-light);
   --foreground: #17212c;
   --primary: #5b72ff;
   --primary-rgb: 91, 114, 255;
@@ -31,35 +38,27 @@
   --success: #2fb884;
   --success-foreground: #06140f;
   --warning: #df9d2e;
-  --warning-foreground: #251707;
   --radius-lg: 34px;
   --radius-md: 24px;
   --radius-sm: 16px;
   --motion-duration-fast: 160ms;
   --motion-duration-normal: 220ms;
-  --motion-duration-slow: 520ms;
-  --motion-duration-overlay: 640ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-ease-emphasized: cubic-bezier(0.19, 1, 0.22, 1);
   --scrollbar-thumb: rgba(95, 108, 124, 0.22);
   --scrollbar-thumb-hover: rgba(95, 108, 124, 0.34);
-
+  --ambient-page-pattern-size: var(--nexus-page-pattern-size);
   --ambient-page-background:
-    linear-gradient(180deg, #f7f8f8 0%, #eff2f1 42%, #e7ecea 100%);
+    linear-gradient(180deg, var(--nexus-page-background-light) 0%, var(--nexus-page-background-light) 100%);
+  --ambient-page-pattern:
+    var(--nexus-page-pattern-light);
   --ambient-stage-background:
     radial-gradient(42% 42% at 12% 8%, rgba(135, 183, 255, 0.1), transparent 72%),
     radial-gradient(34% 34% at 86% 82%, rgba(90, 203, 194, 0.07), transparent 74%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(239, 243, 244, 0.86));
-  --ambient-stage-orb-a:
-    radial-gradient(circle at center, rgba(124, 164, 255, 0.14), rgba(124, 164, 255, 0) 72%);
-  --ambient-stage-orb-b:
-    radial-gradient(circle at center, rgba(74, 187, 173, 0.1), rgba(74, 187, 173, 0) 74%);
   --ambient-stage-grid:
     linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22)),
     linear-gradient(90deg, rgba(122, 135, 152, 0.05) 1px, transparent 1px),
     linear-gradient(rgba(122, 135, 152, 0.05) 1px, transparent 1px);
-  --ambient-stage-outline: rgba(255, 255, 255, 0.4);
-  --ambient-stage-shadow: rgba(94, 108, 127, 0.18);
 
   --material-shell-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(248, 251, 255, 0.2) 100%);
@@ -67,12 +66,6 @@
   --material-shell-shadow:
     0 24px 48px rgba(94, 108, 127, 0.14),
     0 2px 10px rgba(94, 108, 127, 0.06);
-  --material-shell-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08) 46%, rgba(255, 255, 255, 0.02) 100%);
-  --material-shell-highlight: rgba(255, 255, 255, 0.44);
-  --material-shell-glow:
-    radial-gradient(68% 52% at 14% 4%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 62%),
-    radial-gradient(24% 22% at 84% 98%, rgba(146, 182, 255, 0.06), rgba(146, 182, 255, 0) 72%);
 
   --material-panel-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(247, 250, 255, 0.28) 100%);
@@ -93,9 +86,6 @@
   --material-inset-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
     inset 0 -1px 0 rgba(133, 146, 164, 0.06);
-  --material-inset-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04) 100%);
-  --material-inset-highlight: rgba(255, 255, 255, 0.26);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%);
@@ -119,28 +109,27 @@
   --material-pill-border: rgba(255, 255, 255, 0.28);
 
   --material-popover-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(248, 251, 255, 0.54) 100%);
-  --material-popover-border: rgba(255, 255, 255, 0.44);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 254, 0.9) 100%);
+  --material-popover-border: rgba(214, 224, 237, 0.82);
   --material-popover-shadow:
     0 26px 64px rgba(66, 82, 104, 0.18),
     0 4px 18px rgba(66, 82, 104, 0.08);
-  --material-popover-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08) 100%);
 
   --material-dialog-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 253, 0.92) 100%);
-  --material-dialog-header-background: rgba(250, 252, 255, 0.98);
-  --material-dialog-body-background: rgba(252, 253, 255, 0.985);
-  --material-dialog-footer-background: rgba(248, 251, 255, 0.98);
-  --material-dialog-border: rgba(214, 224, 237, 0.88);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 249, 252, 0.992) 100%);
+  --material-dialog-header-background: rgba(252, 253, 255, 0.998);
+  --material-dialog-body-background: rgba(254, 255, 255, 0.998);
+  --material-dialog-footer-background: rgba(250, 252, 255, 0.996);
+  --material-dialog-border: rgba(214, 224, 237, 0.96);
   --material-dialog-shadow:
-    0 34px 84px rgba(66, 82, 104, 0.24),
-    0 6px 24px rgba(66, 82, 104, 0.12);
-  --material-dialog-nav-background: rgba(241, 245, 250, 0.92);
-  --material-dialog-nav-border: rgba(214, 224, 237, 0.72);
+    0 38px 96px rgba(66, 82, 104, 0.28),
+    0 8px 28px rgba(66, 82, 104, 0.14);
+  --dialog-backdrop-color: rgba(88, 102, 122, 0.4);
+  --material-dialog-nav-background: rgba(243, 247, 251, 0.98);
+  --material-dialog-nav-border: rgba(214, 224, 237, 0.82);
   --material-dialog-card-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 247, 252, 0.84) 100%);
-  --material-dialog-card-border: rgba(214, 224, 237, 0.74);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(244, 247, 252, 0.94) 100%);
+  --material-dialog-card-border: rgba(214, 224, 237, 0.84);
   --material-dialog-card-active-background:
     linear-gradient(180deg, rgba(99, 121, 255, 0.18), rgba(244, 247, 255, 0.92) 100%);
   --material-dialog-card-active-border: rgba(99, 121, 255, 0.3);
@@ -153,10 +142,11 @@
   --material-input-focus-border: rgba(99, 121, 255, 0.34);
 
   --material-avatar-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(247, 250, 255, 0.48) 100%);
-  --material-avatar-border: rgba(255, 255, 255, 0.38);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(243, 247, 252, 0.98) 100%);
+  --material-avatar-border: rgba(214, 224, 237, 0.96);
   --material-avatar-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    0 8px 18px rgba(94, 108, 127, 0.08);
 
   --divider-subtle-color: rgba(117, 131, 149, 0.16);
   --divider-strong-color: rgba(117, 131, 149, 0.24);
@@ -173,7 +163,6 @@
   --interaction-hover-border: rgba(255, 255, 255, 0.42);
   --interaction-active-background: rgba(255, 255, 255, 0.48);
   --interaction-active-border: rgba(104, 123, 255, 0.22);
-  --interaction-active-shadow: 0 8px 20px rgba(104, 123, 255, 0.1);
 
   --text-kbd-color: #5c6979;
   --surface-kbd-background: rgba(255, 255, 255, 0.58);
@@ -185,10 +174,17 @@
   --glow-green: rgba(47, 184, 132, 0.14);
   --glow-peach: rgba(237, 169, 88, 0.16);
   --glow-mist: rgba(255, 255, 255, 0.24);
+
+  /* 中文注释：info 软背景系列 — 用于信息/活跃状态徽标（取代硬编码 #cfe0ff / #27539d 等） */
+  --status-info-soft-bg: rgba(59, 130, 246, 0.10);
+  --status-info-soft-border: rgba(59, 130, 246, 0.22);
+  --status-info-soft-text: #2d5da8;
+
+  --disabled-opacity: 0.50;
 }
 
 :root[data-theme="dark"] {
-  --background: #0e141b;
+  --background: var(--nexus-page-background-dark);
   --foreground: #ebf0f6;
   --primary: #8ea4ff;
   --primary-rgb: 142, 164, 255;
@@ -209,7 +205,6 @@
   --success: #49d09a;
   --success-foreground: #06140f;
   --warning: #efb554;
-  --warning-foreground: #261809;
   --radius-lg: 34px;
   --radius-md: 24px;
   --radius-sm: 16px;
@@ -217,21 +212,17 @@
   --scrollbar-thumb-hover: rgba(177, 194, 216, 0.28);
 
   --ambient-page-background:
-    linear-gradient(180deg, #0c1218 0%, #0e141b 44%, #101821 100%);
+    linear-gradient(180deg, var(--nexus-page-background-dark) 0%, var(--nexus-page-background-dark) 100%);
+  --ambient-page-pattern:
+    var(--nexus-page-pattern-dark);
   --ambient-stage-background:
     radial-gradient(42% 42% at 12% 8%, rgba(92, 112, 255, 0.08), transparent 74%),
     radial-gradient(34% 34% at 88% 82%, rgba(67, 205, 186, 0.05), transparent 76%),
     linear-gradient(180deg, rgba(12, 18, 26, 0.94), rgba(10, 15, 22, 0.99));
-  --ambient-stage-orb-a:
-    radial-gradient(circle at center, rgba(102, 128, 255, 0.1), rgba(102, 128, 255, 0) 74%);
-  --ambient-stage-orb-b:
-    radial-gradient(circle at center, rgba(67, 205, 186, 0.08), rgba(67, 205, 186, 0) 76%);
   --ambient-stage-grid:
     linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
     linear-gradient(90deg, rgba(171, 189, 214, 0.05) 1px, transparent 1px),
     linear-gradient(rgba(171, 189, 214, 0.05) 1px, transparent 1px);
-  --ambient-stage-outline: rgba(179, 197, 223, 0.12);
-  --ambient-stage-shadow: rgba(2, 6, 14, 0.52);
 
   --material-shell-background:
     linear-gradient(180deg, rgba(24, 32, 44, 0.76), rgba(12, 17, 25, 0.58) 100%);
@@ -239,12 +230,6 @@
   --material-shell-shadow:
     0 28px 56px rgba(0, 5, 12, 0.42),
     0 4px 18px rgba(0, 5, 12, 0.2);
-  --material-shell-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 46%, rgba(255, 255, 255, 0) 100%);
-  --material-shell-highlight: rgba(255, 255, 255, 0.1);
-  --material-shell-glow:
-    radial-gradient(68% 52% at 14% 4%, rgba(176, 194, 255, 0.04), rgba(176, 194, 255, 0) 62%),
-    radial-gradient(24% 22% at 84% 98%, rgba(67, 205, 186, 0.04), rgba(67, 205, 186, 0) 72%);
 
   --material-panel-background:
     linear-gradient(180deg, rgba(22, 30, 42, 0.86), rgba(12, 18, 26, 0.64) 100%);
@@ -265,9 +250,6 @@
   --material-inset-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     inset 0 -1px 0 rgba(0, 0, 0, 0.14);
-  --material-inset-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01) 100%);
-  --material-inset-highlight: rgba(255, 255, 255, 0.06);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(13, 19, 28, 0.82), rgba(10, 15, 22, 0.74) 100%);
@@ -291,28 +273,27 @@
   --material-pill-border: rgba(182, 199, 223, 0.1);
 
   --material-popover-background:
-    linear-gradient(180deg, rgba(25, 32, 44, 0.92), rgba(11, 16, 24, 0.82) 100%);
-  --material-popover-border: rgba(182, 199, 223, 0.16);
+    linear-gradient(180deg, rgba(25, 32, 44, 0.985), rgba(12, 17, 25, 0.96) 100%);
+  --material-popover-border: rgba(182, 199, 223, 0.24);
   --material-popover-shadow:
     0 30px 80px rgba(0, 5, 12, 0.46),
     0 8px 26px rgba(0, 5, 12, 0.22);
-  --material-popover-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01) 100%);
 
   --material-dialog-background:
-    linear-gradient(180deg, rgba(21, 28, 38, 0.98), rgba(12, 18, 26, 0.96) 100%);
-  --material-dialog-header-background: rgba(24, 31, 42, 0.985);
-  --material-dialog-body-background: rgba(18, 24, 33, 0.99);
-  --material-dialog-footer-background: rgba(22, 29, 39, 0.985);
-  --material-dialog-border: rgba(182, 199, 223, 0.28);
+    linear-gradient(180deg, rgba(20, 27, 37, 0.995), rgba(13, 18, 26, 0.992) 100%);
+  --material-dialog-header-background: rgba(24, 31, 42, 0.998);
+  --material-dialog-body-background: rgba(18, 24, 33, 0.998);
+  --material-dialog-footer-background: rgba(22, 29, 39, 0.997);
+  --material-dialog-border: rgba(182, 199, 223, 0.38);
   --material-dialog-shadow:
-    0 42px 96px rgba(0, 5, 12, 0.58),
-    0 12px 32px rgba(0, 5, 12, 0.28);
-  --material-dialog-nav-background: rgba(28, 36, 48, 0.9);
-  --material-dialog-nav-border: rgba(182, 199, 223, 0.14);
+    0 46px 108px rgba(0, 5, 12, 0.66),
+    0 12px 32px rgba(0, 5, 12, 0.32);
+  --dialog-backdrop-color: rgba(2, 6, 14, 0.68);
+  --material-dialog-nav-background: rgba(29, 37, 49, 0.97);
+  --material-dialog-nav-border: rgba(182, 199, 223, 0.22);
   --material-dialog-card-background:
-    linear-gradient(180deg, rgba(29, 38, 50, 0.92), rgba(18, 24, 34, 0.88) 100%);
-  --material-dialog-card-border: rgba(182, 199, 223, 0.18);
+    linear-gradient(180deg, rgba(30, 39, 51, 0.97), rgba(19, 25, 35, 0.94) 100%);
+  --material-dialog-card-border: rgba(182, 199, 223, 0.24);
   --material-dialog-card-active-background:
     linear-gradient(180deg, rgba(142, 164, 255, 0.18), rgba(21, 28, 38, 0.92) 100%);
   --material-dialog-card-active-border: rgba(142, 164, 255, 0.32);
@@ -325,10 +306,11 @@
   --material-input-focus-border: rgba(142, 164, 255, 0.34);
 
   --material-avatar-background:
-    linear-gradient(180deg, rgba(30, 39, 52, 0.88), rgba(19, 25, 35, 0.74) 100%);
-  --material-avatar-border: rgba(182, 199, 223, 0.16);
+    linear-gradient(180deg, rgba(35, 44, 58, 0.995), rgba(22, 28, 39, 0.985) 100%);
+  --material-avatar-border: rgba(182, 199, 223, 0.34);
   --material-avatar-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 10px 22px rgba(0, 5, 12, 0.18);
 
   --divider-subtle-color: rgba(171, 189, 214, 0.1);
   --divider-strong-color: rgba(171, 189, 214, 0.16);
@@ -343,7 +325,6 @@
   --interaction-hover-border: rgba(182, 199, 223, 0.16);
   --interaction-active-background: rgba(142, 164, 255, 0.12);
   --interaction-active-border: rgba(142, 164, 255, 0.24);
-  --interaction-active-shadow: 0 10px 20px rgba(142, 164, 255, 0.08);
   --text-kbd-color: #d7e0ee;
   --surface-kbd-background: rgba(28, 36, 49, 0.84);
   --divider-kbd-border: rgba(182, 199, 223, 0.12);
@@ -354,10 +335,16 @@
   --glow-green: rgba(73, 208, 154, 0.14);
   --glow-peach: rgba(239, 181, 84, 0.14);
   --glow-mist: rgba(255, 255, 255, 0.1);
+
+  --status-info-soft-bg: rgba(96, 165, 250, 0.12);
+  --status-info-soft-border: rgba(96, 165, 250, 0.20);
+  --status-info-soft-text: #93bbfc;
+
+  --disabled-opacity: 0.50;
 }
 
 :root[data-theme="rain"] {
-  --background: #29323d;
+  --background: var(--nexus-page-background-rain);
   --foreground: #eef3f8;
   --primary: #9ab7ff;
   --primary-rgb: 154, 183, 255;
@@ -378,7 +365,6 @@
   --success: #50d2ac;
   --success-foreground: #07140f;
   --warning: #f2bf62;
-  --warning-foreground: #281a0a;
   --radius-lg: 34px;
   --radius-md: 24px;
   --radius-sm: 16px;
@@ -386,21 +372,17 @@
   --scrollbar-thumb-hover: rgba(189, 205, 226, 0.28);
 
   --ambient-page-background:
-    linear-gradient(180deg, #39424d 0%, #313a45 44%, #29323c 100%);
+    linear-gradient(180deg, var(--nexus-page-background-rain) 0%, var(--nexus-page-background-rain) 100%);
+  --ambient-page-pattern:
+    var(--nexus-page-pattern-rain);
   --ambient-stage-background:
     radial-gradient(42% 42% at 12% 8%, rgba(154, 183, 255, 0.08), transparent 74%),
     radial-gradient(34% 34% at 88% 82%, rgba(116, 217, 203, 0.05), transparent 76%),
     linear-gradient(180deg, rgba(57, 68, 80, 0.92), rgba(39, 49, 60, 0.97));
-  --ambient-stage-orb-a:
-    radial-gradient(circle at center, rgba(154, 183, 255, 0.1), rgba(154, 183, 255, 0) 74%);
-  --ambient-stage-orb-b:
-    radial-gradient(circle at center, rgba(116, 217, 203, 0.08), rgba(116, 217, 203, 0) 76%);
   --ambient-stage-grid:
     linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
     linear-gradient(90deg, rgba(171, 190, 214, 0.05) 1px, transparent 1px),
     linear-gradient(rgba(171, 190, 214, 0.05) 1px, transparent 1px);
-  --ambient-stage-outline: rgba(205, 220, 240, 0.12);
-  --ambient-stage-shadow: rgba(9, 15, 24, 0.42);
 
   --material-shell-background:
     linear-gradient(180deg, rgba(71, 82, 95, 0.74), rgba(45, 55, 67, 0.56) 100%);
@@ -408,12 +390,6 @@
   --material-shell-shadow:
     0 28px 56px rgba(9, 15, 24, 0.36),
     0 4px 18px rgba(9, 15, 24, 0.18);
-  --material-shell-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 46%, rgba(255, 255, 255, 0) 100%);
-  --material-shell-highlight: rgba(255, 255, 255, 0.1);
-  --material-shell-glow:
-    radial-gradient(68% 52% at 14% 4%, rgba(223, 232, 255, 0.04), rgba(223, 232, 255, 0) 62%),
-    radial-gradient(24% 22% at 84% 98%, rgba(116, 217, 203, 0.04), rgba(116, 217, 203, 0) 72%);
 
   --material-panel-background:
     linear-gradient(180deg, rgba(72, 83, 96, 0.82), rgba(45, 55, 67, 0.66) 100%);
@@ -434,9 +410,6 @@
   --material-inset-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     inset 0 -1px 0 rgba(0, 0, 0, 0.14);
-  --material-inset-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01) 100%);
-  --material-inset-highlight: rgba(255, 255, 255, 0.06);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(42, 51, 62, 0.78), rgba(33, 42, 52, 0.7) 100%);
@@ -460,28 +433,27 @@
   --material-pill-border: rgba(205, 220, 240, 0.1);
 
   --material-popover-background:
-    linear-gradient(180deg, rgba(72, 84, 97, 0.9), rgba(44, 54, 66, 0.82) 100%);
-  --material-popover-border: rgba(205, 220, 240, 0.16);
+    linear-gradient(180deg, rgba(74, 86, 99, 0.97), rgba(45, 55, 66, 0.94) 100%);
+  --material-popover-border: rgba(205, 220, 240, 0.24);
   --material-popover-shadow:
     0 32px 84px rgba(9, 15, 24, 0.42),
     0 8px 26px rgba(9, 15, 24, 0.22);
-  --material-popover-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01) 100%);
 
   --material-dialog-background:
-    linear-gradient(180deg, rgba(78, 90, 104, 0.97), rgba(49, 59, 72, 0.94) 100%);
-  --material-dialog-header-background: rgba(68, 80, 94, 0.985);
-  --material-dialog-body-background: rgba(61, 72, 85, 0.99);
-  --material-dialog-footer-background: rgba(66, 78, 91, 0.985);
-  --material-dialog-border: rgba(205, 220, 240, 0.26);
+    linear-gradient(180deg, rgba(79, 91, 105, 0.994), rgba(51, 61, 73, 0.99) 100%);
+  --material-dialog-header-background: rgba(68, 80, 94, 0.997);
+  --material-dialog-body-background: rgba(61, 72, 85, 0.998);
+  --material-dialog-footer-background: rgba(66, 78, 91, 0.997);
+  --material-dialog-border: rgba(205, 220, 240, 0.34);
   --material-dialog-shadow:
-    0 42px 96px rgba(9, 15, 24, 0.54),
-    0 12px 32px rgba(9, 15, 24, 0.28);
-  --material-dialog-nav-background: rgba(62, 74, 88, 0.9);
-  --material-dialog-nav-border: rgba(205, 220, 240, 0.14);
+    0 46px 108px rgba(9, 15, 24, 0.58),
+    0 12px 32px rgba(9, 15, 24, 0.3);
+  --dialog-backdrop-color: rgba(9, 15, 24, 0.58);
+  --material-dialog-nav-background: rgba(63, 75, 89, 0.97);
+  --material-dialog-nav-border: rgba(205, 220, 240, 0.22);
   --material-dialog-card-background:
-    linear-gradient(180deg, rgba(75, 86, 99, 0.9), rgba(48, 58, 70, 0.86) 100%);
-  --material-dialog-card-border: rgba(205, 220, 240, 0.18);
+    linear-gradient(180deg, rgba(75, 86, 99, 0.96), rgba(49, 59, 72, 0.93) 100%);
+  --material-dialog-card-border: rgba(205, 220, 240, 0.24);
   --material-dialog-card-active-background:
     linear-gradient(180deg, rgba(154, 183, 255, 0.2), rgba(52, 63, 75, 0.9) 100%);
   --material-dialog-card-active-border: rgba(154, 183, 255, 0.32);
@@ -494,10 +466,11 @@
   --material-input-focus-border: rgba(154, 183, 255, 0.34);
 
   --material-avatar-background:
-    linear-gradient(180deg, rgba(78, 90, 104, 0.86), rgba(52, 62, 74, 0.72) 100%);
-  --material-avatar-border: rgba(205, 220, 240, 0.16);
+    linear-gradient(180deg, rgba(84, 96, 110, 0.995), rgba(55, 65, 77, 0.985) 100%);
+  --material-avatar-border: rgba(205, 220, 240, 0.34);
   --material-avatar-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 10px 22px rgba(9, 15, 24, 0.18);
 
   --divider-subtle-color: rgba(205, 220, 240, 0.1);
   --divider-strong-color: rgba(205, 220, 240, 0.16);
@@ -512,7 +485,6 @@
   --interaction-hover-border: rgba(205, 220, 240, 0.16);
   --interaction-active-background: rgba(154, 183, 255, 0.12);
   --interaction-active-border: rgba(154, 183, 255, 0.24);
-  --interaction-active-shadow: 0 10px 20px rgba(154, 183, 255, 0.08);
   --text-kbd-color: #dde7f4;
   --surface-kbd-background: rgba(60, 70, 82, 0.84);
   --divider-kbd-border: rgba(205, 220, 240, 0.12);
@@ -523,6 +495,12 @@
   --glow-green: rgba(80, 210, 172, 0.14);
   --glow-peach: rgba(242, 191, 98, 0.14);
   --glow-mist: rgba(255, 255, 255, 0.1);
+
+  --status-info-soft-bg: rgba(96, 165, 250, 0.10);
+  --status-info-soft-border: rgba(96, 165, 250, 0.18);
+  --status-info-soft-text: #7eaef8;
+
+  --disabled-opacity: 0.50;
 }
 
 /* 中文注释：以下是兼容层，把高频旧变量收口到新的语义令牌，避免页面级组件继续分叉。 */
@@ -530,14 +508,8 @@
 :root[data-theme="light"],
 :root[data-theme="dark"],
 :root[data-theme="rain"] {
-  --surface-stage-background: var(--ambient-stage-background);
-  --surface-body-background: var(--ambient-page-background);
-  --surface-body-grid: none;
-  --surface-grid-background: var(--ambient-stage-grid);
+  --surface-body-background: var(--ambient-page-pattern), var(--ambient-page-background);
 
-  --surface-shell-background: var(--material-shell-background);
-  --surface-shell-border: var(--material-shell-border);
-  --surface-shell-shadow: var(--material-shell-shadow);
   --surface-inset-background: var(--material-inset-background);
   --surface-inset-border: var(--material-inset-border);
   --surface-inset-shadow: var(--material-inset-shadow);
@@ -546,7 +518,6 @@
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: var(--material-inset-background);
   --surface-panel-subtle-border: var(--material-inset-border);
-  --surface-panel-subtle-shadow: var(--material-inset-shadow);
   --surface-canvas-background: var(--material-canvas-background);
   --surface-canvas-border: var(--material-canvas-border);
   --surface-popover-background: var(--material-popover-background);
@@ -556,8 +527,6 @@
   --surface-avatar-border: var(--material-avatar-border);
   --surface-avatar-foreground: var(--text-default);
   --surface-avatar-shadow: var(--material-avatar-shadow);
-  --surface-top-glow: var(--material-panel-highlight);
-  --surface-highlight-color: var(--material-panel-highlight);
   --surface-progress-track: color-mix(in srgb, var(--divider-strong-color) 88%, transparent);
   --surface-progress-fill: color-mix(in srgb, var(--primary) 74%, white 10%);
 
@@ -592,7 +561,6 @@
   --modal-divider-color: var(--divider-subtle-color);
   --modal-btn-secondary-background: color-mix(in srgb, var(--material-chip-background) 84%, transparent);
   --modal-btn-secondary-border: var(--material-chip-border);
-  --modal-btn-secondary-shadow: none;
   --modal-btn-secondary-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
   --modal-btn-secondary-hover-border: var(--interaction-hover-border);
 
@@ -612,40 +580,21 @@
   --button-tonal-border: var(--material-chip-border);
   --button-tonal-color: var(--text-default);
   --button-tonal-hover-background: color-mix(in srgb, var(--interaction-hover-background) 92%, transparent);
-  --button-tonal-hover-border: var(--interaction-hover-border);
   --button-tonal-hover-color: var(--text-strong);
-  --button-outlined-background: transparent;
-  --button-outlined-border: var(--divider-strong-color);
-  --button-outlined-color: var(--text-default);
-  --button-outlined-hover-background: color-mix(in srgb, var(--interaction-hover-background) 72%, transparent);
-  --button-outlined-hover-border: var(--interaction-hover-border);
-  --button-outlined-hover-color: var(--text-strong);
-  --button-text-color: var(--text-muted);
-  --button-text-hover-color: var(--text-strong);
-  --button-icon-background: var(--material-chip-background);
-  --button-icon-border: var(--material-chip-border);
-  --button-icon-color: var(--icon-default);
-  --button-icon-hover-background: color-mix(in srgb, var(--interaction-hover-background) 84%, transparent);
-  --button-icon-hover-border: var(--interaction-hover-border);
-  --button-icon-hover-color: var(--icon-strong);
 
   --chip-segmented-shell-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
   --chip-segmented-shell-border: var(--material-chip-border);
-  --chip-segmented-shell-shadow: none;
   --chip-segmented-icon-color: var(--icon-default);
   --chip-segmented-option-color: var(--text-default);
   --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
   --chip-segmented-option-hover-color: var(--text-strong);
   --chip-segmented-option-active-background: color-mix(in srgb, var(--interaction-active-background) 94%, transparent);
   --chip-segmented-option-active-color: var(--text-strong);
-  --chip-segmented-option-active-shadow: none;
 
   --surface-interactive-hover-background: var(--interaction-hover-background);
   --surface-interactive-hover-border: var(--interaction-hover-border);
   --surface-interactive-active-background: var(--interaction-active-background);
   --surface-interactive-active-border: var(--interaction-active-border);
-  --input-caret-color: color-mix(in srgb, var(--primary) 88%, white 12%);
-  --input-caret-shadow: color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 @theme inline {
@@ -670,6 +619,17 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+
+  /* 中文注释：语义化字号规范 — 替代散落的 text-[Npx] 任意值 */
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-md: 17px;
+  --font-size-lg: 22px;
+  --font-size-xl: 28px;
+  --font-size-2xl: 42px;
+
   --font-sans:
     "Manrope",
     "PingFang SC",

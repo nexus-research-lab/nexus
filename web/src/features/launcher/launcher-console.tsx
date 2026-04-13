@@ -79,7 +79,6 @@ interface LauncherMentionMatch {
   start_pos: number;
 }
 
-
 const TOKEN_SWATCHES = [
   { fill: "#5FA052", text: "#FFFFFF", ring: "#8DBA86" },
   { fill: "#E8A838", text: "#FFFFFF", ring: "#F0C56C" },
@@ -112,8 +111,7 @@ function truncateLauncherChipLabel(label: string, max_chars: number = 8): string
     return label.trim();
   }
 
-  // 中文注释：Hero 推荐项空间很窄，超长名称改为中间省略，
-  // 保留首尾辨识信息，避免纯尾部截断导致 DM/Room 名称难以分辨。
+  // 中文注释：Hero 推荐项空间很窄，超长名称改为中间省略。
   const head_count = Math.max(2, Math.ceil((max_chars - 1) / 2));
   const tail_count = Math.max(2, max_chars - 1 - head_count);
   return `${chars.slice(0, head_count).join("")}…${chars.slice(-tail_count).join("")}`;
@@ -398,17 +396,15 @@ const HeroStage = memo(function HeroStage({
       return;
     }
 
-    // 中文注释：Hero 输入框和 DM/Room composer 一样，提交后先在本地立即清空，
-    // 再等待父层异步链路推进，避免受控值回流慢一拍导致残留。
+    // 中文注释：提交后先在本地立即清空，避免受控值回流慢一拍。
     set_local_query("");
     on_query_change("");
     set_mention_match(null);
   }, [local_query, on_query_change, on_submit]);
+
   return (
-    <div className="relative flex w-full max-w-[1180px] flex-col items-center" onClick={(e) => e.stopPropagation()}>
-      <HeroBlobShell
-        class_name="z-10 transition-transform duration-500 ease-out"
-      >
+    <div className="relative z-10 flex w-full max-w-[1180px] flex-col items-center" onClick={(e) => e.stopPropagation()}>
+      <HeroBlobShell class_name="z-10 transition-transform duration-500 ease-out">
         <div className="space-y-3 sm:space-y-4">
           <FadeSlideIn delay_ms={0} duration_ms={380} y_offset={6}>
             <div className="flex flex-col items-center gap-2.5">
@@ -444,8 +440,7 @@ const HeroStage = memo(function HeroStage({
               inline_style={undefined}
               src={ANIMATIONS.SPARKLES}
             />
-            <h1
-              className="mb-2 text-[24px] font-extrabold leading-[1.12] tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
+            <h1 className="mb-2 text-[24px] font-extrabold leading-[1.12] tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
               <AnimatedHeroText text={t("launcher.hero_title")} initial_delay_ms={80} stagger_ms={26} />
             </h1>
           </div>
@@ -454,7 +449,7 @@ const HeroStage = memo(function HeroStage({
         <div className="mt-3 sm:mt-4">
           <FadeSlideIn delay_ms={440} duration_ms={420} y_offset={10}>
             <div
-              className="mx-auto w-full max-w-[326px] rounded-[28px] border px-4 py-4 sm:max-w-[480px] sm:px-6 sm:py-5"
+              className="mx-auto w-full max-w-[326px] rounded-[28px] border px-4 py-4 sm:max-w-[480px] "
               style={{
                 background: "linear-gradient(180deg, var(--launcher-input-fill), var(--launcher-input-inner-fill))",
                 borderColor: "var(--launcher-input-stroke)",
@@ -472,16 +467,11 @@ const HeroStage = memo(function HeroStage({
                     placement="below"
                   />
                 ) : null}
-                <MessageSquare
-                  className="h-4.5 w-4.5"
-                  style={{ color: "var(--launcher-input-icon)" }}
-                />
+                <MessageSquare className="h-4.5 w-4.5" style={{ color: "var(--launcher-input-icon)" }} />
                 <input
                   ref={input_ref}
                   className="flex-1 bg-transparent text-[14px] outline-none shadow-none ring-0 placeholder:text-[color:var(--launcher-input-placeholder)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-[15px]"
-                  style={{
-                    color: "var(--launcher-input-text)",
-                  }}
+                  style={{ color: "var(--launcher-input-text)" }}
                   onBlur={() => {
                     requestAnimationFrame(() => {
                       if (document.activeElement !== input_ref.current) {
@@ -520,7 +510,7 @@ const HeroStage = memo(function HeroStage({
                   className={cn(
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition duration-150 ease-out hover:-translate-y-0.5 sm:h-11 sm:w-11",
                     ((surface === "launcher" && is_query_loading) || (surface === "app" && input_disabled))
-                      && "cursor-not-allowed opacity-50 hover:translate-y-0",
+                    && "cursor-not-allowed opacity-[var(--disabled-opacity)] hover:translate-y-0",
                   )}
                   style={{
                     background: "var(--launcher-submit-background)",
@@ -539,7 +529,7 @@ const HeroStage = memo(function HeroStage({
                       <ArrowUp className="h-4 w-4" />
                     )
                   ) : is_query_loading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--divider-strong-color)] border-t-transparent" />
                   ) : (
                     <ArrowUp className="h-4 w-4" />
                   )}
@@ -746,11 +736,10 @@ export function LauncherConsole({
           if (context) {
             set_active_panel_item(context.room.id);
             const route = AppRouteBuilders.room_conversation(context.room.id, context.conversation.id);
-            // 如果有初始消息，在导航 URL 中编码以供 Room 页面使用
-            const finalRoute = action.initial_message
+            const final_route = action.initial_message
               ? `${route}?initial=${encodeURIComponent(action.initial_message)}`
               : route;
-            navigate(finalRoute);
+            navigate(final_route);
           }
           break;
         }
@@ -759,11 +748,10 @@ export function LauncherConsole({
           if (contexts.length > 0) {
             set_active_panel_item(action.target_id);
             const route = AppRouteBuilders.room_conversation(action.target_id, contexts[0].conversation.id);
-            // 如果有初始消息，在导航 URL 中编码以供 Room 页面使用
-            const finalRoute = action.initial_message
+            const final_route = action.initial_message
               ? `${route}?initial=${encodeURIComponent(action.initial_message)}`
               : route;
-            navigate(finalRoute);
+            navigate(final_route);
           }
           break;
         }
@@ -780,6 +768,7 @@ export function LauncherConsole({
 
   const input_value = surface === "app" ? app_conversation_draft : query;
   const input_loading = surface === "app" ? app_conversation_loading : isQueryLoading;
+
   const handle_enter_home = useCallback(() => {
     navigate(AppRouteBuilders.home());
   }, [navigate]);
@@ -813,8 +802,7 @@ export function LauncherConsole({
         return false;
       }
 
-      // 中文注释：Launcher Hero 输入框复用 DM/Room 的发送语义，
-      // 在异步发送前先立即清空受控草稿，避免回车提交后残留旧文本。
+      // 中文注释：异步发送前先清空草稿，避免回车后残留旧文本。
       on_change_app_conversation_draft("");
       void on_submit_app_conversation(trimmed_input);
       return true;
@@ -825,8 +813,6 @@ export function LauncherConsole({
       return false;
     }
 
-    // 中文注释：Launcher 查询也沿用同样的“先清空、再提交”策略，
-    // 保证 Hero 输入框行为与 DM/Room composer 一致。
     setQuery("");
     void handle_submit(trimmed_query);
     return true;

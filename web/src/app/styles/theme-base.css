@@ -56,6 +56,12 @@
   initial-value: rgba(253, 252, 250, 0.98);
 }
 
+@property --liquid-glass-distortion {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 /* 中文注释：这里只放元素基线和浏览器层的默认行为，不承载组件视觉。 */
 /* ── Theme overlay keyframes ─────────────────────────── */
 
@@ -86,6 +92,10 @@
     position: relative;
     background-color: var(--background);
     background-image: var(--surface-body-background);
+    background-attachment: fixed, fixed;
+    background-position: top left, center top;
+    background-repeat: repeat, no-repeat;
+    background-size: var(--ambient-page-pattern-size), 100% 100%;
     color: var(--foreground);
     font-family: var(--font-sans);
     line-height: 1.5;

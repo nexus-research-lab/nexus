@@ -15,6 +15,7 @@ import { Agent } from "@/types/agent";
 
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
+import { prepare_workspace_text_attachments } from "@/features/conversation-shared/composer-attachments";
 import {
   buildRoomAgentRoundEntries,
   getRoomAgentRoundEntry,
@@ -227,6 +228,12 @@ export function RoomChatPanel({
   };
 
   const handle_stop_message = useCallback((msg_id: string) => stop_generation(msg_id), [stop_generation]);
+  const handle_prepare_attachments = useCallback(async (files: File[]) => {
+    if (!agent_id) {
+      throw new Error("当前主理 Agent 尚未就绪，暂时无法附加文件。");
+    }
+    return prepare_workspace_text_attachments(agent_id, files);
+  }, [agent_id]);
 
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
@@ -418,8 +425,11 @@ export function RoomChatPanel({
           <ComposerPanel
             compact={is_mobile_layout}
             control_status_text={session_control_text}
+            is_loading={is_loading}
             mention_unavailable_agent_ids={mention_unavailable_agent_ids}
+            on_prepare_attachments={handle_prepare_attachments}
             on_send_message={handle_send_message}
+            on_stop={can_control_session ? () => stop_generation() : undefined}
             room_members={room_members}
             disabled={!can_control_session}
           />

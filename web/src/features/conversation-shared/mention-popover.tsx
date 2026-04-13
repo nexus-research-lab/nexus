@@ -119,7 +119,7 @@ export const MentionTargetPopover = memo(({
 
     const popover = (
         <div
-            className="fixed z-[9999] max-h-48 overflow-y-auto rounded-2xl backdrop-blur-[18px]"
+            className="fixed z-[9999] max-h-48 overflow-y-auto rounded-2xl"
             style={{
                 top,
                 left,
@@ -134,7 +134,7 @@ export const MentionTargetPopover = memo(({
                     <button
                         key={item.id}
                         className={cn(
-                            "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150",
+                            "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-[var(--motion-duration-fast)]",
                             index === active_index ? "text-[color:var(--text-strong)]" : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
                         )}
                         style={index === active_index ? { background: "var(--surface-interactive-active-background)" } : undefined}

@@ -12,21 +12,33 @@ import { createPortal } from "react-dom";
 import { Bot, Check, Hash, Plus, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getIconAvatarSrc, getInitials, getRoomAvatarIconId } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
+  DIALOG_BACKDROP_CLASS_NAME,
+  DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
+  DIALOG_SHELL_CLASS_NAME,
+  getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
+import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/workspace-catalog-card";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { Agent } from "@/types/agent";
 
 interface CreateRoomDialogProps {
   agents: Agent[];
   is_open: boolean;
   is_creating?: boolean;
+  mode?: "create" | "manage";
+  dialog_title?: string;
+  dialog_subtitle?: string;
+  confirm_label?: string;
+  initial_name?: string;
+  initial_avatar?: string;
+  initial_selected_agent_ids?: string[];
   on_cancel: () => void;
-  on_confirm: (agent_ids: string[], name: string) => void;
+  on_confirm: (agent_ids: string[], name: string, avatar?: string) => void;
 }
 
 const MAX_MEMBERS = 10;
@@ -35,6 +47,13 @@ export function CreateRoomDialog({
   agents,
   is_open,
   is_creating = false,
+  mode = "create",
+  dialog_title,
+  dialog_subtitle,
+  confirm_label,
+  initial_name = "",
+  initial_avatar = "",
+  initial_selected_agent_ids = [],
   on_cancel,
   on_confirm,
 }: CreateRoomDialogProps) {
@@ -42,15 +61,17 @@ export function CreateRoomDialog({
   const [search_query, set_search_query] = useState("");
   const [selected_ids, set_selected_ids] = useState<string[]>([]);
   const [room_name, set_room_name] = useState("");
+  const [selected_avatar, set_selected_avatar] = useState("");
 
   // 打开时重置状态
   useEffect(() => {
     if (is_open) {
       set_search_query("");
-      set_selected_ids([]);
-      set_room_name("");
+      set_selected_ids(initial_selected_agent_ids);
+      set_room_name(initial_name);
+      set_selected_avatar(initial_avatar);
     }
-  }, [is_open]);
+  }, [initial_avatar, initial_name, initial_selected_agent_ids, is_open]);
 
   // ESC 关闭
   useEffect(() => {
@@ -87,204 +108,260 @@ export function CreateRoomDialog({
 
   const handle_create = useCallback(() => {
     if (selected_ids.length === 0 || !room_name.trim()) return;
-    on_confirm(selected_ids, room_name.trim());
-  }, [selected_ids, room_name, on_confirm]);
+    on_confirm(selected_ids, room_name.trim(), selected_avatar || undefined);
+  }, [on_confirm, room_name, selected_avatar, selected_ids]);
 
   if (!is_open) return null;
 
   const can_create = selected_ids.length > 0 && room_name.trim().length > 0 && !is_creating;
+  const preview_avatar_id = getRoomAvatarIconId(null, room_name, selected_avatar);
+  const preview_avatar_src = getIconAvatarSrc(preview_avatar_id);
+  const resolved_dialog_title = dialog_title ?? (mode === "manage" ? t("room.manage_dialog_title") : t("room.create_dialog_title"));
+  const resolved_dialog_subtitle = dialog_subtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
+  const resolved_confirm_label = confirm_label ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
 
   // Portal 渲染到 body，确保弹窗不受侧边栏 overflow 限制
   return createPortal(
-    <div
-      className="dialog-backdrop animate-in fade-in duration-200"
-      onClick={on_cancel}
-      role="dialog"
-      aria-modal="true"
-    >
+    <>
       <div
-        className="dialog-shell radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "80vh" }}
+        aria-hidden="true"
+        className={cn(DIALOG_BACKDROP_CLASS_NAME, "z-[9998]")}
+        onClick={on_cancel}
+      />
+      <div
+        data-modal-root="true"
+        aria-modal="true"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
+        role="dialog"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
       >
-        <div className="dialog-header">
-          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px] text-primary")}>
-              <Hash className="h-7 w-7" />
+        <div
+          className={cn(
+            DIALOG_SHELL_CLASS_NAME,
+            "flex h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden pointer-events-auto",
+          )}
+        >
+          <div className="dialog-header">
+            <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px] text-primary")}>
+                <Hash className="h-7 w-7" />
+              </div>
+              <div className="min-w-0">
+                  <h2 className="dialog-title truncate" data-size="hero">
+                    {resolved_dialog_title}
+                  </h2>
+                  <p className="dialog-subtitle truncate">
+                    {resolved_dialog_subtitle}
+                  </p>
+                </div>
             </div>
-            <div className="min-w-0">
-              <h2 className="dialog-title truncate" data-size="hero">
-                {t("room.create_dialog_title")}
-              </h2>
-              <p className="dialog-subtitle truncate">
-                {t("room.create_dialog_subtitle")}
-              </p>
-            </div>
-          </div>
-          <WorkspacePillButton
-            aria-label={t("common.close")}
-            density="compact"
-            onClick={on_cancel}
-            size="icon"
-            variant="icon"
-          >
-            <X className="h-5 w-5" />
-          </WorkspacePillButton>
-        </div>
-
-        {/* 内容区：左右两栏 */}
-        <div className="dialog-body dialog-body--scroll soft-scrollbar flex gap-5">
-          {/* 左栏：Agent 列表 */}
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            {/* 搜索框 */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--text-soft)]" />
-              <input
-                className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-[color:var(--text-strong)] placeholder:text-[color:var(--text-soft)] focus-visible:outline-none"
-                onChange={(e) => set_search_query(e.target.value)}
-                placeholder={t("room.search_agent_placeholder")}
-                type="text"
-                value={search_query}
-              />
-            </div>
-
-            {/* Agent 计数 */}
-            <p className="dialog-label">
-              {t("room.all_agents", { count: filtered_agents.length })}
-            </p>
-
-            {/* Agent 列表 */}
-            <div className="flex flex-col gap-1.5 overflow-y-auto pr-1" style={{ maxHeight: 280 }}>
-              {filtered_agents.map((agent) => {
-                const is_selected = selected_ids.includes(agent.agent_id);
-                return (
-                  <button
-                    key={agent.agent_id}
-                    className={cn(
-                      "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-all duration-200",
-                      is_selected && "dialog-card-active",
-                    )}
-                    onClick={() => toggle_agent(agent.agent_id)}
-                    type="button"
-                  >
-                    {/* Agent 头像 */}
-                    <WorkspaceIconFrame
-                      class_name="text-[color:var(--icon-default)]"
-                      shape="round"
-                      size="sm"
-                    >
-                      <Bot className="h-4 w-4" />
-                    </WorkspaceIconFrame>
-
-                    {/* Agent 信息 */}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">
-                        {agent.name}
-                      </p>
-                      <p className="truncate text-[11px] text-[color:var(--text-muted)]">
-                        {agent.options?.system_prompt
-                          ? agent.options.system_prompt.slice(0, 50) + (agent.options.system_prompt.length > 50 ? "..." : "")
-                          : agent.status ?? t("status.idle")}
-                      </p>
-                    </div>
-
-                    {/* 已选标记 */}
-                    <div
-                      className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
-                        is_selected
-                          ? "bg-primary text-white"
-                          : "border border-[var(--surface-interactive-hover-border)] text-[color:var(--text-soft)]",
-                      )}
-                    >
-                      {is_selected ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Plus className="h-3 w-3" />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 右栏：已选成员 */}
-          <div className="flex w-[220px] shrink-0 flex-col gap-3">
-            <p className="dialog-label">
-              {t("room.selected_members", { count: selected_ids.length, max: MAX_MEMBERS })}
-            </p>
-
-            <div className="surface-card flex flex-1 flex-col gap-1 overflow-y-auto rounded-2xl p-2.5">
-              {selected_agents.length > 0 ? (
-                selected_agents.map((agent) => (
-                  <div
-                    key={agent.agent_id}
-                    className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-black/3"
-                  >
-                    <WorkspaceIconFrame
-                      class_name="h-6 w-6 text-[color:var(--icon-default)]"
-                      shape="round"
-                      size="sm"
-                    >
-                      <Bot className="h-3 w-3" />
-                    </WorkspaceIconFrame>
-                    <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[color:var(--text-strong)]">
-                      {agent.name}
-                    </span>
-                    <button
-                      className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[color:var(--text-soft)] transition-colors hover:text-red-500"
-                      onClick={() => toggle_agent(agent.agent_id)}
-                      type="button"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="flex flex-1 items-center justify-center text-[12px] text-[color:var(--text-soft)]">
-                  {t("room.add_from_left")}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 底部栏 — 与 AgentOptions footer 一致 */}
-        <div className="dialog-footer justify-between gap-4">
-          {/* Room 名称输入 */}
-          <div className="flex items-center gap-2.5">
-            <label className="dialog-label shrink-0">
-              {t("room.name_label")}
-            </label>
-            <input
-              className="dialog-input w-48 rounded-xl px-3 py-2 text-sm text-[color:var(--text-strong)] placeholder:text-[color:var(--text-soft)] focus-visible:outline-none"
-              maxLength={64}
-              onChange={(e) => set_room_name(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && can_create) handle_create(); }}
-              placeholder={t("room.name_placeholder")}
-              type="text"
-              value={room_name}
-            />
-          </div>
-
-          {/* 操作按钮 */}
-          <div className="flex items-center gap-3">
-            <WorkspacePillButton onClick={on_cancel} size="md" variant="tonal">
-              {t("common.cancel")}
-            </WorkspacePillButton>
-            <WorkspacePillButton
-              disabled={!can_create}
-              onClick={handle_create}
-              size="md"
-              variant={can_create ? "primary" : "tonal"}
+            <button
+              aria-label={t("common.close")}
+              className={DIALOG_ICON_BUTTON_CLASS_NAME}
+              onClick={on_cancel}
+              type="button"
             >
-              {is_creating ? t("room.creating_action") : t("room.create_action")}
-            </WorkspacePillButton>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* 内容区：左右两栏 */}
+          <div className="dialog-body flex min-h-0 flex-1 gap-5 overflow-hidden">
+            {/* 左栏：房间信息 */}
+            <div className="flex min-h-0 w-[240px] shrink-0 flex-col gap-3">
+              <p className="dialog-label">
+                {t("room.settings_title")}
+              </p>
+              <div className="rounded-[18px] border border-[var(--divider-subtle-color)] px-3.5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[14px] border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] shadow-[var(--surface-avatar-shadow)]">
+                    {preview_avatar_src ? (
+                      <img
+                        alt="room-avatar-preview"
+                        className="h-full w-full object-contain"
+                        src={preview_avatar_src}
+                      />
+                    ) : (
+                      <Hash className="h-4.5 w-4.5 text-[color:var(--icon-default)]" />
+                    )}
+                  </div>
+                  <input
+                    className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-[color:var(--text-strong)] placeholder:text-[color:var(--text-soft)] focus-visible:outline-none"
+                    maxLength={64}
+                    onChange={(e) => set_room_name(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && can_create) handle_create(); }}
+                    placeholder={t("room.name_required_placeholder")}
+                    required
+                    type="text"
+                    value={room_name}
+                  />
+                </div>
+                <IconPicker
+                  class_name="mt-3"
+                  disabled={is_creating}
+                  layout="row"
+                  icon_size="sm"
+                  max_icons={12}
+                  on_select={set_selected_avatar}
+                  show_clear={false}
+                  start_icon_id={13}
+                  value={selected_avatar}
+                />
+              </div>
+
+              <p className="dialog-label">
+                {t("room.selected_members", { count: selected_ids.length, max: MAX_MEMBERS })}
+              </p>
+
+              <div
+                className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto rounded-2xl border border-[var(--divider-subtle-color)] p-2.5"
+              >
+                {selected_agents.length > 0 ? (
+                  selected_agents.map((agent) => (
+                    <div
+                      key={agent.agent_id}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-black/3"
+                    >
+                      <WorkspaceIconFrame
+                        class_name="h-6 w-6 overflow-hidden text-[color:var(--icon-default)]"
+                        shape="round"
+                        size="sm"
+                      >
+                        {getIconAvatarSrc(agent.avatar) ? (
+                          <img
+                            alt={agent.name}
+                            className="h-full w-full object-cover"
+                            src={getIconAvatarSrc(agent.avatar) ?? undefined}
+                          />
+                        ) : (
+                          getInitials(agent.name)
+                        )}
+                      </WorkspaceIconFrame>
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[color:var(--text-strong)]">
+                        {agent.name}
+                      </span>
+                      <button
+                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[color:var(--text-soft)] transition-colors hover:text-red-500"
+                        onClick={() => toggle_agent(agent.agent_id)}
+                        type="button"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="flex flex-1 items-center justify-center text-[12px] text-[color:var(--text-soft)]">
+                    {t("room.add_from_left")}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* 右栏：Agent 列表 */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+              {/* 搜索框 */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--text-soft)]" />
+                <input
+                  className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-[color:var(--text-strong)] placeholder:text-[color:var(--text-soft)] focus-visible:outline-none"
+                  onChange={(e) => set_search_query(e.target.value)}
+                  placeholder={t("room.search_agent_placeholder")}
+                  type="text"
+                  value={search_query}
+                />
+              </div>
+
+              <p className="dialog-label">
+                {t("room.all_agents", { count: filtered_agents.length })}
+              </p>
+
+              <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-[var(--divider-subtle-color)] p-2.5">
+                <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+                  {filtered_agents.map((agent) => {
+                    const is_selected = selected_ids.includes(agent.agent_id);
+                    return (
+                      <button
+                        key={agent.agent_id}
+                        className={cn(
+                          "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition-all duration-[var(--motion-duration-normal)]",
+                          is_selected && "dialog-card-active",
+                        )}
+                        onClick={() => toggle_agent(agent.agent_id)}
+                        type="button"
+                      >
+                        <WorkspaceIconFrame
+                          class_name="overflow-hidden text-[color:var(--icon-default)]"
+                          shape="round"
+                          size="sm"
+                        >
+                          {getIconAvatarSrc(agent.avatar) ? (
+                            <img
+                              alt={agent.name}
+                              className="h-full w-full object-cover"
+                              src={getIconAvatarSrc(agent.avatar) ?? undefined}
+                            />
+                          ) : (
+                            <Bot className="h-4 w-4" />
+                          )}
+                        </WorkspaceIconFrame>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">
+                            {agent.name}
+                          </p>
+                          <p className="truncate text-[10px] text-[color:var(--text-muted)]">
+                            {agent.options?.system_prompt
+                              ? agent.options.system_prompt.slice(0, 50) + (agent.options.system_prompt.length > 50 ? "..." : "")
+                              : agent.status ?? t("status.idle")}
+                          </p>
+                        </div>
+
+                        <div
+                          className={cn(
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
+                            is_selected
+                              ? "bg-primary text-white"
+                              : "border border-[var(--surface-interactive-hover-border)] text-[color:var(--text-soft)]",
+                          )}
+                        >
+                          {is_selected ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <Plus className="h-3 w-3" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 底部栏 — 与 AgentOptions footer 一致 */}
+          <div className="dialog-footer justify-end gap-3">
+            {/* 操作按钮 */}
+            <button
+              className={getDialogActionClassName("default")}
+              onClick={on_cancel}
+              type="button"
+            >
+              {t("common.cancel")}
+            </button>
+              <button
+                className={getDialogActionClassName(can_create ? "primary" : "default")}
+                disabled={!can_create}
+                onClick={handle_create}
+                type="button"
+              >
+                {is_creating ? t("room.creating_action") : resolved_confirm_label}
+              </button>
           </div>
         </div>
       </div>
-    </div>,
+    </>,
     document.body,
   );
 }

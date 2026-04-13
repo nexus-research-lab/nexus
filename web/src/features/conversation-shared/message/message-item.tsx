@@ -784,8 +784,14 @@ function MessageItemInner(
     if (!on_stop_message || !firstAssistant) return;
     on_stop_message(firstAssistant.message_id);
   }, [on_stop_message, firstAssistant]);
+  const is_room_thread_mode = assistant_content_mode === "room_thread";
   const pendingPermissionBlock = unmatchedPendingPermissions.length > 0 ? (
-    <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-[var(--surface-inset-background)] p-3">
+    <div className={cn(
+      "mt-3 flex flex-col gap-3",
+      is_room_thread_mode
+        ? "border-t border-[var(--divider-subtle-color)] pt-3"
+        : "rounded-2xl bg-[var(--surface-inset-background)] p-3",
+    )}>
       {unmatchedPendingPermissions.map((permission) => (
         <ToolBlock
           key={permission.request_id}
@@ -925,11 +931,11 @@ function MessageItemInner(
                 </div>
 
                 {/* 内容 */}
-                <div className="pb-1 pt-1">
+                <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3 max-w-[720px]">
                   <p className={cn(
                     "w-full",
                     "whitespace-pre-wrap text-right text-[color:var(--text-strong)] wrap-anywhere",
-                    compact ? "text-[14px] leading-6" : "text-[15px] leading-7",
+                    compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
                   )}>
                     {userContent}
                   </p>
@@ -1005,7 +1011,7 @@ function MessageItemInner(
                 <div
                   ref={contentAreaRef}
                   className={cn(
-                    compact ? "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[14px] leading-6" : "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[15px] leading-7",
+                    compact ? "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[15px] leading-6" : "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[16px] leading-7",
                   )}
                   style={showCursor ? { minHeight: streamingMinHeight.current } : undefined}
                 >
@@ -1023,6 +1029,9 @@ function MessageItemInner(
                             className={cn(
                               "flex items-start gap-2 rounded-2xl px-3 py-2.5",
                               getSystemMessageContainerClassName(display_meta.tone),
+                              is_room_thread_mode && display_meta.tone === "neutral"
+                                ? "border border-[var(--divider-subtle-color)] bg-transparent text-[color:var(--text-default)]"
+                                : null,
                             )}
                           >
                             <RotateCcw
@@ -1075,7 +1084,7 @@ function MessageItemInner(
                   {shouldRenderProcessCallchain ? (
                     <div ref={processAnchorRef as React.RefObject<HTMLDivElement>}>
                       <button
-                        className="flex w-full items-center gap-2 py-1.5 text-left text-[color:var(--text-muted)] transition-colors duration-150 hover:text-[color:var(--text-strong)]"
+                        className="flex w-full items-center gap-2 py-1.5 text-left text-[color:var(--text-muted)] transition-colors duration-[var(--motion-duration-fast)] hover:text-[color:var(--text-strong)]"
                         onClick={toggleProcessExpanded}
                         type="button"
                       >

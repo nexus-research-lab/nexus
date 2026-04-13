@@ -1,7 +1,7 @@
 import { ArrowDown } from "lucide-react";
 
 const FLOATING_ACTION_CHIP_CLASS_NAME =
-  "absolute bottom-24 z-20 inline-flex items-center gap-2 rounded-full border border-[var(--chip-default-border)] bg-[var(--chip-default-background)] px-3 py-2 text-sm font-semibold text-[color:var(--text-default)] transition-[transform,color,border-color,background] duration-150 hover:-translate-y-[0.5px] hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]";
+  "absolute bottom-24 z-20 inline-flex items-center gap-2 rounded-full border border-[var(--chip-default-border)] bg-[var(--chip-default-background)] px-3 py-2 text-sm font-semibold text-[color:var(--text-default)] transition-[transform,color,border-color,background] duration-[var(--motion-duration-fast)] hover:-translate-y-[0.5px] hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]";
 
 interface ScrollToLatestButtonProps {
   is_loading: boolean;

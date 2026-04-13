@@ -13,14 +13,26 @@ import { useCallback, useMemo, useState } from "react";
 
 import { initialOptions } from "@/config/options";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
-import { Agent, AgentOptions } from "@/types/agent";
+import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent";
 
 interface UseRoomPageAgentDialogOptions {
   agents: Agent[];
-  create_agent: (params: { name: string; options?: Partial<AgentOptions> }) => Promise<string>;
+  create_agent: (params: {
+    name: string;
+    options?: Partial<AgentOptions>;
+    avatar?: string;
+    description?: string;
+    vibe_tags?: string[];
+  }) => Promise<string>;
   update_agent: (
     agent_id: string,
-    params: { name?: string; options?: Partial<AgentOptions> },
+    params: {
+      name?: string;
+      options?: Partial<AgentOptions>;
+      avatar?: string;
+      description?: string;
+      vibe_tags?: string[];
+    },
   ) => Promise<void>;
 }
 
@@ -41,6 +53,18 @@ export function useRoomPageAgentDialog({
   const dialog_initial_title = useMemo(
     () => (dialog_mode === "edit" ? editing_agent?.name : undefined),
     [dialog_mode, editing_agent?.name],
+  );
+  const dialog_initial_avatar = useMemo(
+    () => (dialog_mode === "edit" ? editing_agent?.avatar ?? "" : ""),
+    [dialog_mode, editing_agent?.avatar],
+  );
+  const dialog_initial_description = useMemo(
+    () => (dialog_mode === "edit" ? editing_agent?.description ?? "" : ""),
+    [dialog_mode, editing_agent?.description],
+  );
+  const dialog_initial_vibe_tags = useMemo(
+    () => (dialog_mode === "edit" ? editing_agent?.vibe_tags ?? [] : []),
+    [dialog_mode, editing_agent?.vibe_tags],
   );
 
   const dialog_initial_options = useMemo(() => {
@@ -71,7 +95,11 @@ export function useRoomPageAgentDialog({
     set_is_dialog_open(true);
   }, []);
 
-  const handle_save_agent_options = useCallback(async (title: string, options: AgentOptions) => {
+  const handle_save_agent_options = useCallback(async (
+    title: string,
+    options: AgentOptions,
+    identity: AgentIdentityDraft,
+  ) => {
     const next_options = {
       model: options.model,
       permission_mode: options.permission_mode,
@@ -84,6 +112,9 @@ export function useRoomPageAgentDialog({
       await create_agent({
         name: title,
         options: next_options,
+        avatar: identity.avatar,
+        description: identity.description,
+        vibe_tags: identity.vibe_tags,
       });
       return;
     }
@@ -92,6 +123,9 @@ export function useRoomPageAgentDialog({
       await update_agent(editing_agent_id, {
         name: title,
         options: next_options,
+        avatar: identity.avatar,
+        description: identity.description,
+        vibe_tags: identity.vibe_tags,
       });
     }
   }, [create_agent, dialog_mode, editing_agent_id, update_agent]);
@@ -106,7 +140,10 @@ export function useRoomPageAgentDialog({
     dialog_mode,
     editing_agent_id,
     dialog_initial_title,
+    dialog_initial_avatar,
+    dialog_initial_description,
     dialog_initial_options,
+    dialog_initial_vibe_tags,
     set_is_dialog_open,
     handle_open_create_agent,
     handle_edit_agent,

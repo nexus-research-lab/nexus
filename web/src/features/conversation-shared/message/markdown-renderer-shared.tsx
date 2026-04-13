@@ -37,7 +37,7 @@ const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 
 export const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkBreaks];
 export const REHYPE_PLUGINS = [rehypeKatex];
-export const MARKDOWN_BODY_CLASS_NAME = "w-full min-w-0 max-w-full overflow-x-hidden text-[14px] leading-7 text-[color:var(--text-strong)] [&_strong]:font-semibold [&_strong]:text-[color:var(--text-strong)] [&_em]:italic [&_hr]:my-4 [&_hr]:border-[var(--divider-subtle-color)]";
+export const MARKDOWN_BODY_CLASS_NAME = "w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-[color:var(--text-strong)] [&_strong]:font-semibold [&_strong]:text-[color:var(--text-strong)] [&_em]:italic [&_hr]:my-4 [&_hr]:border-[var(--divider-subtle-color)]";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-[color:var(--text-strong)] [&_strong]:font-semibold [&_strong]:text-[color:var(--text-strong)] [&_em]:italic";
 
 function normalizeWorkspaceReference(value: string): string {
@@ -155,7 +155,7 @@ export function createMarkdownComponents(
       }
 
       return (
-        <span className="mx-0.5 inline-flex max-w-full overflow-hidden rounded-[5px] border border-primary/20 bg-primary/10 px-2 py-0.3 align-middle font-mono text-[13px] text-primary">
+        <span className="mx-0.5 inline-flex max-w-full overflow-hidden rounded-[5px] border border-primary/20 bg-primary/10 px-2 py-0.3 align-middle font-mono text-[0.9em] text-primary">
           <span className="max-w-full whitespace-pre-wrap break-words">{value}</span>
         </span>
       );
@@ -174,7 +174,7 @@ export function createMarkdownComponents(
     },
     blockquote({ children }) {
       return (
-        <blockquote className="my-4 w-full min-w-0 max-w-full overflow-hidden border-l-4 border-primary/30 bg-primary/6 px-1 py-2 pl-4 italic text-[color:var(--text-muted)] wrap-anywhere">
+        <blockquote className="my-4 w-full min-w-0 max-w-full overflow-hidden border-l-[3px] border-primary/40 bg-primary/4 px-1 py-2 pl-4 italic text-[color:var(--text-muted)] wrap-anywhere">
           <div className="min-w-0 max-w-full">{children}</div>
         </blockquote>
       );
@@ -208,10 +208,10 @@ export function createMarkdownComponents(
       return <h3 className="mb-2 mt-4 max-w-full break-words text-lg font-bold text-foreground">{children}</h3>;
     },
     table({ children }) {
-      return <table className="my-4 w-full max-w-full table-fixed border-collapse text-left text-sm sm:table-auto">{children}</table>;
+      return <table className="my-4 w-full max-w-full table-fixed border-collapse overflow-hidden rounded-[14px] border border-[var(--divider-subtle-color)] text-left text-sm sm:table-auto">{children}</table>;
     },
     thead({ children }) {
-      return <thead className="uppercase text-[color:var(--text-muted)]" style={{ background: "var(--surface-panel-subtle-background)" }}>{children}</thead>;
+      return <thead className="uppercase text-[color:var(--text-muted)] font-semibold" style={{ background: "color-mix(in srgb, var(--surface-panel-background) 68%, var(--divider-subtle-color))" }}>{children}</thead>;
     },
     tbody({ children }) {
       return <tbody className="align-top">{children}</tbody>;
@@ -220,10 +220,10 @@ export function createMarkdownComponents(
       return <tr className="align-top">{children}</tr>;
     },
     th({ children }) {
-      return <th className="px-3 py-2 font-semibold sm:px-4 sm:py-3">{children}</th>;
+      return <th className="border-b px-3 py-2 font-semibold sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</th>;
     },
     td({ children }) {
-      return <td className="border-t px-3 py-2 align-top whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</td>;
+      return <td className="border-t border-b px-3 py-2 align-top whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</td>;
     },
   };
 }

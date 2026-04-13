@@ -7,7 +7,6 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
 import {
-  WorkspaceCatalogEmptyShell,
   WorkspaceCatalogGhostCard,
   WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
@@ -20,9 +19,6 @@ import {
   get_contacts_agent_description,
   matches_contacts_search,
 } from "./contacts-directory-helpers";
-
-/** Tab 过滤键 — My Agents / Task Generated */
-type ContactsTabKey = "my_agents" | "task_generated";
 
 interface ContactsDirectoryProps {
   agents: Agent[];
@@ -47,7 +43,6 @@ export function ContactsDirectory({
   on_create_team,
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
-  const [active_tab, set_active_tab] = useState<ContactsTabKey>("my_agents");
   const [search_query, set_search_query] = useState("");
 
   // 按 agent 分组 conversations（用于后续扩展）
@@ -62,17 +57,9 @@ export function ContactsDirectory({
   // Tab 过滤 + 搜索
   const filtered_agents = useMemo(() => {
     return agents.filter((agent) => {
-      // Tab 过滤：task_generated 暂时为空（后续接入）
-      if (active_tab === "task_generated") return false;
       return matches_contacts_search(agent, search_query);
     });
-  }, [active_tab, agents, search_query]);
-
-  // Header tabs 定义
-  const tabs: { key: ContactsTabKey; label: string }[] = [
-    { key: "my_agents", label: t("contacts.tab_my_agents") },
-    { key: "task_generated", label: t("contacts.tab_task_generated") },
-  ];
+  }, [agents, search_query]);
 
   // Header 右侧：搜索框
   const header_trailing = (
@@ -88,12 +75,9 @@ export function ContactsDirectory({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
-        active_tab={active_tab}
         badge="AGENTS"
         density="compact"
         leading={<Users className="h-4 w-4 text-[color:var(--icon-default)]" />}
-        on_change_tab={set_active_tab}
-        tabs={tabs}
         title={t("contacts.title")}
         trailing={header_trailing}
       />
@@ -102,28 +86,27 @@ export function ContactsDirectory({
       <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {/* 首张卡片 — New Agent */}
-          {active_tab != "task_generated" && (
-            <WorkspaceCatalogGhostCard
-              class_name="py-8"
-              onClick={on_create_agent}
-              size="comfort"
-            >
-              <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg">
-                <Plus className="h-7 w-7 text-[color:var(--icon-default)]" />
-              </WorkspaceIconFrame>
-              <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                {t("contacts.new_agent")}
-              </p>
-              <p className="mt-2 text-[13px] leading-5 text-[color:var(--text-default)]">
-                {t("contacts.new_agent_description")}
-              </p>
-            </WorkspaceCatalogGhostCard>
-          )}
+          <WorkspaceCatalogGhostCard
+            class_name="py-8"
+            onClick={on_create_agent}
+            size="comfort"
+          >
+            <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg">
+              <Plus className="h-7 w-7 text-[color:var(--icon-default)]" />
+            </WorkspaceIconFrame>
+            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">
+              {t("contacts.new_agent")}
+            </p>
+            <p className="mt-2 text-[13px] leading-5 text-[color:var(--text-default)]">
+              {t("contacts.new_agent_description")}
+            </p>
+          </WorkspaceCatalogGhostCard>
 
           {/* Agent 卡片列表 */}
           {filtered_agents.map((agent) => (
             <ContactsAgentCard
               key={agent.agent_id}
+              avatar={agent.avatar}
               description={get_contacts_agent_description(agent, t("contacts.default_description"))}
               name={agent.name}
               on_create_team={() => on_create_team(agent.agent_id)}
@@ -132,20 +115,6 @@ export function ContactsDirectory({
             />
           ))}
         </div>
-
-        {/* Task Generated 空状态 */}
-        {active_tab === "task_generated" && (
-          <WorkspaceCatalogEmptyShell class_name="mt-6">
-            <div>
-              <p className="text-[22px] font-bold tracking-[-0.04em] text-[color:var(--text-strong)]">
-                {t("contacts.empty_generated_title")}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-[color:var(--text-muted)]">
-                {t("contacts.empty_generated_description")}
-              </p>
-            </div>
-          </WorkspaceCatalogEmptyShell>
-        )}
       </div>
     </div>
   );

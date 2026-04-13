@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
+import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
+  getDialogActionClassName,
+} from "@/shared/ui/dialog/dialog-styles";
 
 interface ConfirmDialogProps {
   is_open: boolean;
@@ -61,28 +64,27 @@ export function ConfirmDialog({
 
   const dialog = (
     <div
-      className="dialog-backdrop z-[9999] animate-in fade-in duration-150"
+      className="dialog-backdrop z-[9999] animate-in fade-in duration-[var(--motion-duration-fast)]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
       aria-describedby="confirm-dialog-message"
     >
-      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 id="confirm-dialog-title" className="dialog-title">
               {title}
             </h3>
           </div>
-          <WorkspacePillButton
+          <button
             aria-label="关闭"
-            density="compact"
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             onClick={on_cancel}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-4 w-4" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body">
@@ -92,18 +94,17 @@ export function ConfirmDialog({
         </div>
 
         <div className="dialog-footer">
-          <WorkspacePillButton onClick={on_cancel} size="md" variant="tonal">
+          <button className={getDialogActionClassName("default")} onClick={on_cancel} type="button">
             {cancel_text}
-          </WorkspacePillButton>
-          <WorkspacePillButton
+          </button>
+          <button
+            className={getDialogActionClassName(variant === "danger" ? "danger" : "primary")}
             ref={confirmButtonRef}
             onClick={on_confirm}
-            size="md"
-            tone={variant === "danger" ? "danger" : "default"}
-            variant="primary"
+            type="button"
           >
             {confirm_text}
-          </WorkspacePillButton>
+          </button>
         </div>
       </section>
     </div>
@@ -163,30 +164,29 @@ export function PromptDialog({
 
   const dialog = (
     <div
-      className="dialog-backdrop z-[9999] animate-in fade-in duration-150"
+      className="dialog-backdrop z-[9999] animate-in fade-in duration-[var(--motion-duration-fast)]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="prompt-dialog-title"
     >
-      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 id="prompt-dialog-title" className="dialog-title">
               {title}
             </h3>
           </div>
-          <WorkspacePillButton
+          <button
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label="关闭"
-            density="compact"
             onClick={() => {
               setValue(default_value);
               on_cancel();
             }}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-4 w-4" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body">
@@ -205,19 +205,19 @@ export function PromptDialog({
         </div>
 
         <div className="dialog-footer">
-          <WorkspacePillButton
+          <button
+            className={getDialogActionClassName("default")}
             onClick={() => {
               setValue(default_value);
               on_cancel();
             }}
-            size="md"
-            variant="tonal"
+            type="button"
           >
             取消
-          </WorkspacePillButton>
-          <WorkspacePillButton onClick={() => on_confirm(value)} size="md" variant="primary">
+          </button>
+          <button className={getDialogActionClassName("primary")} onClick={() => on_confirm(value)} type="button">
             确认
-          </WorkspacePillButton>
+          </button>
         </div>
       </section>
     </div>

@@ -12,9 +12,9 @@ interface RoomAgentAboutViewProps {
 export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
   return (
     <WorkspaceSurfaceView eyebrow="About" title={agent.name}>
-      <div className="surface-card rounded-[24px] px-5 py-5">
+      <div className="py-5">
         <div className="flex items-center gap-3">
-          <div className="chip-default flex h-10 w-10 items-center justify-center rounded-full text-[color:var(--icon-strong)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-[var(--divider-subtle-color)] text-[color:var(--icon-strong)]">
             <Bot className="h-5 w-5" />
           </div>
           <div>
@@ -23,8 +23,8 @@ export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <div className="surface-inset rounded-[18px] px-4 py-3.5">
+        <div className="mt-4 grid gap-4 border-t border-[var(--divider-subtle-color)] pt-4 sm:grid-cols-2">
+          <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
               Model
             </p>
@@ -32,7 +32,7 @@ export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
               {agent.options.model || "inherit"}
             </p>
           </div>
-          <div className="surface-inset rounded-[18px] px-4 py-3.5">
+          <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
               Permission
             </p>

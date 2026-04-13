@@ -17,6 +17,7 @@ type CatalogBadgeTone = "neutral" | "info" | "success" | "warning";
 type CatalogMediaShape = "round" | "rounded";
 type CatalogActionTone = "default" | "danger";
 type CatalogActionSize = "sm" | "md";
+type CatalogTextActionTone = "default" | "primary" | "danger";
 type CatalogCardSize = "compact" | "catalog" | "comfort" | "panel" | "hero" | "stat";
 type CatalogCardAlign = "start" | "center";
 type CatalogFooterJustify = "between" | "start" | "end" | "center";
@@ -49,7 +50,7 @@ const BADGE_STYLE_MAP: Record<CatalogBadgeTone, { background: string; border: st
 };
 
 const ICON_FRAME_TONE_CLASS_MAP: Record<IconFrameTone, string> = {
-  default: "border-[color:var(--chip-default-border)] bg-[var(--chip-default-background)] text-[color:var(--text-default)]",
+  default: "border-transparent bg-[var(--chip-default-background)] text-[color:var(--text-default)]",
   primary: "",
   success: "",
   warning: "",
@@ -101,15 +102,15 @@ const CATALOG_FOOTER_JUSTIFY_CLASS_MAP: Record<CatalogFooterJustify, string> = {
 };
 
 const CATALOG_TITLE_CLASS_MAP: Record<CatalogTitleSize, string> = {
-  sm: "text-[15px] font-semibold tracking-[-0.02em]",
-  md: "text-[16px] font-bold tracking-[-0.04em]",
-  lg: "text-[18px] font-bold tracking-[-0.03em]",
+  sm: "text-base font-semibold tracking-[-0.02em]",
+  md: "text-md font-bold tracking-[-0.04em]",
+  lg: "text-lg font-bold tracking-[-0.03em]",
   hero: "text-[clamp(2rem,4.6vw,3.4rem)] font-black leading-[0.94] tracking-[-0.06em]",
 };
 
 const CATALOG_DESCRIPTION_CLASS_MAP: Record<CatalogDescriptionSize, string> = {
-  sm: "text-[13px] leading-[1.55]",
-  md: "text-[15px] leading-8",
+  sm: "text-sm leading-[1.55]",
+  md: "text-base leading-8",
 };
 
 /** 中文注释：这组目录卡片是高频共享块，长相收回组件层，避免全局 CSS 继续膨胀。 */
@@ -135,7 +136,7 @@ export function WorkspaceCatalogCard({
   return (
     <article
       className={cn(
-        "surface-card flex flex-col transition duration-150 ease-out",
+        "surface-card flex flex-col transition duration-[var(--motion-duration-fast)] ease-out",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         align === "center" && "items-center text-center",
         is_interactive && "cursor-pointer hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)]",
@@ -347,11 +348,39 @@ export function WorkspaceCatalogAction({
   return (
     <button
       className={cn(
-        "chip-default inline-flex items-center justify-center text-[color:var(--icon-default)] transition duration-150 ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-active-background)] hover:text-[color:var(--icon-strong)]",
+        "inline-flex items-center justify-center rounded-[10px] border border-transparent bg-transparent text-[color:var(--icon-default)] transition duration-[var(--motion-duration-fast)] ease-out hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]",
         size === "sm"
-          ? "h-6 w-6 rounded-full"
-          : "h-8 w-8 rounded-[12px]",
+          ? "h-6 w-6 rounded-[8px]"
+          : "h-8 w-8 rounded-[10px]",
         tone === "danger" && "hover:border-rose-100 hover:bg-rose-50/92 hover:text-rose-600/90",
+        class_name,
+      )}
+      type={type}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function WorkspaceCatalogTextAction({
+  children,
+  class_name,
+  tone = "default",
+  type = "button",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: ReactNode;
+  class_name?: string;
+  tone?: CatalogTextActionTone;
+}) {
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center gap-1.5 text-xs font-semibold transition duration-[var(--motion-duration-fast)] ease-out",
+        tone === "default" && "text-[color:var(--text-default)] hover:text-[color:var(--text-strong)]",
+        tone === "primary" && "text-[color:var(--primary)] hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
+        tone === "danger" && "text-rose-600/88 hover:text-rose-700",
         class_name,
       )}
       type={type}
@@ -373,7 +402,7 @@ export function WorkspaceCatalogBadge({
 }) {
   return (
     <span
-      className={cn("inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-[10px] font-semibold leading-none", class_name)}
+      className={cn("inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-2xs font-semibold leading-none", class_name)}
       style={BADGE_STYLE_MAP[tone]}
     >
       {children}
@@ -391,12 +420,12 @@ export function WorkspaceCatalogTag({
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center rounded-full px-2.5 text-[10px] font-medium leading-none text-[color:var(--text-default)]",
+        "inline-flex h-5 items-center rounded-full px-2 text-2xs font-medium leading-none text-[color:var(--text-default)]",
         class_name,
       )}
       style={{
-        background: "var(--surface-panel-subtle-background)",
-        border: "1px solid var(--surface-panel-subtle-border)",
+        background: "color-mix(in srgb, var(--surface-panel-subtle-background) 58%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--surface-panel-subtle-border) 72%, transparent)",
       }}
     >
       {children}
@@ -418,7 +447,7 @@ export function WorkspaceCatalogGhostCard({
   return (
     <article
       className={cn(
-        "surface-card flex flex-col items-center justify-center border border-dashed border-[var(--surface-panel-subtle-border)] text-center transition duration-150 ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)]",
+        "surface-card flex flex-col items-center justify-center border border-dashed border-[var(--surface-panel-subtle-border)] text-center transition duration-[var(--motion-duration-fast)] ease-out hover:border-[var(--surface-interactive-active-border)] hover:bg-[var(--surface-interactive-hover-background)]",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         onClick && "cursor-pointer",
         class_name,

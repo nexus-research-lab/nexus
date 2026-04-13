@@ -56,8 +56,8 @@ export function ConnectorsGrid({ ctrl }: ConnectorsGridProps) {
         <Fragment>
           <div className="mb-3 flex items-center gap-2.5">
             <h2 className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--text-strong)]">即将推出</h2>
-            <span className="rounded-full border border-[var(--chip-default-border)] bg-[var(--chip-default-background)] px-2 py-0.5 text-[11px] font-medium text-[color:var(--text-muted)]">
-              {coming_soon.length}
+            <span className="text-[11px] font-medium text-[color:var(--text-soft)]">
+              {coming_soon.length} 个
             </span>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

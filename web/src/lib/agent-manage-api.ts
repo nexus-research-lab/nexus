@@ -35,6 +35,9 @@ function transformApiAgent(api_agent: ApiAgent): Agent {
         options: api_agent.options || {},
         created_at: new Date(api_agent.created_at).getTime(),
         status: api_agent.status,
+        avatar: api_agent.avatar ?? null,
+        description: api_agent.description ?? null,
+        vibe_tags: api_agent.vibe_tags ?? [],
     };
 }
 
@@ -63,6 +66,9 @@ export const createAgentApi = async (params: CreateAgentParams): Promise<Agent> 
         body: JSON.stringify({
             name: params.name,
             options: params.options || null,
+            avatar: params.avatar ?? null,
+            description: params.description ?? null,
+            vibe_tags: params.vibe_tags ?? [],
         }),
     });
     return transformApiAgent(result);
@@ -78,6 +84,9 @@ export const updateAgentApi = async (agent_id: string, params: UpdateAgentParams
         body: JSON.stringify({
             name: params.name,
             options: params.options || null,
+            avatar: params.avatar ?? null,
+            description: params.description ?? null,
+            vibe_tags: params.vibe_tags ?? [],
         }),
     });
     return transformApiAgent(result);

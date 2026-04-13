@@ -24,7 +24,7 @@ export function PlaceholderPage({
   return (
     <WorkspaceEntryPage
       description={description ?? t("common.coming_soon")}
-      icon={<Construction className="h-6 w-6 text-slate-900/78" />}
+      icon={<Construction className="h-6 w-6 text-[color:var(--text-strong)]" />}
       title={title}
     />
   );

@@ -11,9 +11,7 @@
  */
 
 import {
-  Bot,
   Hash,
-  MessageCircleMore,
   Plus,
   Star,
 } from "lucide-react";
@@ -23,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getAgentWsUrl } from "@/config/options";
 import { get_dm_display_name } from "@/lib/dm-utils";
+import { getIconAvatarSrc, getRoomAvatarIconId } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
 import { createRoom, deleteRoom, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
@@ -31,7 +30,7 @@ import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
-import type { AgentRuntimeStatus } from "@/types/agent";
+import type { Agent, AgentRuntimeStatus } from "@/types/agent";
 import type { EventMessage } from "@/types/message";
 import { RoomAggregate } from "@/types/room";
 
@@ -62,6 +61,34 @@ function get_room_timestamp(room: RoomAggregate): number {
   return new Date(
     room.room.updated_at ?? room.room.created_at ?? 0,
   ).getTime();
+}
+
+function render_agent_avatar_icon(agent_name: string, avatar?: string | null) {
+  const avatar_src = getIconAvatarSrc(avatar);
+  if (avatar_src) {
+    return (
+      <img
+        alt={agent_name}
+        className="h-4 w-4 rounded-full object-cover"
+        src={avatar_src}
+      />
+    );
+  }
+
+  return (
+    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[8px] font-bold text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]">
+      {agent_name.trim().slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+function resolve_dm_agent(room: RoomAggregate, agents: Agent[]) {
+  const agent_member = room.members.find((member) => member.member_type === "agent");
+  if (!agent_member?.member_agent_id) {
+    return null;
+  }
+
+  return agents.find((agent) => agent.agent_id === agent_member.member_agent_id) ?? null;
 }
 
 // ==================== 主组件 ====================
@@ -193,10 +220,14 @@ export const HomePanelContent = memo(function HomePanelContent() {
   }, []);
 
   // 确认创建 Room
-  const handle_confirm_create_room = useCallback(async (agent_ids: string[], name: string) => {
+  const handle_confirm_create_room = useCallback(async (
+    agent_ids: string[],
+    name: string,
+    avatar?: string,
+  ) => {
     set_is_creating_room(true);
     try {
-      const context = await createRoom({ agent_ids, name });
+      const context = await createRoom({ agent_ids, name, avatar });
       set_is_create_room_open(false);
       refresh_rooms();
       // 创建后直接导航到新 Room
@@ -244,7 +275,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
 
       {/* Rooms 分区 — 带新建按钮 */}
       <CollapsibleSection
-        action_icon={<Plus className="h-3.5 w-3.5" />}
+        action_icon={<Plus className="h-4 w-4" />}
         action_title={t("home.create_room")}
         count={normal_rooms.length}
         on_action={handle_create_room}
@@ -255,7 +286,24 @@ export const HomePanelContent = memo(function HomePanelContent() {
           normal_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
-              icon={<Hash className="h-4 w-4" />}
+              icon={(() => {
+                const room_avatar_id = getRoomAvatarIconId(
+                  room.room.id,
+                  room.room.name,
+                  room.room.avatar,
+                );
+                const room_avatar_src = getIconAvatarSrc(room_avatar_id);
+
+                return room_avatar_src ? (
+                  <img
+                    alt={room.room.name?.trim() || untitled_room_label}
+                    className="h-4 w-4 rounded-[4px] object-contain"
+                    src={room_avatar_src}
+                  />
+                ) : (
+                  <Hash className="h-4 w-4" />
+                );
+              })()}
               is_active={active_item_id === room.room.id}
               label={room.room.name?.trim() || untitled_room_label}
               on_click={() => navigate_to_room(room.room.id)}
@@ -277,7 +325,17 @@ export const HomePanelContent = memo(function HomePanelContent() {
           dm_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
-              icon={<MessageCircleMore className="h-4 w-4" />}
+              icon={(() => {
+                const dm_agent = resolve_dm_agent(room, agents);
+                if (dm_agent) {
+                  return render_agent_avatar_icon(dm_agent.name, dm_agent.avatar);
+                }
+
+                return render_agent_avatar_icon(
+                  get_dm_display_name(room, agents, untitled_dm_label),
+                  null,
+                );
+              })()}
               is_active={active_item_id === room.room.id}
               label={get_dm_display_name(room, agents, untitled_dm_label)}
               on_click={() => navigate_to_room(room.room.id)}
@@ -299,7 +357,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           agents.map((agent) => (
             <SidebarListItem
               key={agent.agent_id}
-              icon={<Bot className="h-4 w-4" />}
+              icon={render_agent_avatar_icon(agent.name, agent.avatar)}
               is_active={active_item_id === agent.agent_id}
               label={agent.name}
               meta={(() => {
@@ -335,7 +393,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}
-        on_confirm={(ids, name) => void handle_confirm_create_room(ids, name)}
+        on_confirm={(ids, name, avatar) => void handle_confirm_create_room(ids, name, avatar)}
       />
     </div>
   );

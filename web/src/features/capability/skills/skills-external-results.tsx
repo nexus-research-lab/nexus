@@ -1,6 +1,5 @@
 import { Download, Loader2 } from "lucide-react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import {
   WorkspaceCatalogBadge,
   WorkspaceCatalogBody,
@@ -8,6 +7,7 @@ import {
   WorkspaceCatalogDescription,
   WorkspaceCatalogFooter,
   WorkspaceCatalogHeader,
+  WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import type { ExternalSkillSearchItem } from "@/types/skill";
@@ -31,7 +31,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
 
   if (ctrl.external_query && !ctrl.external_results.length) {
     return (
-      <div className="surface-inset radius-shell-md px-5 py-8 text-center text-sm text-[color:var(--text-soft)]">
+      <div className="rounded-[18px] border border-dashed border-[var(--divider-subtle-color)] px-5 py-8 text-center text-sm text-[color:var(--text-soft)]">
         暂无匹配结果，试试更具体的关键词
       </div>
     );
@@ -101,28 +101,6 @@ function ExternalResultCard({
             <span>{formatInstalls(item.installs)} installs</span>
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {already_imported ? (
-            <WorkspaceCatalogBadge tone="success">
-              已导入
-            </WorkspaceCatalogBadge>
-          ) : (
-            <WorkspacePillButton
-              disabled={is_busy}
-              density="compact"
-              onClick={on_import}
-              size="sm"
-              variant="primary"
-            >
-              {is_busy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Download className="h-3 w-3" />
-              )}
-              导入
-            </WorkspacePillButton>
-          )}
-        </div>
       </WorkspaceCatalogHeader>
 
       <WorkspaceCatalogBody grow>
@@ -130,6 +108,32 @@ function ExternalResultCard({
           {item.readme_markdown || item.description}
         </WorkspaceCatalogDescription>
       </WorkspaceCatalogBody>
+
+      <WorkspaceCatalogFooter onClick={(e) => e.stopPropagation()}>
+        <div className="text-[11px] text-[color:var(--text-soft)]">
+          社区技能
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {already_imported ? (
+            <WorkspaceCatalogBadge tone="success">
+              已导入
+            </WorkspaceCatalogBadge>
+          ) : (
+            <WorkspaceCatalogTextAction
+              disabled={is_busy}
+              onClick={on_import}
+              tone="primary"
+            >
+              {is_busy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Download className="h-3 w-3" />
+              )}
+              导入
+            </WorkspaceCatalogTextAction>
+          )}
+        </div>
+      </WorkspaceCatalogFooter>
     </WorkspaceCatalogCard>
   );
 }

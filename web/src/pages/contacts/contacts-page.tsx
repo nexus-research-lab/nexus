@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
-import { AgentOptions as AgentConfigOptions } from "@/types/agent";
+import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent";
 import { initialOptions } from "@/config/options";
 
 export function ContactsPage() {
@@ -98,7 +98,11 @@ export function ContactsPage() {
     return validateAgentNameApi(name, exclude_agent_id);
   }, [dialog_mode, editing_agent_id]);
 
-  const handle_save_agent = useCallback(async (title: string, options: AgentConfigOptions) => {
+  const handle_save_agent = useCallback(async (
+    title: string,
+    options: AgentConfigOptions,
+    identity: AgentIdentityDraft,
+  ) => {
     const next_options = {
       model: options.model,
       permission_mode: options.permission_mode,
@@ -112,6 +116,9 @@ export function ContactsPage() {
       await create_agent({
         name: title,
         options: next_options,
+        avatar: identity.avatar,
+        description: identity.description,
+        vibe_tags: identity.vibe_tags,
       });
       return;
     }
@@ -120,6 +127,9 @@ export function ContactsPage() {
       await update_agent(editing_agent_id, {
         name: title,
         options: next_options,
+        avatar: identity.avatar,
+        description: identity.description,
+        vibe_tags: identity.vibe_tags,
       });
     }
   }, [create_agent, dialog_mode, editing_agent_id, update_agent]);
@@ -177,7 +187,10 @@ export function ContactsPage() {
       <AgentOptions
         agent_id={editing_agent_id ?? undefined}
         initial_options={dialog_initial_options}
+        initial_avatar={editing_agent?.avatar ?? ""}
+        initial_description={editing_agent?.description ?? ""}
         initial_title={dialog_initial_title}
+        initial_vibe_tags={editing_agent?.vibe_tags ?? []}
         is_open={is_dialog_open}
         mode={dialog_mode}
         on_close={() => set_is_dialog_open(false)}

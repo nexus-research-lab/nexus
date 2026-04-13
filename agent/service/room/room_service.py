@@ -110,6 +110,7 @@ class RoomService:
         name: Optional[str] = None,
         description: Optional[str] = None,
         title: Optional[str] = None,
+        avatar: Optional[str] = None,
     ) -> ConversationContextAggregate:
         """更新房间与主对话信息。"""
         async with self._db.session() as session:
@@ -124,6 +125,7 @@ class RoomService:
                 room_id=room_id,
                 name=name,
                 description=description,
+                avatar=avatar,
             )
             if updated_room is None:
                 raise LookupError("Room not found")
@@ -155,6 +157,7 @@ class RoomService:
         description: str = "",
         title: Optional[str] = None,
         room_type: str = "room",
+        avatar: Optional[str] = None,
     ) -> ConversationContextAggregate:
         """创建 Room，并为每个 Agent 初始化会话。"""
         normalized_agent_ids = self._normalize_agent_ids(agent_ids)
@@ -171,6 +174,7 @@ class RoomService:
             room_type=normalized_room_type,
             name=room_name,
             description=description,
+            avatar=avatar,
         )
         members = self._build_members(room_id, normalized_agent_ids)
         conversation_record = ConversationRecord(

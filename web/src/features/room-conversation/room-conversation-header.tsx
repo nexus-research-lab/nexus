@@ -6,35 +6,26 @@ import {
   Hash,
   History,
   MessageSquare,
-  Settings,
-  UserPlus,
 } from "lucide-react";
 
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceTaskStrip,
-} from "@/shared/ui/workspace/workspace-surface-header";
+import { getIconAvatarSrc, getInitials, getRoomAvatarIconId } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { WorkspaceSurfaceHeader, WorkspaceTaskStrip } from "@/shared/ui/workspace/workspace-surface-header";
 import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/workspace-conversation-switcher";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
-import { WorkspaceIconFrame } from "@/shared/ui/workspace/workspace-catalog-card";
 import { Agent } from "@/types/agent";
 import { RoomConversationView } from "@/types/conversation";
+import { UpdateRoomParams } from "@/types/room";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 import { TodoItem } from "@/types/todo";
-import { UpdateRoomParams } from "@/types/room";
 
-import { RoomMemberPickerDialog } from "@/features/room-members/room-member-picker-dialog";
-import { RoomSettingsPanel } from "./room-settings-panel";
+import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
 
 interface RoomConversationHeaderProps {
   conversation_id: string | null;
   room_id: string | null;
   current_room_title: string | null;
-  room_description: string;
+  room_avatar?: string | null;
   conversations: RoomConversationView[];
-  is_loading: boolean;
   room_members: Agent[];
   available_room_agents: Agent[];
   todos: TodoItem[];
@@ -43,147 +34,56 @@ interface RoomConversationHeaderProps {
   on_select_conversation: (conversation_id: string) => void;
   on_create_conversation?: (title?: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
+  on_remove_room_member: (agent_id: string) => Promise<void>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
-  on_delete_room: () => Promise<void>;
 }
 
-/** 获取名称首字母缩写 */
-function getInitials(name: string | null): string {
-  if (!name) return "AG";
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "AG";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-}
-
-/** 成员头像堆叠组件 */
 function MemberAvatarStack({
   room_members,
+  on_click,
 }: {
   room_members: Agent[];
+  on_click: () => void;
 }) {
   const { t } = useI18n();
-  const MAX_VISIBLE = 5;
-  const visible_members = room_members.slice(0, MAX_VISIBLE);
-  const overflow_count = room_members.length - MAX_VISIBLE;
+  const visible_members = room_members.slice(0, 4);
+  const overflow_count = Math.max(0, room_members.length - visible_members.length);
 
   return (
-    <div
-      className="flex items-center rounded-full px-[7px] py-[3px]"
-      style={{
-        background: "var(--chip-default-background)",
-        border: "1px solid var(--chip-default-border)",
-      }}
+    <button
+      className="flex h-7 items-center gap-1.5 rounded-full border border-[var(--divider-subtle-color)] bg-[var(--surface-panel-background)] px-2 text-[10.5px] font-medium text-[color:var(--text-default)] transition-[border-color,background,color,transform] duration-[var(--motion-duration-fast)] hover:-translate-y-[1px] hover:border-[var(--surface-interactive-hover-border)] hover:text-[color:var(--text-strong)]"
+      onClick={on_click}
+      type="button"
     >
-      <div className="ml-1 flex items-center gap-0">
-        <WorkspaceIconFrame
-          class_name="ml-0 h-[27px] w-[27px] rounded-full text-[8px] font-bold text-[color:var(--text-strong)]"
-          shape="round"
-          size="sm"
-        >
-          {t("room.you")}
-        </WorkspaceIconFrame>
-        {visible_members.map((member) => (
-          <WorkspaceIconFrame
-            key={member.agent_id}
-            class_name="-ml-[6px] h-[27px] w-[27px] rounded-full text-[8px] font-bold"
-            shape="round"
-            size="sm"
-            title={member.name}
-          >
-            {getInitials(member.name)}
-          </WorkspaceIconFrame>
-        ))}
+      <div className="flex items-center -space-x-1.5">
+        {visible_members.map((member) => {
+          const avatar_src = getIconAvatarSrc(member.avatar);
+          return (
+            <span
+              className="flex h-5.5 w-5.5 items-center justify-center overflow-hidden rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[8px] font-bold text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]"
+              key={member.agent_id}
+              title={member.name}
+            >
+              {avatar_src ? (
+                <img
+                  alt={member.name}
+                  className="h-full w-full object-cover"
+                  src={avatar_src}
+                />
+              ) : (
+                getInitials(member.name)
+              )}
+            </span>
+          );
+        })}
         {overflow_count > 0 ? (
-          <WorkspaceIconFrame
-            class_name="-ml-[6px] h-[27px] w-[27px] rounded-full text-[8px] font-semibold"
-            shape="round"
-            size="sm"
-          >
+          <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[8px] font-bold text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]">
             +{overflow_count}
-          </WorkspaceIconFrame>
+          </span>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function RoomHeaderActions({
-  available_room_agents,
-  room_id,
-  room_name,
-  room_description,
-  on_add_room_member,
-  on_update_room,
-  on_delete_room,
-}: {
-  available_room_agents: Agent[];
-  room_id: string | null;
-  room_name: string;
-  room_description: string;
-  on_add_room_member: (agent_id: string) => Promise<void>;
-  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
-  on_delete_room: () => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const [is_member_picker_open, set_is_member_picker_open] = useState(false);
-  const [is_settings_open, set_is_settings_open] = useState(false);
-
-  const handle_update_room = async (next_room_id: string, params: UpdateRoomParams) => {
-    await on_update_room(next_room_id, params);
-    set_is_settings_open(false);
-  };
-
-  const handle_delete_room = async () => {
-    await on_delete_room();
-    set_is_settings_open(false);
-  };
-
-  return (
-    <>
-      <div className="hidden items-center gap-2 lg:flex">
-        <WorkspacePillButton
-          aria-label={t("room.add_member")}
-          onClick={() => set_is_member_picker_open(true)}
-          density="compact"
-          size="icon"
-          variant="icon"
-          title={t("room.add_member")}
-        >
-          <UserPlus className="h-4 w-4" />
-        </WorkspacePillButton>
-        <WorkspacePillButton
-          aria-label={t("room.settings")}
-          onClick={() => set_is_settings_open(true)}
-          density="compact"
-          size="icon"
-          variant="icon"
-          title={t("room.settings")}
-        >
-          <Settings className="h-4 w-4" />
-        </WorkspacePillButton>
-      </div>
-
-      <RoomMemberPickerDialog
-        agents={available_room_agents}
-        is_open={is_member_picker_open}
-        on_cancel={() => set_is_member_picker_open(false)}
-        on_select={(agent_id) => {
-          void on_add_room_member(agent_id);
-          set_is_member_picker_open(false);
-        }}
-      />
-
-      <RoomSettingsPanel
-        is_open={is_settings_open}
-        room_id={room_id}
-        room_name={room_name}
-        room_description={room_description}
-        on_update_room={handle_update_room}
-        on_delete_room={handle_delete_room}
-        on_close={() => set_is_settings_open(false)}
-      />
-    </>
+      <span className="hidden sm:inline">{t("room.members")}</span>
+    </button>
   );
 }
 
@@ -191,9 +91,8 @@ const RoomConversationHeaderView = memo(({
   conversation_id,
   room_id,
   current_room_title,
-  room_description,
+  room_avatar,
   conversations,
-  is_loading,
   room_members,
   available_room_agents,
   todos,
@@ -202,10 +101,11 @@ const RoomConversationHeaderView = memo(({
   on_select_conversation,
   on_create_conversation,
   on_add_room_member,
+  on_remove_room_member,
   on_update_room,
-  on_delete_room,
 }: RoomConversationHeaderProps) => {
   const { t } = useI18n();
+  const [is_member_list_open, set_is_member_list_open] = useState(false);
   const header_title = current_room_title?.trim() || t("room.untitled_collaboration");
   const room_tabs: { key: RoomSurfaceTabKey; label: string; icon: typeof MessageSquare }[] = [
     { key: "chat", label: t("room.chat"), icon: MessageSquare },
@@ -213,13 +113,24 @@ const RoomConversationHeaderView = memo(({
     { key: "workspace", label: t("room.workspace"), icon: FolderTree },
   ];
 
+  const resolved_room_avatar_id = getRoomAvatarIconId(room_id, header_title, room_avatar);
+  const room_avatar_src = getIconAvatarSrc(resolved_room_avatar_id);
+
+  const member_agent_ids = room_members.map((member) => member.agent_id);
+  const all_room_agents = [
+    ...room_members,
+    ...available_room_agents.filter(
+      (agent) => !room_members.some((member) => member.agent_id === agent.agent_id),
+    ),
+  ];
+
   const title_trailing = (
     <WorkspaceConversationSwitcher
       conversations={conversations}
       conversation_id={conversation_id}
       density="compact"
-      on_select_conversation={on_select_conversation}
       on_create_conversation={on_create_conversation}
+      on_select_conversation={on_select_conversation}
       on_view_history={() => on_change_tab("history")}
     />
   );
@@ -227,39 +138,74 @@ const RoomConversationHeaderView = memo(({
   const trailing = (
     <>
       <div className="hidden lg:flex">
-        <MemberAvatarStack room_members={room_members} />
+        <MemberAvatarStack
+          on_click={() => set_is_member_list_open(true)}
+          room_members={room_members}
+        />
       </div>
-      <RoomHeaderActions
-        available_room_agents={available_room_agents}
-        on_add_room_member={on_add_room_member}
-        on_delete_room={on_delete_room}
-        on_update_room={on_update_room}
-        room_description={room_description}
-        room_id={room_id}
-        room_name={header_title}
-      />
-      <WorkspaceStatusBadge
-        icon={<span className="text-current">●</span>}
-        label={is_loading ? t("status.collaborating") : t("status.online")}
-        size="compact"
-        tone={is_loading ? "running" : "active"}
-      />
     </>
   );
 
   return (
-    <WorkspaceSurfaceHeader
-      active_tab={active_tab}
-      badge="ROOM"
-      density="compact"
-      leading={<Hash size={14} className="text-[color:var(--icon-default)]" />}
-      on_change_tab={on_change_tab}
-      tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
-      tabs={room_tabs}
-      title={header_title}
-      title_trailing={title_trailing}
-      trailing={trailing}
-    />
+    <>
+      <WorkspaceSurfaceHeader
+        active_tab={active_tab}
+        density="compact"
+        leading={room_avatar_src ? (
+          <img
+            alt={header_title}
+            className="h-5 w-5 rounded-[6px] object-contain"
+            src={room_avatar_src}
+          />
+        ) : (
+          <Hash size={14} className="text-[color:var(--icon-default)]" />
+        )}
+        on_change_tab={on_change_tab}
+        tabs={room_tabs}
+        tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
+        title={header_title}
+        title_trailing={title_trailing}
+        trailing={trailing}
+      />
+
+      <CreateRoomDialog
+        agents={all_room_agents}
+        confirm_label={t("common.save")}
+        dialog_subtitle={t("room.manage_dialog_subtitle")}
+        dialog_title={t("room.manage_dialog_title")}
+        initial_avatar={room_avatar ?? ""}
+        initial_name={header_title}
+        initial_selected_agent_ids={member_agent_ids}
+        is_open={is_member_list_open}
+        mode="manage"
+        on_cancel={() => set_is_member_list_open(false)}
+        on_confirm={async (next_agent_ids, name, avatar) => {
+          if (!room_id) {
+            return;
+          }
+
+          const next_agent_id_set = new Set(next_agent_ids);
+          const current_agent_id_set = new Set(member_agent_ids);
+          const agent_ids_to_add = next_agent_ids.filter((agent_id) => !current_agent_id_set.has(agent_id));
+          const agent_ids_to_remove = member_agent_ids.filter((agent_id) => !next_agent_id_set.has(agent_id));
+
+          await on_update_room(room_id, {
+            name,
+            avatar,
+          });
+
+          for (const agent_id of agent_ids_to_add) {
+            await on_add_room_member(agent_id);
+          }
+
+          for (const agent_id of agent_ids_to_remove) {
+            await on_remove_room_member(agent_id);
+          }
+
+          set_is_member_list_open(false);
+        }}
+      />
+    </>
   );
 });
 

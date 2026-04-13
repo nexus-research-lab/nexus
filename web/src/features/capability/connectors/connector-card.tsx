@@ -11,7 +11,6 @@ import {
   WorkspaceCatalogDescription,
   WorkspaceCatalogFooter,
   WorkspaceCatalogHeader,
-  WorkspaceCatalogTag,
   WorkspaceCatalogTitle,
   WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
@@ -78,18 +77,14 @@ export function ConnectorCard({
         </WorkspaceIconFrame>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <WorkspaceCatalogTitle class_name="min-w-0 flex-1" size="sm" truncate>
+          <div className="min-w-0">
+            <WorkspaceCatalogTitle class_name="min-w-0" size="sm" truncate>
               {title}
             </WorkspaceCatalogTitle>
-            <WorkspaceCatalogBadge class_name="shrink-0" tone="neutral">
-              {category}
-            </WorkspaceCatalogBadge>
-            {is_coming_soon ? (
-              <WorkspaceCatalogBadge class_name="shrink-0" tone="neutral">
-                即将推出
-              </WorkspaceCatalogBadge>
-            ) : null}
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-soft)]">
+              <span>{category}</span>
+              {is_coming_soon ? <span>即将推出</span> : null}
+            </div>
           </div>
         </div>
       </WorkspaceCatalogHeader>
@@ -101,8 +96,8 @@ export function ConnectorCard({
       </WorkspaceCatalogBody>
 
       <WorkspaceCatalogFooter>
-        <div className="flex min-w-0 flex-wrap gap-1">
-          <WorkspaceCatalogTag>{auth_label}</WorkspaceCatalogTag>
+        <div className="min-w-0 text-[11px] text-[color:var(--text-soft)]">
+          {auth_label}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>

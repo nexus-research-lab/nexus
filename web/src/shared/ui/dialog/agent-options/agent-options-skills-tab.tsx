@@ -4,7 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import { Loader2, Lock, Search } from "lucide-react";
 
 import { getAgentSkillsApi, installSkillApi, uninstallSkillApi } from "@/lib/skill-api";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
+import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import type { AgentSkillEntry } from "@/types/skill";
 
 interface AgentOptionsSkillsTabProps {
@@ -115,7 +115,7 @@ export function AgentOptionsSkillsTab({
     return (
       <div
         key={skill.name}
-        className="dialog-card rounded-[22px] px-5 py-4 transition-all duration-200 hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]"
+        className="dialog-card rounded-[20px] px-4 py-3.5 transition-all duration-[var(--motion-duration-normal)] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
@@ -123,7 +123,7 @@ export function AgentOptionsSkillsTab({
               <span className="text-sm font-semibold text-[color:var(--text-strong)]">
                 {skill.title || skill.name}
               </span>
-            {skill.locked ? (
+              {skill.locked ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
                   <Lock className="h-3 w-3" />
                   系统内置
@@ -147,14 +147,14 @@ export function AgentOptionsSkillsTab({
               已启用
             </span>
           ) : (
-            <WorkspacePillButton
+            <button
+              className={getDialogActionClassName(tone === "installed" ? "default" : "primary")}
               disabled={isBusy}
               onClick={() => void handleToggle(skill)}
-              size="sm"
-              variant={tone === "installed" ? "tonal" : "primary"}
+              type="button"
             >
               {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
-            </WorkspacePillButton>
+            </button>
           )}
         </div>
       </div>
@@ -162,9 +162,9 @@ export function AgentOptionsSkillsTab({
   };
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
       <div className="flex items-center justify-between gap-4">
-        <h3 className="text-xl font-semibold tracking-tight text-[color:var(--text-strong)]">
+        <h3 className="text-[18px] font-semibold tracking-tight text-[color:var(--text-strong)]">
           {installedCount} skills
         </h3>
         <span className="text-sm text-[color:var(--text-soft)]">{skills.length} total</span>

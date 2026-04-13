@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { listRooms, getRoomContexts, subscribe_room_list_updates } from "@/lib/room-api";
 import { sort_rooms_by_recency } from "@/lib/room-utils";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
+import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspaceEmptyState } from "@/shared/ui/workspace/workspace-empty-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { RoomAggregate } from "@/types/room";
@@ -84,9 +84,9 @@ export function DmsPage() {
     <WorkspacePageFrame>
       <WorkspaceEmptyState
         actions={(
-          <WorkspacePillButton onClick={() => navigate(AppRouteBuilders.contacts())} size="md" variant="primary">
+          <WorkspaceCatalogTextAction onClick={() => navigate(AppRouteBuilders.contacts())} tone="primary">
             打开 Contacts
-          </WorkspacePillButton>
+          </WorkspaceCatalogTextAction>
         )}
         description="从左侧侧边栏或 Contacts 选择一个 Agent，即可创建新的 DM。"
         icon={<MessageCircle className="h-6 w-6 text-[color:var(--icon-default)]" />}

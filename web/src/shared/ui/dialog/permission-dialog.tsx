@@ -10,14 +10,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GlassPanel } from "@/shared/ui/liquid-glass";
 import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
+  getDialogActionClassName,
   getDialogNoteClassName,
   getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
 
 interface PermissionDialogProps {
@@ -148,7 +150,7 @@ export function PermissionDialog(
           <h3 className="mt-1 text-base font-semibold text-[color:var(--text-strong)]">参数</h3>
         </div>
         {readableFields.map((field) => (
-          <div key={field.key} className="dialog-card radius-shell-md px-4 py-3">
+          <div key={field.key} className="rounded-[16px] border border-[var(--divider-subtle-color)] px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-soft)]">
               {field.label}
             </p>
@@ -168,12 +170,16 @@ export function PermissionDialog(
 
   return createPortal(
     <div
-      className="dialog-backdrop z-9999 animate-in fade-in duration-150"
+      className="dialog-backdrop z-9999 animate-in fade-in duration-[var(--motion-duration-fast)]"
       onClick={on_close}
     >
-      <div
-        className="dialog-shell radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+      <GlassPanel
+        true_glass
+        class_name="radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-[var(--motion-duration-fast)]"
+        content_layout="fill-flex"
+        content_class_name="min-h-0"
         onClick={(event) => event.stopPropagation()}
+        radius={34}
         style={{ maxHeight: "80vh" }}
       >
         <div className="dialog-header">
@@ -182,9 +188,9 @@ export function PermissionDialog(
               className={cn(
                 DIALOG_HEADER_ICON_CLASS_NAME,
                 "h-14 w-14 rounded-[20px]",
-                risk_level === "high" && "border border-rose-400/24 bg-rose-500/12 text-rose-300",
-                risk_level === "medium" && "border border-amber-400/24 bg-amber-500/12 text-amber-300",
-                (!risk_level || risk_level === "low") && "border border-emerald-400/24 bg-emerald-500/12 text-emerald-300",
+                risk_level === "high" && "border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_12%,transparent)] text-[color:color-mix(in_srgb,var(--destructive)_80%,white)]",
+                risk_level === "medium" && "border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-[color:color-mix(in_srgb,var(--warning)_80%,white)]",
+                (!risk_level || risk_level === "low") && "border border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-[color:color-mix(in_srgb,var(--success)_80%,white)]",
               )}
             >
               <AlertTriangle className="h-7 w-7" />
@@ -196,21 +202,20 @@ export function PermissionDialog(
               <p className="dialog-subtitle">{risk_label || "需要确认"}</p>
             </div>
           </div>
-          <WorkspacePillButton
+          <button
             aria-label="关闭"
-            density="compact"
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             onClick={on_close}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-5 w-5" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body dialog-body--scroll soft-scrollbar space-y-5">
           <div className="mb-1 flex flex-wrap gap-2">
             {risk_label ? (
-              <span className={cn(DIALOG_TAG_CLASS_NAME, risk_level === "high" && "text-rose-300", risk_level === "medium" && "text-amber-300", (!risk_level || risk_level === "low") && "text-emerald-300")}>
+              <span className={cn(DIALOG_TAG_CLASS_NAME, risk_level === "high" && "text-[color:color-mix(in_srgb,var(--destructive)_80%,white)]", risk_level === "medium" && "text-[color:color-mix(in_srgb,var(--warning)_80%,white)]", (!risk_level || risk_level === "low") && "text-[color:color-mix(in_srgb,var(--success)_80%,white)]")}>
                 {risk_label}
               </span>
             ) : null}
@@ -236,7 +241,7 @@ export function PermissionDialog(
               <div className="space-y-2">
                 <label
                   className={cn(
-                    "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-200",
+                    "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-[var(--motion-duration-normal)]",
                     selectedSuggestionIndex === -1
                       ? "dialog-card-active"
                       : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]",
@@ -258,7 +263,7 @@ export function PermissionDialog(
                   <label
                     key={suggestion.index}
                     className={cn(
-                      "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-200",
+                      "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-[var(--motion-duration-normal)]",
                       selectedSuggestionIndex === suggestion.index
                         ? "dialog-card-active"
                         : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]",
@@ -285,14 +290,15 @@ export function PermissionDialog(
         </div>
 
         <div className="dialog-footer">
-          <WorkspacePillButton
+          <button
+            className={getDialogActionClassName("default")}
             onClick={() => on_deny()}
-            size="md"
-            variant="tonal"
+            type="button"
           >
             拒绝
-          </WorkspacePillButton>
-          <WorkspacePillButton
+          </button>
+          <button
+            className={getDialogActionClassName("primary")}
             ref={confirmButtonRef}
             onClick={() => {
               const selectedUpdate = selectedSuggestionIndex >= 0
@@ -300,13 +306,12 @@ export function PermissionDialog(
                 : undefined;
               on_allow(selectedUpdate);
             }}
-            size="md"
-            variant="primary"
+            type="button"
           >
             允许
-          </WorkspacePillButton>
+          </button>
         </div>
-      </div>
+      </GlassPanel>
     </div>,
     document.body
   );

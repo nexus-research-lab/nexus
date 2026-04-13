@@ -37,15 +37,15 @@ export function SkillsCatalogGrid({ ctrl }: SkillsCatalogGridProps) {
   }
 
   return (
-    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-7">
       {ctrl.grouped_skills.map(([category_name, items]: [string, SkillInfo[]]) => (
         <Fragment key={category_name}>
           <div className="mb-3 flex items-center gap-2.5">
             <h2 className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--text-strong)]">
               {category_name}
             </h2>
-            <span className="rounded-full bg-[var(--chip-default-background)] border border-[var(--chip-default-border)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--text-soft)]">
-              {items.length}
+            <span className="text-[11px] font-medium text-[color:var(--text-soft)]">
+              {items.length} 个
             </span>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

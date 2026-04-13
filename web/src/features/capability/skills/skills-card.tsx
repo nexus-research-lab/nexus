@@ -12,7 +12,6 @@ import {
   WorkspaceCatalogFooter,
   WorkspaceCatalogHeader,
   WorkspaceIconFrame,
-  WorkspaceCatalogTag,
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import { SkillInfo } from "@/types/skill";
@@ -47,6 +46,7 @@ export function SkillsCard({
 
   const source_label =
     source_type === "system" ? "系统" : source_type === "builtin" ? "内置" : "外部";
+  const tag_summary = tags.slice(0, 2).join(" · ");
 
   return (
     <WorkspaceCatalogCard
@@ -68,18 +68,14 @@ export function SkillsCard({
           {locked ? <Lock className="h-[18px] w-[18px]" /> : <Puzzle className="h-[18px] w-[18px]" />}
         </WorkspaceIconFrame>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <WorkspaceCatalogTitle class_name="min-w-0 flex-1" size="sm" truncate>
+          <div className="min-w-0">
+            <WorkspaceCatalogTitle class_name="min-w-0" size="sm" truncate>
               {title}
             </WorkspaceCatalogTitle>
-            <WorkspaceCatalogBadge class_name="shrink-0" tone="neutral">
-              {source_label}
-            </WorkspaceCatalogBadge>
-            {has_update && (
-              <WorkspaceCatalogBadge class_name="shrink-0" tone="info">
-                可更新
-              </WorkspaceCatalogBadge>
-            )}
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-soft)]">
+              <span>{source_label}</span>
+              {has_update ? <span>可更新</span> : null}
+            </div>
           </div>
         </div>
       </WorkspaceCatalogHeader>
@@ -91,12 +87,8 @@ export function SkillsCard({
       </WorkspaceCatalogBody>
 
       <WorkspaceCatalogFooter>
-        <div className="flex min-w-0 flex-wrap gap-1">
-          {tags.slice(0, 2).map((tag) => (
-            <WorkspaceCatalogTag key={tag}>
-              {tag}
-            </WorkspaceCatalogTag>
-          ))}
+        <div className="min-w-0 text-[11px] text-[color:var(--text-soft)]">
+          {tag_summary || "无额外标签"}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>

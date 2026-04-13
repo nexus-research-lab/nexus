@@ -44,6 +44,7 @@ class RoomRecord(PersistenceModel):
     room_type: str = Field(..., description="房间类型")
     name: Optional[str] = Field(default=None, description="房间名称")
     description: str = Field(default="", description="房间描述")
+    avatar: Optional[str] = Field(default=None, description="房间头像图标文件名")
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 

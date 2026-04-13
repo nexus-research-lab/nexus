@@ -12,13 +12,15 @@ import { createPortal } from "react-dom";
 import { Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
+  AgentIdentityDraft,
   AgentNameValidationResult,
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
+  getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
 
 import { AgentOptionsNav, type TabKey } from "./agent-options-nav";
@@ -27,18 +29,19 @@ import { AgentOptionsPersonaTab } from "./agent-options-persona-tab";
 import { AgentOptionsSkillsTab } from "./agent-options-skills-tab";
 import { AgentOptionsAdvancedTab } from "./agent-options-advanced-tab";
 
-// ==================== 类型定义 ====================
-
 interface AgentOptionsProps {
   agent_id?: string;
   mode: "create" | "edit";
   is_open: boolean;
   on_close: () => void;
   on_delete?: (agent_id: string) => void;
-  on_save: (title: string, options: AgentConfigOptions) => void;
+  on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void;
   on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   initial_title?: string;
   initial_options?: Partial<AgentConfigOptions>;
+  initial_avatar?: string;
+  initial_description?: string;
+  initial_vibe_tags?: string[];
 }
 
 /** 扩展选项 */
@@ -61,6 +64,9 @@ export function AgentOptions({
   on_validate_name,
   initial_title = "",
   initial_options = {},
+  initial_avatar = "",
+  initial_description = "",
+  initial_vibe_tags = [],
 }: AgentOptionsProps) {
   const sourceOptions = initial_options as AgentDialogInitialOptions;
 
@@ -69,8 +75,9 @@ export function AgentOptions({
 
   // ---- Identity 状态 ----
   const [title, setTitle] = useState(initial_title || "Agent");
-  const [description, setDescription] = useState("");
-  const [vibeTags, setVibeTags] = useState<string[]>([]);
+  const [avatar, setAvatar] = useState(initial_avatar);
+  const [description, setDescription] = useState(initial_description);
+  const [vibeTags, setVibeTags] = useState<string[]>(initial_vibe_tags);
   const [model, setModel] = useState(sourceOptions.model || "glm-5");
 
   // ---- Persona 状态 ----
@@ -100,8 +107,9 @@ export function AgentOptions({
     const opts = initial_options as AgentDialogInitialOptions;
     setActiveTab("identity");
     setTitle(initial_title || "Agent");
-    setDescription("");
-    setVibeTags([]);
+    setAvatar(initial_avatar);
+    setDescription(initial_description);
+    setVibeTags(initial_vibe_tags);
     setModel(opts.model || "glm-5");
     setSystemPrompt(opts.system_prompt || "");
     setPermissionMode(opts.permission_mode || "default");
@@ -109,7 +117,7 @@ export function AgentOptions({
     setDisallowedTools(opts.disallowed_tools || []);
     setNameValidation(null);
     setIsValidatingName(false);
-  }, [is_open, initial_title, initial_options]);
+  }, [initial_avatar, initial_description, initial_options, initial_title, initial_vibe_tags, is_open]);
 
   useEffect(() => {
     if (!is_open) {
@@ -209,7 +217,11 @@ export function AgentOptions({
       system_prompt: systemPrompt || undefined,
       setting_sources: ["project"],
     };
-    on_save(trimmedTitle, options);
+    on_save(trimmedTitle, options, {
+      avatar,
+      description: description.trim(),
+      vibe_tags: vibeTags,
+    });
     on_close();
   };
 
@@ -224,14 +236,14 @@ export function AgentOptions({
 
   const dialog = (
     <div className="dialog-backdrop z-[9999]" role="dialog" aria-modal="true">
-      <div className="dialog-shell radius-shell-xl flex h-[85vh] w-full max-w-[980px] flex-col overflow-hidden">
-        <div className="dialog-header">
+      <div className="dialog-shell radius-shell-xl flex h-[80vh] w-full max-w-[920px] flex-col overflow-hidden">
+        <div className="dialog-header px-5 py-4">
           <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px] text-primary")}>
-              <Settings className="h-7 w-7" />
+            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 rounded-[16px] text-primary")}>
+              <Settings className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="dialog-title truncate" data-size="hero">
+              <h2 className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]">
                 {mode === "create" ? "创建 Agent" : title}
               </h2>
               {mode === "edit" && agent_id ? (
@@ -241,15 +253,14 @@ export function AgentOptions({
               )}
             </div>
           </div>
-          <WorkspacePillButton
+          <button
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label="关闭对话框"
             onClick={on_close}
-            density="compact"
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-5 w-5" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         {/* 主体：左导航 + 右内容 */}
@@ -261,9 +272,11 @@ export function AgentOptions({
           />
 
           {/* 中间内容区 */}
-          <div className="flex-1 overflow-y-auto bg-transparent p-8">
+          <div className="flex-1 overflow-y-auto bg-transparent p-6">
             {activeTab === "identity" && (
               <AgentOptionsIdentityTab
+                avatar={avatar}
+                onAvatarChange={setAvatar}
                 title={title}
                 onTitleChange={setTitle}
                 description={description}
@@ -303,38 +316,36 @@ export function AgentOptions({
         </div>
 
         {/* 底部按钮 */}
-        <div className="dialog-footer">
+        <div className="dialog-footer px-5 py-3.5">
           {canDelete ? (
-            <WorkspacePillButton
+            <button
+              className={cn(getDialogActionClassName("danger"), "mr-auto")}
               onClick={() => {
                 if (!agent_id || !on_delete) {
                   return;
                 }
                 on_delete(agent_id);
               }}
-              size="md"
-              tone="danger"
-              variant="tonal"
-              class_name="mr-auto"
+              type="button"
             >
               删除 Agent
-            </WorkspacePillButton>
+            </button>
           ) : null}
-          <WorkspacePillButton
+          <button
+            className={getDialogActionClassName("default")}
             onClick={on_close}
-            size="md"
-            variant="tonal"
+            type="button"
           >
             取消
-          </WorkspacePillButton>
-          <WorkspacePillButton
+          </button>
+          <button
+            className={getDialogActionClassName(canSave ? "primary" : "default")}
             onClick={handleSave}
             disabled={!canSave}
-            size="md"
-            variant={canSave ? "primary" : "tonal"}
+            type="button"
           >
             {mode === "create" ? "创建 Agent" : "保存更改"}
-          </WorkspacePillButton>
+          </button>
         </div>
       </div>
     </div>

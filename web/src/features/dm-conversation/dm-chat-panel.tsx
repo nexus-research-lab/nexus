@@ -11,6 +11,7 @@ import { SessionSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 
 import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
+import { prepare_workspace_text_attachments } from "@/features/conversation-shared/composer-attachments";
 import { ConversationFeed } from "@/features/conversation-shared/conversation-feed";
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation-shared/utils";
@@ -134,6 +135,14 @@ export function DmChatPanel({
 
   const handle_stop = () => stop_generation();
 
+  const handle_prepare_attachments = async (files: File[]) => {
+    const target_agent_id = session_identity?.agent_id;
+    if (!target_agent_id) {
+      throw new Error("当前会话尚未准备好，暂时无法附加文件。");
+    }
+    return prepare_workspace_text_attachments(target_agent_id, files);
+  };
+
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
     if (!session_key || !normalized_draft || is_loading || !can_control_session) {
@@ -226,6 +235,7 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         control_status_text={session_control_text}
         is_loading={is_loading}
+        on_prepare_attachments={handle_prepare_attachments}
         on_send_message={handle_send_message}
         on_stop={handle_stop}
         disabled={!can_control_session}

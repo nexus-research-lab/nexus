@@ -7,7 +7,6 @@ import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi } from "@/lib
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 
 interface EditorPanelProps {
   agent_id: string;
@@ -140,7 +139,7 @@ export function EditorPanel({
     <section
       className={cn(
         "relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        embedded ? "border-l divider-subtle shadow-none" : "surface-card radius-shell-lg",
+        "border-l divider-subtle bg-transparent shadow-none",
         is_open ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-3 opacity-0",
         embedded && !is_open && "border-l-transparent",
         class_name,
@@ -205,26 +204,24 @@ export function EditorPanel({
               ) : null}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              <WorkspacePillButton
+            <div className="flex shrink-0 items-center gap-3">
+              <button
                 disabled={!is_dirty || is_saving || is_external_writing}
-                density="compact"
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--primary)] transition duration-[var(--motion-duration-fast)] hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)] disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]"
                 onClick={() => void handle_save()}
-                size="md"
-                variant={is_dirty ? "primary" : "tonal"}
+                type="button"
               >
                 <Save className="h-4 w-4" />
                 {is_saving ? "保存中" : "保存"}
-              </WorkspacePillButton>
-              <WorkspacePillButton
+              </button>
+              <button
                 aria-label="关闭编辑器"
-                density="compact"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[color:var(--icon-default)] transition duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
                 onClick={on_close}
-                size="icon"
-                variant="icon"
+                type="button"
               >
                 <Minimize2 className="h-4 w-4" />
-              </WorkspacePillButton>
+              </button>
             </div>
           </div>
 
@@ -232,7 +229,7 @@ export function EditorPanel({
             <div className="px-4 py-3 text-sm text-destructive">{error}</div>
           ) : null}
 
-          <div ref={editor_area_ref} className="flex-1 p-3">
+          <div ref={editor_area_ref} className="flex-1 px-4 py-4">
             {is_external_writing ? (
               <TypewriterFileView
                 content={draft_content}
@@ -241,7 +238,7 @@ export function EditorPanel({
               />
             ) : (
               <textarea
-                className="soft-scrollbar surface-card h-full w-full resize-none rounded-[28px] p-5 font-mono text-sm leading-6 text-[color:var(--text-default)] outline-none disabled:opacity-70"
+                className="soft-scrollbar h-full w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-[color:var(--text-default)] outline-none disabled:opacity-70"
                 disabled={is_loading}
                 onChange={(event) => setDraftContent(event.target.value)}
                 value={is_loading ? "加载中..." : draft_content}

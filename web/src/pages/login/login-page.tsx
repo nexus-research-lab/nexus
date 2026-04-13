@@ -77,17 +77,17 @@ export function LoginPage() {
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="mt-3 text-[30px] font-extrabold tracking-[-0.05em] text-[color:var(--text-strong)]">
+            <h1 className="mt-3 text-2xl font-extrabold tracking-[-0.05em] text-[color:var(--text-strong)]">
               {t("login.title")}
             </h1>
           </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-[color:var(--surface-panel-border)] bg-[color:var(--surface-panel-subtle-background)] text-[22px] font-black tracking-[-0.08em] text-[color:var(--text-strong)]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-[color:var(--surface-panel-border)] bg-[color:var(--surface-panel-subtle-background)] text-lg font-black tracking-[-0.08em] text-[color:var(--text-strong)]">
             N
           </div>
         </div>
 
         {error ? (
-          <div className="mt-4 rounded-[18px] border border-[rgba(229,84,75,0.24)] bg-[rgba(229,84,75,0.08)] px-4 py-3 text-[13px] text-[color:var(--destructive)]">
+          <div className="mt-4 rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-[color:var(--destructive)]">
             {error}
           </div>
         ) : null}
@@ -95,14 +95,14 @@ export function LoginPage() {
         {show_disabled_state ? (
           <div className="mt-6 space-y-4">
             <div className="rounded-[22px] border border-[color:var(--surface-panel-border)] bg-[color:var(--surface-panel-subtle-background)] px-5 py-5">
-              <h2 className="text-[16px] font-semibold text-[color:var(--text-strong)]">{t("login.disabled_title")}</h2>
-              <p className="mt-2 text-[14px] leading-6 text-[color:var(--text-muted)]">
+              <h2 className="text-md font-semibold text-[color:var(--text-strong)]">{t("login.disabled_title")}</h2>
+              <p className="mt-2 text-base leading-6 text-[color:var(--text-muted)]">
                 {t("login.disabled_description")}
               </p>
             </div>
 
             <button
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[color:var(--button-tonal-border)] bg-[color:var(--button-tonal-background)] px-5 text-[14px] font-semibold text-[color:var(--button-tonal-color)] transition hover:bg-[color:var(--button-tonal-hover-background)] hover:text-[color:var(--button-tonal-hover-color)]"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[color:var(--button-tonal-border)] bg-[color:var(--button-tonal-background)] px-5 text-base font-semibold text-[color:var(--button-tonal-color)] transition hover:bg-[color:var(--button-tonal-hover-background)] hover:text-[color:var(--button-tonal-hover-color)]"
               onClick={handle_refresh}
               type="button"
             >
@@ -112,12 +112,12 @@ export function LoginPage() {
         ) : (
           <form className="mt-6 space-y-4" onSubmit={handle_submit}>
             <label className="block">
-              <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
+              <span className="mb-2 block text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
                 {t("login.username")}
               </span>
               <input
                 autoComplete="username"
-                className="min-h-12 w-full rounded-[18px] border border-[color:var(--input-shell-border)] bg-[color:var(--input-shell-background)] px-4 text-[15px] text-[color:var(--text-strong)] outline-none transition focus:border-[rgba(var(--primary-rgb),0.42)] focus:ring-4 focus:ring-[rgba(var(--primary-rgb),0.14)]"
+                className="min-h-12 w-full rounded-[18px] border border-[color:var(--input-shell-border)] bg-[color:var(--input-shell-background)] px-4 text-base text-[color:var(--text-strong)] outline-none transition focus:border-[rgba(var(--primary-rgb),0.42)] focus:ring-4 focus:ring-[rgba(var(--primary-rgb),0.14)]"
                 onChange={(event) => set_username(event.target.value)}
                 placeholder={t("login.username_placeholder")}
                 type="text"
@@ -126,12 +126,12 @@ export function LoginPage() {
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
+              <span className="mb-2 block text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
                 {t("login.password")}
               </span>
               <input
                 autoComplete="current-password"
-                className="min-h-12 w-full rounded-[18px] border border-[color:var(--input-shell-border)] bg-[color:var(--input-shell-background)] px-4 text-[15px] text-[color:var(--text-strong)] outline-none transition focus:border-[rgba(var(--primary-rgb),0.42)] focus:ring-4 focus:ring-[rgba(var(--primary-rgb),0.14)]"
+                className="min-h-12 w-full rounded-[18px] border border-[color:var(--input-shell-border)] bg-[color:var(--input-shell-background)] px-4 text-base text-[color:var(--text-strong)] outline-none transition focus:border-[rgba(var(--primary-rgb),0.42)] focus:ring-4 focus:ring-[rgba(var(--primary-rgb),0.14)]"
                 onChange={(event) => set_password(event.target.value)}
                 placeholder={t("login.password_placeholder")}
                 type="password"
@@ -140,13 +140,13 @@ export function LoginPage() {
             </label>
 
             {submit_error ? (
-              <div className="rounded-[18px] border border-[rgba(229,84,75,0.24)] bg-[rgba(229,84,75,0.08)] px-4 py-3 text-[13px] text-[color:var(--destructive)]">
+              <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-[color:var(--destructive)]">
                 {submit_error}
               </div>
             ) : null}
 
             <button
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-[color:var(--button-primary-border)] bg-[color:var(--button-primary-background)] px-5 text-[15px] font-semibold text-[color:var(--button-primary-color)] transition hover:bg-[color:var(--button-primary-hover-background)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-[color:var(--button-primary-border)] bg-[color:var(--button-primary-background)] px-5 text-base font-semibold text-[color:var(--button-primary-color)] transition hover:bg-[color:var(--button-primary-hover-background)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={is_submitting}
               type="submit"
             >

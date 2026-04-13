@@ -55,7 +55,7 @@ export function MessageStats(
       {/* 状态/操作 */}
       {show_cursor ? (
         <div className="ml-auto flex items-center gap-1">
-          <Zap className="w-3 h-3 text-primary animate-pulse"/>
+          <Zap className="w-3 h-3 text-primary animate-pulse" />
         </div>
       ) : (
         <div className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
@@ -64,13 +64,13 @@ export function MessageStats(
             <button
               onClick={on_copy_assistant}
               className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-[color:var(--icon-default)] transition-[color,border-color,background] duration-150 hover:border-[var(--chip-default-border)] hover:bg-[var(--chip-default-background)] hover:text-[color:var(--icon-strong)]",
+                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-[color:var(--icon-default)] transition-[color,border-color,background] duration-[var(--motion-duration-fast)] hover:border-[var(--chip-default-border)] hover:bg-[var(--chip-default-background)] hover:text-[color:var(--icon-strong)]",
                 copied_assistant && "text-green-500",
               )}
               title="复制回答"
               type="button"
             >
-              {copied_assistant ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}
+              {copied_assistant ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
             </button>
           )}
         </div>

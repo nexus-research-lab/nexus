@@ -5,13 +5,14 @@ import { useCallback } from "react";
 
 import { cn } from "@/lib/utils";
 import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
+  getDialogActionClassName,
   getDialogNoteClassName,
   getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { ConnectorDetail } from "@/types/connector";
 
 import { getConnectorColors, getConnectorLetter } from "./connector-icons";
@@ -80,15 +81,14 @@ export function ConnectorDetailDialog({
             )}
           </div>
           </div>
-          <WorkspacePillButton
+          <button
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label="关闭"
-            density="compact"
             onClick={on_close}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-4 w-4" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1">
@@ -179,25 +179,25 @@ export function ConnectorDetailDialog({
         {detail && !is_coming_soon && (
           <div className="dialog-footer flex-wrap gap-2">
             {is_connected ? (
-              <WorkspacePillButton
+              <button
+                className={getDialogActionClassName("default")}
                 disabled={busy}
                 onClick={() => on_disconnect(detail.connector_id)}
-                size="md"
-                variant="outlined"
+                type="button"
               >
                 <Unplug className="h-3.5 w-3.5" />
                 断开连接
-              </WorkspacePillButton>
+              </button>
             ) : (
-              <WorkspacePillButton
+              <button
+                className={getDialogActionClassName(is_configured ? "primary" : "default")}
                 disabled={busy || !is_configured}
                 onClick={() => on_connect(detail.connector_id)}
-                size="md"
-                variant="primary"
+                type="button"
               >
                 <Link2 className="h-3.5 w-3.5" />
                 {is_configured ? "授权连接" : "等待配置"}
-              </WorkspacePillButton>
+              </button>
             )}
           </div>
         )}

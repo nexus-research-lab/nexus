@@ -4,6 +4,10 @@ import { LucideIcon } from "lucide-react";
 import { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS,
+  COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS,
+} from "@/shared/ui/workspace/workspace-header-layout";
 
 export { WorkspaceTaskStrip } from "./workspace-task-strip";
 
@@ -30,6 +34,13 @@ interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
   on_change_tab?: (tab: TTabKey) => void;
 }
 
+interface WorkspaceSurfaceToolbarActionProps {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: "default" | "primary";
+}
+
 export function WorkspaceSurfaceHeader<TTabKey extends string>({
   title,
   badge,
@@ -46,15 +57,15 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   return (
     <div className={SURFACE_HEADER_CLASS_NAME} data-density={density}>
       <div className={cn(
-        "flex min-w-0 items-start justify-between gap-4 px-5 xl:px-6",
-        density === "compact" ? "py-3" : "py-3.5",
+        "flex min-w-0 items-center justify-between px-5 xl:px-6",
+        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : "h-[72px] gap-4",
       )}>
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className={cn("flex min-w-0 flex-1 items-center", density === "compact" ? "gap-2.5" : "gap-3")}>
           {leading ? (
             <div
               className={cn(
-                "chip-default flex shrink-0 items-center justify-center rounded-full text-[color:var(--icon-default)]",
-                density === "compact" ? "h-8 w-8" : "h-[34px] w-[34px]",
+                "flex shrink-0 items-center justify-center rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[color:var(--icon-default)] shadow-[var(--surface-avatar-shadow)]",
+                density === "compact" ? "h-8 w-8" : "h-10 w-10",
               )}
             >
               {leading}
@@ -62,22 +73,15 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
           ) : null}
 
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className={cn("flex min-w-0 flex-wrap items-center", density === "compact" ? "gap-x-1.5 gap-y-0.5" : "gap-x-2 gap-y-1")}>
               <div className={cn(
                 "truncate font-black tracking-[-0.045em] text-[color:var(--text-strong)]",
-                density === "compact" ? "text-[17px]" : "text-[18px]",
+                density === "compact" ? "text-[20px]" : "text-[21px]",
               )}>
                 {title}
               </div>
-              {badge ? (
-                <span
-                  className="chip-default inline-flex rounded-full px-2.5 py-0.5 text-[9px] font-semibold tracking-[0.14em] text-[color:var(--text-default)]"
-                >
-                  {badge}
-                </span>
-              ) : null}
               {title_trailing ? (
-                <div className="min-w-0 shrink">{title_trailing}</div>
+                <div className="min-w-0 shrink text-[color:var(--text-default)]">{title_trailing}</div>
               ) : null}
             </div>
             {subtitle ? (
@@ -89,7 +93,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         </div>
 
         {trailing ? (
-          <div className="ml-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className={cn("ml-3 flex shrink-0 flex-wrap items-center justify-end", density === "compact" ? "gap-1.5" : "gap-2")}>
             {trailing}
           </div>
         ) : null}
@@ -97,12 +101,17 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 
       {tabs.length || tabs_trailing ? (
         <div className={cn(
-          "flex min-w-0 items-center gap-3 px-5 xl:px-6",
-          density === "compact" ? "pb-2" : "pb-2.5",
+          "flex min-w-0 px-5 xl:px-6",
+          density === "compact"
+            ? cn(COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS, "items-center gap-3")
+            : "items-end gap-4 pb-0.5",
         )}>
           <nav
             aria-label="视图切换"
-            className="soft-scrollbar scrollbar-hide -mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1"
+            className={cn(
+              "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
+              density === "compact" ? "items-center gap-3" : "items-center gap-4",
+            )}
           >
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -113,11 +122,11 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
                   aria-current={is_active ? "page" : undefined}
                   key={tab.key}
                   className={cn(
-                    "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-[background-color,color] duration-150 ease-out",
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-[var(--motion-duration-fast)] ease-out",
                     is_active
-                      ? "bg-[var(--surface-interactive-active-background)] text-[color:var(--text-strong)]"
-                      : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
-                    density === "compact" && "h-7 px-2.5 text-[10.5px]",
+                      ? "border-[var(--surface-interactive-active-border)] text-[color:var(--text-strong)]"
+                      : "text-[color:var(--text-default)] hover:text-[color:var(--text-strong)]",
+                    density === "compact" && "h-8 text-[10.5px]",
                   )}
                   onClick={() => on_change_tab?.(tab.key)}
                   type="button"
@@ -136,5 +145,27 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         </div>
       ) : null}
     </div>
+  );
+}
+
+export function WorkspaceSurfaceToolbarAction({
+  children,
+  onClick,
+  disabled = false,
+  tone = "default",
+}: WorkspaceSurfaceToolbarActionProps) {
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[11px] font-semibold transition duration-[var(--motion-duration-fast)] ease-out disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)]",
+        tone === "default" && "text-[color:var(--text-default)] hover:text-[color:var(--text-strong)]",
+        tone === "primary" && "text-[color:var(--primary)] hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }

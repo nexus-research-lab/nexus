@@ -17,28 +17,9 @@ export const APP_ROUTE_PATHS = {
   settings: "/settings",
 } as const;
 
-function createLauncherSearchParams(params: Record<string, string | null | undefined>) {
-  const search_params = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (!value) {
-      return;
-    }
-    search_params.set(key, value);
-  });
-
-  const search_string = search_params.toString();
-  return search_string ? `/?${search_string}` : APP_ROUTE_PATHS.launcher;
-}
-
 export const AppRouteBuilders = {
   login: () => APP_ROUTE_PATHS.login,
   launcher: () => APP_ROUTE_PATHS.launcher,
-  launcher_app: (app_prompt?: string) =>
-    createLauncherSearchParams({
-      surface: "app",
-      app_prompt: app_prompt?.trim() || undefined,
-    }),
   home: () => APP_ROUTE_PATHS.home,
   dm_directory: () => APP_ROUTE_PATHS.dm_directory,
   room: (room_id: string) => `/rooms/${encodeURIComponent(room_id)}`,

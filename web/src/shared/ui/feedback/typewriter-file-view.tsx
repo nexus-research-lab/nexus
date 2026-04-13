@@ -61,7 +61,7 @@ export function TypewriterFileView({
 
       <pre
         ref={preRef}
-        className="soft-scrollbar surface-card h-full w-full overflow-auto whitespace-pre-wrap break-all rounded-[28px] p-5 text-slate-900/82"
+        className="soft-scrollbar surface-card h-full w-full overflow-auto whitespace-pre-wrap break-all rounded-[28px] p-5 text-[color:var(--text-strong)]"
         style={{ wordBreak: "break-word" }}
       >
         {content}
@@ -92,8 +92,8 @@ function ensureWriteCursorStyle() {
       margin-left: 1px;
       margin-bottom: -0.12em;
       border-radius: 2px;
-      background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
-      box-shadow: 0 0 8px 2px rgba(34,197,94,0.5);
+      background: linear-gradient(180deg, var(--success) 0%, color-mix(in srgb, var(--success) 78%, black) 100%);
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--success) 50%, transparent);
       animation: _nexus_write_cursor 0.8s step-end infinite;
       vertical-align: baseline;
     }

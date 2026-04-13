@@ -18,13 +18,13 @@ import { useSidebarStore } from "@/store/sidebar";
 const CONTEXT_MENU_CLASS_NAME =
   "fixed z-[9990] w-40 rounded-xl py-1 animate-in fade-in zoom-in-95 duration-100";
 const CONTEXT_MENU_ITEM_CLASS_NAME =
-  "flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-[background,color] duration-150";
+  "flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-[background,color] duration-[var(--motion-duration-fast)]";
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
-  "group/item box-border flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] transition-[background,color] duration-150";
+  "group/item box-border flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] transition-[background,color] duration-[var(--motion-duration-fast)]";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
-  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-default)] transition-colors duration-150 hover:text-[color:var(--text-strong)]";
+  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-default)] transition-colors duration-[var(--motion-duration-fast)] hover:text-[color:var(--text-strong)]";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
-  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--icon-muted)] transition-colors duration-150 hover:text-[color:var(--icon-default)]";
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[color:var(--icon-muted)] transition-[background,color,transform] duration-[var(--motion-duration-fast)] hover:-translate-y-[1px] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-default)]";
 
 interface CollapsibleSectionProps {
   section_id: string;
@@ -89,9 +89,10 @@ export function SidebarListItem({
       <button
         className={cn(
           SIDEBAR_LIST_ITEM_CLASS_NAME,
+          "relative",
           is_active
             ? "font-medium text-[color:var(--text-strong)]"
-            : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
+            : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)] hover:translate-x-[2px]",
         )}
         style={is_active ? {
           background: "color-mix(in srgb, var(--surface-interactive-active-background) 72%, transparent)",
@@ -100,10 +101,14 @@ export function SidebarListItem({
         onContextMenu={handle_context_menu}
         type="button"
       >
+        {/* 激活态左侧强调条 */}
+        {is_active ? (
+          <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-[var(--primary)]" />
+        ) : null}
         <span
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center",
-            is_active ? "text-[color:var(--icon-default)]" : "text-[color:var(--icon-muted)]",
+            is_active ? "text-[color:var(--primary)]" : "text-[color:var(--icon-muted)]",
           )}
         >
           {icon}

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { useAgentConversation } from "@/hooks/agent";
+import { getDefaultAgentId } from "@/config/options";
 import { LauncherAppConversationPanel } from "@/features/launcher/launcher-app-conversation-panel";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/launcher-surface-theme";
+import { useAgentConversation } from "@/hooks/agent";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
 import { createRoom, ensureDirectRoom } from "@/lib/room-api";
 import { cn } from "@/lib/utils";
@@ -16,9 +17,8 @@ import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
-import { AgentOptions as AgentConfigOptions } from "@/types/agent";
+import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent";
 import { getSessionControlStatusText } from "@/types/agent-conversation";
-import { getDefaultAgentId } from "@/config/options";
 
 export function LauncherPage() {
   const { t } = useI18n();
@@ -26,21 +26,24 @@ export function LauncherPage() {
   const app_agent_id = getDefaultAgentId();
   const controller = useLauncherPageController();
   const navigate = useNavigate();
-  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
+  const set_active_panel_item = useSidebarStore((state) => state.set_active_panel_item);
   const [should_bootstrap_room_after_create, set_should_bootstrap_room_after_create] = useState(false);
   const [pending_room_title, set_pending_room_title] = useState<string>("");
   const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
   const consumed_route_prompt_ref = useRef<string | null>(null);
   const app_panel_load_signature_ref = useRef<string | null>(null);
   const pending_app_prompt_ref = useRef<string | null>(null);
+
   const app_conversation_identity = useMemo(() => ({
     session_key: controller.app_session_key,
     agent_id: app_agent_id,
     chat_type: "dm" as const,
   }), [app_agent_id, controller.app_session_key]);
+
   const app_conversation = useAgentConversation({
     identity: app_conversation_identity,
   });
+
   const {
     bind_session_key,
     load_session,
@@ -55,11 +58,13 @@ export function LauncherPage() {
     send_permission_response,
     stop_generation,
   } = app_conversation;
+
   const app_conversation_can_control = session_control_state !== "observer";
   const app_conversation_control_status_text = useMemo(
     () => getSessionControlStatusText(session_control_state, session_observer_count),
     [session_control_state, session_observer_count],
   );
+
   useEffect(() => {
     if (!controller.is_app_conversation_open) {
       app_panel_load_signature_ref.current = null;
@@ -168,9 +173,13 @@ export function LauncherPage() {
     });
   }, [controller, navigate, set_active_panel_item]);
 
-  const handle_save_agent_options = useCallback(async (title: string, options: AgentConfigOptions) => {
+  const handle_save_agent_options = useCallback(async (
+    title: string,
+    options: AgentConfigOptions,
+    identity: AgentIdentityDraft,
+  ) => {
     const should_open_room_after_create = controller.dialog_mode === "create";
-    await controller.handle_save_agent_options(title, options);
+    await controller.handle_save_agent_options(title, options, identity);
 
     if (!should_open_room_after_create) {
       set_pending_room_title("");
@@ -312,12 +321,15 @@ export function LauncherPage() {
         on_delete={handle_request_delete_agent}
         on_save={handle_save_agent_options}
         on_validate_name={controller.handle_validate_agent_name}
+        initial_avatar={controller.dialog_initial_avatar}
+        initial_description={controller.dialog_initial_description}
         initial_title={
           should_bootstrap_room_after_create
             ? pending_room_title || controller.dialog_initial_title
             : controller.dialog_initial_title
         }
         initial_options={controller.dialog_initial_options}
+        initial_vibe_tags={controller.dialog_initial_vibe_tags}
       />
 
       <ConfirmDialog

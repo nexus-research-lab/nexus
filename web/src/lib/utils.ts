@@ -87,3 +87,75 @@ export function truncate(text: string, maxLength: number): string {
     return text.substring(0, maxLength) + '…';
   }
 }
+
+// ==================== 头像工具 ====================
+
+/**
+ * 获取名称缩写
+ */
+export function getInitials(
+  name: string | null | undefined,
+  fallback = 'AG',
+  maxLength = 2,
+): string {
+  if (!name) {
+    return fallback;
+  }
+
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return fallback;
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, maxLength).toUpperCase();
+  }
+
+  return parts
+    .slice(0, maxLength)
+    .map((part) => part[0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
+/**
+ * 将头像标识转换为本地 icon 路径。
+ */
+export function getIconAvatarSrc(avatar: string | null | undefined): string | null {
+  const normalizedAvatar = avatar?.trim();
+  if (!normalizedAvatar) {
+    return null;
+  }
+
+  return `/icon/${normalizedAvatar}.png`;
+}
+
+/**
+ * 根据字符串稳定生成区间内的图标编号。
+ */
+export function getStableIconId(
+  seed: string | null | undefined,
+  startInclusive: number,
+  endInclusive: number,
+): string {
+  const normalizedSeed = seed?.trim() || 'nexus';
+  const range = endInclusive - startInclusive + 1;
+  let hash = 0;
+
+  for (let index = 0; index < normalizedSeed.length; index += 1) {
+    hash = (hash * 31 + normalizedSeed.charCodeAt(index)) >>> 0;
+  }
+
+  return String(startInclusive + (hash % range));
+}
+
+/**
+ * 房间头像默认使用 13-24 号像素图标，保证未设置时也有稳定的视觉锚点。
+ */
+export function getRoomAvatarIconId(
+  roomId: string | null | undefined,
+  roomName: string | null | undefined,
+  explicitAvatar?: string | null,
+): string {
+  return explicitAvatar?.trim() || getStableIconId(roomId || roomName, 13, 24);
+}

@@ -63,14 +63,14 @@ const DmConversationHeaderView = memo(({
     />
   );
 
-  const trailing = (
+  const trailing = is_loading ? (
     <WorkspaceStatusBadge
       icon={<span className="text-current">●</span>}
-      label={is_loading ? t("status.replying") : t("status.online")}
+      label={t("status.replying")}
       size="compact"
-      tone={is_loading ? "running" : "active"}
+      tone="running"
     />
-  );
+  ) : null;
 
   return (
     <WorkspaceSurfaceHeader

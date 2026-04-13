@@ -30,6 +30,7 @@ class CreateRoomRequest(BaseModel):
     name: Optional[str] = Field(default=None, description="房间名称")
     description: str = Field(default="", description="房间描述")
     title: Optional[str] = Field(default=None, description="主对话标题")
+    avatar: Optional[str] = Field(default=None, description="房间头像图标")
 
 
 class AddRoomMemberRequest(BaseModel):
@@ -44,6 +45,7 @@ class UpdateRoomRequest(BaseModel):
     name: Optional[str] = Field(default=None, description="房间名称")
     description: Optional[str] = Field(default=None, description="房间描述")
     title: Optional[str] = Field(default=None, description="主对话标题")
+    avatar: Optional[str] = Field(default=None, description="房间头像图标")
 
 
 class CreateRoomConversationRequest(BaseModel):
@@ -86,6 +88,7 @@ async def create_room(request: CreateRoomRequest):
             name=request.name,
             description=request.description,
             title=request.title,
+            avatar=request.avatar,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -114,6 +117,7 @@ async def update_room(room_id: str, request: UpdateRoomRequest):
             name=request.name,
             description=request.description,
             title=request.title,
+            avatar=request.avatar,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -2,8 +2,8 @@
 
 import { Activity, RefreshCw, TimerReset, Zap } from "lucide-react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
 import type { HeartbeatConfig } from "@/types/heartbeat";
 
 function format_datetime(value: number | null): string {
@@ -59,8 +59,8 @@ export function HeartbeatSettingsCard({
   on_wake,
 }: HeartbeatSettingsCardProps) {
   return (
-    <section className="flex min-h-[280px] flex-col">
-      <div className="flex items-start justify-between gap-3 px-1 py-1">
+    <section className="surface-card flex min-h-[280px] flex-col rounded-[22px] px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-[color:var(--icon-default)]" />
@@ -75,26 +75,21 @@ export function HeartbeatSettingsCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <WorkspacePillButton
-            density="compact"
+          <WorkspaceSurfaceToolbarAction
             disabled={is_loading}
             onClick={() => void on_refresh()}
-            size="sm"
-            variant="outlined"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             刷新
-          </WorkspacePillButton>
-          <WorkspacePillButton
-            density="compact"
+          </WorkspaceSurfaceToolbarAction>
+          <WorkspaceSurfaceToolbarAction
             disabled={is_loading || wake_pending}
             onClick={() => void on_wake()}
-            size="sm"
-            variant="primary"
+            tone="primary"
           >
             <Zap className="h-3.5 w-3.5" />
             {wake_pending ? "唤醒中" : "立即唤醒"}
-          </WorkspacePillButton>
+          </WorkspaceSurfaceToolbarAction>
         </div>
       </div>
 
@@ -104,13 +99,13 @@ export function HeartbeatSettingsCard({
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="surface-card h-20 animate-pulse rounded-[20px]"
+                className="h-20 animate-pulse rounded-[16px] border border-[var(--divider-subtle-color)]"
               />
             ))}
           </div>
         ) : error_message ? (
-          <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-[24px] border border-rose-500/15 bg-rose-500/6 px-5 text-center">
-            <p className="text-sm font-semibold text-rose-500">Heartbeat 加载失败</p>
+          <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-5 text-center">
+            <p className="text-sm font-semibold text-[color:var(--destructive)]">Heartbeat 加载失败</p>
             <p className="mt-2 max-w-sm text-sm leading-6 text-[color:var(--text-default)]">
               {error_message}
             </p>
@@ -179,7 +174,7 @@ export function HeartbeatSettingsCard({
             </div>
 
             {heartbeat.delivery_error ? (
-              <div className="rounded-[20px] border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm text-amber-700">
+              <div className="rounded-[16px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] px-4 py-3 text-sm text-[color:var(--warning)]">
                 <div className="flex items-center gap-2 font-semibold">
                   <TimerReset className="h-4 w-4" />
                   最近一次投递异常
@@ -189,7 +184,7 @@ export function HeartbeatSettingsCard({
             ) : null}
           </>
         ) : (
-          <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-[24px] border border-dashed border-[var(--divider-subtle-color)] px-5 text-center">
+          <div className="flex min-h-[180px] flex-1 flex-col items-center justify-center rounded-[18px] border border-dashed border-[var(--divider-subtle-color)] px-5 text-center">
             <p className="text-sm font-semibold text-[color:var(--text-strong)]">
               当前 Agent 还没有 heartbeat 配置
             </p>

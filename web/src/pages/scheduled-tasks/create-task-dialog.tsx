@@ -13,10 +13,11 @@ import { createScheduledTaskApi } from "@/lib/scheduled-task-api";
 import { buildRoomAgentSessionKey } from "@/lib/session-key";
 import { getRoomContexts, listRooms } from "@/lib/room-api";
 import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
+  getDialogActionClassName,
   getDialogChoiceClassName,
   getDialogChoiceStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import type { Agent, AgentSession } from "@/types/agent";
 import type { RoomAggregate, RoomContextAggregate, RoomSessionSelection } from "@/types/room";
 import type {
@@ -480,10 +481,10 @@ export function CreateTaskDialog({
     <div
       aria-labelledby="create-task-dialog-title"
       aria-modal="true"
-      className="dialog-backdrop animate-in fade-in duration-150"
+      className="dialog-backdrop animate-in fade-in duration-[var(--motion-duration-fast)]"
       role="dialog"
     >
-      <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-150">
+      <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-[var(--motion-duration-fast)]">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title" id="create-task-dialog-title">
@@ -493,15 +494,14 @@ export function CreateTaskDialog({
               先选目标对象和会话，再填写调度和执行指令。
             </p>
           </div>
-          <WorkspacePillButton
+          <button
             aria-label="关闭"
-            density="compact"
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             onClick={on_close}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-4 w-4" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body flex flex-col gap-4">
@@ -571,21 +571,21 @@ export function CreateTaskDialog({
               </option>
               {target_type === "agent"
                 ? agent_options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))
                 : room_options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
             </select>
             {target_type === "agent" && agents_error ? (
-              <p className="mt-2 text-xs text-rose-600">{agents_error}</p>
+              <p className="mt-2 text-xs text-[color:var(--destructive)]">{agents_error}</p>
             ) : null}
             {target_type === "room" && rooms_error ? (
-              <p className="mt-2 text-xs text-rose-600">{rooms_error}</p>
+              <p className="mt-2 text-xs text-[color:var(--destructive)]">{rooms_error}</p>
             ) : null}
           </div>
 
@@ -631,10 +631,10 @@ export function CreateTaskDialog({
               ))}
             </select>
             {target_type === "agent" && agent_sessions_error ? (
-              <p className="mt-2 text-xs text-rose-600">{agent_sessions_error}</p>
+              <p className="mt-2 text-xs text-[color:var(--destructive)]">{agent_sessions_error}</p>
             ) : null}
             {target_type === "room" && room_contexts_error ? (
-              <p className="mt-2 text-xs text-rose-600">{room_contexts_error}</p>
+              <p className="mt-2 text-xs text-[color:var(--destructive)]">{room_contexts_error}</p>
             ) : null}
             {target_type === "agent" && selected_agent_id && !agent_sessions_loading && agent_session_options.length === 0 ? (
               <p className="mt-2 text-xs text-[color:var(--text-muted)]">这个智能体没有可选会话</p>
@@ -767,19 +767,29 @@ export function CreateTaskDialog({
           </label>
 
           {error_message ? (
-            <div className="rounded-[18px] border border-rose-500/15 bg-rose-500/6 px-4 py-3 text-sm text-rose-600">
+            <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-4 py-3 text-sm text-[color:var(--destructive)]">
               {error_message}
             </div>
           ) : null}
         </div>
 
         <div className="dialog-footer">
-          <WorkspacePillButton disabled={is_submitting} onClick={on_close} size="md" variant="tonal">
+          <button
+            className={getDialogActionClassName("default")}
+            disabled={is_submitting}
+            onClick={on_close}
+            type="button"
+          >
             取消
-          </WorkspacePillButton>
-          <WorkspacePillButton disabled={is_submitting} onClick={() => void handle_submit()} size="md" variant="primary">
+          </button>
+          <button
+            className={getDialogActionClassName("primary")}
+            disabled={is_submitting}
+            onClick={() => void handle_submit()}
+            type="button"
+          >
             {is_submitting ? "创建中" : "创建"}
-          </WorkspacePillButton>
+          </button>
         </div>
       </div>
     </div>

@@ -6,7 +6,8 @@
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 3000",
-    "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs"
+    "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs",
+    "export:liquid-glass": "node ./scripts/export-liquid-glass-assets.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.3",
@@ -44,6 +45,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.4.0",
+    "pngjs": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8.46.1",

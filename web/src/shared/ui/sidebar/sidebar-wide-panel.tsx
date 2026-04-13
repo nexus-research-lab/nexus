@@ -18,8 +18,10 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LanguageSwitch } from "@/shared/ui/i18n/language-switch";
+import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { ThemeSwitch } from "@/shared/ui/theme/theme-switch";
+import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/workspace-header-layout";
 import {
   derive_sidebar_item_id_from_path,
   useSidebarStore,
@@ -30,6 +32,7 @@ import { CapabilitiesPanelContent } from "./sidebar-panel-content/capabilities-p
 
 const CAPABILITY_SECTION_COUNT = 5;
 const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
+const MODAL_ROOT_SELECTOR = "[data-modal-root='true']";
 
 export function SidebarWidePanel() {
   const { t } = useI18n();
@@ -52,6 +55,9 @@ export function SidebarWidePanel() {
   /** 拖拽开始 */
   const handle_pointer_down = useCallback(
     (e: React.PointerEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest(MODAL_ROOT_SELECTOR)) {
+        return;
+      }
       const root_element = root_ref.current;
       if (!root_element) {
         return;
@@ -77,6 +83,12 @@ export function SidebarWidePanel() {
   /** 拖拽中实时更新宽度 */
   const handle_pointer_move = useCallback(
     (e: React.PointerEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest(MODAL_ROOT_SELECTOR)) {
+        if (!is_dragging_ref.current) {
+          set_is_resize_hotzone_active(false);
+        }
+        return;
+      }
       const root_element = root_ref.current;
       if (!root_element) {
         return;
@@ -174,21 +186,21 @@ export function SidebarWidePanel() {
       style={{ width: wide_panel_width }}
     >
       {/* 面板头部 */}
-      <div className="flex items-center gap-3 border-b divider-subtle px-4 py-3">
+      <div className={cn("flex items-center gap-3 border-b divider-subtle px-4", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
         <Link
-          className="shrink-0 transition-transform duration-200 hover:translate-y-[-0.5px]"
+          className="shrink-0 transition-transform duration-[var(--motion-duration-normal)] hover:translate-y-[-0.5px]"
           to={AppRouteBuilders.launcher()}
           title={t("sidebar.back_to_launcher")}
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--surface-panel-subtle-background)] text-[15px] font-black tracking-[-0.06em] text-[color:var(--text-strong)]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[15px] font-black tracking-[-0.06em] text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]">
             N
           </div>
         </Link>
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[color:var(--text-soft)]">
-            {t("sidebar.workspace_label")}
+            NEXUS
           </p>
-          <h2 className="truncate text-[17px] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">{t("sidebar.workspace_title")}</h2>
+          <h2 className="truncate text-[17px] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">Nexus</h2>
         </div>
       </div>
 
@@ -210,7 +222,7 @@ export function SidebarWidePanel() {
           <button
             aria-expanded={settings_open}
             aria-haspopup="dialog"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--icon-default)] transition-[background,color] duration-200 hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--icon-default)] transition-[background,color] duration-[var(--motion-duration-normal)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
             onClick={() => set_settings_open((open) => !open)}
             title={t("sidebar.settings")}
             type="button"
@@ -220,10 +232,13 @@ export function SidebarWidePanel() {
 
           {settings_open ? (
             <div
-              className="surface-card absolute bottom-[calc(100%+8px)] left-0 z-20 mb-2 w-[min(220px,calc(100vw-28px))] rounded-[18px] p-1.5"
+              className={cn(
+                DIALOG_POPOVER_CLASS_NAME,
+                "absolute bottom-[calc(100%+8px)] left-0 z-20 mb-2 w-[min(220px,calc(100vw-28px))] rounded-[18px] p-1.5",
+              )}
             >
               <Link
-                className="flex items-center justify-between rounded-[12px] px-2.5 py-2 text-[13px] font-medium text-[color:var(--text-default)] transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
+                className="flex items-center justify-between rounded-[12px] px-2.5 py-2 text-[13px] font-medium text-[color:var(--text-default)] transition duration-[var(--motion-duration-fast)] ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
                 onClick={() => set_settings_open(false)}
                 to={AppRouteBuilders.settings()}
               >
@@ -248,7 +263,7 @@ export function SidebarWidePanel() {
 
                 <div className="mt-1.5 border-t px-1 pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
                   <button
-                    className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-[13px] font-medium text-[color:var(--text-default)] transition duration-150 ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
+                    className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-[13px] font-medium text-[color:var(--text-default)] transition duration-[var(--motion-duration-fast)] ease-out hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
                     onClick={() => {
                       set_settings_open(false);
                       void logout();

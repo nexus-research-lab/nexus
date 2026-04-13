@@ -74,7 +74,7 @@ function QuestionCard({
 
     return (
         <div className={cn(
-            "overflow-hidden rounded-[14px] border transition duration-150 ease-out",
+            "overflow-hidden rounded-[14px] border transition duration-[var(--motion-duration-fast)] ease-out",
             hasSelection
                 ? "border-primary/18 bg-white/10"
                 : "border-white/12 bg-white/5",
@@ -82,7 +82,7 @@ function QuestionCard({
             {/* 问题头部（可点击收起） */}
             <div
                 className={cn(
-                    "flex cursor-pointer select-none items-center gap-1 px-2.5 py-1 transition duration-150 ease-out",
+                    "flex cursor-pointer select-none items-center gap-1 px-2.5 py-1 transition duration-[var(--motion-duration-fast)] ease-out",
                     isExpanded && "border-b border-white/12",
                     !isExpanded && "hover:bg-white/6",
                 )}
@@ -90,7 +90,7 @@ function QuestionCard({
             >
                 {/* 序号 */}
                 <span className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full bg-slate-200/70 text-[10px] font-bold text-slate-500/85",
+                    "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--material-chip-background)] text-[10px] font-bold text-[color:var(--text-muted)]",
                     hasSelection && "bg-primary/12 text-primary",
                 )}>
                     {question_index + 1}
@@ -149,7 +149,7 @@ function QuestionCard({
                             <button
                                 key={optIndex}
                                 className={cn(
-                                    "w-full rounded-[12px] border px-2.5 py-0.5 text-left transition duration-150 ease-out",
+                                    "w-full rounded-[12px] border px-2.5 py-0.5 text-left transition duration-[var(--motion-duration-fast)] ease-out",
                                     isSelected
                                         ? "border-primary/20 bg-primary/6"
                                         : "border-white/12 bg-white/5 hover:border-primary/16 hover:bg-primary/4",
@@ -205,7 +205,7 @@ function QuestionCard({
                             <div className="border-b border-white/14">
                                 <textarea
                                     className={cn(
-                                        "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-[color:var(--text-strong)] outline-none shadow-none ring-0 transition duration-150 ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
+                                        "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-[color:var(--text-strong)] outline-none shadow-none ring-0 transition duration-[var(--motion-duration-fast)] ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                                         "placeholder:text-muted-foreground/70",
                                         is_submitted && "cursor-not-allowed opacity-60"
                                     )}
@@ -401,9 +401,9 @@ export function AskUserQuestionBlock({
 
     const isReadOnly = isSubmitted || isTimedOut || isFailed || isObserverReadOnly;
     const headerToneClassName = isTimedOut || isFailed
-        ? "text-amber-500"
+        ? "text-[color:var(--warning)]"
         : isSubmitted
-            ? "text-emerald-600"
+            ? "text-[color:var(--success)]"
             : "text-primary";
     const headerLabel = isTimedOut
         ? "提问已超时"
@@ -411,16 +411,16 @@ export function AskUserQuestionBlock({
             ? "提问未完成"
             : isObserverReadOnly
                 ? "等待另一窗口回应"
-            : isSubmitted
-                ? "已收到你的回应"
-                : "需要你的回应";
+                : isSubmitted
+                    ? "已收到你的回应"
+                    : "需要你的回应";
 
     return (
         <MessageRail class_name="my-1.5">
             {/* ═══════════ 头部（可点击展开/收起） ═══════════ */}
             <div
                 className={cn(
-                    "flex min-h-8 cursor-pointer select-none items-center gap-2 py-0.5 text-xs transition duration-150 ease-out",
+                    "flex min-h-8 cursor-pointer select-none items-center gap-2 py-0.5 text-xs transition duration-[var(--motion-duration-fast)] ease-out",
                 )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
@@ -454,7 +454,7 @@ export function AskUserQuestionBlock({
                 {!isExpanded && answerSummary && (
                     <>
                         <span className="text-muted-foreground/30">│</span>
-                        <span className="truncate max-w-[200px] text-slate-500/75">
+                        <span className="truncate max-w-[200px] text-[color:var(--text-muted)]">
                             {answerSummary}
                         </span>
                     </>
@@ -505,9 +505,9 @@ export function AskUserQuestionBlock({
                             ? '等待提问就绪'
                             : isObserverReadOnly
                                 ? (interaction_disabled_reason || '当前窗口是观察视图')
-                            : canSubmit
-                                ? '✓ 所有问题都已回应'
-                                : '每个问题至少回应一次'}
+                                : canSubmit
+                                    ? '✓ 所有问题都已回应'
+                                    : '每个问题至少回应一次'}
                     </span>
 
                     <button
@@ -521,7 +521,7 @@ export function AskUserQuestionBlock({
                             "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium leading-none transition-colors",
                             canSubmit && is_ready && !interaction_disabled
                                 ? "border-primary/24 bg-primary/10 text-primary hover:bg-primary/14"
-                                : "border-white/14 bg-white/6 text-slate-400",
+                                : "border-white/14 bg-white/6 text-[color:var(--text-soft)]",
                         )}
                     >
                         <Send className="h-3 w-3" />
@@ -532,9 +532,9 @@ export function AskUserQuestionBlock({
 
             {/* ═══════════ 已提交状态（展开时显示） ═══════════ */}
             {isSubmitted && isExpanded && (
-                <div className="mt-2 flex items-center gap-2 border-t border-emerald-500/18 pt-2 text-xs font-semibold text-emerald-600">
-                    <Check className="w-3.5 h-3.5 text-green-500" />
-                    <span className="text-xs font-medium text-green-600">已收到你的回应</span>
+                <div className="mt-2 flex items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] pt-2 text-xs font-semibold text-[color:var(--success)]">
+                    <Check className="w-3.5 h-3.5 text-[color:var(--success)]" />
+                    <span className="text-xs font-medium text-[color:var(--success)]">已收到你的回应</span>
                 </div>
             )}
         </MessageRail>

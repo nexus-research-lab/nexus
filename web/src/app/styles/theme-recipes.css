@@ -36,7 +36,9 @@
     box-shadow: var(--surface-panel-shadow);
   }
 
-  .surface-panel::before {
+  /* 中文注释：当 surface-panel 同时应用 liquid-glass-surface 时，
+     抑制静态伪元素高光，避免与 SDF 生成的 highlight overlay 冲突 */
+  .surface-panel:not(.liquid-glass-surface)::before {
     content: "";
     position: absolute;
     inset: 1px;
@@ -46,7 +48,7 @@
     pointer-events: none;
   }
 
-  .surface-panel::after {
+  .surface-panel:not(.liquid-glass-surface)::after {
     content: "";
     position: absolute;
     inset: -18% -8% auto -8%;
@@ -103,6 +105,33 @@
     background: var(--input-shell-background);
     border: 1px solid var(--input-shell-border);
     box-shadow: var(--input-shell-shadow);
+  }
+
+  .liquid-glass-surface {
+    isolation: isolate;
+  }
+
+  .liquid-glass-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: var(--liquid-glass-highlight-background);
+    opacity: var(--liquid-glass-highlight-opacity, 0.8);
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+
+  .liquid-glass-surface> :not(svg) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .surface-popover {
+    background: var(--surface-popover-background);
+    border: 1px solid var(--surface-popover-border);
+    box-shadow: var(--surface-popover-shadow);
   }
 
   .dialog-shell {
@@ -165,7 +194,7 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    background: rgba(10, 16, 24, 0.5);
+    background: var(--dialog-backdrop-color);
   }
 
   .dialog-header {
@@ -253,188 +282,6 @@
   .radius-shell-sm {
     --surface-radius: 14px;
     border-radius: 14px;
-  }
-
-  .chip-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    font-weight: 650;
-    letter-spacing: -0.01em;
-    transition:
-      color var(--motion-duration-fast) ease,
-      background var(--motion-duration-fast) ease,
-      border-color var(--motion-duration-fast) ease,
-      transform var(--motion-duration-fast) ease;
-  }
-
-  .chip-button:hover:not(:disabled) {
-    transform: translateY(-0.5px);
-  }
-
-  .chip-button[data-variant="tonal"] {
-    background: var(--button-tonal-background);
-    border: 1px solid var(--button-tonal-border);
-    color: var(--button-tonal-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="tonal"]:hover {
-    background: var(--button-tonal-hover-background);
-    border-color: var(--button-tonal-hover-border);
-    color: var(--button-tonal-hover-color);
-  }
-
-  .chip-button[data-variant="outlined"] {
-    background: var(--button-outlined-background);
-    border: 1px solid var(--button-outlined-border);
-    color: var(--button-outlined-color);
-  }
-
-  .chip-button[data-variant="outlined"]:hover {
-    background: var(--button-outlined-hover-background);
-    border-color: var(--button-outlined-hover-border);
-    color: var(--button-outlined-hover-color);
-  }
-
-  .chip-button[data-variant="primary"] {
-    background: var(--button-primary-background);
-    border: 1px solid var(--button-primary-border);
-    color: var(--button-primary-color);
-    box-shadow: var(--interaction-active-shadow);
-  }
-
-  .chip-button[data-variant="primary"]:hover {
-    background: var(--button-primary-hover-background);
-    border-color: var(--button-primary-hover-border);
-  }
-
-  .chip-button[data-variant="text"] {
-    background: transparent;
-    border-color: transparent;
-    color: var(--button-text-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="text"]:hover {
-    color: var(--button-text-hover-color);
-  }
-
-  .chip-button[data-variant="icon"] {
-    background: var(--button-icon-background);
-    border: 1px solid var(--button-icon-border);
-    color: var(--button-icon-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="icon"]:hover {
-    background: var(--button-icon-hover-background);
-    border-color: var(--button-icon-hover-border);
-    color: var(--button-icon-hover-color);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="primary"] {
-    background: color-mix(in srgb, var(--destructive) 84%, white 16%);
-    border-color: color-mix(in srgb, var(--destructive) 70%, white 30%);
-    color: var(--destructive-foreground);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="primary"]:hover {
-    background: color-mix(in srgb, var(--destructive) 90%, white 10%);
-    border-color: color-mix(in srgb, var(--destructive) 76%, white 24%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="outlined"] {
-    border-color: color-mix(in srgb, var(--destructive) 28%, transparent);
-    color: color-mix(in srgb, var(--destructive) 84%, var(--foreground) 16%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="outlined"]:hover {
-    background: color-mix(in srgb, var(--destructive) 8%, transparent);
-    border-color: color-mix(in srgb, var(--destructive) 36%, transparent);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="tonal"] {
-    background: color-mix(in srgb, var(--destructive) 10%, transparent);
-    border-color: color-mix(in srgb, var(--destructive) 26%, transparent);
-    color: color-mix(in srgb, var(--destructive) 84%, var(--foreground) 16%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="tonal"]:hover {
-    background: color-mix(in srgb, var(--destructive) 14%, transparent);
-    border-color: color-mix(in srgb, var(--destructive) 34%, transparent);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="text"] {
-    color: color-mix(in srgb, var(--destructive) 84%, var(--foreground) 16%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="text"]:hover {
-    color: color-mix(in srgb, var(--destructive) 92%, var(--foreground) 8%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="icon"] {
-    background: color-mix(in srgb, var(--destructive) 10%, transparent);
-    border-color: color-mix(in srgb, var(--destructive) 28%, transparent);
-    color: color-mix(in srgb, var(--destructive) 86%, var(--foreground) 14%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="icon"]:hover {
-    background: color-mix(in srgb, var(--destructive) 14%, transparent);
-    border-color: color-mix(in srgb, var(--destructive) 36%, transparent);
-  }
-
-  .chip-button[data-size="icon"] {
-    height: 2.5rem;
-    width: 2.5rem;
-    padding: 0;
-    border-radius: 1rem;
-  }
-
-  .chip-button[data-size="sm"] {
-    padding: 0.42rem 0.88rem;
-    font-size: 11px;
-    line-height: 1.1;
-  }
-
-  .chip-button[data-size="md"] {
-    padding: 0.62rem 1rem;
-    font-size: 14px;
-    line-height: 1.15;
-  }
-
-  .chip-button[data-size="lg"] {
-    padding: 0.84rem 1.28rem;
-    font-size: 15px;
-    line-height: 1.1;
-  }
-
-  .chip-button[data-density="compact"][data-size="icon"] {
-    height: 2.25rem;
-    width: 2.25rem;
-    border-radius: 0.9rem;
-  }
-
-  .chip-button[data-density="compact"][data-size="sm"] {
-    padding: 0.34rem 0.75rem;
-    font-size: 10.5px;
-  }
-
-  .chip-button[data-density="compact"][data-size="md"] {
-    padding: 0.5rem 0.9rem;
-    font-size: 13px;
-  }
-
-  .chip-button[data-density="compact"][data-size="lg"] {
-    padding: 0.68rem 1.06rem;
-    font-size: 14px;
-  }
-
-  .chip-button[data-stretch="true"] {
-    width: 100%;
   }
 
   .status-badge {

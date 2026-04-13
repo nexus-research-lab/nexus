@@ -66,7 +66,7 @@ function RoomCompletedReply({
   }, [assistant_messages, result_message]);
 
   return (
-    <div className="border-b border-slate-200/75">
+    <div className="border-b border-[var(--divider-subtle-color)]">
       <MessageItem
         current_agent_name={agent_name}
         round_id={`${round_id}:${agent_id}`}
@@ -80,8 +80,8 @@ function RoomCompletedReply({
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
-                ? "border-[#cfe0ff] bg-[#eff6ff] text-[#27539d]"
-                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+                ? "border-[var(--status-info-soft-border)] bg-[var(--status-info-soft-bg)] text-[color:var(--status-info-soft-text)]"
+                : "border-[var(--divider-subtle-color)] bg-[var(--material-chip-background)] text-[color:var(--text-muted)] hover:bg-[var(--interaction-hover-background)] hover:text-[color:var(--text-default)]",
             )}
             onClick={on_click_thread}
             type="button"
@@ -152,7 +152,7 @@ function RoomRoundCardGroupInner({
   return (
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {user_message ? (
-        <div className="border-b border-slate-200/75">
+        <div className="border-b border-[var(--divider-subtle-color)]">
           {/* 仅复用用户消息样式，传入 is_loading 避免渲染空的助手区域。 */}
           <MessageItem
             round_id={round_id}
@@ -191,7 +191,7 @@ function RoomRoundCardGroupInner({
             );
 
             return (
-              <div key={entry.agent_id} className="border-b border-slate-200/75">
+              <div key={entry.agent_id} className="border-b border-[var(--divider-subtle-color)]">
                 <div className="w-full px-2 sm:px-3">
                   <div className="mx-auto w-full max-w-[980px]">
                     <AgentStatusCard

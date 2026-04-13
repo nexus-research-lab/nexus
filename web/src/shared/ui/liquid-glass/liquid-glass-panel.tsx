@@ -11,32 +11,35 @@
 
 "use client";
 
-import { CSSProperties, ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { ComponentPropsWithoutRef, CSSProperties, ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { getLiquidGlassAssets, supportsTrueLiquidGlass } from "./liquid-glass-engine";
-import { LIQUID_GLASS_PRESETS, LiquidGlassPreset } from "./liquid-glass-presets";
+import { LIQUID_GLASS_VARIANTS, LiquidGlassVariant } from "./liquid-glass-presets";
 
-type LiquidGlassTagName = "aside" | "div" | "main" | "section";
+type LiquidGlassTagName = "aside" | "button" | "div" | "main" | "section";
 type LiquidGlassContentLayout = "natural" | "fill" | "fill-flex";
 
-interface LiquidGlassPanelProps {
+interface LiquidGlassPanelOwnProps {
   children: ReactNode;
   class_name?: string;
   content_class_name?: string;
   content_layout?: LiquidGlassContentLayout;
-  content_style?: CSSProperties;
-  shape_style?: CSSProperties;
+  enable_true_glass?: boolean;
+  surface_style?: CSSProperties;
   style?: CSSProperties;
   radius?: number;
-  bezel?: number;
-  blur?: number;
-  saturation?: number;
-  distortion?: number;
-  preset?: LiquidGlassPreset;
-  tag_name?: LiquidGlassTagName;
+  variant?: LiquidGlassVariant;
 }
+
+type LiquidGlassNativeProps<T extends LiquidGlassTagName> =
+  Omit<ComponentPropsWithoutRef<T>, "children" | "className" | "style">;
+
+export type LiquidGlassPanelProps<T extends LiquidGlassTagName = "div"> =
+  LiquidGlassPanelOwnProps & {
+    tag_name?: T;
+  } & LiquidGlassNativeProps<T>;
 
 function useMeasuredElementSize() {
   const [element, set_element] = useState<HTMLElement | null>(null);
@@ -63,31 +66,32 @@ function useMeasuredElementSize() {
   return { set_element, size };
 }
 
-export function LiquidGlassPanel({
+export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
   children,
   class_name,
   content_class_name,
   content_layout = "natural",
-  content_style,
-  shape_style,
+  enable_true_glass = false,
+  surface_style,
   style,
   radius = 32,
-  bezel = Math.max(12, Math.round(radius * 0.48)),
-  blur = 18,
-  saturation = 142,
-  distortion = Math.max(14, Math.min(radius * 0.72, 26)),
-  preset = LIQUID_GLASS_PRESETS.subtle_panel,
-  tag_name = "div",
-}: LiquidGlassPanelProps) {
-  const TagName = tag_name;
+  tag_name = "div" as T,
+  variant = "panel",
+  ...native_props
+}: LiquidGlassPanelProps<T>) {
+  const TagName = tag_name as any;
   const { set_element, size } = useMeasuredElementSize();
   const raw_filter_id = useId();
   const filter_id = `liquid-glass-${raw_filter_id.replace(/:/g, "")}`;
   const [can_use_true_glass, set_can_use_true_glass] = useState(false);
+  const variant_preset = LIQUID_GLASS_VARIANTS[variant];
+  const displacement_ref = useRef<SVGFEDisplacementMapElement | null>(null);
+  const raf_id_ref = useRef(0);
 
   useEffect(() => {
-    set_can_use_true_glass(supportsTrueLiquidGlass());
-  }, []);
+    // 中文注释：默认全部退回静态材质，只有显式声明的原语才允许尝试真折射。
+    set_can_use_true_glass(enable_true_glass && supportsTrueLiquidGlass());
+  }, [enable_true_glass]);
 
   const assets = useMemo(() => {
     if (!can_use_true_glass || size.width < 24 || size.height < 24) {
@@ -98,29 +102,81 @@ export function LiquidGlassPanel({
       width: size.width,
       height: size.height,
       radius,
-      bezel,
+      bezel: Math.max(8, Math.round(radius * 0.38), variant_preset.bezel),
+      surface_profile: variant_preset.surface_profile ?? "convex",
+      specular_power: variant_preset.specular_power,
+      specular_opacity: variant_preset.specular_opacity,
     });
-  }, [bezel, can_use_true_glass, radius, size.height, size.width]);
+  }, [can_use_true_glass, radius, size.height, size.width, variant_preset.bezel, variant_preset.specular_power, variant_preset.specular_opacity, variant_preset.surface_profile]);
 
   const backdrop_filter = useMemo(() => {
-    const filter_chain = `blur(${blur}px) saturate(${saturation}%)`;
     if (!can_use_true_glass || !assets) {
-      return filter_chain;
+      return undefined;
     }
 
-    return `url(#${filter_id}) ${filter_chain}`;
-  }, [assets, blur, can_use_true_glass, filter_id, saturation]);
+    return `url(#${filter_id}) blur(${variant_preset.blur}px) saturate(${variant_preset.saturation}%)`;
+  }, [assets, can_use_true_glass, filter_id, variant_preset.blur, variant_preset.saturation]);
+
+  // 中文注释：玻璃折射入场动画，scale 从 0 渐变到目标值，约 220ms，避免视觉突变。
+  const target_distortion = variant_preset.distortion;
+
+  useEffect(() => {
+    const node = displacement_ref.current;
+    if (!can_use_true_glass || !assets || !node) {
+      return;
+    }
+
+    const duration = 220;
+    const start = performance.now();
+    node.scale.baseVal = 0;
+
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // 中文注释：ease-out 缓动让折射效果自然展开
+      const eased = 1 - Math.pow(1 - progress, 3);
+      node.scale.baseVal = eased * target_distortion;
+
+      if (progress < 1) {
+        raf_id_ref.current = requestAnimationFrame(animate);
+      }
+    };
+
+    raf_id_ref.current = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(raf_id_ref.current);
+    };
+  }, [can_use_true_glass, assets, target_distortion]);
 
   const surface_shape_style = useMemo<CSSProperties>(() => ({
     borderRadius: `${radius}px`,
-    ...shape_style,
-  }), [radius, shape_style]);
+  }), [radius]);
 
   const root_style = useMemo<CSSProperties>(() => ({
     contain: "paint",
+    // 中文注释：把玻璃材质直接收回根节点，避免额外的 surface/content 包装层。
     ...surface_shape_style,
+    background: variant_preset.background,
+    boxShadow: `inset 0 0 0 1px ${variant_preset.border_color}, ${variant_preset.shadow}`,
+    backdropFilter: backdrop_filter,
+    WebkitBackdropFilter: backdrop_filter,
+    transform: "translateZ(0)",
+    ["--liquid-glass-highlight-background" as string]: variant_preset.highlight_background,
+    ["--liquid-glass-highlight-opacity" as string]: String(variant_preset.highlight_opacity),
+    ...surface_style,
     ...style,
-  }), [style, surface_shape_style]);
+  }), [
+    backdrop_filter,
+    style,
+    surface_shape_style,
+    surface_style,
+    variant_preset.background,
+    variant_preset.border_color,
+    variant_preset.highlight_background,
+    variant_preset.highlight_opacity,
+    variant_preset.shadow,
+  ]);
 
   const content_layout_class_name = useMemo(() => {
     if (content_layout === "fill") {
@@ -136,8 +192,14 @@ export function LiquidGlassPanel({
 
   return (
     <TagName
-      className={cn("relative isolate overflow-hidden", class_name)}
-      ref={set_element}
+      {...(native_props as Record<string, unknown>)}
+      className={cn(
+        "liquid-glass-surface relative overflow-hidden",
+        content_layout_class_name,
+        content_class_name,
+        class_name,
+      )}
+      ref={(node: HTMLElement | null) => set_element(node)}
       style={root_style}
     >
       {can_use_true_glass && assets ? (
@@ -166,10 +228,11 @@ export function LiquidGlassPanel({
                 result="liquid-glass-map"
               />
               <feDisplacementMap
+                ref={displacement_ref}
                 in="SourceGraphic"
                 in2="liquid-glass-map"
                 result="liquid-glass-refracted"
-                scale={distortion}
+                scale={0}
                 xChannelSelector="R"
                 yChannelSelector="G"
               />
@@ -190,46 +253,7 @@ export function LiquidGlassPanel({
           </defs>
         </svg>
       ) : null}
-
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          ...surface_shape_style,
-          background: preset.background,
-          boxShadow: `inset 0 0 0 1px ${preset.border_color}, ${preset.shadow}`,
-          backdropFilter: backdrop_filter,
-          WebkitBackdropFilter: backdrop_filter,
-          transform: "translateZ(0)",
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-[1px] z-0"
-        style={{
-          ...surface_shape_style,
-          background: preset.inner_background,
-          boxShadow: `inset 0 1px 0 ${preset.inner_border_color}`,
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0 opacity-90"
-        style={{
-          ...surface_shape_style,
-          background: preset.sheen_background,
-          mixBlendMode: "screen",
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-[-12%] z-0 opacity-80 blur-[24px]"
-        style={{ background: preset.glow_background }}
-      />
-
-      <div className={cn("relative z-10", content_layout_class_name, content_class_name)} style={content_style}>
-        {children}
-      </div>
+      {children}
     </TagName>
   );
 }

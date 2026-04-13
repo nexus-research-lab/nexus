@@ -35,7 +35,7 @@ interface AgentOptionsNavProps {
 /** 左侧图标导航栏组件 */
 export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps) {
   return (
-    <div className="flex w-44 flex-col border-r dialog-divider bg-transparent px-3 py-4">
+    <div className="flex w-36 flex-col border-r dialog-divider bg-transparent px-2.5 py-3">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.key;
@@ -45,18 +45,24 @@ export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps
             onClick={() => onTabChange(item.key)}
             title={item.label}
             className={cn(
-              "relative flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left transition-all duration-200",
+              "relative flex w-full items-center gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left transition-[color,background] duration-[var(--motion-duration-normal)]",
               isActive
-                ? "dialog-card-active text-primary shadow-none"
+                ? "text-primary shadow-none"
                 : "text-[color:var(--text-muted)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
             )}
           >
+            {isActive ? (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]"
+              />
+            ) : null}
             {isActive && (
               <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
             )}
             <span
               className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-[12px]",
+                "relative z-[1] flex h-8 w-8 items-center justify-center rounded-[10px]",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "bg-transparent text-[color:var(--icon-default)]"
@@ -64,7 +70,7 @@ export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps
             >
               <Icon className="h-4 w-4" />
             </span>
-            <span className="text-sm font-semibold">{item.label}</span>
+            <span className="relative z-[1] text-[13px] font-semibold">{item.label}</span>
           </button>
         );
       })}

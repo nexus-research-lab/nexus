@@ -10,6 +10,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { apply_theme_background_pattern } from "./theme-background-pattern";
 
 export type Theme = "light" | "dark" | "sunny" | "rain";
 export type VisualTheme = "light" | "dark" | "rain";
@@ -56,6 +57,7 @@ export function apply_theme(theme: Theme) {
   const visual_theme = resolve_visual_theme(theme);
 
   document.documentElement.dataset.theme = visual_theme;
+  apply_theme_background_pattern(theme, document.documentElement);
   document.documentElement.style.colorScheme =
     visual_theme === "dark" || visual_theme === "rain" ? "dark" : "light";
 }

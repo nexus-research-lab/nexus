@@ -7,6 +7,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { GlassSwitch } from "@/shared/ui/liquid-glass";
 
 /** 权限模式选项 */
 const PERMISSION_MODES = [
@@ -71,15 +72,15 @@ export function AgentOptionsAdvancedTab({
   onToggleTool,
 }: AgentOptionsAdvancedTabProps) {
   return (
-    <div className="space-y-7 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       {/* 权限模式 */}
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
               Runtime Policy
             </p>
-            <h3 className="mt-1 text-base font-semibold text-[color:var(--text-strong)]">
+            <h3 className="mt-1 text-[15px] font-semibold text-[color:var(--text-strong)]">
               权限控制
             </h3>
           </div>
@@ -93,14 +94,14 @@ export function AgentOptionsAdvancedTab({
               key={pm.value}
               onClick={() => onPermissionModeChange(pm.value)}
               className={cn(
-                "radius-shell-md relative overflow-hidden p-4 text-left transition-all duration-200",
+                "radius-shell-md relative overflow-hidden p-3.5 text-left transition-[background,border-color,color] duration-[var(--motion-duration-normal)]",
                 permissionMode === pm.value
                   ? "dialog-card-active"
                   : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]"
               )}
             >
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-semibold">{pm.label}</span>
+                <span className="text-[13px] font-semibold">{pm.label}</span>
                 {permissionMode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <svg
@@ -121,7 +122,7 @@ export function AgentOptionsAdvancedTab({
                   </div>
                 )}
               </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
+              <p className="text-[12px] leading-5 text-muted-foreground">
                 {pm.description}
               </p>
             </button>
@@ -131,7 +132,7 @@ export function AgentOptionsAdvancedTab({
         {/* bypassPermissions 警告 */}
         {permissionMode === "bypassPermissions" &&
           allowedTools.length > 0 && (
-            <div className="radius-shell-md border border-amber-500/20 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-700">
+            <div className="radius-shell-md border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] p-4 text-xs leading-relaxed text-[color:var(--warning)]">
               `bypassPermissions` 会放行所有工具，`allowed_tools`
               只代表预授权集合，并不能限制其它工具。
               如果你想在全放行模式下屏蔽个别危险工具，请改用
@@ -140,13 +141,13 @@ export function AgentOptionsAdvancedTab({
           )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
               Tool Access
             </p>
-            <h3 className="mt-1 text-base font-semibold text-[color:var(--text-strong)]">
+            <h3 className="mt-1 text-[15px] font-semibold text-[color:var(--text-strong)]">
               工具预授权
             </h3>
           </div>
@@ -156,8 +157,8 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* 安全提示 */}
-        <div className="radius-shell-md flex gap-3 border border-orange-500/20 bg-orange-500/10 p-4">
-            <div className="mt-0.5 text-orange-500">
+        <div className="radius-shell-md flex gap-3 border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] p-3.5">
+          <div className="mt-0.5 text-[color:var(--warning)]">
             <svg
               width="16"
               height="16"
@@ -174,8 +175,8 @@ export function AgentOptionsAdvancedTab({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-medium text-orange-300">安全提示</p>
-            <p className="mt-1 text-xs leading-relaxed text-orange-200/90">
+            <p className="text-sm font-medium text-[color:color-mix(in_srgb,var(--warning)_80%,white)]">安全提示</p>
+            <p className="mt-1 text-xs leading-relaxed text-[color:color-mix(in_srgb,var(--warning)_70%,white)]">
               被选中的工具将被`预先授权`，Agent
               调用这些工具时将不会请求您的确认。请仅为您完全信任的工具开启此选项。
             </p>
@@ -183,42 +184,24 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* 工具列表 */}
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-2.5">
           {AVAILABLE_TOOLS.map((tool) => {
             const isChecked = allowedTools.includes(tool.name);
             return (
               <div
                 key={tool.name}
-                className={cn(
-                  "radius-shell-md flex items-center justify-between p-4 transition-all duration-200",
-                  isChecked
-                    ? "dialog-card-active"
-                    : "dialog-card hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)]"
-                )}
+                className="radius-shell-md flex items-center justify-between gap-4 border border-[var(--divider-subtle-color)] bg-[var(--surface-card-background)] p-3.5"
               >
                 <div className="mr-4 flex-1">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    {tool.name}
-                    {isChecked && (
-                        <span className="rounded border border-primary/18 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                          已授权
-                        </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div className="text-[13px] font-semibold">{tool.name}</div>
+                  <div className="mt-1 text-[12px] leading-5 text-muted-foreground">
                     {tool.description}
                   </div>
                 </div>
-                {/* 自定义 Switch */}
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => onToggleTool(tool.name, "allowed")}
-                    className="peer sr-only"
-                  />
-                  <div className="h-6 w-11 rounded-full border border-[var(--surface-interactive-hover-border)] bg-[var(--surface-panel-subtle-background)] peer peer-checked:border-primary/40 peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-[var(--surface-popover-border)] after:bg-[var(--surface-popover-background)] after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-primary/30 peer-checked:after:bg-white" />
-                </label>
+                <GlassSwitch
+                  checked={isChecked}
+                  on_change={() => onToggleTool(tool.name, "allowed")}
+                />
               </div>
             );
           })}

@@ -81,11 +81,6 @@ export function RoomPage() {
     return null;
   }, [controller, navigate, params.room_id]);
 
-  const handleDeleteRoom = useCallback(async () => {
-    await controller.handle_delete_room();
-    navigate(AppRouteBuilders.launcher());
-  }, [controller, navigate]);
-
   const handleUpdateConversationTitle = useCallback(async (conversation_id: string, title: string) => {
     await controller.handle_update_conversation_title(conversation_id, title);
   }, [controller]);
@@ -176,7 +171,7 @@ export function RoomPage() {
             current_agent={controller.current_agent}
             room_id={controller.route_room_id}
             current_room_type={controller.current_room_type}
-            room_description={controller.current_room_description}
+            room_avatar={controller.current_room.avatar ?? null}
             room_members={controller.room_members}
             current_room_title={controller.current_room_title}
             current_room_conversations={controller.current_room_conversations}
@@ -190,6 +185,7 @@ export function RoomPage() {
             is_resizing_editor={controller.is_resizing_editor}
             is_conversation_busy={controller.is_conversation_busy}
             on_add_room_member={controller.handle_add_room_member}
+            on_remove_room_member={controller.handle_remove_room_member}
             on_back_to_directory={handleBackToLauncher}
             on_close_workspace_pane={controller.handle_close_workspace_pane}
             on_delete_conversation={handleDeleteConversation}
@@ -197,7 +193,6 @@ export function RoomPage() {
             on_create_conversation={handleCreateConversation}
             on_open_workspace_file={controller.handle_open_workspace_file}
             on_update_room={handleUpdateRoom}
-            on_delete_room={handleDeleteRoom}
             on_update_conversation_title={handleUpdateConversationTitle}
             on_select_conversation={handleSelectConversation}
             on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
@@ -211,6 +206,8 @@ export function RoomPage() {
 
         <AgentOptions
           agent_id={controller.editing_agent_id ?? undefined}
+          initial_avatar={controller.dialog_initial_avatar}
+          initial_description={controller.dialog_initial_description}
           mode={controller.dialog_mode}
           is_open={controller.is_dialog_open}
           on_close={() => controller.set_is_dialog_open(false)}
@@ -219,6 +216,7 @@ export function RoomPage() {
           on_validate_name={controller.handle_validate_agent_name}
           initial_title={controller.dialog_initial_title}
           initial_options={controller.dialog_initial_options}
+          initial_vibe_tags={controller.dialog_initial_vibe_tags}
         />
 
         <ConfirmDialog

@@ -87,6 +87,7 @@ class RoomSqlRepository(BaseSqlRepository):
         room_id: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        avatar: Optional[str] = None,
     ) -> Optional[RoomAggregate]:
         """更新房间信息。"""
         entity = await self._session.get(Room, room_id)
@@ -96,6 +97,8 @@ class RoomSqlRepository(BaseSqlRepository):
             entity.name = name
         if description is not None:
             entity.description = description
+        if avatar is not None:
+            entity.avatar = avatar
         await self.flush()
         return await self.get(room_id)
 

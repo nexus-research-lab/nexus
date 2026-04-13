@@ -46,7 +46,7 @@ export function MessageRailLabel({
     <div
       className={cn(
         "flex min-w-0 items-center gap-2 text-[11px] font-medium text-[color:var(--text-muted)]",
-        active && "text-sky-500",
+        active && "text-primary",
         class_name,
       )}
     >
@@ -77,7 +77,7 @@ export function MessageCallout({
   class_name?: string;
 }) {
   return (
-    <div className={cn("rounded-[14px] border border-sky-200/72 bg-sky-50/84 px-3.5 py-2.5 text-xs text-sky-700", class_name)}>
+    <div className={cn("rounded-[14px] border border-[var(--status-info-soft-border)] bg-[var(--status-info-soft-bg)] px-3.5 py-2.5 text-xs text-[color:var(--status-info-soft-text)]", class_name)}>
       {children}
     </div>
   );
@@ -91,7 +91,7 @@ export function MessageCalloutTitle({
   class_name?: string;
 }) {
   return (
-    <div className={cn("font-semibold text-sky-600", class_name)}>
+    <div className={cn("font-semibold text-[color:var(--status-info-soft-text)]", class_name)}>
       {children}
     </div>
   );
@@ -100,8 +100,8 @@ export function MessageCalloutTitle({
 type MessageResultTone = "success" | "error";
 
 const RESULT_TONE_CLASS_MAP: Record<MessageResultTone, string> = {
-  success: "text-green-500",
-  error: "text-red-500",
+  success: "text-[color:var(--success)]",
+  error: "text-[color:var(--destructive)]",
 };
 
 export function MessageResultLabel({

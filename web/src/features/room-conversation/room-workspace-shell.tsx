@@ -17,7 +17,7 @@ interface RoomWorkspaceShellProps {
   current_agent: Agent;
   current_room_type: string;
   room_id: string | null;
-  room_description: string;
+  room_avatar?: string | null;
   room_members: Agent[];
   available_room_agents: Agent[];
   current_room_title: string;
@@ -39,8 +39,8 @@ interface RoomWorkspaceShellProps {
   on_select_conversation: (conversation_id: string) => void;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
+  on_remove_room_member: (agent_id: string) => Promise<void>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
-  on_delete_room: () => Promise<void>;
   on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
   on_close_workspace_pane: () => void;
@@ -55,7 +55,7 @@ export function RoomWorkspaceShell({
   current_agent,
   current_room_type,
   room_id,
-  room_description,
+  room_avatar,
   room_members,
   available_room_agents,
   current_room_title,
@@ -77,8 +77,8 @@ export function RoomWorkspaceShell({
   on_select_conversation,
   on_delete_conversation,
   on_add_room_member,
+  on_remove_room_member,
   on_update_room,
-  on_delete_room,
   on_update_conversation_title,
   on_open_workspace_file,
   on_close_workspace_pane,
@@ -140,7 +140,7 @@ export function RoomWorkspaceShell({
       current_agent={current_agent}
       current_room_type={current_room_type}
       room_id={room_id}
-      room_description={room_description}
+      room_avatar={room_avatar}
       room_members={room_members}
       current_room_title={current_room_title}
       current_agent_session_identity={current_agent_session_identity}
@@ -154,6 +154,7 @@ export function RoomWorkspaceShell({
       is_resizing_editor={is_resizing_editor}
       is_conversation_busy={is_conversation_busy}
       on_add_room_member={on_add_room_member}
+      on_remove_room_member={on_remove_room_member}
       on_change_surface_tab={set_active_surface_tab}
       on_close_workspace_pane={on_close_workspace_pane}
       on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -162,7 +163,6 @@ export function RoomWorkspaceShell({
       on_loading_change={on_loading_change}
       on_open_workspace_file={on_open_workspace_file}
       on_update_room={on_update_room}
-      on_delete_room={on_delete_room}
       on_update_conversation_title={on_update_conversation_title}
       on_select_conversation={handle_select_conversation_in_shell}
       on_start_editor_resize={on_start_editor_resize}

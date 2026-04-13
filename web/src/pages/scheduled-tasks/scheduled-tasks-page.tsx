@@ -13,8 +13,10 @@ import { ScheduledTaskList } from "@/features/capability/scheduled/scheduled-tas
 import { ScheduledTaskRunHistoryDialog } from "@/features/capability/scheduled/scheduled-task-run-history-dialog";
 import { useAutomationController } from "@/hooks/use-automation-controller";
 import { runScheduledTaskApi, updateScheduledTaskStatusApi } from "@/lib/scheduled-task-api";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
+import {
+  WorkspaceSurfaceHeader,
+  WorkspaceSurfaceToolbarAction,
+} from "@/shared/ui/workspace/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
 import type { ScheduledTaskItem } from "@/types/scheduled-task";
 
@@ -167,7 +169,7 @@ export function ScheduledTasksPage() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_class_name="p-4 sm:p-5 xl:p-6"
+        body_class_name="px-5 py-5 xl:px-6"
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
@@ -182,14 +184,14 @@ export function ScheduledTasksPage() {
             )}
             trailing={(
               <>
-                <WorkspacePillButton density="compact" onClick={() => void handle_refresh_all()} size="sm" variant="outlined">
+                <WorkspaceSurfaceToolbarAction onClick={() => void handle_refresh_all()}>
                   <RefreshCw className="h-3.5 w-3.5" />
                   刷新全部
-                </WorkspacePillButton>
-                <WorkspacePillButton density="compact" onClick={() => set_is_dialog_open(true)} size="sm" variant="primary">
+                </WorkspaceSurfaceToolbarAction>
+                <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
                   <Plus className="h-3.5 w-3.5" />
                   创建任务
-                </WorkspacePillButton>
+                </WorkspaceSurfaceToolbarAction>
               </>
             )}
           />

@@ -1,8 +1,8 @@
 import { Globe2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
 
 import type { SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
 
@@ -27,35 +27,32 @@ export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
           }
           value={ctrl.discovery_mode === "catalog" ? ctrl.search_query : ctrl.external_query}
         />
-        <WorkspacePillButton
-          class_name="w-[76px] justify-center"
-          density="compact"
+        <WorkspaceSurfaceToolbarAction
           onClick={() =>
             void (
               ctrl.discovery_mode === "external"
                 ? ctrl.handle_external_search()
                 : ctrl.handle_catalog_search()
             )}
-          size="sm"
-          variant="outlined"
+          tone="primary"
         >
           <Globe2 className="h-3.5 w-3.5" />
           搜索
-        </WorkspacePillButton>
+        </WorkspaceSurfaceToolbarAction>
       </div>
 
       {ctrl.discovery_mode === "catalog" ? (
-        <div className="flex min-w-0 flex-1 items-center gap-1">
+        <div className="soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-0.5">
           {ctrl.categories.map((category) => {
             const is_active = ctrl.active_category === category.key;
             return (
               <button
                 key={category.key}
                 className={cn(
-                  "inline-flex h-8 items-center rounded-full border px-3 py-1 text-[11px] font-semibold transition-[background,border-color,color] duration-150",
+                  "inline-flex h-8 shrink-0 items-center border-b-2 border-transparent px-0 py-1 text-[11px] font-semibold transition-[color,border-color] duration-[var(--motion-duration-fast)]",
                   is_active
-                    ? "border-[var(--surface-interactive-active-border)] bg-[var(--surface-interactive-active-background)] text-[color:var(--text-strong)]"
-                    : "border-transparent text-[color:var(--text-default)] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
+                    ? "border-[var(--surface-interactive-active-border)] text-[color:var(--text-strong)]"
+                    : "text-[color:var(--text-default)] hover:text-[color:var(--text-strong)]",
                 )}
                 onClick={() => ctrl.set_active_category(category.key)}
                 type="button"

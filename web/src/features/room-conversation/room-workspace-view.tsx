@@ -87,7 +87,7 @@ const TreeRow = memo(function TreeRow({
         type="button"
         onClick={handle_click}
         className={cn(
-          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors duration-150",
+          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors duration-[var(--motion-duration-fast)]",
           is_active
             ? "bg-primary/10 text-primary"
             : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
@@ -95,15 +95,15 @@ const TreeRow = memo(function TreeRow({
         style={{ paddingLeft: `${8 + depth * 16}px` }}
       >
         {entry.is_dir ? (
-          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-[color:var(--icon-muted)] transition-transform duration-150", open && "rotate-90")} />
+          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-[color:var(--icon-muted)] transition-transform duration-[var(--motion-duration-fast)]", open && "rotate-90")} />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
 
         {entry.is_dir ? (
           open
-            ? <FolderOpen className="h-4 w-4 shrink-0 text-amber-400" />
-            : <Folder className="h-4 w-4 shrink-0 text-amber-400" />
+            ? <FolderOpen className="h-4 w-4 shrink-0 text-[color:var(--warning)]" />
+            : <Folder className="h-4 w-4 shrink-0 text-[color:var(--warning)]" />
         ) : (
           <FileIcon className={cn("h-4 w-4 shrink-0", is_active ? "text-primary" : "text-[color:var(--icon-muted)] group-hover:text-[color:var(--icon-default)]")} />
         )}

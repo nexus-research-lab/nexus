@@ -22,13 +22,14 @@ import {
 import { deleteSkillApi, getSkillDetailApi, updateSingleSkillApi } from "@/lib/skill-api";
 import { cn } from "@/lib/utils";
 import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
+  getDialogActionClassName,
   getDialogNoteClassName,
   getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { SkillDetail } from "@/types/skill";
 
 import { SkillMarkdown } from "./skill-markdown";
@@ -111,7 +112,7 @@ export function SkillDetailDialog({
         <div className="dialog-header">
           <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
             <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px]")}>
-              <Puzzle className="h-7 w-7 text-slate-900/88" />
+              <Puzzle className="h-7 w-7 text-[color:var(--text-strong)]" />
             </div>
             <div className="min-w-0">
               <h2 className="dialog-title truncate" data-size="hero">
@@ -122,15 +123,14 @@ export function SkillDetailDialog({
               </p>
             </div>
           </div>
-          <WorkspacePillButton
+          <button
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label="关闭"
-            density="compact"
             onClick={on_close}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-5 w-5" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1">
@@ -182,7 +182,7 @@ export function SkillDetailDialog({
               <SkillMarkdown markdown={skill.readme_markdown} />
             </>
           ) : (
-            <div className="flex min-h-80 items-center justify-center text-sm text-slate-500">
+            <div className="flex min-h-80 items-center justify-center text-sm text-[color:var(--text-muted)]">
               未找到该 Skill
             </div>
           )}
@@ -190,27 +190,26 @@ export function SkillDetailDialog({
 
         <div className="dialog-footer flex-wrap gap-2">
           {skill?.locked ? (
-            <WorkspacePillButton
-              class_name="text-amber-700"
+            <button
+              className={cn(getDialogActionClassName("default"), "text-amber-700")}
               disabled
-              size="md"
-              variant="tonal"
+              type="button"
             >
               <Lock className="h-4 w-4" />
               系统级
-            </WorkspacePillButton>
+            </button>
           ) : skill ? (
             <>
               {skill.source_type === "external" && skill.has_update ? (
-                <WorkspacePillButton
+                <button
+                  className={getDialogActionClassName("primary")}
                   disabled={acting}
                   onClick={() => void handle_update()}
-                  size="md"
-                  variant="primary"
+                  type="button"
                 >
                   {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   更新技能库
-                </WorkspacePillButton>
+                </button>
               ) : (
                 <span className={cn(DIALOG_TAG_CLASS_NAME, "px-4 py-2 text-sm")}>
                   {skill.source_type === "external" ? (
@@ -227,16 +226,15 @@ export function SkillDetailDialog({
                 </span>
               )}
               {skill.deletable ? (
-                <WorkspacePillButton
+                <button
+                  className={getDialogActionClassName("danger")}
                   disabled={acting}
                   onClick={() => void handle_delete()}
-                  size="md"
-                  tone="danger"
-                  variant="outlined"
+                  type="button"
                 >
                   {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   删除
-                </WorkspacePillButton>
+                </button>
               ) : null}
             </>
           ) : null}

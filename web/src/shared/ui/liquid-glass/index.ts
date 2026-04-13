@@ -10,9 +10,11 @@
 */
 
 export {
-  LiquidGlassPanel,
-} from "./liquid-glass-panel";
-export {
-  LIQUID_GLASS_PRESETS,
-  type LiquidGlassPreset,
-} from "./liquid-glass-presets";
+  GlassChip,
+  GlassDialog,
+  GlassFocusControl,
+  GlassPanel,
+  GlassToolbar,
+} from "./glass-primitives";
+export { GlassSlider } from "./glass-slider";
+export { GlassSwitch } from "./glass-switch";

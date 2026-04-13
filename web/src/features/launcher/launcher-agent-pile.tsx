@@ -80,9 +80,9 @@ function hexToRgba(hex: string, alpha: number) {
 
 function getLabelSize(label: string) {
   if (label.length >= 3) {
-    return "text-[10px]";
+    return "text-2xs";
   }
-  return "text-[12px]";
+  return "text-sm";
 }
 
 function hashString(value: string) {
@@ -99,7 +99,7 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
 
   if (variant === 0) {
     return {
-      label_class_name: token.label.length >= 3 ? "text-[9px] tracking-[-0.03em]" : "text-[13px] tracking-[-0.08em]",
+      label_class_name: token.label.length >= 3 ? "text-2xs tracking-[-0.03em]" : "text-sm tracking-[-0.08em]",
       label_transform: "none",
       tag: token.kind === "agent" ? "core" : "room",
       tag_class_name: "text-[6px] tracking-[0.2em]",
@@ -117,7 +117,7 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
 
   if (variant === 1) {
     return {
-      label_class_name: token.label.length >= 3 ? "text-[8px] tracking-[0.04em]" : "text-[12px] tracking-[0.08em]",
+      label_class_name: token.label.length >= 3 ? "text-[8px] tracking-[0.04em]" : "text-sm tracking-[0.08em]",
       label_transform: "uppercase",
       tag: token.kind === "agent" ? "lab" : "sync",
       tag_class_name: "text-[6px] tracking-[0.24em]",
@@ -135,7 +135,7 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
 
   if (variant === 2) {
     return {
-      label_class_name: token.label.length >= 3 ? "text-[10px] tracking-[-0.08em]" : "text-[14px] tracking-[-0.1em]",
+      label_class_name: token.label.length >= 3 ? "text-2xs tracking-[-0.08em]" : "text-base tracking-[-0.1em]",
       label_transform: "none",
       tag: token.kind === "agent" ? "net" : "grid",
       tag_class_name: "text-[6px] tracking-[0.16em]",
@@ -170,7 +170,7 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
   }
 
   return {
-    label_class_name: token.label.length >= 3 ? "text-[8px] tracking-[0.12em]" : "text-[11px] tracking-[0.16em]",
+    label_class_name: token.label.length >= 3 ? "text-[8px] tracking-[0.12em]" : "text-xs tracking-[0.16em]",
     label_transform: "uppercase",
     tag: token.kind === "agent" ? "os" : "flow",
     tag_class_name: "text-[5px] tracking-[0.3em]",
@@ -230,6 +230,16 @@ export function AgentPile({
       restitution: 0.16,
       friction: 0.84,
     });
+    const leftWall = Bodies.rectangle(-18, height / 2, 36, height * 2, {
+      isStatic: true,
+      restitution: 0.12,
+      friction: 0.9,
+    });
+    const rightWall = Bodies.rectangle(width + 18, height / 2, 36, height * 2, {
+      isStatic: true,
+      restitution: 0.12,
+      friction: 0.9,
+    });
     const leftRamp = Bodies.rectangle(-42, height / 2, 180, height * 2, {
       isStatic: true,
       angle: -0.16,
@@ -243,7 +253,7 @@ export function AgentPile({
       friction: 0.88,
     });
 
-    World.add(engine.world, [ground, leftRamp, rightRamp]);
+    World.add(engine.world, [ground, leftWall, rightWall, leftRamp, rightRamp]);
 
     configs.forEach((config) => {
       const token = tokenByKey.get(config.key);
@@ -316,8 +326,11 @@ export function AgentPile({
         }
 
         const nextOpacity = "1";
-        const nextZIndex = `${Math.round(body.position.y)}`;
-        const nextTransform = `translate3d(${Math.round((body.position.x - config.size / 2) * 10) / 10}px, ${Math.round((body.position.y - config.size / 2) * 10) / 10}px, 0) rotate(${Math.round(body.angle * 1000) / 1000}rad)`;
+        // 中文注释：z-index 不能跟随掉落过程进入负值，否则 token 会在动画中被压到容器层后面，看起来像“消失”。
+        const nextZIndex = `${1000 + Math.max(0, Math.round(body.position.y))}`;
+        // 中文注释：这里改回 2D transform，不再用 translate3d 强制提 GPU 合成层。
+        // Token 数量不多时，2D 位移足够流畅，同时能显著减少层树里“一颗 token 一层”的情况。
+        const nextTransform = `translate(${Math.round((body.position.x - config.size / 2) * 10) / 10}px, ${Math.round((body.position.y - config.size / 2) * 10) / 10}px) rotate(${Math.round(body.angle * 1000) / 1000}rad)`;
         const previousRender = renderCache.get(config.key);
 
         const changed =
@@ -401,7 +414,7 @@ export function AgentPile({
     <div
       ref={containerRef}
       className={cn(
-        "relative mt-14 h-[286px] w-full max-w-[640px] overflow-hidden [mask-image:linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]",
+        "pointer-events-none relative z-0 mt-14 h-[286px] w-full max-w-[640px] overflow-hidden [mask-image:linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]",
         class_name,
       )}
     >
@@ -424,7 +437,7 @@ export function AgentPile({
               tokenRefs.current[token.key] = node;
             }}
             className={cn(
-              "absolute left-0 top-0 border opacity-0",
+              "pointer-events-auto absolute left-0 top-0 border opacity-0",
               token.kind === "agent" ? "rounded-full" : "rounded-[14px]",
               isActive && "ring-2 ring-white/80",
             )}

@@ -18,10 +18,10 @@ import {
   WorkspaceCatalogFooter,
   WorkspaceCatalogHeader,
   WorkspaceCatalogTag,
+  WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
   WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 
 interface RoomConversationEmptyStateProps {
   on_create_conversation: (title?: string) => void | Promise<string | null>;
@@ -62,16 +62,15 @@ export function RoomConversationEmptyState({
             </WorkspaceCatalogBody>
 
             <WorkspaceCatalogFooter class_name="mt-6 flex-wrap gap-2.5" justify="start">
-              <WorkspacePillButton
+              <WorkspaceCatalogTextAction
+                tone="primary"
                 onClick={() => {
                   void on_create_conversation();
                 }}
-                size="lg"
-                variant="primary"
               >
                 <MessageSquarePlus className="h-5 w-5" />
                 创建新会话
-              </WorkspacePillButton>
+              </WorkspaceCatalogTextAction>
             </WorkspaceCatalogFooter>
           </div>
 

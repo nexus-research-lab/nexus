@@ -68,7 +68,7 @@ export function ThreadDetailPanel({
   return (
     <div className={cn(
       "flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
-      is_mobile ? "bg-background" : "bg-transparent",
+      is_mobile ? "bg-[var(--surface-panel-background)]" : "bg-transparent",
     )}>
       {/* ── 头部 ────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>
@@ -78,15 +78,13 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="chip-default flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[color:var(--icon-default)] transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[color:var(--icon-default)] transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
         ) : null}
 
-        <div
-          className="chip-default flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-[color:var(--icon-default)]"
-        >
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--divider-subtle-color)] text-[color:var(--icon-default)]">
           <Bot className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
@@ -100,7 +98,7 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="chip-default flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[color:var(--icon-default)] transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[color:var(--icon-default)] transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
           >
             <X className="h-4 w-4" />
           </button>

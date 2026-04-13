@@ -84,7 +84,7 @@ export function MessageAvatar({
   return (
     <div
       className={cn(
-        "flex items-center justify-center border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[color:var(--surface-avatar-foreground)]",
+        "flex items-center justify-center border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[color:var(--surface-avatar-foreground)] shadow-[var(--surface-avatar-shadow)] transition-transform duration-[var(--motion-duration-fast)] hover:scale-110",
         AVATAR_SIZE_CLASS_MAP[size],
         class_name,
       )}
@@ -107,7 +107,7 @@ export function MessageActionButton({
   return (
     <button
       className={cn(
-        "rounded-lg p-1 text-[color:var(--icon-default)] transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/50",
+        "rounded-lg p-1 text-[color:var(--icon-default)] transition-colors duration-[var(--motion-duration-fast)] focus-visible:ring-2 focus-visible:ring-primary/50",
         ACTION_TONE_CLASS_MAP[tone],
         class_name,
       )}

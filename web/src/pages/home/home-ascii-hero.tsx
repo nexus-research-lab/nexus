@@ -12,14 +12,13 @@
 import { useEffect, useRef } from "react";
 
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
+import { useTheme } from "@/shared/theme/theme-context";
 
 const ASCII_CHARS = ".:+-=*#@&~<>{}[]|/\\";
 const MOBILE_ASCII_CHARS = "01";
 const HERO_LABEL = "nexus";
-const HERO_BG = "#1e2124";
-const HERO_BORDER = "#2e3138";
-const HERO_INK = "#39fca8";
-const CLOCK_INK = "#39fca8";
+const DEFAULT_HERO_INK = "#516dff";
+const DEFAULT_CLOCK_INK = "rgba(32, 45, 62, 0.88)";
 
 interface HomeAsciiHeroProps {
   agent_count: number;
@@ -50,6 +49,7 @@ function pad2(n: number) {
 }
 
 export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
+  const { theme } = useTheme();
   const section_ref = useRef<HTMLDivElement | null>(null);
   const canvas_ref = useRef<HTMLCanvasElement | null>(null);
   const prefers_reduced_motion = usePrefersReducedMotion();
@@ -93,6 +93,9 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
     let clock_font_small = "";
     let clock_font_meta = "";
     let clock_hm_width = 0;
+    const computed_styles = getComputedStyle(document.documentElement);
+    const hero_ink = computed_styles.getPropertyValue("--primary").trim() || DEFAULT_HERO_INK;
+    const clock_ink = computed_styles.getPropertyValue("--text-strong").trim() || DEFAULT_CLOCK_INK;
 
     let clock_hh = "";
     let clock_mm = "";
@@ -267,7 +270,7 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
         hero_ctx.font = glyph_font;
         hero_ctx.textAlign = "center";
         hero_ctx.textBaseline = "middle";
-        hero_ctx.fillStyle = HERO_INK;
+        hero_ctx.fillStyle = hero_ink;
 
         let last_alpha = -1;
 
@@ -340,7 +343,7 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
         // 中文注释：时钟与统计直接画在同一块 canvas 上，避免额外 DOM 叠层。
         hero_ctx.textAlign = "left";
         hero_ctx.textBaseline = "bottom";
-        hero_ctx.fillStyle = CLOCK_INK;
+        hero_ctx.fillStyle = clock_ink;
 
         const clock_y = height - clock_pad_y - clock_big_size * 0.28;
 
@@ -395,22 +398,30 @@ export function HomeAsciiHero({ agent_count, room_count }: HomeAsciiHeroProps) {
       hero_canvas.removeEventListener("touchmove", on_touch);
       hero_canvas.removeEventListener("touchend", clear_pointer);
     };
-  }, [prefers_reduced_motion, agent_count, room_count]);
+  }, [prefers_reduced_motion, agent_count, room_count, theme]);
 
   return (
     <div
       ref={section_ref}
       className="relative h-full w-full overflow-hidden rounded-[28px] border"
-      style={{ background: HERO_BG, borderColor: HERO_BORDER }}
+      style={{
+        background: "var(--surface-canvas-background)",
+        borderColor: "var(--surface-canvas-border)",
+      }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(57,252,168,0.05),transparent)]" />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: "radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in srgb, var(--primary) 12%, transparent), transparent)",
+        }}
+      />
 
       <h2 className="sr-only">{HERO_LABEL}</h2>
 
       {prefers_reduced_motion ? (
         <div
           className="absolute inset-0 flex items-center justify-center font-mono text-[clamp(3rem,11vw,6.8rem)] font-light italic leading-none"
-          style={{ color: HERO_INK }}
+          style={{ color: "var(--primary)" }}
         >
           {HERO_LABEL}
         </div>

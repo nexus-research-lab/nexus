@@ -12,6 +12,7 @@ export interface RoomRecord {
   room_type: string;
   name?: string | null;
   description: string;
+  avatar?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -68,12 +69,14 @@ export interface CreateRoomParams {
   name?: string;
   description?: string;
   title?: string;
+  avatar?: string;
 }
 
 export interface UpdateRoomParams {
   name?: string;
   description?: string;
   title?: string;
+  avatar?: string;
 }
 
 export interface CreateRoomConversationParams {

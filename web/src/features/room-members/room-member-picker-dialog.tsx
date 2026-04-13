@@ -1,12 +1,16 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
+import { getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { DIALOG_EMPTY_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
+import {
+  DIALOG_EMPTY_CLASS_NAME,
+  DIALOG_ICON_BUTTON_CLASS_NAME,
+} from "@/shared/ui/dialog/dialog-styles";
 
 interface RoomMemberPickerDialogProps {
   agents: Agent[];
@@ -26,64 +30,87 @@ export function RoomMemberPickerDialog({
     return null;
   }
 
-  return (
-    <div
-      className="dialog-backdrop"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="dialog-shell radius-shell-lg w-full max-w-lg">
-        <div className="dialog-header">
-          <div className="min-w-0 flex-1">
-            <h3 className="dialog-title">{t("room.add_member_dialog_title")}</h3>
-            <p className="dialog-subtitle">
-              {t("room.add_member_dialog_subtitle")}
-            </p>
-          </div>
-          <WorkspacePillButton
-            aria-label={t("common.close")}
-            density="compact"
-            onClick={on_cancel}
-            size="icon"
-            variant="icon"
-          >
-            <X className="h-4 w-4" />
-          </WorkspacePillButton>
-        </div>
+  if (typeof document === "undefined") {
+    return null;
+  }
 
-        <div className="dialog-body">
-          {agents.length === 0 ? (
-            <div className={DIALOG_EMPTY_CLASS_NAME}>
-              {t("room.no_available_members")}
+  return createPortal(
+    <>
+      <div
+        aria-hidden="true"
+        className="dialog-backdrop z-[9998]"
+        onClick={on_cancel}
+      />
+      <div
+        data-modal-root="true"
+        aria-modal="true"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
+        role="dialog"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+      >
+        <div className="dialog-shell radius-shell-lg w-full max-w-lg">
+          <div className="dialog-header">
+            <div className="min-w-0 flex-1">
+              <h3 className="dialog-title">{t("room.add_member_dialog_title")}</h3>
+              <p className="dialog-subtitle">
+                {t("room.add_member_dialog_subtitle")}
+              </p>
             </div>
-          ) : (
-            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-              {agents.map((agent) => (
-                <button
-                  key={agent.agent_id}
-                  className={cn(
-                    "surface-card flex w-full items-center gap-3 rounded-[20px] px-4 py-3 text-left transition-all duration-300 hover:-translate-y-0.5",
-                  )}
-                  onClick={() => on_select(agent.agent_id)}
-                  type="button"
-                >
-                  <div className="chip-default flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-[color:var(--text-strong)]">
-                    {agent.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">
-                      {agent.name}
-                    </p>
-                    <p className="truncate text-[11px] text-[color:var(--text-soft)]">
-                      {t("room.add_member_dialog_hint")}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+            <button
+              aria-label={t("common.close")}
+              className={DIALOG_ICON_BUTTON_CLASS_NAME}
+              onClick={on_cancel}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="dialog-body">
+            {agents.length === 0 ? (
+              <div className={DIALOG_EMPTY_CLASS_NAME}>
+                {t("room.no_available_members")}
+              </div>
+            ) : (
+              <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                {agents.map((agent) => (
+                  <button
+                    key={agent.agent_id}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-[20px] border border-[var(--divider-subtle-color)] px-4 py-3 text-left transition-colors duration-[var(--motion-duration-fast)] hover:bg-[var(--surface-interactive-hover-background)]",
+                    )}
+                    onClick={() => on_select(agent.agent_id)}
+                    type="button"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[11px] font-bold text-[color:var(--text-strong)] shadow-[var(--surface-avatar-shadow)]">
+                      {getIconAvatarSrc(agent.avatar) ? (
+                        <img
+                          alt={agent.name}
+                          className="h-full w-full object-cover"
+                          src={getIconAvatarSrc(agent.avatar) ?? undefined}
+                        />
+                      ) : (
+                        getInitials(agent.name)
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">
+                        {agent.name}
+                      </p>
+                      <p className="truncate text-[11px] text-[color:var(--text-soft)]">
+                        {t("room.add_member_dialog_hint")}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>,
+    document.body,
   );
 }

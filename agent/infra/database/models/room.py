@@ -39,6 +39,7 @@ class Room(TimestampMixin, Base):
     room_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     name: Mapped[str | None] = mapped_column(String(128))
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    avatar: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     members: Mapped[list["Member"]] = relationship(
         back_populates="room",
