@@ -274,7 +274,8 @@ class MainAgentOrchestrationService:
         name: str,
         agent_id: str,
         instruction: str,
-        session_key: str,
+        session_target: AutomationSessionTarget | None = None,
+        session_key: str | None = None,
         schedule_kind: str,
         interval_seconds: int | None = None,
         cron_expression: str | None = None,
@@ -282,14 +283,30 @@ class MainAgentOrchestrationService:
         timezone: str = "Asia/Shanghai",
         enabled: bool = True,
     ) -> dict[str, Any]:
-        """为指定 agent + session 创建定时任务。"""
-        session = await session_store.get_session_info(session_key.strip())
-        # 中文注释：定时任务绑定的是“已有会话”，创建时必须同时校验存在性和归属，
-        # 否则主智能体可能把任务错误地挂到别的 agent 会话上。
-        if session is None:
-            raise ValueError(f"Session not found: {session_key}")
-        if (session.agent_id or "").strip() != agent_id:
-            raise ValueError(f"Session {session_key} does not belong to agent {agent_id}")
+        """为指定 agent 创建定时任务。"""
+        if session_target is not None and session_key is not None:
+            raise ValueError("session_target and session_key cannot be provided together")
+
+        resolved_session_target = session_target
+        if resolved_session_target is None:
+            resolved_session_target = (
+                AutomationSessionTarget(
+                    kind="bound",
+                    bound_session_key=session_key,
+                    wake_mode="next-heartbeat",
+                )
+                if session_key is not None
+                else AutomationSessionTarget()
+            )
+
+        if resolved_session_target.kind == "bound":
+            bound_session_key = resolved_session_target.bound_session_key
+            session = await session_store.get_session_info(bound_session_key)
+            # 中文注释：只有 bound 目标真正依赖现存会话，因此仅在该模式下做存在性与归属校验。
+            if session is None:
+                raise ValueError(f"Session not found: {bound_session_key}")
+            if (session.agent_id or "").strip() != agent_id:
+                raise ValueError(f"Session {bound_session_key} does not belong to agent {agent_id}")
 
         schedule = AutomationCronSchedule(
             kind=schedule_kind,
@@ -303,11 +320,7 @@ class MainAgentOrchestrationService:
             agent_id=agent_id,
             schedule=schedule,
             instruction=instruction,
-            session_target=AutomationSessionTarget(
-                kind="bound",
-                bound_session_key=session_key,
-                wake_mode="next-heartbeat",
-            ),
+            session_target=resolved_session_target,
             delivery=AutomationDeliveryTarget(mode="none"),
             enabled=enabled,
         )

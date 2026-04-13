@@ -125,6 +125,32 @@ class HeartbeatService:
             delivery_error=delivery_error,
         )
 
+    async def update_config(
+        self,
+        *,
+        agent_id: str,
+        enabled: bool,
+        every_seconds: int,
+        target_mode: str,
+        ack_max_chars: int,
+    ) -> HeartbeatStatus:
+        """更新 heartbeat 持久化配置并返回最新状态。"""
+        config = AutomationHeartbeatConfig(
+            agent_id=agent_id,
+            enabled=enabled,
+            every_seconds=every_seconds,
+            target_mode=target_mode,
+            ack_max_chars=ack_max_chars,
+        )
+        await self._state_store.upsert_state(
+            agent_id,
+            enabled=config.enabled,
+            every_seconds=config.every_seconds,
+            target_mode=config.target_mode,
+            ack_max_chars=config.ack_max_chars,
+        )
+        return await self.get_status(agent_id)
+
     async def wake(
         self,
         *,

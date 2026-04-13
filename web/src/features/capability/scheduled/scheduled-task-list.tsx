@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, History, Play, RefreshCw } from "lucide-react";
+import { Clock3, History, Pencil, Play, RefreshCw, Trash2 } from "lucide-react";
 
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/workspace-catalog-card";
@@ -76,10 +76,13 @@ interface ScheduledTaskListProps {
   error_message: string | null;
   run_pending_job_id?: string | null;
   toggle_pending_job_id?: string | null;
+  delete_pending_job_id?: string | null;
   on_create: () => void;
   on_refresh?: () => void | Promise<void>;
   on_run_now?: (task: ScheduledTaskItem) => void | Promise<void>;
   on_toggle_enabled?: (task: ScheduledTaskItem) => void | Promise<void>;
+  on_edit?: (task: ScheduledTaskItem) => void;
+  on_delete?: (task: ScheduledTaskItem) => void | Promise<void>;
   on_open_history?: (task: ScheduledTaskItem) => void;
 }
 
@@ -89,10 +92,13 @@ export function ScheduledTaskList({
   error_message,
   run_pending_job_id = null,
   toggle_pending_job_id = null,
+  delete_pending_job_id = null,
   on_create,
   on_refresh,
   on_run_now,
   on_toggle_enabled,
+  on_edit,
+  on_delete,
   on_open_history,
 }: ScheduledTaskListProps) {
   return (
@@ -106,7 +112,7 @@ export function ScheduledTaskList({
                 调度任务
               </h2>
               <p className="text-xs text-(--text-default)">
-                共 {items.length} 个任务，支持立即执行、启停切换和查看运行记录。
+                共 {items.length} 个任务，支持编辑、删除、立即执行、启停切换和查看运行记录。
               </p>
             </div>
           </div>
@@ -169,6 +175,7 @@ export function ScheduledTaskList({
               const status = get_primary_status(task);
               const run_pending = run_pending_job_id === task.job_id;
               const toggle_pending = toggle_pending_job_id === task.job_id;
+              const delete_pending = delete_pending_job_id === task.job_id;
               return (
                 <article
                   key={task.job_id}
@@ -212,7 +219,14 @@ export function ScheduledTaskList({
 
                     <div className="flex shrink-0 flex-wrap items-center gap-3 lg:justify-end">
                       <WorkspaceCatalogTextAction
-                        disabled={run_pending || task.running}
+                        disabled={delete_pending}
+                        onClick={() => on_edit?.(task)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        编辑
+                      </WorkspaceCatalogTextAction>
+                      <WorkspaceCatalogTextAction
+                        disabled={run_pending || task.running || delete_pending}
                         onClick={() => void on_run_now?.(task)}
                         tone="primary"
                       >
@@ -220,17 +234,26 @@ export function ScheduledTaskList({
                         {run_pending ? "执行中" : "立即运行"}
                       </WorkspaceCatalogTextAction>
                       <WorkspaceCatalogTextAction
-                        disabled={toggle_pending}
+                        disabled={toggle_pending || delete_pending}
                         onClick={() => void on_toggle_enabled?.(task)}
                         tone={task.enabled ? "default" : "primary"}
                       >
                         {toggle_pending ? "处理中" : task.enabled ? "暂停" : "启用"}
                       </WorkspaceCatalogTextAction>
                       <WorkspaceCatalogTextAction
+                        disabled={delete_pending}
                         onClick={() => on_open_history?.(task)}
                       >
                         <History className="h-3.5 w-3.5" />
                         运行历史
+                      </WorkspaceCatalogTextAction>
+                      <WorkspaceCatalogTextAction
+                        disabled={delete_pending}
+                        onClick={() => void on_delete?.(task)}
+                        tone="danger"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {delete_pending ? "删除中" : "删除"}
                       </WorkspaceCatalogTextAction>
                     </div>
                   </div>

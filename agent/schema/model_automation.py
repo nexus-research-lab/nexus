@@ -40,6 +40,30 @@ class AutomationSessionTarget(AModel):
     named_session_key: str | None = None
     wake_mode: AutomationSessionWakeMode = "next-heartbeat"
 
+    @model_validator(mode="after")
+    def validate_shape(self) -> "AutomationSessionTarget":
+        """按会话目标类型约束 key 组合，避免脏数据流入 cron/runtime。"""
+        self.bound_session_key = (self.bound_session_key or "").strip() or None
+        self.named_session_key = (self.named_session_key or "").strip() or None
+
+        if self.kind == "bound":
+            if not self.bound_session_key:
+                raise ValueError("bound_session_key is required when kind is bound")
+            if self.named_session_key is not None:
+                raise ValueError("named_session_key must be empty when kind is bound")
+        elif self.kind == "named":
+            if not self.named_session_key:
+                raise ValueError("named_session_key is required when kind is named")
+            if self.named_session_key.casefold() == "main":
+                raise ValueError("named_session_key 'main' is reserved")
+            if self.bound_session_key is not None:
+                raise ValueError("bound_session_key must be empty when kind is named")
+        elif self.bound_session_key is not None or self.named_session_key is not None:
+            raise ValueError(
+                "bound_session_key and named_session_key must be empty when kind is main or isolated"
+            )
+        return self
+
 
 class AutomationCronSchedule(AModel):
     kind: AutomationCronScheduleKind

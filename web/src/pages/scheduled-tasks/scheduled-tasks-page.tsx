@@ -4,7 +4,7 @@
  * 作为 automation console 编排 heartbeat、任务列表和运行历史弹窗。
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
@@ -12,7 +12,7 @@ import { HeartbeatSettingsCard } from "@/features/capability/scheduled/heartbeat
 import { ScheduledTaskList } from "@/features/capability/scheduled/scheduled-task-list";
 import { ScheduledTaskRunHistoryDialog } from "@/features/capability/scheduled/scheduled-task-run-history-dialog";
 import { useAutomationController } from "@/hooks/use-automation-controller";
-import { runScheduledTaskApi, updateScheduledTaskStatusApi } from "@/lib/scheduled-task-api";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -37,47 +37,47 @@ function notify_scheduled_tasks_mutated(agent_id: string) {
   window.dispatchEvent(new CustomEvent(SCHEDULED_TASKS_MUTATED_EVENT, { detail: { agent_id } }));
 }
 
-async function refresh_tasks_best_effort(
-  automation: ReturnType<typeof useAutomationController>,
-  agent_id: string,
-  success_feedback: Omit<FeedbackState, "tone">,
-  refresh_warning_message: string,
-  set_feedback: (feedback: FeedbackState) => void,
-) {
-  try {
-    await automation.refresh_tasks();
-    notify_scheduled_tasks_mutated(agent_id);
-    set_feedback({ tone: "success", ...success_feedback });
-  } catch (error) {
-    notify_scheduled_tasks_mutated(agent_id);
-    set_feedback({
-      tone: "warning",
-      title: success_feedback.title,
-      message: `${success_feedback.message}；${refresh_warning_message}${error instanceof Error ? `（${error.message}）` : ""}`,
-    });
-  }
-}
-
 export function ScheduledTasksPage() {
   const [is_dialog_open, set_is_dialog_open] = useState(false);
+  const [editing_task, set_editing_task] = useState<ScheduledTaskItem | null>(null);
   const [history_task, set_history_task] = useState<ScheduledTaskItem | null>(null);
   const [feedback, set_feedback] = useState<FeedbackState | null>(null);
   const [wake_pending, set_wake_pending] = useState(false);
   const [run_pending_job_id, set_run_pending_job_id] = useState<string | null>(null);
   const [toggle_pending_job_id, set_toggle_pending_job_id] = useState<string | null>(null);
+  const [delete_pending_job_id, set_delete_pending_job_id] = useState<string | null>(null);
+  const [pending_delete_task, set_pending_delete_task] = useState<ScheduledTaskItem | null>(null);
   const automation = useAutomationController();
 
-  const handle_create_success = (task: ScheduledTaskItem) => {
-    void refresh_tasks_best_effort(
-      automation,
-      task.agent_id,
-      {
-        title: "任务已创建",
-        message: `${task.name} 已加入自动化任务列表`,
-      },
-      "任务列表刷新失败，稍后会自动同步",
-      set_feedback,
-    );
+  useEffect(() => {
+    set_is_dialog_open(false);
+    set_editing_task(null);
+    set_history_task(null);
+    set_pending_delete_task(null);
+    set_run_pending_job_id(null);
+    set_toggle_pending_job_id(null);
+    set_delete_pending_job_id(null);
+  }, [automation.agent_id]);
+
+  const close_dialog = () => {
+    set_is_dialog_open(false);
+    set_editing_task(null);
+  };
+
+  const open_create_dialog = () => {
+    set_editing_task(null);
+    set_is_dialog_open(true);
+  };
+
+  const handle_task_saved = (task: ScheduledTaskItem, mode: "create" | "edit") => {
+    notify_scheduled_tasks_mutated(task.agent_id);
+    set_feedback({
+      tone: "success",
+      title: mode === "create" ? "任务已创建" : "任务已更新",
+      message: mode === "create"
+        ? `${task.name} 已加入自动化任务列表`
+        : `${task.name} 的调度配置已保存`,
+    });
   };
 
   const handle_refresh_all = async () => {
@@ -115,19 +115,15 @@ export function ScheduledTasksPage() {
   const handle_run_now = async (task: ScheduledTaskItem) => {
     set_run_pending_job_id(task.job_id);
     try {
-      const result = await runScheduledTaskApi(task.job_id);
-      await refresh_tasks_best_effort(
-        automation,
-        automation.agent_id,
-        {
-          title: "任务已触发",
-          message: result.status === "queued_to_main_session"
-            ? `${task.name} 已排入主会话执行`
-            : `${task.name} 已开始执行`,
-        },
-        "任务列表刷新失败，运行状态稍后会同步",
-        set_feedback,
-      );
+      const result = await automation.run_task(task);
+      notify_scheduled_tasks_mutated(automation.agent_id);
+      set_feedback({
+        tone: "success",
+        title: "任务已触发",
+        message: result.status === "queued_to_main_session"
+          ? `${task.name} 已排入主会话执行`
+          : `${task.name} 已开始执行`,
+      });
     } catch (error) {
       set_feedback({
         tone: "error",
@@ -142,19 +138,15 @@ export function ScheduledTasksPage() {
   const handle_toggle_enabled = async (task: ScheduledTaskItem) => {
     set_toggle_pending_job_id(task.job_id);
     try {
-      await updateScheduledTaskStatusApi(task.job_id, { enabled: !task.enabled });
-      await refresh_tasks_best_effort(
-        automation,
-        automation.agent_id,
-        {
-          title: task.enabled ? "任务已暂停" : "任务已启用",
-          message: task.enabled
-            ? `${task.name} 不再参与后续调度`
-            : `${task.name} 已恢复自动调度`,
-        },
-        "任务列表刷新失败，状态稍后会同步",
-        set_feedback,
-      );
+      await automation.toggle_task(task);
+      notify_scheduled_tasks_mutated(automation.agent_id);
+      set_feedback({
+        tone: "success",
+        title: task.enabled ? "任务已暂停" : "任务已启用",
+        message: task.enabled
+          ? `${task.name} 不再参与后续调度`
+          : `${task.name} 已恢复自动调度`,
+      });
     } catch (error) {
       set_feedback({
         tone: "error",
@@ -163,6 +155,28 @@ export function ScheduledTasksPage() {
       });
     } finally {
       set_toggle_pending_job_id(null);
+    }
+  };
+
+  const handle_delete_task = async (task: ScheduledTaskItem) => {
+    set_delete_pending_job_id(task.job_id);
+    try {
+      await automation.delete_task(task.job_id);
+      notify_scheduled_tasks_mutated(automation.agent_id);
+      set_feedback({
+        tone: "success",
+        title: "任务已删除",
+        message: `${task.name} 已从自动化任务列表移除`,
+      });
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: "删除失败",
+        message: error instanceof Error ? error.message : "删除任务失败",
+      });
+    } finally {
+      set_delete_pending_job_id(null);
+      set_pending_delete_task(null);
     }
   };
 
@@ -188,7 +202,7 @@ export function ScheduledTasksPage() {
                   <RefreshCw className="h-3.5 w-3.5" />
                   刷新全部
                 </WorkspaceSurfaceToolbarAction>
-                <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
+                <WorkspaceSurfaceToolbarAction onClick={open_create_dialog} tone="primary">
                   <Plus className="h-3.5 w-3.5" />
                   创建任务
                 </WorkspaceSurfaceToolbarAction>
@@ -210,11 +224,17 @@ export function ScheduledTasksPage() {
             error_message={automation.tasks_error}
             is_loading={automation.tasks_loading}
             items={automation.scheduled_tasks}
-            on_create={() => set_is_dialog_open(true)}
+            on_create={open_create_dialog}
+            on_delete={set_pending_delete_task}
+            on_edit={(task) => {
+              set_editing_task(task);
+              set_is_dialog_open(true);
+            }}
             on_open_history={set_history_task}
             on_refresh={() => void automation.refresh_tasks().catch(() => undefined)}
             on_run_now={(task) => void handle_run_now(task)}
             on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
+            delete_pending_job_id={delete_pending_job_id}
             run_pending_job_id={run_pending_job_id}
             toggle_pending_job_id={toggle_pending_job_id}
           />
@@ -224,13 +244,28 @@ export function ScheduledTasksPage() {
       <CreateTaskDialog
         agent_id={automation.agent_id}
         is_open={is_dialog_open}
-        on_close={() => set_is_dialog_open(false)}
-        on_created={(task) => void handle_create_success(task)}
+        on_close={close_dialog}
+        on_create_task={automation.create_task}
+        on_saved={(task, mode) => void handle_task_saved(task, mode)}
+        on_update_task={automation.update_task}
+        task={editing_task}
       />
       <ScheduledTaskRunHistoryDialog
         is_open={history_task !== null}
         on_close={() => set_history_task(null)}
         task={history_task}
+      />
+      <ConfirmDialog
+        confirm_text="删除任务"
+        is_open={pending_delete_task !== null}
+        message={`确认删除任务「${pending_delete_task?.name ?? ""}」吗？此操作不可撤销。`}
+        on_cancel={() => set_pending_delete_task(null)}
+        on_confirm={() => {
+          if (!pending_delete_task) return;
+          void handle_delete_task(pending_delete_task);
+        }}
+        title="删除定时任务"
+        variant="danger"
       />
 
       {feedback ? (

@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 import typer
+from pydantic import ValidationError
 
 from agent.schema.model_main_agent_cli import (
     AddRoomMemberCommand,
@@ -326,7 +327,28 @@ def build_typer_app(
             name: Annotated[str, typer.Option("--name", help="任务名称")],
             agent_id: Annotated[str, typer.Option("--agent-id", "--agent_id", help="目标 agent_id")],
             instruction: Annotated[str, typer.Option("--instruction", help="任务提示词")],
-            session_key: Annotated[str, typer.Option("--session-key", "--session_key", help="绑定执行的 session_key")],
+            session_target_kind: Annotated[str | None, typer.Option(
+                "--session-target-kind",
+                "--session_target_kind",
+                help="会话目标类型 bound / named / main / isolated",
+            )] = None,
+            session_key: Annotated[str | None, typer.Option(
+                "--session-key",
+                "--session_key",
+                help="bound 模式的 session_key",
+            )] = None,
+            named_session_key: Annotated[str | None, typer.Option(
+                "--named-session-key",
+                "--named_session_key",
+                help="named 模式的命名会话 key",
+            )] = None,
+            main: Annotated[bool, typer.Option("--main", help="使用 agent 主会话")] = False,
+            isolated: Annotated[bool, typer.Option("--isolated", help="使用隔离自动化会话")] = False,
+            wake_mode: Annotated[str, typer.Option(
+                "--wake-mode",
+                "--wake_mode",
+                help="main 模式的唤醒方式 now / next-heartbeat",
+            )] = "next-heartbeat",
             schedule_kind: Annotated[str, typer.Option("--schedule-kind", "--schedule_kind", help="every / cron / at")] = "every",
             interval_seconds: Annotated[int | None, typer.Option("--interval-seconds", "--interval_seconds", help="every 模式的秒数")] = None,
             cron_expression: Annotated[str | None, typer.Option("--cron-expression", "--cron_expression", help="cron 表达式")] = None,
@@ -334,24 +356,55 @@ def build_typer_app(
             timezone: Annotated[str, typer.Option("--timezone", help="IANA 时区")] = "Asia/Shanghai",
             enabled: Annotated[bool, typer.Option("--enabled/--disabled", help="创建后是否启用")] = True,
     ) -> None:
-        command = CreateScheduledTaskCommand(
-            name=name,
-            agent_id=agent_id,
-            instruction=instruction,
-            session_key=session_key,
-            schedule_kind=schedule_kind,
-            interval_seconds=interval_seconds,
-            cron_expression=cron_expression,
-            run_at=run_at,
-            timezone=timezone,
-            enabled=enabled,
-        )
+        if sum(bool(value) for value in (session_target_kind, main, isolated)) > 1:
+            raise typer.BadParameter(
+                "session target mode can only be selected once via --session-target-kind, --main, or --isolated"
+            )
+
+        resolved_session_target_kind = "main" if main else "isolated" if isolated else session_target_kind
+        # 中文注释：CLI 需要把互斥参数冲突拦在入口层，避免用户看到底层 Pydantic 校验错误。
+        if session_key is not None and named_session_key is not None:
+            raise typer.BadParameter("--session-key cannot be combined with --named-session-key")
+        if session_key is not None and resolved_session_target_kind in {"main", "isolated", "named"}:
+            raise typer.BadParameter(
+                f"--session-key cannot be combined with --{resolved_session_target_kind}"
+            )
+        if named_session_key is not None and resolved_session_target_kind in {"main", "isolated", "bound"}:
+            raise typer.BadParameter(
+                f"--named-session-key cannot be combined with --{resolved_session_target_kind}"
+            )
+        if resolved_session_target_kind == "bound" and session_key is None:
+            raise typer.BadParameter("--session-key is required when session target is bound")
+        if resolved_session_target_kind == "named" and named_session_key is None:
+            raise typer.BadParameter(
+                "--named-session-key is required when session target is named"
+            )
+
+        try:
+            command = CreateScheduledTaskCommand(
+                name=name,
+                agent_id=agent_id,
+                instruction=instruction,
+                session_target_kind=resolved_session_target_kind,
+                session_key=session_key,
+                named_session_key=named_session_key,
+                wake_mode=wake_mode,
+                schedule_kind=schedule_kind,
+                interval_seconds=interval_seconds,
+                cron_expression=cron_expression,
+                run_at=run_at,
+                timezone=timezone,
+                enabled=enabled,
+            )
+        except ValidationError as exc:
+            first_error = exc.errors()[0]
+            raise typer.BadParameter(str(first_error.get("msg", "invalid scheduled task options"))) from exc
         run_service_call(
             lambda service: service.create_scheduled_task(
                 name=command.name,
                 agent_id=command.agent_id,
                 instruction=command.instruction,
-                session_key=command.session_key,
+                session_target=command.build_session_target(),
                 schedule_kind=command.schedule_kind,
                 interval_seconds=command.interval_seconds,
                 cron_expression=command.cron_expression,

@@ -6,11 +6,14 @@ import pathlib
 import sys
 from types import ModuleType, SimpleNamespace
 
+import pytest
 from typer.testing import CliRunner
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from agent.schema.model_automation import AutomationSessionTarget
 
 
 class FakeScheduledTaskService:
@@ -159,6 +162,67 @@ def test_set_scheduled_task_enabled_delegates_to_capability_service(monkeypatch)
     asyncio.run(scenario())
 
 
+def test_create_scheduled_task_accepts_named_session_target(monkeypatch):
+    async def scenario():
+        module = _load_orchestration_module(monkeypatch)
+        service = module.MainAgentOrchestrationService()
+        fake_scheduled_task_service = FakeScheduledTaskService()
+        monkeypatch.setattr(module, "scheduled_task_service", fake_scheduled_task_service)
+
+        result = await service.create_scheduled_task(
+            name="morning brief",
+            agent_id="research",
+            instruction="summarize updates",
+            session_target=AutomationSessionTarget(
+                kind="named",
+                named_session_key="morning-brief",
+            ),
+            schedule_kind="every",
+            interval_seconds=300,
+        )
+
+        assert result == {"job_id": "job-1"}
+        assert fake_scheduled_task_service.calls[0][0] == "create_task"
+        payload = fake_scheduled_task_service.calls[0][2]["payload"]
+        assert payload.agent_id == "research"
+        assert payload.session_target.kind == "named"
+        assert payload.session_target.named_session_key == "morning-brief"
+        assert payload.session_target.bound_session_key is None
+
+    asyncio.run(scenario())
+
+
+def test_create_scheduled_task_accepts_main_session_target(monkeypatch):
+    async def scenario():
+        module = _load_orchestration_module(monkeypatch)
+        service = module.MainAgentOrchestrationService()
+        fake_scheduled_task_service = FakeScheduledTaskService()
+        monkeypatch.setattr(module, "scheduled_task_service", fake_scheduled_task_service)
+
+        result = await service.create_scheduled_task(
+            name="main follow up",
+            agent_id="research",
+            instruction="follow up in main session",
+            session_target=AutomationSessionTarget(
+                kind="main",
+                wake_mode="now",
+            ),
+            schedule_kind="every",
+            interval_seconds=300,
+        )
+
+        assert result == {"job_id": "job-1"}
+        assert fake_scheduled_task_service.calls[0][0] == "create_task"
+        payload = fake_scheduled_task_service.calls[0][2]["payload"]
+        assert payload.agent_id == "research"
+        assert payload.session_target.kind == "main"
+        assert payload.session_target.wake_mode == "now"
+        assert payload.session_target.bound_session_key is None
+        assert payload.session_target.named_session_key is None
+
+    asyncio.run(scenario())
+
+
 def test_cli_enable_and_disable_scheduled_task_commands_forward_enabled_flag(monkeypatch):
     _prepare_env(monkeypatch)
     for module_name in (
@@ -213,3 +277,92 @@ def test_cli_enable_and_disable_scheduled_task_commands_forward_enabled_flag(mon
     assert enable_result.exit_code == 0
     assert disable_result.exit_code == 0
     assert calls == [("job-1", True), ("job-2", False)]
+
+
+def test_automation_session_target_rejects_reserved_named_session_key():
+    with pytest.raises(ValueError, match="named_session_key 'main' is reserved"):
+        AutomationSessionTarget(kind="named", named_session_key="main")
+
+
+def test_cli_create_scheduled_task_rejects_conflicting_session_target_options(monkeypatch):
+    _prepare_env(monkeypatch)
+    for module_name in (
+        "agent.cli.command",
+        "agent.service.agent.main_agent_profile",
+        "agent.config.config",
+    ):
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    config_module = ModuleType("agent.config.config")
+    config_module.settings = SimpleNamespace(
+        DEFAULT_AGENT_ID="nexus",
+        MAIN_AGENT_NAME="nexus",
+    )
+    monkeypatch.setitem(sys.modules, "agent.config.config", config_module)
+
+    profile_module = ModuleType("agent.service.agent.main_agent_profile")
+
+    class FakeMainAgentProfile:
+        @classmethod
+        def display_name(cls) -> str:
+            return "nexus"
+
+        @classmethod
+        def display_label(cls) -> str:
+            return "Nexus"
+
+    profile_module.MainAgentProfile = FakeMainAgentProfile
+    monkeypatch.setitem(sys.modules, "agent.service.agent.main_agent_profile", profile_module)
+
+    module = importlib.import_module("agent.cli.command")
+
+    def run_service_call(service_call):
+        del service_call
+
+    app = module.build_typer_app(
+        run_service_call=run_service_call,
+        parse_agent_ids=lambda value: value.split(","),
+        configure_output=lambda **_kwargs: None,
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "create_scheduled_task",
+            "--name",
+            "job",
+            "--agent-id",
+            "research",
+            "--instruction",
+            "do work",
+            "--main",
+            "--session-key",
+            "agent:research:ws:dm:room",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "cannot be combined" in result.output
+    assert "ValidationError" not in result.output
+
+    second_result = runner.invoke(
+        app,
+        [
+            "create_scheduled_task",
+            "--name",
+            "job",
+            "--agent-id",
+            "research",
+            "--instruction",
+            "do work",
+            "--session-key",
+            "agent:research:ws:dm:room",
+            "--named-session-key",
+            "nightly",
+        ],
+    )
+
+    assert second_result.exit_code != 0
+    assert "cannot be combined" in second_result.output
+    assert "ValidationError" not in second_result.output
