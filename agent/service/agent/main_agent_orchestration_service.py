@@ -13,10 +13,20 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from agent.schema.model_automation import (
+    AutomationCronJobCreate,
+    AutomationCronSchedule,
+    AutomationDeliveryTarget,
+    AutomationSessionTarget,
+)
 from agent.schema.model_agent import AgentOptions
 from agent.service.agent.agent_service import agent_service
+from agent.service.capability.scheduled.scheduled_task_service import (
+    scheduled_task_service,
+)
 from agent.service.capability.skills.skill_service import skill_service
 from agent.service.room.room_service import room_service
+from agent.service.session.session_store import session_store
 from agent.service.workspace.workspace_service import workspace_service
 
 
@@ -252,6 +262,77 @@ class MainAgentOrchestrationService:
         """为成员卸载技能。"""
         await skill_service.uninstall_skill(agent_id, skill_name)
         return {"success": True, "agent_id": agent_id, "skill_name": skill_name}
+
+    async def list_scheduled_tasks(self, agent_id: str | None = None) -> list[dict[str, Any]]:
+        """列出定时任务。"""
+        tasks = await scheduled_task_service.list_tasks(agent_id=agent_id)
+        return [task.model_dump(mode="json") for task in tasks]
+
+    async def create_scheduled_task(
+        self,
+        *,
+        name: str,
+        agent_id: str,
+        instruction: str,
+        session_key: str,
+        schedule_kind: str,
+        interval_seconds: int | None = None,
+        cron_expression: str | None = None,
+        run_at: str | None = None,
+        timezone: str = "Asia/Shanghai",
+        enabled: bool = True,
+    ) -> dict[str, Any]:
+        """为指定 agent + session 创建定时任务。"""
+        session = await session_store.get_session_info(session_key.strip())
+        # 中文注释：定时任务绑定的是“已有会话”，创建时必须同时校验存在性和归属，
+        # 否则主智能体可能把任务错误地挂到别的 agent 会话上。
+        if session is None:
+            raise ValueError(f"Session not found: {session_key}")
+        if (session.agent_id or "").strip() != agent_id:
+            raise ValueError(f"Session {session_key} does not belong to agent {agent_id}")
+
+        schedule = AutomationCronSchedule(
+            kind=schedule_kind,
+            interval_seconds=interval_seconds,
+            cron_expression=cron_expression,
+            run_at=run_at,
+            timezone=timezone,
+        )
+        payload = AutomationCronJobCreate(
+            name=name,
+            agent_id=agent_id,
+            schedule=schedule,
+            instruction=instruction,
+            session_target=AutomationSessionTarget(
+                kind="bound",
+                bound_session_key=session_key,
+                wake_mode="next-heartbeat",
+            ),
+            delivery=AutomationDeliveryTarget(mode="none"),
+            enabled=enabled,
+        )
+        task = await scheduled_task_service.create_task(payload)
+        return task.model_dump(mode="json")
+
+    async def delete_scheduled_task(self, job_id: str) -> dict[str, Any]:
+        """删除定时任务。"""
+        await scheduled_task_service.delete_task(job_id)
+        return {"success": True, "job_id": job_id}
+
+    async def set_scheduled_task_enabled(self, job_id: str, *, enabled: bool) -> dict[str, Any]:
+        """启用或禁用定时任务。"""
+        task = await scheduled_task_service.set_task_enabled(job_id, enabled=enabled)
+        return task.model_dump(mode="json")
+
+    async def run_scheduled_task(self, job_id: str) -> dict[str, Any]:
+        """立即运行定时任务。"""
+        result = await scheduled_task_service.run_task_now(job_id)
+        return result.model_dump(mode="json")
+
+    async def get_scheduled_task_runs(self, job_id: str) -> list[dict[str, Any]]:
+        """读取定时任务运行记录。"""
+        runs = await scheduled_task_service.list_task_runs(job_id)
+        return [run.model_dump(mode="json") for run in runs]
 
 
 main_agent_orchestration_service = MainAgentOrchestrationService()
