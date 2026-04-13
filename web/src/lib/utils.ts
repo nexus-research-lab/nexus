@@ -119,12 +119,27 @@ export function getInitials(
 }
 
 /**
- * 将头像标识转换为本地 icon 路径。
+ * 将头像标识解析为可直接使用的图片地址。
+ *
+ * 兼容三种输入：
+ * 1. 纯数字 / 约定字符串：映射到本地 `/icon/*.png`
+ * 2. 绝对 URL / data URL / blob URL
+ * 3. 站内绝对路径
  */
 export function getIconAvatarSrc(avatar: string | null | undefined): string | null {
   const normalizedAvatar = avatar?.trim();
   if (!normalizedAvatar) {
     return null;
+  }
+
+  if (
+    normalizedAvatar.startsWith('http://')
+    || normalizedAvatar.startsWith('https://')
+    || normalizedAvatar.startsWith('data:')
+    || normalizedAvatar.startsWith('blob:')
+    || normalizedAvatar.startsWith('/')
+  ) {
+    return normalizedAvatar;
   }
 
   return `/icon/${normalizedAvatar}.png`;

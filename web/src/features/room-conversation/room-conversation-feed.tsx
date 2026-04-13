@@ -17,8 +17,11 @@ interface RoomConversationFeedProps {
   scroll_ref?: RefObject<HTMLDivElement | null>;
   compact?: boolean;
   current_agent_name: string | null;
+  current_agent_avatar?: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
+  /** Room 模式下的 agent_id → avatar 映射（用于多 Agent 显示） */
+  agent_avatar_map?: Record<string, string | null>;
   is_last_round_pending_permissions: PendingPermission[];
   is_loading: boolean;
   runtime_phase?: AgentConversationRuntimePhase | null;
@@ -54,13 +57,30 @@ function resolve_round_agent_name(
   return undefined;
 }
 
+/** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应头像 */
+function resolve_round_agent_avatar(
+  messages: Message[],
+  agent_avatar_map?: Record<string, string | null>,
+): string | null | undefined {
+  if (!agent_avatar_map) {
+    return undefined;
+  }
+  const assistant_msg = messages.find((m) => m.role === "assistant");
+  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
+    return agent_avatar_map[assistant_msg.agent_id];
+  }
+  return undefined;
+}
+
 export const RoomConversationFeed = memo(function RoomConversationFeed({
   bottom_anchor_ref,
   feed_ref,
   scroll_ref,
   compact = false,
   current_agent_name,
+  current_agent_avatar,
   agent_name_map,
+  agent_avatar_map,
   is_last_round_pending_permissions,
   is_loading,
   runtime_phase,
@@ -85,7 +105,9 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         scroll_ref={scroll_ref}
         compact={compact}
         current_agent_name={current_agent_name}
+        current_agent_avatar={current_agent_avatar}
         agent_name_map={agent_name_map}
+        agent_avatar_map={agent_avatar_map}
         is_last_round_pending_permissions={is_last_round_pending_permissions}
         is_loading={is_loading}
         runtime_phase={runtime_phase}
@@ -125,6 +147,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
               pending_permissions={round_pending_permissions}
               pending_slots={round_pending_slots}
               agent_name_map={agent_name_map}
+              agent_avatar_map={agent_avatar_map}
               is_last_round={isLastRound}
               is_loading={is_loading}
               on_permission_response={on_permission_response}
@@ -138,11 +161,13 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
 
         // 纯用户轮次或尚未分配到 Agent 的轮次，沿用 MessageItem。
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
+        const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
         return (
           <MessageItem
             key={roundId}
             compact={compact}
             current_agent_name={round_agent_name}
+            current_agent_avatar={round_agent_avatar}
             round_id={roundId}
             messages={roundMessages}
             is_last_round={isLastRound}
@@ -170,7 +195,9 @@ function VirtualFeed({
   scroll_ref,
   compact,
   current_agent_name,
+  current_agent_avatar,
   agent_name_map,
+  agent_avatar_map,
   is_last_round_pending_permissions,
   is_loading,
   runtime_phase,
@@ -259,6 +286,7 @@ function VirtualFeed({
                   pending_permissions={round_pending_permissions}
                   pending_slots={round_pending_slots}
                   agent_name_map={agent_name_map}
+                  agent_avatar_map={agent_avatar_map}
                   is_last_round={isLastRound}
                   is_loading={is_loading}
                   on_permission_response={on_permission_response}
@@ -271,6 +299,7 @@ function VirtualFeed({
                 <MessageItem
                   compact={compact}
                   current_agent_name={resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name}
+                  current_agent_avatar={resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar}
                   round_id={roundId}
                   messages={roundMessages}
                   is_last_round={isLastRound}

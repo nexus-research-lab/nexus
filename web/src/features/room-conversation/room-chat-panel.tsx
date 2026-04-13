@@ -34,6 +34,7 @@ import { RoomConversationEmptyState } from "./room-conversation-empty-state";
 export interface RoomChatPanelProps {
   agent_id: string | null;
   current_agent_name?: string | null;
+  current_agent_avatar?: string | null;
   /** Room conversation id — used to derive the shared session_key */
   conversation_id: string | null;
   room_id?: string | null;
@@ -82,6 +83,7 @@ function get_thread_pending_permissions(
 export function RoomChatPanel({
   agent_id,
   current_agent_name,
+  current_agent_avatar,
   conversation_id,
   room_id = null,
   room_members,
@@ -121,6 +123,15 @@ export function RoomChatPanel({
     const map: Record<string, string> = {};
     for (const member of room_members) {
       map[member.agent_id] = member.name;
+    }
+    return map;
+  }, [room_members]);
+
+  const agent_avatar_map = useMemo(() => {
+    if (room_members.length === 0) return undefined;
+    const map: Record<string, string | null> = {};
+    for (const member of room_members) {
+      map[member.agent_id] = member.avatar ?? null;
     }
     return map;
   }, [room_members]);
@@ -287,6 +298,9 @@ export function RoomChatPanel({
   const thread_agent_name = active_thread && agent_name_map
     ? agent_name_map[active_thread.agent_id] ?? active_thread.agent_id
     : null;
+  const thread_agent_avatar = active_thread && agent_avatar_map
+    ? agent_avatar_map[active_thread.agent_id] ?? null
+    : null;
   const thread_pending_permissions = useMemo(
     () => active_thread
       ? get_thread_pending_permissions(
@@ -305,6 +319,7 @@ export function RoomChatPanel({
     return {
       messages: thread_messages,
       agent_name: thread_agent_name,
+      agent_avatar: thread_agent_avatar,
       is_loading: thread_is_loading,
       pending_permissions: thread_pending_permissions,
       on_permission_response: send_permission_response,
@@ -319,6 +334,7 @@ export function RoomChatPanel({
     handle_stop_message,
     on_open_workspace_file,
     observer_read_only_reason,
+    thread_agent_avatar,
     send_permission_response,
     thread_agent_name,
     thread_is_loading,
@@ -395,10 +411,12 @@ export function RoomChatPanel({
           >
             <RoomConversationFeed
               agent_name_map={agent_name_map}
+              agent_avatar_map={agent_avatar_map}
               bottom_anchor_ref={bottom_anchor_ref}
               feed_ref={feed_ref}
               scroll_ref={scroll_ref}
               current_agent_name={current_agent_name ?? null}
+              current_agent_avatar={current_agent_avatar ?? null}
               is_last_round_pending_permissions={pending_permissions}
               is_loading={is_loading}
               is_mobile_layout={is_mobile_layout}

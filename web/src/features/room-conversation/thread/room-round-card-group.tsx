@@ -25,6 +25,7 @@ interface RoomRoundCardGroupProps {
   pending_permissions?: PendingPermission[];
   pending_slots?: RoomPendingAgentSlotState[];
   agent_name_map?: Record<string, string>;
+  agent_avatar_map?: Record<string, string | null>;
   is_last_round: boolean;
   is_loading: boolean;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
@@ -36,12 +37,14 @@ interface RoomRoundCardGroupProps {
 
 interface RoomAgentEntry extends RoomAgentRoundEntry {
   agent_name: string;
+  agent_avatar: string | null;
 }
 
 function RoomCompletedReply({
   round_id,
   agent_id,
   agent_name,
+  agent_avatar,
   assistant_messages,
   result_message,
   is_thread_active,
@@ -51,6 +54,7 @@ function RoomCompletedReply({
   round_id: string;
   agent_id: string;
   agent_name: string;
+  agent_avatar: string | null;
   assistant_messages: AssistantMessage[];
   result_message?: ResultMessage;
   is_thread_active: boolean;
@@ -69,6 +73,7 @@ function RoomCompletedReply({
     <div className="border-b border-[var(--divider-subtle-color)]">
       <MessageItem
         current_agent_name={agent_name}
+        current_agent_avatar={agent_avatar}
         round_id={`${round_id}:${agent_id}`}
         messages={messages_for_render}
         assistant_content_mode="room_result"
@@ -108,6 +113,7 @@ function RoomRoundCardGroupInner({
   pending_permissions = [],
   pending_slots = [],
   agent_name_map,
+  agent_avatar_map,
   on_permission_response,
   can_respond_to_permissions = true,
   permission_read_only_reason,
@@ -125,8 +131,9 @@ function RoomRoundCardGroupInner({
     return buildRoomAgentRoundEntries(messages, pending_slots).map((entry) => ({
       ...entry,
       agent_name: agent_name_map?.[entry.agent_id] ?? entry.agent_id,
+      agent_avatar: agent_avatar_map?.[entry.agent_id] ?? null,
     }));
-  }, [agent_name_map, messages, pending_slots]);
+  }, [agent_avatar_map, agent_name_map, messages, pending_slots]);
 
   const completed_entries = useMemo(
     () => agent_entries
@@ -173,6 +180,7 @@ function RoomRoundCardGroupInner({
             round_id={round_id}
             agent_id={entry.agent_id}
             agent_name={entry.agent_name}
+            agent_avatar={entry.agent_avatar}
             assistant_messages={entry.assistant_messages}
             result_message={entry.result_message}
             is_thread_active={is_thread_active}
@@ -197,6 +205,7 @@ function RoomRoundCardGroupInner({
                     <AgentStatusCard
                       agent_id={entry.agent_id}
                       agent_name={entry.agent_name}
+                      agent_avatar={entry.agent_avatar}
                       messages={entry.assistant_messages}
                       result_message={entry.result_message}
                       pending_slot={entry.pending_slot}

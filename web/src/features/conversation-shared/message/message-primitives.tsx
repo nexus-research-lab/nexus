@@ -14,7 +14,7 @@ import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
-import { cn } from "@/lib/utils";
+import { cn, getIconAvatarSrc } from "@/lib/utils";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";
@@ -73,20 +73,44 @@ const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {
 };
 
 export function MessageAvatar({
+  avatar_url,
   children,
   size = "full",
   class_name,
 }: {
-  children: ReactNode;
+  avatar_url?: string | null;
+  children?: ReactNode;
   size?: MessageAvatarSize;
   class_name?: string;
 }) {
+  const resolved_avatar_url = getIconAvatarSrc(avatar_url);
+  const avatar_shell_class_name = cn(
+    "overflow-hidden border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] shadow-[var(--surface-avatar-shadow)]",
+    "transition-[transform,box-shadow,border-color] duration-[var(--motion-duration-fast)] ease-out",
+    "motion-safe:hover:-translate-y-[1px] motion-safe:hover:scale-[1.06]",
+    "motion-safe:hover:border-[var(--surface-interactive-active-border)]",
+    "motion-safe:hover:shadow-[0_10px_22px_rgba(15,23,42,0.14)]",
+    AVATAR_SIZE_CLASS_MAP[size],
+    class_name,
+  );
+
+  if (resolved_avatar_url) {
+    return (
+      <div className={avatar_shell_class_name}>
+        <img
+          src={resolved_avatar_url}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-[var(--motion-duration-fast)] ease-out motion-safe:hover:scale-[1.04]"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        "flex items-center justify-center border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-(--surface-avatar-foreground) shadow-[var(--surface-avatar-shadow)] transition-transform duration-[var(--motion-duration-fast)] hover:scale-110",
-        AVATAR_SIZE_CLASS_MAP[size],
-        class_name,
+        avatar_shell_class_name,
+        "flex items-center justify-center text-(--surface-avatar-foreground)",
       )}
     >
       {children}

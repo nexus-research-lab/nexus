@@ -142,6 +142,7 @@ function RoomWorkspaceLayoutInner({
               conversation_id={conversation_id}
               conversations={current_room_conversations}
               current_agent_name={current_agent.name}
+              current_agent_avatar={current_agent.avatar ?? null}
               is_loading={is_conversation_busy}
               on_change_tab={on_change_surface_tab}
               on_create_conversation={on_create_conversation}
@@ -175,6 +176,7 @@ function RoomWorkspaceLayoutInner({
                 <ChatBoundary>
                   <DmChatPanel
                     current_agent_name={current_agent.name}
+                    current_agent_avatar={current_agent.avatar ?? null}
                     initial_draft={initial_draft}
                     on_initial_draft_consumed={on_initial_draft_consumed}
                     on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -190,6 +192,7 @@ function RoomWorkspaceLayoutInner({
                     agent_id={current_agent.agent_id}
                     conversation_id={conversation_id}
                     current_agent_name={current_agent.name}
+                    current_agent_avatar={current_agent.avatar ?? null}
                     initial_draft={initial_draft}
                     on_initial_draft_consumed={on_initial_draft_consumed}
                     on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -276,6 +279,7 @@ function RoomThreadSidePanel({
         round_id={active_thread.round_id}
         agent_id={active_thread.agent_id}
         agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
+        agent_avatar={thread_panel_data.agent_avatar}
         messages={thread_panel_data.messages}
         pending_permissions={thread_panel_data.pending_permissions}
         on_permission_response={thread_panel_data.on_permission_response}

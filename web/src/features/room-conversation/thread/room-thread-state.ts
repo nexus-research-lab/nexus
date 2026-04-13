@@ -26,6 +26,7 @@ interface OpenThreadOptions {
 export interface ThreadPanelData {
   messages: Message[];
   agent_name: string | null;
+  agent_avatar: string | null;
   is_loading: boolean;
   pending_permissions: PendingPermission[];
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;

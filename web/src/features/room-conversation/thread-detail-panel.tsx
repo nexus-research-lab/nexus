@@ -7,11 +7,13 @@ import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { MessageItem } from "@/features/conversation-shared/message";
+import { MessageAvatar } from "@/features/conversation-shared/message/message-primitives";
 
 interface ThreadDetailPanelProps {
   round_id: string;
   agent_id: string;
   agent_name: string;
+  agent_avatar?: string | null;
   /** 已过滤好的 Thread 消息。 */
   messages: Message[];
   pending_permissions?: PendingPermission[];
@@ -34,6 +36,7 @@ export function ThreadDetailPanel({
   round_id,
   agent_id,
   agent_name,
+  agent_avatar,
   messages,
   pending_permissions = [],
   on_permission_response,
@@ -84,9 +87,9 @@ export function ThreadDetailPanel({
           </button>
         ) : null}
 
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--divider-subtle-color)] text-(--icon-default)">
-          <Bot className="h-3.5 w-3.5" />
-        </div>
+        <MessageAvatar avatar_url={agent_avatar} class_name="h-8 w-8 shrink-0 rounded-xl" size="full">
+          {!agent_avatar && <Bot className="h-3.5 w-3.5" />}
+        </MessageAvatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-(--text-strong)">{agent_name}</p>
           <p className="text-xs text-(--text-soft)">Thread</p>
@@ -119,6 +122,7 @@ export function ThreadDetailPanel({
           <MessageItem
             compact
             current_agent_name={agent_name}
+            current_agent_avatar={agent_avatar ?? null}
             round_id={round_id}
             messages={messages}
             pending_permissions={pending_permissions}

@@ -105,6 +105,7 @@ function getSystemMessageIconClassName(tone: "neutral" | "warning"): string {
 interface MessageItemProps {
   compact?: boolean;
   current_agent_name?: string | null;
+  current_agent_avatar?: string | null;
   round_id: string;
   messages: Message[];
   is_last_round?: boolean;
@@ -132,6 +133,7 @@ function MessageItemInner(
   {
     compact = false,
     current_agent_name,
+    current_agent_avatar,
     round_id,
     messages,
     is_last_round,
@@ -891,7 +893,7 @@ function MessageItemInner(
               "group flex min-w-0 justify-end",
               compact ? "" : "gap-3",
             )}>
-              <div className="relative ml-auto min-w-0 w-full max-w-[min(100%,720px)]">
+              <div className="relative ml-auto min-w-0 max-w-[min(100%,720px)]">
                 {/* 头部 */}
                 <div className={cn(
                   "flex items-center justify-end gap-2",
@@ -931,10 +933,10 @@ function MessageItemInner(
                 </div>
 
                 {/* 内容 */}
-                <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3 max-w-[720px]">
+                <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
                   <p className={cn(
                     "w-full",
-                    "whitespace-pre-wrap text-right text-(--text-strong) wrap-anywhere",
+                    "whitespace-pre-wrap text-left text-(--text-strong) wrap-anywhere",
                     compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
                   )}>
                     {userContent}
@@ -949,14 +951,14 @@ function MessageItemInner(
       {/* ═══════════════════════ 助手消息 ═══════════════════════ */}
       {!shouldHideAssistantContent && (
         <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
-          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
+          <div className={cn("w-full", compact ? "max-w-full" : "max-w-[980px]")}>
             <div className={cn(
               "group grid min-w-0",
               compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
             )}>
               {!compact ? (
-                <MessageAvatar>
-                  <Bot className="h-4 w-4" />
+                <MessageAvatar avatar_url={current_agent_avatar}>
+                  {!current_agent_avatar && <Bot className="h-4 w-4" />}
                 </MessageAvatar>
               ) : null}
 
@@ -967,8 +969,8 @@ function MessageItemInner(
                   compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
                 )}>
                   {compact ? (
-                    <MessageAvatar class_name="shrink-0" size="compact">
-                      <Bot className="h-3 w-3" />
+                    <MessageAvatar class_name="shrink-0" size="compact" avatar_url={current_agent_avatar}>
+                      {!current_agent_avatar && <Bot className="h-3 w-3" />}
                     </MessageAvatar>
                   ) : null}
                   <span className="shrink-0 text-sm font-bold text-(--text-strong)">
@@ -1011,7 +1013,8 @@ function MessageItemInner(
                 <div
                   ref={contentAreaRef}
                   className={cn(
-                    compact ? "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[15px] leading-6" : "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[16px] leading-7",
+                    "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
+                    compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
                   )}
                   style={showCursor ? { minHeight: streamingMinHeight.current } : undefined}
                 >

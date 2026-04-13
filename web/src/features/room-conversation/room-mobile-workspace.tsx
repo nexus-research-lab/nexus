@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, MessageSquare, Search, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, MessageSquare, X } from "lucide-react";
 
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
@@ -55,6 +55,7 @@ export function RoomMobileWorkspace({
 }: RoomMobileWorkspaceProps) {
   const [is_conversation_sheet_open, setIsConversationSheetOpen] = useState(false);
   const is_dm = current_room_type === "dm";
+  const current_agent_avatar_src = getIconAvatarSrc(current_agent.avatar);
 
   const current_room_conversation_title = useMemo(() => {
     if (current_room_conversation?.title?.trim()) {
@@ -80,8 +81,16 @@ export function RoomMobileWorkspace({
             onClick={() => setIsConversationSheetOpen(true)}
             type="button"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--divider-subtle-color)] text-(--text-muted)">
-              <Search className="h-4 w-4" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[11px] font-bold text-(--text-strong) shadow-[var(--surface-avatar-shadow)]">
+              {current_agent_avatar_src ? (
+                <img
+                  alt={current_agent.name}
+                  className="h-full w-full object-cover"
+                  src={current_agent_avatar_src}
+                />
+              ) : (
+                getInitials(current_agent.name, "DM", 2)
+              )}
             </div>
 
             <div className="min-w-0 flex-1">
@@ -104,6 +113,7 @@ export function RoomMobileWorkspace({
         {is_dm ? (
           <DmChatPanel
             current_agent_name={current_agent.name}
+            current_agent_avatar={current_agent.avatar ?? null}
             initial_draft={initial_draft}
             layout="mobile"
             on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -117,6 +127,7 @@ export function RoomMobileWorkspace({
               agent_id={current_agent.agent_id}
               conversation_id={conversation_id}
               current_agent_name={current_agent.name}
+              current_agent_avatar={current_agent.avatar ?? null}
               initial_draft={initial_draft}
               layout="mobile"
               on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -210,6 +221,7 @@ function MobileThreadOverlay() {
         round_id={active_thread.round_id}
         agent_id={active_thread.agent_id}
         agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
+        agent_avatar={thread_panel_data.agent_avatar}
         messages={thread_panel_data.messages}
         pending_permissions={thread_panel_data.pending_permissions}
         on_permission_response={thread_panel_data.on_permission_response}

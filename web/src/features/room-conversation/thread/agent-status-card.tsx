@@ -13,11 +13,13 @@ import {
   AgentRoundStatus,
   extractAgentPreviewText,
 } from "@/features/conversation-shared/utils";
+import { MessageAvatar } from "@/features/conversation-shared/message/message-primitives";
 import { MarkdownRendererContent } from "@/features/conversation-shared/message/markdown-renderer-content";
 
 interface AgentStatusCardProps {
   agent_id: string;
   agent_name: string;
+  agent_avatar?: string | null;
   messages: AssistantMessage[];
   result_message?: ResultMessage;
   pending_slot?: RoomPendingAgentSlotState;
@@ -34,6 +36,7 @@ interface AgentStatusCardProps {
 /** 紧凑型 Agent 状态卡片 — 每个 Agent 在 Round 中的摘要 */
 function AgentStatusCardInner({
   agent_name,
+  agent_avatar,
   messages,
   result_message,
   pending_slot,
@@ -143,9 +146,9 @@ function AgentStatusCardInner({
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") on_click_thread(); }}
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--divider-subtle-color)] bg-[var(--surface-inset-background)] text-(--icon-default)">
-        <Bot className="h-4 w-4" />
-      </div>
+      <MessageAvatar avatar_url={agent_avatar} class_name="shrink-0" size="full">
+        {!agent_avatar && <Bot className="h-4 w-4" />}
+      </MessageAvatar>
 
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">

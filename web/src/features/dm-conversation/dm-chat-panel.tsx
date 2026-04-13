@@ -18,6 +18,7 @@ import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/con
 
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
+  current_agent_avatar?: string | null;
   session_identity: AgentConversationIdentity | null;
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
@@ -30,6 +31,7 @@ export interface DmChatPanelProps {
 
 export function DmChatPanel({
   current_agent_name,
+  current_agent_avatar,
   session_identity,
   layout = "desktop",
   initial_draft = null,
@@ -211,6 +213,7 @@ export function DmChatPanel({
           feed_ref={feed_ref}
           scroll_ref={scroll_ref}
           current_agent_name={current_agent_name ?? null}
+          current_agent_avatar={current_agent_avatar ?? null}
           is_last_round_pending_permissions={pending_permissions}
           is_loading={is_loading}
           is_mobile_layout={is_mobile_layout}

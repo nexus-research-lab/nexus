@@ -9,6 +9,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
+import { getIconAvatarSrc } from "@/lib/utils";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceTaskStrip,
@@ -24,6 +25,7 @@ interface DmConversationHeaderProps {
   conversation_id: string | null;
   conversations: RoomConversationView[];
   current_agent_name: string | null;
+  current_agent_avatar?: string | null;
   is_loading: boolean;
   todos: TodoItem[];
   active_tab: RoomSurfaceTabKey;
@@ -36,6 +38,7 @@ const DmConversationHeaderView = memo(({
   conversation_id,
   conversations,
   current_agent_name,
+  current_agent_avatar,
   is_loading,
   todos,
   active_tab,
@@ -45,6 +48,7 @@ const DmConversationHeaderView = memo(({
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
   const header_title = current_agent_name?.trim() || t("room.untitled_dm");
+  const current_agent_avatar_src = getIconAvatarSrc(current_agent_avatar);
   const dm_tabs: { key: RoomSurfaceTabKey; label: string; icon: typeof MessageSquare }[] = [
     { key: "chat", label: t("room.chat"), icon: MessageSquare },
     { key: "history", label: t("room.history"), icon: History },
@@ -77,7 +81,15 @@ const DmConversationHeaderView = memo(({
       active_tab={active_tab}
       badge="DM"
       density="compact"
-      leading={<Bot size={14} className="text-(--icon-default)" />}
+      leading={current_agent_avatar_src ? (
+        <img
+          alt={header_title}
+          className="h-full w-full rounded-full object-cover"
+          src={current_agent_avatar_src}
+        />
+      ) : (
+        <Bot size={14} className="text-(--icon-default)" />
+      )}
       on_change_tab={on_change_tab}
       tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
       tabs={dm_tabs}
