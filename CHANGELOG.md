@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 重构 `/app` 与 `launcher` 前端视觉骨架：收口 surface recipe、统一目录卡片语法、移除多余玻璃壳与中间 wrapper，整体层级更薄、更接近桌面端结构。
 - Agent Options 全面接入 i18n：导航、标题、身份/设定/技能/工具页文案统一走国际化字典，工具预授权说明补齐中英文描述，并明确默认语言兜底为中文、首次加载优先遵循浏览器语言。
 - 简化 Launcher Hero、右侧 Nexus 信息面板与输入/动作区结构，恢复 `/app` 首页原有 `nexus` ASCII 文字动画入口。
+- 主智能体编排 CLI 的 `create_scheduled_task` 不再局限于绑定已有会话；当前创建入口已对齐为结构化会话目标，支持 `main / bound / named / isolated`，并提供 `--main`、`--isolated`、`--session-key`、`--named-session-key`、可选 `--session-target-kind` 与 `--wake-mode` 参数组合。
+- Heartbeat 后端接口语义补齐为 `GET /agent/v1/automation/heartbeat/{agent_id}` 读取状态、`PUT /agent/v1/automation/heartbeat/{agent_id}` 更新配置、`POST /agent/v1/automation/heartbeat/{agent_id}/wake` 手动唤醒。
+- 定时任务控制台补齐完整操作闭环：支持创建、编辑、删除、立即运行、启停切换、运行历史查看，并在创建/编辑表单中提供真实的 `main / bound / named / isolated` 会话目标选项。
 - 定时任务前后端契约升级为结构化自动化模型：前端不再使用扁平 `cron_expression/source_type` 占位字段，统一改为 `schedule`、`session_target`、`delivery` 结构。
 - 技能市场代码从 `service/workspace/` 迁移至 `service/capability/skills/`，API 从 `api/agent/` 迁移至 `api/capability/`。
 - `SkillCatalog` 改为无状态设计，状态由调用方通过数据库查询后传入。

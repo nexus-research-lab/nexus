@@ -39,6 +39,7 @@
 
 - 表示主智能体可调用的系统级管理动作
 - 当前由 `nexus-manager` skill、Typer CLI 和 `MainAgentOrchestrationService` 共同组成
+- 当前覆盖 agent / room / workspace / skill / automation orchestration，而不是只做成员与房间管理
 - 它服务于组织协作，不是普通房间成员能力
 
 ### 2.5 主智能体入口会话
@@ -264,6 +265,28 @@ agent/service/agent/main_agent_profile.py
 - 追加 / 移除 Room 成员
 - 读写成员 Workspace
 - 安装 / 卸载 Skill
+- 列出 / 创建 / 启停 / 立即运行 / 删除定时任务
+- 读取定时任务运行记录
+
+定时任务创建能力当前已经不是“只能绑定已有会话”的模型，而是统一使用结构化会话目标：
+
+- `main`：投递到目标 Agent 的主会话
+- `bound`：绑定到一个已有 `session_key`
+- `named`：投递到一个稳定的命名会话 key
+- `isolated`：每次执行使用隔离自动化会话
+
+这意味着主智能体编排入口在创建定时任务时，必须按当前实现理解会话目标，而不能再把 scheduled task 默认描述成 bound-only。
+
+Heartbeat 相关能力当前通过后端 automation API 暴露：
+
+- `GET /agent/v1/automation/heartbeat/{agent_id}`：读取状态
+- `PUT /agent/v1/automation/heartbeat/{agent_id}`：更新持久化配置
+- `POST /agent/v1/automation/heartbeat/{agent_id}/wake`：手动触发一次 wake
+
+这里要注意：
+
+- 这组 heartbeat 能力当前是后端 API 语义，不是 main-agent CLI 子命令
+- 文档和交互说明不能把尚不存在的 heartbeat CLI 包装成已支持能力
 
 ## 9. 会话与入口规范
 
@@ -344,6 +367,8 @@ Launcher 推荐列表明确不推荐主智能体：
 - Skill service：`agent/service/capability/skills/skill_service.py`
 - 编排服务：`agent/service/agent/main_agent_orchestration_service.py`
 - CLI：`agent/cli.py`、`agent/cli/command.py`
+- 定时任务 capability API：`agent/api/capability/api_scheduled_task.py`
+- Heartbeat automation API：`agent/api/automation/api_heartbeat.py`
 - Room 边界：`agent/service/room/room_service.py`
 - 首页入口：`web/src/pages/launcher/launcher-page.tsx`
 - 前端运行时配置：`web/src/config/options.ts`

@@ -12,8 +12,14 @@
 from __future__ import annotations
 
 from pydantic import Field
+from pydantic import model_validator
 
 from agent.infra.schemas.model_cython import AModel
+from agent.schema.model_automation import (
+    AutomationSessionTarget,
+    AutomationSessionTargetKind,
+    AutomationSessionWakeMode,
+)
 
 
 class ListAgentsCommand(AModel):
@@ -186,13 +192,49 @@ class CreateScheduledTaskCommand(AModel):
     name: str = Field(..., description="任务名称")
     agent_id: str = Field(..., description="目标 agent_id")
     instruction: str = Field(..., description="任务提示词")
-    session_key: str = Field(..., description="绑定执行的 session_key")
+    session_target_kind: AutomationSessionTargetKind | None = Field(
+        default=None,
+        description="会话目标类型 bound / named / main / isolated",
+    )
+    session_key: str | None = Field(default=None, description="bound 模式的 session_key")
+    named_session_key: str | None = Field(default=None, description="named 模式的命名会话 key")
+    wake_mode: AutomationSessionWakeMode = Field(
+        default="next-heartbeat",
+        description="main 模式的唤醒方式",
+    )
     schedule_kind: str = Field(..., description="调度类型 every / cron / at")
     interval_seconds: int | None = Field(default=None, description="every 模式的秒数")
     cron_expression: str | None = Field(default=None, description="cron 表达式")
     run_at: str | None = Field(default=None, description="单次执行时间")
     timezone: str = Field(default="Asia/Shanghai", description="IANA 时区")
     enabled: bool = Field(default=True, description="创建后是否启用")
+
+    @model_validator(mode="after")
+    def validate_session_target(self) -> "CreateScheduledTaskCommand":
+        """把 CLI 输入统一收敛成 AutomationSessionTarget 语义。"""
+        self.session_key = (self.session_key or "").strip() or None
+        self.named_session_key = (self.named_session_key or "").strip() or None
+
+        if self.session_target_kind is None:
+            if self.session_key is not None and self.named_session_key is not None:
+                raise ValueError("session_key and named_session_key cannot be provided together")
+            if self.named_session_key is not None:
+                self.session_target_kind = "named"
+            elif self.session_key is not None:
+                self.session_target_kind = "bound"
+            else:
+                self.session_target_kind = "isolated"
+
+        self.build_session_target()
+        return self
+
+    def build_session_target(self) -> AutomationSessionTarget:
+        return AutomationSessionTarget(
+            kind=self.session_target_kind or "isolated",
+            bound_session_key=self.session_key,
+            named_session_key=self.named_session_key,
+            wake_mode=self.wake_mode,
+        )
 
 
 class DeleteScheduledTaskCommand(AModel):

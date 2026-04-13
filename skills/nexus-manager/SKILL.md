@@ -232,14 +232,14 @@ python3 "{project_root}/agent/cli.py" list_scheduled_tasks --agent_id "research"
 python3 "{project_root}/agent/cli.py" create_scheduled_task \
   --name "晨间简报" \
   --agent-id "research" \
-  --session-key "agent:research:ws:dm:launcher-app-research" \
+  --main \
   --instruction "整理今天要关注的 3 个重点" \
   --schedule-kind "every" \
   --interval-seconds 86400 \
   --timezone "Asia/Shanghai"
 
 python3 "{project_root}/agent/cli.py" create_scheduled_task \
-  --name "单次提醒" \
+  --name "会话内提醒" \
   --agent-id "research" \
   --session-key "agent:research:ws:dm:launcher-app-research" \
   --instruction "提醒我检查发版状态" \
@@ -250,15 +250,29 @@ python3 "{project_root}/agent/cli.py" create_scheduled_task \
 python3 "{project_root}/agent/cli.py" create_scheduled_task \
   --name "工作日晨报" \
   --agent-id "research" \
-  --session-key "agent:research:ws:dm:launcher-app-research" \
+  --named-session-key "morning-brief" \
   --instruction "输出工作日早间简报" \
   --schedule-kind "cron" \
   --cron-expression "0 8 * * 1-5" \
   --timezone "Asia/Shanghai"
+
+python3 "{project_root}/agent/cli.py" create_scheduled_task \
+  --name "隔离巡检" \
+  --agent-id "research" \
+  --isolated \
+  --instruction "执行一次独立巡检并写出摘要" \
+  --schedule-kind "every" \
+  --interval-seconds 1800 \
+  --timezone "Asia/Shanghai"
 ```
 
-- 现在这条命令统一绑定到一个已有 `session_key` 上执行。
-- 也就是说，主智能体可以先选定“目标智能体”和“目标会话”，再给它创建定时任务。
+- 会话目标支持 4 种：`main`、`bound`、`named`、`isolated`。
+- `--main`：发送到目标 Agent 的主会话；可配 `--wake-mode now|next-heartbeat`。
+- `--session-key <key>`：绑定到一个已有会话；如果只传这个参数，CLI 会自动推断为 `bound`。
+- `--named-session-key <key>`：发送到命名会话；如果只传这个参数，CLI 会自动推断为 `named`，其中 `main` 是保留字，不能作为命名 key。
+- `--isolated`：使用隔离自动化会话；如果不传任何会话目标参数，CLI 默认也是 `isolated`。
+- `--session-target-kind bound|named|main|isolated`：可选显式指定目标类型；通常只在你想把模式表达得更清楚时再传。
+- `--main`、`--isolated`、`--session-target-kind` 互斥；`--session-key` 与 `--named-session-key` 也不能同时传。
 - `schedule-kind` 取值：`every / at / cron`
 - `at` 模式请传未来时间；如果时间早于当前时间，任务不会再触发。
 
@@ -341,6 +355,6 @@ python3 "{project_root}/agent/cli.py" delete_scheduled_task --job-id "job_xxx"
 - 创建多人 Room 时，先向用户确认成员列表，再执行创建。
 - 涉及文件修改时，先读再写；对路径和覆盖范围说清楚。
 - 涉及删除成员、删除房间、删除文件、卸载技能时，默认先确认影响范围。
-- 涉及创建定时任务时，先明确三件事：目标智能体、目标会话、调度规则，再执行命令。
+- 涉及创建定时任务时，先明确三件事：目标智能体、会话目标（`main / bound / named / isolated`）、调度规则，再执行命令。
 - 工具统一返回 JSON：先检查 `ok` 字段，为 `true` 时读 `data`，为 `false` 时读 `error` 并直接告知用户。
 - 工具执行失败时不要假装成功，根据 `error` 内容给出明确反馈。

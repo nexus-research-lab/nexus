@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import pathlib
 import sys
 from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
+
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent.schema.model_automation import (
     AutomationCronJobCreate,
@@ -434,6 +439,104 @@ def test_cron_service_run_now_routes_non_main_targets_through_orchestrator_and_t
         assert isolated_runs[0].attempts == 1
         assert bound_runs[0].status == "succeeded"
         assert named_runs[0].status == "succeeded"
+
+    asyncio.run(scenario())
+
+
+def test_cron_service_run_now_preserves_session_target_semantics():
+    async def scenario():
+        from agent.service.automation.cron.cron_runner import CronRunner
+        from agent.service.automation.cron.cron_service import CronService
+
+        store = FakeCronStore()
+        event_queue = FakeSystemEventQueue()
+        heartbeat_service = FakeHeartbeatService()
+        orchestrator = FakeOrchestrator()
+        runner = CronRunner(
+            store=store,
+            system_event_queue=event_queue,
+            heartbeat_service=heartbeat_service,
+            agent_run_orchestrator=orchestrator,
+            now_fn=lambda: datetime(2026, 4, 10, 1, 20, tzinfo=timezone.utc),
+        )
+        ids = iter(
+            [
+                "job-main",
+                "job-bound",
+                "job-named",
+                "job-isolated",
+                "run-bound",
+                "run-named",
+                "run-isolated",
+            ]
+        )
+        service = CronService(
+            store=store,
+            runner=runner,
+            timer=FakeTimer(),
+            id_factory=lambda: next(ids),
+            now_fn=lambda: datetime(2026, 4, 10, 1, 20, tzinfo=timezone.utc),
+        )
+
+        await service.create_job(
+            AutomationCronJobCreate(
+                name="Main",
+                agent_id="research",
+                schedule=AutomationCronSchedule(kind="every", interval_seconds=60),
+                instruction="main instruction",
+                session_target=AutomationSessionTarget(kind="main", wake_mode="now"),
+            )
+        )
+        await service.create_job(
+            AutomationCronJobCreate(
+                name="Bound",
+                agent_id="research",
+                schedule=AutomationCronSchedule(kind="every", interval_seconds=60),
+                instruction="bound instruction",
+                session_target=AutomationSessionTarget(
+                    kind="bound",
+                    bound_session_key="agent:research:ws:dm:existing-room",
+                ),
+            )
+        )
+        await service.create_job(
+            AutomationCronJobCreate(
+                name="Named",
+                agent_id="research",
+                schedule=AutomationCronSchedule(kind="every", interval_seconds=60),
+                instruction="named instruction",
+                session_target=AutomationSessionTarget(
+                    kind="named",
+                    named_session_key="morning-brief",
+                ),
+            )
+        )
+        await service.create_job(
+            AutomationCronJobCreate(
+                name="Isolated",
+                agent_id="research",
+                schedule=AutomationCronSchedule(kind="every", interval_seconds=60),
+                instruction="isolated instruction",
+            )
+        )
+
+        main_result = await service.run_now("job-main")
+        bound_result = await service.run_now("job-bound")
+        named_result = await service.run_now("job-named")
+        isolated_result = await service.run_now("job-isolated")
+
+        assert main_result.status == "queued_to_main_session"
+        assert main_result.run_id is None
+        assert main_result.session_key == "agent:research:automation:dm:main"
+        assert bound_result.session_key == "agent:research:ws:dm:existing-room"
+        assert named_result.session_key == "agent:research:automation:dm:morning-brief"
+        assert isolated_result.session_key.startswith("agent:research:automation:dm:cron:")
+        assert event_queue.calls[0]["payload"]["text"] == "main instruction"
+        assert [ctx.session_key for ctx in orchestrator.calls] == [
+            "agent:research:ws:dm:existing-room",
+            "agent:research:automation:dm:morning-brief",
+            isolated_result.session_key,
+        ]
 
     asyncio.run(scenario())
 

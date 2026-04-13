@@ -177,6 +177,7 @@ uv.toml
 
 # tracked protocol specs / frontend protocol helpers
 !docs/
+docs/superpowers/
 docs/ui
 docs/system
 
