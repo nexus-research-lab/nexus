@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agent.schema.model_agent import AAgent, AgentOptions
+from agent.schema.model_provider_config import ProviderRuntimeConfig
 from agent.service.agent.agent_manager import AgentManager
 
 
@@ -14,6 +15,16 @@ class _FakeWorkspace:
 
     def read_file(self, _name: str) -> str:
         return ""
+
+
+async def _fake_runtime_config(_provider: str | None) -> ProviderRuntimeConfig:
+    return ProviderRuntimeConfig(
+        provider="test-provider",
+        display_name="Test Provider",
+        auth_token="test-token",
+        base_url="https://example.invalid/v1",
+        model="test-model",
+    )
 
 
 def test_build_sdk_options_keeps_empty_allowed_tools(monkeypatch):
@@ -40,6 +51,10 @@ def test_build_sdk_options_keeps_empty_allowed_tools(monkeypatch):
         )
         monkeypatch.setattr(manager._workspace_registry, "get_agent_workspace", fake_get_workspace)
         monkeypatch.setattr(manager, "_load_connector_mcp_servers", fake_load_connector_mcp_servers)
+        monkeypatch.setattr(
+            "agent.service.agent.agent_manager.provider_config_service.resolve_runtime_config",
+            _fake_runtime_config,
+        )
 
         options = await manager.build_sdk_options("agent-1")
 
@@ -72,6 +87,10 @@ def test_build_sdk_options_backfills_default_tools_when_missing(monkeypatch):
         )
         monkeypatch.setattr(manager._workspace_registry, "get_agent_workspace", fake_get_workspace)
         monkeypatch.setattr(manager, "_load_connector_mcp_servers", fake_load_connector_mcp_servers)
+        monkeypatch.setattr(
+            "agent.service.agent.agent_manager.provider_config_service.resolve_runtime_config",
+            _fake_runtime_config,
+        )
 
         options = await manager.build_sdk_options("agent-1")
 
