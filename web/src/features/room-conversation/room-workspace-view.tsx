@@ -1,13 +1,15 @@
 "use client";
 
-import { ChevronRight, File, FileCode, FileText, Folder, FolderOpen, FolderTree } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { ChevronRight, File, FileCode, FileText, Folder, FolderOpen, FolderTree, Image, FileArchive, FileSpreadsheet, FileType2, FileJson, FileCode2, Upload, LoaderCircle, FolderUp } from "lucide-react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
+import { WorkspaceSurfaceHeader, WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { cn } from "@/lib/utils";
+import { uploadWorkspaceFileApi } from "@/lib/agent-manage-api";
 
 interface RoomWorkspaceViewProps {
   active_workspace_path: string | null;
@@ -22,8 +24,28 @@ interface RoomWorkspaceViewProps {
 function getFileIcon(name: string) {
   const ext = name.split(".").pop()?.toLowerCase();
   if (!ext) return FileText;
-  if (["ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "c", "cpp", "h"].includes(ext)) return FileCode;
-  if (["md", "txt", "log", "json", "yaml", "yml", "toml", "xml", "csv"].includes(ext)) return FileText;
+
+  // 图片文件
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"].includes(ext)) return Image;
+
+  // 压缩文件
+  if (["zip", "tar", "gz", "rar", "7z", "bz2", "xz"].includes(ext)) return FileArchive;
+
+  // 表格文件
+  if (["xlsx", "xls", "csv", "ods"].includes(ext)) return FileSpreadsheet;
+
+  // JSON/YAML 配置文件
+  if (["json", "jsonl"].includes(ext)) return FileJson;
+
+  // 代码文件
+  if (["ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "go", "rs", "java", "c", "cpp", "h", "hpp", "cs", "swift", "kt", "dart", "php", "rb", "sh", "bash", "zsh", "sql", "r", "scala", "groovy", "lua", "pl", "perl"].includes(ext)) return FileCode2;
+
+  // 文本文件
+  if (["md", "markdown", "txt", "log", "yaml", "yml", "toml", "ini", "conf", "env", "xml", "html", "css", "scss", "less", "sass", "styl", "graphql", "proto", "dockerfile", "makefile", "cmake", "gradle", "pom", "manifest"].includes(ext)) return FileText;
+
+  // 文档文件
+  if (["pdf", "doc", "docx", "ppt", "pptx", "odt", "rtf"].includes(ext)) return FileType2;
+
   return File;
 }
 
@@ -186,7 +208,10 @@ export function RoomWorkspaceView({
 }: RoomWorkspaceViewProps) {
   const { t } = useI18n();
   const [selected_agent_id, set_selected_agent_id] = useState(agent_id);
+  const [is_uploading, setIsUploading] = useState(false);
+  const file_input_ref = useRef<HTMLInputElement>(null);
   const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
+  const refresh_files = useWorkspaceFilesStore((state) => state.refresh_files);
 
   const view_agent_id = is_dm ? agent_id : selected_agent_id;
   const tree = useMemo(() => {
@@ -199,8 +224,73 @@ export function RoomWorkspaceView({
     [on_open_workspace_file],
   );
 
+  const handle_upload_click = useCallback(() => {
+    file_input_ref.current?.click();
+  }, []);
+
+  const handle_file_select = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        await uploadWorkspaceFileApi(view_agent_id, file);
+      }
+      // 刷新文件列表
+      await refresh_files(view_agent_id);
+    } catch (error) {
+      console.error("上传文件失败:", error);
+      alert(error instanceof Error ? error.message : "上传文件失败");
+    } finally {
+      setIsUploading(false);
+      if (file_input_ref.current) {
+        file_input_ref.current.value = "";
+      }
+    }
+  }, [view_agent_id, refresh_files]);
+
+  const upload_button = (
+    <>
+      <input
+        ref={file_input_ref}
+        type="file"
+        className="hidden"
+        multiple
+        onChange={handle_file_select}
+      />
+      <WorkspaceSurfaceToolbarAction
+        onClick={handle_upload_click}
+        disabled={is_uploading}
+      >
+        {is_uploading ? (
+          <>
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            <span>上传中...</span>
+          </>
+        ) : (
+          <>
+            <FolderUp className="h-3.5 w-3.5" />
+            <span>上传文件</span>
+          </>
+        )}
+      </WorkspaceSurfaceToolbarAction>
+    </>
+  );
+
   return (
-    <WorkspaceSurfaceView eyebrow={t("room.workspace")} title={t("room.workspace_title")}>
+    <WorkspaceSurfaceScaffold
+      header={(
+        <WorkspaceSurfaceHeader
+          density="compact"
+          leading={<FolderTree className="h-4 w-4" />}
+          title={t("room.workspace_title")}
+          trailing={upload_button}
+        />
+      )}
+      body_scrollable
+      stable_gutter
+    >
       {!is_dm && room_members.length > 1 && (
         <MemberSwitcher
           members={room_members}
@@ -244,6 +334,6 @@ export function RoomWorkspaceView({
             : t("room.no_files_room_hint")}
         </div>
       )}
-    </WorkspaceSurfaceView>
+    </WorkspaceSurfaceScaffold>
   );
 }

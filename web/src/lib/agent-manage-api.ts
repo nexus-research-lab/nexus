@@ -183,3 +183,25 @@ export const getAgentCostSummaryApi = async (agent_id: string): Promise<AgentCos
         method: 'GET',
     });
 };
+
+/** 上传文件到 workspace */
+export const uploadWorkspaceFileApi = async (
+    agent_id: string,
+    file: File,
+    path?: string
+): Promise<{ path: string; name: string; size: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (path) {
+        formData.append('path', path);
+    }
+
+    const result = await request_api<{ path: string; name: string; size: number }>(
+        `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/upload`,
+        {
+            method: 'POST',
+            body: formData,
+        }
+    );
+    return result;
+};

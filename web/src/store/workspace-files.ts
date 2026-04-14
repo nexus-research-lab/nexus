@@ -9,15 +9,17 @@
 
 import { create } from 'zustand';
 
+import { getWorkspaceFilesApi } from '@/lib/agent-manage-api';
 import { WorkspaceFileEntry } from '@/types/agent';
 
 interface WorkspaceFilesStoreState {
   files_by_agent: Record<string, WorkspaceFileEntry[]>;
   set_files: (agent_id: string, files: WorkspaceFileEntry[]) => void;
   clear_agent: (agent_id: string) => void;
+  refresh_files: (agent_id: string) => Promise<void>;
 }
 
-export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) => ({
+export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set, get) => ({
   files_by_agent: {},
 
   set_files: (agent_id, files) => {
@@ -35,5 +37,19 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
       delete next[agent_id];
       return { files_by_agent: next };
     });
+  },
+
+  refresh_files: async (agent_id) => {
+    try {
+      const files = await getWorkspaceFilesApi(agent_id);
+      set((state) => ({
+        files_by_agent: {
+          ...state.files_by_agent,
+          [agent_id]: files,
+        },
+      }));
+    } catch (error) {
+      console.error('刷新 workspace 文件失败:', error);
+    }
   },
 }));

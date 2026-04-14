@@ -9,12 +9,13 @@
 
 """Agent Workspace 文件操作 API。"""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from agent.schema.model_agent import (
     CreateWorkspaceEntryRequest,
     RenameWorkspaceEntryRequest,
     UpdateWorkspaceFileRequest,
+    UploadWorkspaceFileResponse,
     WorkspaceEntryMutationResponse,
     WorkspaceEntryRenameResponse,
     WorkspaceFileContentResponse,
@@ -124,3 +125,19 @@ async def delete_workspace_entry(agent_id: str, path: str):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return resp.ok(resp.Resp(data=WorkspaceEntryMutationResponse(path=deleted_path).model_dump()))
+
+
+@router.post("/agents/{agent_id}/workspace/upload", response_model=UploadWorkspaceFileResponse)
+async def upload_workspace_file(
+    agent_id: str,
+    file: UploadFile = File(..., description="上传的文件"),
+    path: str = Form(default=None, description="目标路径（可选，默认为文件名）"),
+):
+    """上传文件到 Agent workspace。"""
+    try:
+        result = await workspace_service.upload_file(agent_id, file, path)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data=result.model_dump()))
