@@ -39,6 +39,7 @@ class SkillCliRunner:
 
     def run_skills_cli_add(self, workdir: Path, package_spec: str, skill_slug: str) -> None:
         self._ensure_npm_tools()
+        normalized_spec = self._normalize_package_spec(package_spec)
         init_cmd = ["npm", "init", "-y"]
         init_result = subprocess.run(
             init_cmd,
@@ -52,7 +53,7 @@ class SkillCliRunner:
             raise ValueError(self._build_error("npm 初始化失败", init_cmd, init_result))
 
         command = [
-            "npx", "-y", "skills", "add", package_spec,
+            "npx", "-y", "skills", "add", normalized_spec,
             "--skill", skill_slug, "-y", "--copy",
         ]
         result = subprocess.run(
@@ -107,6 +108,19 @@ class SkillCliRunner:
     def _ensure_npm_tools() -> None:
         if not shutil.which("npm") or not shutil.which("npx"):
             raise ValueError("缺少 npm/npx，无法使用 skills.sh 导入")
+
+    @staticmethod
+    def _normalize_package_spec(package_spec: str) -> str:
+        """把无协议的域名源转换为 https 形式，避免 git clone 失败。"""
+        spec = (package_spec or "").strip()
+        if not spec:
+            return spec
+        if "://" in spec:
+            return spec
+        # 形如 skills.volces.com 或 skills.sh/path
+        if re.match(r"^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}(/|$)", spec):
+            return f"https://{spec}"
+        return spec
 
     @staticmethod
     def _build_error(title: str, command: list[str], result: subprocess.CompletedProcess[str]) -> str:
