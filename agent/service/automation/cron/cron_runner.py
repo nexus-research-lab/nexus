@@ -155,8 +155,10 @@ class CronRunner:
                     delivery_mode=job.delivery_mode,
                     metadata={
                         "job_id": job.job_id,
+                        "job_name": getattr(job, "name", ""),
                         "run_id": run_id,
                         "trigger_kind": trigger_kind,
+                        "scheduled_for": scheduled_for.isoformat() if scheduled_for else None,
                     },
                 )
             )
