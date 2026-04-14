@@ -43,7 +43,6 @@ services:
       context: ..
       dockerfile: web/Dockerfile
       args:
-        APK_MIRROR: ${APK_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/alpine}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         VITE_WS_URL: ${VITE_WS_URL:-}
         VITE_API_URL: ${VITE_API_URL:-}
