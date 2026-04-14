@@ -277,6 +277,18 @@ agent/service/agent/main_agent_profile.py
 
 这意味着主智能体编排入口在创建定时任务时，必须按当前实现理解会话目标，而不能再把 scheduled task 默认描述成 bound-only。
 
+当前还有两个容易误解的点，需要在主智能体技能和交互里明确说明：
+
+- 现有 CLI `create_scheduled_task` 只暴露 `session_target` 与 `schedule`，创建时固定使用 `delivery=none`；也就是说，CLI 侧没有“结果回传到当前会话 / 指定会话”的参数。
+- Web 控制台比 CLI 多一层“结果回传”配置。当前前端默认规则是：
+  - `existing + execution`：结果回到当前执行会话
+  - `temporary + execution`：Agent 模式下不额外回传；结果保留在临时会话
+  - `dedicated + execution`：结果回到专用长期会话
+  - `selected`：结果回到用户指定的会话
+  - `none`：不额外回传
+
+因此，“创建定时任务后默认回当前 session”并不是全局成立的规则，只在 Web 控制台的 `existing + execution` 组合下成立。
+
 Heartbeat 相关能力当前通过后端 automation API 暴露：
 
 - `GET /agent/v1/automation/heartbeat/{agent_id}`：读取状态
