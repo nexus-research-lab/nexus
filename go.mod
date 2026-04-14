@@ -9,7 +9,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/mattn/go-sqlite3 v1.14.32
-	github.com/nexus-research-lab/nexus-agent-sdk-go v0.0.0
+	github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.0
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.1
@@ -31,5 +31,3 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 )
-
-replace github.com/nexus-research-lab/nexus-agent-sdk-go => /Users/leemysw/Projects/nexus-agent-sdk/nexus-agent-sdk-go

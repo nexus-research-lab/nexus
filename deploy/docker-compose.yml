@@ -51,7 +51,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         VITE_WS_URL: ${VITE_WS_URL:-}
         VITE_API_URL: ${VITE_API_URL:-}
-        VITE_DEFAULT_MODEL: ${VITE_DEFAULT_MODEL:-glm-5}
+        VITE_DEFAULT_MODEL: ${VITE_DEFAULT_MODEL:-glm-5.1}
     image: ${IMAGE:-nexus}:web-${TAG:-latest}
     restart: unless-stopped
     environment:

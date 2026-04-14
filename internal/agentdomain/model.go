@@ -32,6 +32,7 @@ type Agent struct {
 	Avatar        string    `json:"avatar,omitempty"`
 	Description   string    `json:"description,omitempty"`
 	VibeTags      []string  `json:"vibe_tags,omitempty"`
+	SkillsCount   int       `json:"skills_count"`
 }
 
 // CreateRequest 表示创建 Agent 请求。

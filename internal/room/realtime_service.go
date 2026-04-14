@@ -542,9 +542,10 @@ func (s *RealtimeService) runSlot(
 		CausedBy:           slot.AgentRoundID,
 	})
 
+	// 中文注释：当前 Go SDK 链路先与 Python 主线对齐，暂不透传 model，
+	// 避免向底层 CLI 传入尚未稳定支持的选项。
 	client := s.factory.New(agentclient.Options{
 		CWD:             agentValue.WorkspacePath,
-		Model:           firstNonEmpty(agentValue.Options.Model, s.config.MainAgentModel),
 		PermissionMode:  sdkprotocol.PermissionMode(agentValue.Options.PermissionMode),
 		AllowedTools:    append([]string(nil), agentValue.Options.AllowedTools...),
 		DisallowedTools: append([]string(nil), agentValue.Options.DisallowedTools...),

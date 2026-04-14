@@ -250,9 +250,10 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
+	// 中文注释：当前 Go SDK 链路先与 Python 主线对齐，暂不透传 model，
+	// 避免向底层 CLI 传入尚未稳定支持的选项。
 	client := s.runtime.GetOrCreate(sessionKey, agentclient.Options{
 		CWD:               agentValue.WorkspacePath,
-		Model:             firstNonEmpty(agentValue.Options.Model, s.config.MainAgentModel),
 		PermissionMode:    permissionMode,
 		AllowedTools:      append([]string(nil), agentValue.Options.AllowedTools...),
 		DisallowedTools:   append([]string(nil), agentValue.Options.DisallowedTools...),

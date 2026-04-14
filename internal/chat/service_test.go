@@ -74,11 +74,25 @@ func (c *fakeChatClient) SetPermissionMode(context.Context, sdkprotocol.Permissi
 func (c *fakeChatClient) SessionID() string { return c.sessionID }
 
 type fakeChatFactory struct {
-	client *fakeChatClient
+	mu      sync.Mutex
+	client  *fakeChatClient
+	options []agentclient.Options
 }
 
-func (f fakeChatFactory) New(_ agentclient.Options) runtimectx.Client {
+func (f *fakeChatFactory) New(options agentclient.Options) runtimectx.Client {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.options = append(f.options, options)
 	return f.client
+}
+
+func (f *fakeChatFactory) LastOptions() agentclient.Options {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.options) == 0 {
+		return agentclient.Options{}
+	}
+	return f.options[len(f.options)-1]
 }
 
 type chatTestSender struct {
@@ -120,7 +134,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 						ID:    "assistant-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							sdkprotocol.TextBlock{Text: "你好，世界"},
+							{Type: "text", Text: "你好，世界"},
 						},
 					},
 				},
@@ -144,7 +158,8 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		}()
 	}
 
-	runtimeManager := runtimectx.NewManagerWithFactory(fakeChatFactory{client: client})
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newChatTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-chat"
@@ -184,6 +199,58 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatDoesNotForwardModelOption(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	cfg.MainAgentModel = "glm-5.1"
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService, err := agentsvc.NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-no-model",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-no-model")
+	sessionKey := "agent:nexus:ws:dm:no-model"
+	permission.BindSession(sessionKey, sender, "client-no-model", true)
+
+	if err = service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 model 透传",
+		RoundID:    "round-no-model",
+		ReqID:      "round-no-model",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	if options := factory.LastOptions(); options.Model != "" {
+		t.Fatalf("runtime 不应向 SDK 透传 model: %+v", options)
+	}
+}
+
 func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
@@ -198,7 +265,8 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 		<-ctx.Done()
 	}
 
-	runtimeManager := runtimectx.NewManagerWithFactory(fakeChatFactory{client: client})
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newChatTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt"
@@ -257,7 +325,8 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 		}()
 	}
 
-	runtimeManager := runtimectx.NewManagerWithFactory(fakeChatFactory{client: client})
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newChatTestSender("sender-structured")
 	sessionKey := "agent:nexus:tg:group:-100123456:topic:12"

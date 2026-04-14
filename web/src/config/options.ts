@@ -8,7 +8,7 @@
 import { request_api } from "@/lib/http";
 
 export const initialOptions = {
-  model: import.meta.env.VITE_DEFAULT_MODEL || 'glm-5',
+  model: import.meta.env.VITE_DEFAULT_MODEL || 'glm-5.1',
   permissionMode: 'default',
 }
 

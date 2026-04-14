@@ -237,66 +237,35 @@ func (m *slotMessageMapper) wrapEvent(eventType protocol.EventType, data map[str
 func normalizeRoomConversationContent(blocks []sdkprotocol.ContentBlock) []map[string]any {
 	result := make([]map[string]any, 0, len(blocks))
 	for _, block := range blocks {
-		if block == nil {
-			continue
+		payload := make(map[string]any, len(block.Additional))
+		for key, value := range block.Additional {
+			payload[key] = value
 		}
-		payload := block.RawPayload()
 		if len(payload) == 0 {
-			payload = map[string]any{
-				"type": string(block.Type()),
-			}
+			payload = map[string]any{}
 		}
-		switch typed := block.(type) {
-		case sdkprotocol.TextBlock:
-			payload["type"] = string(typed.Type())
-			payload["text"] = typed.Text
-		case *sdkprotocol.TextBlock:
-			payload["type"] = string(typed.Type())
-			payload["text"] = typed.Text
-		case sdkprotocol.ThinkingBlock:
-			payload["type"] = string(typed.Type())
-			payload["thinking"] = typed.Thinking
-			if strings.TrimSpace(typed.Signature) != "" {
-				payload["signature"] = typed.Signature
+		payload["type"] = block.Type
+		switch block.Type {
+		case "text":
+			payload["text"] = block.Text
+		case "thinking":
+			payload["thinking"] = block.Thinking
+			if strings.TrimSpace(block.Signature) != "" {
+				payload["signature"] = block.Signature
 			}
-		case *sdkprotocol.ThinkingBlock:
-			payload["type"] = string(typed.Type())
-			payload["thinking"] = typed.Thinking
-			if strings.TrimSpace(typed.Signature) != "" {
-				payload["signature"] = typed.Signature
+		case "tool_use":
+			payload["id"] = block.ID
+			payload["name"] = block.Name
+			payload["input"] = firstNonNilMap(block.Input, map[string]any{})
+		case "tool_result":
+			payload["tool_use_id"] = block.ToolUseID
+			if block.Content != nil {
+				payload["content"] = block.Content
 			}
-		case sdkprotocol.ToolUseBlock:
-			payload["type"] = string(typed.Type())
-			payload["id"] = typed.ID
-			payload["name"] = typed.Name
-			payload["input"] = firstNonNilMap(typed.InputMap(), map[string]any{})
-		case *sdkprotocol.ToolUseBlock:
-			payload["type"] = string(typed.Type())
-			payload["id"] = typed.ID
-			payload["name"] = typed.Name
-			payload["input"] = firstNonNilMap(typed.InputMap(), map[string]any{})
-		case sdkprotocol.ToolResultBlock:
-			payload["type"] = string(typed.Type())
-			payload["tool_use_id"] = typed.ToolUseID
-			if value, ok := typed.ContentString(); ok {
-				payload["content"] = value
+			payload["is_error"] = block.IsError
+			if strings.TrimSpace(block.MimeType) != "" {
+				payload["mime_type"] = block.MimeType
 			}
-			payload["is_error"] = typed.IsError
-			if strings.TrimSpace(typed.MimeType) != "" {
-				payload["mime_type"] = typed.MimeType
-			}
-		case *sdkprotocol.ToolResultBlock:
-			payload["type"] = string(typed.Type())
-			payload["tool_use_id"] = typed.ToolUseID
-			if value, ok := typed.ContentString(); ok {
-				payload["content"] = value
-			}
-			payload["is_error"] = typed.IsError
-			if strings.TrimSpace(typed.MimeType) != "" {
-				payload["mime_type"] = typed.MimeType
-			}
-		default:
-			payload["type"] = string(block.Type())
 		}
 		result = append(result, payload)
 	}

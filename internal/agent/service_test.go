@@ -63,6 +63,20 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if _, err = os.Stat(created.WorkspacePath); err != nil {
 		t.Fatalf("workspace 目录未创建: %v", err)
 	}
+	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
+		t.Fatalf("创建测试 skill-a 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-b"), 0o755); err != nil {
+		t.Fatalf("创建测试 skill-b 失败: %v", err)
+	}
+
+	loaded, err := service.GetAgent(ctx, created.AgentID)
+	if err != nil {
+		t.Fatalf("读取 agent 失败: %v", err)
+	}
+	if loaded.SkillsCount != 2 {
+		t.Fatalf("skills_count 不正确: got=%d want=2", loaded.SkillsCount)
+	}
 
 	items, err = service.ListAgents(ctx)
 	if err != nil {
@@ -70,6 +84,11 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 	if len(items) != 2 {
 		t.Fatalf("agent 数量不正确: got=%d want=2", len(items))
+	}
+	for _, item := range items {
+		if item.AgentID == created.AgentID && item.SkillsCount != 2 {
+			t.Fatalf("list_agents skills_count 不正确: got=%d want=2", item.SkillsCount)
+		}
 	}
 
 	validation, err = service.ValidateName(ctx, "测试助手", "")

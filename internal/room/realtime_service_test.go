@@ -70,17 +70,28 @@ type fakeRoomFactory struct {
 	mu      sync.Mutex
 	clients []*fakeRoomClient
 	index   int
+	options []agentclient.Options
 }
 
-func (f *fakeRoomFactory) New(_ agentclient.Options) runtimectx.Client {
+func (f *fakeRoomFactory) New(options agentclient.Options) runtimectx.Client {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.options = append(f.options, options)
 	if f.index >= len(f.clients) {
 		return newFakeRoomClient()
 	}
 	client := f.clients[f.index]
 	f.index++
 	return client
+}
+
+func (f *fakeRoomFactory) LastOptions() agentclient.Options {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.options) == 0 {
+		return agentclient.Options{}
+	}
+	return f.options[len(f.options)-1]
 }
 
 type realtimeTestSender struct {
@@ -133,7 +144,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 						ID:    "assistant-sdk-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							sdkprotocol.TextBlock{Text: "已收到，正在处理。"},
+							{Type: "text", Text: "已收到，正在处理。"},
 						},
 					},
 				},
@@ -160,13 +171,14 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
 	service := NewRealtimeServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
 		runtimeManager,
 		permission,
-		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+		factory,
 	)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
@@ -257,6 +269,81 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 	if costSummary.TotalOutputTokens != 5 {
 		t.Fatalf("输出 token 统计不正确: %+v", costSummary)
+	}
+}
+
+func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	cfg.MainAgentModel = "glm-5.1"
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, err := agentsvc.NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService, err := NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "透传测试助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "room-result-no-model",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		factory,
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-no-model")
+	permission.BindSession(sharedSessionKey, sender, "client-no-model", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         dmContext.Room.ID,
+		ConversationID: dmContext.Conversation.ID,
+		Content:        "测试 room model 透传",
+		RoundID:        "room-round-no-model",
+		ReqID:          "room-round-no-model",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	if options := factory.LastOptions(); options.Model != "" {
+		t.Fatalf("room runtime 不应向 SDK 透传 model: %+v", options)
 	}
 }
 
