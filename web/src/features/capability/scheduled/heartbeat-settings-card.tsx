@@ -66,10 +66,10 @@ export function HeartbeatSettingsCard({
             <Activity className="h-4 w-4 text-(--icon-default)" />
             <div>
               <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-(--text-strong)">
-                Heartbeat 设置
+                主会话唤醒
               </h2>
               <p className="text-xs text-(--text-default)">
-                查看当前自动唤醒状态并手动触发一次执行。
+                查看当前状态，并在需要时手动触发一次主会话执行。
               </p>
             </div>
           </div>

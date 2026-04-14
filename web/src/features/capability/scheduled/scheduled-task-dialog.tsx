@@ -29,6 +29,8 @@ import type {
 type ScheduleKind = ScheduledTaskSchedule["kind"];
 type EveryUnit = "minutes" | "hours" | "days";
 type TargetType = "agent" | "room";
+type ExecutionMode = "existing" | "temporary" | "dedicated";
+type ReplyMode = "none" | "execution" | "selected";
 
 interface ChoiceDef<TValue extends string> {
   key: TValue;
@@ -50,6 +52,18 @@ const EVERY_UNIT_OPTIONS: ChoiceDef<EveryUnit>[] = [
   { key: "minutes", label: "分钟" },
   { key: "hours", label: "小时" },
   { key: "days", label: "天" },
+];
+
+const EXECUTION_MODE_OPTIONS: ChoiceDef<ExecutionMode>[] = [
+  { key: "existing", label: "使用现有会话" },
+  { key: "temporary", label: "每次新建临时会话" },
+  { key: "dedicated", label: "使用专用长期会话" },
+];
+
+const REPLY_MODE_OPTIONS: ChoiceDef<ReplyMode>[] = [
+  { key: "none", label: "不回传" },
+  { key: "execution", label: "回到执行会话" },
+  { key: "selected", label: "回到指定会话" },
 ];
 
 interface ScheduledTaskDialogProps {
@@ -139,7 +153,11 @@ export function ScheduledTaskDialog({
   const [target_type, set_target_type] = useState<TargetType>("agent");
   const [selected_agent_id, set_selected_agent_id] = useState(agent_id);
   const [selected_room_id, set_selected_room_id] = useState("");
+  const [execution_mode, set_execution_mode] = useState<ExecutionMode>("existing");
   const [selected_session_key, set_selected_session_key] = useState("");
+  const [reply_mode, set_reply_mode] = useState<ReplyMode>("execution");
+  const [selected_reply_session_key, set_selected_reply_session_key] = useState("");
+  const [dedicated_session_key, set_dedicated_session_key] = useState("");
   const [enabled, set_enabled] = useState(true);
   const [instruction, set_instruction] = useState("");
   const [error_message, set_error_message] = useState<string | null>(null);
@@ -190,7 +208,11 @@ export function ScheduledTaskDialog({
     set_target_type("agent");
     set_selected_agent_id(agent_id);
     set_selected_room_id("");
+    set_execution_mode("existing");
     set_selected_session_key("");
+    set_reply_mode("execution");
+    set_selected_reply_session_key("");
+    set_dedicated_session_key("");
     set_enabled(true);
     set_instruction("");
     set_error_message(null);
@@ -271,6 +293,7 @@ export function ScheduledTaskDialog({
     set_agent_sessions_loading(true);
     set_agent_sessions_error(null);
     set_selected_session_key("");
+    set_selected_reply_session_key("");
 
     void getAgentSessionsApi(selected_agent_id)
       .then((next_sessions) => {
@@ -302,6 +325,7 @@ export function ScheduledTaskDialog({
     set_room_contexts_loading(true);
     set_room_contexts_error(null);
     set_selected_session_key("");
+    set_selected_reply_session_key("");
 
     void getRoomContexts(selected_room_id)
       .then((next_contexts) => {
@@ -363,6 +387,9 @@ export function ScheduledTaskDialog({
 
   const session_options = target_type === "agent" ? agent_session_options : room_session_options;
   const selected_session = session_options.find((option) => option.session_key === selected_session_key) ?? null;
+  const selected_reply_session = session_options.find(
+    (option) => option.session_key === selected_reply_session_key,
+  ) ?? null;
 
   if (!is_open) return null;
 
@@ -392,9 +419,26 @@ export function ScheduledTaskDialog({
     };
   };
 
+  function is_room_executor_selection_required(): boolean {
+    return target_type === "room" && execution_mode !== "existing";
+  }
+
   const build_session_target = (): ScheduledTaskSessionTarget => {
+    if (execution_mode === "temporary") {
+      return {
+        kind: "isolated",
+        wake_mode: "next-heartbeat",
+      };
+    }
+    if (execution_mode === "dedicated") {
+      return {
+        kind: "named",
+        named_session_key: dedicated_session_key.trim(),
+        wake_mode: "next-heartbeat",
+      };
+    }
     if (!selected_session) {
-      throw new Error("请选择会话");
+      throw new Error("请选择执行会话");
     }
 
     return {
@@ -403,6 +447,58 @@ export function ScheduledTaskDialog({
       wake_mode: "next-heartbeat",
     };
   };
+
+  function build_delivery() {
+    if (reply_mode === "none") {
+      return { mode: "none" as const };
+    }
+
+    if (reply_mode === "execution") {
+      if (execution_mode === "existing") {
+        if (!selected_session) {
+          throw new Error("请选择执行会话");
+        }
+        return {
+          mode: "explicit" as const,
+          channel: "websocket",
+          to: selected_session.session_key,
+        };
+      }
+
+      if (target_type === "room") {
+        if (!selected_session) {
+          throw new Error("请选择一个 Room 会话作为回传目标");
+        }
+        return {
+          mode: "explicit" as const,
+          channel: "websocket",
+          to: selected_session.session_key,
+        };
+      }
+
+      return { mode: "none" as const };
+    }
+
+    if (!selected_reply_session) {
+      throw new Error("请选择回复会话");
+    }
+
+    return {
+      mode: "explicit" as const,
+      channel: "websocket",
+      to: selected_reply_session.session_key,
+    };
+  }
+
+  function resolve_agent_id_for_task(): string {
+    if (target_type === "agent") {
+      return selected_agent_id.trim();
+    }
+    if (!selected_session) {
+      throw new Error("请选择一个 Room 会话来确定执行智能体");
+    }
+    return selected_session.agent_id;
+  }
 
   const get_validation_error = (): string | null => {
     if (!task_name.trim()) {
@@ -418,8 +514,17 @@ export function ScheduledTaskDialog({
     } else if (!selected_room_id.trim()) {
       return "请选择 Room";
     }
-    if (!selected_session_key.trim()) {
-      return "请选择会话";
+    if (execution_mode === "existing" && !selected_session_key.trim()) {
+      return "请选择执行会话";
+    }
+    if (is_room_executor_selection_required() && !selected_session_key.trim()) {
+      return "请选择一个 Room 会话来确定执行智能体";
+    }
+    if (execution_mode === "dedicated" && !dedicated_session_key.trim()) {
+      return "请输入专用长期会话名称";
+    }
+    if (reply_mode === "selected" && !selected_reply_session_key.trim()) {
+      return "请选择回复会话";
     }
     if (schedule_kind === "every") {
       if (to_interval_seconds(every_value, every_unit) === null) {
@@ -447,18 +552,15 @@ export function ScheduledTaskDialog({
     set_is_submitting(true);
     set_error_message(null);
     try {
-      const target_session = selected_session;
-      if (!target_session) {
-        throw new Error("请选择会话");
-      }
+      const source_session = selected_session ?? selected_reply_session;
 
       const created = await createScheduledTaskApi({
         name: task_name.trim(),
-        agent_id: target_type === "agent" ? selected_agent_id.trim() : target_session.agent_id,
+        agent_id: resolve_agent_id_for_task(),
         schedule: build_schedule(),
         instruction: instruction.trim(),
         session_target: build_session_target(),
-        delivery: { mode: "none" },
+        delivery: build_delivery(),
         source: {
           kind: "user_page",
           context_type: target_type,
@@ -466,8 +568,8 @@ export function ScheduledTaskDialog({
           context_label: target_type === "agent"
             ? (agent_options.find((option) => option.value === selected_agent_id)?.label || selected_agent_id.trim())
             : (room_options.find((option) => option.value === selected_room_id)?.label || selected_room_id.trim()),
-          session_key: target_session.session_key,
-          session_label: target_session.label,
+          session_key: source_session?.session_key ?? null,
+          session_label: source_session?.label ?? null,
         },
         enabled,
       });
@@ -491,10 +593,10 @@ export function ScheduledTaskDialog({
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title" id="create-task-dialog-title">
-              创建定时任务
+              新建任务
             </h3>
             <p className="dialog-subtitle">
-              先选目标对象和会话，再填写调度和执行指令。
+              先选目标对象，再决定执行会话和结果回传方式。
             </p>
           </div>
           <button
@@ -546,7 +648,7 @@ export function ScheduledTaskDialog({
 
           <div className="dialog-field">
             <label className="dialog-label" htmlFor="task-target-object">
-              {target_type === "agent" ? "选择智能体" : "选择 Room"}
+              {target_type === "agent" ? "目标智能体" : "目标 Room"}
             </label>
             <select
               className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
@@ -593,59 +695,181 @@ export function ScheduledTaskDialog({
           </div>
 
           <div className="dialog-field">
-            <label className="dialog-label" htmlFor="task-session-key">
-              选择会话
-            </label>
-            <select
-              className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              disabled={
-                !selected_agent_id && target_type === "agent"
-                  ? true
-                  : !selected_room_id && target_type === "room"
-                    ? true
-                    : target_type === "agent"
-                      ? agent_sessions_loading || agent_session_options.length === 0
-                      : room_contexts_loading || room_session_options.length === 0
-              }
-              id="task-session-key"
-              onChange={(e) => {
-                set_selected_session_key(e.target.value);
-                set_error_message(null);
-              }}
-              value={selected_session_key}
-            >
-              <option value="">
-                {target_type === "agent"
-                  ? (agent_sessions_loading
-                    ? "正在加载会话..."
-                    : selected_agent_id
-                      ? "请选择会话"
-                      : "先选择智能体")
-                  : (room_contexts_loading
-                    ? "正在加载会话..."
-                    : selected_room_id
-                      ? "请选择会话"
-                      : "先选择 Room")}
-              </option>
-              {session_options.map((option) => (
-                <option key={option.session_key} value={option.session_key}>
-                  {option.label}
-                </option>
+            <span className="dialog-label">执行会话</span>
+            <div className="flex flex-wrap gap-2">
+              {EXECUTION_MODE_OPTIONS.map((opt) => (
+                <button
+                  className={getDialogChoiceClassName(execution_mode === opt.key)}
+                  key={opt.key}
+                  onClick={() => {
+                    set_execution_mode(opt.key);
+                    set_error_message(null);
+                  }}
+                  style={getDialogChoiceStyle(execution_mode === opt.key)}
+                  type="button"
+                >
+                  {opt.label}
+                </button>
               ))}
-            </select>
-            {target_type === "agent" && agent_sessions_error ? (
-              <p className="mt-2 text-xs text-(--destructive)">{agent_sessions_error}</p>
-            ) : null}
-            {target_type === "room" && room_contexts_error ? (
-              <p className="mt-2 text-xs text-(--destructive)">{room_contexts_error}</p>
-            ) : null}
-            {target_type === "agent" && selected_agent_id && !agent_sessions_loading && agent_session_options.length === 0 ? (
-              <p className="mt-2 text-xs text-(--text-muted)">这个智能体没有可选会话</p>
-            ) : null}
-            {target_type === "room" && selected_room_id && !room_contexts_loading && room_session_options.length === 0 ? (
-              <p className="mt-2 text-xs text-(--text-muted)">这个 Room 没有可选会话</p>
-            ) : null}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-(--text-muted)">
+              {execution_mode === "existing"
+                ? "复用当前已有的执行上下文。"
+                : execution_mode === "temporary"
+                  ? "每次执行都会新开一个临时会话，不延续旧上下文。"
+                  : "第一次执行时创建一个专用长期会话，之后持续复用。"}
+            </p>
           </div>
+
+          {execution_mode === "dedicated" ? (
+            <div className="dialog-field">
+              <label className="dialog-label" htmlFor="task-dedicated-session-key">
+                专用长期会话名称
+              </label>
+              <input
+                className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                id="task-dedicated-session-key"
+                onChange={(e) => set_dedicated_session_key(e.target.value)}
+                placeholder="例如 daily-ops"
+                type="text"
+                value={dedicated_session_key}
+              />
+            </div>
+          ) : null}
+
+          {execution_mode === "existing" || is_room_executor_selection_required() ? (
+            <div className="dialog-field">
+              <label className="dialog-label" htmlFor="task-session-key">
+                {execution_mode === "existing" ? "执行会话" : "执行智能体参考会话"}
+              </label>
+              <select
+                className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                disabled={
+                  !selected_agent_id && target_type === "agent"
+                    ? true
+                    : !selected_room_id && target_type === "room"
+                      ? true
+                      : target_type === "agent"
+                        ? agent_sessions_loading || agent_session_options.length === 0
+                        : room_contexts_loading || room_session_options.length === 0
+                }
+                id="task-session-key"
+                onChange={(e) => {
+                  set_selected_session_key(e.target.value);
+                  set_error_message(null);
+                }}
+                value={selected_session_key}
+              >
+                <option value="">
+                  {target_type === "agent"
+                    ? (agent_sessions_loading
+                      ? "正在加载会话..."
+                      : selected_agent_id
+                        ? "请选择会话"
+                        : "先选择智能体")
+                    : (room_contexts_loading
+                      ? "正在加载会话..."
+                      : selected_room_id
+                        ? "请选择会话"
+                        : "先选择 Room")}
+                </option>
+                {session_options.map((option) => (
+                  <option key={option.session_key} value={option.session_key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {execution_mode !== "existing" ? (
+                <p className="mt-2 text-xs leading-5 text-(--text-muted)">
+                  Room 模式下需要先选一个成员会话，用来确定由哪个智能体执行任务。
+                </p>
+              ) : null}
+              {target_type === "agent" && agent_sessions_error ? (
+                <p className="mt-2 text-xs text-(--destructive)">{agent_sessions_error}</p>
+              ) : null}
+              {target_type === "room" && room_contexts_error ? (
+                <p className="mt-2 text-xs text-(--destructive)">{room_contexts_error}</p>
+              ) : null}
+              {target_type === "agent" && selected_agent_id && !agent_sessions_loading && agent_session_options.length === 0 ? (
+                <p className="mt-2 text-xs text-(--text-muted)">这个智能体没有可选会话</p>
+              ) : null}
+              {target_type === "room" && selected_room_id && !room_contexts_loading && room_session_options.length === 0 ? (
+                <p className="mt-2 text-xs text-(--text-muted)">这个 Room 没有可选会话</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="dialog-field">
+            <span className="dialog-label">结果回传</span>
+            <div className="flex flex-wrap gap-2">
+              {REPLY_MODE_OPTIONS.map((opt) => (
+                <button
+                  className={getDialogChoiceClassName(reply_mode === opt.key)}
+                  key={opt.key}
+                  onClick={() => {
+                    set_reply_mode(opt.key);
+                    set_error_message(null);
+                  }}
+                  style={getDialogChoiceStyle(reply_mode === opt.key)}
+                  type="button"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-(--text-muted)">
+              {reply_mode === "none"
+                ? "执行结果只保存在任务自己的执行会话里。"
+                : reply_mode === "execution"
+                  ? "结果回到这次执行使用的会话；临时会话在 Agent 模式下默认不额外回传。"
+                  : "结果会额外推送到你指定的一个已有会话。"}
+            </p>
+          </div>
+
+          {reply_mode === "selected" ? (
+            <div className="dialog-field">
+              <label className="dialog-label" htmlFor="task-reply-session-key">
+                回复会话
+              </label>
+              <select
+                className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                disabled={
+                  !selected_agent_id && target_type === "agent"
+                    ? true
+                    : !selected_room_id && target_type === "room"
+                      ? true
+                      : target_type === "agent"
+                        ? agent_sessions_loading || agent_session_options.length === 0
+                        : room_contexts_loading || room_session_options.length === 0
+                }
+                id="task-reply-session-key"
+                onChange={(e) => {
+                  set_selected_reply_session_key(e.target.value);
+                  set_error_message(null);
+                }}
+                value={selected_reply_session_key}
+              >
+                <option value="">
+                  {target_type === "agent"
+                    ? (agent_sessions_loading
+                      ? "正在加载会话..."
+                      : selected_agent_id
+                        ? "请选择回复会话"
+                        : "先选择智能体")
+                    : (room_contexts_loading
+                      ? "正在加载会话..."
+                      : selected_room_id
+                        ? "请选择回复会话"
+                        : "先选择 Room")}
+                </option>
+                {session_options.map((option) => (
+                  <option key={option.session_key} value={option.session_key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div className="dialog-field">
             <span className="dialog-label">调度类型</span>

@@ -1,11 +1,12 @@
 "use client";
 
-import { Clock3, History, Play, RefreshCw } from "lucide-react";
+import { Clock3, History, Play, RefreshCw, Trash2 } from "lucide-react";
 
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
 import type {
+  ScheduledTaskDeliveryTarget,
   ScheduledTaskItem,
   ScheduledTaskSchedule,
   ScheduledTaskSource,
@@ -48,17 +49,16 @@ function get_schedule_summary(schedule: ScheduledTaskSchedule): string {
 }
 
 function get_session_target_summary(target: ScheduledTaskSessionTarget): string {
-  const wake_label = target.wake_mode === "now" ? "立即唤醒" : "心跳唤醒";
   if (target.kind === "main") {
-    return `主会话 · ${wake_label}`;
+    return "主会话";
   }
   if (target.kind === "bound") {
-    return `绑定会话 · ${target.bound_session_key} · ${wake_label}`;
+    return "使用现有会话";
   }
   if (target.kind === "named") {
-    return `命名会话 · ${target.named_session_key} · ${wake_label}`;
+    return `专用长期会话 · ${target.named_session_key}`;
   }
-  return `独立会话 · ${wake_label}`;
+  return "每次新建临时会话";
 }
 
 function get_source_kind_label(source: ScheduledTaskSource | null | undefined): string {
@@ -75,6 +75,25 @@ function get_source_kind_label(source: ScheduledTaskSource | null | undefined): 
     return "CLI 创建";
   }
   return "系统创建";
+}
+
+function get_delivery_summary(
+  delivery: ScheduledTaskDeliveryTarget,
+  source: ScheduledTaskSource | null | undefined,
+): string {
+  if (delivery.mode === "none") {
+    return "不回传";
+  }
+  if (delivery.mode === "last") {
+    return "回到最近会话";
+  }
+  if (delivery.channel === "websocket") {
+    if (delivery.to && source?.session_key && delivery.to === source.session_key) {
+      return "回到当前选择的会话";
+    }
+    return "回到指定会话";
+  }
+  return "回到指定位置";
 }
 
 function get_context_summary(task: ScheduledTaskItem): string {
@@ -112,10 +131,12 @@ interface ScheduledTaskListProps {
   error_message: string | null;
   run_pending_job_id?: string | null;
   toggle_pending_job_id?: string | null;
+  delete_pending_job_id?: string | null;
   on_create: () => void;
   on_refresh?: () => void | Promise<void>;
   on_run_now?: (task: ScheduledTaskItem) => void | Promise<void>;
   on_toggle_enabled?: (task: ScheduledTaskItem) => void | Promise<void>;
+  on_delete?: (task: ScheduledTaskItem) => void | Promise<void>;
   on_open_history?: (task: ScheduledTaskItem) => void;
 }
 
@@ -125,10 +146,12 @@ export function ScheduledTaskList({
   error_message,
   run_pending_job_id = null,
   toggle_pending_job_id = null,
+  delete_pending_job_id = null,
   on_create,
   on_refresh,
   on_run_now,
   on_toggle_enabled,
+  on_delete,
   on_open_history,
 }: ScheduledTaskListProps) {
   return (
@@ -139,10 +162,10 @@ export function ScheduledTaskList({
             <Clock3 className="h-4 w-4 text-(--icon-default)" />
             <div>
               <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-(--text-strong)">
-                调度任务
+                任务清单
               </h2>
               <p className="text-xs text-(--text-default)">
-                共 {items.length} 个任务，支持立即执行、启停切换和查看运行记录。
+                共 {items.length} 个任务，可查看目标对象、执行会话和结果回传方式。
               </p>
             </div>
           </div>
@@ -193,10 +216,10 @@ export function ScheduledTaskList({
               还没有定时任务
             </h3>
             <p className="mt-2 max-w-sm text-sm leading-6 text-(--text-default)">
-              创建第一个自动化任务后，这里会显示调度频率、目标会话和最近运行情况。
+              新建第一个自动化任务后，这里会显示目标对象、执行会话和最近运行情况。
             </p>
             <WorkspaceCatalogTextAction class_name="mt-4" onClick={on_create} tone="primary">
-              创建任务
+              新建任务
             </WorkspaceCatalogTextAction>
           </div>
         ) : (
@@ -205,6 +228,7 @@ export function ScheduledTaskList({
               const status = get_primary_status(task);
               const run_pending = run_pending_job_id === task.job_id;
               const toggle_pending = toggle_pending_job_id === task.job_id;
+              const delete_pending = delete_pending_job_id === task.job_id;
               return (
                 <article
                   key={task.job_id}
@@ -232,7 +256,7 @@ export function ScheduledTaskList({
                         </div>
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            目标会话
+                            执行会话
                           </p>
                           <p className="mt-1.5 font-medium text-(--text-strong)">
                             {get_session_summary(task)}
@@ -240,10 +264,10 @@ export function ScheduledTaskList({
                         </div>
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            来源
+                            结果回传
                           </p>
                           <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_source_kind_label(task.source)}
+                            {get_delivery_summary(task.delivery, task.source)}
                           </p>
                         </div>
                         <div className="min-w-0">
@@ -259,6 +283,7 @@ export function ScheduledTaskList({
                         <span>下次运行 {format_datetime(task.next_run_at)}</span>
                         <span>最近执行 {format_datetime(task.last_run_at)}</span>
                         <span>Agent {task.agent_id}</span>
+                        <span>来源 {get_source_kind_label(task.source)}</span>
                       </div>
                     </div>
 
@@ -283,6 +308,14 @@ export function ScheduledTaskList({
                       >
                         <History className="h-3.5 w-3.5" />
                         运行历史
+                      </WorkspaceCatalogTextAction>
+                      <WorkspaceCatalogTextAction
+                        disabled={delete_pending}
+                        onClick={() => void on_delete?.(task)}
+                        tone="danger"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {delete_pending ? "删除中" : "删除"}
                       </WorkspaceCatalogTextAction>
                     </div>
                   </div>

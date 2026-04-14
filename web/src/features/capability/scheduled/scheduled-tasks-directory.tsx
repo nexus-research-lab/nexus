@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/use-automation-controller";
-import { runScheduledTaskApi, updateScheduledTaskStatusApi } from "@/lib/scheduled-task-api";
+import { deleteScheduledTaskApi, runScheduledTaskApi, updateScheduledTaskStatusApi } from "@/lib/scheduled-task-api";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -61,7 +61,11 @@ export function ScheduledTasksDirectory() {
   const [wake_pending, set_wake_pending] = useState(false);
   const [run_pending_job_id, set_run_pending_job_id] = useState<string | null>(null);
   const [toggle_pending_job_id, set_toggle_pending_job_id] = useState<string | null>(null);
+  const [delete_pending_job_id, set_delete_pending_job_id] = useState<string | null>(null);
   const automation = useAutomationController();
+  const running_count = automation.scheduled_tasks.filter((task) => task.running).length;
+  const enabled_count = automation.scheduled_tasks.filter((task) => task.enabled).length;
+  const paused_count = automation.scheduled_tasks.length - enabled_count;
 
   const handle_create_success = (task: ScheduledTaskItem) => {
     void refresh_tasks_best_effort(
@@ -162,6 +166,34 @@ export function ScheduledTasksDirectory() {
     }
   };
 
+  const handle_delete = async (task: ScheduledTaskItem) => {
+    if (!window.confirm(`确认删除任务“${task.name}”吗？`)) {
+      return;
+    }
+    set_delete_pending_job_id(task.job_id);
+    try {
+      await deleteScheduledTaskApi(task.job_id);
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: "任务已删除",
+          message: `${task.name} 已从自动化任务列表移除`,
+        },
+        "任务列表刷新失败，删除结果稍后会同步",
+        set_feedback,
+      );
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: "删除失败",
+        message: error instanceof Error ? error.message : "删除任务失败",
+      });
+    } finally {
+      set_delete_pending_job_id(null);
+    }
+  };
+
   return (
     <>
       <WorkspaceSurfaceScaffold
@@ -172,7 +204,7 @@ export function ScheduledTasksDirectory() {
             badge={`${automation.scheduled_tasks.length} 个任务`}
             density="compact"
             leading={<CalendarClock className="h-4 w-4" />}
-            title="定时任务"
+            title="自动化看板"
             title_trailing={(
               <span className="truncate text-[11px] font-medium text-(--text-default)">
                 Agent {automation.agent_id}
@@ -186,13 +218,49 @@ export function ScheduledTasksDirectory() {
                 </WorkspaceSurfaceToolbarAction>
                 <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
                   <Plus className="h-3.5 w-3.5" />
-                  创建任务
+                  新建任务
                 </WorkspaceSurfaceToolbarAction>
               </>
             )}
           />
         )}
       >
+        <section className="mb-4 grid gap-3 md:grid-cols-3">
+          <div className="surface-card rounded-[20px] px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+              执行中的任务
+            </p>
+            <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
+              {running_count}
+            </p>
+            <p className="mt-1 text-sm text-(--text-default)">
+              当前正在执行中的自动化任务
+            </p>
+          </div>
+          <div className="surface-card rounded-[20px] px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+              已启用
+            </p>
+            <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
+              {enabled_count}
+            </p>
+            <p className="mt-1 text-sm text-(--text-default)">
+              会继续自动执行的任务数量
+            </p>
+          </div>
+          <div className="surface-card rounded-[20px] px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+              已暂停
+            </p>
+            <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
+              {paused_count}
+            </p>
+            <p className="mt-1 text-sm text-(--text-default)">
+              暂时保留但不会继续执行的任务
+            </p>
+          </div>
+        </section>
+
         <div className="grid min-h-full gap-4 xl:grid-cols-[360px,minmax(0,1fr)]">
           <HeartbeatSettingsCard
             error_message={automation.heartbeat_error}
@@ -211,6 +279,8 @@ export function ScheduledTasksDirectory() {
             on_refresh={() => void automation.refresh_tasks().catch(() => undefined)}
             on_run_now={(task) => void handle_run_now(task)}
             on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
+            on_delete={(task) => void handle_delete(task)}
+            delete_pending_job_id={delete_pending_job_id}
             run_pending_job_id={run_pending_job_id}
             toggle_pending_job_id={toggle_pending_job_id}
           />
