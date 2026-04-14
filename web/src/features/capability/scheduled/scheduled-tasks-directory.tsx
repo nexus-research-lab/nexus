@@ -62,6 +62,8 @@ export function ScheduledTasksDirectory() {
   const [toggle_pending_job_id, set_toggle_pending_job_id] = useState<string | null>(null);
   const [delete_pending_job_id, set_delete_pending_job_id] = useState<string | null>(null);
   const automation = useAutomationController({ include_all_tasks: true });
+  const refresh_tasks = automation.refresh_tasks;
+  const refresh_all = automation.refresh_all;
   const running_count = automation.scheduled_tasks.filter((task) => task.running).length;
   const enabled_count = automation.scheduled_tasks.filter((task) => task.enabled).length;
   const paused_count = automation.scheduled_tasks.length - enabled_count;
@@ -71,15 +73,40 @@ export function ScheduledTasksDirectory() {
       return;
     }
 
+    const handle_page_revalidate = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void refresh_tasks({ silent: true }).catch(() => undefined);
+    };
+
+    window.addEventListener("focus", handle_page_revalidate);
+    document.addEventListener("visibilitychange", handle_page_revalidate);
+
+    return () => {
+      window.removeEventListener("focus", handle_page_revalidate);
+      document.removeEventListener("visibilitychange", handle_page_revalidate);
+    };
+  }, [refresh_tasks]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const poll_interval_ms = running_count > 0 ? 3000 : enabled_count > 0 ? 15000 : 0;
+    if (!poll_interval_ms) {
+      return;
+    }
+
     const interval_id = window.setInterval(() => {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void automation.refresh_tasks({ silent: true }).catch(() => undefined);
-    }, 1000);
+      void refresh_tasks({ silent: true }).catch(() => undefined);
+    }, poll_interval_ms);
 
     return () => window.clearInterval(interval_id);
-  }, [automation]);
+  }, [enabled_count, refresh_tasks, running_count]);
 
   const handle_create_success = async (task: ScheduledTaskItem) => {
     await refresh_tasks_best_effort(
@@ -96,7 +123,7 @@ export function ScheduledTasksDirectory() {
 
   const handle_refresh_all = async () => {
     try {
-      await automation.refresh_all();
+      await refresh_all();
     } catch (error) {
       set_feedback({
         tone: "error",
@@ -270,7 +297,7 @@ export function ScheduledTasksDirectory() {
             items={automation.scheduled_tasks}
             on_create={() => set_is_dialog_open(true)}
             on_open_history={set_history_task}
-            on_refresh={() => void automation.refresh_tasks().catch(() => undefined)}
+            on_refresh={() => void refresh_tasks().catch(() => undefined)}
             on_run_now={(task) => void handle_run_now(task)}
             on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
             on_delete={(task) => void handle_delete(task)}

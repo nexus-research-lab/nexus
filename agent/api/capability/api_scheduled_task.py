@@ -33,10 +33,12 @@ class ScheduledTaskUpdateRequest(AModel):
     """任务更新请求。"""
 
     name: str | None = None
+    agent_id: str | None = None
     schedule: AutomationCronSchedule | None = None
     instruction: str | None = None
     session_target: AutomationSessionTarget | None = None
     delivery: AutomationDeliveryTarget | None = None
+    source: AutomationCronSource | None = None
     enabled: bool | None = None
 
 
@@ -82,10 +84,12 @@ async def update_scheduled_task(job_id: str, payload: ScheduledTaskUpdateRequest
     data = await scheduled_task_service.update_task(
         job_id,
         name=payload.name,
+        agent_id=payload.agent_id,
         schedule=payload.schedule,
         instruction=payload.instruction,
         session_target=payload.session_target,
         delivery=payload.delivery,
+        source=payload.source,
         enabled=payload.enabled,
     )
     return resp.ok(resp.Resp(data=data.model_dump(mode="json")))

@@ -27,6 +27,7 @@ from agent.service.automation.cron.cron_normalizer import (
     row_to_job_dict,
     row_to_run_dict,
     schedule_to_fields,
+    source_to_fields,
     session_target_to_fields,
 )
 from agent.service.automation.cron.cron_runner import CronExecutionResult, CronRunner
@@ -113,17 +114,19 @@ class CronService:
         job_id: str,
         *,
         name: str | None = None,
+        agent_id: str | None = None,
         schedule: AutomationCronSchedule | None = None,
         instruction: str | None = None,
         session_target: AutomationSessionTarget | None = None,
         delivery: AutomationDeliveryTarget | None = None,
+        source: AutomationCronSource | None = None,
         enabled: bool | None = None,
     ) -> CronJobView:
         row = await self._require_job(job_id)
         fields: dict[str, object] = {
             "job_id": row.job_id,
             "name": row.name if name is None else name,
-            "agent_id": row.agent_id,
+            "agent_id": row.agent_id if agent_id is None else agent_id,
             "schedule_kind": row.schedule_kind,
         }
         if schedule is not None:
@@ -134,6 +137,8 @@ class CronService:
             fields.update(session_target_to_fields(session_target))
         if delivery is not None:
             fields.update(delivery_to_fields(delivery))
+        if source is not None:
+            fields.update(source_to_fields(source))
         if enabled is not None:
             fields["enabled"] = enabled
         updated = await self._store.upsert_job(**fields)

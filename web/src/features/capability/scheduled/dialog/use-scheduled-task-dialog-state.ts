@@ -7,6 +7,7 @@ import type {
   ScheduledTaskItem,
   ScheduledTaskSchedule,
   ScheduledTaskSessionTarget,
+  ScheduledTaskSource,
 } from "@/types/scheduled-task";
 
 import {
@@ -39,13 +40,13 @@ export function useScheduledTaskDialogState({
 }) {
   const name_ref = useRef<HTMLInputElement>(null);
   const [task_name, set_task_name] = useState("");
-  const [target_type, set_target_type] = useState<TargetType>("agent");
-  const [selected_agent_id, set_selected_agent_id] = useState(agent_id);
-  const [selected_room_id, set_selected_room_id] = useState("");
+  const [target_type, set_target_type_state] = useState<TargetType>("agent");
+  const [selected_agent_id, set_selected_agent_id_state] = useState(agent_id);
+  const [selected_room_id, set_selected_room_id_state] = useState("");
   const [execution_mode, set_execution_mode] = useState<ExecutionMode>("existing");
-  const [selected_session_key, set_selected_session_key] = useState("");
+  const [selected_session_key, set_selected_session_key_state] = useState("");
   const [reply_mode, set_reply_mode] = useState<ReplyMode>("execution");
-  const [selected_reply_session_key, set_selected_reply_session_key] = useState("");
+  const [selected_reply_session_key, set_selected_reply_session_key_state] = useState("");
   const [dedicated_session_key, set_dedicated_session_key] = useState("");
   const [timezone, set_timezone] = useState(getDefaultTimezone());
   const [enabled, set_enabled] = useState(true);
@@ -57,9 +58,34 @@ export function useScheduledTaskDialogState({
 
   const schedule = useScheduledTaskDialogScheduleState();
 
-  const handle_context_change = useCallback(() => {
-    set_selected_session_key("");
-    set_selected_reply_session_key("");
+  const reset_context_selection = useCallback(() => {
+    set_selected_session_key_state("");
+    set_selected_reply_session_key_state("");
+    set_error_message(null);
+  }, []);
+
+  const set_target_type = useCallback((value: TargetType) => {
+    set_target_type_state(value);
+    reset_context_selection();
+  }, [reset_context_selection]);
+
+  const set_selected_agent_id = useCallback((value: string) => {
+    set_selected_agent_id_state(value);
+    reset_context_selection();
+  }, [reset_context_selection]);
+
+  const set_selected_room_id = useCallback((value: string) => {
+    set_selected_room_id_state(value);
+    reset_context_selection();
+  }, [reset_context_selection]);
+
+  const set_selected_session_key = useCallback((value: string) => {
+    set_selected_session_key_state(value);
+    set_error_message(null);
+  }, []);
+
+  const set_selected_reply_session_key = useCallback((value: string) => {
+    set_selected_reply_session_key_state(value);
     set_error_message(null);
   }, []);
 
@@ -68,7 +94,6 @@ export function useScheduledTaskDialogState({
     target_type,
     selected_agent_id,
     selected_room_id,
-    on_context_change: handle_context_change,
   });
 
   useEffect(() => {
@@ -95,13 +120,13 @@ export function useScheduledTaskDialogState({
     }
     if (!initial_task) {
       set_task_name("");
-      set_target_type("agent");
-      set_selected_agent_id(agent_id);
-      set_selected_room_id("");
+      set_target_type_state("agent");
+      set_selected_agent_id_state(agent_id);
+      set_selected_room_id_state("");
       set_execution_mode("existing");
-      set_selected_session_key("");
+      set_selected_session_key_state("");
       set_reply_mode("execution");
-      set_selected_reply_session_key("");
+      set_selected_reply_session_key_state("");
       set_dedicated_session_key("");
       set_timezone(getDefaultTimezone());
       set_enabled(true);
@@ -113,11 +138,11 @@ export function useScheduledTaskDialogState({
     }
 
     set_task_name(initial_task.name);
-    set_target_type(initial_task.source?.context_type === "room" ? "room" : "agent");
-    set_selected_agent_id(initial_task.source?.context_type === "agent"
+    set_target_type_state(initial_task.source?.context_type === "room" ? "room" : "agent");
+    set_selected_agent_id_state(initial_task.source?.context_type === "agent"
       ? (initial_task.source.context_id || initial_task.agent_id)
       : initial_task.agent_id);
-    set_selected_room_id(initial_task.source?.context_type === "room" ? (initial_task.source.context_id || "") : "");
+    set_selected_room_id_state(initial_task.source?.context_type === "room" ? (initial_task.source.context_id || "") : "");
     set_execution_mode(
       initial_task.session_target.kind === "named"
         ? "dedicated"
@@ -125,7 +150,7 @@ export function useScheduledTaskDialogState({
           ? "temporary"
           : "existing",
     );
-    set_selected_session_key(
+    set_selected_session_key_state(
       initial_task.session_target.kind === "bound"
         ? initial_task.session_target.bound_session_key
         : (initial_task.source?.session_key || ""),
@@ -140,7 +165,7 @@ export function useScheduledTaskDialogState({
           ? "selected"
           : "execution",
     );
-    set_selected_reply_session_key(
+    set_selected_reply_session_key_state(
       initial_task.delivery.mode === "explicit"
         && initial_task.delivery.to
         && initial_task.delivery.to !== initial_task.source?.session_key
@@ -253,6 +278,25 @@ export function useScheduledTaskDialogState({
     return { kind: "at", run_at: schedule.run_at.trim(), timezone: timezone.trim() || "Asia/Shanghai" };
   }
 
+  function build_source_snapshot(
+    source_session: { session_key: string; label: string } | null,
+    original_source?: ScheduledTaskSource | null,
+  ): ScheduledTaskSource {
+    const selected_agent = data.agent_options.find((option) => option.value === selected_agent_id);
+    const selected_room = data.room_options.find((option) => option.value === selected_room_id);
+    return {
+      kind: original_source?.kind ?? "user_page",
+      creator_agent_id: original_source?.creator_agent_id ?? null,
+      context_type: target_type,
+      context_id: target_type === "agent" ? selected_agent_id.trim() : selected_room_id.trim(),
+      context_label: target_type === "agent"
+        ? (selected_agent?.label || selected_agent_id.trim())
+        : (selected_room?.label || selected_room_id.trim()),
+      session_key: source_session?.session_key ?? null,
+      session_label: source_session?.label ?? null,
+    };
+  }
+
   function get_validation_error(): string | null {
     if (!task_name.trim()) return "请输入任务名称";
     if (!instruction.trim()) return "请输入任务指令";
@@ -298,22 +342,17 @@ export function useScheduledTaskDialogState({
       };
 
       if (initial_task) {
-        const updated = await updateScheduledTaskApi(initial_task.job_id, payload);
+        const updated = await updateScheduledTaskApi(initial_task.job_id, {
+          ...payload,
+          agent_id: resolve_agent_id_for_task(),
+          source: build_source_snapshot(source_session, initial_task.source),
+        });
         await on_saved?.(updated);
       } else {
         const created = await createScheduledTaskApi({
           ...payload,
           agent_id: resolve_agent_id_for_task(),
-          source: {
-            kind: "user_page",
-            context_type: target_type,
-            context_id: target_type === "agent" ? selected_agent_id.trim() : selected_room_id.trim(),
-            context_label: target_type === "agent"
-              ? (data.agent_options.find((option) => option.value === selected_agent_id)?.label || selected_agent_id.trim())
-              : (data.room_options.find((option) => option.value === selected_room_id)?.label || selected_room_id.trim()),
-            session_key: source_session?.session_key ?? null,
-            session_label: source_session?.label ?? null,
-          },
+          source: build_source_snapshot(source_session),
         });
         await on_created?.(created);
       }

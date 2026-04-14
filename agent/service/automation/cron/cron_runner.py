@@ -151,7 +151,7 @@ class CronRunner:
                     agent_id=job.agent_id,
                     session_key=session_key,
                     instruction=job.instruction,
-                    trigger_kind="cron",
+                    trigger_kind=trigger_kind,
                     delivery_mode=job.delivery_mode,
                     metadata={
                         "job_id": job.job_id,
