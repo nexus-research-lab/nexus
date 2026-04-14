@@ -21,6 +21,7 @@ print_environment_summary() {
         printf '%s=%s\n' "${key}" "${value}"
     done < <(env | sort)
     echo "============================="
+    echo ""
 }
 
 add_env() {
@@ -31,6 +32,16 @@ add_env() {
     fi
 }
 
+write_json_file_in_place() {
+    local target_file="$1"
+    local temp_file
+    temp_file="$(mktemp /tmp/claude-json.XXXXXX)"
+    cat > "${temp_file}"
+    # 中文注释：.claude.json 可能是单文件 bind mount，不能用 mv 覆盖挂载点，只能原地写回。
+    cat "${temp_file}" > "${target_file}"
+    rm -f "${temp_file}"
+}
+
 prepare_claude_settings() {
     mkdir -p "${HOME}/.claude"
     if [[ -d "${HOME}/.claude.json" ]]; then
@@ -39,6 +50,8 @@ prepare_claude_settings() {
     fi
 
     SETTINGS_ENV="{}"
+    add_env "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-}"
+    add_env "ENABLE_TOOL_SEARCH" "${ENABLE_TOOL_SEARCH:-}"
 
     SETTINGS="$(jq -n --argjson env_config "${SETTINGS_ENV}" '{env: $env_config}')"
     if [[ "${CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS:-true}" == "true" ]]; then
@@ -52,8 +65,7 @@ prepare_claude_settings() {
         echo '{}' > "${HOME}/.claude.json"
     fi
 
-    jq '. + {hasCompletedOnboarding: true}' "${HOME}/.claude.json" > /tmp/claude.json
-    mv /tmp/claude.json "${HOME}/.claude.json"
+    jq '. + {hasCompletedOnboarding: true}' "${HOME}/.claude.json" | write_json_file_in_place "${HOME}/.claude.json"
 }
 
 prepare_database_path() {
