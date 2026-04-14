@@ -429,9 +429,10 @@ def test_create_agent_defaults_include_skill_tool(monkeypatch):
         service = module.MainAgentOrchestrationService()
         monkeypatch.setattr(module, "agent_service", SimpleNamespace(create_agent=fake_create_agent))
 
-        result = await service.create_agent(name="planner", model="glm-5")
+        result = await service.create_agent(name="planner", provider="glm")
 
         assert result["agent_id"] == "agent-1"
+        assert result["provider"] == "glm"
         assert "Skill" in result["allowed_tools"]
 
     asyncio.run(scenario())

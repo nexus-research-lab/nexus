@@ -10,7 +10,7 @@
 """add provider table
 
 Revision ID: a8c9d0e1f2a3
-Revises: 514af30e4585
+Revises: 1c2d3e4f5a6b
 Create Date: 2026-04-14 10:14:00.000000
 """
 
@@ -21,7 +21,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "a8c9d0e1f2a3"
-down_revision: Union[str, Sequence[str], None] = "514af30e4585"
+down_revision: Union[str, Sequence[str], None] = "1c2d3e4f5a6b"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

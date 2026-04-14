@@ -100,7 +100,7 @@ BACKEND_CORS_ORIGINS=https://your-domain.com
 DATABASE_URL=sqlite+aiosqlite:///~/.nexus/data/nexus.db
 ```
 
-如果你直接复制 `env.example`，本地数据库文件默认就在 `cache/data/data.db`。
+如果你直接复制 `env.example`，本地数据库文件默认就在 `cache/data/nexus.db`。
 生产 Docker 部署则默认落到 `${HOST_DATA_DIR}/.nexus/data/nexus.db`。
 
 ### 3. 安装
@@ -220,10 +220,6 @@ CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
 
 ### 后端
 
-- `DATABASE_URL`：默认值为 `sqlite+aiosqlite:///./cache/data/data.db`
-- `ANTHROPIC_AUTH_TOKEN`
-- `ANTHROPIC_BASE_URL`
-- `ANTHROPIC_MODEL`
 - `DATABASE_URL`：默认值为 `sqlite+aiosqlite:///~/.nexus/data/nexus.db`
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`

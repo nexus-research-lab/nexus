@@ -31,9 +31,9 @@ export function WorkspaceSurfaceView({
       body_class_name={cn("px-4 py-4 sm:px-5 xl:px-6", body_class_name)}
       body_scrollable
       header={(
-        <div className="border-b divider-subtle px-5 py-3 xl:px-6">
+        <div className="px-5 py-3 xl:px-6">
           <div className={cn("mx-auto flex w-full items-center justify-between gap-3", max_width_class_name)}>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
                 {eyebrow}
               </p>
@@ -42,6 +42,9 @@ export function WorkspaceSurfaceView({
               </h2>
             </div>
             {action}
+          </div>
+          <div className={cn("mx-auto mt-3 w-full", max_width_class_name)}>
+            <div className="h-px w-full rounded-full bg-(--divider-subtle-color)" />
           </div>
         </div>
       )}

@@ -54,6 +54,10 @@ class AgentWorkspace:
         """写入相对文件。"""
         return self._file_manager.write_relative_file(relative_path, content, source=source)
 
+    def write_binary_file(self, relative_path: str, content: bytes) -> str:
+        """写入二进制文件。"""
+        return self._file_manager.write_binary_file(relative_path, content)
+
     def stream_relative_file(
             self,
             relative_path: str,
@@ -82,6 +86,14 @@ class AgentWorkspace:
     def rename_entry(self, relative_path: str, new_relative_path: str) -> tuple[str, str]:
         """重命名文件或目录。"""
         return self._file_manager.rename_entry(relative_path, new_relative_path)
+
+    def entry_exists(self, relative_path: str) -> bool:
+        """判断 workspace 条目是否存在。"""
+        return self._file_manager.entry_exists(relative_path)
+
+    def get_existing_file_path(self, relative_path: str) -> Path:
+        """获取已存在文件的绝对路径。"""
+        return self._file_manager.get_existing_file_path(relative_path)
 
     def save_memory_file(self, filename: str, content: str) -> None:
         """保存记忆文件。"""

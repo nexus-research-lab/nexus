@@ -3,19 +3,22 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  ChevronRight, File, FileCode, FileText, Folder, FolderOpen, FolderTree,
+  ChevronRight, File, FileText, Folder, FolderOpen, FolderTree,
   Image, FileArchive, FileSpreadsheet, FileType2, FileJson, FileCode2,
   Upload, LoaderCircle, Pencil, Trash2, FilePlus, FolderPlus,
+  type LucideIcon,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceSurfaceHeader, WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
-import { useWorkspaceFilesStore } from "@/store/workspace-files";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
+import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
 import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { cn } from "@/lib/utils";
-import { uploadWorkspaceFileApi, createWorkspaceEntryApi, deleteWorkspaceEntryApi, renameWorkspaceEntryApi } from "@/lib/agent-manage-api";
+import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
+import {
+  useRoomWorkspaceController,
+} from "./use-room-workspace-controller";
 
 interface RoomWorkspaceViewProps {
   active_workspace_path: string | null;
@@ -27,19 +30,110 @@ interface RoomWorkspaceViewProps {
 
 // ── file icon ──────────────────────────────────────────────────────────────
 
-function getFileIcon(name: string) {
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (!ext) return FileText;
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"]);
+const ARCHIVE_EXTENSIONS = new Set(["zip", "tar", "gz", "rar", "7z", "bz2", "xz"]);
+const SPREADSHEET_EXTENSIONS = new Set(["xlsx", "xls", "csv", "ods"]);
+const JSON_EXTENSIONS = new Set(["json", "jsonl"]);
+const WEB_CODE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "html", "css", "scss", "less", "sass", "styl"]);
+const SCRIPT_EXTENSIONS = new Set(["py", "go", "rs", "java", "c", "cpp", "h", "hpp", "cs", "swift", "kt", "dart", "php", "rb", "sh", "bash", "zsh", "sql", "r", "scala", "groovy", "lua", "pl", "perl"]);
+const CONFIG_EXTENSIONS = new Set(["yaml", "yml", "toml", "ini", "conf", "env", "xml", "graphql", "proto"]);
+const TEXT_EXTENSIONS = new Set(["md", "markdown", "txt", "log"]);
+const DOCUMENT_EXTENSIONS = new Set(["pdf", "doc", "docx", "ppt", "pptx", "odt", "rtf"]);
 
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"].includes(ext)) return Image;
-  if (["zip", "tar", "gz", "rar", "7z", "bz2", "xz"].includes(ext)) return FileArchive;
-  if (["xlsx", "xls", "csv", "ods"].includes(ext)) return FileSpreadsheet;
-  if (["json", "jsonl"].includes(ext)) return FileJson;
-  if (["ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "go", "rs", "java", "c", "cpp", "h", "hpp", "cs", "swift", "kt", "dart", "php", "rb", "sh", "bash", "zsh", "sql", "r", "scala", "groovy", "lua", "pl", "perl"].includes(ext)) return FileCode2;
-  if (["md", "markdown", "txt", "log", "yaml", "yml", "toml", "ini", "conf", "env", "xml", "html", "css", "scss", "less", "sass", "styl", "graphql", "proto", "dockerfile", "makefile", "cmake", "gradle", "pom", "manifest"].includes(ext)) return FileText;
-  if (["pdf", "doc", "docx", "ppt", "pptx", "odt", "rtf"].includes(ext)) return FileType2;
+interface FileVisual {
+  Icon: LucideIcon;
+  icon_class_name: string;
+}
 
-  return File;
+function get_file_extension(name: string): string | null {
+  const lower_name = name.toLowerCase();
+  if (lower_name === "dockerfile") return "docker";
+  if (lower_name === "makefile") return "make";
+
+  const last_dot_index = lower_name.lastIndexOf(".");
+  if (last_dot_index <= 0 || last_dot_index === lower_name.length - 1) {
+    return null;
+  }
+  return lower_name.slice(last_dot_index + 1);
+}
+
+function get_file_visual(name: string): FileVisual {
+  const extension = get_file_extension(name);
+
+  if (!extension) {
+    return {
+      Icon: FileText,
+      icon_class_name: "text-slate-500",
+    };
+  }
+
+  if (IMAGE_EXTENSIONS.has(extension)) {
+    return {
+      Icon: Image,
+      icon_class_name: "text-fuchsia-500",
+    };
+  }
+
+  if (ARCHIVE_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileArchive,
+      icon_class_name: "text-violet-500",
+    };
+  }
+
+  if (SPREADSHEET_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileSpreadsheet,
+      icon_class_name: "text-emerald-600",
+    };
+  }
+
+  if (JSON_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileJson,
+      icon_class_name: "text-emerald-500",
+    };
+  }
+
+  if (WEB_CODE_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileCode2,
+      icon_class_name: "text-sky-500",
+    };
+  }
+
+  if (SCRIPT_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileCode2,
+      icon_class_name: extension === "py" ? "text-amber-500" : "text-blue-500",
+    };
+  }
+
+  if (CONFIG_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileText,
+      icon_class_name: "text-cyan-600",
+    };
+  }
+
+  if (TEXT_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileText,
+      icon_class_name: extension === "md" || extension === "markdown" ? "text-indigo-500" : "text-slate-500",
+    };
+  }
+
+  if (DOCUMENT_EXTENSIONS.has(extension)) {
+    return {
+      Icon: FileType2,
+      icon_class_name: extension === "pdf" ? "text-rose-500" : "text-orange-500",
+    };
+  }
+
+  return {
+    Icon: File,
+    icon_class_name: "text-slate-500",
+  };
 }
 
 // ── context menu ───────────────────────────────────────────────────────────
@@ -47,6 +141,8 @@ function getFileIcon(name: string) {
 interface ContextMenuProps {
   position: { x: number; y: number } | null;
   entry: WorkspaceFileEntry | null;
+  can_create_children: boolean;
+  onUpload: () => void;
   onCreateFile: () => void;
   onCreateFolder: () => void;
   onRename: () => void;
@@ -57,12 +153,15 @@ interface ContextMenuProps {
 function ContextMenu({
   position,
   entry,
+  can_create_children,
+  onUpload,
   onCreateFile,
   onCreateFolder,
   onRename,
   onDelete,
   onClose,
 }: ContextMenuProps) {
+  const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,6 +201,36 @@ function ContextMenu({
       }}
     >
       <div className="py-1">
+        {can_create_children ? (
+          <>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => { onUpload(); onClose(); }}
+            >
+              <Upload className="h-4 w-4" />
+              <span>{t("room.workspace_action_upload")}</span>
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => { onCreateFile(); onClose(); }}
+            >
+              <FilePlus className="h-4 w-4" />
+              <span>{t("room.workspace_action_new_file")}</span>
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => { onCreateFolder(); onClose(); }}
+            >
+              <FolderPlus className="h-4 w-4" />
+              <span>{t("room.workspace_action_new_folder")}</span>
+            </button>
+            {entry ? <div className="my-1 h-px bg-(--divider-subtle-color)" /> : null}
+          </>
+        ) : null}
+
         {entry && (
           <>
             <button
@@ -110,7 +239,7 @@ function ContextMenu({
               onClick={() => { onRename(); onClose(); }}
             >
               <Pencil className="h-4 w-4" />
-              <span>重命名</span>
+              <span>{t("home.rename")}</span>
             </button>
             <button
               type="button"
@@ -118,27 +247,7 @@ function ContextMenu({
               onClick={() => { onDelete(); onClose(); }}
             >
               <Trash2 className="h-4 w-4" />
-              <span>删除</span>
-            </button>
-          </>
-        )}
-        {!entry && (
-          <>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { onCreateFile(); onClose(); }}
-            >
-              <FilePlus className="h-4 w-4" />
-              <span>新建文件</span>
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { onCreateFolder(); onClose(); }}
-            >
-              <FolderPlus className="h-4 w-4" />
-              <span>新建文件夹</span>
+              <span>{t("common.delete")}</span>
             </button>
           </>
         )}
@@ -185,64 +294,41 @@ function buildTree(entries: WorkspaceFileEntry[]): TreeNode[] {
 interface TreeRowProps {
   node: TreeNode;
   active_path: string | null;
+  focused_directory_path: string | null;
   depth: number;
   on_click_file: (path: string) => void;
+  on_click_directory: (path: string) => void;
+  on_rename_entry: (entry: WorkspaceFileEntry) => void;
+  on_delete_entry: (entry: WorkspaceFileEntry) => void;
   on_context_menu: (e: React.MouseEvent, entry: WorkspaceFileEntry) => void;
-  on_start_rename: (entry: WorkspaceFileEntry) => void;
-  renaming_entry: WorkspaceFileEntry | null;
-  on_rename_complete: (entry: WorkspaceFileEntry, new_name: string) => void;
 }
 
 const TreeRow = memo(function TreeRow({
   node,
   active_path,
+  focused_directory_path,
   depth,
   on_click_file,
+  on_click_directory,
+  on_rename_entry,
+  on_delete_entry,
   on_context_menu,
-  on_start_rename,
-  renaming_entry,
-  on_rename_complete,
 }: TreeRowProps) {
+  const { t } = useI18n();
   const { entry, children } = node;
   const is_active = entry.path === active_path;
-  const is_renaming = renaming_entry?.path === entry.path;
-  const FileIcon = getFileIcon(entry.name);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [is_open, setIsOpen] = useState(depth === 0 && !is_renaming);
-
-  useEffect(() => {
-    if (is_renaming && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [is_renaming]);
+  const is_directory_target = entry.is_dir && entry.path === focused_directory_path;
+  const { Icon: FileIcon, icon_class_name } = get_file_visual(entry.name);
+  const [is_open, setIsOpen] = useState(depth === 0);
 
   const handle_click = useCallback(() => {
-    if (is_renaming) return;
     if (entry.is_dir) {
-      setIsOpen((v) => !v);
+      setIsOpen((value: boolean) => !value);
+      on_click_directory(entry.path);
     } else {
       on_click_file(entry.path);
     }
-  }, [entry, is_renaming, on_click_file]);
-
-  const handle_double_click = useCallback((e: React.MouseEvent) => {
-    if (!entry.is_dir) {
-      on_start_rename(entry);
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, [entry, on_start_rename]);
-
-  const handle_rename_key_down = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      on_rename_complete(entry, e.currentTarget.value);
-      e.preventDefault();
-    } else if (e.key === "Escape") {
-      on_rename_complete(entry, entry.name);
-      e.preventDefault();
-    }
-  }, [entry, on_rename_complete]);
+  }, [entry, on_click_directory, on_click_file]);
 
   const handle_context_menu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -255,14 +341,13 @@ const TreeRow = memo(function TreeRow({
       <div
         className={cn(
           "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors",
-          is_renaming ? "bg-primary/10" : "hover:bg-(--surface-interactive-hover-background)",
-          is_active
+          "hover:bg-(--surface-interactive-hover-background)",
+          is_active || is_directory_target
             ? "bg-primary/10 text-primary"
             : "text-(--text-default)",
         )}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         onClick={handle_click}
-        onDoubleClick={handle_double_click}
         onContextMenu={handle_context_menu}
       >
         {entry.is_dir ? (
@@ -278,27 +363,44 @@ const TreeRow = memo(function TreeRow({
             <Folder className="h-4 w-4 shrink-0 text-[var(--accent)]" />
           )
         ) : (
-          <FileIcon className={cn("h-4 w-4 shrink-0", is_active ? "text-primary" : "text-(--icon-muted)")} />
+          <FileIcon className={cn("h-4 w-4 shrink-0", is_active ? "text-primary" : icon_class_name)} />
         )}
 
-        {is_renaming ? (
-          <input
-            ref={inputRef}
-            type="text"
-            defaultValue={entry.name}
-            className="flex-1 bg-transparent text-sm text-(--text-default) outline-none"
-            onKeyDown={handle_rename_key_down}
-            onBlur={(e) => on_rename_complete(entry, e.currentTarget.value)}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span className={cn(
-            "min-w-0 flex-1 truncate text-[13px]",
-            entry.is_dir ? "font-medium" : "font-normal",
-          )}>
-            {entry.name}
-          </span>
-        )}
+        <span className={cn(
+          "min-w-0 flex-1 truncate text-[14px] leading-6",
+          entry.is_dir ? "font-medium" : "font-normal",
+        )}>
+          {entry.name}
+        </span>
+
+        <div className={cn(
+          "ml-auto flex shrink-0 items-center gap-0.5 transition-opacity",
+          is_active || is_directory_target ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-(--icon-muted) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            onClick={(e) => {
+              e.stopPropagation();
+              on_rename_entry(entry);
+            }}
+            title={t("home.rename")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-(--icon-muted) transition hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)"
+            onClick={(e) => {
+              e.stopPropagation();
+              on_delete_entry(entry);
+            }}
+            title={t("common.delete")}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {entry.is_dir && is_open && children.length > 0 && (
@@ -308,12 +410,13 @@ const TreeRow = memo(function TreeRow({
               key={child.entry.path}
               node={child}
               active_path={active_path}
+              focused_directory_path={focused_directory_path}
               depth={depth + 1}
               on_click_file={on_click_file}
+              on_click_directory={on_click_directory}
+              on_rename_entry={on_rename_entry}
+              on_delete_entry={on_delete_entry}
               on_context_menu={on_context_menu}
-              on_start_rename={on_start_rename}
-              renaming_entry={renaming_entry}
-              on_rename_complete={on_rename_complete}
             />
           ))}
         </div>
@@ -377,129 +480,44 @@ export function RoomWorkspaceView({
   on_open_workspace_file,
 }: RoomWorkspaceViewProps) {
   const { t } = useI18n();
-  const [selected_agent_id, set_selected_agent_id] = useState(agent_id);
-  const [is_uploading, setIsUploading] = useState(false);
-  const [context_menu, setContextMenu] = useState<{ position: { x: number; y: number } | null; entry: WorkspaceFileEntry | null }>({
-    position: null,
-    entry: null,
+  const file_input_ref = useRef<HTMLInputElement>(null);
+  const {
+    files,
+    selected_agent_id,
+    set_selected_agent_id,
+    is_uploading,
+    is_loading_files,
+    error_message,
+    clear_error_message,
+    context_menu,
+    prompt_state,
+    delete_target,
+    focused_directory_path,
+    current_directory_label,
+    handle_click_file,
+    handle_click_directory,
+    handle_upload_click,
+    handle_file_select,
+    open_create_prompt,
+    open_rename_prompt,
+    handle_prompt_confirm,
+    handle_confirm_delete,
+    handle_context_menu,
+    handle_root_context_menu,
+    close_context_menu,
+    set_delete_target,
+    set_prompt_state,
+  } = useRoomWorkspaceController({
+    active_workspace_path,
+    agent_id,
+    is_dm,
+    on_open_workspace_file,
+    file_input_ref,
   });
 
-  const file_input_ref = useRef<HTMLInputElement>(null);
-  const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
-  const refresh_files = useWorkspaceFilesStore((state) => state.refresh_files);
+  const tree = useMemo(() => buildTree(files), [files]);
 
-  const view_agent_id = is_dm ? agent_id : selected_agent_id;
-  const tree = useMemo(() => {
-    const all_files = files_by_agent[view_agent_id] || [];
-    return buildTree(all_files);
-  }, [files_by_agent, view_agent_id]);
-
-  const [renaming_entry, setRenamingEntry] = useState<WorkspaceFileEntry | null>(null);
-
-  const handle_click_file = useCallback(
-    (path: string) => {
-      on_open_workspace_file(path);
-    },
-    [on_open_workspace_file],
-  );
-
-  const handle_upload_click = useCallback(() => {
-    file_input_ref.current?.click();
-  }, []);
-
-  const handle_file_select = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    try {
-      for (const file of Array.from(files)) {
-        await uploadWorkspaceFileApi(view_agent_id, file);
-      }
-      await refresh_files(view_agent_id);
-    } catch (error) {
-      console.error("上传文件失败:", error);
-      alert(error instanceof Error ? error.message : "上传文件失败");
-    } finally {
-      setIsUploading(false);
-      if (file_input_ref.current) {
-        file_input_ref.current.value = "";
-      }
-    }
-  }, [view_agent_id, refresh_files]);
-
-  const handle_create_entry = useCallback(async (type: "file" | "directory") => {
-    const placeholder = type === "file" ? "untitled.txt" : "new-folder";
-    const new_name = window.prompt(
-      type === "file" ? "输入新文件名" : "输入新文件夹名",
-      placeholder,
-    );
-    if (!new_name) return;
-
-    try {
-      await createWorkspaceEntryApi(view_agent_id, new_name, type);
-      await refresh_files(view_agent_id);
-    } catch (error) {
-      console.error("创建失败:", error);
-      alert(error instanceof Error ? error.message : "创建失败");
-    }
-  }, [view_agent_id, refresh_files]);
-
-  const handle_rename_entry = useCallback(async (entry: WorkspaceFileEntry, new_name: string) => {
-    if (!new_name || new_name === entry.name) {
-      setRenamingEntry(null);
-      return;
-    }
-
-    try {
-      await renameWorkspaceEntryApi(view_agent_id, entry.path, new_name);
-      await refresh_files(view_agent_id);
-      if (active_workspace_path === entry.path) {
-        on_open_workspace_file(new_name);
-      }
-    } catch (error) {
-      console.error("重命名失败:", error);
-      alert(error instanceof Error ? error.message : "重命名失败");
-    }
-    setRenamingEntry(null);
-  }, [active_workspace_path, view_agent_id, refresh_files, on_open_workspace_file]);
-
-  const handle_delete_entry = useCallback(async (entry: WorkspaceFileEntry) => {
-    const confirmed = window.confirm(`确认删除 "${entry.name}" 吗？`);
-    if (!confirmed) return;
-
-    try {
-      await deleteWorkspaceEntryApi(view_agent_id, entry.path);
-      await refresh_files(view_agent_id);
-      if (active_workspace_path?.startsWith(entry.path)) {
-        on_open_workspace_file(null);
-      }
-    } catch (error) {
-      console.error("删除失败:", error);
-      alert(error instanceof Error ? error.message : "删除失败");
-    }
-  }, [active_workspace_path, view_agent_id, refresh_files, on_open_workspace_file]);
-
-  const handle_context_menu = useCallback((
-    e: React.MouseEvent,
-    entry: WorkspaceFileEntry,
-  ) => {
-    const menuWidth = 180;
-    const menuHeight = entry.is_dir ? 80 : 130;
-    const x = Math.min(e.clientX, window.innerWidth - menuWidth);
-    const y = Math.min(e.clientY, window.innerHeight - menuHeight);
-
-    setContextMenu({
-      position: { x, y },
-      entry,
-    });
-  }, []);
-
-  const close_context_menu = useCallback(() => {
-    setContextMenu({ position: null, entry: null });
-  }, []);
-
-  const upload_button = (
+  return (
     <>
       <input
         ref={file_input_ref}
@@ -508,37 +526,13 @@ export function RoomWorkspaceView({
         multiple
         onChange={handle_file_select}
       />
-      <WorkspaceSurfaceToolbarAction onClick={handle_upload_click} disabled={is_uploading}>
-        {is_uploading ? (
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Upload className="h-3.5 w-3.5" />
-        )}
-      </WorkspaceSurfaceToolbarAction>
 
-      <WorkspaceSurfaceToolbarAction onClick={() => handle_create_entry("directory")}>
-        <FolderPlus className="h-3.5 w-3.5" />
-      </WorkspaceSurfaceToolbarAction>
-
-      <WorkspaceSurfaceToolbarAction onClick={() => handle_create_entry("file")}>
-        <FilePlus className="h-3.5 w-3.5" />
-      </WorkspaceSurfaceToolbarAction>
-    </>
-  );
-
-  return (
-    <>
-      <WorkspaceSurfaceScaffold
-        header={(
-          <WorkspaceSurfaceHeader
-            density="compact"
-            leading={<FolderTree className="h-4 w-4" />}
-            title={t("room.workspace_title")}
-            trailing={upload_button}
-          />
-        )}
-        body_scrollable
-        stable_gutter
+      <WorkspaceSurfaceView
+        body_class_name="px-4 py-5 sm:px-5 xl:px-6"
+        content_class_name="space-y-4"
+        eyebrow={t("room.workspace")}
+        max_width_class_name="max-w-[820px]"
+        title={t("room.workspace_title")}
       >
         {!is_dm && room_members.length > 1 && (
           <MemberSwitcher
@@ -548,58 +542,133 @@ export function RoomWorkspaceView({
           />
         )}
 
+        <div className="mx-auto flex w-full max-w-[820px] items-center justify-between gap-3">
+          <div className="inline-flex min-w-0 items-center gap-2 rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[12px] text-(--text-default)">
+            {focused_directory_path ? (
+              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+            ) : (
+              <FolderTree className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+            )}
+            <span className="truncate font-medium text-(--text-strong)">{current_directory_label}</span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <WorkspaceSurfaceToolbarAction onClick={() => handle_upload_click()} disabled={is_uploading} tone="primary">
+              {is_uploading ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              {t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+            </WorkspaceSurfaceToolbarAction>
+
+            <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("directory")}>
+              <FolderPlus className="h-3.5 w-3.5" />
+              {t("room.workspace_action_new_folder")}
+            </WorkspaceSurfaceToolbarAction>
+
+            <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("file")}>
+              <FilePlus className="h-3.5 w-3.5" />
+              {t("room.workspace_action_new_file")}
+            </WorkspaceSurfaceToolbarAction>
+          </div>
+        </div>
+
+        {error_message ? (
+          <div className="mx-auto flex w-full max-w-[820px] items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
+            <span className="min-w-0 flex-1 truncate">{error_message}</span>
+            <button
+              type="button"
+              className="ml-3 shrink-0 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-destructive/10"
+              onClick={clear_error_message}
+            >
+              {t("common.close")}
+            </button>
+          </div>
+        ) : null}
+
         {tree.length > 0 ? (
-          <div className="rounded-xl border py-1" style={{
-            background: "var(--surface-panel-subtle-background)",
-            borderColor: "var(--surface-panel-subtle-border)",
-          }}>
+          <div className="mx-auto w-full max-w-[820px] py-1" onContextMenu={handle_root_context_menu}>
             {tree.map((node) => (
               <TreeRow
                 key={node.entry.path}
                 node={node}
                 active_path={active_workspace_path}
+                focused_directory_path={focused_directory_path}
                 depth={0}
                 on_click_file={handle_click_file}
+                on_click_directory={handle_click_directory}
+                on_rename_entry={open_rename_prompt}
+                on_delete_entry={set_delete_target}
                 on_context_menu={handle_context_menu}
-                on_start_rename={setRenamingEntry}
-                renaming_entry={renaming_entry}
-                on_rename_complete={handle_rename_entry}
               />
             ))}
           </div>
+        ) : is_loading_files ? (
+          <div className="mx-auto flex w-full max-w-[820px] items-center justify-center py-12 text-(--text-soft)">
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          </div>
         ) : (
           <div
-            className="rounded-2xl border px-5 py-6 text-sm leading-7 text-(--text-muted)"
-            style={{
-              background: "var(--surface-panel-subtle-background)",
-              borderColor: "var(--surface-panel-subtle-border)",
-            }}
+            className="mx-auto w-full max-w-[820px] rounded-[24px] border border-(--divider-subtle-color) px-6 py-10 text-center"
+            onContextMenu={handle_root_context_menu}
           >
-            <div className="mb-2 flex items-center gap-2 font-medium text-(--text-strong)">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
               <FolderTree className="h-4 w-4" />
+            </div>
+            <p className="mt-4 text-[15px] font-semibold text-(--text-strong)">
               {t("room.no_files")}
-            </div>
-            <div className="text-[13px] text-(--text-soft)">
-              <p className="mb-1">点击上方按钮创建内容：</p>
-              <ul className="ml-4 space-y-1 text-(--text-muted)">
-                <li>• 新建文件夹</li>
-                <li>• 新建文件</li>
-                <li>• 上传文件</li>
-              </ul>
-            </div>
+            </p>
+            <p className="mt-1 text-[12px] leading-6 text-(--text-soft)">
+              {t("room.workspace_empty_description")}
+            </p>
           </div>
         )}
-      </WorkspaceSurfaceScaffold>
+      </WorkspaceSurfaceView>
 
       {/* 上下文菜单 */}
       <ContextMenu
         position={context_menu.position}
         entry={context_menu.entry}
-        onCreateFile={() => handle_create_entry("file")}
-        onCreateFolder={() => handle_create_entry("directory")}
-        onRename={() => { if (context_menu.entry) setRenamingEntry(context_menu.entry); }}
-        onDelete={() => { if (context_menu.entry) handle_delete_entry(context_menu.entry); }}
+        can_create_children={context_menu.entry === null || context_menu.entry.is_dir}
+        onUpload={() => handle_upload_click(context_menu.entry?.is_dir ? context_menu.entry.path : null)}
+        onCreateFile={() => open_create_prompt("file", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
+        onCreateFolder={() => open_create_prompt("directory", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
+        onRename={() => { if (context_menu.entry) open_rename_prompt(context_menu.entry); }}
+        onDelete={() => { if (context_menu.entry) set_delete_target(context_menu.entry); }}
         onClose={close_context_menu}
+      />
+
+      <PromptDialog
+        is_open={prompt_state !== null}
+        title={
+          prompt_state?.mode === "create-file"
+            ? t("room.workspace_create_file_title")
+            : prompt_state?.mode === "create-directory"
+              ? t("room.workspace_create_folder_title")
+              : t("room.workspace_rename_title")
+        }
+        placeholder={
+          prompt_state?.mode === "create-file"
+            ? t("room.workspace_create_file_placeholder")
+            : prompt_state?.mode === "create-directory"
+              ? t("room.workspace_create_folder_placeholder")
+              : t("room.workspace_rename_placeholder")
+        }
+        default_value={prompt_state?.default_value ?? ""}
+        on_confirm={handle_prompt_confirm}
+        on_cancel={() => set_prompt_state(null)}
+      />
+
+      <ConfirmDialog
+        is_open={delete_target !== null}
+        title={t("room.workspace_delete_title")}
+        message={t("room.workspace_delete_message", { name: delete_target?.name ?? "" })}
+        confirm_text={t("common.delete")}
+        cancel_text={t("common.cancel")}
+        on_confirm={handle_confirm_delete}
+        on_cancel={() => set_delete_target(null)}
+        variant="danger"
       />
     </>
   );
