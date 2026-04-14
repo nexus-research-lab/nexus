@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   deleteSkillApi,
+  getExternalSkillPreviewApi,
   getAvailableSkillsApi,
   importSkillsShSkillApi,
   importGitSkillApi,
@@ -29,12 +30,15 @@ export function useSkillMarketplace() {
   const [external_results, set_external_results] = useState<ExternalSkillSearchItem[]>([]);
   const [preview_external_item, set_preview_external_item] = useState<ExternalSkillSearchItem | null>(null);
   const [external_loading, set_external_loading] = useState(false);
+  const [external_preview_loading, set_external_preview_loading] = useState(false);
+  const [busy_external_key, set_busy_external_key] = useState<string | null>(null);
   const [git_prompt_open, set_git_prompt_open] = useState(false);
   const [loading, set_loading] = useState(true);
   const [busy_skill_name, set_busy_skill_name] = useState<string | null>(null);
   const [status_message, set_status_message] = useState<string | null>(null);
   const [error_message, set_error_message] = useState<string | null>(null);
   const file_input_ref = useRef<HTMLInputElement | null>(null);
+  const external_search_request_ref = useRef(0);
 
   /* ── 数据加载 ───────────────────────────────── */
 
@@ -59,6 +63,7 @@ export function useSkillMarketplace() {
     void (async () => {
       try {
         set_loading(true);
+        set_error_message(null);
         await load_skills(debounced_search_query);
       } catch (err) {
         set_error_message(err instanceof Error ? err.message : "加载失败");
@@ -67,6 +72,43 @@ export function useSkillMarketplace() {
       }
     })();
   }, [debounced_search_query, discovery_mode, load_skills]);
+
+  useEffect(() => {
+    if (discovery_mode !== "external") return;
+
+    const query = external_query.trim();
+    const request_id = ++external_search_request_ref.current;
+
+    if (!query) {
+      set_external_loading(false);
+      set_external_results([]);
+      set_error_message(null);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          set_external_loading(true);
+          set_error_message(null);
+          const results = await searchExternalSkillsApi(query, false);
+          if (request_id !== external_search_request_ref.current) return;
+          set_external_results(results);
+        } catch (err) {
+          if (request_id !== external_search_request_ref.current) return;
+          set_error_message(err instanceof Error ? err.message : "搜索失败");
+        } finally {
+          if (request_id === external_search_request_ref.current) {
+            set_external_loading(false);
+          }
+        }
+      })();
+    }, 280);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [discovery_mode, external_query]);
 
   /* ── 派生数据 ───────────────────────────────── */
 
@@ -98,10 +140,17 @@ export function useSkillMarketplace() {
 
   const catalog_count = skills.length;
 
-  const imported_skill_names = useMemo(
-    () => new Set(skills.map((s) => s.name)),
-    [skills],
-  );
+  const imported_external_sources = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    skills.forEach((s) => {
+      if (s.source_type !== "external") return;
+      const key = s.name;
+      const set = map.get(key) ?? new Set<string>();
+      if (s.source_ref) set.add(s.source_ref);
+      map.set(key, set);
+    });
+    return map;
+  }, [skills]);
 
   /* ── 操作 ───────────────────────────────────── */
 
@@ -185,41 +234,30 @@ export function useSkillMarketplace() {
     }
   }, [refresh_marketplace]);
 
-  const handle_external_search = useCallback(async () => {
-    clear_messages();
-    if (!external_query.trim()) {
-      set_external_results([]);
+  const handle_preview_external = useCallback(async (item: ExternalSkillSearchItem) => {
+    set_preview_external_item(item);
+    if (item.readme_markdown || !item.detail_url) {
       return;
     }
     try {
-      set_external_loading(true);
-      const results = await searchExternalSkillsApi(external_query.trim());
-      set_external_results(results);
+      set_external_preview_loading(true);
+      const result = await getExternalSkillPreviewApi(item.detail_url);
+      set_preview_external_item((prev) => {
+        if (!prev || prev.detail_url !== item.detail_url) return prev;
+        return { ...prev, readme_markdown: result.readme_markdown };
+      });
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "搜索失败");
+      set_error_message(err instanceof Error ? err.message : "预览加载失败");
     } finally {
-      set_external_loading(false);
+      set_external_preview_loading(false);
     }
-  }, [external_query]);
-
-  const handle_catalog_search = useCallback(async () => {
-    clear_messages();
-    try {
-      set_loading(true);
-      const query = search_query.trim();
-      set_debounced_search_query(query);
-      await load_skills(query);
-    } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "搜索失败");
-    } finally {
-      set_loading(false);
-    }
-  }, [load_skills, search_query]);
+  }, []);
 
   const handle_import_external = useCallback(async (item: ExternalSkillSearchItem) => {
     clear_messages();
+    const external_key = `${item.package_spec}@@${item.skill_slug}`;
     try {
-      set_busy_skill_name(item.skill_slug);
+      set_busy_external_key(external_key);
       await importSkillsShSkillApi(item.package_spec, item.skill_slug);
       set_status_message(`已导入：${item.skill_slug}`);
       await refresh_marketplace();
@@ -227,7 +265,7 @@ export function useSkillMarketplace() {
     } catch (err) {
       set_error_message(err instanceof Error ? err.message : "导入失败");
     } finally {
-      set_busy_skill_name(null);
+      set_busy_external_key(null);
     }
   }, [refresh_marketplace]);
 
@@ -242,9 +280,11 @@ export function useSkillMarketplace() {
     external_results,
     preview_external_item,
     external_loading,
+    external_preview_loading,
     git_prompt_open,
     loading,
     busy_skill_name,
+    busy_external_key,
     status_message,
     error_message,
     file_input_ref,
@@ -253,7 +293,7 @@ export function useSkillMarketplace() {
     visible_skills,
     grouped_skills,
     catalog_count,
-    imported_skill_names,
+    imported_external_sources,
     // setter
     set_search_query,
     set_discovery_mode,
@@ -271,8 +311,7 @@ export function useSkillMarketplace() {
     handle_update_installed,
     handle_local_import,
     handle_git_import,
-    handle_catalog_search,
-    handle_external_search,
+    handle_preview_external,
     handle_import_external,
   };
 }

@@ -51,11 +51,11 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
         {ctrl.external_results.map((item: ExternalSkillSearchItem) => (
           <ExternalResultCard
             key={`${item.package_spec}@${item.skill_slug}`}
-            busy_skill_name={ctrl.busy_skill_name}
-            imported_skill_names={ctrl.imported_skill_names}
+            busy_external_key={ctrl.busy_external_key}
+            imported_external_sources={ctrl.imported_external_sources}
             item={item}
             on_import={() => void ctrl.handle_import_external(item)}
-            on_preview={() => ctrl.set_preview_external_item(item)}
+            on_preview={() => ctrl.handle_preview_external(item)}
           />
         ))}
       </div>
@@ -67,21 +67,24 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
 
 interface ExternalResultCardProps {
   item: ExternalSkillSearchItem;
-  busy_skill_name: string | null;
-  imported_skill_names: Set<string>;
+  busy_external_key: string | null;
+  imported_external_sources: Map<string, Set<string>>;
   on_preview: () => void;
   on_import: () => void;
 }
 
 function ExternalResultCard({
   item,
-  busy_skill_name,
-  imported_skill_names,
+  busy_external_key,
+  imported_external_sources,
   on_preview,
   on_import,
 }: ExternalResultCardProps) {
-  const already_imported = imported_skill_names.has(item.skill_slug);
-  const is_busy = busy_skill_name === item.skill_slug;
+  const imported_sources = imported_external_sources.get(item.skill_slug);
+  const already_imported = imported_sources?.has(item.package_spec) ?? false;
+  const has_name_conflict = !!imported_sources && !already_imported;
+  const external_key = `${item.package_spec}@@${item.skill_slug}`;
+  const is_busy = busy_external_key === external_key;
 
   return (
     <WorkspaceCatalogCard
@@ -118,9 +121,13 @@ function ExternalResultCard({
             <WorkspaceCatalogBadge tone="success">
               已导入
             </WorkspaceCatalogBadge>
+          ) : has_name_conflict ? (
+            <WorkspaceCatalogBadge tone="warning">
+              同名冲突
+            </WorkspaceCatalogBadge>
           ) : (
             <WorkspaceCatalogTextAction
-              disabled={is_busy}
+              disabled={is_busy || has_name_conflict}
               onClick={on_import}
               tone="primary"
             >

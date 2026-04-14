@@ -1,91 +1,72 @@
 "use client";
 
-import type { ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownRendererContent } from "@/features/conversation-shared/message/markdown-renderer-content";
+import { cn } from "@/lib/utils";
 
 const SKILL_MARKDOWN_CLASS_NAME =
-  "text-sm leading-[1.9] text-(--text-default) [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+  "[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0";
 
 interface SkillMarkdownProps {
   markdown: string;
+  title?: string;
+  description?: string;
+  class_name?: string;
 }
 
-export function SkillMarkdown({ markdown }: SkillMarkdownProps) {
-  return (
-    <div className={SKILL_MARKDOWN_CLASS_NAME}>
-      <ReactMarkdown
-        components={{
-          a: ({ children, href }) => (
-            <a
-              className="text-sky-500/92 underline decoration-sky-400/50 underline-offset-4"
-              href={href}
-              rel="noreferrer"
-              target="_blank"
-            >
-              {children}
-            </a>
-          ),
-          h1: ({ children }) => (
-            <h1 className="mt-8 text-[28px] font-black tracking-[-0.04em] text-(--text-strong)">
-              {children}
-            </h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="mt-7 text-[22px] font-bold tracking-[-0.03em] text-(--text-strong)">
-              {children}
-            </h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="mt-6 text-[18px] font-bold text-(--text-strong)">
-              {children}
-            </h3>
-          ),
-          p: ({ children }) => (
-            <p className="mt-4">
-              {children}
-            </p>
-          ),
-          ul: ({ children }) => (
-            <ul className="mt-4 list-disc pl-6">
-              {children}
-            </ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="mt-4 list-decimal pl-6">
-              {children}
-            </ol>
-          ),
-          li: ({ children }) => (
-            <li className="mt-[0.45rem] first:mt-0">
-              {children}
-            </li>
-          ),
-          pre: ({ children }) => (
-            <pre className="mt-4 overflow-x-auto rounded-[18px] bg-(--surface-inset-background) border border-(--divider-subtle-color) p-4 text-xs text-(--text-default) shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
-              {children}
-            </pre>
-          ),
-          code: ({ children, className }) => {
-            if (className) {
-              return (
-                <code className={className}>
-                  {children}
-                </code>
-              );
-            }
+function normalize_plain_text(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/[`*_>#~\-]/g, " ")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase();
+}
 
-            return (
-              <code className="rounded-lg bg-(--surface-inset-background) border border-(--divider-subtle-color) px-[0.42rem] py-[0.16rem] text-[12px] text-(--text-default)">
-                {children as ReactNode}
-              </code>
-            );
-          },
-        }}
-        remarkPlugins={[remarkGfm]}
-      >
-        {markdown}
-      </ReactMarkdown>
-    </div>
+function strip_leading_duplicate_content(markdown: string, title?: string, description?: string): string {
+  const normalized_markdown = markdown.replace(/^\uFEFF/, "").trim();
+  if (!normalized_markdown) {
+    return "";
+  }
+
+  let next_markdown = normalized_markdown;
+  const normalized_title = title ? normalize_plain_text(title) : "";
+  const normalized_description = description ? normalize_plain_text(description) : "";
+
+  const frontmatter_match = next_markdown.match(/^---\s*\n[\s\S]*?\n---\s*(?:\n+|$)/);
+  if (frontmatter_match) {
+    next_markdown = next_markdown.slice(frontmatter_match[0].length).trimStart();
+  }
+
+  const heading_match = next_markdown.match(/^#\s+(.+?)\n+/);
+  if (heading_match && normalized_title && normalize_plain_text(heading_match[1]) === normalized_title) {
+    next_markdown = next_markdown.slice(heading_match[0].length).trimStart();
+  }
+
+  // 中文注释：很多 Skill README 的首段会把 description 原样再写一遍，
+  // 这里在详情弹窗里裁掉这段重复导语，保留正文结构不变。
+  if (normalized_description) {
+    const first_block_match = next_markdown.match(/^([\s\S]*?)(?:\n\s*\n|$)/);
+    const first_block = first_block_match?.[1]?.trim() ?? "";
+    if (
+      first_block
+      && !/^(#|>|-|[*]|\d+\.)/.test(first_block)
+      && normalize_plain_text(first_block) === normalized_description
+    ) {
+      next_markdown = next_markdown.slice(first_block_match![0].length).trimStart();
+    }
+  }
+
+  return next_markdown;
+}
+
+export function SkillMarkdown({ markdown, title, description, class_name }: SkillMarkdownProps) {
+  const normalized_markdown = strip_leading_duplicate_content(markdown, title, description);
+
+  return (
+    <MarkdownRendererContent
+      class_name={cn(SKILL_MARKDOWN_CLASS_NAME, class_name)}
+      content={normalized_markdown || markdown}
+    />
   );
 }

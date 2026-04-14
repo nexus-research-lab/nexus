@@ -1,8 +1,6 @@
-import { Globe2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
 
 import type { SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
 
@@ -12,13 +10,17 @@ interface SkillsSearchBarProps {
 
 export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
   return (
-    <div className="mb-5 space-y-3">
-      <div className="flex items-center gap-2.5">
+    <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+      <div className="w-full max-w-[34rem] shrink-0">
         <WorkspaceSearchInput
-          class_name="flex-1"
+          class_name="h-11 w-full px-3.5 py-2"
+          input_class_name="text-[15px]"
           on_change={(value) => {
-            ctrl.set_search_query(value);
-            if (ctrl.discovery_mode === "external") ctrl.set_external_query(value);
+            if (ctrl.discovery_mode === "catalog") {
+              ctrl.set_search_query(value);
+              return;
+            }
+            ctrl.set_external_query(value);
           }}
           placeholder={
             ctrl.discovery_mode === "catalog"
@@ -27,29 +29,17 @@ export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
           }
           value={ctrl.discovery_mode === "catalog" ? ctrl.search_query : ctrl.external_query}
         />
-        <WorkspaceSurfaceToolbarAction
-          onClick={() =>
-            void (
-              ctrl.discovery_mode === "external"
-                ? ctrl.handle_external_search()
-                : ctrl.handle_catalog_search()
-            )}
-          tone="primary"
-        >
-          <Globe2 className="h-3.5 w-3.5" />
-          搜索
-        </WorkspaceSurfaceToolbarAction>
       </div>
 
       {ctrl.discovery_mode === "catalog" ? (
-        <div className="soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-0.5">
+        <div className="soft-scrollbar scrollbar-hide flex min-w-0 flex-1 items-center gap-5 overflow-x-auto">
           {ctrl.categories.map((category) => {
             const is_active = ctrl.active_category === category.key;
             return (
               <button
                 key={category.key}
                 className={cn(
-                  "inline-flex h-8 shrink-0 items-center border-b-2 border-transparent px-0 py-1 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast)",
+                  "inline-flex h-9 shrink-0 items-center border-b-2 border-transparent px-0 py-1 text-[12px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast)",
                   is_active
                     ? "border-(--surface-interactive-active-border) text-(--text-strong)"
                     : "text-(--text-default) hover:text-(--text-strong)",

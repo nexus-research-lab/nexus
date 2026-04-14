@@ -13,16 +13,18 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
 
+from agent.config.config import settings
 from agent.schema.model_skill import ExternalSkillManifest, ExternalSkillSearchItem
 from agent.service.capability.skills.skill_cli_runner import SkillCliRunner
+from agent.service.capability.skills.skill_external_search_service import SkillExternalSearchService
 from agent.service.capability.skills.skill_frontmatter import SkillFrontmatterParser
 from agent.service.capability.skills.skill_registry_store import SkillRegistryStore
+from agent.service.capability.skills.skill_well_known_loader import SkillWellKnownLoader
 
 
 class SkillImportService:
@@ -32,6 +34,8 @@ class SkillImportService:
         self._store = SkillRegistryStore()
         self._project_root = Path(__file__).resolve().parents[4]
         self._cli = SkillCliRunner()
+        self._external_search = SkillExternalSearchService(self._cli)
+        self._well_known = SkillWellKnownLoader(settings.HTTP_TIMEOUT)
 
     def import_local_path(self, local_path: str) -> ExternalSkillManifest:
         source_path = Path(local_path).expanduser()
@@ -83,30 +87,69 @@ class SkillImportService:
             return manifest
 
     def import_skills_sh(self, package_spec: str, skill_slug: str) -> ExternalSkillManifest:
+        normalized_spec = (package_spec or "").strip()
+        derived_slug = (skill_slug or "").strip()
+        if "@" in normalized_spec:
+            spec_base, derived = normalized_spec.split("@", 1)
+            spec_base = spec_base.strip()
+            if not derived_slug:
+                derived_slug = derived.strip()
+            if spec_base and self._well_known.is_well_known_spec(spec_base):
+                try:
+                    return self._import_well_known_skill(spec_base, derived_slug)
+                except ValueError:
+                    # 中文注释：well-known 兜底失败后继续走 skills CLI。
+                    pass
+        else:
+            normalized_spec = SkillWellKnownLoader.normalize_source(normalized_spec)
+
+        if not derived_slug:
+            raise ValueError("skills.sh 导入缺少 skill_slug")
+
+        if "@" not in normalized_spec and self._well_known.is_well_known_spec(normalized_spec):
+            return self._import_well_known_skill(normalized_spec, derived_slug)
+
         with tempfile.TemporaryDirectory(prefix="nexus-skill-skills-sh-") as temp_dir:
             temp_root = Path(temp_dir)
-            self._run_skills_cli_add(temp_root, package_spec, skill_slug)
-            skill_root = temp_root / ".agents" / "skills" / skill_slug
+            self._run_skills_cli_add(temp_root, normalized_spec, derived_slug)
+            skill_root = temp_root / ".agents" / "skills" / derived_slug
             if not (skill_root / "SKILL.md").exists():
-                raise ValueError(f"skills.sh 导入失败，未找到 skill: {skill_slug}")
+                raise ValueError(f"skills.sh 导入失败，未找到 skill: {derived_slug}")
             manifest = self._persist_external_skill(
                 skill_root,
-                source_ref=package_spec,
+                source_ref=normalized_spec,
                 import_mode="skills_sh",
                 persist=False,
             )
-            manifest.package_spec = package_spec
-            manifest.skill_slug = skill_slug
+            manifest.package_spec = normalized_spec
+            manifest.skill_slug = derived_slug
             manifest.recommendation = "来自 skills.sh 的外部技能。"
             self._store.write_skill(manifest, skill_root)
             return manifest
 
-    def search_skills_sh(self, query: str) -> list[ExternalSkillSearchItem]:
-        output = self._cli.run_skills_cli_find(query)
-        items = self._parse_skills_find_output(output)
-        for item in items[:8]:
-            item.readme_markdown = self._cli.fetch_skill_markdown(item.detail_url)
-        return items
+    def _import_well_known_skill(self, source: str, skill_slug: str) -> ExternalSkillManifest:
+        with tempfile.TemporaryDirectory(prefix="nexus-skill-well-known-") as temp_dir:
+            temp_root = Path(temp_dir)
+            skill_root = self._well_known.load_skill(source, skill_slug, temp_root)
+            if not (skill_root / "SKILL.md").exists():
+                raise ValueError(f"well-known 导入失败，未找到 skill: {skill_slug}")
+            manifest = self._persist_external_skill(
+                skill_root,
+                source_ref=source,
+                import_mode="well_known",
+                persist=False,
+            )
+            manifest.package_spec = source
+            manifest.skill_slug = skill_slug
+            manifest.recommendation = "来自 well-known 技能源。"
+            self._store.write_skill(manifest, skill_root)
+            return manifest
+
+    def search_skills_sh(self, query: str, include_readme: bool = False) -> list[ExternalSkillSearchItem]:
+        return self._external_search.search(query, include_readme)
+
+    def fetch_skills_sh_preview(self, detail_url: str) -> str:
+        return self._external_search.fetch_preview(detail_url)
 
     def check_git_update(self, manifest: ExternalSkillManifest) -> bool:
         if manifest.import_mode != "git" or not manifest.git_url:
@@ -133,6 +176,23 @@ class SkillImportService:
         except ValueError:
             return False
 
+    def check_well_known_update(self, manifest: ExternalSkillManifest) -> bool:
+        """比较 well-known 导入结果与本地 registry 内容是否一致。"""
+        if manifest.import_mode != "well_known" or not manifest.package_spec or not manifest.skill_slug:
+            return False
+        current_dir = self._store.skill_dir(manifest.name)
+        if not current_dir.exists():
+            return False
+        try:
+            with tempfile.TemporaryDirectory(prefix="nexus-skill-well-known-check-") as temp_dir:
+                temp_root = Path(temp_dir)
+                remote_dir = self._well_known.load_skill(manifest.package_spec, manifest.skill_slug, temp_root)
+                if not (remote_dir / "SKILL.md").exists():
+                    return False
+                return self._hash_skill_directory(remote_dir) != self._hash_skill_directory(current_dir)
+        except ValueError:
+            return False
+
     def update_git_skill(self, manifest: ExternalSkillManifest) -> ExternalSkillManifest:
         if manifest.import_mode != "git" or not manifest.git_url:
             raise ValueError(f"Skill '{manifest.name}' 不支持远程更新")
@@ -145,6 +205,14 @@ class SkillImportService:
         if manifest.import_mode != "skills_sh" or not manifest.package_spec or not manifest.skill_slug:
             raise ValueError(f"Skill '{manifest.name}' 不支持 skills.sh 更新")
         updated = self.import_skills_sh(manifest.package_spec, manifest.skill_slug)
+        if updated.name != manifest.name:
+            raise ValueError("更新后的 skill 名称发生变化，已拒绝覆盖")
+        return updated
+
+    def update_well_known_skill(self, manifest: ExternalSkillManifest) -> ExternalSkillManifest:
+        if manifest.import_mode != "well_known" or not manifest.package_spec or not manifest.skill_slug:
+            raise ValueError(f"Skill '{manifest.name}' 不支持 well-known 更新")
+        updated = self._import_well_known_skill(manifest.package_spec, manifest.skill_slug)
         if updated.name != manifest.name:
             raise ValueError("更新后的 skill 名称发生变化，已拒绝覆盖")
         return updated
@@ -225,46 +293,6 @@ class SkillImportService:
 
     def _run_skills_cli_add(self, workdir: Path, package_spec: str, skill_slug: str) -> None:
         self._cli.run_skills_cli_add(workdir, package_spec, skill_slug)
-
-    def _parse_skills_find_output(self, output: str) -> list[ExternalSkillSearchItem]:
-        clean = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", output)
-        items: list[ExternalSkillSearchItem] = []
-        current_spec = ""
-        current_installs = 0
-        for raw_line in clean.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-            if " installs" in line and "@" in line and "http" not in line:
-                match = re.match(r"(?P<spec>\S+)\s+(?P<installs>[0-9.]+[Kk]?) installs", line)
-                if not match:
-                    continue
-                current_spec = match.group("spec")
-                current_installs = self._parse_install_count(match.group("installs"))
-                continue
-            if line.startswith("└ https://skills.sh/") and current_spec:
-                detail_url = line.replace("└ ", "").strip()
-                source, skill_slug = current_spec.split("@", 1)
-                items.append(
-                    ExternalSkillSearchItem(
-                        name=skill_slug,
-                        title=skill_slug,
-                        description="来自 skills.sh 的搜索结果",
-                        source=source,
-                        package_spec=source,
-                        skill_slug=skill_slug,
-                        installs=current_installs,
-                        detail_url=detail_url,
-                    )
-                )
-                current_spec = ""
-                current_installs = 0
-        return items
-
-    def _parse_install_count(self, text: str) -> int:
-        if text.lower().endswith("k"):
-            return int(float(text[:-1]) * 1000)
-        return int(float(text))
 
     def _ensure_name_available(self, skill_name: str) -> None:
         """避免外部导入覆盖系统或内置 catalog。"""

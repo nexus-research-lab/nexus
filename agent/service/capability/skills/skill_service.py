@@ -225,8 +225,11 @@ class SkillService:
         self._file_store.delete_skill(skill_name)
         self._update_status_cache.pop(skill_name, None)
 
-    def search_external_skills(self, query: str) -> list[ExternalSkillSearchItem]:
-        return self._import_service.search_skills_sh(query)
+    def search_external_skills(self, query: str, include_readme: bool = False) -> list[ExternalSkillSearchItem]:
+        return self._import_service.search_skills_sh(query, include_readme)
+
+    def get_external_skill_preview(self, detail_url: str) -> str:
+        return self._import_service.fetch_skills_sh_preview(detail_url)
 
     def _validate_installable(self, agent_id: str, skill_name: str) -> SkillCatalogRecord:
         record = self._require_record(skill_name)
@@ -266,6 +269,8 @@ class SkillService:
             has_update = self._import_service.check_git_update(manifest)
         elif manifest.import_mode == "skills_sh":
             has_update = self._import_service.check_skills_sh_update(manifest)
+        elif manifest.import_mode == "well_known":
+            has_update = self._import_service.check_well_known_update(manifest)
         self._update_status_cache[detail.name] = (now, has_update)
         return has_update
 
@@ -285,6 +290,8 @@ class SkillService:
             return self._import_service.update_git_skill(manifest)
         if manifest.import_mode == "skills_sh":
             return self._import_service.update_skills_sh_skill(manifest)
+        if manifest.import_mode == "well_known":
+            return self._import_service.update_well_known_skill(manifest)
         raise ValueError(f"Skill '{skill_name}' does not support remote update")
 
 

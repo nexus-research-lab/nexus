@@ -7,8 +7,6 @@ import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
   getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
 import { ExternalSkillSearchItem } from "@/types/skill";
 
@@ -18,6 +16,8 @@ interface ExternalSkillPreviewDialogProps {
   item: ExternalSkillSearchItem | null;
   is_open: boolean;
   busy: boolean;
+  preview_loading: boolean;
+  name_conflict?: boolean;
   already_imported: boolean;
   on_close: () => void;
   on_import_only: () => void;
@@ -34,11 +34,16 @@ export function ExternalSkillPreviewDialog({
   item,
   is_open,
   busy,
+  preview_loading,
+  name_conflict = false,
   already_imported,
   on_close,
   on_import_only,
 }: ExternalSkillPreviewDialogProps) {
   if (!is_open || !item) return null;
+  const preview_markdown = preview_loading && !item.readme_markdown
+    ? "正在加载预览内容..."
+    : (item.readme_markdown || item.description || "暂无预览内容");
 
   return (
     <div
@@ -58,15 +63,16 @@ export function ExternalSkillPreviewDialog({
               {item.package_spec} · {formatInstalls(item.installs)} installs
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className={DIALOG_TAG_CLASS_NAME}>
+              <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase")}>
                 社区技能
               </span>
-              <span className={DIALOG_TAG_CLASS_NAME}>
-                {item.source}
-              </span>
               {already_imported ? (
-                <span className={cn(DIALOG_TAG_CLASS_NAME, "text-emerald-700")}>
+                <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-emerald-700")}>
                   已导入
+                </span>
+              ) : name_conflict ? (
+                <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-amber-700")}>
+                  同名冲突
                 </span>
               ) : null}
             </div>
@@ -82,10 +88,11 @@ export function ExternalSkillPreviewDialog({
         </div>
 
         <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1">
-          <div className={getDialogNoteClassName("default", "mb-5")} style={getDialogNoteStyle("default")}>
-            这是来自社区的外部技能预览。导入后会进入 Nexus 的技能目录，再在 Agent 设置里为具体智能体安装。
-          </div>
-          <SkillMarkdown markdown={item.readme_markdown || item.description || "暂无预览内容"} />
+          <SkillMarkdown
+            description={item.description}
+            markdown={preview_markdown}
+            title={item.title || item.skill_slug}
+          />
         </div>
 
         <div className="dialog-footer flex-wrap justify-between gap-3">
@@ -101,7 +108,7 @@ export function ExternalSkillPreviewDialog({
           <div className="flex flex-wrap items-center gap-2">
             <button
               className={getDialogActionClassName("primary")}
-              disabled={busy || already_imported}
+              disabled={busy || already_imported || name_conflict}
               onClick={on_import_only}
               type="button"
             >

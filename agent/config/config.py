@@ -136,6 +136,12 @@ class Settings(BaseSettings):
     NPM_REGISTRY: str = "https://registry.npmmirror.com"
 
     # =====================================================
+    # skills.sh API 配置
+    # =====================================================
+    SKILLS_API_URL: str = "https://skills.sh"
+    SKILLS_API_SEARCH_LIMIT: int = 50
+
+    # =====================================================
     # Connector OAuth 配置
     # =====================================================
     CONNECTOR_OAUTH_REDIRECT_URI: str = "http://localhost:3000/capability/connectors"

@@ -65,3 +65,8 @@ export interface SearchExternalSkillsResponse {
     query: string;
     results: ExternalSkillSearchItem[];
 }
+
+export interface ExternalSkillPreviewResponse {
+    detail_url: string;
+    readme_markdown: string;
+}

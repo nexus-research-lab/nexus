@@ -88,13 +88,25 @@ export function SkillsDirectory() {
 
       <ExternalSkillPreviewDialog
         already_imported={
-          ctrl.preview_external_item
-            ? ctrl.imported_skill_names.has(ctrl.preview_external_item.skill_slug)
-            : false
+          !!ctrl.preview_external_item &&
+          !!ctrl.imported_external_sources
+            .get(ctrl.preview_external_item.skill_slug)
+            ?.has(ctrl.preview_external_item.package_spec)
         }
-        busy={!!ctrl.preview_external_item && ctrl.busy_skill_name === ctrl.preview_external_item.skill_slug}
+        name_conflict={
+          !!ctrl.preview_external_item &&
+          !!ctrl.imported_external_sources.get(ctrl.preview_external_item.skill_slug) &&
+          !ctrl.imported_external_sources
+            .get(ctrl.preview_external_item.skill_slug)
+            ?.has(ctrl.preview_external_item.package_spec)
+        }
+        busy={
+          !!ctrl.preview_external_item &&
+          ctrl.busy_external_key === `${ctrl.preview_external_item.package_spec}@@${ctrl.preview_external_item.skill_slug}`
+        }
         is_open={!!ctrl.preview_external_item}
         item={ctrl.preview_external_item}
+        preview_loading={ctrl.external_preview_loading}
         on_close={() => ctrl.set_preview_external_item(null)}
         on_import_only={() => {
           if (ctrl.preview_external_item) void ctrl.handle_import_external(ctrl.preview_external_item);

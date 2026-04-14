@@ -92,14 +92,24 @@ async def import_git_skill(request: ImportGitSkillRequest):
 
 
 @router.get("/skills/search/external", response_model=SearchExternalSkillsResponse)
-async def search_external_skills(q: str):
+async def search_external_skills(q: str, include_readme: bool = False):
     """搜索 skills.sh 外部技能。"""
     try:
-        results = skill_service.search_external_skills(q)
+        results = skill_service.search_external_skills(q, include_readme=include_readme)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     payload = SearchExternalSkillsResponse(query=q, results=results)
     return resp.ok(resp.Resp(data=payload.model_dump()))
+
+
+@router.get("/skills/external/preview")
+async def preview_external_skill(detail_url: str):
+    """获取 skills.sh 详情页的技能预览。"""
+    try:
+        readme_markdown = skill_service.get_external_skill_preview(detail_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return resp.ok(resp.Resp(data={"detail_url": detail_url, "readme_markdown": readme_markdown}))
 
 
 @router.post("/skills/import/skills-sh", response_model=SkillDetail)

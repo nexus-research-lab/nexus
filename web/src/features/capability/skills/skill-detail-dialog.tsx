@@ -6,15 +6,11 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  Check,
   Loader2,
-  Lock,
   Puzzle,
   RefreshCw,
-  Shield,
-  Tag,
   Trash2,
   X,
 } from "lucide-react";
@@ -39,6 +35,28 @@ interface SkillDetailDialogProps {
   is_open: boolean;
   on_close: () => void;
   on_refresh: () => Promise<void> | void;
+}
+
+function SkillDescriptionQuote({ description }: { description: string }) {
+  return (
+    <blockquote className="mb-5 border-l-[3px] border-primary/32 bg-primary/4 px-4 py-3 text-[15px] leading-7 text-(--text-default) italic">
+      {description}
+    </blockquote>
+  );
+}
+
+function SkillMetaChip({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "warning" }) {
+  return (
+    <span
+      className={cn(
+        DIALOG_TAG_CLASS_NAME,
+        "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase",
+        tone === "warning" && "text-amber-700",
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 export function SkillDetailDialog({
@@ -100,6 +118,10 @@ export function SkillDetailDialog({
 
   if (!is_open) return null;
 
+  const header_subtitle = loading
+    ? "正在读取 Skill.md 文档"
+    : "查看技能说明与元信息";
+
   return (
     <div
       className="dialog-backdrop"
@@ -119,7 +141,7 @@ export function SkillDetailDialog({
                 {loading ? "加载中..." : skill?.title ?? skill_name}
               </h2>
               <p className="dialog-subtitle">
-                {skill?.description || "正在读取 Skill.md 文档"}
+                {header_subtitle}
               </p>
             </div>
           </div>
@@ -141,36 +163,31 @@ export function SkillDetailDialog({
           ) : skill ? (
             <>
               <div className="mb-5 flex flex-wrap gap-2">
-                <span className={DIALOG_TAG_CLASS_NAME}>
+                <SkillMetaChip>
                   {skill.category_name}
-                </span>
-                <span className={DIALOG_TAG_CLASS_NAME}>
+                </SkillMetaChip>
+                <SkillMetaChip>
                   {skill.source_type === "system" ? "系统内置" : skill.source_type === "builtin" ? "内置推荐" : "用户导入"}
-                </span>
-                <span className={DIALOG_TAG_CLASS_NAME}>
+                </SkillMetaChip>
+                <SkillMetaChip>
                   版本 {skill.version || "unknown"}
-                </span>
+                </SkillMetaChip>
                 {skill.locked ? (
-                  <span className={cn(DIALOG_TAG_CLASS_NAME, "text-amber-700")}>
-                    <Shield className="h-3 w-3" />
+                  <SkillMetaChip tone="warning">
                     系统锁定
-                  </span>
+                  </SkillMetaChip>
                 ) : null}
                 {skill.tags.map((tag) => (
-                  <span
+                  <SkillMetaChip
                     key={tag}
-                    className={DIALOG_TAG_CLASS_NAME}
                   >
-                    <Tag className="h-3 w-3" />
                     {tag}
-                  </span>
+                  </SkillMetaChip>
                 ))}
               </div>
 
-              {skill.recommendation ? (
-                <div className={getDialogNoteClassName("default", "mb-5")} style={getDialogNoteStyle("default")}>
-                  {skill.recommendation}
-                </div>
+              {skill.description ? (
+                <SkillDescriptionQuote description={skill.description} />
               ) : null}
 
               {error ? (
@@ -179,7 +196,11 @@ export function SkillDetailDialog({
                 </div>
               ) : null}
 
-              <SkillMarkdown markdown={skill.readme_markdown} />
+              <SkillMarkdown
+                description={skill.description}
+                markdown={skill.readme_markdown}
+                title={skill.title || skill.name}
+              />
             </>
           ) : (
             <div className="flex min-h-80 items-center justify-center text-sm text-(--text-muted)">
@@ -190,12 +211,11 @@ export function SkillDetailDialog({
 
         <div className="dialog-footer flex-wrap gap-2">
           {skill?.locked ? (
-            <button
+          <button
               className={cn(getDialogActionClassName("default"), "text-amber-700")}
               disabled
               type="button"
             >
-              <Lock className="h-4 w-4" />
               系统级
             </button>
           ) : skill ? (
@@ -213,15 +233,9 @@ export function SkillDetailDialog({
               ) : (
                 <span className={cn(DIALOG_TAG_CLASS_NAME, "px-4 py-2 text-sm")}>
                   {skill.source_type === "external" ? (
-                    <>
-                      <Check className="h-4 w-4" />
-                      已导入到技能库
-                    </>
+                    "已导入到技能库"
                   ) : (
-                    <>
-                      <Puzzle className="h-4 w-4" />
-                      可在 Agent 中安装
-                    </>
+                    "可在 Agent 中安装"
                   )}
                 </span>
               )}

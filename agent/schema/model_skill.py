@@ -19,7 +19,7 @@ from agent.infra.schemas.model_cython import AModel
 
 SkillScope = Literal["main", "any"]
 SkillSourceType = Literal["system", "builtin", "external"]
-SkillImportMode = Literal["upload", "local_path", "git", "skills_sh"]
+SkillImportMode = Literal["upload", "local_path", "git", "skills_sh", "well_known"]
 
 
 class SkillInfo(AModel):

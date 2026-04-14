@@ -11,6 +11,7 @@ import { request_api } from "@/lib/http";
 import type {
   AgentSkillEntry,
   ExternalSkillSearchItem,
+  ExternalSkillPreviewResponse,
   SearchExternalSkillsResponse,
   SkillDetail,
   SkillInfo,
@@ -118,13 +119,30 @@ export const importGitSkillApi = async (url: string, branch?: string): Promise<S
 };
 
 /** 从 skills.sh 搜索外部 Skill */
-export const searchExternalSkillsApi = async (q: string): Promise<ExternalSkillSearchItem[]> => {
-  const query = build_query({ q });
+export const searchExternalSkillsApi = async (
+  q: string,
+  include_readme: boolean = false,
+): Promise<ExternalSkillSearchItem[]> => {
+  const query = build_query({
+    q,
+    include_readme: include_readme ? "true" : undefined,
+  });
   const result = await request_skill_api<SearchExternalSkillsResponse>(`/skills/search/external${query}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
   return result.results;
+};
+
+/** 获取 skills.sh 技能预览内容 */
+export const getExternalSkillPreviewApi = async (
+  detail_url: string,
+): Promise<ExternalSkillPreviewResponse> => {
+  const query = build_query({ detail_url });
+  return request_skill_api<ExternalSkillPreviewResponse>(`/skills/external/preview${query}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
 };
 
 /** 从 skills.sh 导入指定 Skill */
