@@ -183,6 +183,9 @@ class AgentManager:
             base_options["system_prompt"] = system_prompt
 
         agent_options = agent.options.model_dump(exclude_none=True)
+        if not agent_options.get("allowed_tools"):
+            agent_options["allowed_tools"] = MainAgentProfile.REGULAR_AGENT_ALLOWED_TOOLS.copy()
+
         provider = agent_options.pop("provider", None)
         runtime_config = await provider_config_service.resolve_runtime_config(provider)
         # 中文注释：Provider 配置的 base_url/model 以用户输入为准。

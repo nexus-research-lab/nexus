@@ -14,6 +14,7 @@ from __future__ import annotations
 from agent.schema.model_automation import (
     AutomationCronJobCreate,
     AutomationCronSchedule,
+    AutomationCronSource,
     AutomationDeliveryTarget,
     AutomationSessionTarget,
 )
@@ -28,6 +29,7 @@ def normalize_job_create(job_id: str, payload: AutomationCronJobCreate) -> dict[
         **schedule_to_fields(payload.schedule),
         **session_target_to_fields(payload.session_target),
         **delivery_to_fields(payload.delivery),
+        **source_to_fields(payload.source),
         "instruction": payload.instruction,
         "enabled": payload.enabled,
     }
@@ -62,6 +64,18 @@ def delivery_to_fields(target: AutomationDeliveryTarget) -> dict[str, object]:
     }
 
 
+def source_to_fields(source: AutomationCronSource) -> dict[str, object]:
+    return {
+        "source_kind": source.kind,
+        "source_creator_agent_id": source.creator_agent_id,
+        "source_context_type": source.context_type,
+        "source_context_id": source.context_id,
+        "source_context_label": source.context_label,
+        "source_session_key": source.session_key,
+        "source_session_label": source.session_label,
+    }
+
+
 def row_to_schedule(row) -> AutomationCronSchedule:
     return AutomationCronSchedule(
         kind=str(row.schedule_kind),
@@ -91,6 +105,18 @@ def row_to_delivery(row) -> AutomationDeliveryTarget:
     )
 
 
+def row_to_source(row) -> AutomationCronSource:
+    return AutomationCronSource(
+        kind=str(getattr(row, "source_kind", "system") or "system"),
+        creator_agent_id=getattr(row, "source_creator_agent_id", None),
+        context_type=getattr(row, "source_context_type", None),
+        context_id=getattr(row, "source_context_id", None),
+        context_label=getattr(row, "source_context_label", None),
+        session_key=getattr(row, "source_session_key", None),
+        session_label=getattr(row, "source_session_label", None),
+    )
+
+
 def row_to_job_dict(row, *, runtime: dict[str, object] | None = None) -> dict[str, object]:
     runtime_dict = dict(runtime or {})
     return {
@@ -101,6 +127,7 @@ def row_to_job_dict(row, *, runtime: dict[str, object] | None = None) -> dict[st
         "instruction": str(row.instruction),
         "session_target": row_to_session_target(row),
         "delivery": row_to_delivery(row),
+        "source": row_to_source(row),
         "enabled": bool(row.enabled),
         "next_run_at": runtime_dict.get("next_run_at"),
         "running": bool(runtime_dict.get("running", False)),

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增自动化运行时基础设施：`heartbeat` 主会话轮询、`cron` 精确定时调度、system event queue、wake bookkeeping、统一 delivery router、scheduled task run ledger。
 - 新增自动化后端 API：`/agent/v1/automation/heartbeat/*` 与 `/agent/v1/capability/scheduled/tasks*`，支持 heartbeat 状态/唤醒、定时任务 CRUD、立即运行、启停与运行记录查询。
 - 新增自动化测试覆盖：`tests/automation/*` 与 `tests/api/test_automation_api.py`，覆盖模型、仓储、投递、运行时、heartbeat、cron 与 API 基本行为。
+- 新增主智能体编排侧的定时任务启用/禁用 CLI 命令，以及对应的编排回归测试。
 - 新增定时任务控制台：Heartbeat 状态卡片、定时任务列表、结构化创建对话框、运行历史弹窗，以及侧栏实时任务数。
 - 新增 `capability` 能力模块，统一管理技能市场、连接器、定时任务、渠道与配对能力。
 - 技能系统数据持久化：新增 `pool_skills` / `agent_skills` 数据库表与 Alembic 迁移，技能安装状态、全局开关、Agent-Skill 关联全部写入 SQLite，取代旧 JSON 文件存储。
@@ -32,11 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 支持 `AskUserQuestion` 自定义回答选项。
 - 新增 `room conversation` CRUD API，并接通 room 页面真实的新建/删除对话、重命名 room、增删成员与删除 room 管理能力。
 - 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
+- 新增 workspace 文件下载接口，前端可直接获取 Agent 工作区中的原始文件。
 
 ### Changed
 - 重构 `/app` 与 `launcher` 前端视觉骨架：收口 surface recipe、统一目录卡片语法、移除多余玻璃壳与中间 wrapper，整体层级更薄、更接近桌面端结构。
 - Agent Options 全面接入 i18n：导航、标题、身份/设定/技能/工具页文案统一走国际化字典，工具预授权说明补齐中英文描述，并明确默认语言兜底为中文、首次加载优先遵循浏览器语言。
 - 简化 Launcher Hero、右侧 Nexus 信息面板与输入/动作区结构，恢复 `/app` 首页原有 `nexus` ASCII 文字动画入口。
+- 主智能体编排 CLI 的 `create_scheduled_task` 不再局限于绑定已有会话；当前创建入口已对齐为结构化会话目标，支持 `main / bound / named / isolated`，并提供 `--main`、`--isolated`、`--session-key`、`--named-session-key`、可选 `--session-target-kind` 与 `--wake-mode` 参数组合。
+- Heartbeat 后端接口语义补齐为 `GET /agent/v1/automation/heartbeat/{agent_id}` 读取状态、`PUT /agent/v1/automation/heartbeat/{agent_id}` 更新配置、`POST /agent/v1/automation/heartbeat/{agent_id}/wake` 手动唤醒。
+- 定时任务控制台补齐完整操作闭环：支持创建、编辑、删除、立即运行、启停切换、运行历史查看，并在创建/编辑表单中提供真实的 `main / bound / named / isolated` 会话目标选项。
 - 定时任务前后端契约升级为结构化自动化模型：前端不再使用扁平 `cron_expression/source_type` 占位字段，统一改为 `schedule`、`session_target`、`delivery` 结构。
 - 技能市场代码从 `service/workspace/` 迁移至 `service/capability/skills/`，API 从 `api/agent/` 迁移至 `api/capability/`。
 - `SkillCatalog` 改为无状态设计，状态由调用方通过数据库查询后传入。
@@ -63,10 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launcher 页面控制器移除 `use-home-agent-conversation-controller` 和 `use-initialize-conversations`，直接使用 store + agent dialog hook。
 - WebSocket session 绑定从“单活 sender”升级为“多绑定 + 单控制端”，`bind_session` 新增 `client_id / request_control` 语义，`session_status` 同步控制端与观察者数量。
 - Room 权限请求不再广播给全部房间订阅者，改为只投递给当前 session 控制端；Room 普通协作事件仍保留 room 广播。
+- Room workspace 面板升级为可创建文件/文件夹、右键删除与重命名，并对文本、PDF、图片和二进制文件分别提供编辑、预览或下载入口。
 
 ### Fixed
 - 修复 Sidebar、Room/DM、技能/连接器目录、Agent Options 与 Launcher 等区域因额外背景板、空壳节点和过多动作层导致的布局抖动、容器收缩与层级堆叠问题。
 - 修复多处前端无效交互入口与显示回归，包括 Launcher 右侧“清空 Nexus 对话”、连接器卡片状态表达、Thread 面板宽度与会话切换下拉等问题。
+- 修复主智能体创建定时任务时未校验 `session_key` 归属的问题，避免把任务错误绑定到其他 Agent 的会话。
+- 修复 `nexus-manager` skill 中单次定时任务示例使用过去时间的问题，并补充 `at` 模式只会触发未来时间的说明。
 - 修复 `session_repository` / `cost_repository` 模块级初始化产生的导入副作用（#11）。
 - 修复 Alembic 迁移多 head 冲突问题。
 - 修复 `make dev` / `make db-init` 因 Alembic 双 `head` 与后端启动旧导入路径导致的本地启动失败问题。

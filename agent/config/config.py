@@ -9,8 +9,9 @@
 # =====================================================
 
 import os
-from typing import Optional
+from typing import Any, Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 
@@ -158,6 +159,19 @@ class Settings(BaseSettings):
         case_sensitive=True,
         ignored_types=(CyFunctionDetector,)
     )
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def normalize_debug_value(cls, value: Any) -> bool:
+        """兼容 release/debug 等环境值，统一归一化成布尔。"""
+        if isinstance(value, bool):
+            return value
+        normalized = str(value or "").strip().lower()
+        if normalized in {"1", "true", "yes", "on", "debug", "dev"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "release", "prod"}:
+            return False
+        raise ValueError("DEBUG must be a boolean-like value such as true/false/debug/release")
 
     @staticmethod
     def _mask_sensitive_value(attr: str, value):

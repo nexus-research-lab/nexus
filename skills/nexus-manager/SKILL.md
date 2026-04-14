@@ -214,6 +214,93 @@ python3 "{project_root}/agent/cli.py" install_skill --agent_id "research" --skil
 python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --skill_name "planner"
 ```
 
+### 定时任务管理
+
+#### list_scheduled_tasks — 列出定时任务
+
+```bash
+python3 "{project_root}/agent/cli.py" list_scheduled_tasks
+python3 "{project_root}/agent/cli.py" list_scheduled_tasks --agent_id "research"
+```
+
+- 可选按 `agent_id` 过滤。
+- 返回任务名称、调度规则、绑定会话、启用状态与下次执行时间。
+
+#### create_scheduled_task — 创建定时任务
+
+```bash
+python3 "{project_root}/agent/cli.py" create_scheduled_task \
+  --name "晨间简报" \
+  --agent-id "research" \
+  --main \
+  --instruction "整理今天要关注的 3 个重点" \
+  --schedule-kind "every" \
+  --interval-seconds 86400 \
+  --timezone "Asia/Shanghai"
+
+python3 "{project_root}/agent/cli.py" create_scheduled_task \
+  --name "会话内提醒" \
+  --agent-id "research" \
+  --session-key "agent:research:ws:dm:launcher-app-research" \
+  --instruction "提醒我检查发版状态" \
+  --schedule-kind "at" \
+  --run-at "2026-04-20T09:00" \
+  --timezone "Asia/Shanghai"
+
+python3 "{project_root}/agent/cli.py" create_scheduled_task \
+  --name "工作日晨报" \
+  --agent-id "research" \
+  --named-session-key "morning-brief" \
+  --instruction "输出工作日早间简报" \
+  --schedule-kind "cron" \
+  --cron-expression "0 8 * * 1-5" \
+  --timezone "Asia/Shanghai"
+
+python3 "{project_root}/agent/cli.py" create_scheduled_task \
+  --name "隔离巡检" \
+  --agent-id "research" \
+  --isolated \
+  --instruction "执行一次独立巡检并写出摘要" \
+  --schedule-kind "every" \
+  --interval-seconds 1800 \
+  --timezone "Asia/Shanghai"
+```
+
+- 会话目标支持 4 种：`main`、`bound`、`named`、`isolated`。
+- `--main`：发送到目标 Agent 的主会话；可配 `--wake-mode now|next-heartbeat`。
+- `--session-key <key>`：绑定到一个已有会话；如果只传这个参数，CLI 会自动推断为 `bound`。
+- `--named-session-key <key>`：发送到命名会话；如果只传这个参数，CLI 会自动推断为 `named`，其中 `main` 是保留字，不能作为命名 key。
+- `--isolated`：使用隔离自动化会话；如果不传任何会话目标参数，CLI 默认也是 `isolated`。
+- `--session-target-kind bound|named|main|isolated`：可选显式指定目标类型；通常只在你想把模式表达得更清楚时再传。
+- `--main`、`--isolated`、`--session-target-kind` 互斥；`--session-key` 与 `--named-session-key` 也不能同时传。
+- `schedule-kind` 取值：`every / at / cron`
+- `at` 模式请传未来时间；如果时间早于当前时间，任务不会再触发。
+
+#### run_scheduled_task — 立即运行定时任务
+
+```bash
+python3 "{project_root}/agent/cli.py" run_scheduled_task --job-id "job_xxx"
+```
+
+#### enable_scheduled_task / disable_scheduled_task — 启用或禁用定时任务
+
+```bash
+python3 "{project_root}/agent/cli.py" enable_scheduled_task --job-id "job_xxx"
+python3 "{project_root}/agent/cli.py" disable_scheduled_task --job-id "job_xxx"
+```
+
+#### get_scheduled_task_runs — 查看运行记录
+
+```bash
+python3 "{project_root}/agent/cli.py" get_scheduled_task_runs --job-id "job_xxx"
+```
+
+#### delete_scheduled_task — 删除定时任务
+
+```bash
+python3 "{project_root}/agent/cli.py" delete_scheduled_task --job-id "job_xxx"
+```
+
 ## Workspace 规则
 
 每个成员创建后自动分配独立工作空间，位于 `~/.nexus/workspace/<agent_slug>/`。
@@ -259,6 +346,7 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 3. 管理协作：`create_room` / `update_room` / `add_room_member` / `remove_room_member` / `delete_room`
 4. 管理工作区：`list_workspace_files` → `read_workspace_file` → `update_workspace_file`
 5. 管理技能：`list_skills` → `get_agent_skills` → `install_skill` / `uninstall_skill`
+6. 管理定时任务：`list_scheduled_tasks` → `create_scheduled_task` → `enable_scheduled_task` / `disable_scheduled_task` / `run_scheduled_task` / `get_scheduled_task_runs` / `delete_scheduled_task`
 
 ## 使用规则
 
@@ -267,5 +355,6 @@ python3 "{project_root}/agent/cli.py" uninstall_skill --agent_id "research" --sk
 - 创建多人 Room 时，先向用户确认成员列表，再执行创建。
 - 涉及文件修改时，先读再写；对路径和覆盖范围说清楚。
 - 涉及删除成员、删除房间、删除文件、卸载技能时，默认先确认影响范围。
+- 涉及创建定时任务时，先明确三件事：目标智能体、会话目标（`main / bound / named / isolated`）、调度规则，再执行命令。
 - 工具统一返回 JSON：先检查 `ok` 字段，为 `true` 时读 `data`，为 `false` 时读 `error` 并直接告知用户。
 - 工具执行失败时不要假装成功，根据 `error` 内容给出明确反馈。

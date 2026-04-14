@@ -39,6 +39,14 @@ class AutomationCronJob(TimestampMixin, Base):
             "delivery_mode IN ('none', 'last', 'explicit')",
             name="ck_automation_cron_jobs_delivery_mode",
         ),
+        CheckConstraint(
+            "source_kind IN ('user_page', 'agent', 'cli', 'system')",
+            name="ck_automation_cron_jobs_source_kind",
+        ),
+        CheckConstraint(
+            "source_context_type IS NULL OR source_context_type IN ('agent', 'room')",
+            name="ck_automation_cron_jobs_source_context_type",
+        ),
         Index("idx_automation_cron_jobs_agent", "agent_id"),
     )
 
@@ -64,4 +72,11 @@ class AutomationCronJob(TimestampMixin, Base):
     delivery_to: Mapped[str | None] = mapped_column(String(255))
     delivery_account_id: Mapped[str | None] = mapped_column(String(64))
     delivery_thread_id: Mapped[str | None] = mapped_column(String(255))
+    source_kind: Mapped[str] = mapped_column(String(32), default="system", nullable=False)
+    source_creator_agent_id: Mapped[str | None] = mapped_column(String(64))
+    source_context_type: Mapped[str | None] = mapped_column(String(32))
+    source_context_id: Mapped[str | None] = mapped_column(String(255))
+    source_context_label: Mapped[str | None] = mapped_column(String(255))
+    source_session_key: Mapped[str | None] = mapped_column(String(255))
+    source_session_label: Mapped[str | None] = mapped_column(String(255))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

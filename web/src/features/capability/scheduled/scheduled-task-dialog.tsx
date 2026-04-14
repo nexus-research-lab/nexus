@@ -10,8 +10,8 @@ import { X } from "lucide-react";
 import { getAgents } from "@/lib/agent-manage-api";
 import { getAgentSessionsApi } from "@/lib/agent-api";
 import { createScheduledTaskApi } from "@/lib/scheduled-task-api";
-import { buildRoomAgentSessionKey } from "@/lib/session-key";
 import { getRoomContexts, listRooms } from "@/lib/room-api";
+import { buildRoomAgentSessionKey } from "@/lib/session-key";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   getDialogActionClassName,
@@ -52,7 +52,7 @@ const EVERY_UNIT_OPTIONS: ChoiceDef<EveryUnit>[] = [
   { key: "days", label: "天" },
 ];
 
-interface CreateTaskDialogProps {
+interface ScheduledTaskDialogProps {
   agent_id: string;
   is_open: boolean;
   on_close: () => void;
@@ -122,12 +122,12 @@ function build_room_session_selections(
   });
 }
 
-export function CreateTaskDialog({
+export function ScheduledTaskDialog({
   agent_id,
   is_open,
   on_close,
   on_created,
-}: CreateTaskDialogProps) {
+}: ScheduledTaskDialogProps) {
   const name_ref = useRef<HTMLInputElement>(null);
   const [task_name, set_task_name] = useState("");
   const [schedule_kind, set_schedule_kind] = useState<ScheduleKind>("every");
@@ -157,14 +157,12 @@ export function CreateTaskDialog({
   const [rooms_error, set_rooms_error] = useState<string | null>(null);
   const [room_contexts_error, set_room_contexts_error] = useState<string | null>(null);
 
-  // 打开时聚焦到名称输入框
   useEffect(() => {
     if (is_open && name_ref.current) {
       name_ref.current.focus();
     }
   }, [is_open]);
 
-  // ESC 关闭
   useEffect(() => {
     const handle_key_down = (e: KeyboardEvent) => {
       if (!is_open) return;
@@ -177,7 +175,6 @@ export function CreateTaskDialog({
     return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_close]);
 
-  // 打开时重置表单，并把默认智能体带入“智能体”分支。
   useEffect(() => {
     if (!is_open) {
       return;
@@ -206,7 +203,6 @@ export function CreateTaskDialog({
     set_room_contexts_error(null);
   }, [agent_id, is_open]);
 
-  // 中文注释：弹窗打开后先加载智能体列表，Room 侧需要时再单独加载 Room 列表。
   useEffect(() => {
     if (!is_open) {
       return;
@@ -236,7 +232,6 @@ export function CreateTaskDialog({
     };
   }, [is_open]);
 
-  // 中文注释：切到 Room 分支后再加载 Room 列表，避免一打开弹窗就把不需要的数据全拉回来。
   useEffect(() => {
     if (!is_open || target_type !== "room") {
       return;
@@ -266,7 +261,6 @@ export function CreateTaskDialog({
     };
   }, [is_open, target_type]);
 
-  // 中文注释：智能体会话和 Room 会话都基于上一步的对象选择加载，避免把会话列表当成初始状态。
   useEffect(() => {
     if (!is_open || target_type !== "agent" || !selected_agent_id) {
       set_agent_sessions([]);
@@ -372,7 +366,6 @@ export function CreateTaskDialog({
 
   if (!is_open) return null;
 
-  // 中文注释：创建接口要求 schedule / session_target 都是结构化对象，这里先统一收口表单校验，再拼出最终 payload。
   const build_schedule = (): ScheduledTaskSchedule => {
     if (schedule_kind === "every") {
       const interval_seconds = to_interval_seconds(every_value, every_unit);
@@ -466,6 +459,16 @@ export function CreateTaskDialog({
         instruction: instruction.trim(),
         session_target: build_session_target(),
         delivery: { mode: "none" },
+        source: {
+          kind: "user_page",
+          context_type: target_type,
+          context_id: target_type === "agent" ? selected_agent_id.trim() : selected_room_id.trim(),
+          context_label: target_type === "agent"
+            ? (agent_options.find((option) => option.value === selected_agent_id)?.label || selected_agent_id.trim())
+            : (room_options.find((option) => option.value === selected_room_id)?.label || selected_room_id.trim()),
+          session_key: target_session.session_key,
+          session_label: target_session.label,
+        },
         enabled,
       });
       void on_created?.(created);

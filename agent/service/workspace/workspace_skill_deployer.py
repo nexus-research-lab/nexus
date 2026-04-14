@@ -20,7 +20,7 @@ from agent.utils.logger import logger
 class WorkspaceSkillDeployer:
     """负责把仓库内 skill 部署到 agent workspace。"""
 
-    BASE_SKILL_NAMES = ("memory-manager",)
+    BASE_SKILL_NAMES = ("memory-manager", "scheduled-task-manager")
     MAIN_AGENT_SKILL_NAMES = ("nexus-manager",)
 
     def __init__(self, agent_id: str, workspace_path: Path):

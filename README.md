@@ -97,7 +97,7 @@ BACKEND_CORS_ORIGINS=https://your-domain.com
 
 ```bash
 # .env
-DATABASE_URL=sqlite+aiosqlite:///./cache/data/data.db
+DATABASE_URL=sqlite+aiosqlite:///~/.nexus/data/nexus.db
 ```
 
 如果你直接复制 `env.example`，本地数据库文件默认就在 `cache/data/data.db`。
@@ -111,7 +111,7 @@ make install
 
 ### 4. 初始化数据库（首次启动）
 
-默认数据库文件为 `cache/data/data.db`。
+默认数据库文件为 `~/.nexus/data/nexus.db`。
 
 推荐首次启动顺序：
 
@@ -131,7 +131,7 @@ make dev
 如果本地数据库可以直接重建：
 
 ```bash
-rm -f cache/data/data.db
+rm -f ~/.nexus/data/nexus.db
 make db-init
 ```
 
@@ -221,6 +221,10 @@ CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
 ### 后端
 
 - `DATABASE_URL`：默认值为 `sqlite+aiosqlite:///./cache/data/data.db`
+- `ANTHROPIC_AUTH_TOKEN`
+- `ANTHROPIC_BASE_URL`
+- `ANTHROPIC_MODEL`
+- `DATABASE_URL`：默认值为 `sqlite+aiosqlite:///~/.nexus/data/nexus.db`
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`
 - `WEBSOCKET_ENABLED`

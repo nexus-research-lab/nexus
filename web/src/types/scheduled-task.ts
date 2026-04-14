@@ -8,6 +8,8 @@ export type ScheduledTaskScheduleKind = "every" | "cron" | "at";
 export type ScheduledTaskSessionTargetKind = "isolated" | "main" | "bound" | "named";
 export type ScheduledTaskWakeMode = "now" | "next-heartbeat";
 export type ScheduledTaskDeliveryMode = "none" | "last" | "explicit";
+export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
+export type ScheduledTaskSourceContextType = "agent" | "room";
 export type ScheduledTaskRunLedgerStatus =
   | "pending"
   | "running"
@@ -75,6 +77,16 @@ export interface ScheduledTaskDeliveryTarget {
   thread_id?: string | null;
 }
 
+export interface ScheduledTaskSource {
+  kind: ScheduledTaskSourceKind;
+  creator_agent_id?: string | null;
+  context_type?: ScheduledTaskSourceContextType | null;
+  context_id?: string | null;
+  context_label?: string | null;
+  session_key?: string | null;
+  session_label?: string | null;
+}
+
 export interface ApiScheduledTask {
   job_id: string;
   name: string;
@@ -83,6 +95,7 @@ export interface ApiScheduledTask {
   instruction: string;
   session_target: ScheduledTaskSessionTarget;
   delivery: ScheduledTaskDeliveryTarget;
+  source: ScheduledTaskSource;
   enabled: boolean;
   next_run_at?: string | null;
   running: boolean;
@@ -105,6 +118,7 @@ export interface CreateScheduledTaskParams {
   session_target?: ScheduledTaskSessionTarget;
   instruction: string;
   delivery?: ScheduledTaskDeliveryTarget;
+  source?: ScheduledTaskSource;
   enabled?: boolean;
 }
 

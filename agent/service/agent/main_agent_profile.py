@@ -36,6 +36,7 @@ class MainAgentProfile:
         "WebSearch",
         "Write",
     ]
+    REGULAR_AGENT_ALLOWED_TOOLS = ALLOWED_TOOLS.copy()
     SETTING_SOURCES = ["project"]
 
     @classmethod
@@ -103,3 +104,15 @@ class MainAgentProfile:
         merged_options["permission_mode"] = default_options["permission_mode"]
         merged_options["setting_sources"] = default_options["setting_sources"]
         return merged_options
+
+    @classmethod
+    def build_regular_agent_options(cls, model: str | None = None) -> Dict[str, Any]:
+        """构建普通成员 agent 的默认运行参数。"""
+        options: Dict[str, Any] = {
+            "allowed_tools": cls.REGULAR_AGENT_ALLOWED_TOOLS.copy(),
+            "permission_mode": "default",
+            "setting_sources": cls.SETTING_SOURCES,
+        }
+        if model:
+            options["model"] = model
+        return options

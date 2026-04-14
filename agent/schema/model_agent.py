@@ -193,3 +193,10 @@ class WorkspaceEntryRenameResponse(BaseModel):
     """Workspace 条目重命名响应。"""
     path: str = Field(..., description="旧路径")
     new_path: str = Field(..., description="新路径")
+
+
+class UploadWorkspaceFileResponse(BaseModel):
+    """上传 Workspace 文件响应。"""
+    path: str = Field(..., description="保存路径")
+    name: str = Field(..., description="文件名")
+    size: int = Field(..., description="文件大小")

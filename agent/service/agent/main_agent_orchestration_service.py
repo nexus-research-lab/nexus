@@ -13,10 +13,22 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from agent.schema.model_automation import (
+    AutomationCronJobCreate,
+    AutomationCronSchedule,
+    AutomationCronSource,
+    AutomationDeliveryTarget,
+    AutomationSessionTarget,
+)
 from agent.schema.model_agent import AgentOptions
+from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.agent.agent_service import agent_service
+from agent.service.capability.scheduled.scheduled_task_service import (
+    scheduled_task_service,
+)
 from agent.service.capability.skills.skill_service import skill_service
 from agent.service.room.room_service import room_service
+from agent.service.session.session_store import session_store
 from agent.service.workspace.workspace_service import workspace_service
 
 
@@ -47,17 +59,14 @@ class MainAgentOrchestrationService:
         """创建新的普通成员 agent。"""
         created_agent = await agent_service.create_agent(
             name=name,
-            options=AgentOptions(
-                provider=provider,
-                permission_mode="default",
-                setting_sources=["project"],
-            ),
+            options=AgentOptions(**MainAgentProfile.build_regular_agent_options(model=model)),
         )
         return {
             "agent_id": created_agent.agent_id,
             "name": created_agent.name,
             "workspace_path": created_agent.workspace_path,
             "provider": created_agent.options.provider,
+            "allowed_tools": created_agent.options.allowed_tools,
             "status": created_agent.status,
         }
 
@@ -252,6 +261,96 @@ class MainAgentOrchestrationService:
         """为成员卸载技能。"""
         await skill_service.uninstall_skill(agent_id, skill_name)
         return {"success": True, "agent_id": agent_id, "skill_name": skill_name}
+
+    async def list_scheduled_tasks(self, agent_id: str | None = None) -> list[dict[str, Any]]:
+        """列出定时任务。"""
+        tasks = await scheduled_task_service.list_tasks(agent_id=agent_id)
+        return [task.model_dump(mode="json") for task in tasks]
+
+    async def create_scheduled_task(
+        self,
+        *,
+        name: str,
+        agent_id: str,
+        instruction: str,
+        session_target: AutomationSessionTarget | None = None,
+        source: AutomationCronSource | None = None,
+        session_key: str | None = None,
+        schedule_kind: str,
+        interval_seconds: int | None = None,
+        cron_expression: str | None = None,
+        run_at: str | None = None,
+        timezone: str = "Asia/Shanghai",
+        enabled: bool = True,
+    ) -> dict[str, Any]:
+        """为指定 agent 创建定时任务。"""
+        if session_target is not None and session_key is not None:
+            raise ValueError("session_target and session_key cannot be provided together")
+
+        resolved_session_target = session_target
+        if resolved_session_target is None:
+            resolved_session_target = (
+                AutomationSessionTarget(
+                    kind="bound",
+                    bound_session_key=session_key,
+                    wake_mode="next-heartbeat",
+                )
+                if session_key is not None
+                else AutomationSessionTarget()
+            )
+
+        if resolved_session_target.kind == "bound":
+            bound_session_key = resolved_session_target.bound_session_key
+            session = await session_store.get_session_info(bound_session_key)
+            # 中文注释：只有 bound 目标真正依赖现存会话，因此仅在该模式下做存在性与归属校验。
+            if session is None:
+                raise ValueError(f"Session not found: {bound_session_key}")
+            if (session.agent_id or "").strip() != agent_id:
+                raise ValueError(f"Session {bound_session_key} does not belong to agent {agent_id}")
+
+        schedule = AutomationCronSchedule(
+            kind=schedule_kind,
+            interval_seconds=interval_seconds,
+            cron_expression=cron_expression,
+            run_at=run_at,
+            timezone=timezone,
+        )
+        payload = AutomationCronJobCreate(
+            name=name,
+            agent_id=agent_id,
+            schedule=schedule,
+            instruction=instruction,
+            session_target=resolved_session_target,
+            delivery=AutomationDeliveryTarget(mode="none"),
+            source=source or AutomationCronSource(
+                kind="agent",
+                context_type="agent",
+                context_id=agent_id,
+            ),
+            enabled=enabled,
+        )
+        task = await scheduled_task_service.create_task(payload)
+        return task.model_dump(mode="json")
+
+    async def delete_scheduled_task(self, job_id: str) -> dict[str, Any]:
+        """删除定时任务。"""
+        await scheduled_task_service.delete_task(job_id)
+        return {"success": True, "job_id": job_id}
+
+    async def set_scheduled_task_enabled(self, job_id: str, *, enabled: bool) -> dict[str, Any]:
+        """启用或禁用定时任务。"""
+        task = await scheduled_task_service.set_task_enabled(job_id, enabled=enabled)
+        return task.model_dump(mode="json")
+
+    async def run_scheduled_task(self, job_id: str) -> dict[str, Any]:
+        """立即运行定时任务。"""
+        result = await scheduled_task_service.run_task_now(job_id)
+        return result.model_dump(mode="json")
+
+    async def get_scheduled_task_runs(self, job_id: str) -> list[dict[str, Any]]:
+        """读取定时任务运行记录。"""
+        runs = await scheduled_task_service.list_task_runs(job_id)
+        return [run.model_dump(mode="json") for run in runs]
 
 
 main_agent_orchestration_service = MainAgentOrchestrationService()

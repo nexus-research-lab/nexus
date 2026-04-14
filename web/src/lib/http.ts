@@ -154,9 +154,15 @@ export async function request_api<T>(
   input: string,
   init?: RequestApiOptions,
 ): Promise<T> {
+  // FormData 不需要手动设置 Content-Type，让浏览器自动设置 boundary
+  const headers = init?.body instanceof FormData
+    ? { ...init?.headers }
+    : init?.headers;
+
   const response = await fetch(input, {
     credentials: "include",
     ...init,
+    headers,
   });
   const payload = await parse_response_body<T>(response);
 

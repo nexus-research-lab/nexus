@@ -8,6 +8,7 @@ import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-s
 import type {
   ScheduledTaskItem,
   ScheduledTaskSchedule,
+  ScheduledTaskSource,
   ScheduledTaskSessionTarget,
 } from "@/types/scheduled-task";
 
@@ -58,6 +59,41 @@ function get_session_target_summary(target: ScheduledTaskSessionTarget): string 
     return `命名会话 · ${target.named_session_key} · ${wake_label}`;
   }
   return `独立会话 · ${wake_label}`;
+}
+
+function get_source_kind_label(source: ScheduledTaskSource | null | undefined): string {
+  if (!source) {
+    return "未知来源";
+  }
+  if (source.kind === "user_page") {
+    return "页面创建";
+  }
+  if (source.kind === "agent") {
+    return "智能体创建";
+  }
+  if (source.kind === "cli") {
+    return "CLI 创建";
+  }
+  return "系统创建";
+}
+
+function get_context_summary(task: ScheduledTaskItem): string {
+  const source = task.source;
+  if (source?.context_type === "room" && source.context_label) {
+    return `Room：${source.context_label}`;
+  }
+  if (source?.context_type === "agent" && source.context_label) {
+    return `智能体：${source.context_label}`;
+  }
+  return `智能体：${task.agent_id}`;
+}
+
+function get_session_summary(task: ScheduledTaskItem): string {
+  const source = task.source;
+  if (source?.session_label) {
+    return source.session_label;
+  }
+  return get_session_target_summary(task.session_target);
 }
 
 function get_primary_status(task: ScheduledTaskItem) {
@@ -188,10 +224,10 @@ export function ScheduledTaskList({
                       <div className="mt-3 grid gap-4 text-sm text-(--text-default) md:grid-cols-2">
                         <div className="min-w-0">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            调度规则
+                            归属对象
                           </p>
                           <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_schedule_summary(task.schedule)}
+                            {get_context_summary(task)}
                           </p>
                         </div>
                         <div className="min-w-0">
@@ -199,7 +235,23 @@ export function ScheduledTaskList({
                             目标会话
                           </p>
                           <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_session_target_summary(task.session_target)}
+                            {get_session_summary(task)}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                            来源
+                          </p>
+                          <p className="mt-1.5 font-medium text-(--text-strong)">
+                            {get_source_kind_label(task.source)}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                            调度规则
+                          </p>
+                          <p className="mt-1.5 font-medium text-(--text-strong)">
+                            {get_schedule_summary(task.schedule)}
                           </p>
                         </div>
                       </div>
