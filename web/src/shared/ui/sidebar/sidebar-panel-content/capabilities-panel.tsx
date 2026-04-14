@@ -37,7 +37,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   const agent_id = resolveAgentId();
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [connector_count, set_connector_count] = useState(0);
-  const [scheduled_task_count, set_scheduled_task_count] = useState(0);
+  const [scheduled_task_enabled_count, set_scheduled_task_enabled_count] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,11 +63,11 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       try {
         const tasks = await listScheduledTasksApi({ agent_id });
         if (!cancelled) {
-          set_scheduled_task_count(tasks.length);
+          set_scheduled_task_enabled_count(tasks.filter((task) => task.enabled).length);
         }
       } catch {
         if (!cancelled) {
-          set_scheduled_task_count(0);
+          set_scheduled_task_enabled_count(0);
         }
       }
     };
@@ -121,7 +121,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
         icon={<Calendar className="h-4 w-4" />}
         is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks}
         label={t("capability.scheduled")}
-        meta={String(scheduled_task_count)}
+        meta={String(scheduled_task_enabled_count)}
         on_click={() => {
           set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks);
           navigate(AppRouteBuilders.scheduled_tasks());

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from contextlib import asynccontextmanager
 
 import pytest
 from sqlalchemy import event
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -257,6 +259,62 @@ def test_heartbeat_state_store_roundtrip(automation_db, monkeypatch):
         fetched = await store.get_state("nexus")
         assert fetched is not None
         assert fetched.enabled is True
+
+    asyncio.run(scenario())
+
+
+def test_cron_store_service_retries_when_sqlite_is_temporarily_locked(tmp_path, monkeypatch):
+    async def scenario():
+        from agent.service.automation.cron.cron_store_service import CronStoreService
+        import agent.service.automation.cron.cron_store_service as module
+
+        load_models()
+        engine = create_async_engine(
+            f"sqlite+aiosqlite:///{tmp_path / 'locked.db'}",
+            connect_args={"timeout": 0.01},
+        )
+        _enable_sqlite_foreign_keys(engine)
+        await _create_tables(engine)
+
+        session_factory = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+        await _seed_agent(session_factory, tmp_path)
+
+        class _TestDb:
+            @asynccontextmanager
+            async def session(self):
+                async with session_factory() as session:
+                    try:
+                        yield session
+                    except Exception:
+                        await session.rollback()
+                        raise
+                    finally:
+                        await session.close()
+
+        monkeypatch.setattr(module, "get_db", lambda *_args, **_kwargs: _TestDb())
+        store = CronStoreService(write_retry_attempts=5, write_retry_delay_seconds=0.03)
+
+        async with session_factory() as locking_session:
+            await locking_session.execute(text("BEGIN IMMEDIATE"))
+            waiting_write = asyncio.create_task(
+                store.upsert_job(
+                    job_id="job-locked",
+                    name="locked",
+                    agent_id="nexus",
+                    schedule_kind="every",
+                )
+            )
+            await asyncio.sleep(0.08)
+            await locking_session.rollback()
+
+        row = await waiting_write
+        assert row.job_id == "job-locked"
+
+        await engine.dispose()
 
     asyncio.run(scenario())
 

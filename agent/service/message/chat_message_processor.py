@@ -39,6 +39,7 @@ class ChatMessageProcessor:
         self,
         session_key: str,
         query: str,
+        display_query: Optional[str] = None,
         round_id: Optional[str] = None,
         agent_id: str = None,
         session_id: Optional[str] = None,
@@ -46,6 +47,7 @@ class ChatMessageProcessor:
         register_session: Optional[RegisterSessionCallback] = None,
     ) -> None:
         self.query = query
+        self.display_query = display_query or query
         self.session_key = session_key
         self.agent_id = resolve_agent_id(agent_id)
         self.round_id = round_id or str(uuid.uuid4())
@@ -107,7 +109,7 @@ class ChatMessageProcessor:
             round_id=self.round_id,
             session_id=self.session_id,
             role="user",
-            content=self.query,
+            content=self.display_query,
         )
         await self._persist_message(user_message)
         self._is_user_message_saved = True
