@@ -36,7 +36,7 @@ class SkillCatalog:
 
     # 中文注释：仅对外暴露真正可见的系统 skill。
     # `nexus-manager` 只用于 main agent 内部编排，不进入公开 skill 市场。
-    SYSTEM_SKILL_NAMES = {"memory-manager"}
+    SYSTEM_SKILL_NAMES = {"memory-manager", "scheduled-task-manager"}
     INTERNAL_SKILL_NAMES = {"nexus-manager"}
 
     def __init__(self) -> None:

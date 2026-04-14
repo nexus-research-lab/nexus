@@ -73,7 +73,13 @@ def _load_orchestration_module(monkeypatch):
 
     model_agent_module = ModuleType("agent.schema.model_agent")
     model_agent_module.AAgent = type("AAgent", (), {})
-    model_agent_module.AgentOptions = type("AgentOptions", (), {})
+    model_agent_module.AgentOptions = type(
+        "AgentOptions",
+        (),
+        {
+            "__init__": lambda self, **kwargs: self.__dict__.update(kwargs),
+        },
+    )
     monkeypatch.setitem(sys.modules, "agent.schema.model_agent", model_agent_module)
 
     agent_service_module = ModuleType("agent.service.agent.agent_service")
@@ -405,3 +411,27 @@ def test_cli_create_scheduled_task_rejects_conflicting_session_target_options(mo
     assert second_result.exit_code != 0
     assert "cannot be combined" in second_result.output
     assert "ValidationError" not in second_result.output
+
+
+def test_create_agent_defaults_include_skill_tool(monkeypatch):
+    async def fake_create_agent(*, name: str, options, avatar=None, description=None, vibe_tags=None):
+        del avatar, description, vibe_tags
+        return SimpleNamespace(
+            agent_id="agent-1",
+            name=name,
+            workspace_path="/tmp/agent-1",
+            options=options,
+            status="active",
+        )
+
+    async def scenario():
+        module = _load_orchestration_module(monkeypatch)
+        service = module.MainAgentOrchestrationService()
+        monkeypatch.setattr(module, "agent_service", SimpleNamespace(create_agent=fake_create_agent))
+
+        result = await service.create_agent(name="planner", model="glm-5")
+
+        assert result["agent_id"] == "agent-1"
+        assert "Skill" in result["allowed_tools"]
+
+    asyncio.run(scenario())

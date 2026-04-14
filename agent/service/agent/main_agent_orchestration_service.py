@@ -21,6 +21,7 @@ from agent.schema.model_automation import (
     AutomationSessionTarget,
 )
 from agent.schema.model_agent import AgentOptions
+from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.agent.agent_service import agent_service
 from agent.service.capability.scheduled.scheduled_task_service import (
     scheduled_task_service,
@@ -58,17 +59,14 @@ class MainAgentOrchestrationService:
         """创建新的普通成员 agent。"""
         created_agent = await agent_service.create_agent(
             name=name,
-            options=AgentOptions(
-                model=model,
-                permission_mode="default",
-                setting_sources=["project"],
-            ),
+            options=AgentOptions(**MainAgentProfile.build_regular_agent_options(model=model)),
         )
         return {
             "agent_id": created_agent.agent_id,
             "name": created_agent.name,
             "workspace_path": created_agent.workspace_path,
             "model": created_agent.options.model,
+            "allowed_tools": created_agent.options.allowed_tools,
             "status": created_agent.status,
         }
 

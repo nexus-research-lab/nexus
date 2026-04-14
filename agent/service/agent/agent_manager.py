@@ -182,6 +182,8 @@ class AgentManager:
             base_options["system_prompt"] = system_prompt
 
         agent_options = agent.options.model_dump(exclude_none=True)
+        if not agent_options.get("allowed_tools"):
+            agent_options["allowed_tools"] = MainAgentProfile.REGULAR_AGENT_ALLOWED_TOOLS.copy()
         connector_mcp_servers = await self._load_connector_mcp_servers()
         if connector_mcp_servers:
             existing_mcp_servers = agent_options.get("mcp_servers") or {}
