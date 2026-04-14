@@ -183,7 +183,9 @@ class AgentManager:
             base_options["system_prompt"] = system_prompt
 
         agent_options = agent.options.model_dump(exclude_none=True)
-        if not agent_options.get("allowed_tools"):
+        # 中文注释：仅在用户未配置工具白名单时补默认值；
+        # 显式传入空数组表示不预授权任何工具，不能被默认值覆盖。
+        if "allowed_tools" not in agent_options:
             agent_options["allowed_tools"] = MainAgentProfile.REGULAR_AGENT_ALLOWED_TOOLS.copy()
 
         provider = agent_options.pop("provider", None)

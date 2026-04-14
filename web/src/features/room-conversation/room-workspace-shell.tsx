@@ -108,6 +108,13 @@ export function RoomWorkspaceShell({
     return next_conversation_id;
   }, [on_create_conversation]);
 
+  const handle_open_workspace_file_in_shell = useCallback((path: string | null) => {
+    on_open_workspace_file(path);
+    if (path) {
+      set_active_surface_tab("workspace");
+    }
+  }, [on_open_workspace_file]);
+
   if (is_mobile) {
     return (
       <RoomMobileWorkspace
@@ -161,7 +168,7 @@ export function RoomWorkspaceShell({
       on_create_conversation={handle_create_conversation_in_shell}
       on_delete_conversation={on_delete_conversation}
       on_loading_change={on_loading_change}
-      on_open_workspace_file={on_open_workspace_file}
+      on_open_workspace_file={handle_open_workspace_file_in_shell}
       on_update_room={on_update_room}
       on_update_conversation_title={on_update_conversation_title}
       on_select_conversation={handle_select_conversation_in_shell}

@@ -7,7 +7,7 @@ import {
   clampHomeEditorWidthPercent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/home-layout";
-import { getAgentCostSummaryApi, getWorkspaceFilesApi } from "@/lib/agent-manage-api";
+import { getAgentCostSummaryApi } from "@/lib/agent-manage-api";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { TodoItem } from "@/types/todo";
@@ -48,8 +48,8 @@ export function useHomeWorkspaceController({
   current_agent_conversation,
   current_agent_session_identity,
 }: HomeWorkspaceControllerOptions) {
-  const set_workspace_files = useWorkspaceFilesStore((state) => state.set_files);
   const clear_workspace_agent = useWorkspaceFilesStore((state) => state.clear_agent);
+  const refresh_workspace_files = useWorkspaceFilesStore((state) => state.refresh_files);
   const [active_workspace_path, setActiveWorkspacePath] = useState<string | null>(null);
   const [is_editor_open, setIsEditorOpen] = useState(false);
   const [editor_width_percent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
@@ -89,10 +89,7 @@ export function useHomeWorkspaceController({
 
     const load_workspace_files = async () => {
       try {
-        const next_files = await getWorkspaceFilesApi(current_agent_id);
-        if (!ignore) {
-          set_workspace_files(current_agent_id, next_files);
-        }
+        await refresh_workspace_files(current_agent_id);
       } catch (error) {
         console.error("Failed to load workspace files:", error);
         if (!ignore) {
@@ -111,7 +108,7 @@ export function useHomeWorkspaceController({
     current_agent_id,
     current_agent_session_identity?.session_key,
     is_conversation_busy,
-    set_workspace_files,
+    refresh_workspace_files,
   ]);
 
   useEffect(() => {

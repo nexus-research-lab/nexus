@@ -12,13 +12,16 @@
 import os
 import shutil
 from datetime import datetime
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Optional
 
-from agent.schema.model_workspace import WorkspaceDiffStats, WorkspaceEvent
+from agent.schema.model_workspace import WorkspaceEvent
+from agent.service.workspace.workspace_diff_builder import WorkspaceDiffBuilder
 from agent.service.workspace.workspace_event_bus import workspace_event_bus
+from agent.service.workspace.workspace_event_suppressor import workspace_event_suppressor
+from agent.service.workspace.workspace_path_resolver import WorkspacePathResolver
 from agent.service.workspace.workspace_templates import WORKSPACE_FILES
+from agent.service.workspace.workspace_visibility_rules import is_hidden_workspace_path
 from agent.service.workspace.workspace_write_event_publisher import WorkspaceWriteEventPublisher
 from agent.utils.logger import logger
 
@@ -31,6 +34,7 @@ class WorkspaceFileManager:
     def __init__(self, agent_id: str, workspace_path: Path):
         self._agent_id = agent_id
         self._workspace_path = workspace_path
+        self._path_resolver = WorkspacePathResolver(workspace_path)
         self._event_publisher = WorkspaceWriteEventPublisher(agent_id, self._build_live_snapshot)
 
     @staticmethod
@@ -60,12 +64,7 @@ class WorkspaceFileManager:
         return True
 
     def list_files(self) -> list[dict]:
-        """列出 workspace 可见文件树。
-
-        使用手动递归 + 提前剪枝代替 rglob，遇到隐藏目录直接跳过，
-        避免遍历 .agents/sessions 等大型运行时目录。
-        """
-        _HIDDEN = {".agents", ".git", "__pycache__", ".claude"}
+        """列出 workspace 可见文件树，并跳过运行时隐藏目录。"""
         workspace_root = self._workspace_path.resolve()
         entries: list[dict] = []
 
@@ -74,7 +73,7 @@ class WorkspaceFileManager:
                 with os.scandir(dir_path) as it:
                     for entry in it:
                         name = entry.name
-                        if name in _HIDDEN or name.startswith(".DS_"):
+                        if is_hidden_workspace_path(name):
                             continue
                         rel_parts = parts + (name,)
                         rel_posix = "/".join(rel_parts)
@@ -104,18 +103,24 @@ class WorkspaceFileManager:
 
     def read_relative_file(self, relative_path: str) -> str:
         """读取 workspace 内的文本文件。"""
-        target_path = self._resolve_relative_path(relative_path)
+        target_path = self._path_resolver.resolve(relative_path)
         if target_path.is_dir():
             raise ValueError("不能直接读取目录")
         if not target_path.exists():
             raise FileNotFoundError(f"文件不存在: {relative_path}")
-        return target_path.read_text(encoding="utf-8")
+        try:
+            return target_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("该文件不是 UTF-8 文本，无法直接预览") from exc
 
     def write_relative_file(self, relative_path: str, content: str, source: str = "unknown") -> str:
         """写入 workspace 内的文本文件。"""
-        target_path = self._resolve_relative_path(relative_path)
+        target_path = self._path_resolver.resolve(relative_path)
         relative_path_str = target_path.relative_to(self._workspace_path.resolve()).as_posix()
-        before_content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+        try:
+            before_content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+        except UnicodeDecodeError as exc:
+            raise ValueError("目标文件不是 UTF-8 文本，不能按文本方式覆盖") from exc
 
         self._event_publisher.publish_write_start(relative_path_str, before_content, source)
         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,9 +131,19 @@ class WorkspaceFileManager:
             before_content,
             content,
             source,
-            self.build_diff_stats(before_content, content),
+            WorkspaceDiffBuilder.build(before_content, content),
         )
         return relative_path_str
+
+    def write_binary_file(self, relative_path: str, content: bytes) -> str:
+        """写入 workspace 内的二进制文件。"""
+        target_path = self._path_resolver.resolve(relative_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_bytes(content)
+        saved_path = target_path.relative_to(self._workspace_path.resolve()).as_posix()
+        workspace_event_suppressor.register_write(self._agent_id, saved_path, None)
+        logger.info(f"📦 写入 Workspace 二进制文件: {target_path}")
+        return saved_path
 
     def stream_relative_file(
             self,
@@ -139,9 +154,12 @@ class WorkspaceFileManager:
             tool_use_id: Optional[str] = None,
     ) -> str:
         """按 chunk 流式写入文件，并连续发布 delta 事件。"""
-        target_path = self._resolve_relative_path(relative_path)
+        target_path = self._path_resolver.resolve(relative_path)
         relative_path_str = target_path.relative_to(self._workspace_path.resolve()).as_posix()
-        before_content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+        try:
+            before_content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+        except UnicodeDecodeError as exc:
+            raise ValueError("目标文件不是 UTF-8 文本，不能按文本流式写入") from exc
         accumulated = ""
 
         self._event_publisher.publish_write_start(
@@ -175,7 +193,7 @@ class WorkspaceFileManager:
             before_content,
             accumulated,
             source,
-            self.build_diff_stats(before_content, accumulated),
+            WorkspaceDiffBuilder.build(before_content, accumulated),
             session_key=session_key,
             tool_use_id=tool_use_id,
             version=max(len(chunks), 1),
@@ -184,7 +202,7 @@ class WorkspaceFileManager:
 
     def create_entry(self, relative_path: str, entry_type: str, content: str = "") -> str:
         """创建 workspace 内的文件或目录。"""
-        target_path = self._resolve_relative_path(relative_path)
+        target_path = self._path_resolver.resolve(relative_path)
         if target_path.exists():
             raise FileExistsError(f"目标已存在: {relative_path}")
 
@@ -201,7 +219,7 @@ class WorkspaceFileManager:
 
     def delete_entry(self, relative_path: str) -> str:
         """删除 workspace 内的文件或目录。"""
-        target_path = self._resolve_relative_path(relative_path)
+        target_path = self._path_resolver.resolve(relative_path)
         if not target_path.exists():
             raise FileNotFoundError(f"目标不存在: {relative_path}")
 
@@ -215,8 +233,8 @@ class WorkspaceFileManager:
 
     def rename_entry(self, relative_path: str, new_relative_path: str) -> tuple[str, str]:
         """重命名或移动 workspace 内的文件或目录。"""
-        source_path = self._resolve_relative_path(relative_path)
-        target_path = self._resolve_relative_path(new_relative_path)
+        source_path = self._path_resolver.resolve(relative_path)
+        target_path = self._path_resolver.resolve(new_relative_path)
 
         if not source_path.exists():
             raise FileNotFoundError(f"目标不存在: {relative_path}")
@@ -241,61 +259,20 @@ class WorkspaceFileManager:
         filepath.write_text(content, encoding="utf-8")
         logger.info(f"💾 保存记忆文件: {filepath}")
 
-    def _resolve_relative_path(self, relative_path: str) -> Path:
-        """解析并校验相对路径，禁止逃逸出 workspace。"""
-        normalized = (relative_path or "").strip().lstrip("/").replace("\\", "/")
-        if not normalized:
-            raise ValueError("文件路径不能为空")
-        if normalized == ".agents" or normalized.startswith(".agents/"):
-            raise ValueError("不能直接操作内部技能目录")
+    def entry_exists(self, relative_path: str) -> bool:
+        """判断 workspace 条目是否存在。"""
+        return self._path_resolver.resolve(relative_path).exists()
 
-        target_path = (self._workspace_path / normalized).resolve()
-        workspace_root = self._workspace_path.resolve()
-        if not target_path.is_relative_to(workspace_root):
-            raise ValueError("文件路径超出 workspace 范围")
+    def get_existing_file_path(self, relative_path: str) -> Path:
+        """获取可下载文件的绝对路径。"""
+        target_path = self._path_resolver.resolve(relative_path)
+        if target_path.is_dir():
+            raise ValueError("不能直接下载目录")
+        if not target_path.exists():
+            raise FileNotFoundError(f"文件不存在: {relative_path}")
         return target_path
-
-    @staticmethod
-    def _is_visible_workspace_path(path: Path) -> bool:
-        """过滤运行时数据，避免把会话日志暴露到 workspace 编辑面板。"""
-        hidden_parts = {".agents", ".git", "__pycache__", ".DS_Store", ".claude"}
-        return not any(part in hidden_parts for part in path.parts)
 
     @classmethod
     def _build_live_snapshot(cls, content: str) -> Optional[str]:
         """限制实时同步快照大小。"""
-        if len(content.encode("utf-8")) > cls.MAX_LIVE_SNAPSHOT_BYTES:
-            return None
-        return content
-
-    # 超过此阈值的文件跳过 diff 计算，避免 O(n²) SequenceMatcher 造成 CPU 峰值
-    MAX_DIFF_BYTES = 64 * 1024
-
-    @staticmethod
-    def build_diff_stats(before_content: str, after_content: str) -> Optional[WorkspaceDiffStats]:
-        """计算基础 diff 摘要。大文件跳过 diff 以避免 CPU 峰值。"""
-        # 大文件跳过 diff 计算
-        if (len(before_content) > WorkspaceFileManager.MAX_DIFF_BYTES
-                or len(after_content) > WorkspaceFileManager.MAX_DIFF_BYTES):
-            return None
-
-        before_lines = before_content.splitlines()
-        after_lines = after_content.splitlines()
-        matcher = SequenceMatcher(a=before_lines, b=after_lines)
-        additions = 0
-        deletions = 0
-
-        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-            if tag == "insert":
-                additions += j2 - j1
-            elif tag == "delete":
-                deletions += i2 - i1
-            elif tag == "replace":
-                deletions += i2 - i1
-                additions += j2 - j1
-
-        return WorkspaceDiffStats(
-            additions=additions,
-            deletions=deletions,
-            changed_lines=additions + deletions,
-        )
+        return content if len(content.encode("utf-8")) <= cls.MAX_LIVE_SNAPSHOT_BYTES else None

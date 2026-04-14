@@ -59,7 +59,7 @@ class MainAgentOrchestrationService:
         """创建新的普通成员 agent。"""
         created_agent = await agent_service.create_agent(
             name=name,
-            options=AgentOptions(**MainAgentProfile.build_regular_agent_options(model=model)),
+            options=AgentOptions(**MainAgentProfile.build_regular_agent_options(provider=provider)),
         )
         return {
             "agent_id": created_agent.agent_id,

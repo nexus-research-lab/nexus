@@ -13,6 +13,7 @@ from typing import Optional
 
 from agent.schema.model_workspace import WorkspaceEvent
 from agent.service.workspace.workspace_event_bus import workspace_event_bus
+from agent.service.workspace.workspace_event_suppressor import workspace_event_suppressor
 
 
 class WorkspaceWriteEventPublisher:
@@ -56,6 +57,12 @@ class WorkspaceWriteEventPublisher:
             version: int = 1,
     ) -> None:
         """发布写入完成事件。"""
+        content_snapshot = self._snapshot_builder(after_content)
+        workspace_event_suppressor.register_write(
+            self._agent_id,
+            relative_path,
+            content_snapshot,
+        )
         workspace_event_bus.publish(
             WorkspaceEvent(
                 type="file_write_end",
@@ -65,7 +72,7 @@ class WorkspaceWriteEventPublisher:
                 source=source,
                 session_key=session_key,
                 tool_use_id=tool_use_id,
-                content_snapshot=self._snapshot_builder(after_content),
+                content_snapshot=content_snapshot,
                 diff_stats=diff_stats,
             )
         )

@@ -106,13 +106,13 @@ class MainAgentProfile:
         return merged_options
 
     @classmethod
-    def build_regular_agent_options(cls, model: str | None = None) -> Dict[str, Any]:
+    def build_regular_agent_options(cls, provider: str | None = None) -> Dict[str, Any]:
         """构建普通成员 agent 的默认运行参数。"""
         options: Dict[str, Any] = {
             "allowed_tools": cls.REGULAR_AGENT_ALLOWED_TOOLS.copy(),
             "permission_mode": "default",
             "setting_sources": cls.SETTING_SOURCES,
         }
-        if model:
-            options["model"] = model
+        if provider:
+            options["provider"] = provider
         return options

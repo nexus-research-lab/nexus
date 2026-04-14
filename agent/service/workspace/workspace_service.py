@@ -9,7 +9,6 @@
 
 """Workspace 应用服务。"""
 
-import os
 from datetime import datetime
 from typing import Tuple
 
@@ -35,6 +34,32 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 
 class WorkspaceService:
     """负责 workspace 读写相关用例。"""
+
+    @staticmethod
+    def _normalize_uploaded_name(filename: str | None) -> str:
+        """规整上传文件名，避免客户端注入路径片段。"""
+        raw_name = (filename or "uploaded_file").replace("\\", "/").split("/")[-1].strip()
+        return raw_name or "uploaded_file"
+
+    @staticmethod
+    def _split_filename(filename: str) -> tuple[str, str]:
+        """拆分主名与扩展名。"""
+        if "." not in filename:
+            return filename, ""
+        return filename.rsplit(".", 1)[0], filename.rsplit(".", 1)[1]
+
+    @classmethod
+    def _build_unique_upload_path(cls, workspace, relative_path: str) -> str:
+        """为上传文件生成唯一保存路径，避免覆盖已有文件。"""
+        normalized_path = relative_path.strip().strip("/")
+        if not workspace.entry_exists(normalized_path):
+            return normalized_path
+
+        parent_dir, _, file_name = normalized_path.rpartition("/")
+        name_without_ext, ext = cls._split_filename(file_name)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        unique_name = f"{name_without_ext}-{timestamp}.{ext}" if ext else f"{name_without_ext}-{timestamp}"
+        return f"{parent_dir}/{unique_name}" if parent_dir else unique_name
 
     @staticmethod
     async def get_workspace_files(agent_id: str) -> list[dict]:
@@ -85,86 +110,57 @@ class WorkspaceService:
         await session_manager.refresh_agent_sessions(agent_id)
         return deleted_path
 
-    @staticmethod
+    @classmethod
     async def upload_file(
-        agent_id: str,
-        file: UploadFile,
-        path: str | None = None,
+            cls,
+            agent_id: str,
+            file: UploadFile,
+            path: str | None = None,
     ) -> UploadWorkspaceFileResponse:
         """上传文件到 workspace。"""
-        # 获取 workspace
         workspace = await agent_manager.get_agent_workspace(agent_id)
+        original_name = cls._normalize_uploaded_name(file.filename)
+        _, ext = cls._split_filename(original_name)
+        ext = ext.lower()
 
-        # 获取文件名和扩展名
-        original_name = file.filename or "uploaded_file"
-        ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
+        try:
+            content = await file.read()
+            file_size = len(content)
+            if file_size > MAX_FILE_SIZE:
+                raise ValueError(f"文件大小超过限制 ({MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
 
-        # 检查文件大小
-        content = await file.read()
-        file_size = len(content)
-
-        if file_size > MAX_FILE_SIZE:
-            raise ValueError(f"文件大小超过限制 ({MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-
-        # 确定保存路径（相对 workspace 根目录）
-        if path:
-            # 用户指定了路径
-            if path.endswith("/"):
-                # 目录路径
-                target_path = f"{path}{original_name}"
+            if path:
+                target_path = f"{path}{original_name}" if path.endswith("/") else path
             else:
-                # 完整路径
-                target_path = path
-        else:
-            # 默认直接保存到 workspace 根目录
-            # 如果文件名已存在，添加时间戳后缀
-            existing_files = workspace.list_files()
-            existing_names = {f.get("name") for f in existing_files if not f.get("is_dir")}
-            if original_name in existing_names:
-                from datetime import datetime
-                name_without_ext = original_name.rsplit(".", 1)[0] if "." in original_name else original_name
-                ext = original_name.rsplit(".", 1)[-1] if "." in original_name else ""
-                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                original_name = f"{name_without_ext}-{timestamp}.{ext}" if ext else f"{name_without_ext}-{timestamp}"
-            target_path = original_name
+                target_path = original_name
 
-        # 确保目录存在
-        full_path = workspace._abs_path(target_path)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            saved_relative_path = cls._build_unique_upload_path(workspace, target_path)
 
-        # 写入文件
-        # 文本文件使用文本模式写入，其他文件使用二进制模式
-        if ext in TEXT_EXTENSIONS:
-            try:
-                decoded_content = content.decode("utf-8")
-                saved_path = workspace.write_relative_file(target_path, decoded_content, source="api")
-            except UnicodeDecodeError:
-                # 解码失败，回退到二进制模式
-                with open(full_path, "wb") as f:
-                    f.write(content)
-                saved_path = target_path
-        else:
-            with open(full_path, "wb") as f:
-                f.write(content)
-            saved_path = target_path
+            if ext in TEXT_EXTENSIONS:
+                try:
+                    decoded_content = content.decode("utf-8")
+                    saved_path = workspace.write_relative_file(saved_relative_path, decoded_content, source="api")
+                except UnicodeDecodeError:
+                    saved_path = workspace.write_binary_file(saved_relative_path, content)
+            else:
+                saved_path = workspace.write_binary_file(saved_relative_path, content)
 
-        # 刷新会话
-        await session_manager.refresh_agent_sessions(agent_id)
+            await session_manager.refresh_agent_sessions(agent_id)
 
-        return UploadWorkspaceFileResponse(
-            path=saved_path,
-            name=original_name,
-            size=file_size,
-        )
+            return UploadWorkspaceFileResponse(
+                path=saved_path,
+                name=saved_path.rsplit("/", 1)[-1],
+                size=file_size,
+            )
+        finally:
+            await file.close()
 
     @staticmethod
     async def get_file_for_download(agent_id: str, path: str) -> Tuple[str, str]:
         """获取 workspace 文件用于下载。"""
         workspace = await agent_manager.get_agent_workspace(agent_id)
-        file_path = workspace._abs_path(path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"文件不存在: {path}")
-        return file_path, path.rsplit("/", 1)[-1]
+        file_path = workspace.get_existing_file_path(path)
+        return str(file_path), path.rsplit("/", 1)[-1]
 
 
 workspace_service = WorkspaceService()

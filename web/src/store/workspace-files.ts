@@ -16,7 +16,7 @@ interface WorkspaceFilesStoreState {
   files_by_agent: Record<string, WorkspaceFileEntry[]>;
   set_files: (agent_id: string, files: WorkspaceFileEntry[]) => void;
   clear_agent: (agent_id: string) => void;
-  refresh_files: (agent_id: string) => Promise<void>;
+  refresh_files: (agent_id: string) => Promise<WorkspaceFileEntry[]>;
 }
 
 export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set, get) => ({
@@ -40,16 +40,13 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set, g
   },
 
   refresh_files: async (agent_id) => {
-    try {
-      const files = await getWorkspaceFilesApi(agent_id);
-      set((state) => ({
-        files_by_agent: {
-          ...state.files_by_agent,
-          [agent_id]: files,
-        },
-      }));
-    } catch (error) {
-      console.error('刷新 workspace 文件失败:', error);
-    }
+    const files = await getWorkspaceFilesApi(agent_id);
+    set((state) => ({
+      files_by_agent: {
+        ...state.files_by_agent,
+        [agent_id]: files,
+      },
+    }));
+    return files;
   },
 }));

@@ -67,8 +67,8 @@ interface RoomWorkspaceLayoutProps {
 /**
  * Room 工作区主布局
  *
- * 右侧常驻栏已经移除，任务状态收进 Header，
- * Thread 详情与文件编辑一样，作为独立右栏展示。
+ * Thread 详情仍然作为聊天态右栏展示，
+ * 文件编辑器则收进 workspace tab 自己的局部分栏。
  */
 export function RoomWorkspaceLayout(props: RoomWorkspaceLayoutProps) {
   if (props.current_room_type === "dm") {
@@ -169,70 +169,86 @@ function RoomWorkspaceLayoutInner({
             />
           )}
         >
-            <div className={cn("h-full min-h-0 min-w-0", active_surface_tab !== "chat" && "hidden")}>
-              {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
-                  进而触发 useWebSocket 清理并关闭连接。 */}
-              {is_dm ? (
-                <ChatBoundary>
-                  <DmChatPanel
-                    current_agent_name={current_agent.name}
-                    current_agent_avatar={current_agent.avatar ?? null}
-                    initial_draft={initial_draft}
-                    on_initial_draft_consumed={on_initial_draft_consumed}
-                    on_conversation_snapshot_change={on_conversation_snapshot_change}
-                    on_loading_change={on_loading_change}
-                    on_open_workspace_file={handle_open_workspace_file}
-                    on_todos_change={on_todos_change}
-                    session_identity={current_agent_session_identity}
-                  />
-                </ChatBoundary>
-              ) : (
-                <ChatBoundary>
-                  <RoomChatPanel
-                    agent_id={current_agent.agent_id}
+            <div className="flex h-full min-h-0 min-w-0">
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <div className={cn("h-full min-h-0 min-w-0", active_surface_tab !== "chat" && "hidden")}>
+                  {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
+                      进而触发 useWebSocket 清理并关闭连接。 */}
+                  {is_dm ? (
+                    <ChatBoundary>
+                      <DmChatPanel
+                        current_agent_name={current_agent.name}
+                        current_agent_avatar={current_agent.avatar ?? null}
+                        initial_draft={initial_draft}
+                        on_initial_draft_consumed={on_initial_draft_consumed}
+                        on_conversation_snapshot_change={on_conversation_snapshot_change}
+                        on_loading_change={on_loading_change}
+                        on_open_workspace_file={handle_open_workspace_file}
+                        on_todos_change={on_todos_change}
+                        session_identity={current_agent_session_identity}
+                      />
+                    </ChatBoundary>
+                  ) : (
+                    <ChatBoundary>
+                      <RoomChatPanel
+                        agent_id={current_agent.agent_id}
+                        conversation_id={conversation_id}
+                        current_agent_name={current_agent.name}
+                        current_agent_avatar={current_agent.avatar ?? null}
+                        initial_draft={initial_draft}
+                        on_initial_draft_consumed={on_initial_draft_consumed}
+                        on_conversation_snapshot_change={on_conversation_snapshot_change}
+                        on_create_conversation={on_create_conversation}
+                        on_loading_change={on_loading_change}
+                        on_open_workspace_file={handle_open_workspace_file}
+                        on_room_event={on_room_event}
+                        on_todos_change={on_todos_change}
+                        room_id={room_id}
+                        room_members={room_members}
+                      />
+                    </ChatBoundary>
+                  )}
+                </div>
+
+                <div className={cn(active_surface_tab !== "history" && "hidden")}>
+                  <RoomConversationHistoryView
+                    conversations={current_room_conversations}
                     conversation_id={conversation_id}
-                    current_agent_name={current_agent.name}
-                    current_agent_avatar={current_agent.avatar ?? null}
-                    initial_draft={initial_draft}
-                    on_initial_draft_consumed={on_initial_draft_consumed}
-                    on_conversation_snapshot_change={on_conversation_snapshot_change}
+                    current_room_type={current_room_type}
                     on_create_conversation={on_create_conversation}
-                    on_loading_change={on_loading_change}
-                    on_open_workspace_file={handle_open_workspace_file}
-                    on_room_event={on_room_event}
-                    on_todos_change={on_todos_change}
-                    room_id={room_id}
-                    room_members={room_members}
+                    on_delete_conversation={on_delete_conversation}
+                    on_select_conversation={on_select_conversation}
+                    on_update_conversation_title={on_update_conversation_title}
                   />
-                </ChatBoundary>
-              )}
-            </div>
+                </div>
 
-            {active_surface_tab === "history" ? (
-              <RoomConversationHistoryView
-                conversations={current_room_conversations}
-                conversation_id={conversation_id}
-                current_room_type={current_room_type}
-                on_create_conversation={on_create_conversation}
-                on_delete_conversation={on_delete_conversation}
-                on_select_conversation={on_select_conversation}
-                on_update_conversation_title={on_update_conversation_title}
-              />
-            ) : null}
+                <div className={cn("h-full min-h-0 min-w-0", active_surface_tab !== "workspace" && "hidden")}>
+                  <RoomWorkspaceView
+                    active_workspace_path={active_workspace_path}
+                    agent_id={current_agent.agent_id}
+                    is_dm={is_dm}
+                    room_members={room_members}
+                    on_open_workspace_file={on_open_workspace_file}
+                  />
+                </div>
 
-            {active_surface_tab === "workspace" ? (
-              <RoomWorkspaceView
-                active_workspace_path={active_workspace_path}
+                {is_dm ? (
+                  <div className={cn(active_surface_tab !== "about" && "hidden")}>
+                    <RoomAgentAboutView agent={current_agent} />
+                  </div>
+                ) : null}
+              </div>
+
+              <EditorPanel
                 agent_id={current_agent.agent_id}
-                is_dm={is_dm}
-                room_members={room_members}
-                on_open_workspace_file={on_open_workspace_file}
+                class_name={cn("hidden lg:flex", is_editor_open && "lg:ml-2")}
+                is_open={is_editor_open}
+                on_close={on_close_workspace_pane}
+                on_resize_start={on_start_editor_resize}
+                path={active_workspace_path}
+                width_percent={editor_width_percent}
               />
-            ) : null}
-
-            {active_surface_tab === "about" && is_dm ? (
-              <RoomAgentAboutView agent={current_agent} />
-            ) : null}
+            </div>
         </WorkspaceSurfaceScaffold>
       </div>
 
@@ -243,15 +259,6 @@ function RoomWorkspaceLayoutInner({
         />
       ) : null}
 
-      <EditorPanel
-        agent_id={current_agent.agent_id}
-        class_name={cn("hidden lg:flex", is_editor_open && "lg:ml-2")}
-        is_open={is_editor_open}
-        on_close={on_close_workspace_pane}
-        on_resize_start={on_start_editor_resize}
-        path={active_workspace_path}
-        width_percent={editor_width_percent}
-      />
     </section>
   );
 }
