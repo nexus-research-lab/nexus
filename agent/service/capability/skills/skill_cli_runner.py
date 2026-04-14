@@ -118,7 +118,7 @@ class SkillCliRunner:
         if "://" in spec:
             return spec
         # 形如 skills.volces.com 或 skills.sh/path
-        if re.match(r"^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}(/|$)", spec):
+        if re.match(r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(/|$)", spec):
             return f"https://{spec}"
         return spec
 
