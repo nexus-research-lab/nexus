@@ -83,6 +83,7 @@ scripts/
 # 缓存目录
 cache/
 .cache/
+.buildx-cache/
 
 # 数据文件
 data/

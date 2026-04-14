@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 ARG PYTHON_IMAGE=python:3.13
 
 FROM ${PYTHON_IMAGE} AS runtime
@@ -8,7 +9,6 @@ LABEL description="Nexus"
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/opt/app
 
@@ -33,21 +33,22 @@ RUN --mount=type=cache,target=/var/cache/apt \
     git \
     jq \
     nodejs \
-    npm && \
+    npm \
+    sudo && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/app
 
 COPY agent/requirements.txt /tmp/requirements.txt
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip config set global.index-url "${PIP_INDEX_URL}" && \
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    PIP_NO_CACHE_DIR=0 pip config set global.index-url "${PIP_INDEX_URL}" && \
     pip install --upgrade pip && \
-    pip install -r /tmp/requirements.txt
+    PIP_NO_CACHE_DIR=0 pip install -r /tmp/requirements.txt
 
-RUN npm config set registry "${NPM_REGISTRY}" && \
-    npm install -g @anthropic-ai/claude-code --registry "${NPM_REGISTRY}" && \
-    npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm config set registry "${NPM_REGISTRY}" && \
+    npm install -g @anthropic-ai/claude-code --registry "${NPM_REGISTRY}"
 
 RUN groupadd --system --gid 1001 agent && \
     useradd --system --uid 1001 --gid agent --shell /bin/bash --create-home agent && \
@@ -58,8 +59,17 @@ COPY alembic /opt/app/alembic
 COPY agent /opt/app/agent
 COPY skills /opt/app/skills
 COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
+COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
 
-RUN chmod +x /opt/app/deploy/entrypoint.sh && \
+RUN chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
+    chown root:root /usr/local/bin/nexus-apt-install && \
+    printf '%s\n' \
+    'Defaults:agent !requiretty' \
+    'Defaults:agent env_keep += "NEXUS_APT_ALLOWLIST"' \
+    'agent ALL=(root) NOPASSWD: /usr/local/bin/nexus-apt-install' \
+    > /etc/sudoers.d/nexus-agent && \
+    chmod 0440 /etc/sudoers.d/nexus-agent && \
+    visudo -cf /etc/sudoers.d/nexus-agent && \
     chown -R agent:agent /opt/app /home/agent
 
 USER agent
