@@ -18,6 +18,7 @@ from agent.infra.server.common import resp
 from agent.schema.model_automation import (
     AutomationCronJobCreate,
     AutomationCronSchedule,
+    AutomationCronSource,
     AutomationDeliveryTarget,
     AutomationSessionTarget,
 )
@@ -39,6 +40,12 @@ class ScheduledTaskUpdateRequest(AModel):
     enabled: bool | None = None
 
 
+class ScheduledTaskCreateRequest(AutomationCronJobCreate):
+    """任务创建请求。"""
+
+    source: AutomationCronSource | None = None
+
+
 class ScheduledTaskStatusRequest(AModel):
     """任务启停请求。"""
 
@@ -52,8 +59,21 @@ async def list_scheduled_tasks(agent_id: str | None = None):
 
 
 @router.post("")
-async def create_scheduled_task(payload: AutomationCronJobCreate):
-    data = await scheduled_task_service.create_task(payload)
+async def create_scheduled_task(payload: ScheduledTaskCreateRequest):
+    source = payload.source or AutomationCronSource()
+    source.kind = "user_page"
+    data = await scheduled_task_service.create_task(
+        AutomationCronJobCreate(
+            name=payload.name,
+            agent_id=payload.agent_id,
+            schedule=payload.schedule,
+            instruction=payload.instruction,
+            session_target=payload.session_target,
+            delivery=payload.delivery,
+            source=source,
+            enabled=payload.enabled,
+        )
+    )
     return resp.ok(resp.Resp(data=data.model_dump(mode="json")))
 
 

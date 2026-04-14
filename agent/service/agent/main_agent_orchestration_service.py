@@ -16,6 +16,7 @@ from typing import Any, Optional
 from agent.schema.model_automation import (
     AutomationCronJobCreate,
     AutomationCronSchedule,
+    AutomationCronSource,
     AutomationDeliveryTarget,
     AutomationSessionTarget,
 )
@@ -275,6 +276,7 @@ class MainAgentOrchestrationService:
         agent_id: str,
         instruction: str,
         session_target: AutomationSessionTarget | None = None,
+        source: AutomationCronSource | None = None,
         session_key: str | None = None,
         schedule_kind: str,
         interval_seconds: int | None = None,
@@ -322,6 +324,11 @@ class MainAgentOrchestrationService:
             instruction=instruction,
             session_target=resolved_session_target,
             delivery=AutomationDeliveryTarget(mode="none"),
+            source=source or AutomationCronSource(
+                kind="agent",
+                context_type="agent",
+                context_id=agent_id,
+            ),
             enabled=enabled,
         )
         task = await scheduled_task_service.create_task(payload)

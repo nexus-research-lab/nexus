@@ -13,7 +13,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from agent.schema.model_automation import AutomationSessionTarget
+from agent.schema.model_automation import AutomationCronSource, AutomationSessionTarget
 
 
 class FakeScheduledTaskService:
@@ -188,6 +188,9 @@ def test_create_scheduled_task_accepts_named_session_target(monkeypatch):
         assert payload.session_target.kind == "named"
         assert payload.session_target.named_session_key == "morning-brief"
         assert payload.session_target.bound_session_key is None
+        assert payload.source.kind == "agent"
+        assert payload.source.context_type == "agent"
+        assert payload.source.context_id == "research"
 
     asyncio.run(scenario())
 
@@ -219,6 +222,42 @@ def test_create_scheduled_task_accepts_main_session_target(monkeypatch):
         assert payload.session_target.wake_mode == "now"
         assert payload.session_target.bound_session_key is None
         assert payload.session_target.named_session_key is None
+        assert payload.source.kind == "agent"
+
+    asyncio.run(scenario())
+
+
+def test_create_scheduled_task_accepts_explicit_source(monkeypatch):
+    async def scenario():
+        module = _load_orchestration_module(monkeypatch)
+        service = module.MainAgentOrchestrationService()
+        fake_scheduled_task_service = FakeScheduledTaskService()
+        monkeypatch.setattr(module, "scheduled_task_service", fake_scheduled_task_service)
+
+        result = await service.create_scheduled_task(
+            name="cli follow up",
+            agent_id="research",
+            instruction="follow up from cli",
+            session_target=AutomationSessionTarget(
+                kind="main",
+                wake_mode="now",
+            ),
+            source=AutomationCronSource(
+                kind="cli",
+                creator_agent_id="nexus",
+                context_type="agent",
+                context_id="research",
+                context_label="Research",
+            ),
+            schedule_kind="every",
+            interval_seconds=300,
+        )
+
+        assert result == {"job_id": "job-1"}
+        payload = fake_scheduled_task_service.calls[0][2]["payload"]
+        assert payload.source.kind == "cli"
+        assert payload.source.creator_agent_id == "nexus"
+        assert payload.source.context_label == "Research"
 
     asyncio.run(scenario())
 

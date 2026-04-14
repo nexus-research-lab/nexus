@@ -140,6 +140,13 @@ def test_create_scheduled_task_route_delegates_payload(monkeypatch):
         "instruction": "summarize status",
         "session_target": {"kind": "main", "wake_mode": "next-heartbeat"},
         "delivery": {"mode": "none"},
+        "source": {
+            "context_type": "agent",
+            "context_id": "nexus",
+            "context_label": "Nexus",
+            "session_key": "agent:nexus:ws:dm:launcher-app-nexus",
+            "session_label": "主会话",
+        },
         "enabled": True,
     }
     expected_payload = {
@@ -165,6 +172,15 @@ def test_create_scheduled_task_route_delegates_payload(monkeypatch):
             "to": None,
             "account_id": None,
             "thread_id": None,
+        },
+        "source": {
+            "kind": "user_page",
+            "creator_agent_id": None,
+            "context_type": "agent",
+            "context_id": "nexus",
+            "context_label": "Nexus",
+            "session_key": "agent:nexus:ws:dm:launcher-app-nexus",
+            "session_label": "主会话",
         },
         "enabled": True,
     }

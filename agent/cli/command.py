@@ -47,6 +47,7 @@ from agent.schema.model_main_agent_cli import (
     UpdateWorkspaceFileCommand,
     ValidateAgentNameCommand,
 )
+from agent.schema.model_automation import AutomationCronSource
 from agent.service.agent.main_agent_profile import MainAgentProfile
 
 ServiceCall = Callable[["MainAgentOrchestrationService"], Awaitable[Any]]
@@ -405,6 +406,11 @@ def build_typer_app(
                 agent_id=command.agent_id,
                 instruction=command.instruction,
                 session_target=command.build_session_target(),
+                source=AutomationCronSource(
+                    kind="cli",
+                    context_type="agent",
+                    context_id=command.agent_id,
+                ),
                 schedule_kind=command.schedule_kind,
                 interval_seconds=command.interval_seconds,
                 cron_expression=command.cron_expression,

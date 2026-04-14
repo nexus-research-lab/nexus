@@ -17,6 +17,7 @@ from agent.infra.schemas.model_cython import AModel
 from agent.schema.model_automation import (
     AutomationCronJobCreate,
     AutomationCronSchedule,
+    AutomationCronSource,
     AutomationDeliveryTarget,
     AutomationSessionTarget,
 )
@@ -43,6 +44,7 @@ class CronJobView(AModel):
     instruction: str
     session_target: AutomationSessionTarget
     delivery: AutomationDeliveryTarget
+    source: AutomationCronSource
     enabled: bool
     next_run_at: datetime | None = None
     running: bool = False

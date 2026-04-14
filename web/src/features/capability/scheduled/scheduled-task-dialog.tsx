@@ -459,6 +459,16 @@ export function ScheduledTaskDialog({
         instruction: instruction.trim(),
         session_target: build_session_target(),
         delivery: { mode: "none" },
+        source: {
+          kind: "user_page",
+          context_type: target_type,
+          context_id: target_type === "agent" ? selected_agent_id.trim() : selected_room_id.trim(),
+          context_label: target_type === "agent"
+            ? (agent_options.find((option) => option.value === selected_agent_id)?.label || selected_agent_id.trim())
+            : (room_options.find((option) => option.value === selected_room_id)?.label || selected_room_id.trim()),
+          session_key: target_session.session_key,
+          session_label: target_session.label,
+        },
         enabled,
       });
       void on_created?.(created);
