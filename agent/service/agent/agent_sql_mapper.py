@@ -25,6 +25,7 @@ from agent.schema.model_agent_persistence import (
     ProfileRecord,
     RuntimeRecord,
 )
+from agent.service.settings.provider_config_service import normalize_provider
 
 
 class AgentSqlMapper:
@@ -130,28 +131,32 @@ class AgentSqlMapper:
     def runtime_record_to_options(cls, runtime: RuntimeRecord) -> AgentOptions:
         """将 RuntimeRecord 还原为 AgentOptions。"""
         return AgentOptions(
-            model=runtime.model,
+            provider=normalize_provider(runtime.provider, allow_empty=True) or None,
             permission_mode=runtime.permission_mode,
             allowed_tools=cls.parse_json_list(runtime.allowed_tools_json),
             disallowed_tools=cls.parse_json_list(runtime.disallowed_tools_json),
             max_turns=runtime.max_turns,
             max_thinking_tokens=runtime.max_thinking_tokens,
             mcp_servers=cls.parse_json_dict(runtime.mcp_servers_json),
-            setting_sources=cls.parse_json_list(runtime.setting_sources_json),
+            setting_sources=cls.normalize_setting_sources(
+                cls.parse_json_list(runtime.setting_sources_json)
+            ),
         )
 
     @classmethod
     def build_runtime_fields(cls, options: Dict) -> Dict:
         """构造运行时字段。"""
         return {
-            "model": options.get("model"),
+            "provider": normalize_provider(options.get("provider"), allow_empty=True) or None,
             "permission_mode": options.get("permission_mode"),
             "allowed_tools_json": cls.to_json(options.get("allowed_tools") or []),
             "disallowed_tools_json": cls.to_json(options.get("disallowed_tools") or []),
             "mcp_servers_json": cls.to_json(options.get("mcp_servers") or {}),
             "max_turns": options.get("max_turns"),
             "max_thinking_tokens": options.get("max_thinking_tokens"),
-            "setting_sources_json": cls.to_json(options.get("setting_sources") or []),
+            "setting_sources_json": cls.to_json(
+                cls.normalize_setting_sources(options.get("setting_sources"))
+            ),
         }
 
     @staticmethod
@@ -176,3 +181,14 @@ class AgentSqlMapper:
         except json.JSONDecodeError:
             return None
         return parsed if isinstance(parsed, dict) else None
+
+    @staticmethod
+    def normalize_setting_sources(value: object) -> list[str]:
+        """过滤不再支持的 setting source，只保留 project / user。"""
+        if not isinstance(value, list):
+            return ["project"]
+        normalized_sources: list[str] = []
+        for item in value:
+            if item in {"project", "user"} and item not in normalized_sources:
+                normalized_sources.append(item)
+        return normalized_sources or ["project"]

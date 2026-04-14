@@ -28,14 +28,14 @@ from pydantic import BaseModel, Field
 
 class AgentOptions(BaseModel):
     """Agent 级别配置，对应 ClaudeAgentOptions 的 Agent 层字段"""
-    model: Optional[str] = Field(default=None, description="模型选择")
+    provider: Optional[str] = Field(default=None, description="Provider 选择")
     permission_mode: Optional[str] = Field(default=None, description="权限模式")
     allowed_tools: Optional[list[str]] = Field(default=None, description="工具白名单")
     disallowed_tools: Optional[list[str]] = Field(default=None, description="工具黑名单")
     max_turns: Optional[int] = Field(default=None, description="最大轮次")
     max_thinking_tokens: Optional[int] = Field(default=None, description="思考 token 上限")
     mcp_servers: Optional[dict] = Field(default=None, description="MCP 服务器配置")
-    setting_sources: Optional[list[Literal["user", "project", "local"]]] = Field(
+    setting_sources: Optional[list[Literal["user", "project"]]] = Field(
         default=None,
         description="Claude 设置加载源",
     )

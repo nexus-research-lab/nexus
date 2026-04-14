@@ -31,6 +31,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     bash \
     ca-certificates \
     git \
+    jq \
     nodejs \
     npm && \
     rm -rf /var/lib/apt/lists/*
@@ -56,9 +57,9 @@ COPY main.py pyproject.toml alembic.ini /opt/app/
 COPY alembic /opt/app/alembic
 COPY agent /opt/app/agent
 COPY skills /opt/app/skills
-COPY deploy/init-db.sh /opt/app/deploy/init-db.sh
+COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
 
-RUN chmod +x /opt/app/deploy/init-db.sh && \
+RUN chmod +x /opt/app/deploy/entrypoint.sh && \
     chown -R agent:agent /opt/app /home/agent
 
 USER agent
@@ -66,5 +67,5 @@ ENV HOME=/home/agent
 
 EXPOSE 8010
 
-ENTRYPOINT ["/opt/app/deploy/init-db.sh"]
+ENTRYPOINT ["/opt/app/deploy/entrypoint.sh"]
 CMD ["gunicorn", "-c", "agent/config/config_gunicorn.py", "main:app"]

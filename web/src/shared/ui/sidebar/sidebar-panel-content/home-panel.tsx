@@ -247,17 +247,12 @@ export const HomePanelContent = memo(function HomePanelContent() {
     const deleted_room_id = delete_target.id;
     await deleteRoom(deleted_room_id);
     set_delete_target(null);
-    // 中文注释：删除当前激活房间时，优先回到同类列表入口。
+    // 中文注释：删除当前激活房间时不立即跳转，留给路由层做失效判断。
     if (active_item_id === deleted_room_id) {
       set_active_item(null);
-      if (delete_target?.room_type === "dm") {
-        navigate(AppRouteBuilders.dm_directory());
-      } else {
-        navigate(AppRouteBuilders.home());
-      }
     }
     refresh_rooms();
-  }, [active_item_id, delete_target, navigate, refresh_rooms, set_active_item]);
+  }, [active_item_id, delete_target, refresh_rooms, set_active_item]);
 
   return (
     <div className="flex flex-col">

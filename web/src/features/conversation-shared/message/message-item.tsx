@@ -20,6 +20,7 @@ import {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/permission";
+import { isAskUserQuestionTimedOutResult } from "@/types/ask-user-question";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
@@ -86,6 +87,30 @@ function find_latest_streaming_block(
     return block;
   }
   return null;
+}
+
+function has_timed_out_ask_user_question(content: ContentBlock[]): boolean {
+  const ask_tool_use_ids = new Set<string>();
+
+  for (const block of content) {
+    if (block.type === "tool_use" && block.name === "AskUserQuestion") {
+      ask_tool_use_ids.add(block.id);
+    }
+  }
+
+  for (const block of content) {
+    if (block.type !== "tool_result" || !block.is_error) {
+      continue;
+    }
+    if (!ask_tool_use_ids.has(block.tool_use_id)) {
+      continue;
+    }
+    if (isAskUserQuestionTimedOutResult(block)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function getSystemMessageContainerClassName(tone: "neutral" | "warning"): string {
@@ -456,6 +481,24 @@ function MessageItemInner(
       .trim();
   }, [finalTailEntries]);
 
+  const finalAssistantTextMergedIndexes = useMemo(() => {
+    if (!finalAssistantTurn || finalAssistantTurn.text_content.length === 0) {
+      return new Set<number>();
+    }
+
+    const next_indexes = new Set<number>();
+    for (const entry of visibleOrderedAssistantEntries) {
+      if (entry.source_message_id !== finalAssistantTurn.message_id) {
+        continue;
+      }
+      if (entry.block.type !== "text" || !entry.block.text.trim()) {
+        continue;
+      }
+      next_indexes.add(entry.merged_index);
+    }
+    return next_indexes;
+  }, [finalAssistantTurn, visibleOrderedAssistantEntries]);
+
   const archivedProcessProjection = useMemo<ContentProjection>(() => {
     const result_text = resultMessage?.result?.trim();
     const should_strip_tail = finalTailEntries.length > 0
@@ -480,7 +523,10 @@ function MessageItemInner(
 
     if (!result_text && finalAssistantTurn) {
       return projectionFromOrderedEntries(
-        visibleOrderedAssistantEntries.filter((entry) => entry.source_message_id !== finalAssistantTurn.message_id),
+        visibleOrderedAssistantEntries.filter((entry) => (
+          entry.source_message_id !== finalAssistantTurn.message_id
+          || !finalAssistantTextMergedIndexes.has(entry.merged_index)
+        )),
         streamingBlockIndexes,
       );
     }
@@ -490,6 +536,7 @@ function MessageItemInner(
     finalTailEntries,
     finalTailText,
     finalAssistantTurn,
+    finalAssistantTextMergedIndexes,
     resultMessage,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
@@ -554,8 +601,24 @@ function MessageItemInner(
       return result_text;
     }
 
+    if (assistant_content_mode === "dm_archived") {
+      if (finalTailEntries.length > 0) {
+        return finalTailEntries.map((entry) => entry.block);
+      }
+      if (finalAssistantTurn?.text_content.length) {
+        return finalAssistantTurn.text_content;
+      }
+      return null;
+    }
+
     return fallbackFinalAssistantContent;
-  }, [assistant_content_mode, fallbackFinalAssistantContent, resultMessage]);
+  }, [
+    assistant_content_mode,
+    fallbackFinalAssistantContent,
+    finalAssistantTurn,
+    finalTailEntries,
+    resultMessage,
+  ]);
 
   const finalAssistantStreamingIndexes = useMemo(() => {
     if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
@@ -576,6 +639,10 @@ function MessageItemInner(
   const shouldRenderDirectAssistantContent = directOrderedProjection.content.length > 0;
   const hasVisibleProcess = processProjection.content.length > 0 || unmatchedPendingPermissions.length > 0;
   const shouldRenderProcessCallchain = assistant_content_mode === "dm_archived" && hasVisibleProcess;
+  const hasTimedOutQuestionInProcess = useMemo(
+    () => has_timed_out_ask_user_question(processProjection.content),
+    [processProjection.content],
+  );
 
   const processSummary = useMemo(() => {
     let toolCount = 0;
@@ -734,6 +801,12 @@ function MessageItemInner(
       setIsProcessExpanded(true);
     }
   }, [pending_permissions.length, setIsProcessExpanded]);
+
+  useEffect(() => {
+    if (hasTimedOutQuestionInProcess) {
+      setIsProcessExpanded(true);
+    }
+  }, [hasTimedOutQuestionInProcess, setIsProcessExpanded]);
 
   // 操作
   const handleCopyUser = useCallback(async () => {

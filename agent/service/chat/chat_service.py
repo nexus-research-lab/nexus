@@ -23,6 +23,7 @@ from agent.service.agent.agent_runtime import agent_runtime
 from agent.service.channels.message_sender import MessageSender
 from agent.service.channels.ws.ws_chat_task_registry import ws_chat_task_registry
 from agent.service.message.chat_message_processor import ChatMessageProcessor
+from agent.service.permission.permission_route_context import PermissionRouteContext
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.session.session_manager import session_manager
 from agent.service.session.session_router import (
@@ -135,6 +136,17 @@ class ChatService:
             round_finished = False
 
             try:
+                # 中文注释：DM 权限事件也必须显式携带 round 归属。
+                # 否则 AskUserQuestion 超时后，前端无法把残留 permission
+                # 和 terminal round_status 关联起来，状态会一直卡在等待输入。
+                self._permission_strategy.bind_session_route(
+                    session_key,
+                    PermissionRouteContext(
+                        route_session_key=session_key,
+                        agent_id=real_agent_id,
+                        caused_by=round_id,
+                    ),
+                )
                 await self._sender.send(
                     build_round_status_event(
                         round_id=round_id,
@@ -199,6 +211,8 @@ class ChatService:
                         )
                     )
                 raise
+            finally:
+                self._permission_strategy.unbind_session_route(session_key)
 
             logger.info(f"✅ 消息处理完成: key={session_key}, 共 {processor.message_count} 条响应")
 
@@ -289,6 +303,7 @@ class ChatService:
         ws_chat_task_registry.unregister(session_key, task)
         ws_chat_task_registry.unregister_agent_task(session_key, task)
         chat_tasks.pop(session_key, None)
+        session_manager.schedule_stale_session_cleanup(session_key)
         if task.cancelled():
             logger.info(f"🛑 任务被取消: {session_key}")
         elif task.exception():

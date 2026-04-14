@@ -71,7 +71,7 @@
 ### 4.1 配置层
 
 - 后端 `settings.DEFAULT_AGENT_ID`
-- 后端 `settings.MAIN_AGENT_MODEL`
+- Settings 页里的默认 Provider 配置
 - 后端 `settings.MAIN_AGENT_SYSTEM_PROMPT`
 
 ### 4.2 身份与初始化层

@@ -24,6 +24,7 @@ export interface ToolResultContent {
   tool_use_id: string;
   content: string | any[];
   is_error?: boolean;
+  error_code?: string | null;
 }
 
 export interface ThinkingContent {

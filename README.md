@@ -68,9 +68,11 @@ VITE_API_URL=/agent/v1
 后端至少需要：
 
 ```bash
-ANTHROPIC_AUTH_TOKEN=your_token
-ANTHROPIC_MODEL=your_model
+AUTH_LOGIN_PASSWORD=change-this-password
 ```
+
+Provider 现在只在 `Settings -> Providers` 里动态维护。
+服务启动后，至少需要在该页面配置一个启用的默认 Provider，Agent 对话才会真正可用。
 
 如果要把服务放到公网，建议同时开启浏览器登录：
 
@@ -91,14 +93,15 @@ BACKEND_CORS_ORIGINS=https://your-domain.com
 - 反向代理生产环境优先使用前后端同源部署
 - 如果仍然保留旧的 `ACCESS_TOKEN`，后端也会继续兼容 Bearer Token 调用
 
-数据库默认使用本地 SQLite，通常不需要额外配置：
+本地开发默认使用 SQLite，通常不需要额外配置：
 
 ```bash
 # .env
 DATABASE_URL=sqlite+aiosqlite:///./cache/data/data.db
 ```
 
-如果不在 `.env` 中显式填写 `DATABASE_URL`，后端也会使用上面的默认值。
+如果你直接复制 `env.example`，本地数据库文件默认就在 `cache/data/data.db`。
+生产 Docker 部署则默认落到 `${HOST_DATA_DIR}/.nexus/data/nexus.db`。
 
 ### 3. 安装
 
@@ -121,7 +124,7 @@ make dev
 
 - `make db-init` 会执行 Alembic 迁移
 - `make dev` / `make run-backend` 启动后端时也会尝试先执行迁移
-- Docker 部署会在容器启动时自动执行数据库初始化脚本
+- Docker 部署会在容器入口脚本中自动写入 Claude 配置并执行数据库迁移
 
 如果你看到类似 `table agents already exists` 的报错，通常说明当前 SQLite 文件里的表已经存在，但 `alembic_version` 还没有登记版本号。可以按下面两种方式处理：
 
@@ -176,22 +179,47 @@ Docker 构建与启动命令默认使用当前用户执行。
 如果当前用户还没有 Docker 权限，请先完成服务器上的 Docker 用户权限配置，再重新登录终端。
 
 生产部署默认使用单一宿主机根目录变量 `${HOST_DATA_DIR:-./data}`。
-其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`。
+由于 Compose 文件位于 `deploy/` 目录下，如果你不显式传入 `HOST_DATA_DIR`，默认实际路径会解析为 `deploy/data`。
+其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`，`${HOST_DATA_DIR}/.claude.json` 挂载到容器内 `/home/agent/.claude.json`。
 如果要把数据统一放到宿主机目录 `/data`，启动前执行：
 
 ```bash
 export HOST_DATA_DIR=/data
 mkdir -p "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
+touch "$HOST_DATA_DIR/.claude.json"
 chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
+chown 1001:1001 "$HOST_DATA_DIR/.claude.json"
 ```
+
+注意：`${HOST_DATA_DIR}/.claude.json` 必须是文件，不能是目录；如果之前被 Docker 自动创建成目录，需要先删除再重新 `touch`。
+
+生产 Compose 现在包含：
+
+- `nexus`：Gunicorn + FastAPI，容器启动时执行 `deploy/entrypoint.sh`
+- `nginx`：承载前端静态资源并反代 `/agent/` 与 WebSocket
+- `nexus` 健康检查：`GET /agent/v1/health`
+- `nginx` 健康检查：`GET /nginx-health`
+
+如果你希望在容器内预写 Claude Code 的全局配置，可以在 `.env` 里额外提供这些可选变量，入口脚本会同步写入 `/home/agent/.claude/settings.json`：
+
+```bash
+ANTHROPIC_AUTH_TOKEN=
+ANTHROPIC_BASE_URL=
+ANTHROPIC_MODEL=
+ANTHROPIC_DEFAULT_SONNET_MODEL=
+ANTHROPIC_DEFAULT_OPUS_MODEL=
+ANTHROPIC_DEFAULT_HAIKU_MODEL=
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=
+ENABLE_TOOL_SEARCH=
+CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
+```
+
+但这只是全局回退配置。当前代码的主路径仍然是登录后在 `Settings -> Providers` 里维护 Provider，并由后端在运行时把 Provider 的 `auth_token/base_url/model` 注入 Claude SDK。
 
 ## 关键配置
 
 ### 后端
 
-- `ANTHROPIC_AUTH_TOKEN`
-- `ANTHROPIC_BASE_URL`
-- `ANTHROPIC_MODEL`
 - `DATABASE_URL`：默认值为 `sqlite+aiosqlite:///./cache/data/data.db`
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`
@@ -208,7 +236,6 @@ chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
 
 - `VITE_API_URL`
 - `VITE_WS_URL`
-- `VITE_DEFAULT_MODEL`
 
 ## 存储
 

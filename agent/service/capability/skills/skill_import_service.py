@@ -15,12 +15,12 @@ import hashlib
 import json
 import re
 import shutil
-import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
 
 from agent.schema.model_skill import ExternalSkillManifest, ExternalSkillSearchItem
+from agent.service.capability.skills.skill_cli_runner import SkillCliRunner
 from agent.service.capability.skills.skill_frontmatter import SkillFrontmatterParser
 from agent.service.capability.skills.skill_registry_store import SkillRegistryStore
 
@@ -31,6 +31,7 @@ class SkillImportService:
     def __init__(self) -> None:
         self._store = SkillRegistryStore()
         self._project_root = Path(__file__).resolve().parents[4]
+        self._cli = SkillCliRunner()
 
     def import_local_path(self, local_path: str) -> ExternalSkillManifest:
         source_path = Path(local_path).expanduser()
@@ -65,7 +66,7 @@ class SkillImportService:
             if branch:
                 clone_cmd.extend(["--branch", branch])
             clone_cmd.extend([url, str(repo_dir)])
-            self._run_git(clone_cmd)
+            self._cli.run_git(clone_cmd)
             commit = self._resolve_git_head(repo_dir)
             skill_root = self._resolve_skill_root(repo_dir)
             manifest = self._persist_external_skill(
@@ -101,10 +102,10 @@ class SkillImportService:
             return manifest
 
     def search_skills_sh(self, query: str) -> list[ExternalSkillSearchItem]:
-        output = self._run_skills_cli_find(query)
+        output = self._cli.run_skills_cli_find(query)
         items = self._parse_skills_find_output(output)
         for item in items[:8]:
-            item.readme_markdown = self._fetch_skill_markdown(item.detail_url)
+            item.readme_markdown = self._cli.fetch_skill_markdown(item.detail_url)
         return items
 
     def check_git_update(self, manifest: ExternalSkillManifest) -> bool:
@@ -204,52 +205,26 @@ class SkillImportService:
         raise ValueError("导入内容中找到多个 SKILL.md，请确保只包含一个 skill")
 
     def _resolve_git_head(self, repo_dir: Path) -> str:
-        return self._run_git(
+        return self._cli.run_git(
             ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
             strip=True,
         )
 
     def _resolve_git_branch(self, repo_dir: Path) -> str:
-        return self._run_git(
+        return self._cli.run_git(
             ["git", "-C", str(repo_dir), "rev-parse", "--abbrev-ref", "HEAD"],
             strip=True,
         )
 
     def _resolve_remote_commit(self, git_url: str, branch: str | None) -> str:
         ref = branch or "HEAD"
-        output = self._run_git(["git", "ls-remote", git_url, ref], strip=True)
+        output = self._cli.run_git(["git", "ls-remote", git_url, ref], strip=True)
         if not output:
             return ""
         return output.split()[0]
 
-    def _run_git(self, command: list[str], strip: bool = False) -> str:
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            raise ValueError(result.stderr.strip() or "Git 操作失败")
-        return result.stdout.strip() if strip else result.stdout
-
-    def _run_skills_cli_find(self, query: str) -> str:
-        command = ["npx", "-y", "skills", "find", query]
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            raise ValueError(result.stderr.strip() or "skills.sh 搜索失败")
-        return result.stdout
-
     def _run_skills_cli_add(self, workdir: Path, package_spec: str, skill_slug: str) -> None:
-        subprocess.run(
-            ["npm", "init", "-y"],
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        command = [
-            "npx", "-y", "skills", "add", package_spec,
-            "--skill", skill_slug, "-y", "--copy",
-        ]
-        result = subprocess.run(command, cwd=workdir, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            raise ValueError(result.stderr.strip() or "skills.sh 导入失败")
+        self._cli.run_skills_cli_add(workdir, package_spec, skill_slug)
 
     def _parse_skills_find_output(self, output: str) -> list[ExternalSkillSearchItem]:
         clean = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", output)
@@ -290,33 +265,6 @@ class SkillImportService:
         if text.lower().endswith("k"):
             return int(float(text[:-1]) * 1000)
         return int(float(text))
-
-    def _fetch_skill_markdown(self, detail_url: str) -> str:
-        result = subprocess.run(
-            ["curl", "-L", "--max-time", "20", detail_url],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            return ""
-        html = result.stdout
-        marker = '"dangerouslySetInnerHTML":{"__html":"'
-        if marker not in html:
-            return ""
-        fragment = html.split(marker, 1)[1].split('"}}', 1)[0]
-        decoded = bytes(fragment, "utf-8").decode("unicode_escape")
-        # 简单把 HTML 文本还原为可读 markdown-ish 文本。
-        decoded = re.sub(r"<pre.*?><code.*?>", "```text\n", decoded)
-        decoded = decoded.replace("</code></pre>", "\n```")
-        decoded = re.sub(r"<h1>(.*?)</h1>", r"# \1\n", decoded)
-        decoded = re.sub(r"<h2>(.*?)</h2>", r"## \1\n", decoded)
-        decoded = re.sub(r"<h3>(.*?)</h3>", r"### \1\n", decoded)
-        decoded = re.sub(r"<li>(.*?)</li>", r"- \1", decoded)
-        decoded = re.sub(r"<p>(.*?)</p>", r"\1\n", decoded)
-        decoded = re.sub(r"<[^>]+>", "", decoded)
-        decoded = decoded.replace("&#x3C;", "<")
-        return decoded.strip()
 
     def _ensure_name_available(self, skill_name: str) -> None:
         """避免外部导入覆盖系统或内置 catalog。"""

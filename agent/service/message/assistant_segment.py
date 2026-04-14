@@ -125,6 +125,15 @@ class AssistantSegment:
         self.ensure_started()
         self._upsert_block(dict(block))
 
+    def find_tool_name(self, tool_use_id: str) -> str:
+        """根据 tool_use_id 反查工具名称。"""
+        for block in self.content:
+            if block.get("type") != "tool_use":
+                continue
+            if block.get("id") == tool_use_id:
+                return str(block.get("name") or "")
+        return ""
+
     def has_content(self) -> bool:
         """判断当前段是否已有内容。"""
         return bool(self.content)

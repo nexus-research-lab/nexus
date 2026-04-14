@@ -37,12 +37,6 @@ export function handleAgentConversationWebSocketMessage({
   track_chat_ack,
   track_assistant_message,
 }: HandleAgentConversationWebSocketMessageParams): void {
-  const clearTimedOutQuestionPermissions = (incoming_session: string | null) => {
-    set_pending_permissions((prev) => prev.filter((item) => !(
-      (item.interaction_mode === 'question' || item.tool_name === 'AskUserQuestion') &&
-      (item.session_key ?? null) === incoming_session
-    )));
-  };
   const event = backend_message as EventMessage;
   const incoming_session_key = event.session_key || null;
 
@@ -226,10 +220,6 @@ export function handleAgentConversationWebSocketMessage({
   const message_session_key = payload?.session_key || incoming_session_key;
   if (!payload || !message_session_key) {
     return;
-  }
-  const tool_use_result = (payload as { tool_use_result?: string }).tool_use_result;
-  if (payload.role === 'user' && tool_use_result === 'Error: Permission request timeout') {
-    clearTimedOutQuestionPermissions(message_session_key);
   }
 
   if (!is_current_session_event(message_session_key)) {

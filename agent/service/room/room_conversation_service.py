@@ -12,6 +12,9 @@
 from __future__ import annotations
 
 from typing import Optional
+import asyncio
+
+from sqlalchemy.exc import OperationalError
 
 from agent.infra.database.get_db import get_db
 from agent.schema.model_chat_persistence import (
@@ -40,6 +43,26 @@ class RoomConversationService:
 
     def __init__(self) -> None:
         self._db = get_db("async_sqlite")
+
+    @staticmethod
+    async def _commit_with_retry(session) -> None:
+        """提交事务，遇到 SQLite locked 时做短暂重试。"""
+        last_error: OperationalError | None = None
+        for attempt in range(3):
+            try:
+                await session.commit()
+                return
+            except OperationalError as exc:
+                message = str(exc).lower()
+                if "database is locked" not in message:
+                    raise
+                last_error = exc
+                await session.rollback()
+                # 中文注释：SQLite 写锁短暂冲突，做轻量退避重试。
+                await asyncio.sleep(0.2 * (attempt + 1))
+        if last_error:
+            raise last_error
+        await session.commit()
 
     async def create_room_conversation(
         self,
@@ -75,7 +98,7 @@ class RoomConversationService:
                 room_aggregate=room_aggregate,
                 session_repository=session_repository,
             )
-            await session.commit()
+            await self._commit_with_retry(session)
 
         context = ConversationContextAggregate(
             room=room_aggregate.room,
@@ -117,7 +140,7 @@ class RoomConversationService:
             if updated_conversation is None:
                 raise LookupError("Conversation not found")
             sessions = await session_repository.list_by_conversation(conversation_id)
-            await session.commit()
+            await self._commit_with_retry(session)
 
         context = ConversationContextAggregate(
             room=room_aggregate.room,
@@ -159,7 +182,7 @@ class RoomConversationService:
             deleted = await conversation_repository.delete(conversation_id)
             if not deleted:
                 raise LookupError("Conversation not found")
-            await session.commit()
+            await self._commit_with_retry(session)
 
         await room_message_store.delete_conversation(conversation_id)
         from agent.service.session.session_manager import session_manager

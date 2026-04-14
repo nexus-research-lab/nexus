@@ -10,8 +10,10 @@
 // ==================== Agent 配置 ====================
 
 /** Agent 级别配置选项（映射 ClaudeAgentOptions 的 Agent 层字段） */
+export type AgentProvider = string;
+
 export interface AgentOptions {
-    model?: string;
+    provider?: AgentProvider;
     permission_mode?: string;
     allowed_tools?: string[];
     disallowed_tools?: string[];
@@ -20,7 +22,7 @@ export interface AgentOptions {
     max_turns?: number;
     max_thinking_tokens?: number;
     mcp_servers?: Record<string, any>;
-    setting_sources?: ('user' | 'project' | 'local')[];
+    setting_sources?: ('user' | 'project')[];
 }
 
 // ==================== Agent 数据结构 ====================

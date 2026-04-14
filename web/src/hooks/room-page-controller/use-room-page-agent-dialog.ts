@@ -11,7 +11,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { initialOptions } from "@/config/options";
+import { getInitialAgentOptions } from "@/config/options";
 import { validateAgentNameApi } from "@/lib/agent-manage-api";
 import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent";
 
@@ -69,11 +69,11 @@ export function useRoomPageAgentDialog({
 
   const dialog_initial_options = useMemo(() => {
     if (dialog_mode !== "edit" || !editing_agent) {
-      return initialOptions;
+      return getInitialAgentOptions();
     }
 
     return {
-      model: editing_agent.options.model,
+      provider: editing_agent.options.provider,
       permission_mode: editing_agent.options.permission_mode,
       allowed_tools: editing_agent.options.allowed_tools,
       disallowed_tools: editing_agent.options.disallowed_tools,
@@ -101,7 +101,7 @@ export function useRoomPageAgentDialog({
     identity: AgentIdentityDraft,
   ) => {
     const next_options = {
-      model: options.model,
+      provider: options.provider,
       permission_mode: options.permission_mode,
       allowed_tools: options.allowed_tools,
       disallowed_tools: options.disallowed_tools,

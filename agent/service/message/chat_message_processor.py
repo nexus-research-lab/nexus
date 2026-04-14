@@ -20,6 +20,7 @@ from claude_agent_sdk.types import AssistantMessage, StreamEvent, UserMessage
 
 from agent.schema.model_message import Message, StreamMessage
 from agent.service.message.assistant_segment import AssistantSegment
+from agent.service.permission.permission_error_codes import infer_permission_error_code
 from agent.service.message.sdk_message_logger import message_log
 from agent.service.message.sdk_message_mapper import SdkMessageMapper
 from agent.service.session.session_manager import session_manager
@@ -386,6 +387,7 @@ class ChatMessageProcessor:
         content = SdkMessageMapper.normalize_content_blocks(payload.get("content"))
         if not content or not all(block.get("type") == "tool_result" for block in content):
             return []
+        content = [self._enrich_tool_result_block(block) for block in content]
         self._segment.append_tool_results(content)
         message = self._segment.build_message(
             session_key=self.session_key,
@@ -397,6 +399,25 @@ class ChatMessageProcessor:
         )
         self._remember_assistant_message(message)
         return [message]
+
+    def _enrich_tool_result_block(self, block: dict) -> dict:
+        """给权限类工具结果补齐结构化错误码。"""
+        enriched_block = dict(block)
+        if not enriched_block.get("is_error"):
+            return enriched_block
+
+        tool_use_id = str(enriched_block.get("tool_use_id") or "").strip()
+        if not tool_use_id:
+            return enriched_block
+
+        tool_name = self._segment.find_tool_name(tool_use_id)
+        error_code = infer_permission_error_code(
+            tool_name=tool_name,
+            message=enriched_block.get("content"),
+        )
+        if error_code:
+            enriched_block["error_code"] = error_code
+        return enriched_block
 
     def _build_result_message(self, response_msg: ResultMessage) -> Message:
         """构建结果消息。"""

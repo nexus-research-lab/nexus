@@ -37,7 +37,6 @@ async def lifespan(app: FastAPI):
         from agent.service.session.cost_repository import cost_repository
         session_repository.ensure_ready()
         cost_repository.ensure_ready()
-
         # 注册并启动消息通道
         await _register_channels()
         heartbeat_service.set_channel_register(channel_manager)

@@ -48,7 +48,7 @@ python3 "{project_root}/agent/cli.py" list_agents --include_main
 ```
 
 - 默认不包含主智能体；加 `--include_main` 可包含。
-- 返回字段：`agent_id`、`name`、`status`、`workspace_path`、`model`、`skills_enabled`
+- 返回字段：`agent_id`、`name`、`status`、`workspace_path`、`provider`、`skills_enabled`
 
 #### validate_agent_name — 校验成员名称
 
@@ -63,11 +63,11 @@ python3 "{project_root}/agent/cli.py" validate_agent_name --name "Research"
 
 ```bash
 python3 "{project_root}/agent/cli.py" create_agent --name "Research"
-python3 "{project_root}/agent/cli.py" create_agent --name "Research" --model "glm-5"
+python3 "{project_root}/agent/cli.py" create_agent --name "Research" --provider "glm"
 ```
 
-- `--name` 必填；`--model` 可选，不指定则使用默认模型。
-- 返回字段：`agent_id`、`name`、`workspace_path`、`model`、`skills_enabled`、`status`
+- `--name` 必填；`--provider` 可选，值为 Provider key，来源于 Settings -> Providers。
+- 返回字段：`agent_id`、`name`、`workspace_path`、`provider`、`skills_enabled`、`status`
 
 #### get_agent — 读取成员详情
 

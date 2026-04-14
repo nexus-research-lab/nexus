@@ -123,7 +123,7 @@ class AgentSqlRepository(BaseSqlRepository):
         if runtime is None:
             return None
         for field_name, value in fields.items():
-            if value is not None and hasattr(runtime, field_name):
+            if hasattr(runtime, field_name):
                 setattr(runtime, field_name, value)
         await self.flush()
         return await self.get(agent_id)

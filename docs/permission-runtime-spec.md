@@ -264,7 +264,21 @@ Claude SDK client
 - `tool_input`
 - `interaction_mode`
 - `expires_at`
-- Room 场景下的 `room_id / conversation_id / agent_id / message_id / caused_by`
+- 与当前运行 round 的关联元信息：
+  - `caused_by`
+  - `agent_id`
+  - 若当前链路能稳定拿到具体消息锚点，再带 `message_id`
+- Room 场景下还必须携带 `room_id / conversation_id`
+
+补充规则：
+
+- DM 与固定 Session 也必须携带 `caused_by=round_id`
+- 不能只有 Room 链路才带 round 关联元信息
+- 否则 `AskUserQuestion` 超时、拒绝或中断后，前端无法把残留权限状态与 terminal `round_status` 正确收口
+- `AskUserQuestion` 若最终拒绝原因为超时或权限通道不可用
+  - 后端必须在对应 `tool_result` 上补结构化 `error_code`
+  - 前端只允许基于该 `error_code` 渲染 `提问已超时 / 提问未完成`
+  - 禁止再用英文错误串做 UI 分支
 
 前端绑定规则：
 

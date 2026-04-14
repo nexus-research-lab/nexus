@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 from claude_agent_sdk import CanUseTool, ClaudeAgentOptions, ClaudeSDKClient
 
 from agent.infra.server.common.base_exception import ServerException
+from agent.service.session.session_client_runtime import SessionClientRuntime
 from agent.service.session.session_router import parse_session_key
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
@@ -36,14 +37,21 @@ class SessionManager:
         self._locks: Dict[str, asyncio.Lock] = {}
         self._key_sdk_map: Dict[str, str] = {}
         self._sdk_key_map: Dict[str, str] = {}
+        self._stale_sessions: set[str] = set()
+        self._cleanup_tasks: Dict[str, asyncio.Task] = {}
 
     async def get_session(self, session_key: str) -> Optional[ClaudeSDKClient]:
         """获取现有 SDK client。"""
+        if session_key in self._stale_sessions:
+            if not self.get_lock(session_key).locked():
+                self.schedule_stale_session_cleanup(session_key)
+            return None
+
         client = self._sessions.get(session_key)
         if client is None:
             return None
 
-        health_issue = self._inspect_client_health_issue(client)
+        health_issue = SessionClientRuntime.inspect_health_issue(client)
         if not health_issue:
             return client
 
@@ -63,6 +71,9 @@ class SessionManager:
             session_options: Optional[Dict[str, Any]] = None,
     ) -> ClaudeSDKClient:
         """创建新会话或返回现有会话。"""
+        if session_key in self._stale_sessions:
+            await self.close_session(session_key)
+
         if session_key in self._sessions:
             logger.info(f"🔄 返回现有会话: {session_key}")
             return self._sessions[session_key]
@@ -92,18 +103,18 @@ class SessionManager:
         return self._locks[session_key]
 
     async def update_session_options(self, session_key: str) -> bool:
-        """刷新会话配置，淘汰旧 client。"""
+        """刷新会话配置，标记旧 client 为 stale。"""
         if session_key not in self._sessions:
             logger.info(f"❌ 会话不存在于内存中: {session_key}")
-            return True
+            return False
 
-        async with self.get_lock(session_key):
-            # Claude SDK client 内部使用 anyio cancel scope。
-            # 跨任务直接 disconnect 容易触发 “Attempted to exit cancel scope in a different task”。
-            # 这里改为仅淘汰内存缓存，让当前轮次自然结束，下一次请求再按最新配置重建 client。
-            self.remove_session(session_key)
-            logger.info(f"✅ 会话选项已更新，旧 client 已淘汰: {session_key}")
-            return True
+        self._stale_sessions.add(session_key)
+        if self.get_lock(session_key).locked():
+            logger.info(f"🔄 会话已标记为 stale，等待当前任务结束: {session_key}")
+        else:
+            self.schedule_stale_session_cleanup(session_key)
+            logger.info(f"🔄 会话已标记为 stale，并准备异步关闭旧 client: {session_key}")
+        return True
 
     async def refresh_agent_sessions(self, agent_id: str) -> int:
         """刷新指定 Agent 的活跃会话。"""
@@ -191,6 +202,7 @@ class SessionManager:
                 logger.info(f"⏸️ 已中断 SDK 会话: {session_key}")
             except Exception as exc:
                 logger.warning(f"⚠️ 中断 SDK 会话失败: key={session_key}, error={exc}")
+                await SessionClientRuntime.force_terminate_process(session_key, client)
 
         existed = (
                 session_key in self._sessions
@@ -199,6 +211,34 @@ class SessionManager:
         )
         self.remove_session(session_key)
         return existed
+
+    def schedule_stale_session_cleanup(self, session_key: str) -> None:
+        """为 stale 会话安排后台清理任务。"""
+        if session_key not in self._stale_sessions:
+            return
+        current_task = self._cleanup_tasks.get(session_key)
+        if current_task and not current_task.done():
+            return
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning(f"⚠️ 当前无事件循环，无法安排 stale 会话清理: {session_key}")
+            return
+        self._cleanup_tasks[session_key] = loop.create_task(
+            self._cleanup_stale_session(session_key)
+        )
+
+    async def _cleanup_stale_session(self, session_key: str) -> None:
+        """在会话空闲后关闭 stale client。"""
+        try:
+            async with self.get_lock(session_key):
+                if session_key not in self._stale_sessions:
+                    return
+                await self.close_session(session_key)
+                logger.info(f"🧹 stale 会话清理完成: {session_key}")
+        finally:
+            self._cleanup_tasks.pop(session_key, None)
 
     def invalidate_session(self, session_key: str, reason: str | None = None) -> bool:
         """淘汰已损坏的会话缓存，不再尝试复用。"""
@@ -216,37 +256,6 @@ class SessionManager:
         self._drop_session_runtime(session_key, preserve_lock=False)
         logger.info(f"✅ 已移除 session: {session_key}")
 
-    @staticmethod
-    def _inspect_client_health_issue(client: ClaudeSDKClient) -> str | None:
-        """检测 SDK client 是否仍可安全复用。"""
-        query = getattr(client, "_query", None)
-        if query is not None and getattr(query, "_closed", False):
-            return "query 已关闭"
-
-        transport = getattr(client, "_transport", None)
-        if transport is None:
-            return None
-
-        exit_error = getattr(transport, "_exit_error", None)
-        if exit_error is not None:
-            return f"transport 已记录退出错误: {exit_error}"
-
-        process = getattr(transport, "_process", None)
-        if process is not None:
-            return_code = getattr(process, "returncode", None)
-            if return_code is not None:
-                return f"Claude CLI 子进程已退出，exit_code={return_code}"
-
-        is_ready = getattr(transport, "is_ready", None)
-        if callable(is_ready) and process is not None:
-            try:
-                if not bool(is_ready()):
-                    return "transport 未处于可写状态"
-            except Exception as exc:
-                return f"transport 健康检查失败: {exc}"
-
-        return None
-
     def _drop_session_runtime(self, session_key: str, preserve_lock: bool) -> None:
         """删除会话运行态缓存，可选择保留并发锁。"""
         if session_key in self._sessions:
@@ -259,6 +268,7 @@ class SessionManager:
         sdk_id = self._key_sdk_map.pop(session_key, None)
         if sdk_id:
             self._sdk_key_map.pop(sdk_id, None)
+        self._stale_sessions.discard(session_key)
 
 
 session_manager = SessionManager()

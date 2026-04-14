@@ -12,9 +12,13 @@ import warnings
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
+import asyncio
+import sys
+
 import uvicorn
 
 from agent.config.config import settings
+from agent.infra.server.launcher import serve_http
 from agent.utils import utils
 from agent.utils.logger import logger
 
@@ -29,20 +33,28 @@ app = create_app()
 if __name__ == '__main__':
     utils.print_info(settings, logger)
 
-    if settings.DEBUG:
-        entrypoint = "main:app"
-    else:
-        entrypoint = app
+    is_debugger_attached = sys.gettrace() is not None
+    reload_enabled = False if settings.WORKERS != 1 or is_debugger_attached else settings.DEBUG
+    app_reference = "main:app" if settings.DEBUG else app
 
     kwargs = {
-        "app": entrypoint,
+        "app": app_reference,
         "host": settings.HOST,
         "port": settings.PORT,
-        "reload": False if settings.WORKERS != 1 else settings.DEBUG,
+        "reload": reload_enabled,
         "workers": settings.WORKERS,
         "lifespan": 'on',
         "ws": "websockets-sansio",
         "log_config": utils.set_uvicorn_logger(settings.LOGGER_FORMAT),
     }
 
-    uvicorn.run(**kwargs)
+    if reload_enabled or settings.WORKERS > 1:
+        uvicorn.run(**kwargs)
+    else:
+        single_process_kwargs = dict(kwargs)
+        single_process_kwargs.pop("app", None)
+        single_process_kwargs.pop("reload", None)
+        single_process_kwargs.pop("workers", None)
+        # 中文注释：单进程路径直接走 server.serve()，避免调试器改写 asyncio.run 后与 uvicorn 的
+        # loop_factory 调用发生签名冲突。
+        asyncio.run(serve_http(app, **single_process_kwargs))

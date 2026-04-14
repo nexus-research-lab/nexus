@@ -8,14 +8,14 @@
  */
 
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
-import { type ReactNode } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useSidebarStore } from "@/store/sidebar";
 
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
-  "relative box-border flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] transition-[background,color,transform] duration-(--motion-duration-fast)";
+  "flex min-w-0 flex-1 items-center gap-2.5 text-left text-[14px]";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
   "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
@@ -59,15 +59,29 @@ export function SidebarListItem({
 }: SidebarListItemProps) {
   const { t } = useI18n();
   const has_actions = Boolean(on_rename || on_delete);
+  const handle_key_down = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    on_click();
+  };
 
   return (
     <div
       className={cn(
-        "group/item relative flex min-w-0 items-center gap-1.5 rounded-[12px] transition-[background,color,transform] duration-(--motion-duration-fast)",
+        "group/item relative box-border flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-[12px] px-2.5 py-[7px] transition-[background,color,transform] duration-(--motion-duration-fast)",
         is_active
           ? "text-(--text-strong)"
           : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
       )}
+      onClick={on_click}
+      onKeyDown={handle_key_down}
+      role="button"
+      tabIndex={0}
       style={is_active ? {
         background: "color-mix(in srgb, var(--surface-interactive-active-background) 72%, transparent)",
       } : undefined}
@@ -76,16 +90,13 @@ export function SidebarListItem({
         <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
       ) : null}
 
-      <button
+      <div
         className={cn(
           SIDEBAR_LIST_ITEM_CLASS_NAME,
-          "flex-1 bg-transparent",
           is_active
             ? "font-medium text-(--text-strong)"
-            : "text-(--text-default) group-hover/item:text-(--text-strong) hover:translate-x-[2px]",
+            : "text-(--text-default) group-hover/item:text-(--text-strong)",
         )}
-        onClick={on_click}
-        type="button"
       >
         <span
           className={cn(
@@ -106,10 +117,10 @@ export function SidebarListItem({
             {meta}
           </span>
         ) : null}
-      </button>
+      </div>
 
       {has_actions ? (
-        <div className="flex shrink-0 items-center gap-1 pr-2">
+        <div className="flex shrink-0 items-center gap-1">
           {on_rename ? (
             <button
               aria-label={t("home.rename")}

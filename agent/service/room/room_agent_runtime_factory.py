@@ -27,6 +27,7 @@ from agent.service.agent.agent_name_policy import AgentNamePolicy
 from agent.service.repository.agent_repository_service import (
     agent_persistence_service,
 )
+from agent.service.settings.provider_config_service import normalize_provider
 from agent.utils.utils import random_uuid
 
 
@@ -71,7 +72,7 @@ class RoomAgentRuntimeFactory:
             runtime=RuntimeRecord(
                 id=_stable_id("runtime", agent.agent_id),
                 agent_id=agent.agent_id,
-                model=options.get("model"),
+                provider=normalize_provider(options.get("provider"), allow_empty=True) or None,
                 permission_mode=options.get("permission_mode"),
                 allowed_tools_json=json.dumps(options.get("allowed_tools") or [], ensure_ascii=False),
                 disallowed_tools_json=json.dumps(options.get("disallowed_tools") or [], ensure_ascii=False),

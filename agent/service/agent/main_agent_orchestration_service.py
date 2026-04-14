@@ -34,7 +34,7 @@ class MainAgentOrchestrationService:
                 "name": agent.name,
                 "status": agent.status,
                 "workspace_path": agent.workspace_path,
-                "model": agent.options.model,
+                "provider": agent.options.provider,
             })
 
         return agent_items
@@ -42,13 +42,13 @@ class MainAgentOrchestrationService:
     async def create_agent(
         self,
         name: str,
-        model: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> dict[str, Any]:
         """创建新的普通成员 agent。"""
         created_agent = await agent_service.create_agent(
             name=name,
             options=AgentOptions(
-                model=model,
+                provider=provider,
                 permission_mode="default",
                 setting_sources=["project"],
             ),
@@ -57,7 +57,7 @@ class MainAgentOrchestrationService:
             "agent_id": created_agent.agent_id,
             "name": created_agent.name,
             "workspace_path": created_agent.workspace_path,
-            "model": created_agent.options.model,
+            "provider": created_agent.options.provider,
             "status": created_agent.status,
         }
 

@@ -13,6 +13,7 @@ from fastapi import APIRouter
 
 from agent.config.config import settings
 from agent.infra.server.common import resp
+from agent.service.settings.provider_config_service import provider_config_service
 
 router = APIRouter(tags=["runtime"])
 
@@ -25,10 +26,12 @@ async def health():
 @router.get("/runtime/options")
 async def get_runtime_options():
     """返回前端启动所需的唯一运行时配置。"""
+    default_provider = await provider_config_service.get_default_provider()
     return resp.ok(
         resp.Resp(
             data={
                 "default_agent_id": settings.DEFAULT_AGENT_ID,
+                "default_agent_provider": default_provider,
             }
         )
     )

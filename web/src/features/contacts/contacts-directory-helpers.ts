@@ -2,6 +2,7 @@
 
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
+import { format_provider_label } from "@/types/provider";
 
 export type ContactsRuntimeStatus = "Running" | "Idle" | "Active";
 export type ContactsRuntimeTone = "running" | "idle" | "active";
@@ -44,8 +45,8 @@ export function get_contacts_runtime_tone(status: ContactsRuntimeStatus): Contac
   return "active";
 }
 
-export function get_contacts_model_label(agent: Agent): string {
-  return agent.options.model || "inherit";
+export function get_contacts_provider_label(agent: Agent): string {
+  return format_provider_label(agent.options.provider);
 }
 
 export function get_contacts_agent_conversations(
@@ -102,7 +103,7 @@ export function matches_contacts_search(agent: Agent, query: string): boolean {
     agent.name,
     agent.workspace_path,
     agent.status,
-    agent.options.model,
+    agent.options.provider,
     agent.options.permission_mode,
     agent.options.system_prompt,
   ]

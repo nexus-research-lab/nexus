@@ -125,9 +125,7 @@ export const ConversationFeed = memo(function ConversationFeed({
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
-        const should_keep_round_live = isLastRound && (
-          is_loading || is_last_round_pending_permissions.length > 0
-        );
+        const should_keep_round_live = isLastRound && is_loading;
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
         const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
 
@@ -143,7 +141,7 @@ export const ConversationFeed = memo(function ConversationFeed({
             is_last_round={isLastRound}
             is_loading={is_loading}
             runtime_phase={isLastRound ? runtime_phase : null}
-            pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
+            pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
             can_respond_to_permissions={can_respond_to_permissions}
             permission_read_only_reason={permission_read_only_reason}
@@ -237,9 +235,7 @@ function VirtualFeed({
           const roundId = round_ids[virtual_item.index];
           const roundMessages = message_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
-          const should_keep_round_live = isLastRound && (
-            is_loading || is_last_round_pending_permissions.length > 0
-          );
+          const should_keep_round_live = isLastRound && is_loading;
           const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
           const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
 
@@ -259,7 +255,7 @@ function VirtualFeed({
                 is_last_round={isLastRound}
                 is_loading={is_loading}
                 runtime_phase={isLastRound ? runtime_phase : null}
-                pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
+                pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
                 on_permission_response={on_permission_response}
                 can_respond_to_permissions={can_respond_to_permissions}
                 permission_read_only_reason={permission_read_only_reason}

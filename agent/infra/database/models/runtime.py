@@ -36,7 +36,8 @@ class Runtime(TimestampMixin, Base):
         unique=True,
         nullable=False,
     )
-    model: Mapped[str | None] = mapped_column(String(128))
+    # 中文注释：空 provider 表示跟随当前默认 Provider。
+    provider: Mapped[str | None] = mapped_column(String(32))
     permission_mode: Mapped[str | None] = mapped_column(String(64))
     allowed_tools_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     disallowed_tools_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)

@@ -6,32 +6,23 @@ function isStreamRenderableBlock(
   return block?.type === 'text' || block?.type === 'thinking';
 }
 
-function normalize_completed_assistant_states(messages: Message[]): Message[] {
-  const completed_round_ids = new Set(
-    messages
-      .filter((message) => message.role === 'result')
-      .map((message) => message.round_id),
-  );
-
+function normalize_assistant_messages(messages: Message[]): Message[] {
   let has_changes = false;
   const next_messages = messages.map((message) => {
     if (message.role !== 'assistant') {
       return message;
     }
 
+    const normalized_message = normalizeAssistantMessage(message);
     if (
-      !completed_round_ids.has(message.round_id) ||
-      (message.is_complete && message.stream_status === 'done')
+      normalized_message.stream_status === message.stream_status
+      && normalized_message.is_complete === message.is_complete
     ) {
       return message;
     }
 
     has_changes = true;
-    return {
-      ...message,
-      is_complete: true,
-      stream_status: 'done' as const,
-    };
+    return normalized_message;
   });
 
   return has_changes ? next_messages : messages;
@@ -49,7 +40,7 @@ export function normalizeAssistantMessage(incoming: AssistantMessage): Assistant
   return {
     ...incoming,
     stream_status: incoming.stream_status ?? (
-      incoming.stop_reason ? 'done' : 'streaming'
+      incoming.stop_reason || incoming.is_complete ? 'done' : 'streaming'
     ),
   };
 }
@@ -67,12 +58,12 @@ export function upsertMessage(messages: Message[], incoming: Message): Message[]
     (message) => message.message_id === normalized_incoming.message_id,
   );
   if (existingIndex === -1) {
-    return normalize_completed_assistant_states([...messages, normalized_incoming]);
+    return normalize_assistant_messages([...messages, normalized_incoming]);
   }
 
   const nextMessages = [...messages];
   nextMessages[existingIndex] = normalized_incoming;
-  return normalize_completed_assistant_states(nextMessages);
+  return normalize_assistant_messages(nextMessages);
 }
 
 /**
@@ -143,7 +134,7 @@ export function applyStreamMessage(messages: Message[], event: StreamMessage): M
  * 按时间戳排序消息，保证历史与实时消息顺序稳定。
  */
 export function sortMessages(messages: Message[]): Message[] {
-  return normalize_completed_assistant_states(
+  return normalize_assistant_messages(
     [...messages].sort((left, right) => left.timestamp - right.timestamp),
   );
 }

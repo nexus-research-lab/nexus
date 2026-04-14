@@ -33,6 +33,9 @@ const SkillsPage = lazy(() =>
 const ConnectorsPage = lazy(() =>
   import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
 );
+const SettingsPage = lazy(() =>
+  import("@/pages/settings/settings-page").then((m) => ({ default: m.SettingsPage })),
+);
 
 /** 页面加载占位 */
 function PageFallback() {
@@ -105,10 +108,7 @@ export function AppRouter() {
                 />
 
                 {/* 其他占位路由 */}
-                <Route
-                  element={<PlaceholderPage title={t("placeholder.settings_title")} description={t("placeholder.settings_description")} />}
-                  path={APP_ROUTE_PATHS.settings}
-                />
+                <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
               </Route>
             </Route>
           </Route>

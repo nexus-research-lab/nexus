@@ -18,6 +18,10 @@ export function RoomPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [pending_initial_prompt, set_pending_initial_prompt] = useState<string | null>(null);
+  const [pending_deleted_room, set_pending_deleted_room] = useState<{
+    id: string;
+    room_type: "room" | "dm";
+  } | null>(null);
   const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
   const controller = useRoomPageController({
     room_id: params.room_id,
@@ -87,10 +91,12 @@ export function RoomPage() {
 
   const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent-conversation").RoomEventPayload) => {
     if (event_type === "room_deleted") {
-      if (controller.current_room?.room_type === "dm") {
-        navigate(AppRouteBuilders.dm_directory());
-      } else {
-        navigate(AppRouteBuilders.home());
+      if (_data.room_id && _data.room_id === params.room_id) {
+        set_pending_deleted_room({
+          id: _data.room_id,
+          room_type: controller.current_room?.room_type === "dm" ? "dm" : "room",
+        });
+        void controller.handle_refresh_room_state();
       }
       return;
     }
@@ -100,7 +106,41 @@ export function RoomPage() {
     }
     // room_member_added / room_member_removed are handled by the next server-rendered
     // room context fetch; no extra action needed here.
-  }, [controller, navigate]);
+  }, [controller, params.room_id]);
+
+  useEffect(() => {
+    if (!pending_deleted_room) {
+      return;
+    }
+
+    if (!controller.is_hydrated) {
+      return;
+    }
+
+    if (!params.room_id || params.room_id !== pending_deleted_room.id) {
+      set_pending_deleted_room(null);
+      return;
+    }
+
+    if (controller.current_room && !controller.room_error) {
+      // 中文注释：Room 仍可访问，继续留在当前路径。
+      set_pending_deleted_room(null);
+      return;
+    }
+
+    const fallback_route = pending_deleted_room.room_type === "dm"
+      ? AppRouteBuilders.dm_directory()
+      : AppRouteBuilders.home();
+    navigate(fallback_route, { replace: true });
+    set_pending_deleted_room(null);
+  }, [
+    controller.current_room,
+    controller.is_hydrated,
+    controller.room_error,
+    navigate,
+    params.room_id,
+    pending_deleted_room,
+  ]);
 
   const handle_request_delete_agent = useCallback((agent_id: string) => {
     const target_agent = controller.agents.find((agent) => agent.agent_id === agent_id);

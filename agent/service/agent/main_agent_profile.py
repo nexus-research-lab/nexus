@@ -81,8 +81,6 @@ class MainAgentProfile:
             "permission_mode": "default",
             "setting_sources": cls.SETTING_SOURCES,
         }
-        if settings.MAIN_AGENT_MODEL:
-            options["model"] = settings.MAIN_AGENT_MODEL
         return options
 
     @classmethod
@@ -104,6 +102,4 @@ class MainAgentProfile:
         merged_options["allowed_tools"] = default_options["allowed_tools"]
         merged_options["permission_mode"] = default_options["permission_mode"]
         merged_options["setting_sources"] = default_options["setting_sources"]
-        if "model" in default_options:
-            merged_options["model"] = default_options["model"]
         return merged_options
