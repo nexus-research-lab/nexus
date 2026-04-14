@@ -1,6 +1,5 @@
-FROM node:22-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 
-ARG APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
 ARG VITE_WS_URL=
 ARG VITE_API_URL=
@@ -11,12 +10,10 @@ ENV VITE_WS_URL=${VITE_WS_URL} \
 
 WORKDIR /app/web
 
-RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories
-
 COPY web/package*.json ./
 COPY web/.npmrc ./
 RUN npm config set registry "${NPM_REGISTRY}"
-RUN npm ci
+RUN npm ci --include=optional
 
 COPY web/ ./
 RUN npm run build
