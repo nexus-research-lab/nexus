@@ -135,6 +135,8 @@ WORKSPACE_TEMPLATES = {
 
 - 记录命令、接口、外部服务的限制和坑点。
 - 记录已经验证过的排错路径和稳定用法。
+- 生产容器内需要系统包时，只能使用 `sudo /usr/local/bin/nexus-apt-install <package>`。
+- 执行前可先用 `sudo /usr/local/bin/nexus-apt-install --list-allowed` 查看允许列表。
 """,
     "runbook": """# RUNBOOK.md
 
@@ -218,6 +220,8 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 
 - 记录创建 agent、创建 room、管理 skill 的稳定用法。
 - 记录协作编排中踩过的坑，避免再次走回头路。
+- 生产容器内需要系统包时，只能使用 `sudo /usr/local/bin/nexus-apt-install <package>`。
+- 执行前可先用 `sudo /usr/local/bin/nexus-apt-install --list-allowed` 查看允许列表。
 """,
     "runbook": """# RUNBOOK.md
 

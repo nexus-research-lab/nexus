@@ -10,6 +10,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      cache_from:
+        - type=local,src=../.buildx-cache/nexus
+      cache_to:
+        - type=local,dest=../.buildx-cache/nexus,mode=max
       args:
         APT_MIRROR: ${APT_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian-security}
@@ -26,6 +30,7 @@ services:
       PORT: 8010
       WORKERS: ${WORKERS:-1}
       NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+      NEXUS_APT_ALLOWLIST: ${NEXUS_APT_ALLOWLIST:-ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip}
       DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:////home/agent/.nexus/data/nexus.db}
       CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/home/agent/.nexus/cache}
       LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
@@ -36,12 +41,22 @@ services:
       - ${HOST_DATA_DIR:-./data}/.claude.json:/home/agent/.claude.json
     expose:
       - "8010"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8010/agent/v1/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     logging: *default-logging
 
   nginx:
     build:
       context: ..
       dockerfile: web/Dockerfile
+      cache_from:
+        - type=local,src=../.buildx-cache/nginx
+      cache_to:
+        - type=local,dest=../.buildx-cache/nginx,mode=max
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         VITE_WS_URL: ${VITE_WS_URL:-}
@@ -50,6 +65,15 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ:-Asia/Shanghai}
+    depends_on:
+      nexus:
+        condition: service_healthy
     ports:
       - "${HTTP_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     logging: *default-logging

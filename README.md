@@ -200,6 +200,20 @@ chown 1001:1001 "$HOST_DATA_DIR/.claude.json"
 - `nexus` 健康检查：`GET /agent/v1/health`
 - `nginx` 健康检查：`GET /nginx-health`
 
+生产容器内主进程仍然以 `agent` 用户运行，不会直接给 Agent 任意 root 权限。
+如果确实需要在运行期安装 Debian 系统包，只允许通过受控入口：
+
+```bash
+sudo /usr/local/bin/nexus-apt-install --list-allowed
+sudo /usr/local/bin/nexus-apt-install ripgrep
+```
+
+这条 sudo 规则是免密码的，但只放行 `nexus-apt-install` 这一条命令，不允许任意 `sudo bash`、`sudo apt` 或其它 root shell。
+允许安装的包默认来自 `NEXUS_APT_ALLOWLIST`，并会写日志到 `${HOST_DATA_DIR}/.nexus/logs/system-package-install.log`。
+
+Docker 构建默认会把 BuildKit 缓存持久化到仓库根目录 `.buildx-cache/`，用于复用 `apt`、`pip`、`npm` 下载内容和镜像构建层。
+首次构建仍然会完整下载依赖，后续只要 `requirements.txt`、`package-lock.json` 和对应构建层没有失效，就不会重复拉取整套 Python / Node 依赖。
+
 如果你希望在容器内预写 Claude Code 的全局配置，可以在 `.env` 里额外提供这些可选变量，入口脚本会同步写入 `/home/agent/.claude/settings.json`：
 
 ```bash
@@ -212,6 +226,7 @@ ANTHROPIC_DEFAULT_HAIKU_MODEL=
 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=
 ENABLE_TOOL_SEARCH=
 CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=true
+NEXUS_APT_ALLOWLIST=ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip
 ```
 
 但这只是全局回退配置。当前代码的主路径仍然是登录后在 `Settings -> Providers` 里维护 Provider，并由后端在运行时把 Provider 的 `auth_token/base_url/model` 注入 Claude SDK。
