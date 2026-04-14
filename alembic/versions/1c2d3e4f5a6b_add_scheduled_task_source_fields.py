@@ -20,31 +20,40 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """为定时任务补来源快照字段。"""
-    op.add_column(
-        "automation_cron_jobs",
-        sa.Column(
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_columns = {column["name"] for column in inspector.get_columns("automation_cron_jobs")}
+
+    columns = [
+        (
             "source_kind",
-            sa.String(length=32),
-            nullable=False,
-            server_default=sa.text("'system'"),
+            sa.Column(
+                "source_kind",
+                sa.String(length=32),
+                nullable=False,
+                server_default=sa.text("'system'"),
+            ),
         ),
-    )
-    op.add_column("automation_cron_jobs", sa.Column("source_creator_agent_id", sa.String(length=64)))
-    op.add_column("automation_cron_jobs", sa.Column("source_context_type", sa.String(length=32)))
-    op.add_column("automation_cron_jobs", sa.Column("source_context_id", sa.String(length=255)))
-    op.add_column("automation_cron_jobs", sa.Column("source_context_label", sa.String(length=255)))
-    op.add_column("automation_cron_jobs", sa.Column("source_session_key", sa.String(length=255)))
-    op.add_column("automation_cron_jobs", sa.Column("source_session_label", sa.String(length=255)))
-    op.create_check_constraint(
-        "ck_automation_cron_jobs_source_kind",
-        "automation_cron_jobs",
-        "source_kind IN ('user_page', 'agent', 'cli', 'system')",
-    )
-    op.create_check_constraint(
-        "ck_automation_cron_jobs_source_context_type",
-        "automation_cron_jobs",
-        "source_context_type IS NULL OR source_context_type IN ('agent', 'room')",
-    )
+        ("source_creator_agent_id", sa.Column("source_creator_agent_id", sa.String(length=64))),
+        ("source_context_type", sa.Column("source_context_type", sa.String(length=32))),
+        ("source_context_id", sa.Column("source_context_id", sa.String(length=255))),
+        ("source_context_label", sa.Column("source_context_label", sa.String(length=255))),
+        ("source_session_key", sa.Column("source_session_key", sa.String(length=255))),
+        ("source_session_label", sa.Column("source_session_label", sa.String(length=255))),
+    ]
+
+    with op.batch_alter_table("automation_cron_jobs", recreate="always") as batch_op:
+        for column_name, column in columns:
+            if column_name not in existing_columns:
+                batch_op.add_column(column)
+        batch_op.create_check_constraint(
+            "ck_automation_cron_jobs_source_kind",
+            "source_kind IN ('user_page', 'agent', 'cli', 'system')",
+        )
+        batch_op.create_check_constraint(
+            "ck_automation_cron_jobs_source_context_type",
+            "source_context_type IS NULL OR source_context_type IN ('agent', 'room')",
+        )
 
 
 def downgrade() -> None:
