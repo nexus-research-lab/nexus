@@ -14,6 +14,7 @@ from __future__ import annotations
 from agent.schema.model_automation import (
     AutomationCronJobCreate,
     AutomationCronSchedule,
+    AutomationCronSource,
     AutomationDeliveryTarget,
     AutomationSessionTarget,
 )
@@ -37,19 +38,23 @@ class ScheduledTaskService:
         job_id: str,
         *,
         name: str | None = None,
+        agent_id: str | None = None,
         schedule: AutomationCronSchedule | None = None,
         instruction: str | None = None,
         session_target: AutomationSessionTarget | None = None,
         delivery: AutomationDeliveryTarget | None = None,
+        source: AutomationCronSource | None = None,
         enabled: bool | None = None,
     ):
         return await self._service_instance.update_job(
             job_id,
             name=name,
+            agent_id=agent_id,
             schedule=schedule,
             instruction=instruction,
             session_target=session_target,
             delivery=delivery,
+            source=source,
             enabled=enabled,
         )
 

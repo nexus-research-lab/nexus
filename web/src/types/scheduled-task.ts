@@ -124,10 +124,12 @@ export interface CreateScheduledTaskParams {
 
 export interface UpdateScheduledTaskParams {
   name?: string;
+  agent_id?: string;
   schedule?: ScheduledTaskSchedule;
   instruction?: string;
   session_target?: ScheduledTaskSessionTarget;
   delivery?: ScheduledTaskDeliveryTarget;
+  source?: ScheduledTaskSource;
   enabled?: boolean;
 }
 

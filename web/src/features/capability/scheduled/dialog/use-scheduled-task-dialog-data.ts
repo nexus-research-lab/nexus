@@ -19,13 +19,11 @@ export function useScheduledTaskDialogData({
   target_type,
   selected_agent_id,
   selected_room_id,
-  on_context_change,
 }: {
   is_open: boolean;
   target_type: TargetType;
   selected_agent_id: string;
   selected_room_id: string;
-  on_context_change: () => void;
 }) {
   const [agents, set_agents] = useState<Agent[]>([]);
   const [agent_sessions, set_agent_sessions] = useState<AgentSession[]>([]);
@@ -104,7 +102,6 @@ export function useScheduledTaskDialogData({
     let cancelled = false;
     set_agent_sessions_loading(true);
     set_agent_sessions_error(null);
-    on_context_change();
     void getAgentSessionsApi(selected_agent_id)
       .then((next_sessions) => {
         if (!cancelled) {
@@ -124,7 +121,7 @@ export function useScheduledTaskDialogData({
     return () => {
       cancelled = true;
     };
-  }, [is_open, selected_agent_id, target_type, on_context_change]);
+  }, [is_open, selected_agent_id, target_type]);
 
   useEffect(() => {
     if (!is_open || target_type !== "room" || !selected_room_id) {
@@ -134,7 +131,6 @@ export function useScheduledTaskDialogData({
     let cancelled = false;
     set_room_contexts_loading(true);
     set_room_contexts_error(null);
-    on_context_change();
     void getRoomContexts(selected_room_id)
       .then((next_contexts) => {
         if (!cancelled) {
@@ -154,7 +150,7 @@ export function useScheduledTaskDialogData({
     return () => {
       cancelled = true;
     };
-  }, [is_open, selected_room_id, target_type, on_context_change]);
+  }, [is_open, selected_room_id, target_type]);
 
   const agent_name_by_id = useMemo(
     () => new Map(agents.map((agent) => [agent.agent_id, agent.name])),

@@ -202,6 +202,7 @@ def test_cron_runner_bound_target_reuses_existing_session_key():
         assert [ctx.session_key for ctx in orchestrator.calls] == [
             "agent:research:ws:dm:existing-room"
         ]
+        assert [ctx.trigger_kind for ctx in orchestrator.calls] == ["manual"]
         assert event_queue.calls == []
         assert heartbeat_service.calls == []
 
