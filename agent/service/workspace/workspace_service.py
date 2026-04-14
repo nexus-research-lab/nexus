@@ -157,5 +157,14 @@ class WorkspaceService:
             size=file_size,
         )
 
+    @staticmethod
+    async def get_file_for_download(agent_id: str, path: str) -> Tuple[str, str]:
+        """获取 workspace 文件用于下载。"""
+        workspace = await agent_manager.get_agent_workspace(agent_id)
+        file_path = workspace._abs_path(path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"文件不存在: {path}")
+        return file_path, path.rsplit("/", 1)[-1]
+
 
 workspace_service = WorkspaceService()

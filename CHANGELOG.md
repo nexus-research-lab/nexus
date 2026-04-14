@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 支持 `AskUserQuestion` 自定义回答选项。
 - 新增 `room conversation` CRUD API，并接通 room 页面真实的新建/删除对话、重命名 room、增删成员与删除 room 管理能力。
 - 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
+- 新增 workspace 文件下载接口，前端可直接获取 Agent 工作区中的原始文件。
 
 ### Changed
 - 重构 `/app` 与 `launcher` 前端视觉骨架：收口 surface recipe、统一目录卡片语法、移除多余玻璃壳与中间 wrapper，整体层级更薄、更接近桌面端结构。
@@ -63,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launcher 页面控制器移除 `use-home-agent-conversation-controller` 和 `use-initialize-conversations`，直接使用 store + agent dialog hook。
 - WebSocket session 绑定从“单活 sender”升级为“多绑定 + 单控制端”，`bind_session` 新增 `client_id / request_control` 语义，`session_status` 同步控制端与观察者数量。
 - Room 权限请求不再广播给全部房间订阅者，改为只投递给当前 session 控制端；Room 普通协作事件仍保留 room 广播。
+- Room workspace 面板升级为可创建文件/文件夹、右键删除与重命名，并对文本、PDF、图片和二进制文件分别提供编辑、预览或下载入口。
 
 ### Fixed
 - 修复 Sidebar、Room/DM、技能/连接器目录、Agent Options 与 Launcher 等区域因额外背景板、空壳节点和过多动作层导致的布局抖动、容器收缩与层级堆叠问题。

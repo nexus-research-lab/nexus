@@ -205,3 +205,9 @@ export const uploadWorkspaceFileApi = async (
     );
     return result;
 };
+
+/** 获取 workspace 文件下载 URL */
+export const getWorkspaceFileDownloadUrl = (agent_id: string, path: string): string => {
+    const params = new URLSearchParams({ path });
+    return `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/download?${params.toString()}`;
+};
