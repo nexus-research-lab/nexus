@@ -19,3 +19,8 @@ def test_settings_accepts_release_as_false(monkeypatch):
 def test_settings_accepts_debug_as_true(monkeypatch):
     module = _reload_config_module(monkeypatch, "debug")
     assert module.settings.DEBUG is True
+
+
+def test_settings_default_database_url_uses_nexus_db(monkeypatch):
+    module = _reload_config_module(monkeypatch, "false")
+    assert module.settings.DATABASE_URL == "sqlite+aiosqlite:///~/.nexus/data/nexus.db"
