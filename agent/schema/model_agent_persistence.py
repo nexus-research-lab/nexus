@@ -58,7 +58,7 @@ class RuntimeRecord(PersistenceModel):
 
     id: str = Field(..., description="Runtime ID")
     agent_id: str = Field(..., description="所属 Agent")
-    model: Optional[str] = Field(default=None, description="模型")
+    provider: Optional[str] = Field(default=None, description="Provider")
     permission_mode: Optional[str] = Field(default=None, description="权限模式")
     allowed_tools_json: str = Field(default="[]", description="工具白名单")
     disallowed_tools_json: str = Field(default="[]", description="工具黑名单")

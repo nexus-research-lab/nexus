@@ -14,7 +14,12 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AlertCircle, Check, CheckCircle, CheckSquare, ChevronDown, ChevronRight, Circle, MessageSquare, Send, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AskUserQuestionInput, UserQuestion, UserQuestionAnswer } from '@/types/ask-user-question';
+import {
+    AskUserQuestionInput,
+    UserQuestion,
+    UserQuestionAnswer,
+    isAskUserQuestionTimedOutResult,
+} from '@/types/ask-user-question';
 import { ToolResultContent, ToolUseContent } from '@/types/message';
 import { MessageRail } from '../message-rail';
 
@@ -260,11 +265,7 @@ export function AskUserQuestionBlock({
         questions.forEach((_, index) => map.set(index, ''));
         return map;
     });
-    const resultText = typeof tool_result?.content === 'string' ? tool_result.content : '';
-    const isTimedOut = Boolean(
-        tool_result?.is_error &&
-        resultText.includes('Permission request timeout'),
-    );
+    const isTimedOut = isAskUserQuestionTimedOutResult(tool_result);
     const isFailed = Boolean(tool_result?.is_error && !isTimedOut);
     const [hasLocalSubmission, setHasLocalSubmission] = useState(false);
     const isSubmitted = initialSubmitted || hasLocalSubmission;
@@ -491,7 +492,7 @@ export function AskUserQuestionBlock({
                             on_toggle_option={handleToggleOption}
                             on_custom_answer_change={handleCustomAnswerChange}
                             is_submitted={isReadOnly}
-                            default_expanded={isTimedOut || isFailed}
+                            default_expanded={!isReadOnly}
                         />
                     ))}
                 </div>

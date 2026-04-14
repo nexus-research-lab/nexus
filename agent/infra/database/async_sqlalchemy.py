@@ -48,6 +48,11 @@ class AsyncDatabase:
             db_path = str(Path(database_url[len(scheme) + len(":///"):]).expanduser())
             database_url = f"{scheme}:///{db_path}"
 
+        connect_args = None
+        if database_url.startswith("sqlite"):
+            # 中文注释：SQLite 在并发写入时容易触发 locked，必须开启超时等待。
+            connect_args = {"timeout": 30}
+
         self.engine = create_async_engine(
             database_url,
             # echo=settings.DEBUG if hasattr(settings, 'DEBUG') else False,
@@ -55,6 +60,7 @@ class AsyncDatabase:
             future=True,
             # JSON 字段写入数据库时保留中文，不转义为 \uXXXX
             json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
+            connect_args=connect_args,
         )
 
         if database_url.startswith("sqlite"):
@@ -63,6 +69,10 @@ class AsyncDatabase:
             def _set_sqlite_foreign_keys(dbapi_connection, _connection_record):
                 cursor = dbapi_connection.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
+                # 中文注释：启用 WAL + busy_timeout，减少并发写导致的 database is locked。
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
                 cursor.close()
 
         self.session_factory = async_sessionmaker(

@@ -10,11 +10,12 @@
 import { useState, useCallback } from "react";
 import { Plus, X as XIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AgentNameValidationResult } from "@/types/agent";
+import type { AgentNameValidationResult, AgentProvider } from "@/types/agent";
+import type { ProviderOption } from "@/types/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { getIconAvatarSrc } from "@/lib/utils";
-import { AVAILABLE_MODELS } from "./agent-options-constants";
+import { format_provider_label } from "@/types/provider";
 
 interface AgentOptionsIdentityTabProps {
   avatar: string;
@@ -25,8 +26,12 @@ interface AgentOptionsIdentityTabProps {
   onDescriptionChange: (value: string) => void;
   vibeTags: string[];
   onVibeTagsChange: (tags: string[]) => void;
-  model: string;
-  onModelChange: (value: string) => void;
+  provider: AgentProvider;
+  defaultProvider: AgentProvider;
+  providerOptions: ProviderOption[];
+  providerOptionsError: string | null;
+  providerOptionsLoading: boolean;
+  onProviderChange: (value: AgentProvider) => void;
   nameValidation: AgentNameValidationResult | null;
   isValidatingName: boolean;
 }
@@ -41,13 +46,22 @@ export function AgentOptionsIdentityTab({
   onDescriptionChange,
   vibeTags,
   onVibeTagsChange,
-  model,
-  onModelChange,
+  provider,
+  defaultProvider,
+  providerOptions,
+  providerOptionsError,
+  providerOptionsLoading,
+  onProviderChange,
   nameValidation,
   isValidatingName,
 }: AgentOptionsIdentityTabProps) {
   const { t } = useI18n();
   const [tagInput, setTagInput] = useState("");
+  const defaultProviderOptionLabel = defaultProvider
+    ? t("agent_options.identity.follow_default_provider_named", {
+      name: format_provider_label(defaultProvider),
+    })
+    : t("agent_options.identity.follow_default_provider");
 
   /** 添加标签 */
   const handleAddTag = useCallback(() => {
@@ -181,17 +195,19 @@ export function AgentOptionsIdentityTab({
 
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">
-              {t("agent_options.identity.model")} <span className="text-red-500">*</span>
+              {t("agent_options.identity.provider")}
             </label>
             <div className="relative">
               <select
-                value={model}
-                onChange={(e) => onModelChange(e.target.value)}
+                value={provider}
+                onChange={(e) => onProviderChange(e.target.value as AgentProvider)}
                 className="dialog-input rounded-xl flex h-10 w-full appearance-none px-3.5 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
+                disabled={providerOptionsLoading && providerOptions.length === 0}
               >
-                {AVAILABLE_MODELS.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
+                <option value="">{defaultProviderOptionLabel}</option>
+                {providerOptions.map((item) => (
+                  <option key={item.provider} value={item.provider}>
+                    {item.display_name}
                   </option>
                 ))}
               </select>
@@ -213,6 +229,9 @@ export function AgentOptionsIdentityTab({
                 </svg>
               </div>
             </div>
+            {providerOptionsError ? (
+              <p className="mt-2 text-xs text-rose-500">{providerOptionsError}</p>
+            ) : null}
           </div>
         </div>
       </div>

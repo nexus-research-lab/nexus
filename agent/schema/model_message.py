@@ -51,6 +51,7 @@ class ToolResultContent(BaseModel):
     tool_use_id: str = Field(..., description="关联工具调用 ID")
     content: Union[str, List[Any]] = Field(default="", description="工具结果内容")
     is_error: bool = Field(default=False, description="是否错误")
+    error_code: Optional[str] = Field(default=None, description="结构化错误码")
 
 
 class ThinkingContent(BaseModel):

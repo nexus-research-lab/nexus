@@ -42,6 +42,7 @@ from agent.service.room.room_message_store import room_message_store
 from agent.service.room.room_session_keys import (
     build_room_agent_session_key,
 )
+from agent.service.settings.provider_config_service import normalize_provider
 from agent.service.session.session_store import session_store
 from agent.infra.database.repositories.conversation_sql_repository import ConversationSqlRepository
 from agent.infra.database.repositories.room_sql_repository import RoomSqlRepository
@@ -495,7 +496,7 @@ class RoomService:
             runtime=RuntimeRecord(
                 id=_stable_id("runtime", agent.agent_id),
                 agent_id=agent.agent_id,
-                model=options.get("model"),
+                provider=normalize_provider(options.get("provider"), allow_empty=True) or None,
                 permission_mode=options.get("permission_mode"),
                 allowed_tools_json=json.dumps(options.get("allowed_tools") or [], ensure_ascii=False),
                 disallowed_tools_json=json.dumps(options.get("disallowed_tools") or [], ensure_ascii=False),

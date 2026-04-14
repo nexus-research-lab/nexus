@@ -6,13 +6,10 @@
  */
 
 import { request_api } from "@/lib/http";
-
-export const initialOptions = {
-  model: import.meta.env.VITE_DEFAULT_MODEL || 'glm-5',
-  permissionMode: 'default',
-}
+import type { AgentOptions, AgentProvider } from "@/types/agent";
 
 export let DEFAULT_AGENT_ID = "";
+export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 
 const DEFAULT_API_PATH = "/agent/v1";
 const DEFAULT_WS_PATH = "/agent/v1/chat/ws";
@@ -54,6 +51,21 @@ export function getDefaultAgentId(): string {
   return DEFAULT_AGENT_ID;
 }
 
+export function getDefaultAgentProvider(): AgentProvider {
+  return DEFAULT_AGENT_PROVIDER;
+}
+
+export function setDefaultAgentProvider(provider?: string | null): void {
+  const normalized_provider = provider?.trim();
+  DEFAULT_AGENT_PROVIDER = normalized_provider || "";
+}
+
+export function getInitialAgentOptions(): Partial<AgentOptions> {
+  return {
+    permission_mode: "default",
+  };
+}
+
 export function isMainAgent(agent_id?: string | null): boolean {
   return (agent_id ?? "").trim() === DEFAULT_AGENT_ID;
 }
@@ -63,7 +75,7 @@ export function resolveAgentId(agent_id?: string | null): string {
 }
 
 export async function hydrateRuntimeOptions(): Promise<void> {
-  const payload = await request_api<{ default_agent_id: string }>(
+  const payload = await request_api<{ default_agent_id: string; default_agent_provider?: string | null }>(
     `${getAgentApiBaseUrl()}/runtime/options`,
     {
       method: "GET",
@@ -76,4 +88,5 @@ export async function hydrateRuntimeOptions(): Promise<void> {
   }
 
   DEFAULT_AGENT_ID = next_default_agent_id;
+  setDefaultAgentProvider(payload?.default_agent_provider);
 }

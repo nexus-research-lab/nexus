@@ -8,7 +8,7 @@
  * 宽度从 store 读取，右边缘可拖拽调整（180–400px）。
  */
 
-import { ChevronRight, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -17,11 +17,8 @@ import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/home-layout";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { LanguageSwitch } from "@/shared/ui/i18n/language-switch";
-import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
-import { ThemeSwitch } from "@/shared/ui/theme/theme-switch";
 import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/workspace-header-layout";
 import {
   derive_sidebar_item_id_from_path,
@@ -39,14 +36,13 @@ export function SidebarWidePanel() {
   const { t } = useI18n();
   const { logout } = useAuth();
   const location = useLocation();
-  const [settings_open, set_settings_open] = useState(false);
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
   const root_ref = useRef<HTMLDivElement | null>(null);
-  const settings_popover_ref = useRef<HTMLDivElement | null>(null);
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
+  const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -142,36 +138,6 @@ export function SidebarWidePanel() {
     set_active_panel_item(next_active_item_id);
   }, [active_panel_item_id, location.pathname, set_active_panel_item]);
 
-  /** 点击外部时关闭设置弹层。 */
-  useEffect(() => {
-    if (!settings_open) {
-      return;
-    }
-
-    const handle_pointer_down = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) {
-        return;
-      }
-      if (settings_popover_ref.current?.contains(event.target)) {
-        return;
-      }
-      set_settings_open(false);
-    };
-
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        set_settings_open(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handle_pointer_down);
-    document.addEventListener("keydown", handle_key_down);
-    return () => {
-      document.removeEventListener("pointerdown", handle_pointer_down);
-      document.removeEventListener("keydown", handle_key_down);
-    };
-  }, [settings_open]);
-
   return (
     <div
       className={cn(
@@ -222,68 +188,29 @@ export function SidebarWidePanel() {
       </div>
 
       <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">
-        <div className="relative" ref={settings_popover_ref}>
-          <button
-            aria-expanded={settings_open}
-            aria-haspopup="dialog"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={() => set_settings_open((open) => !open)}
-            title={t("sidebar.settings")}
-            type="button"
-          >
+        <Link
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+            is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+          )}
+          title={t("sidebar.settings")}
+          to={AppRouteBuilders.settings()}
+        >
             <Settings className="h-4 w-4" />
-          </button>
-
-          {settings_open ? (
-            <div
-              className={cn(
-                DIALOG_POPOVER_CLASS_NAME,
-                "absolute bottom-[calc(100%+8px)] left-0 z-20 mb-2 w-[min(220px,calc(100vw-28px))] rounded-[18px] p-1.5",
-              )}
-            >
-              <Link
-                className="flex items-center justify-between rounded-xl px-2.5 py-2 text-[13px] font-medium text-(--text-default) transition duration-(--motion-duration-fast) ease-out hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                onClick={() => set_settings_open(false)}
-                to={AppRouteBuilders.settings()}
-              >
-                <span>{t("sidebar.settings")}</span>
-                <ChevronRight className="h-4 w-4 text-(--icon-default)" />
-              </Link>
-
-              <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
-                <div className="px-1">
-                  <p className="px-1.5 pb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-(--text-soft)">
-                    {t("theme.switch_title")}
-                  </p>
-                  <ThemeSwitch class_name="w-full" density="compact" stretch />
-                </div>
-
-                <div className="mt-1.5 px-1">
-                  <p className="px-1.5 pb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-(--text-soft)">
-                    {t("language.switch_title")}
-                  </p>
-                  <LanguageSwitch class_name="w-full" density="compact" show_icon={false} stretch />
-                </div>
-
-                <div className="mt-1.5 border-t px-1 pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
-                  <button
-                    className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-[13px] font-medium text-(--text-default) transition duration-(--motion-duration-fast) ease-out hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                    onClick={() => {
-                      set_settings_open(false);
-                      void logout();
-                    }}
-                    type="button"
-                  >
-                    <span>{t("sidebar.logout")}</span>
-                    <LogOut className="h-4 w-4 text-(--icon-default)" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
+        </Link>
 
         <div className="min-w-0 flex-1" />
+
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+          onClick={() => {
+            void logout();
+          }}
+          title={t("sidebar.logout")}
+          type="button"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );

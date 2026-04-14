@@ -49,25 +49,14 @@ import {
   AgentConversationRuntimeSnapshot,
 } from './agent-conversation-runtime-machine';
 
-function collectCompletedRoundIds(messages: Message[]): Set<string> {
-  const completed_round_ids = new Set<string>();
-  for (const message of messages) {
-    if (message.role === 'result') {
-      completed_round_ids.add(message.round_id);
-    }
-  }
-  return completed_round_ids;
-}
-
 function filterPendingSlotsFromSnapshot(
   current_slots: RoomPendingAgentSlotState[],
   messages: Message[],
+  is_round_terminal: (round_id: string) => boolean,
 ): RoomPendingAgentSlotState[] {
   if (current_slots.length === 0) {
     return current_slots;
   }
-
-  const completed_round_ids = collectCompletedRoundIds(messages);
   const loaded_message_ids = new Set(
     messages
       .filter((message): message is AssistantMessage => message.role === 'assistant')
@@ -75,7 +64,7 @@ function filterPendingSlotsFromSnapshot(
   );
 
   return current_slots.filter((slot) => (
-    !completed_round_ids.has(slot.round_id) &&
+    !is_round_terminal(slot.round_id) &&
     !loaded_message_ids.has(slot.msg_id)
   ));
 }
@@ -83,12 +72,11 @@ function filterPendingSlotsFromSnapshot(
 function filterPendingPermissionsFromSnapshot(
   current_permissions: PendingPermission[],
   messages: Message[],
+  is_round_terminal: (round_id: string) => boolean,
 ): PendingPermission[] {
   if (current_permissions.length === 0) {
     return current_permissions;
   }
-
-  const completed_round_ids = collectCompletedRoundIds(messages);
   const loaded_assistant_message_ids = new Set<string>();
   const unresolved_tool_use_candidates = collectUnresolvedToolUseCandidates(messages);
   const permission_match_result = matchPendingPermissionsToToolUses(
@@ -103,7 +91,7 @@ function filterPendingPermissionsFromSnapshot(
   }
 
   return current_permissions.filter((permission) => {
-    if (permission.caused_by && completed_round_ids.has(permission.caused_by)) {
+    if (permission.caused_by && is_round_terminal(permission.caused_by)) {
       return false;
     }
 
@@ -276,12 +264,21 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     apply_runtime_transition((machine) => {
       machine.reconcile_from_snapshot(snapshot_messages);
     });
+    const is_round_terminal = (round_id: string) => runtime_machine_ref.current.is_round_terminal(round_id);
 
     set_pending_agent_slots(
-      filterPendingSlotsFromSnapshot(pending_agent_slots_ref.current, snapshot_messages),
+      filterPendingSlotsFromSnapshot(
+        pending_agent_slots_ref.current,
+        snapshot_messages,
+        is_round_terminal,
+      ),
     );
     set_pending_permissions(
-      filterPendingPermissionsFromSnapshot(pending_permissions_ref.current, snapshot_messages),
+      filterPendingPermissionsFromSnapshot(
+        pending_permissions_ref.current,
+        snapshot_messages,
+        is_round_terminal,
+      ),
     );
   }, [apply_runtime_transition, set_pending_agent_slots, set_pending_permissions]);
 
@@ -347,6 +344,22 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [flush_stream_buffer]);
 
   const reconcile_stopped_session = useCallback(() => {
+    const runtime_snapshot_before_reset = runtime_machine_ref.current.snapshot();
+    const terminal_round_ids = new Set(runtime_snapshot_before_reset.terminal_round_ids);
+    const is_terminal_round = (round_id: string) => {
+      if (terminal_round_ids.has(round_id)) {
+        return true;
+      }
+      if (chat_type !== 'group') {
+        return false;
+      }
+      for (const terminal_round_id of terminal_round_ids) {
+        if (round_id.startsWith(`${terminal_round_id}:`)) {
+          return true;
+        }
+      }
+      return false;
+    };
     apply_runtime_transition((machine) => {
       machine.reset();
     });
@@ -360,13 +373,12 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
         }
     )));
     set_messages((prev) => {
-      const completed_round_ids = collectCompletedRoundIds(prev);
       let has_changes = false;
       const next_messages = prev.map((message) => {
         if (message.role !== 'assistant') {
           return message;
         }
-        if (completed_round_ids.has(message.round_id)) {
+        if (is_terminal_round(message.round_id)) {
           return message;
         }
         if (
@@ -385,7 +397,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       });
       return has_changes ? next_messages : prev;
     });
-  }, [apply_runtime_transition, set_pending_agent_slots, set_pending_permissions]);
+  }, [apply_runtime_transition, chat_type, set_pending_agent_slots, set_pending_permissions]);
 
   const sync_session_status = useCallback((payload: SessionStatusEventPayload) => {
     const next_controller_client_id = typeof payload.controller_client_id === 'string' && payload.controller_client_id

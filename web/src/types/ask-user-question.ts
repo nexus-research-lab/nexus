@@ -1,11 +1,13 @@
 /**
  * AskUserQuestion 工具类型定义
  *
- * [INPUT]: 无外部依赖
+ * [INPUT]: 依赖 @/types/message 的 ToolResultContent
  * [OUTPUT]: 对外提供 AskUserQuestionInput、UserQuestion、QuestionOption、UserQuestionAnswer
  * [POS]: types 模块的工具专用类型，被 ask-user-question-block.tsx 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+
+import type { ToolResultContent } from './message';
 
 // ==================== AskUserQuestion 工具输入 ====================
 
@@ -52,4 +54,15 @@ export interface UserQuestionResponse {
   tool_use_id: string;
   /** 所有问题的回答 */
   answers: UserQuestionAnswer[];
+}
+
+export const ASK_USER_QUESTION_TIMEOUT_ERROR_CODE = 'permission_request_timeout';
+
+export function isAskUserQuestionTimedOutResult(
+  tool_result?: Pick<ToolResultContent, 'is_error' | 'error_code'> | null,
+): boolean {
+  return Boolean(
+    tool_result?.is_error
+    && tool_result.error_code === ASK_USER_QUESTION_TIMEOUT_ERROR_CODE,
+  );
 }

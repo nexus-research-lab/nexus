@@ -106,17 +106,12 @@ class Settings(BaseSettings):
     # 数据库配置
     DATABASE_URL: str = "sqlite+aiosqlite:///~/.nexus/data/nexus.db"
 
-    # Key
-    ANTHROPIC_AUTH_TOKEN: str = ""
-    ANTHROPIC_BASE_URL: str = ""
-    ANTHROPIC_MODEL: str = ""
-
     # =====================================================
     # 消息通道配置
     # =====================================================
     WEBSOCKET_ENABLED: bool = True
     DEFAULT_AGENT_ID: str = "nexus"
-    PERMISSION_REQUEST_TIMEOUT_SECONDS: int = 90
+    PERMISSION_REQUEST_TIMEOUT_SECONDS: int = 20
 
     DISCORD_ENABLED: bool = False
     DISCORD_BOT_TOKEN: str = ""
@@ -132,8 +127,12 @@ class Settings(BaseSettings):
     # =====================================================
     WORKSPACE_PATH: str = ""  # 为空时使用 ~/.nexus/workspace
     BASE_SYSTEM_PROMPT: str = ""
-    MAIN_AGENT_MODEL: str = ""
     MAIN_AGENT_SYSTEM_PROMPT: str = ""
+
+    # =====================================================
+    # NPM 配置
+    # =====================================================
+    NPM_REGISTRY: str = "https://registry.npmmirror.com"
 
     # =====================================================
     # Connector OAuth 配置
@@ -174,9 +173,6 @@ class Settings(BaseSettings):
         return f"{value_str[:4]}***{value_str[-4:]}"
 
     def update_dependent_settings(self):
-        os.environ["ANTHROPIC_AUTH_TOKEN"] = self.ANTHROPIC_AUTH_TOKEN
-        os.environ["ANTHROPIC_BASE_URL"] = self.ANTHROPIC_BASE_URL
-        os.environ["ANTHROPIC_MODEL"] = self.ANTHROPIC_MODEL
         if os.environ.get("CACHE_FILE_DIR"):
             self.CACHE_FILE_DIR = os.path.abspath(os.environ.get("CACHE_FILE_DIR"))
         else:

@@ -11,11 +11,14 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { listProviderOptionsApi } from "@/lib/provider-config-api";
 import type {
   AgentIdentityDraft,
   AgentNameValidationResult,
   AgentOptions as AgentConfigOptions,
+  AgentProvider,
 } from "@/types/agent";
+import type { ProviderOption } from "@/types/provider";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
@@ -23,12 +26,18 @@ import {
   getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { setDefaultAgentProvider } from "@/config/options";
 
 import { AgentOptionsNav, type TabKey } from "./agent-options-nav";
 import { AgentOptionsIdentityTab } from "./agent-options-identity-tab";
 import { AgentOptionsPersonaTab } from "./agent-options-persona-tab";
 import { AgentOptionsSkillsTab } from "./agent-options-skills-tab";
 import { AgentOptionsAdvancedTab } from "./agent-options-advanced-tab";
+import {
+  build_agent_option_provider_options,
+  DEFAULT_AGENT_OPTION_PROVIDER,
+  normalize_agent_option_provider,
+} from "./agent-options-constants";
 
 interface AgentOptionsProps {
   agent_id?: string;
@@ -80,7 +89,13 @@ export function AgentOptions({
   const [avatar, setAvatar] = useState(initial_avatar);
   const [description, setDescription] = useState(initial_description);
   const [vibeTags, setVibeTags] = useState<string[]>(initial_vibe_tags);
-  const [model, setModel] = useState(sourceOptions.model || "glm-5.1");
+  const [provider, setProvider] = useState<AgentProvider>(
+    normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
+  );
+  const [defaultProvider, setDefaultProvider] = useState<AgentProvider>("");
+  const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
+  const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
+  const [providerOptionsError, setProviderOptionsError] = useState<string | null>(null);
 
   // ---- Persona 状态 ----
   const [systemPrompt, setSystemPrompt] = useState(
@@ -112,7 +127,9 @@ export function AgentOptions({
     setAvatar(initial_avatar);
     setDescription(initial_description);
     setVibeTags(initial_vibe_tags);
-    setModel(opts.model || "glm-5.1");
+    setProvider(normalize_agent_option_provider(opts.provider));
+    setDefaultProvider("");
+    setProviderOptionsError(null);
     setSystemPrompt(opts.system_prompt || "");
     setPermissionMode(opts.permission_mode || "default");
     setAllowedTools(opts.allowed_tools || []);
@@ -120,6 +137,45 @@ export function AgentOptions({
     setNameValidation(null);
     setIsValidatingName(false);
   }, [initial_avatar, initial_description, initial_options, initial_title, initial_vibe_tags, is_open, t]);
+
+  useEffect(() => {
+    if (!is_open) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const load_provider_options = async () => {
+      try {
+        setProviderOptionsLoading(true);
+        const payload = await listProviderOptionsApi();
+        if (cancelled) {
+          return;
+        }
+        setProviderOptions(payload.items);
+        setDefaultProvider(normalize_agent_option_provider(payload.default_provider));
+        setDefaultAgentProvider(payload.default_provider);
+        setProviderOptionsError(null);
+      } catch (error) {
+        if (!cancelled) {
+          setProviderOptionsError(
+            error instanceof Error
+              ? error.message
+              : t("agent_options.identity.provider_load_failed")
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProviderOptionsLoading(false);
+        }
+      }
+    };
+
+    void load_provider_options();
+    return () => {
+      cancelled = true;
+    };
+  }, [is_open, t]);
 
   useEffect(() => {
     if (!is_open) {
@@ -214,7 +270,7 @@ export function AgentOptions({
       return;
 
     const options: AgentConfigOptions = {
-      model,
+      provider: provider.trim() || undefined,
       permission_mode: permissionMode,
       allowed_tools: allowedTools,
       disallowed_tools: disallowedTools,
@@ -287,8 +343,12 @@ export function AgentOptions({
                 onDescriptionChange={setDescription}
                 vibeTags={vibeTags}
                 onVibeTagsChange={setVibeTags}
-                model={model}
-                onModelChange={setModel}
+                provider={provider}
+                defaultProvider={defaultProvider}
+                providerOptions={build_agent_option_provider_options(providerOptions, provider)}
+                providerOptionsError={providerOptionsError}
+                providerOptionsLoading={providerOptionsLoading}
+                onProviderChange={setProvider}
                 nameValidation={nameValidation}
                 isValidatingName={isValidatingName}
               />

@@ -4,11 +4,9 @@ ARG APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
 ARG VITE_WS_URL=
 ARG VITE_API_URL=
-ARG VITE_DEFAULT_MODEL=glm-5
 
 ENV VITE_WS_URL=${VITE_WS_URL} \
     VITE_API_URL=${VITE_API_URL} \
-    VITE_DEFAULT_MODEL=${VITE_DEFAULT_MODEL} \
     NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 
 WORKDIR /app/web

@@ -173,7 +173,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
             is_last_round={isLastRound}
             is_loading={is_loading}
             runtime_phase={isLastRound ? runtime_phase : null}
-            pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
+            pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
             can_respond_to_permissions={can_respond_to_permissions}
             permission_read_only_reason={permission_read_only_reason}
@@ -305,7 +305,7 @@ function VirtualFeed({
                   is_last_round={isLastRound}
                   is_loading={is_loading}
                   runtime_phase={isLastRound ? runtime_phase : null}
-                  pending_permissions={isLastRound ? is_last_round_pending_permissions : []}
+                  pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
                   on_permission_response={on_permission_response}
                   can_respond_to_permissions={can_respond_to_permissions}
                   permission_read_only_reason={permission_read_only_reason}

@@ -27,6 +27,10 @@ from agent.schema.model_message import EventMessage
 from agent.service.channels.message_sender import MessageSender
 from agent.service.permission.pending_permission_request import PendingPermissionRequest
 from agent.service.permission.permission_dispatch_router import PermissionDispatchRouter
+from agent.service.permission.permission_error_codes import (
+    PERMISSION_CHANNEL_UNAVAILABLE_MESSAGE,
+    PERMISSION_REQUEST_TIMEOUT_MESSAGE,
+)
 from agent.service.permission.permission_request_presenter import PermissionRequestPresenter
 from agent.service.permission.permission_route_context import PermissionRouteContext
 from agent.service.permission.permission_update_codec import PermissionUpdateCodec
@@ -83,14 +87,17 @@ class PermissionRuntimeContext:
                     pending_request.session_key,
                     pending_request.tool_name,
                 )
-                return self._build_denied_result(tool_name, "Permission channel unavailable")
+                return self._build_denied_result(
+                    tool_name,
+                    PERMISSION_CHANNEL_UNAVAILABLE_MESSAGE,
+                )
 
             await asyncio.wait_for(pending_request.event.wait(), timeout=timeout_seconds)
             response = self._permission_responses.get(pending_request.request_id, {})
             return self._build_permission_result(tool_name, input_data, response)
         except asyncio.TimeoutError:
             logger.warning("⏰ 权限请求超时: %s", tool_name)
-            return self._build_denied_result(tool_name, "Permission request timeout")
+            return self._build_denied_result(tool_name, PERMISSION_REQUEST_TIMEOUT_MESSAGE)
         finally:
             self._cleanup_request(pending_request.request_id)
 

@@ -4,6 +4,7 @@ import { Bot, Shield } from "lucide-react";
 
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
 import { Agent } from "@/types/agent";
+import { format_provider_label } from "@/types/provider";
 
 interface RoomAgentAboutViewProps {
   agent: Agent;
@@ -26,10 +27,10 @@ export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
         <div className="mt-4 grid gap-4 border-t border-(--divider-subtle-color) pt-4 sm:grid-cols-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
-              Model
+              Provider
             </p>
             <p className="mt-1.5 text-[13px] font-semibold text-(--text-strong)">
-              {agent.options.model || "inherit"}
+              {format_provider_label(agent.options.provider)}
             </p>
           </div>
           <div>

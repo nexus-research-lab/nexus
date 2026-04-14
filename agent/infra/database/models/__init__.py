@@ -20,6 +20,7 @@ from agent.infra.database.models.contact import Contact
 from agent.infra.database.models.conversation import Conversation
 from agent.infra.database.models.member import Member
 from agent.infra.database.models.message import Message
+from agent.infra.database.models.provider_config import ProviderConfig
 from agent.infra.database.models.profile import Profile
 from agent.infra.database.models.room import Room
 from agent.infra.database.models.round import Round
@@ -36,6 +37,7 @@ __all__ = [
     "AutomationSystemEvent",
     "AuthSession",
     "ConnectorConnection",
+    "ProviderConfig",
     "Profile",
     "Runtime",
     "Contact",
@@ -60,6 +62,7 @@ def load_models() -> tuple[type, ...]:
         AutomationSystemEvent,
         AuthSession,
         ConnectorConnection,
+        ProviderConfig,
         Profile,
         Runtime,
         Contact,

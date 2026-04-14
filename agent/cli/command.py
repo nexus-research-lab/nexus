@@ -90,10 +90,10 @@ def build_typer_app(
     @app.command("create_agent", help="创建成员 agent")
     def create_agent(
             name: Annotated[str, typer.Option("--name", help="成员名称")],
-            model: Annotated[str | None, typer.Option("--model", help="模型名")] = None,
+            provider: Annotated[str | None, typer.Option("--provider", help="provider 名")] = None,
     ) -> None:
-        command = CreateAgentCommand(name=name, model=model)
-        run_service_call(lambda service: service.create_agent(name=command.name, model=command.model))
+        command = CreateAgentCommand(name=name, provider=provider)
+        run_service_call(lambda service: service.create_agent(name=command.name, provider=command.provider))
 
     @app.command("get_agent", help="读取成员详情")
     def get_agent(

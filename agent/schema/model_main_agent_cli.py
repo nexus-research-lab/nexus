@@ -32,7 +32,7 @@ class CreateAgentCommand(AModel):
     """创建成员命令。"""
 
     name: str = Field(..., description="agent 名称")
-    model: str | None = Field(default=None, description="模型标识")
+    provider: str | None = Field(default=None, description="Provider 标识")
 
 
 class GetAgentCommand(AModel):

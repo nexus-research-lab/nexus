@@ -19,6 +19,7 @@ from agent.api.capability.api_scheduled_task import router as scheduled_task_rou
 from agent.api.capability.api_skill import router as capability_skill_router
 from agent.api.chat.websocket_server import router as websocket_router
 from agent.api.common.api_runtime import router as runtime_router
+from agent.api.common.api_provider_config import router as provider_config_router
 from agent.api.repository.api_persistence import router as persistence_router
 from agent.api.room.api_room import router as room_router
 from agent.api.session.api_session import router as session_router
@@ -56,6 +57,7 @@ api_router.include_router(launcher_router, prefix="/v1", dependencies=[Depends(r
 
 # Include runtime route
 api_router.include_router(runtime_router, prefix="/v1")
+api_router.include_router(provider_config_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
 
 # Include automation route
 api_router.include_router(automation_heartbeat_router, prefix="/v1", dependencies=[Depends(require_http_auth)])
