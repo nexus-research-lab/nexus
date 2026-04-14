@@ -1,1024 +1,227 @@
-/**
- * 创建定时任务对话框
- *
- * 负责把表单状态转换成结构化的 scheduled task 创建 payload。
- */
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Pencil, X } from "lucide-react";
 
-import { getAgents } from "@/lib/agent-manage-api";
-import { getAgentSessionsApi } from "@/lib/agent-api";
-import { createScheduledTaskApi } from "@/lib/scheduled-task-api";
-import { getRoomContexts, listRooms } from "@/lib/room-api";
-import { buildRoomAgentSessionKey } from "@/lib/session-key";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   getDialogActionClassName,
-  getDialogChoiceClassName,
-  getDialogChoiceStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import type { Agent, AgentSession } from "@/types/agent";
-import type { RoomAggregate, RoomContextAggregate, RoomSessionSelection } from "@/types/room";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskSchedule,
-  ScheduledTaskSessionTarget,
-} from "@/types/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/scheduled-task";
 
-type ScheduleKind = ScheduledTaskSchedule["kind"];
-type EveryUnit = "minutes" | "hours" | "days";
-type TargetType = "agent" | "room";
-type ExecutionMode = "existing" | "temporary" | "dedicated";
-type ReplyMode = "none" | "execution" | "selected";
-
-interface ChoiceDef<TValue extends string> {
-  key: TValue;
-  label: string;
-}
-
-const TARGET_TYPE_OPTIONS: ChoiceDef<TargetType>[] = [
-  { key: "agent", label: "智能体" },
-  { key: "room", label: "Room" },
-];
-
-const SCHEDULE_OPTIONS: ChoiceDef<ScheduleKind>[] = [
-  { key: "every", label: "循环间隔" },
-  { key: "cron", label: "Cron 表达式" },
-  { key: "at", label: "单次执行" },
-];
-
-const EVERY_UNIT_OPTIONS: ChoiceDef<EveryUnit>[] = [
-  { key: "minutes", label: "分钟" },
-  { key: "hours", label: "小时" },
-  { key: "days", label: "天" },
-];
-
-const EXECUTION_MODE_OPTIONS: ChoiceDef<ExecutionMode>[] = [
-  { key: "existing", label: "使用现有会话" },
-  { key: "temporary", label: "每次新建临时会话" },
-  { key: "dedicated", label: "使用专用长期会话" },
-];
-
-const REPLY_MODE_OPTIONS: ChoiceDef<ReplyMode>[] = [
-  { key: "none", label: "不回传" },
-  { key: "execution", label: "回到执行会话" },
-  { key: "selected", label: "回到指定会话" },
-];
+import { TaskBasicsPanel } from "./dialog/task-basics-panel";
+import { TaskSchedulePanel } from "./dialog/task-schedule-panel";
+import { useScheduledTaskDialogState } from "./dialog/use-scheduled-task-dialog-state";
+import {
+  EVERY_UNIT_OPTIONS,
+  EXECUTION_MODE_OPTIONS,
+  REPLY_MODE_OPTIONS,
+  SCHEDULE_OPTIONS,
+  TARGET_TYPE_OPTIONS,
+  TIMEZONE_OPTIONS,
+} from "./dialog/scheduled-task-dialog-constants";
 
 interface ScheduledTaskDialogProps {
   agent_id: string;
   is_open: boolean;
   on_close: () => void;
+  initial_task?: ScheduledTaskItem | null;
   on_created?: (task: ScheduledTaskItem) => void | Promise<void>;
-}
-
-function get_default_timezone(): string {
-  if (typeof Intl === "undefined") {
-    return "Asia/Shanghai";
-  }
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
-}
-
-function format_datetime_local_input(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hour = `${date.getHours()}`.padStart(2, "0");
-  const minute = `${date.getMinutes()}`.padStart(2, "0");
-  return `${year}-${month}-${day}T${hour}:${minute}`;
-}
-
-function to_interval_seconds(value: string, unit: EveryUnit): number | null {
-  const normalized_value = value.trim();
-  if (!/^\d+$/.test(normalized_value)) {
-    return null;
-  }
-  const numeric_value = Number(normalized_value);
-  if (!Number.isInteger(numeric_value) || numeric_value <= 0) {
-    return null;
-  }
-  if (unit === "days") {
-    return numeric_value * 86400;
-  }
-  if (unit === "hours") {
-    return numeric_value * 3600;
-  }
-  return numeric_value * 60;
-}
-
-function format_session_label(title: string, agent_name: string): string {
-  return `${title} · ${agent_name}`;
-}
-
-function build_room_session_selections(
-  contexts: RoomContextAggregate[],
-  agent_name_by_id: Map<string, string>,
-): RoomSessionSelection[] {
-  return contexts.flatMap((context) => {
-    const room_title = context.conversation.title?.trim() || context.room.name?.trim() || "未命名会话";
-    const room_type = context.room.room_type;
-
-    return context.sessions.map((session) => ({
-      session_key: buildRoomAgentSessionKey(
-        context.conversation.id,
-        session.agent_id,
-        room_type === "dm" ? "dm" : "room",
-      ),
-      agent_id: session.agent_id,
-      room_id: context.room.id,
-      conversation_id: context.conversation.id,
-      room_type,
-      title: room_title,
-      session,
-      label: format_session_label(room_title, agent_name_by_id.get(session.agent_id) || session.agent_id),
-    }));
-  });
+  on_saved?: (task: ScheduledTaskItem) => void | Promise<void>;
 }
 
 export function ScheduledTaskDialog({
   agent_id,
   is_open,
+  initial_task = null,
   on_close,
   on_created,
+  on_saved,
 }: ScheduledTaskDialogProps) {
-  const name_ref = useRef<HTMLInputElement>(null);
-  const [task_name, set_task_name] = useState("");
-  const [schedule_kind, set_schedule_kind] = useState<ScheduleKind>("every");
-  const [every_value, set_every_value] = useState("30");
-  const [every_unit, set_every_unit] = useState<EveryUnit>("minutes");
-  const [cron_expression, set_cron_expression] = useState("0 9 * * *");
-  const [run_at, set_run_at] = useState(format_datetime_local_input(new Date(Date.now() + 3600_000)));
-  const [timezone, set_timezone] = useState(get_default_timezone());
-  const [target_type, set_target_type] = useState<TargetType>("agent");
-  const [selected_agent_id, set_selected_agent_id] = useState(agent_id);
-  const [selected_room_id, set_selected_room_id] = useState("");
-  const [execution_mode, set_execution_mode] = useState<ExecutionMode>("existing");
-  const [selected_session_key, set_selected_session_key] = useState("");
-  const [reply_mode, set_reply_mode] = useState<ReplyMode>("execution");
-  const [selected_reply_session_key, set_selected_reply_session_key] = useState("");
-  const [dedicated_session_key, set_dedicated_session_key] = useState("");
-  const [enabled, set_enabled] = useState(true);
-  const [instruction, set_instruction] = useState("");
-  const [error_message, set_error_message] = useState<string | null>(null);
-  const [is_submitting, set_is_submitting] = useState(false);
-  const [agents, set_agents] = useState<Agent[]>([]);
-  const [agent_sessions, set_agent_sessions] = useState<AgentSession[]>([]);
-  const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
-  const [room_contexts, set_room_contexts] = useState<RoomContextAggregate[]>([]);
-  const [agents_loading, set_agents_loading] = useState(false);
-  const [agent_sessions_loading, set_agent_sessions_loading] = useState(false);
-  const [rooms_loading, set_rooms_loading] = useState(false);
-  const [room_contexts_loading, set_room_contexts_loading] = useState(false);
-  const [agents_error, set_agents_error] = useState<string | null>(null);
-  const [agent_sessions_error, set_agent_sessions_error] = useState<string | null>(null);
-  const [rooms_error, set_rooms_error] = useState<string | null>(null);
-  const [room_contexts_error, set_room_contexts_error] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (is_open && name_ref.current) {
-      name_ref.current.focus();
-    }
-  }, [is_open]);
-
-  useEffect(() => {
-    const handle_key_down = (e: KeyboardEvent) => {
-      if (!is_open) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        on_close();
-      }
-    };
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_open, on_close]);
-
-  useEffect(() => {
-    if (!is_open) {
-      return;
-    }
-
-    set_task_name("");
-    set_schedule_kind("every");
-    set_every_value("30");
-    set_every_unit("minutes");
-    set_cron_expression("0 9 * * *");
-    set_run_at(format_datetime_local_input(new Date(Date.now() + 3600_000)));
-    set_timezone(get_default_timezone());
-    set_target_type("agent");
-    set_selected_agent_id(agent_id);
-    set_selected_room_id("");
-    set_execution_mode("existing");
-    set_selected_session_key("");
-    set_reply_mode("execution");
-    set_selected_reply_session_key("");
-    set_dedicated_session_key("");
-    set_enabled(true);
-    set_instruction("");
-    set_error_message(null);
-    set_is_submitting(false);
-    set_agent_sessions([]);
-    set_room_contexts([]);
-    set_agents_error(null);
-    set_agent_sessions_error(null);
-    set_rooms_error(null);
-    set_room_contexts_error(null);
-  }, [agent_id, is_open]);
-
-  useEffect(() => {
-    if (!is_open) {
-      return;
-    }
-
-    let cancelled = false;
-    set_agents_loading(true);
-    set_agents_error(null);
-
-    void getAgents()
-      .then((next_agents) => {
-        if (cancelled) return;
-        set_agents(next_agents);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        set_agents_error(error instanceof Error ? error.message : "加载智能体失败");
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_agents_loading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [is_open]);
-
-  useEffect(() => {
-    if (!is_open || target_type !== "room") {
-      return;
-    }
-
-    let cancelled = false;
-    set_rooms_loading(true);
-    set_rooms_error(null);
-
-    void listRooms(200)
-      .then((next_rooms) => {
-        if (cancelled) return;
-        set_rooms(next_rooms);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        set_rooms_error(error instanceof Error ? error.message : "加载 Room 列表失败");
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_rooms_loading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [is_open, target_type]);
-
-  useEffect(() => {
-    if (!is_open || target_type !== "agent" || !selected_agent_id) {
-      set_agent_sessions([]);
-      return;
-    }
-
-    let cancelled = false;
-    set_agent_sessions_loading(true);
-    set_agent_sessions_error(null);
-    set_selected_session_key("");
-    set_selected_reply_session_key("");
-
-    void getAgentSessionsApi(selected_agent_id)
-      .then((next_sessions) => {
-        if (cancelled) return;
-        set_agent_sessions(next_sessions);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        set_agent_sessions_error(error instanceof Error ? error.message : "加载智能体会话失败");
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_agent_sessions_loading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [is_open, selected_agent_id, target_type]);
-
-  useEffect(() => {
-    if (!is_open || target_type !== "room" || !selected_room_id) {
-      set_room_contexts([]);
-      return;
-    }
-
-    let cancelled = false;
-    set_room_contexts_loading(true);
-    set_room_contexts_error(null);
-    set_selected_session_key("");
-    set_selected_reply_session_key("");
-
-    void getRoomContexts(selected_room_id)
-      .then((next_contexts) => {
-        if (cancelled) return;
-        set_room_contexts(next_contexts);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        set_room_contexts_error(error instanceof Error ? error.message : "加载 Room 会话失败");
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_room_contexts_loading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [is_open, selected_room_id, target_type]);
-
-  const agent_name_by_id = useMemo(() => {
-    return new Map(agents.map((agent) => [agent.agent_id, agent.name]));
-  }, [agents]);
-
-  const agent_options = useMemo(() => {
-    return agents.map((agent) => ({
-      value: agent.agent_id,
-      label: agent.name || agent.agent_id,
-    }));
-  }, [agents]);
-
-  const room_options = useMemo(() => {
-    return rooms.map((room) => ({
-      value: room.room.id,
-      label: room.room.name?.trim() || room.room.id,
-    }));
-  }, [rooms]);
-
-  const agent_session_options = useMemo(() => {
-    return agent_sessions.map((session) => ({
-      session_key: session.session_key,
-      agent_id: session.agent_id,
-      label: format_session_label(
-        session.title?.trim() || "未命名会话",
-        agent_name_by_id.get(session.agent_id) || session.agent_id,
-      ),
-    }));
-  }, [agent_name_by_id, agent_sessions]);
-
-  const room_session_options = useMemo(() => {
-    const options = build_room_session_selections(room_contexts, agent_name_by_id);
-    return options.map((option) => ({
-      session_key: option.session_key,
-      agent_id: option.agent_id,
-      label: option.label,
-    }));
-  }, [agent_name_by_id, room_contexts]);
-
-  const session_options = target_type === "agent" ? agent_session_options : room_session_options;
-  const selected_session = session_options.find((option) => option.session_key === selected_session_key) ?? null;
-  const selected_reply_session = session_options.find(
-    (option) => option.session_key === selected_reply_session_key,
-  ) ?? null;
+  const state = useScheduledTaskDialogState({
+    agent_id,
+    initial_task,
+    is_open,
+    on_close,
+    on_created,
+    on_saved,
+  });
 
   if (!is_open) return null;
 
-  const build_schedule = (): ScheduledTaskSchedule => {
-    if (schedule_kind === "every") {
-      const interval_seconds = to_interval_seconds(every_value, every_unit);
-      if (interval_seconds === null) {
-        throw new Error("循环间隔必须是大于 0 的整数");
-      }
-      return {
-        kind: "every",
-        interval_seconds,
-        timezone: timezone.trim() || "Asia/Shanghai",
-      };
-    }
-    if (schedule_kind === "cron") {
-      return {
-        kind: "cron",
-        cron_expression: cron_expression.trim(),
-        timezone: timezone.trim() || "Asia/Shanghai",
-      };
-    }
-    return {
-      kind: "at",
-      run_at: run_at.trim(),
-      timezone: timezone.trim() || "Asia/Shanghai",
-    };
-  };
-
-  function is_room_executor_selection_required(): boolean {
-    return target_type === "room" && execution_mode !== "existing";
-  }
-
-  const build_session_target = (): ScheduledTaskSessionTarget => {
-    if (execution_mode === "temporary") {
-      return {
-        kind: "isolated",
-        wake_mode: "next-heartbeat",
-      };
-    }
-    if (execution_mode === "dedicated") {
-      return {
-        kind: "named",
-        named_session_key: dedicated_session_key.trim(),
-        wake_mode: "next-heartbeat",
-      };
-    }
-    if (!selected_session) {
-      throw new Error("请选择执行会话");
-    }
-
-    return {
-      kind: "bound",
-      bound_session_key: selected_session.session_key,
-      wake_mode: "next-heartbeat",
-    };
-  };
-
-  function build_delivery() {
-    if (reply_mode === "none") {
-      return { mode: "none" as const };
-    }
-
-    if (reply_mode === "execution") {
-      if (execution_mode === "existing") {
-        if (!selected_session) {
-          throw new Error("请选择执行会话");
-        }
-        return {
-          mode: "explicit" as const,
-          channel: "websocket",
-          to: selected_session.session_key,
-        };
-      }
-
-      if (target_type === "room") {
-        if (!selected_session) {
-          throw new Error("请选择一个 Room 会话作为回传目标");
-        }
-        return {
-          mode: "explicit" as const,
-          channel: "websocket",
-          to: selected_session.session_key,
-        };
-      }
-
-      return { mode: "none" as const };
-    }
-
-    if (!selected_reply_session) {
-      throw new Error("请选择回复会话");
-    }
-
-    return {
-      mode: "explicit" as const,
-      channel: "websocket",
-      to: selected_reply_session.session_key,
-    };
-  }
-
-  function resolve_agent_id_for_task(): string {
-    if (target_type === "agent") {
-      return selected_agent_id.trim();
-    }
-    if (!selected_session) {
-      throw new Error("请选择一个 Room 会话来确定执行智能体");
-    }
-    return selected_session.agent_id;
-  }
-
-  const get_validation_error = (): string | null => {
-    if (!task_name.trim()) {
-      return "请输入任务名称";
-    }
-    if (!instruction.trim()) {
-      return "请输入任务指令";
-    }
-    if (target_type === "agent") {
-      if (!selected_agent_id.trim()) {
-        return "请选择智能体";
-      }
-    } else if (!selected_room_id.trim()) {
-      return "请选择 Room";
-    }
-    if (execution_mode === "existing" && !selected_session_key.trim()) {
-      return "请选择执行会话";
-    }
-    if (is_room_executor_selection_required() && !selected_session_key.trim()) {
-      return "请选择一个 Room 会话来确定执行智能体";
-    }
-    if (execution_mode === "dedicated" && !dedicated_session_key.trim()) {
-      return "请输入专用长期会话名称";
-    }
-    if (reply_mode === "selected" && !selected_reply_session_key.trim()) {
-      return "请选择回复会话";
-    }
-    if (schedule_kind === "every") {
-      if (to_interval_seconds(every_value, every_unit) === null) {
-        return "循环间隔必须是大于 0 的整数";
-      }
-    }
-    if (schedule_kind === "cron" && !cron_expression.trim()) {
-      return "请输入 Cron 表达式";
-    }
-    if (schedule_kind === "at") {
-      if (!run_at.trim()) {
-        return "请选择有效的执行时间";
-      }
-    }
-    return null;
-  };
-
-  const handle_submit = async () => {
-    const validation_error = get_validation_error();
-    if (validation_error) {
-      set_error_message(validation_error);
-      return;
-    }
-
-    set_is_submitting(true);
-    set_error_message(null);
-    try {
-      const source_session = selected_session ?? selected_reply_session;
-
-      const created = await createScheduledTaskApi({
-        name: task_name.trim(),
-        agent_id: resolve_agent_id_for_task(),
-        schedule: build_schedule(),
-        instruction: instruction.trim(),
-        session_target: build_session_target(),
-        delivery: build_delivery(),
-        source: {
-          kind: "user_page",
-          context_type: target_type,
-          context_id: target_type === "agent" ? selected_agent_id.trim() : selected_room_id.trim(),
-          context_label: target_type === "agent"
-            ? (agent_options.find((option) => option.value === selected_agent_id)?.label || selected_agent_id.trim())
-            : (room_options.find((option) => option.value === selected_room_id)?.label || selected_room_id.trim()),
-          session_key: source_session?.session_key ?? null,
-          session_label: source_session?.label ?? null,
-        },
-        enabled,
-      });
-      void on_created?.(created);
-      on_close();
-    } catch (error) {
-      set_error_message(error instanceof Error ? error.message : "创建任务失败");
-    } finally {
-      set_is_submitting(false);
-    }
-  };
-
-  return (
-    <div
-      aria-labelledby="create-task-dialog-title"
-      aria-modal="true"
-      className="dialog-backdrop animate-in fade-in duration-(--motion-duration-fast)"
-      role="dialog"
-    >
-      <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-(--motion-duration-fast)">
-        <div className="dialog-header">
-          <div className="min-w-0 flex-1">
-            <h3 className="dialog-title" id="create-task-dialog-title">
-              新建任务
-            </h3>
-            <p className="dialog-subtitle">
-              先选目标对象，再决定执行会话和结果回传方式。
-            </p>
-          </div>
-          <button
-            aria-label="关闭"
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="dialog-body flex flex-col gap-4">
-          <div className="dialog-field">
-            <label className="dialog-label" htmlFor="task-name">
-              任务名称
-            </label>
-            <input
-              ref={name_ref}
-              className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              id="task-name"
-              onChange={(e) => set_task_name(e.target.value)}
-              placeholder="输入任务名称"
-              type="text"
-              value={task_name}
-            />
-          </div>
-
-          <div className="dialog-field">
-            <span className="dialog-label">发送到</span>
-            <div className="flex flex-wrap gap-2">
-              {TARGET_TYPE_OPTIONS.map((opt) => (
-                <button
-                  className={getDialogChoiceClassName(target_type === opt.key)}
-                  key={opt.key}
-                  onClick={() => {
-                    set_target_type(opt.key);
-                    set_selected_session_key("");
-                    set_error_message(null);
-                  }}
-                  style={getDialogChoiceStyle(target_type === opt.key)}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
+  return createPortal(
+    <>
+      <div
+        aria-hidden="true"
+        className="dialog-backdrop z-[9998] animate-in fade-in duration-(--motion-duration-fast)"
+        onClick={on_close}
+      />
+      <div
+        data-modal-root="true"
+        aria-labelledby="create-task-dialog-title"
+        aria-modal="true"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
+        role="dialog"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+      >
+        <div className="dialog-shell radius-shell-lg w-full max-w-[1120px] animate-in zoom-in-95 duration-(--motion-duration-fast)">
+          <div className="dialog-header">
+            <div className="min-w-0 flex-1">
+              <h3 className="dialog-title" id="create-task-dialog-title">
+                {initial_task ? "编辑任务" : "新建任务"}
+              </h3>
+              <p className="dialog-subtitle">
+                {initial_task ? "修改调度、执行会话和结果回传方式。" : "先选目标对象，再决定执行会话和结果回传方式。"}
+              </p>
             </div>
-          </div>
-
-          <div className="dialog-field">
-            <label className="dialog-label" htmlFor="task-target-object">
-              {target_type === "agent" ? "目标智能体" : "目标 Room"}
-            </label>
-            <select
-              className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              disabled={
-                target_type === "agent"
-                  ? agents_loading || agents.length === 0
-                  : rooms_loading || rooms.length === 0
-              }
-              id="task-target-object"
-              onChange={(e) => {
-                if (target_type === "agent") {
-                  set_selected_agent_id(e.target.value);
-                } else {
-                  set_selected_room_id(e.target.value);
-                }
-                set_selected_session_key("");
-                set_error_message(null);
-              }}
-              value={target_type === "agent" ? selected_agent_id : selected_room_id}
+            <button
+              aria-label="关闭"
+              className={DIALOG_ICON_BUTTON_CLASS_NAME}
+              onClick={on_close}
+              type="button"
             >
-              <option value="">
-                {target_type === "agent"
-                  ? (agents_loading ? "正在加载智能体..." : "请选择智能体")
-                  : (rooms_loading ? "正在加载 Room..." : "请选择 Room")}
-              </option>
-              {target_type === "agent"
-                ? agent_options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))
-                : room_options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-            </select>
-            {target_type === "agent" && agents_error ? (
-              <p className="mt-2 text-xs text-(--destructive)">{agents_error}</p>
-            ) : null}
-            {target_type === "room" && rooms_error ? (
-              <p className="mt-2 text-xs text-(--destructive)">{rooms_error}</p>
-            ) : null}
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          <div className="dialog-field">
-            <span className="dialog-label">执行会话</span>
-            <div className="flex flex-wrap gap-2">
-              {EXECUTION_MODE_OPTIONS.map((opt) => (
-                <button
-                  className={getDialogChoiceClassName(execution_mode === opt.key)}
-                  key={opt.key}
-                  onClick={() => {
-                    set_execution_mode(opt.key);
-                    set_error_message(null);
-                  }}
-                  style={getDialogChoiceStyle(execution_mode === opt.key)}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-              {execution_mode === "existing"
-                ? "复用当前已有的执行上下文。"
-                : execution_mode === "temporary"
-                  ? "每次执行都会新开一个临时会话，不延续旧上下文。"
-                  : "第一次执行时创建一个专用长期会话，之后持续复用。"}
-            </p>
-          </div>
+          <div className="dialog-body grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
+            <TaskBasicsPanel
+              agent_options={state.agent_options}
+              agents_error={state.agents_error}
+              agents_loading={state.agents_loading}
+              dedicated_session_key={state.dedicated_session_key}
+              execution_mode={state.execution_mode}
+              execution_mode_options={EXECUTION_MODE_OPTIONS}
+              name_ref={state.name_ref}
+              on_reset_context_error={() => state.set_error_message(null)}
+              reply_mode={state.reply_mode}
+              reply_mode_options={REPLY_MODE_OPTIONS}
+              room_options={state.room_options}
+              rooms_error={state.rooms_error}
+              rooms_loading={state.rooms_loading}
+              selected_agent_id={state.selected_agent_id}
+              selected_reply_session_key={state.selected_reply_session_key}
+              selected_room_id={state.selected_room_id}
+              selected_session_key={state.selected_session_key}
+              session_empty_message={
+                state.target_type === "agent"
+                  ? state.selected_agent_id && !state.agent_sessions_loading && state.session_options.length === 0
+                    ? "这个智能体没有可选会话"
+                    : null
+                  : state.selected_room_id && !state.room_contexts_loading && state.session_options.length === 0
+                    ? "这个 Room 没有可选会话"
+                    : null
+              }
+              session_error={state.target_type === "agent" ? state.agent_sessions_error : state.room_contexts_error}
+              session_loading={state.target_type === "agent" ? state.agent_sessions_loading : state.room_contexts_loading}
+              session_options={state.session_options}
+              set_dedicated_session_key={state.set_dedicated_session_key}
+              set_execution_mode={state.set_execution_mode}
+              set_reply_mode={state.set_reply_mode}
+              set_selected_agent_id={state.set_selected_agent_id}
+              set_selected_reply_session_key={state.set_selected_reply_session_key}
+              set_selected_room_id={state.set_selected_room_id}
+              set_selected_session_key={state.set_selected_session_key}
+              set_target_type={state.set_target_type}
+              set_task_name={state.set_task_name}
+              target_type={state.target_type}
+              target_type_options={TARGET_TYPE_OPTIONS}
+              task_name={state.task_name}
+              require_session_selection={state.execution_mode === "existing" || state.is_room_executor_selection_required()}
+            />
 
-          {execution_mode === "dedicated" ? (
-            <div className="dialog-field">
-              <label className="dialog-label" htmlFor="task-dedicated-session-key">
-                专用长期会话名称
-              </label>
-              <input
-                className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                id="task-dedicated-session-key"
-                onChange={(e) => set_dedicated_session_key(e.target.value)}
-                placeholder="例如 daily-ops"
-                type="text"
-                value={dedicated_session_key}
-              />
-            </div>
-          ) : null}
-
-          {execution_mode === "existing" || is_room_executor_selection_required() ? (
-            <div className="dialog-field">
-              <label className="dialog-label" htmlFor="task-session-key">
-                {execution_mode === "existing" ? "执行会话" : "执行智能体参考会话"}
-              </label>
-              <select
-                className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                disabled={
-                  !selected_agent_id && target_type === "agent"
-                    ? true
-                    : !selected_room_id && target_type === "room"
-                      ? true
-                      : target_type === "agent"
-                        ? agent_sessions_loading || agent_session_options.length === 0
-                        : room_contexts_loading || room_session_options.length === 0
-                }
-                id="task-session-key"
-                onChange={(e) => {
-                  set_selected_session_key(e.target.value);
-                  set_error_message(null);
-                }}
-                value={selected_session_key}
-              >
-                <option value="">
-                  {target_type === "agent"
-                    ? (agent_sessions_loading
-                      ? "正在加载会话..."
-                      : selected_agent_id
-                        ? "请选择会话"
-                        : "先选择智能体")
-                    : (room_contexts_loading
-                      ? "正在加载会话..."
-                      : selected_room_id
-                        ? "请选择会话"
-                        : "先选择 Room")}
-                </option>
-                {session_options.map((option) => (
-                  <option key={option.session_key} value={option.session_key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {execution_mode !== "existing" ? (
-                <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-                  Room 模式下需要先选一个成员会话，用来确定由哪个智能体执行任务。
-                </p>
-              ) : null}
-              {target_type === "agent" && agent_sessions_error ? (
-                <p className="mt-2 text-xs text-(--destructive)">{agent_sessions_error}</p>
-              ) : null}
-              {target_type === "room" && room_contexts_error ? (
-                <p className="mt-2 text-xs text-(--destructive)">{room_contexts_error}</p>
-              ) : null}
-              {target_type === "agent" && selected_agent_id && !agent_sessions_loading && agent_session_options.length === 0 ? (
-                <p className="mt-2 text-xs text-(--text-muted)">这个智能体没有可选会话</p>
-              ) : null}
-              {target_type === "room" && selected_room_id && !room_contexts_loading && room_session_options.length === 0 ? (
-                <p className="mt-2 text-xs text-(--text-muted)">这个 Room 没有可选会话</p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="dialog-field">
-            <span className="dialog-label">结果回传</span>
-            <div className="flex flex-wrap gap-2">
-              {REPLY_MODE_OPTIONS.map((opt) => (
-                <button
-                  className={getDialogChoiceClassName(reply_mode === opt.key)}
-                  key={opt.key}
-                  onClick={() => {
-                    set_reply_mode(opt.key);
-                    set_error_message(null);
-                  }}
-                  style={getDialogChoiceStyle(reply_mode === opt.key)}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-              {reply_mode === "none"
-                ? "执行结果只保存在任务自己的执行会话里。"
-                : reply_mode === "execution"
-                  ? "结果回到这次执行使用的会话；临时会话在 Agent 模式下默认不额外回传。"
-                  : "结果会额外推送到你指定的一个已有会话。"}
-            </p>
-          </div>
-
-          {reply_mode === "selected" ? (
-            <div className="dialog-field">
-              <label className="dialog-label" htmlFor="task-reply-session-key">
-                回复会话
-              </label>
-              <select
-                className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                disabled={
-                  !selected_agent_id && target_type === "agent"
-                    ? true
-                    : !selected_room_id && target_type === "room"
-                      ? true
-                      : target_type === "agent"
-                        ? agent_sessions_loading || agent_session_options.length === 0
-                        : room_contexts_loading || room_session_options.length === 0
-                }
-                id="task-reply-session-key"
-                onChange={(e) => {
-                  set_selected_reply_session_key(e.target.value);
-                  set_error_message(null);
-                }}
-                value={selected_reply_session_key}
-              >
-                <option value="">
-                  {target_type === "agent"
-                    ? (agent_sessions_loading
-                      ? "正在加载会话..."
-                      : selected_agent_id
-                        ? "请选择回复会话"
-                        : "先选择智能体")
-                    : (room_contexts_loading
-                      ? "正在加载会话..."
-                      : selected_room_id
-                        ? "请选择回复会话"
-                        : "先选择 Room")}
-                </option>
-                {session_options.map((option) => (
-                  <option key={option.session_key} value={option.session_key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          <div className="dialog-field">
-            <span className="dialog-label">调度类型</span>
-            <div className="flex flex-wrap gap-2">
-              {SCHEDULE_OPTIONS.map((opt) => (
-                <button
-                  className={getDialogChoiceClassName(schedule_kind === opt.key)}
-                  key={opt.key}
-                  onClick={() => set_schedule_kind(opt.key)}
-                  style={getDialogChoiceStyle(schedule_kind === opt.key)}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {schedule_kind === "every" ? (
-            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr),140px]">
-              <div className="dialog-field">
-                <label className="dialog-label" htmlFor="task-every-value">
-                  执行间隔
-                </label>
-                <input
-                  className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                  id="task-every-value"
-                  min="1"
-                  onChange={(e) => set_every_value(e.target.value)}
-                  step="1"
-                  type="number"
-                  value={every_value}
-                />
-              </div>
-              <div className="dialog-field">
-                <label className="dialog-label" htmlFor="task-every-unit">
-                  单位
-                </label>
-                <select
-                  className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                  id="task-every-unit"
-                  onChange={(e) => set_every_unit(e.target.value as EveryUnit)}
-                  value={every_unit}
-                >
-                  {EVERY_UNIT_OPTIONS.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          ) : null}
-
-          {schedule_kind === "cron" ? (
-            <div className="dialog-field">
-              <label className="dialog-label" htmlFor="task-cron-expression">
-                Cron 表达式
-              </label>
-              <input
-                className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                id="task-cron-expression"
-                onChange={(e) => set_cron_expression(e.target.value)}
-                placeholder="例如 0 9 * * *"
-                type="text"
-                value={cron_expression}
-              />
-            </div>
-          ) : null}
-
-          {schedule_kind === "at" ? (
-            <div className="dialog-field">
-              <label className="dialog-label" htmlFor="task-run-at">
-                执行时间
-              </label>
-              <input
-                className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                id="task-run-at"
-                onChange={(e) => set_run_at(e.target.value)}
-                type="datetime-local"
-                value={run_at}
-              />
-            </div>
-          ) : null}
-
-          <div className="dialog-field">
-            <label className="dialog-label" htmlFor="task-timezone">
-              时区
-            </label>
-            <input
-              className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              id="task-timezone"
-              onChange={(e) => set_timezone(e.target.value)}
-              placeholder="Asia/Shanghai"
-              type="text"
-              value={timezone}
+            <TaskSchedulePanel
+              close_daily_picker={() => state.set_is_daily_picker_open(false)}
+              close_single_picker={() => state.set_is_single_picker_open(false)}
+              daily_anchor_ref={state.daily_picker_anchor_ref}
+              daily_display={state.daily_display}
+              daily_hour12={state.daily_meridiem_parts.hour12}
+              daily_meridiem={state.daily_meridiem_parts.meridiem}
+              daily_minute={state.daily_meridiem_parts.minute}
+              enabled={state.enabled}
+              error_message={state.error_message}
+              every_unit={state.every_unit}
+              every_unit_options={EVERY_UNIT_OPTIONS}
+              every_value={state.every_value}
+              instruction={state.instruction}
+              is_daily_picker_open={state.is_daily_picker_open}
+              is_single_picker_open={state.is_single_picker_open}
+              is_single_date_disabled={state.is_single_date_disabled}
+              is_single_hour_disabled={state.is_single_hour_disabled}
+              is_single_meridiem_disabled={state.is_single_meridiem_disabled}
+              is_single_minute_disabled={state.is_single_minute_disabled}
+              is_single_second_disabled={state.is_single_second_disabled}
+              on_daily_hour_select={(value) => state.update_daily_picker({ hour12: value })}
+              on_daily_meridiem_select={(value) => state.update_daily_picker({ meridiem: value })}
+              on_daily_minute_select={(value) => state.update_daily_picker({ minute: value })}
+              on_daily_trigger_click={() => {
+                state.set_is_daily_picker_open((value) => !value);
+                state.set_is_single_picker_open(false);
+              }}
+              on_next_month={state.go_to_next_month}
+              on_prev_month={state.go_to_prev_month}
+              on_single_date_select={(value) => state.update_single_picker({ date: value })}
+              on_single_hour_select={(value) => state.update_single_picker({ hour12: value })}
+              on_single_meridiem_select={(value) => state.update_single_picker({ meridiem: value })}
+              on_single_minute_select={(value) => state.update_single_picker({ minute: value })}
+              on_single_second_select={(value) => state.update_single_picker({ second: value })}
+              on_single_trigger_click={() => {
+                state.sync_single_picker_to_now();
+                state.set_is_single_picker_open((value) => !value);
+                state.set_is_daily_picker_open(false);
+              }}
+              on_toggle_weekday={state.toggle_weekday}
+              run_at_display={state.run_at_display}
+              schedule_kind={state.schedule_kind}
+              schedule_options={SCHEDULE_OPTIONS}
+              selected_run_date={state.run_at_parts.date}
+              selected_weekdays={state.selected_weekdays}
+              set_enabled={state.set_enabled}
+              set_every_unit={state.set_every_unit}
+              set_every_value={state.set_every_value}
+              set_instruction={state.set_instruction}
+              set_schedule_kind={state.set_schedule_kind}
+              set_timezone={state.set_timezone}
+              single_anchor_ref={state.single_picker_anchor_ref}
+              single_hour12={state.single_meridiem_parts.hour12}
+              single_meridiem={state.single_meridiem_parts.meridiem}
+              single_minute={state.single_meridiem_parts.minute}
+              single_picker_days={state.single_picker_days}
+              single_picker_month={state.single_picker_month}
+              single_second={state.single_meridiem_parts.second}
+              timezone={state.timezone}
+              timezone_options={TIMEZONE_OPTIONS}
             />
           </div>
 
-          <div className="dialog-field">
-            <label className="dialog-label" htmlFor="task-instruction">
-              任务指令
-            </label>
-            <textarea
-              className="dialog-input radius-shell-sm w-full resize-none px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              id="task-instruction"
-              onChange={(e) => set_instruction(e.target.value)}
-              placeholder="输入 Agent 需要执行的指令"
-              rows={3}
-              value={instruction}
-            />
+          <div className="dialog-footer">
+            <button
+              className={getDialogActionClassName("default")}
+              disabled={state.is_submitting}
+              onClick={on_close}
+              type="button"
+            >
+              取消
+            </button>
+            <button
+              className={getDialogActionClassName("primary")}
+              disabled={state.is_submitting}
+              onClick={() => void state.handle_submit()}
+              type="button"
+            >
+              {state.is_submitting ? (initial_task ? "保存中" : "创建中") : (
+                <>
+                  {initial_task ? <Pencil className="h-3.5 w-3.5" /> : null}
+                  {initial_task ? "保存修改" : "创建"}
+                </>
+              )}
+            </button>
           </div>
-
-          <label className="flex items-center gap-3 rounded-[18px] border border-(--divider-subtle-color) bg-white/45 px-4 py-3 text-sm text-(--text-default)">
-            <input
-              checked={enabled}
-              className="h-4 w-4"
-              onChange={(e) => set_enabled(e.target.checked)}
-              type="checkbox"
-            />
-            创建后立即启用任务
-          </label>
-
-          {error_message ? (
-            <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-4 py-3 text-sm text-(--destructive)">
-              {error_message}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="dialog-footer">
-          <button
-            className={getDialogActionClassName("default")}
-            disabled={is_submitting}
-            onClick={on_close}
-            type="button"
-          >
-            取消
-          </button>
-          <button
-            className={getDialogActionClassName("primary")}
-            disabled={is_submitting}
-            onClick={() => void handle_submit()}
-            type="button"
-          >
-            {is_submitting ? "创建中" : "创建"}
-          </button>
         </div>
       </div>
-    </div>
+    </>,
+    document.body,
   );
 }

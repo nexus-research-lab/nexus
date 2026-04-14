@@ -33,10 +33,10 @@ function format_interval(seconds: number): string {
 
 function get_target_mode_label(mode: HeartbeatConfig["target_mode"]): string {
   if (mode === "last") {
-    return "最近会话";
+    return "回到最近会话";
   }
   if (mode === "explicit") {
-    return "显式目标";
+    return "回到指定位置";
   }
   return "不投递";
 }
@@ -66,10 +66,10 @@ export function HeartbeatSettingsCard({
             <Activity className="h-4 w-4 text-(--icon-default)" />
             <div>
               <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-(--text-strong)">
-                主会话唤醒
+                主会话轮询
               </h2>
               <p className="text-xs text-(--text-default)">
-                查看当前状态，并在需要时手动触发一次主会话执行。
+                按固定间隔唤醒主会话；适合让同一会话持续接住自动化任务和回复。
               </p>
             </div>
           </div>
@@ -114,11 +114,11 @@ export function HeartbeatSettingsCard({
           <>
             <div className="flex flex-wrap items-center gap-2">
               <WorkspaceStatusBadge
-                label={heartbeat.enabled ? "已启用" : "未启用"}
+                label={heartbeat.enabled ? "已加入轮询" : "未加入轮询"}
                 tone={heartbeat.enabled ? "active" : "idle"}
               />
               <WorkspaceStatusBadge
-                label={heartbeat.running ? "运行中" : "待命"}
+                label={heartbeat.running ? "调度器在线" : "调度器离线"}
                 tone={heartbeat.running ? "running" : "idle"}
               />
               {heartbeat.pending_wake ? (
@@ -129,7 +129,7 @@ export function HeartbeatSettingsCard({
             <div className="grid gap-4 border-y border-(--divider-subtle-color) py-4 sm:grid-cols-2">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                  执行间隔
+                  轮询间隔
                 </p>
                 <p className="mt-2 text-base font-semibold text-(--text-strong)">
                   {format_interval(heartbeat.every_seconds)}
@@ -141,7 +141,7 @@ export function HeartbeatSettingsCard({
 
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                  投递策略
+                  回复方式
                 </p>
                 <p className="mt-2 text-base font-semibold text-(--text-strong)">
                   {get_target_mode_label(heartbeat.target_mode)}
@@ -154,7 +154,7 @@ export function HeartbeatSettingsCard({
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-(--text-default)">最近心跳</span>
+                <span className="text-(--text-default)">最近轮询</span>
                 <span className="font-medium text-(--text-strong)">
                   {format_datetime(heartbeat.last_heartbeat_at)}
                 </span>

@@ -23,6 +23,7 @@ import type {
 
 export interface UseAutomationControllerOptions {
   agent_id?: string | null;
+  include_all_tasks?: boolean;
 }
 
 export interface AutomationController {
@@ -35,7 +36,7 @@ export interface AutomationController {
   heartbeat_error: string | null;
   tasks_error: string | null;
   refresh_heartbeat: () => Promise<void>;
-  refresh_tasks: () => Promise<void>;
+  refresh_tasks: (options?: { silent?: boolean }) => Promise<void>;
   refresh_all: () => Promise<void>;
   wake_heartbeat: (params?: WakeHeartbeatRequest) => Promise<HeartbeatWakeResult>;
   create_task: (params: CreateScheduledTaskParams) => Promise<ScheduledTaskItem>;
@@ -58,6 +59,7 @@ export function useAutomationController(
   options: UseAutomationControllerOptions = {},
 ): AutomationController {
   const agent_id = resolveAgentId(options.agent_id);
+  const include_all_tasks = Boolean(options.include_all_tasks);
   const [heartbeat, set_heartbeat] = useState<HeartbeatConfig | null>(null);
   const [scheduled_tasks, set_scheduled_tasks] = useState<ScheduledTaskItem[]>([]);
   const [heartbeat_loading, set_heartbeat_loading] = useState(true);
@@ -130,14 +132,16 @@ export function useAutomationController(
     }
   }, [agent_id]);
 
-  const refresh_tasks = useCallback(async () => {
+  const refresh_tasks = useCallback(async (options?: { silent?: boolean }) => {
     const request_agent_id = agent_id;
     const request_token = tasks_request_token_ref.current + 1;
     tasks_request_token_ref.current = request_token;
-    set_tasks_loading(true);
+    if (!options?.silent) {
+      set_tasks_loading(true);
+    }
     set_tasks_error(null);
     try {
-      const result = await listScheduledTasksApi({ agent_id: request_agent_id });
+      const result = await listScheduledTasksApi(include_all_tasks ? undefined : { agent_id: request_agent_id });
       // 中文注释：任务列表同样按 agent_id 绑定，只允许最后一次有效请求落状态。
       if (!is_active_tasks_request(request_agent_id, request_token)) {
         return;
@@ -153,9 +157,11 @@ export function useAutomationController(
       if (!is_active_tasks_request(request_agent_id, request_token)) {
         return;
       }
-      set_tasks_loading(false);
+      if (!options?.silent) {
+        set_tasks_loading(false);
+      }
     }
-  }, [agent_id]);
+  }, [agent_id, include_all_tasks]);
 
   const refresh_all = useCallback(async () => {
     await Promise.all([refresh_heartbeat(), refresh_tasks()]);
@@ -174,23 +180,29 @@ export function useAutomationController(
   const create_task = useCallback(async (params: CreateScheduledTaskParams) => {
     const request_agent_id = agent_id;
     const created_task = await createScheduledTaskApi(params);
-    if (active_agent_id_ref.current === request_agent_id && request_agent_id === created_task.agent_id) {
+    if (
+      active_agent_id_ref.current === request_agent_id
+      && (include_all_tasks || request_agent_id === created_task.agent_id)
+    ) {
       // 中文注释：本地写入会推进 token，确保较早发起的列表刷新结果不会回滚最新任务状态。
       commit_tasks_state((current_items) => upsert_task(current_items, created_task));
       await refresh_tasks().catch(() => undefined);
     }
     return created_task;
-  }, [agent_id, commit_tasks_state, refresh_tasks]);
+  }, [agent_id, commit_tasks_state, include_all_tasks, refresh_tasks]);
 
   const update_task = useCallback(async (job_id: string, params: UpdateScheduledTaskParams) => {
     const request_agent_id = agent_id;
     const updated_task = await updateScheduledTaskApi(job_id, params);
-    if (active_agent_id_ref.current === request_agent_id && request_agent_id === updated_task.agent_id) {
+    if (
+      active_agent_id_ref.current === request_agent_id
+      && (include_all_tasks || request_agent_id === updated_task.agent_id)
+    ) {
       commit_tasks_state((current_items) => upsert_task(current_items, updated_task));
       await refresh_tasks().catch(() => undefined);
     }
     return updated_task;
-  }, [agent_id, commit_tasks_state, refresh_tasks]);
+  }, [agent_id, commit_tasks_state, include_all_tasks, refresh_tasks]);
 
   const delete_task = useCallback(async (job_id: string) => {
     const request_agent_id = agent_id;
@@ -207,12 +219,15 @@ export function useAutomationController(
     const updated_task = await updateScheduledTaskStatusApi(task.job_id, {
       enabled: !task.enabled,
     });
-    if (active_agent_id_ref.current === request_agent_id && request_agent_id === updated_task.agent_id) {
+    if (
+      active_agent_id_ref.current === request_agent_id
+      && (include_all_tasks || request_agent_id === updated_task.agent_id)
+    ) {
       commit_tasks_state((current_items) => upsert_task(current_items, updated_task));
       await refresh_tasks().catch(() => undefined);
     }
     return updated_task;
-  }, [agent_id, commit_tasks_state, refresh_tasks]);
+  }, [agent_id, commit_tasks_state, include_all_tasks, refresh_tasks]);
 
   const run_task = useCallback(async (task: ScheduledTaskItem) => {
     const request_agent_id = agent_id;
@@ -228,9 +243,9 @@ export function useAutomationController(
   }, [refresh_all]);
 
   const visible_heartbeat = heartbeat?.agent_id === agent_id ? heartbeat : null;
-  const visible_scheduled_tasks = scheduled_tasks.every((item) => item.agent_id === agent_id)
+  const visible_scheduled_tasks = include_all_tasks
     ? scheduled_tasks
-    : [];
+    : (scheduled_tasks.every((item) => item.agent_id === agent_id) ? scheduled_tasks : []);
 
   return {
     agent_id,
