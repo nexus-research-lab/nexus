@@ -4,11 +4,12 @@ import { ExternalLink, Loader2, PackagePlus, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
+  DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
+  getDialogActionClassName,
   getDialogNoteClassName,
   getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { ExternalSkillSearchItem } from "@/types/skill";
 
 import { SkillMarkdown } from "./skill-markdown";
@@ -70,15 +71,14 @@ export function ExternalSkillPreviewDialog({
               ) : null}
             </div>
           </div>
-          <WorkspacePillButton
+          <button
+            className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label="关闭"
-            density="compact"
             onClick={on_close}
-            size="icon"
-            variant="icon"
+            type="button"
           >
             <X className="h-5 w-5" />
-          </WorkspacePillButton>
+          </button>
         </div>
 
         <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1">
@@ -99,10 +99,15 @@ export function ExternalSkillPreviewDialog({
             打开原始页面
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <WorkspacePillButton disabled={busy || already_imported} onClick={on_import_only} variant="primary">
+            <button
+              className={getDialogActionClassName("primary")}
+              disabled={busy || already_imported}
+              onClick={on_import_only}
+              type="button"
+            >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
               导入到技能库
-            </WorkspacePillButton>
+            </button>
           </div>
         </div>
       </div>

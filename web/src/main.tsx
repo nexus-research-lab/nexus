@@ -26,13 +26,13 @@ function render_bootstrap_error(message: string) {
     <StrictMode>
       <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
         <section className="surface-panel radius-shell-xl w-full max-w-[480px] border px-8 py-9 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[color:var(--surface-panel-border)] bg-[color:var(--surface-panel-subtle-background)] text-lg font-bold">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
             N
           </div>
-          <h1 className="text-[24px] font-bold tracking-[-0.04em] text-[color:var(--text-strong)]">
+          <h1 className="text-[24px] font-bold tracking-[-0.04em] text-(--text-strong)">
             运行时配置加载失败
           </h1>
-          <p className="mt-2 text-[14px] leading-6 text-[color:var(--text-muted)]">{message}</p>
+          <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{message}</p>
         </section>
       </main>
     </StrictMode>,

@@ -5,11 +5,10 @@
  * 后面调布局时只改这一处，不用在多个组件里到处找类名。
  */
 
-/** 中文注释：首页舞台上下边距基线，左右壳层统一复用这一套。 */
-export const HOME_STAGE_VERTICAL_PADDING_CLASS = "py-1";
-export const HOME_PAGE_PADDING_CLASS = `${HOME_STAGE_VERTICAL_PADDING_CLASS}`;
-export const HOME_SIDEBAR_PADDING_CLASS = `pr-2 pl-1.5 ${HOME_STAGE_VERTICAL_PADDING_CLASS}`;
-export const HOME_WORKSPACE_SECTION_GAP_CLASS = "gap-2 xl:gap-3";
+/** 中文注释：首页舞台边距改成更贴近桌面窗口的薄边距，避免出现网页卡片感。 */
+export const HOME_STAGE_VERTICAL_PADDING_CLASS = "py-1.5";
+export const HOME_PAGE_PADDING_CLASS = `pr-1.5 ${HOME_STAGE_VERTICAL_PADDING_CLASS}`;
+export const HOME_SIDEBAR_PADDING_CLASS = `pl-1 pr-1.5 ${HOME_STAGE_VERTICAL_PADDING_CLASS}`;
 
 export const HOME_EDITOR_DEFAULT_WIDTH_PERCENT = 42;
 export const HOME_EDITOR_MIN_WIDTH_PERCENT = 30;

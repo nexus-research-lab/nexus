@@ -78,6 +78,7 @@ export async function createRoom(params: CreateRoomParams): Promise<RoomContextA
       name: params.name,
       description: params.description ?? "",
       title: params.title,
+      avatar: params.avatar ?? null,
     }),
   });
   notify_room_list_updated();
@@ -95,6 +96,7 @@ export async function updateRoom(
       name: params.name,
       description: params.description,
       title: params.title,
+      avatar: params.avatar ?? null,
     }),
   });
   notify_room_list_updated();

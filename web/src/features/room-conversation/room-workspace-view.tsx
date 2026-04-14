@@ -87,25 +87,25 @@ const TreeRow = memo(function TreeRow({
         type="button"
         onClick={handle_click}
         className={cn(
-          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors duration-150",
+          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors duration-(--motion-duration-fast)",
           is_active
             ? "bg-primary/10 text-primary"
-            : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
+            : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         )}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
       >
         {entry.is_dir ? (
-          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-[color:var(--icon-muted)] transition-transform duration-150", open && "rotate-90")} />
+          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-fast)", open && "rotate-90")} />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
 
         {entry.is_dir ? (
           open
-            ? <FolderOpen className="h-4 w-4 shrink-0 text-amber-400" />
-            : <Folder className="h-4 w-4 shrink-0 text-amber-400" />
+            ? <FolderOpen className="h-4 w-4 shrink-0 text-(--warning)" />
+            : <Folder className="h-4 w-4 shrink-0 text-(--warning)" />
         ) : (
-          <FileIcon className={cn("h-4 w-4 shrink-0", is_active ? "text-primary" : "text-[color:var(--icon-muted)] group-hover:text-[color:var(--icon-default)]")} />
+          <FileIcon className={cn("h-4 w-4 shrink-0", is_active ? "text-primary" : "text-(--icon-muted) group-hover:text-(--icon-default)")} />
         )}
 
         <span className={cn("min-w-0 flex-1 truncate text-[12.5px]", entry.is_dir ? "font-medium" : "font-normal")}>
@@ -154,7 +154,7 @@ function MemberSwitcher({
               "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-medium transition-all",
               is_active
                 ? "border-primary/30 bg-primary/10 text-primary"
-                : "text-[color:var(--text-default)] hover:text-[color:var(--text-strong)]",
+                : "text-(--text-default) hover:text-(--text-strong)",
             )}
             style={!is_active ? {
               background: "var(--card-default-background)",
@@ -163,7 +163,7 @@ function MemberSwitcher({
           >
             <span className={cn(
               "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
-              is_active ? "bg-primary/20 text-primary" : "bg-[var(--surface-interactive-hover-background)] text-[color:var(--text-default)]",
+              is_active ? "bg-primary/20 text-primary" : "bg-(--surface-interactive-hover-background) text-(--text-default)",
             )}>
               {m.name.slice(0, 1).toUpperCase()}
             </span>
@@ -229,13 +229,13 @@ export function RoomWorkspaceView({
         </div>
       ) : (
         <div
-          className="rounded-2xl border px-5 py-5 text-sm leading-7 text-[color:var(--text-muted)]"
+          className="rounded-2xl border px-5 py-5 text-sm leading-7 text-(--text-muted)"
           style={{
             background: "var(--surface-panel-subtle-background)",
             borderColor: "var(--surface-panel-subtle-border)",
           }}
         >
-          <div className="mb-2 flex items-center gap-2 font-medium text-[color:var(--text-strong)]">
+          <div className="mb-2 flex items-center gap-2 font-medium text-(--text-strong)">
             <FolderTree className="h-4 w-4" />
             {t("room.no_files")}
           </div>

@@ -2,18 +2,21 @@
 
 import { Bot, MessageSquareText, Users } from "lucide-react";
 
+import { getIconAvatarSrc } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { Agent } from "@/types/agent";
 import {
+  WorkspaceCatalogBody,
   WorkspaceCatalogCard,
+  WorkspaceCatalogDescription,
+  WorkspaceCatalogFooter,
   WorkspaceIconFrame,
+  WorkspaceCatalogTextAction,
+  WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/workspace-catalog-card";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 
 interface ContactsAgentCardProps {
-  /** Agent 名称 */
-  name: string;
-  /** Agent 描述（system_prompt 摘要） */
-  description: string;
+  agent: Agent;
   /** 点击卡片本身 → 打开 AgentOptions 对话框（edit 模式） */
   on_open_profile: () => void;
   /** 💬 Chat 按钮 → ensureDirectRoom 发起 DM */
@@ -22,46 +25,86 @@ interface ContactsAgentCardProps {
   on_create_team: () => void;
 }
 
-/** Agent 卡片 — 居中布局，底部 Chat / Create Team 双按钮 */
+/** Agent 卡片 — 居中布局，底部动作收为轻量文本按钮，避免主区继续堆胶囊层。 */
 export function ContactsAgentCard({
-  name,
-  description,
+  agent,
   on_open_profile,
   on_open_room,
   on_create_team,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
+
+  // 提取配置信息
+  const permissionMode = agent.options.permission_mode || "default";
+  const model = agent.options.model || "claude-sonnet-4-5";
+  const allowedToolsCount = agent.options.allowed_tools?.length || 0;
+  const skillsCount = agent.skills_count || 0;
+
   return (
     <WorkspaceCatalogCard
-      class_name="cursor-pointer rounded-[26px] px-6 py-6 text-center"
+      align="center"
+      class_name="relative h-full overflow-hidden"
+      interactive
       onClick={on_open_profile}
+      size="comfort"
     >
-      {/* 居中头像 */}
-      <WorkspaceIconFrame class_name="mx-auto h-16 w-16" shape="round" size="lg">
-        <Bot className="h-7 w-7 text-[color:var(--icon-strong)]" />
+      <WorkspaceIconFrame
+        class_name="mx-auto h-14 w-14 overflow-hidden transition-all duration-300 hover:scale-110 hover:shadow-lg relative z-10"
+        shape="round"
+        size="lg"
+      >
+        {getIconAvatarSrc(agent.avatar) ? (
+          <img
+            alt={agent.name}
+            className="h-full w-full object-cover transition-transform duration-300 hover:scale-105 hover:rotate-3"
+            src={getIconAvatarSrc(agent.avatar) ?? undefined}
+          />
+        ) : (
+          <Bot className="h-6 w-6 text-(--icon-strong) transition-transform duration-300 hover:scale-110 hover:rotate-6" />
+        )}
       </WorkspaceIconFrame>
 
-      {/* 名称 */}
-      <p className="mt-4 truncate text-[18px] font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">
-        {name}
-      </p>
+      <WorkspaceCatalogBody class_name="mt-3 w-full" grow={false}>
+        <WorkspaceCatalogTitle size="lg" truncate>
+          {agent.name}
+        </WorkspaceCatalogTitle>
 
-      {/* 描述：1-2 行截断 */}
-      <p className="mt-2 line-clamp-2 min-h-[40px] text-[13px] leading-5 text-[color:var(--text-default)]">
-        {description}
-      </p>
+        {/* Agent 描述 */}
+        {agent.description && (
+          <WorkspaceCatalogDescription class_name="mt-1.5 line-clamp-2 text-[13px] leading-tight" min_height={false}>
+            {agent.description}
+          </WorkspaceCatalogDescription>
+        )}
 
-      {/* 底部操作按钮 */}
-      <div className="mt-5 flex items-center justify-center gap-2.5" onClick={(e) => e.stopPropagation()}>
-        <WorkspacePillButton onClick={on_open_room} size="sm" variant="primary">
-          <MessageSquareText className="h-3.5 w-3.5" />
+        {/* 运行配置信息 */}
+        <div className="mt-2 flex flex-col gap-1 text-[11px] text-(--text-soft) items-center justify-center text-center">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-(--text-default)">权限:</span>
+            <span className="text-(--text-muted)">{permissionMode}</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center justify-center">
+            <span className="text-(--text-default)">模型:</span>
+            <span className="text-(--text-muted)">{model}</span>
+            <span className="mx-0.5">•</span>
+            <span className="text-(--text-default)">工具:</span>
+            <span className="text-(--text-muted)">{allowedToolsCount}</span>
+            <span className="mx-0.5">•</span>
+            <span className="text-(--text-default)">Skill:</span>
+            <span className="text-(--text-muted)">{skillsCount}</span>
+          </div>
+        </div>
+      </WorkspaceCatalogBody>
+
+      <WorkspaceCatalogFooter class_name="mt-2 w-full gap-4" justify="center" onClick={(e) => e.stopPropagation()}>
+        <WorkspaceCatalogTextAction onClick={on_open_room} tone="primary">
+          <MessageSquareText className="h-3 w-3" />
           {t("contacts.chat")}
-        </WorkspacePillButton>
-        <WorkspacePillButton onClick={on_create_team} size="sm" variant="outlined">
-          <Users className="h-3.5 w-3.5" />
+        </WorkspaceCatalogTextAction>
+        <WorkspaceCatalogTextAction onClick={on_create_team}>
+          <Users className="h-3 w-3" />
           {t("contacts.create_team")}
-        </WorkspacePillButton>
-      </div>
+        </WorkspaceCatalogTextAction>
+      </WorkspaceCatalogFooter>
     </WorkspaceCatalogCard>
   );
 }

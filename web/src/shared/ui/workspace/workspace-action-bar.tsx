@@ -5,7 +5,7 @@ import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const ACTION_CARD_CLASS_NAME =
-  "surface-card rounded-[24px] px-4 py-4 text-left transition-[transform,background,border-color] duration-150 hover:-translate-y-px hover:bg-[var(--surface-interactive-hover-background)] hover:border-[var(--surface-interactive-hover-border)]";
+  "rounded-[24px] border border-(--divider-subtle-color) px-4 py-4 text-left transition-[transform,background,border-color] duration-(--motion-duration-fast) hover:-translate-y-px hover:bg-(--surface-interactive-hover-background) hover:border-(--surface-interactive-hover-border)";
 
 interface WorkspaceActionBarProps {
   children: ReactNode;
@@ -49,9 +49,9 @@ export function WorkspaceActionCard({
       type="button"
     >
       {icon}
-      <p className="mt-3 text-sm font-semibold text-[color:var(--text-strong)]">{title}</p>
+      <p className="mt-3 text-sm font-semibold text-(--text-strong)">{title}</p>
       {description ? (
-        <p className="mt-1 text-xs leading-5 text-[color:var(--text-soft)]">
+        <p className="mt-1 text-xs leading-5 text-(--text-soft)">
           {description}
         </p>
       ) : null}

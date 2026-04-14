@@ -4,11 +4,15 @@ import { LucideIcon } from "lucide-react";
 import { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS,
+  COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS,
+} from "@/shared/ui/workspace/workspace-header-layout";
 
 export { WorkspaceTaskStrip } from "./workspace-task-strip";
 
 const SURFACE_HEADER_CLASS_NAME =
-  "relative z-10 border-b border-[var(--divider-subtle-color)] bg-[var(--surface-panel-subtle-background)] before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-20 before:bg-[linear-gradient(180deg,var(--surface-top-glow),transparent)]";
+  "border-b border-(--divider-subtle-color) bg-transparent";
 
 interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   key: TTabKey;
@@ -30,72 +34,66 @@ interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
   on_change_tab?: (tab: TTabKey) => void;
 }
 
+interface WorkspaceSurfaceToolbarActionProps {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: "default" | "primary";
+}
+
 export function WorkspaceSurfaceHeader<TTabKey extends string>({
   title,
   badge,
   density = "default",
   leading,
   title_trailing,
+  subtitle,
   trailing,
   tabs = [],
   tabs_trailing,
   active_tab,
   on_change_tab,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
-  const chip_style = {
-    background: "var(--chip-default-background)",
-    border: "1px solid var(--chip-default-border)",
-    boxShadow: "var(--chip-default-shadow)",
-  } as const;
-
   return (
     <div className={SURFACE_HEADER_CLASS_NAME} data-density={density}>
       <div className={cn(
-        "flex min-w-0 items-center justify-between gap-4 px-5 xl:px-6",
-        density === "compact" ? "py-2" : "py-2.5",
+        "flex min-w-0 items-center justify-between px-5 xl:px-6",
+        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : "h-[72px] gap-4",
       )}>
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className={cn("flex min-w-0 flex-1 items-center", density === "compact" ? "gap-2.5" : "gap-3")}>
           {leading ? (
             <div
               className={cn(
-                "flex shrink-0 items-center justify-center rounded-full text-[color:var(--icon-default)]",
-                density === "compact" ? "h-7 w-7" : "h-[30px] w-[30px]",
+                "flex shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)",
+                density === "compact" ? "h-8 w-8" : "h-10 w-10",
               )}
-              style={chip_style}
             >
               {leading}
             </div>
           ) : null}
 
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className={cn("flex min-w-0 flex-wrap items-center", density === "compact" ? "gap-x-1.5 gap-y-0.5" : "gap-x-2 gap-y-1")}>
               <div className={cn(
-                "truncate font-bold tracking-[-0.04em] text-[color:var(--text-strong)]",
-                density === "compact" ? "text-[15px]" : "text-[16px]",
+                "truncate font-black tracking-[-0.045em] text-(--text-strong)",
+                density === "compact" ? "text-[20px]" : "text-[21px]",
               )}>
                 {title}
               </div>
-              {badge ? (
-                <span
-                  className="inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-[0.12em] text-[color:var(--text-default)]"
-                  style={{
-                    ...chip_style,
-                    background:
-                      "linear-gradient(180deg, rgba(var(--primary-rgb), 0.06), rgba(255, 255, 255, 0.94) 36%, var(--chip-default-background))",
-                  }}
-                >
-                  {badge}
-                </span>
-              ) : null}
               {title_trailing ? (
-                <div className="min-w-0 shrink">{title_trailing}</div>
+                <div className="min-w-0 shrink text-(--text-default)">{title_trailing}</div>
               ) : null}
             </div>
+            {subtitle ? (
+              <div className="mt-1 text-[12px] text-(--text-soft)">
+                {subtitle}
+              </div>
+            ) : null}
           </div>
         </div>
 
         {trailing ? (
-          <div className="ml-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className={cn("ml-3 flex shrink-0 flex-wrap items-center justify-end", density === "compact" ? "gap-1.5" : "gap-2")}>
             {trailing}
           </div>
         ) : null}
@@ -103,28 +101,33 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 
       {tabs.length || tabs_trailing ? (
         <div className={cn(
-          "flex min-w-0 items-center gap-3 px-5 xl:px-6",
-          density === "compact" ? "pb-1" : "pb-1.5",
+          "flex min-w-0 px-5 xl:px-6",
+          density === "compact"
+            ? cn(COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS, "items-center gap-3")
+            : "items-end gap-4 pb-0.5",
         )}>
-          <div className="flex min-w-0 flex-1 items-center gap-1">
+          <nav
+            aria-label="视图切换"
+            className={cn(
+              "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
+              density === "compact" ? "items-center gap-3" : "items-center gap-4",
+            )}
+          >
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const is_active = active_tab === tab.key;
               return (
                 <button
+                  aria-pressed={is_active}
+                  aria-current={is_active ? "page" : undefined}
                   key={tab.key}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition duration-150 ease-out",
+                    "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
                     is_active
-                      ? "border-[color:var(--surface-interactive-active-border)] text-[color:var(--text-strong)]"
-                      : "border-transparent text-[color:var(--text-default)] hover:border-[var(--surface-interactive-hover-border)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
-                    density === "compact" && "h-7 px-2.5 text-[10.5px]",
+                      ? "border-(--surface-interactive-active-border) text-(--text-strong)"
+                      : "text-(--text-default) hover:text-(--text-strong)",
+                    density === "compact" && "h-8 text-[10.5px]",
                   )}
-                  style={is_active ? {
-                    ...chip_style,
-                    background:
-                      "var(--surface-interactive-active-background)",
-                  } : undefined}
                   onClick={() => on_change_tab?.(tab.key)}
                   type="button"
                 >
@@ -133,7 +136,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
                 </button>
               );
             })}
-          </div>
+          </nav>
           {tabs_trailing ? (
             <div className="shrink-0">
               {tabs_trailing}
@@ -142,5 +145,27 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         </div>
       ) : null}
     </div>
+  );
+}
+
+export function WorkspaceSurfaceToolbarAction({
+  children,
+  onClick,
+  disabled = false,
+  tone = "default",
+}: WorkspaceSurfaceToolbarActionProps) {
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[11px] font-semibold transition duration-(--motion-duration-fast) ease-out disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+        tone === "default" && "text-(--text-default) hover:text-(--text-strong)",
+        tone === "primary" && "text-(--primary) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }

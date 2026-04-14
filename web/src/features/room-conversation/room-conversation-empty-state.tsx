@@ -1,88 +1,93 @@
+/**
+ * =====================================================
+ * @File   : room-conversation-empty-state.tsx
+ * @Date   : 2026-04-11 16:39
+ * @Author : leemysw
+ * 2026-04-11 16:39   Create
+ * =====================================================
+ */
+
 "use client";
 
-import { FolderKanban, MessageSquarePlus, Sparkles } from "lucide-react";
+import { FolderKanban, MessageSquarePlus } from "lucide-react";
 
-import { getStageGlowStyle } from "@/shared/ui/layout/stage-glow";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
-
-const EMPTY_STATE_SHELL_CLASS_NAME =
-  "surface-card radius-shell-xl relative w-full overflow-hidden p-10 text-center";
-const EMPTY_STATE_ICON_CLASS_NAME =
-  "chip-default radius-shell-md relative inline-flex h-24 w-24 items-center justify-center text-slate-900/76";
-const METRIC_CARD_CLASS_NAME = "surface-card radius-shell-md px-4 py-4";
+import {
+  WorkspaceCatalogBody,
+  WorkspaceCatalogCard,
+  WorkspaceCatalogDescription,
+  WorkspaceCatalogFooter,
+  WorkspaceCatalogHeader,
+  WorkspaceCatalogTag,
+  WorkspaceCatalogTextAction,
+  WorkspaceCatalogTitle,
+  WorkspaceIconFrame,
+} from "@/shared/ui/workspace/workspace-catalog-card";
 
 interface RoomConversationEmptyStateProps {
   on_create_conversation: (title?: string) => void | Promise<string | null>;
 }
 
+const HIGHLIGHTS = [
+  "围绕同一 room 承接任务",
+  "消息线程和上下文自动保存",
+  "文件与协作视图共用同一工作区",
+] as const;
+
 export function RoomConversationEmptyState({
   on_create_conversation,
 }: RoomConversationEmptyStateProps) {
   return (
-    <div className="flex flex-1 items-center justify-center p-8">
-      <div className={EMPTY_STATE_SHELL_CLASS_NAME}>
-        <div className="pointer-events-none absolute inset-0 glass-grid opacity-16" />
-        <div
-          className="pointer-events-none absolute left-12 top-12 h-28 w-28 rounded-full opacity-32 blur-[8px]"
-          style={getStageGlowStyle("lilac")}
-        />
-        <div
-          className="pointer-events-none absolute bottom-10 right-12 h-28 w-28 rounded-full opacity-28 blur-[14px]"
-          style={getStageGlowStyle("green")}
-        />
-        <div className="flex justify-center">
-          <div className={EMPTY_STATE_ICON_CLASS_NAME}>
-            <div className="absolute -right-2 -top-2 rounded-full bg-[linear-gradient(135deg,rgba(255,194,148,0.92),rgba(255,155,86,0.88))] p-2 text-[#8a4409] shadow-[0_14px_24px_rgba(255,157,86,0.24)]">
-              <FolderKanban className="h-4 w-4" />
-            </div>
-            <Sparkles className="h-10 w-10" />
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6 sm:p-8">
+      <WorkspaceCatalogCard class_name="w-full max-w-[56rem]" size="hero">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-[34rem]">
+            <WorkspaceCatalogHeader class_name="items-center">
+              <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg" tone="primary">
+                <FolderKanban className="h-7 w-7" />
+              </WorkspaceIconFrame>
+              <div>
+                <WorkspaceCatalogTag class_name="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                  Room Collaboration
+                </WorkspaceCatalogTag>
+                <WorkspaceCatalogTitle as="h2" class_name="mt-3" size="hero">
+                  让这间协作空间进入第一段对话。
+                </WorkspaceCatalogTitle>
+              </div>
+            </WorkspaceCatalogHeader>
+
+            <WorkspaceCatalogBody class_name="mt-5">
+              <WorkspaceCatalogDescription lines={3} size="md">
+                Room 不再只是一个容器，它会承接会话历史、线程、文件和多人协作视图。创建第一条对话后，当前工作区就会进入真正的协作态。
+              </WorkspaceCatalogDescription>
+            </WorkspaceCatalogBody>
+
+            <WorkspaceCatalogFooter class_name="mt-6 flex-wrap gap-2.5" justify="start">
+              <WorkspaceCatalogTextAction
+                tone="primary"
+                onClick={() => {
+                  void on_create_conversation();
+                }}
+              >
+                <MessageSquarePlus className="h-5 w-5" />
+                创建新会话
+              </WorkspaceCatalogTextAction>
+            </WorkspaceCatalogFooter>
+          </div>
+
+          <div className="grid min-w-0 flex-1 gap-3 lg:max-w-[22rem]">
+            {HIGHLIGHTS.map((highlight) => (
+              <WorkspaceCatalogCard key={highlight} size="stat">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
+                  Capability
+                </p>
+                <WorkspaceCatalogTitle class_name="mt-2" size="sm">
+                  {highlight}
+                </WorkspaceCatalogTitle>
+              </WorkspaceCatalogCard>
+            ))}
           </div>
         </div>
-
-        <div className="mt-8 space-y-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-700/46">
-            Room Collaboration
-          </p>
-          <h2 className="text-4xl font-extrabold tracking-[-0.05em] text-slate-950/90">
-            从这里开始一段协作
-          </h2>
-          <p className="mx-auto max-w-md text-sm leading-7 text-slate-700/62">
-            创建新会话后，这个工作台会进入真正承载协作的 room 对话态：对话、文件、计划与上下文围绕同一条任务展开。
-          </p>
-        </div>
-
-        <div className="mt-8 grid gap-3 text-sm text-slate-700/62 md:grid-cols-3">
-          <div className={METRIC_CARD_CLASS_NAME}>
-            <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary" />
-            <span>按 Room 承接协作任务</span>
-          </div>
-          <div className={METRIC_CARD_CLASS_NAME}>
-            <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary" />
-            <span>对话线程自动保存</span>
-          </div>
-          <div className={METRIC_CARD_CLASS_NAME}>
-            <div className="mx-auto mb-2 h-2 w-2 rounded-full bg-primary" />
-            <span>上下文围绕同一任务展开</span>
-          </div>
-        </div>
-
-        <div className="mt-8 flex justify-center">
-          <WorkspacePillButton
-            onClick={() => {
-              void on_create_conversation();
-            }}
-            size="lg"
-            variant="primary"
-          >
-            <MessageSquarePlus className="h-5 w-5" />
-            <span>创建新会话</span>
-          </WorkspacePillButton>
-        </div>
-
-        <p className="mt-5 text-xs text-slate-700/52">
-          先进入目标 room，再创建第一条对话
-        </p>
-      </div>
+      </WorkspaceCatalogCard>
     </div>
   );
 }

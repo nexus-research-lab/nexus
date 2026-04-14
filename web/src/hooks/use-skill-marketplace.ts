@@ -12,15 +12,7 @@ import {
 } from "@/lib/skill-api";
 import type { ExternalSkillSearchItem, SkillActionFailure, SkillInfo } from "@/types/skill";
 
-export type SourceFilter = "all" | "builtin" | "external" | "system";
 export type DiscoveryMode = "catalog" | "external";
-
-export const SOURCE_LABELS: Record<SourceFilter, string> = {
-  all: "全部来源",
-  builtin: "内置",
-  external: "外部",
-  system: "系统",
-};
 
 export function formatInstalls(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : `${n}`;
@@ -31,7 +23,6 @@ export function useSkillMarketplace() {
   const [search_query, set_search_query] = useState("");
   const [debounced_search_query, set_debounced_search_query] = useState("");
   const [discovery_mode, set_discovery_mode] = useState<DiscoveryMode>("catalog");
-  const [source_filter, set_source_filter] = useState<SourceFilter>("all");
   const [active_category, set_active_category] = useState<string>("all");
   const [selected_skill, set_selected_skill] = useState<string | null>(null);
   const [external_query, set_external_query] = useState("");
@@ -43,15 +34,13 @@ export function useSkillMarketplace() {
   const [busy_skill_name, set_busy_skill_name] = useState<string | null>(null);
   const [status_message, set_status_message] = useState<string | null>(null);
   const [error_message, set_error_message] = useState<string | null>(null);
-  const [source_dropdown_open, set_source_dropdown_open] = useState(false);
   const file_input_ref = useRef<HTMLInputElement | null>(null);
 
   /* ── 数据加载 ───────────────────────────────── */
 
-  const load_skills = useCallback(async (query: string, source: SourceFilter) => {
+  const load_skills = useCallback(async (query: string) => {
     const next_skills = await getAvailableSkillsApi({
       q: query || undefined,
-      source_type: source === "all" ? undefined : source,
     });
     set_skills(next_skills);
   }, []);
@@ -70,14 +59,14 @@ export function useSkillMarketplace() {
     void (async () => {
       try {
         set_loading(true);
-        await load_skills(debounced_search_query, source_filter);
+        await load_skills(debounced_search_query);
       } catch (err) {
         set_error_message(err instanceof Error ? err.message : "加载失败");
       } finally {
         set_loading(false);
       }
     })();
-  }, [debounced_search_query, discovery_mode, load_skills, source_filter]);
+  }, [debounced_search_query, discovery_mode, load_skills]);
 
   /* ── 派生数据 ───────────────────────────────── */
 
@@ -122,8 +111,8 @@ export function useSkillMarketplace() {
   };
 
   const refresh_marketplace = useCallback(async () => {
-    await load_skills(search_query, source_filter);
-  }, [load_skills, search_query, source_filter]);
+    await load_skills(search_query);
+  }, [load_skills, search_query]);
 
   const handle_update_single = useCallback(async (skill_name: string) => {
     clear_messages();
@@ -219,13 +208,13 @@ export function useSkillMarketplace() {
       set_loading(true);
       const query = search_query.trim();
       set_debounced_search_query(query);
-      await load_skills(query, source_filter);
+      await load_skills(query);
     } catch (err) {
       set_error_message(err instanceof Error ? err.message : "搜索失败");
     } finally {
       set_loading(false);
     }
-  }, [load_skills, search_query, source_filter]);
+  }, [load_skills, search_query]);
 
   const handle_import_external = useCallback(async (item: ExternalSkillSearchItem) => {
     clear_messages();
@@ -247,7 +236,6 @@ export function useSkillMarketplace() {
     skills,
     search_query,
     discovery_mode,
-    source_filter,
     active_category,
     selected_skill,
     external_query,
@@ -259,7 +247,6 @@ export function useSkillMarketplace() {
     busy_skill_name,
     status_message,
     error_message,
-    source_dropdown_open,
     file_input_ref,
     // 派生数据
     categories,
@@ -270,13 +257,11 @@ export function useSkillMarketplace() {
     // setter
     set_search_query,
     set_discovery_mode,
-    set_source_filter,
     set_active_category,
     set_selected_skill,
     set_external_query,
     set_preview_external_item,
     set_git_prompt_open,
-    set_source_dropdown_open,
     set_status_message,
     set_error_message,
     // 操作

@@ -168,19 +168,19 @@ const getResultSummary = (content: any): string => {
 };
 
 const TOOL_TONE_STYLES: Record<string, string> = {
-  default: 'text-[color:var(--icon-muted)]',
-  error: 'text-rose-500',
-  running: 'text-sky-500',
-  success: 'text-emerald-500',
-  waiting: 'text-orange-500',
+  default: 'text-(--icon-muted)',
+  error: 'text-(--destructive)',
+  running: 'text-(--primary)',
+  success: 'text-(--success)',
+  waiting: 'text-(--warning)',
 };
 
 const TOOL_LABEL_STYLES: Record<string, string> = {
-  default: 'text-[color:var(--text-default)]',
-  error: 'text-rose-500',
-  running: 'text-sky-500',
-  success: 'text-emerald-600',
-  waiting: 'text-orange-500',
+  default: 'text-(--text-default)',
+  error: 'text-(--destructive)',
+  running: 'text-(--primary)',
+  success: 'text-(--success)',
+  waiting: 'text-(--warning)',
 };
 
 const getPermissionChoiceClassName = (selected: boolean) =>
@@ -188,7 +188,7 @@ const getPermissionChoiceClassName = (selected: boolean) =>
     "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
     selected
       ? "border-white/12 bg-primary/8 text-primary"
-      : "border-white/12 bg-white/6 text-[color:var(--text-muted)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
+      : "border-white/12 bg-white/6 text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   );
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
@@ -335,12 +335,12 @@ export function ToolBlock({
               {toolTitle}
             </span>
             {isWaiting ? (
-              <span className="shrink-0 text-[11px] text-[color:var(--text-soft)]">{waitingActionHint}</span>
+              <span className="shrink-0 text-[11px] text-(--text-soft)">{waitingActionHint}</span>
             ) : durationText ? (
-              <span className="shrink-0 text-[11px] text-[color:var(--text-soft)]">{durationText}</span>
+              <span className="shrink-0 text-[11px] text-(--text-soft)">{durationText}</span>
             ) : null}
           </div>
-          <div className="mt-0.5 min-w-0 text-[12px] text-[color:var(--text-muted)]">
+          <div className="mt-0.5 min-w-0 text-[12px] text-(--text-muted)">
             {isWaiting && permissionFieldSummary ? (
               <span className="block truncate">{permissionFieldSummary}</span>
             ) : hasResult && !isExpanded && resultSummary ? (
@@ -366,10 +366,10 @@ export function ToolBlock({
               disabled={interaction_disabled}
               title={interaction_disabled ? interaction_disabled_reason : undefined}
               className={cn(
-                "modal-btn-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-[color:var(--text-muted)] transition-colors",
+                "dialog-button-secondary rounded-lg px-3 py-1.5 text-xs font-medium text-(--text-muted) transition-colors",
                 interaction_disabled
-                  ? "cursor-not-allowed opacity-50"
-                  : "hover:text-[color:var(--text-strong)]",
+                  ? "cursor-not-allowed opacity-(--disabled-opacity)"
+                  : "hover:text-(--text-strong)",
               )}
             >
               拒绝
@@ -388,7 +388,7 @@ export function ToolBlock({
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors",
                 interaction_disabled
-                  ? "cursor-not-allowed bg-slate-300"
+                  ? "cursor-not-allowed bg-(--muted)"
                   : "bg-primary hover:bg-primary/90",
               )}
             >
@@ -405,8 +405,8 @@ export function ToolBlock({
               "ml-auto sm:ml-0",
               "rounded px-1.5 py-0.5 text-[10px] transition-all",
               copied
-                ? "bg-green-50 text-green-500"
-                : "text-[color:var(--icon-muted)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]"
+                ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
+                : "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
             )}
           >
             {copied ? '✓' : '复制'}
@@ -415,7 +415,7 @@ export function ToolBlock({
 
         {/* 展开指示器 */}
         {hasResult && (
-          <div className="shrink-0 text-[color:var(--icon-muted)]">
+          <div className="shrink-0 text-(--icon-muted)">
             {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </div>
         )}
@@ -429,13 +429,13 @@ export function ToolBlock({
       )}
 
       {!hasResult && isRunning && (
-        <div className="ml-7 mt-2 flex items-center gap-2 text-xs text-[color:var(--text-muted)]">
+        <div className="ml-7 mt-2 flex items-center gap-2 text-xs text-(--text-muted)">
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.4s_infinite]" />
           </div>
-          <span className="text-[11px] text-[color:var(--text-soft)]">处理中</span>
+          <span className="text-[11px] text-(--text-soft)">处理中</span>
         </div>
       )}
 
@@ -444,7 +444,7 @@ export function ToolBlock({
           <div className={TOOL_DETAIL_SCROLL_CLASS_NAME}>
             {typeof tool_result.content === 'string' ? (
               <pre
-                className="rounded-2xl border p-3 text-xs whitespace-pre-wrap break-all text-[color:var(--text-strong)]"
+                className="rounded-2xl border p-3 text-xs whitespace-pre-wrap break-all text-(--text-strong)"
                 style={{
                   background: "var(--surface-panel-subtle-background)",
                   borderColor: "var(--surface-panel-subtle-border)",
@@ -463,7 +463,7 @@ export function ToolBlock({
         <div className="ml-7 mt-1.5 space-y-1.5">
           {primaryInputDetail?.value.trim() ? (
             <div
-              className="rounded-xl border px-2.5 py-1.5 text-[12px] leading-5 text-[color:var(--text-default)]"
+              className="rounded-xl border px-2.5 py-1.5 text-[12px] leading-5 text-(--text-default)"
               style={{
                 background: "var(--surface-panel-subtle-background)",
                 borderColor: "var(--surface-panel-subtle-border)",
@@ -479,42 +479,42 @@ export function ToolBlock({
 
           {readableSuggestions.length > 0 ? (
             <div className="space-y-1">
-              <div className="text-[10px] font-medium text-[color:var(--text-soft)]">权限范围</div>
+              <div className="text-[10px] font-medium text-(--text-soft)">权限范围</div>
               <div className="flex flex-wrap items-center gap-1.5">
-              <label
-                className={getPermissionChoiceClassName(selectedSuggestionIndex === -1)}
-              >
-                <input
-                  type="radio"
-                  name={`permission-suggestion-${permission_request.request_id}`}
-                  checked={selectedSuggestionIndex === -1}
-                  disabled={interaction_disabled}
-                  onChange={() => setSelectedSuggestionIndex(-1)}
-                  className="sr-only"
-                />
-                <span>仅这次</span>
-              </label>
-              {readableSuggestions.map((suggestion) => (
                 <label
-                  key={suggestion.index}
-                  className={getPermissionChoiceClassName(selectedSuggestionIndex === suggestion.index)}
+                  className={getPermissionChoiceClassName(selectedSuggestionIndex === -1)}
                 >
                   <input
                     type="radio"
                     name={`permission-suggestion-${permission_request.request_id}`}
-                    checked={selectedSuggestionIndex === suggestion.index}
+                    checked={selectedSuggestionIndex === -1}
                     disabled={interaction_disabled}
-                    onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                    onChange={() => setSelectedSuggestionIndex(-1)}
                     className="sr-only"
                   />
-                  <span>{suggestion.label}</span>
+                  <span>仅这次</span>
                 </label>
-              ))}
+                {readableSuggestions.map((suggestion) => (
+                  <label
+                    key={suggestion.index}
+                    className={getPermissionChoiceClassName(selectedSuggestionIndex === suggestion.index)}
+                  >
+                    <input
+                      type="radio"
+                      name={`permission-suggestion-${permission_request.request_id}`}
+                      checked={selectedSuggestionIndex === suggestion.index}
+                      disabled={interaction_disabled}
+                      onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                      className="sr-only"
+                    />
+                    <span>{suggestion.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
           ) : null}
           {interaction_disabled && interaction_disabled_reason ? (
-            <div className="text-[11px] text-[color:var(--text-soft)]">
+            <div className="text-[11px] text-(--text-soft)">
               {interaction_disabled_reason}
             </div>
           ) : null}

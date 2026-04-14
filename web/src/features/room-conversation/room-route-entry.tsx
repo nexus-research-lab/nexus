@@ -7,7 +7,7 @@ import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/w
 import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 
-const METRIC_CARD_CLASS_NAME = "surface-card rounded-[22px] px-4 py-4";
+const METRIC_ROW_CLASS_NAME = "flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) py-3 last:border-b-0";
 
 interface RoomRouteEntryProps {
   room_id?: string;
@@ -34,54 +34,54 @@ export function RoomRouteEntry({
 
   return (
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-      <section className="surface-card radius-shell-xl px-6 py-6">
-        <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-slate-950/90">
+      <section className="radius-shell-xl border border-(--divider-subtle-color) px-6 py-6">
+        <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-(--text-strong)">
           {room_agent ? room_agent.name : t("room.route_empty_title")}
         </h2>
 
         <WorkspaceActionBar variant="cards">
           <WorkspaceActionCard
             description={t("room.route_back_launcher_description")}
-            icon={<MessageSquare className="h-5 w-5 text-slate-900/78" />}
+            icon={<MessageSquare className="h-5 w-5 text-(--icon-strong)" />}
             on_click={() => navigate(AppRouteBuilders.launcher())}
             title={t("room.route_back_launcher")}
           />
           <WorkspaceActionCard
             description={t("room.route_browse_agents_description")}
-            icon={<Users className="h-5 w-5 text-slate-900/78" />}
+            icon={<Users className="h-5 w-5 text-(--icon-strong)" />}
             on_click={() => navigate(AppRouteBuilders.contacts())}
             title={t("room.route_browse_agents")}
           />
           <WorkspaceActionCard
-            icon={<Sparkles className="h-5 w-5 text-slate-900/78" />}
+            icon={<Sparkles className="h-5 w-5 text-(--icon-strong)" />}
             on_click={() => navigate(AppRouteBuilders.launcher())}
             title={t("room.route_handoff")}
           />
         </WorkspaceActionBar>
       </section>
 
-      <aside className="surface-card radius-shell-xl px-6 py-6">
-        <div className="mt-4 grid gap-3">
-          <div className={METRIC_CARD_CLASS_NAME}>
-            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/46">Room</p>
-            <p className="mt-1 text-sm font-semibold text-slate-950/86">{room_id ?? "-"}</p>
+      <aside className="radius-shell-xl border border-(--divider-subtle-color) px-6 py-6">
+        <div className="mt-4">
+          <div className={METRIC_ROW_CLASS_NAME}>
+            <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
+            <p className="text-sm font-semibold text-(--text-strong)">{room_id ?? "-"}</p>
           </div>
 
-          <div className={METRIC_CARD_CLASS_NAME}>
-            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/46">
+          <div className={METRIC_ROW_CLASS_NAME}>
+            <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">
               {t("room.route_conversation")}
             </p>
-            <p className="mt-1 text-sm font-semibold text-slate-950/86">{conversation_id ?? "-"}</p>
+            <p className="text-sm font-semibold text-(--text-strong)">{conversation_id ?? "-"}</p>
           </div>
 
           {recent_room_conversations.length ? (
-            <div className={METRIC_CARD_CLASS_NAME}>
-              <p className="text-[11px] uppercase tracking-[0.12em] text-slate-700/46">{t("room.route_recent")}</p>
-              <div className="mt-3 space-y-2">
+            <div className="pt-3">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
+              <div className="mt-3 divide-y divide-(--divider-subtle-color)">
                 {recent_room_conversations.map((conversation) => (
                   <button
                     key={conversation.conversation_id}
-                    className="surface-inset radius-shell-md flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition hover:bg-white/34"
+                    className="flex w-full items-center justify-between gap-3 py-3 text-left transition hover:text-(--text-strong)"
                     onClick={() =>
                       navigate(
                         AppRouteBuilders.room_conversation(
@@ -92,11 +92,11 @@ export function RoomRouteEntry({
                     }
                     type="button"
                   >
-                    <span className="truncate text-sm text-slate-900/84">
+                    <span className="truncate text-sm text-(--text-default)">
                       {conversation.title || t("room.untitled_conversation")}
                     </span>
-                    <span className="chip-default inline-flex h-9 w-9 items-center justify-center rounded-full">
-                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-700/52" />
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-colors hover:text-(--icon-strong)">
+                      <ArrowRight className="h-4 w-4 shrink-0 text-(--icon-default)" />
                     </span>
                   </button>
                 ))}

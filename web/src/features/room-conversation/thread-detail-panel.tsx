@@ -7,11 +7,13 @@ import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { MessageItem } from "@/features/conversation-shared/message";
+import { MessageAvatar } from "@/features/conversation-shared/message/message-primitives";
 
 interface ThreadDetailPanelProps {
   round_id: string;
   agent_id: string;
   agent_name: string;
+  agent_avatar?: string | null;
   /** 已过滤好的 Thread 消息。 */
   messages: Message[];
   pending_permissions?: PendingPermission[];
@@ -34,6 +36,7 @@ export function ThreadDetailPanel({
   round_id,
   agent_id,
   agent_name,
+  agent_avatar,
   messages,
   pending_permissions = [],
   on_permission_response,
@@ -68,39 +71,28 @@ export function ThreadDetailPanel({
   return (
     <div className={cn(
       "flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
-      is_mobile ? "bg-background" : "bg-[var(--surface-popover-background)]",
+      is_mobile ? "bg-(--surface-panel-background)" : "bg-transparent",
     )}>
       {/* ── 头部 ────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
+      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>
         {is_mobile ? (
           <button
             type="button"
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[color:var(--icon-default)] transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
-            style={{
-              background: "var(--surface-panel-subtle-background)",
-              borderColor: "var(--surface-panel-subtle-border)",
-            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
         ) : null}
 
-        <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[color:var(--icon-default)]"
-          style={{
-            background: "var(--surface-avatar-background)",
-            borderColor: "var(--surface-avatar-border)",
-            boxShadow: "var(--surface-avatar-shadow)",
-          }}
-        >
-          <Bot className="h-3.5 w-3.5" />
-        </div>
+        <MessageAvatar avatar_url={agent_avatar} class_name="h-8 w-8 shrink-0 rounded-xl" size="full">
+          {!agent_avatar && <Bot className="h-3.5 w-3.5" />}
+        </MessageAvatar>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{agent_name}</p>
-          <p className="text-xs text-[color:var(--text-soft)]">Thread</p>
+          <p className="truncate text-sm font-semibold text-(--text-strong)">{agent_name}</p>
+          <p className="text-xs text-(--text-soft)">Thread</p>
         </div>
 
         {!is_mobile ? (
@@ -109,11 +101,7 @@ export function ThreadDetailPanel({
             onClick={on_close}
             aria-label="关闭 Thread"
             title="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[color:var(--icon-default)] transition-colors hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-strong)]"
-            style={{
-              background: "var(--surface-panel-subtle-background)",
-              borderColor: "var(--surface-panel-subtle-border)",
-            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           >
             <X className="h-4 w-4" />
           </button>
@@ -134,6 +122,7 @@ export function ThreadDetailPanel({
           <MessageItem
             compact
             current_agent_name={agent_name}
+            current_agent_avatar={agent_avatar ?? null}
             round_id={round_id}
             messages={messages}
             pending_permissions={pending_permissions}

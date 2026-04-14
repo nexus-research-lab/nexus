@@ -14,7 +14,7 @@ import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
-import { cn } from "@/lib/utils";
+import { cn, getIconAvatarSrc } from "@/lib/utils";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";
@@ -33,7 +33,7 @@ const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {
 };
 
 const ACTION_TONE_CLASS_MAP: Record<MessageActionTone, string> = {
-  default: "hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
+  default: "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   success: "text-green-500 hover:bg-emerald-500/10 hover:text-emerald-500",
   danger: "hover:bg-rose-500/10 hover:text-rose-500",
 };
@@ -55,8 +55,8 @@ const ACTIVITY_LABEL_MAP: Record<MessageActivityState, string> = {
 };
 
 const ACTIVITY_TONE_CLASS_MAP: Record<MessageActivityState, string> = {
-  thinking: "text-[color:var(--text-muted)]",
-  replying: "text-[color:var(--text-default)]",
+  thinking: "text-(--text-muted)",
+  replying: "text-(--text-default)",
   browsing: "text-cyan-600",
   executing: "text-indigo-600",
   waiting_permission: "text-amber-700",
@@ -73,20 +73,44 @@ const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {
 };
 
 export function MessageAvatar({
+  avatar_url,
   children,
   size = "full",
   class_name,
 }: {
-  children: ReactNode;
+  avatar_url?: string | null;
+  children?: ReactNode;
   size?: MessageAvatarSize;
   class_name?: string;
 }) {
+  const resolved_avatar_url = getIconAvatarSrc(avatar_url);
+  const avatar_shell_class_name = cn(
+    "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+    "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",
+    "motion-safe:hover:-translate-y-[1px] motion-safe:hover:scale-[1.06]",
+    "motion-safe:hover:border-(--surface-interactive-active-border)",
+    "motion-safe:hover:shadow-[0_10px_22px_rgba(15,23,42,0.14)]",
+    AVATAR_SIZE_CLASS_MAP[size],
+    class_name,
+  );
+
+  if (resolved_avatar_url) {
+    return (
+      <div className={avatar_shell_class_name}>
+        <img
+          src={resolved_avatar_url}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-(--motion-duration-fast) ease-out motion-safe:hover:scale-[1.04]"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        "flex items-center justify-center border border-[var(--surface-avatar-border)] bg-[var(--surface-avatar-background)] text-[color:var(--surface-avatar-foreground)]",
-        AVATAR_SIZE_CLASS_MAP[size],
-        class_name,
+        avatar_shell_class_name,
+        "flex items-center justify-center text-(--surface-avatar-foreground)",
       )}
     >
       {children}
@@ -107,7 +131,7 @@ export function MessageActionButton({
   return (
     <button
       className={cn(
-        "rounded-lg p-1 text-[color:var(--icon-default)] transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/50",
+        "rounded-lg p-1 text-(--icon-default) transition-colors duration-(--motion-duration-fast) focus-visible:ring-2 focus-visible:ring-primary/50",
         ACTION_TONE_CLASS_MAP[tone],
         class_name,
       )}
@@ -283,7 +307,7 @@ export function MessageShell({
     <div
       className={cn(
         "w-full min-w-0",
-        separated && "border-b border-[var(--divider-subtle-color)]",
+        separated && "border-b border-(--divider-subtle-color)",
         class_name,
       )}
     >

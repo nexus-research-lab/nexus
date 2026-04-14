@@ -42,6 +42,7 @@ type RoomRecord struct {
 	RoomType    string    `json:"room_type"`
 	Name        string    `json:"name,omitempty"`
 	Description string    `json:"description"`
+	Avatar      string    `json:"avatar,omitempty"`
 	CreatedAt   time.Time `json:"created_at,omitempty"`
 	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }
@@ -92,13 +93,15 @@ type CreateRoomRequest struct {
 	Name        string   `json:"name,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Title       string   `json:"title,omitempty"`
+	Avatar      string   `json:"avatar,omitempty"`
 }
 
 // UpdateRoomRequest 表示更新房间请求。
 type UpdateRoomRequest struct {
-	Name        string `json:"name,omitempty"`
-	Description string `json:"description,omitempty"`
-	Title       string `json:"title,omitempty"`
+	Name        string  `json:"name,omitempty"`
+	Description string  `json:"description,omitempty"`
+	Title       string  `json:"title,omitempty"`
+	Avatar      *string `json:"avatar,omitempty"`
 }
 
 // AddRoomMemberRequest 表示追加成员请求。

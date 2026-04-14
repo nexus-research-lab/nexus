@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
 import { listScheduledTaskRunsApi } from "@/lib/scheduled-task-api";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/scheduled-task";
 
@@ -161,13 +160,22 @@ export function ScheduledTaskRunHistoryDialog({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <WorkspacePillButton density="compact" onClick={() => void handle_refresh()} size="sm" variant="outlined">
+            <button
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--text-default) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
+              onClick={() => void handle_refresh()}
+              type="button"
+            >
               <RefreshCw className="h-3.5 w-3.5" />
               刷新
-            </WorkspacePillButton>
-            <WorkspacePillButton aria-label="关闭" density="compact" onClick={on_close} size="icon" variant="icon">
+            </button>
+            <button
+              aria-label="关闭"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+              onClick={on_close}
+              type="button"
+            >
               <X className="h-4 w-4" />
-            </WorkspacePillButton>
+            </button>
           </div>
         </div>
 
@@ -177,74 +185,74 @@ export function ScheduledTaskRunHistoryDialog({
               {Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-[132px] animate-pulse rounded-[24px] bg-white/45"
+                  className="h-[108px] animate-pulse rounded-[16px] border border-(--divider-subtle-color)"
                 />
               ))}
             </div>
           ) : error_message ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[24px] border border-rose-500/15 bg-rose-500/6 px-5 text-center">
-              <p className="text-sm font-semibold text-rose-500">运行历史加载失败</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-[color:var(--text-default)]">
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-5 text-center">
+              <p className="text-sm font-semibold text-(--destructive)">运行历史加载失败</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-(--text-default)">
                 {error_message}
               </p>
             </div>
           ) : runs.length === 0 ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[24px] border border-dashed border-[var(--divider-subtle-color)] px-5 text-center">
-              <div className="glass-chip flex h-14 w-14 items-center justify-center rounded-[20px]">
-                <History className="h-6 w-6 text-slate-900/78" />
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-(--divider-subtle-color)">
+                <History className="h-6 w-6 text-(--icon-strong)" />
               </div>
-              <h4 className="mt-5 text-lg font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">
+              <h4 className="mt-5 text-lg font-bold tracking-[-0.03em] text-(--text-strong)">
                 还没有运行记录
               </h4>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-[color:var(--text-default)]">
+              <p className="mt-2 max-w-sm text-sm leading-6 text-(--text-default)">
                 手动执行或等调度器首次触发后，这里会显示每次运行的状态、耗时和错误信息。
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-(--divider-subtle-color)">
               {runs.map((run) => {
                 const status = get_status_meta(run.status);
                 return (
                   <article
                     key={run.run_id}
-                    className="rounded-[24px] border border-[var(--divider-subtle-color)] bg-white/55 px-5 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.07)] backdrop-blur-xl"
+                    className="py-4 first:pt-0 last:pb-0"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />
-                          <span className="text-xs font-medium text-[color:var(--text-default)]">
+                          <span className="text-xs font-medium text-(--text-default)">
                             Run ID {run.run_id}
                           </span>
                         </div>
-                        <div className="mt-3 grid gap-3 text-sm text-[color:var(--text-default)] md:grid-cols-2">
-                          <div className="rounded-[18px] border border-[var(--divider-subtle-color)] bg-white/45 px-3 py-2.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-muted)]">
+                        <div className="mt-3 grid gap-3 text-sm text-(--text-default) md:grid-cols-2">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                               调度时间
                             </p>
-                            <p className="mt-1.5 font-medium text-[color:var(--text-strong)]">
+                            <p className="mt-1.5 font-medium text-(--text-strong)">
                               {format_datetime(run.scheduled_for)}
                             </p>
                           </div>
-                          <div className="rounded-[18px] border border-[var(--divider-subtle-color)] bg-white/45 px-3 py-2.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-muted)]">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                               执行耗时
                             </p>
-                            <p className="mt-1.5 font-medium text-[color:var(--text-strong)]">
+                            <p className="mt-1.5 font-medium text-(--text-strong)">
                               {format_duration(run.started_at, run.finished_at)}
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="shrink-0 text-right text-sm text-[color:var(--text-default)]">
+                      <div className="shrink-0 text-right text-sm text-(--text-default)">
                         <p>开始 {format_datetime(run.started_at)}</p>
                         <p className="mt-1">结束 {format_datetime(run.finished_at)}</p>
                         <p className="mt-1">尝试次数 {run.attempts}</p>
                       </div>
                     </div>
                     {run.error_message ? (
-                      <div className="mt-3 rounded-[18px] border border-rose-500/15 bg-rose-500/6 px-3 py-2.5 text-sm text-rose-600">
+                      <div className="mt-3 rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-3 py-2.5 text-sm text-(--destructive)">
                         {run.error_message}
                       </div>
                     ) : null}

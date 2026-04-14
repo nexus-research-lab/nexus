@@ -13,9 +13,11 @@ import { ScheduledTaskList } from "@/features/capability/scheduled/scheduled-tas
 import { ScheduledTaskRunHistoryDialog } from "@/features/capability/scheduled/scheduled-task-run-history-dialog";
 import { useAutomationController } from "@/hooks/use-automation-controller";
 import { runScheduledTaskApi, updateScheduledTaskStatusApi } from "@/lib/scheduled-task-api";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
+import {
+  WorkspaceSurfaceHeader,
+  WorkspaceSurfaceToolbarAction,
+} from "@/shared/ui/workspace/workspace-surface-header";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
 import type { ScheduledTaskItem } from "@/types/scheduled-task";
 
 import { CreateTaskDialog } from "./create-task-dialog";
@@ -165,80 +167,82 @@ export function ScheduledTasksPage() {
   };
 
   return (
-    <WorkspacePageFrame content_padding_class_name="p-0">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <WorkspaceSurfaceHeader
-          badge={`${automation.scheduled_tasks.length} 个任务`}
-          density="compact"
-          leading={<CalendarClock className="h-4 w-4" />}
-          title="定时任务"
-          title_trailing={(
-            <span className="truncate text-[11px] font-medium text-[color:var(--text-default)]">
-              Agent {automation.agent_id}
-            </span>
-          )}
-          trailing={(
-            <>
-              <WorkspacePillButton density="compact" onClick={() => void handle_refresh_all()} size="sm" variant="outlined">
-                <RefreshCw className="h-3.5 w-3.5" />
-                刷新全部
-              </WorkspacePillButton>
-              <WorkspacePillButton density="compact" onClick={() => set_is_dialog_open(true)} size="sm" variant="primary">
-                <Plus className="h-3.5 w-3.5" />
-                创建任务
-              </WorkspacePillButton>
-            </>
-          )}
-        />
-
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 xl:p-6">
-          <div className="grid min-h-full gap-4 xl:grid-cols-[360px,minmax(0,1fr)]">
-            <HeartbeatSettingsCard
-              error_message={automation.heartbeat_error}
-              heartbeat={automation.heartbeat}
-              is_loading={automation.heartbeat_loading}
-              on_refresh={() => void automation.refresh_heartbeat().catch(() => undefined)}
-              on_wake={() => void handle_wake()}
-              wake_pending={wake_pending}
-            />
-            <ScheduledTaskList
-              error_message={automation.tasks_error}
-              is_loading={automation.tasks_loading}
-              items={automation.scheduled_tasks}
-              on_create={() => set_is_dialog_open(true)}
-              on_open_history={set_history_task}
-              on_refresh={() => void automation.refresh_tasks().catch(() => undefined)}
-              on_run_now={(task) => void handle_run_now(task)}
-              on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
-              run_pending_job_id={run_pending_job_id}
-              toggle_pending_job_id={toggle_pending_job_id}
-            />
-          </div>
+    <>
+      <WorkspaceSurfaceScaffold
+        body_class_name="px-5 py-5 xl:px-6"
+        body_scrollable
+        header={(
+          <WorkspaceSurfaceHeader
+            badge={`${automation.scheduled_tasks.length} 个任务`}
+            density="compact"
+            leading={<CalendarClock className="h-4 w-4" />}
+            title="定时任务"
+            title_trailing={(
+              <span className="truncate text-[11px] font-medium text-(--text-default)">
+                Agent {automation.agent_id}
+              </span>
+            )}
+            trailing={(
+              <>
+                <WorkspaceSurfaceToolbarAction onClick={() => void handle_refresh_all()}>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  刷新全部
+                </WorkspaceSurfaceToolbarAction>
+                <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
+                  <Plus className="h-3.5 w-3.5" />
+                  创建任务
+                </WorkspaceSurfaceToolbarAction>
+              </>
+            )}
+          />
+        )}
+      >
+        <div className="grid min-h-full gap-4 xl:grid-cols-[360px,minmax(0,1fr)]">
+          <HeartbeatSettingsCard
+            error_message={automation.heartbeat_error}
+            heartbeat={automation.heartbeat}
+            is_loading={automation.heartbeat_loading}
+            on_refresh={() => void automation.refresh_heartbeat().catch(() => undefined)}
+            on_wake={() => void handle_wake()}
+            wake_pending={wake_pending}
+          />
+          <ScheduledTaskList
+            error_message={automation.tasks_error}
+            is_loading={automation.tasks_loading}
+            items={automation.scheduled_tasks}
+            on_create={() => set_is_dialog_open(true)}
+            on_open_history={set_history_task}
+            on_refresh={() => void automation.refresh_tasks().catch(() => undefined)}
+            on_run_now={(task) => void handle_run_now(task)}
+            on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
+            run_pending_job_id={run_pending_job_id}
+            toggle_pending_job_id={toggle_pending_job_id}
+          />
         </div>
+      </WorkspaceSurfaceScaffold>
 
-        <CreateTaskDialog
-          agent_id={automation.agent_id}
-          is_open={is_dialog_open}
-          on_close={() => set_is_dialog_open(false)}
-          on_created={(task) => void handle_create_success(task)}
-        />
-        <ScheduledTaskRunHistoryDialog
-          is_open={history_task !== null}
-          on_close={() => set_history_task(null)}
-          task={history_task}
-        />
+      <CreateTaskDialog
+        agent_id={automation.agent_id}
+        is_open={is_dialog_open}
+        on_close={() => set_is_dialog_open(false)}
+        on_created={(task) => void handle_create_success(task)}
+      />
+      <ScheduledTaskRunHistoryDialog
+        is_open={history_task !== null}
+        on_close={() => set_history_task(null)}
+        task={history_task}
+      />
 
-        {feedback ? (
-          <div className="pointer-events-none fixed right-6 top-24 z-40 flex flex-col gap-2">
-            <FeedbackBanner
-              message={feedback.message}
-              on_dismiss={() => set_feedback(null)}
-              title={feedback.title}
-              tone={feedback.tone}
-            />
-          </div>
-        ) : null}
-      </div>
-    </WorkspacePageFrame>
+      {feedback ? (
+        <div className="pointer-events-none fixed right-6 top-24 z-40 flex flex-col gap-2">
+          <FeedbackBanner
+            message={feedback.message}
+            on_dismiss={() => set_feedback(null)}
+            title={feedback.title}
+            tone={feedback.tone}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }

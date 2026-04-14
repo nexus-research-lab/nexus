@@ -1,142 +1,187 @@
 /**
  * =====================================================
  * @File   : theme-recipes.css
- * @Date   : 2026-04-04 22:07
+ * @Date   : 2026-04-11 16:28
  * @Author : leemysw
- * 2026-04-04 22:07   Create
+ * 2026-04-11 16:28   Create
  * =====================================================
  */
 
-/* 中文注释：这里承接系统层的可复用外观配方，页面只负责组合，不直接重写质感。 */
+/* 中文注释：共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
-  .stage-backdrop,
-  .app-stage {
-    background-image: var(--surface-stage-background);
-    background-repeat: no-repeat;
+
+  /* 中文注释：表面原语只保留六类，其他组件统一映射回来，避免继续堆近义 recipe。
+   * 1. desktop-rail：桌面侧栏底面
+   * 2. surface-panel：主面板
+   * 3. surface-inset / surface-card：次级内容面
+   * 4. chip-default / chip-pill：轻量徽标与小按钮面
+   * 5. input-shell：输入控件面
+   * 6. dialog-*：弹窗体系
+   */
+
+  .desktop-rail {
+    position: relative;
+    background: color-mix(in srgb, var(--surface-panel-background) 58%, transparent);
+    border-right: 1px solid var(--divider-subtle-color);
   }
 
-  .surface-shell,
-  .glass-surface {
-    background: var(--surface-shell-background);
-    border: 1px solid var(--surface-shell-border);
-    box-shadow: var(--surface-shell-shadow);
-  }
-
-  .surface-inset,
-  .glass-inset {
-    background: var(--surface-inset-background);
-    border: 1px solid var(--surface-inset-border);
-    box-shadow: var(--surface-inset-shadow);
-  }
-
-  .surface-panel,
-  .glass-panel {
+  .surface-panel {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    backdrop-filter: blur(26px) saturate(164%);
+    -webkit-backdrop-filter: blur(26px) saturate(164%);
     background: var(--surface-panel-background);
     border: 1px solid var(--surface-panel-border);
     box-shadow: var(--surface-panel-shadow);
   }
 
-  .surface-panel-subtle,
-  .glass-panel-subtle {
-    background: var(--surface-panel-subtle-background);
-    border: 1px solid var(--surface-panel-subtle-border);
-    box-shadow: var(--surface-panel-subtle-shadow);
+  /* 中文注释：当 surface-panel 同时应用 liquid-glass-surface 时，
+     抑制静态伪元素高光，避免与 SDF 生成的 highlight overlay 冲突 */
+  .surface-panel:not(.liquid-glass-surface)::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background: var(--material-panel-inner);
+    box-shadow: inset 0 1px 0 var(--material-panel-highlight);
+    pointer-events: none;
   }
 
-  .surface-card,
-  .glass-card {
-    background: var(--card-default-background);
-    border: 1px solid var(--card-default-border);
-    box-shadow: var(--card-default-shadow);
+  .surface-panel:not(.liquid-glass-surface)::after {
+    content: "";
+    position: absolute;
+    inset: -18% -8% auto -8%;
+    height: 42%;
+    border-radius: inherit;
+    background: var(--material-panel-glow);
+    opacity: 0.88;
+    pointer-events: none;
   }
 
-  .surface-grid,
-  .glass-grid {
-    background-image: var(--surface-grid-background);
-    background-size: 38px 38px;
+  .surface-inset,
+  .surface-card {
+    background: var(--surface-muted-background);
+    border: 1px solid var(--surface-muted-border);
+    box-shadow: var(--surface-muted-shadow);
   }
 
-  .divider-subtle,
-  .glass-divider {
+  .surface-inset {
+    --surface-muted-background: var(--surface-inset-background);
+    --surface-muted-border: var(--surface-inset-border);
+    --surface-muted-shadow: var(--surface-inset-shadow);
+  }
+
+  .surface-card {
+    --surface-muted-background: var(--card-default-background);
+    --surface-muted-border: var(--card-default-border);
+    --surface-muted-shadow: var(--card-default-shadow);
+  }
+
+  .divider-subtle {
     border-color: var(--divider-subtle-color);
   }
 
   .chip-default,
-  .glass-chip {
-    background: var(--chip-default-background);
-    border: 1px solid var(--chip-default-border);
-    box-shadow: var(--chip-default-shadow);
+  .chip-pill {
+    border: 1px solid var(--surface-chip-border);
+    background: var(--surface-chip-background);
+    box-shadow: var(--surface-chip-shadow);
   }
 
-  .chip-pill,
-  .glass-pill {
-    background: var(--chip-pill-background);
-    border: 1px solid var(--chip-pill-border);
-    box-shadow: var(--chip-pill-shadow);
+  .chip-default {
+    --surface-chip-background: var(--chip-default-background);
+    --surface-chip-border: var(--chip-default-border);
+    --surface-chip-shadow: var(--chip-default-shadow);
   }
 
-  .input-shell,
-  .glass-input {
+  .chip-pill {
+    --surface-chip-background: var(--chip-pill-background);
+    --surface-chip-border: var(--chip-pill-border);
+    --surface-chip-shadow: var(--chip-pill-shadow);
+  }
+
+  .input-shell {
     background: var(--input-shell-background);
     border: 1px solid var(--input-shell-border);
     box-shadow: var(--input-shell-shadow);
   }
 
-  .dialog-shell,
-  .modal-dialog-surface {
+  .liquid-glass-surface {
+    isolation: isolate;
+  }
+
+  .liquid-glass-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: var(--liquid-glass-highlight-background);
+    opacity: var(--liquid-glass-highlight-opacity, 0.8);
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+
+  .liquid-glass-surface> :not(svg) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .surface-popover {
+    background: var(--surface-popover-background);
+    border: 1px solid var(--surface-popover-border);
+    box-shadow: var(--surface-popover-shadow);
+  }
+
+  .dialog-shell {
+    position: relative;
+    overflow: hidden;
     background: var(--modal-dialog-surface-background);
     border: 1px solid var(--modal-dialog-surface-border);
     box-shadow: var(--modal-dialog-surface-shadow);
   }
 
-  .dialog-nav,
-  .modal-nav-surface {
+  .dialog-nav {
     background: var(--modal-nav-background);
-    border-color: var(--modal-nav-border);
+    border: 1px solid var(--modal-nav-border);
   }
 
-  .dialog-card,
-  .modal-card {
+  .dialog-card {
     background: var(--modal-card-background);
     border: 1px solid var(--modal-card-border);
     box-shadow: var(--modal-card-shadow);
   }
 
-  .dialog-card-active,
-  .modal-card-active {
+  .dialog-card-active {
     background: var(--modal-card-active-background);
     border: 1px solid var(--modal-card-active-border);
     box-shadow: var(--modal-card-active-shadow);
   }
 
-  .dialog-input,
-  .modal-input {
+  .dialog-input {
     background: var(--modal-input-background);
     border: 1px solid var(--modal-input-border);
     box-shadow: var(--modal-input-shadow);
   }
 
-  .dialog-input:focus,
-  .modal-input:focus {
+  .dialog-input:focus {
     background: var(--modal-input-focus-background);
     border-color: var(--modal-input-focus-border);
     box-shadow: var(--modal-input-focus-shadow);
   }
 
-  .dialog-divider,
-  .modal-divider {
+  .dialog-divider {
     border-color: var(--modal-divider-color);
   }
 
-  .dialog-button-secondary,
-  .modal-btn-secondary {
+  .dialog-button-secondary {
     background: var(--modal-btn-secondary-background);
     border: 1px solid var(--modal-btn-secondary-border);
     box-shadow: none;
   }
 
-  .dialog-button-secondary:hover,
-  .modal-btn-secondary:hover {
+  .dialog-button-secondary:hover {
     background: var(--modal-btn-secondary-hover-background);
     border-color: var(--modal-btn-secondary-hover-border);
   }
@@ -148,7 +193,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgb(15 23 42 / 0.24);
+    padding: 1.5rem;
+    background: var(--dialog-backdrop-color);
   }
 
   .dialog-header {
@@ -156,27 +202,28 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
+    background: var(--modal-dialog-header-background);
     border-bottom: 1px solid var(--modal-divider-color);
     padding: 1.25rem 1.5rem;
   }
 
   .dialog-title {
     font-size: 1.125rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-weight: 700;
+    letter-spacing: -0.03em;
     color: var(--text-strong);
   }
 
   .dialog-title[data-size="hero"] {
     font-size: 1.75rem;
     font-weight: 900;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.05em;
   }
 
   .dialog-subtitle {
-    margin-top: 0.25rem;
+    margin-top: 0.3rem;
     font-size: 0.875rem;
-    line-height: 1.5;
+    line-height: 1.55;
     color: var(--text-muted);
   }
 
@@ -185,6 +232,7 @@
   }
 
   .dialog-body {
+    background: var(--modal-dialog-body-background);
     padding: 1.25rem 1.5rem;
   }
 
@@ -197,6 +245,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: 0.75rem;
+    background: var(--modal-dialog-footer-background);
     border-top: 1px solid var(--modal-divider-color);
     padding: 1rem 1.5rem;
   }
@@ -216,8 +265,8 @@
   }
 
   .radius-shell-xl {
-    --surface-radius: 32px;
-    border-radius: 32px;
+    --surface-radius: 34px;
+    border-radius: 34px;
   }
 
   .radius-shell-lg {
@@ -233,191 +282,6 @@
   .radius-shell-sm {
     --surface-radius: 14px;
     border-radius: 14px;
-  }
-
-  .chip-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    transition:
-      color var(--motion-duration-fast) ease,
-      background var(--motion-duration-fast) ease,
-      border-color var(--motion-duration-fast) ease;
-  }
-
-  .chip-button[data-variant="tonal"] {
-    background: var(--button-tonal-background);
-    border: 1px solid var(--button-tonal-border);
-    box-shadow: none;
-    color: var(--button-tonal-color);
-  }
-
-  .chip-button[data-variant="tonal"]:hover {
-    background: var(--button-tonal-hover-background);
-    border-color: var(--button-tonal-hover-border);
-    color: var(--button-tonal-hover-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="outlined"] {
-    background: var(--button-outlined-background);
-    border: 1px solid var(--button-outlined-border);
-    color: var(--button-outlined-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="outlined"]:hover {
-    background: var(--button-outlined-hover-background);
-    border-color: var(--button-outlined-hover-border);
-    color: var(--button-outlined-hover-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="primary"] {
-    background: var(--button-primary-background);
-    border: 1px solid var(--button-primary-border);
-    color: var(--button-primary-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="primary"]:hover {
-    background: var(--button-primary-hover-background);
-    border-color: var(--button-primary-hover-border);
-  }
-
-  .chip-button[data-variant="text"] {
-    background: transparent;
-    border-color: transparent;
-    color: var(--button-text-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="text"]:hover {
-    background: transparent;
-    border-color: transparent;
-    color: var(--button-text-hover-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="icon"] {
-    background: var(--button-icon-background);
-    border: 1px solid var(--button-icon-border);
-    color: var(--button-icon-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-variant="icon"]:hover {
-    background: var(--button-icon-hover-background);
-    border-color: var(--button-icon-hover-border);
-    color: var(--button-icon-hover-color);
-    box-shadow: none;
-  }
-
-  .chip-button[data-tone="danger"][data-variant="primary"] {
-    background: color-mix(in srgb, var(--destructive) 88%, white 12%);
-    border-color: color-mix(in srgb, var(--destructive) 72%, white 28%);
-    color: white;
-  }
-
-  .chip-button[data-tone="danger"][data-variant="primary"]:hover {
-    background: color-mix(in srgb, var(--destructive) 92%, white 8%);
-    border-color: color-mix(in srgb, var(--destructive) 78%, white 22%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="outlined"] {
-    background: transparent;
-    border-color: color-mix(in srgb, var(--destructive) 30%, white 22%);
-    color: color-mix(in srgb, var(--destructive) 84%, black 10%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="outlined"]:hover {
-    background: color-mix(in srgb, var(--destructive) 6%, white 94%);
-    border-color: color-mix(in srgb, var(--destructive) 36%, white 16%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="tonal"] {
-    background: color-mix(in srgb, var(--destructive) 8%, white 92%);
-    border-color: color-mix(in srgb, var(--destructive) 22%, white 22%);
-    color: color-mix(in srgb, var(--destructive) 84%, black 10%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="tonal"]:hover {
-    background: color-mix(in srgb, var(--destructive) 12%, white 88%);
-    border-color: color-mix(in srgb, var(--destructive) 28%, white 18%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="text"] {
-    color: color-mix(in srgb, var(--destructive) 84%, black 10%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="text"]:hover {
-    color: color-mix(in srgb, var(--destructive) 92%, black 8%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="icon"] {
-    background: color-mix(in srgb, var(--destructive) 5%, white 95%);
-    border-color: color-mix(in srgb, var(--destructive) 28%, white 18%);
-    color: color-mix(in srgb, var(--destructive) 84%, black 10%);
-  }
-
-  .chip-button[data-tone="danger"][data-variant="icon"]:hover {
-    background: color-mix(in srgb, var(--destructive) 8%, white 92%);
-    border-color: color-mix(in srgb, var(--destructive) 36%, white 16%);
-  }
-
-  .chip-button[data-size="icon"] {
-    height: 2.5rem;
-    width: 2.5rem;
-    padding: 0;
-    border-radius: 1rem;
-  }
-
-  .chip-button[data-size="sm"] {
-    padding: 0.4rem 0.85rem;
-    font-size: 11px;
-    line-height: 1.1;
-  }
-
-  .chip-button[data-size="md"] {
-    padding: 0.62rem 1rem;
-    font-size: 14px;
-    line-height: 1.15;
-  }
-
-  .chip-button[data-size="lg"] {
-    padding: 0.84rem 1.28rem;
-    font-size: 15px;
-    line-height: 1.1;
-  }
-
-  .chip-button[data-density="compact"][data-size="icon"] {
-    height: 2.25rem;
-    width: 2.25rem;
-    border-radius: 0.9rem;
-  }
-
-  .chip-button[data-density="compact"][data-size="sm"] {
-    padding: 0.34rem 0.75rem;
-    font-size: 10.5px;
-  }
-
-  .chip-button[data-density="compact"][data-size="md"] {
-    padding: 0.5rem 0.9rem;
-    font-size: 13px;
-  }
-
-  .chip-button[data-density="compact"][data-size="lg"] {
-    padding: 0.68rem 1.06rem;
-    font-size: 14px;
-  }
-
-  .chip-button[data-stretch="true"] {
-    width: 100%;
   }
 
   .status-badge {
@@ -440,22 +304,20 @@
   .status-badge[data-tone="default"] {
     background: var(--chip-default-background);
     border: 1px solid var(--chip-default-border);
-    box-shadow: none;
     color: var(--text-muted);
   }
 
   .status-badge[data-tone="active"] {
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
-    color: color-mix(in srgb, var(--primary) 92%, var(--foreground) 8%);
-    box-shadow: none;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
+    color: color-mix(in srgb, var(--primary) 86%, var(--foreground) 14%);
   }
 
-  .status-badge[data-tone="running"] {
+  .status-badge[data-tone="running"],
+  .status-badge[data-tone="success"] {
     background: color-mix(in srgb, var(--success) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--success) 32%, transparent);
-    color: color-mix(in srgb, var(--success) 88%, var(--foreground) 12%);
-    box-shadow: none;
+    border: 1px solid color-mix(in srgb, var(--success) 24%, transparent);
+    color: color-mix(in srgb, var(--success) 86%, var(--foreground) 14%);
   }
 
   .status-badge[data-tone="idle"] {
@@ -464,17 +326,10 @@
     color: var(--text-soft);
   }
 
-  .status-badge[data-tone="success"] {
-    background: color-mix(in srgb, var(--success) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--success) 32%, transparent);
-    color: color-mix(in srgb, var(--success) 88%, var(--foreground) 12%);
-  }
-
   .segmented-pill {
     background: var(--chip-segmented-shell-background);
     border: 1px solid var(--chip-segmented-shell-border);
     box-shadow: none;
-    backdrop-filter: none;
   }
 
   .segmented-pill-icon {
@@ -493,7 +348,6 @@
   .segmented-pill-option:hover {
     background: var(--chip-segmented-option-hover-background);
     color: var(--chip-segmented-option-hover-color);
-    box-shadow: none;
   }
 
   .segmented-pill-option[data-active="true"] {
@@ -510,20 +364,12 @@
     scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 
+  .scrollbar-stable-gutter {
+    scrollbar-gutter: stable both-edges;
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-
-  .multiline-cursor {
-    caret-color: var(--input-caret-color);
-  }
-
-  .multiline-cursor:focus-within {
-    text-shadow: 0 0 1px var(--input-caret-shadow);
   }
 }

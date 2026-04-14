@@ -1,3 +1,14 @@
+/**
+# !/usr/bin/env xx
+# -*- coding: utf-8 -*-
+# =====================================================
+# @File   ：use-launcher-page-controller.ts
+# @Date   ：2026-04-12 18:11
+# @Author ：leemysw
+# 2026-04-12 18:11   Create
+# =====================================================
+*/
+
 "use client";
 
 import { SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
@@ -49,6 +60,7 @@ export function useLauncherPageController() {
   const [is_hydrated, set_is_hydrated] = useState(false);
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const app_session_key = buildLauncherAppSessionKey(getDefaultAgentId());
+
   const agent_dialog = useRoomPageAgentDialog({
     agents,
     create_agent: async (params) => {
@@ -62,6 +74,7 @@ export function useLauncherPageController() {
   const surface: LauncherSurface = search_params.get("surface") === "app" ? "app" : "launcher";
   const route_app_prompt = search_params.get("app_prompt")?.trim() ?? "";
   const [app_conversation_draft, set_app_conversation_draft] = useState("");
+
   const refresh_rooms = useCallback(() => {
     void listRooms(200).then(set_rooms);
   }, []);

@@ -25,6 +25,7 @@ interface RoomRoundCardGroupProps {
   pending_permissions?: PendingPermission[];
   pending_slots?: RoomPendingAgentSlotState[];
   agent_name_map?: Record<string, string>;
+  agent_avatar_map?: Record<string, string | null>;
   is_last_round: boolean;
   is_loading: boolean;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
@@ -36,12 +37,14 @@ interface RoomRoundCardGroupProps {
 
 interface RoomAgentEntry extends RoomAgentRoundEntry {
   agent_name: string;
+  agent_avatar: string | null;
 }
 
 function RoomCompletedReply({
   round_id,
   agent_id,
   agent_name,
+  agent_avatar,
   assistant_messages,
   result_message,
   is_thread_active,
@@ -51,6 +54,7 @@ function RoomCompletedReply({
   round_id: string;
   agent_id: string;
   agent_name: string;
+  agent_avatar: string | null;
   assistant_messages: AssistantMessage[];
   result_message?: ResultMessage;
   is_thread_active: boolean;
@@ -66,9 +70,10 @@ function RoomCompletedReply({
   }, [assistant_messages, result_message]);
 
   return (
-    <div className="border-b border-slate-200/75">
+    <div className="border-b border-(--divider-subtle-color)">
       <MessageItem
         current_agent_name={agent_name}
+        current_agent_avatar={agent_avatar}
         round_id={`${round_id}:${agent_id}`}
         messages={messages_for_render}
         assistant_content_mode="room_result"
@@ -80,8 +85,8 @@ function RoomCompletedReply({
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
-                ? "border-[#cfe0ff] bg-[#eff6ff] text-[#27539d]"
-                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+                ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
+                : "border-(--divider-subtle-color) bg-(--material-chip-background) text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
             onClick={on_click_thread}
             type="button"
@@ -108,6 +113,7 @@ function RoomRoundCardGroupInner({
   pending_permissions = [],
   pending_slots = [],
   agent_name_map,
+  agent_avatar_map,
   on_permission_response,
   can_respond_to_permissions = true,
   permission_read_only_reason,
@@ -125,8 +131,9 @@ function RoomRoundCardGroupInner({
     return buildRoomAgentRoundEntries(messages, pending_slots).map((entry) => ({
       ...entry,
       agent_name: agent_name_map?.[entry.agent_id] ?? entry.agent_id,
+      agent_avatar: agent_avatar_map?.[entry.agent_id] ?? null,
     }));
-  }, [agent_name_map, messages, pending_slots]);
+  }, [agent_avatar_map, agent_name_map, messages, pending_slots]);
 
   const completed_entries = useMemo(
     () => agent_entries
@@ -152,7 +159,7 @@ function RoomRoundCardGroupInner({
   return (
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {user_message ? (
-        <div className="border-b border-slate-200/75">
+        <div className="border-b border-(--divider-subtle-color)">
           {/* 仅复用用户消息样式，传入 is_loading 避免渲染空的助手区域。 */}
           <MessageItem
             round_id={round_id}
@@ -173,6 +180,7 @@ function RoomRoundCardGroupInner({
             round_id={round_id}
             agent_id={entry.agent_id}
             agent_name={entry.agent_name}
+            agent_avatar={entry.agent_avatar}
             assistant_messages={entry.assistant_messages}
             result_message={entry.result_message}
             is_thread_active={is_thread_active}
@@ -191,12 +199,13 @@ function RoomRoundCardGroupInner({
             );
 
             return (
-              <div key={entry.agent_id} className="border-b border-slate-200/75">
+              <div key={entry.agent_id} className="border-b border-(--divider-subtle-color)">
                 <div className="w-full px-2 sm:px-3">
                   <div className="mx-auto w-full max-w-[980px]">
                     <AgentStatusCard
                       agent_id={entry.agent_id}
                       agent_name={entry.agent_name}
+                      agent_avatar={entry.agent_avatar}
                       messages={entry.assistant_messages}
                       result_message={entry.result_message}
                       pending_slot={entry.pending_slot}

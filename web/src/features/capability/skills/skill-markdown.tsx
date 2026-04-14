@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const SKILL_MARKDOWN_CLASS_NAME =
-  "text-sm leading-[1.9] text-[color:var(--text-default)] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
+  "text-sm leading-[1.9] text-(--text-default) [&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
 
 interface SkillMarkdownProps {
   markdown: string;
@@ -27,17 +27,17 @@ export function SkillMarkdown({ markdown }: SkillMarkdownProps) {
             </a>
           ),
           h1: ({ children }) => (
-            <h1 className="mt-8 text-[28px] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
+            <h1 className="mt-8 text-[28px] font-black tracking-[-0.04em] text-(--text-strong)">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="mt-7 text-[22px] font-bold tracking-[-0.03em] text-[color:var(--text-strong)]">
+            <h2 className="mt-7 text-[22px] font-bold tracking-[-0.03em] text-(--text-strong)">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="mt-6 text-[18px] font-bold text-[color:var(--text-strong)]">
+            <h3 className="mt-6 text-[18px] font-bold text-(--text-strong)">
               {children}
             </h3>
           ),
@@ -62,7 +62,7 @@ export function SkillMarkdown({ markdown }: SkillMarkdownProps) {
             </li>
           ),
           pre: ({ children }) => (
-            <pre className="mt-4 overflow-x-auto rounded-[18px] bg-[var(--surface-inset-background)] border border-[var(--divider-subtle-color)] p-4 text-xs text-[color:var(--text-default)] shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
+            <pre className="mt-4 overflow-x-auto rounded-[18px] bg-(--surface-inset-background) border border-(--divider-subtle-color) p-4 text-xs text-(--text-default) shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
               {children}
             </pre>
           ),
@@ -76,7 +76,7 @@ export function SkillMarkdown({ markdown }: SkillMarkdownProps) {
             }
 
             return (
-              <code className="rounded-lg bg-[var(--surface-inset-background)] border border-[var(--divider-subtle-color)] px-[0.42rem] py-[0.16rem] text-[12px] text-[color:var(--text-default)]">
+              <code className="rounded-lg bg-(--surface-inset-background) border border-(--divider-subtle-color) px-[0.42rem] py-[0.16rem] text-[12px] text-(--text-default)">
                 {children as ReactNode}
               </code>
             );

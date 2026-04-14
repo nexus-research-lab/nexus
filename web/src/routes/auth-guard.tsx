@@ -26,14 +26,14 @@ function GuardState({
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
       <section className="surface-panel radius-shell-xl w-full max-w-[440px] border px-8 py-9 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[color:var(--surface-panel-border)] bg-[color:var(--surface-panel-subtle-background)] text-lg font-bold">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
           N
         </div>
-        <h1 className="text-[24px] font-bold tracking-[-0.04em] text-[color:var(--text-strong)]">{title}</h1>
-        <p className="mt-2 text-[14px] leading-6 text-[color:var(--text-muted)]">{description}</p>
+        <h1 className="text-[24px] font-bold tracking-[-0.04em] text-(--text-strong)">{title}</h1>
+        <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
         {action_label && on_action ? (
           <button
-            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--button-primary-border)] bg-[color:var(--button-primary-background)] px-5 text-[14px] font-semibold text-[color:var(--button-primary-color)] transition hover:bg-[color:var(--button-primary-hover-background)]"
+            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-(--button-primary-border) bg-(--button-primary-background) px-5 text-[14px] font-semibold text-(--button-primary-color) transition hover:bg-(--button-primary-hover-background)"
             onClick={on_action}
             type="button"
           >

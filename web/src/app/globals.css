@@ -8,7 +8,7 @@
  */
 
 /* 中文注释：全局入口只负责组装样式层次，不承载具体视觉细节。 */
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=PT+Mono&display=swap");
 @import "tailwindcss";
 @import "./styles/theme-tokens.css";
 @import "./styles/theme-base.css";

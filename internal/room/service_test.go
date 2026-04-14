@@ -48,6 +48,7 @@ func TestRoomServiceLifecycle(t *testing.T) {
 		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
 		Name:     "产品讨论",
 		Title:    "主对话",
+		Avatar:   "7",
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
@@ -64,6 +65,9 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if len(mainContext.Sessions) != 2 {
 		t.Fatalf("主对话 session 数量不正确: got=%d want=2", len(mainContext.Sessions))
 	}
+	if mainContext.Room.Avatar != "7" {
+		t.Fatalf("room avatar 不正确: got=%q want=%q", mainContext.Room.Avatar, "7")
+	}
 
 	rooms, err := roomService.ListRooms(ctx, 20)
 	if err != nil {
@@ -71,6 +75,20 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 	if len(rooms) != 1 {
 		t.Fatalf("room 数量不正确: got=%d want=1", len(rooms))
+	}
+	if rooms[0].Room.Avatar != "7" {
+		t.Fatalf("list room avatar 不正确: got=%q want=%q", rooms[0].Room.Avatar, "7")
+	}
+
+	updatedAvatar := "12"
+	mainContext, err = roomService.UpdateRoom(ctx, mainContext.Room.ID, UpdateRoomRequest{
+		Avatar: &updatedAvatar,
+	})
+	if err != nil {
+		t.Fatalf("更新 room avatar 失败: %v", err)
+	}
+	if mainContext.Room.Avatar != updatedAvatar {
+		t.Fatalf("更新后 room avatar 不正确: got=%q want=%q", mainContext.Room.Avatar, updatedAvatar)
 	}
 
 	topicContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, CreateConversationRequest{})

@@ -305,7 +305,8 @@ func TestWebSocketRoomMutationBroadcastsEvents(t *testing.T) {
 	}
 
 	doGatewayJSONRequest(t, httpServer.URL+"/agent/v1/rooms/"+roomContext.Room.ID, http.MethodPatch, map[string]any{
-		"name": "广播测试 room v2",
+		"name":   "广播测试 room v2",
+		"avatar": "9",
 	})
 	resyncEvent := readEventMessage(t, conn)
 	if resyncEvent.EventType != protocol.EventTypeRoomResyncRequired {
@@ -313,6 +314,13 @@ func TestWebSocketRoomMutationBroadcastsEvents(t *testing.T) {
 	}
 	if resyncEvent.Data["reason"] != "room_updated" {
 		t.Fatalf("room_resync_required reason 不正确: %+v", resyncEvent.Data)
+	}
+	updatedRoom, err := server.roomService.GetRoom(ctx, roomContext.Room.ID)
+	if err != nil {
+		t.Fatalf("读取更新后的 room 失败: %v", err)
+	}
+	if updatedRoom.Room.Avatar != "9" {
+		t.Fatalf("room avatar 未持久化: got=%q want=%q", updatedRoom.Room.Avatar, "9")
 	}
 
 	doGatewayJSONRequest(t, httpServer.URL+"/agent/v1/rooms/"+roomContext.Room.ID+"/members", http.MethodPost, map[string]any{

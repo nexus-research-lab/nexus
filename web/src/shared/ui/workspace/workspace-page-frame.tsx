@@ -6,32 +6,21 @@ import { cn } from "@/lib/utils";
 
 interface WorkspacePageFrameProps {
   children: ReactNode;
-  /** 中文注释：页面框架保留少量布局槽位，避免业务层回头改壳层质感。 */
-  body_class_name?: string;
-  panel_class_name?: string;
   content_padding_class_name?: string;
-  use_default_panel_style?: boolean;
 }
 
 export function WorkspacePageFrame({
   children,
-  body_class_name,
-  panel_class_name,
-  content_padding_class_name = "p-4 sm:p-6",
-  use_default_panel_style = true,
+  content_padding_class_name = "p-4 sm:p-5 xl:p-6",
 }: WorkspacePageFrameProps) {
   return (
-    <div className={cn("relative flex min-h-0 flex-1 flex-col", body_class_name)}>
-      <section
-        className={cn(
-          "relative flex min-h-0 flex-1 flex-col overflow-hidden",
-          use_default_panel_style && "glass-panel-subtle radius-shell-xl",
-          content_padding_class_name,
-          panel_class_name,
-        )}
-      >
-        {children}
-      </section>
-    </div>
+    <section
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col bg-transparent",
+        content_padding_class_name,
+      )}
+    >
+      {children}
+    </section>
   );
 }

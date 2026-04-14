@@ -12,7 +12,7 @@ interface WorkspaceEntryPageProps {
   actions?: ReactNode;
 }
 
-/** 通用空状态入口页 — AppStage 由路由布局层提供 */
+/** 通用空状态入口页 — 外层布局由路由层提供 */
 export function WorkspaceEntryPage({
   icon,
   title,

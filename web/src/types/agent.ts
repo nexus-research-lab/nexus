@@ -33,6 +33,10 @@ export interface Agent {
     options: AgentOptions;
     created_at: number;
     status: string;
+    avatar?: string | null;
+    description?: string | null;
+    vibe_tags?: string[] | null;
+    skills_count?: number | null;
 }
 
 export interface AgentRuntimeStatus {
@@ -49,6 +53,10 @@ export interface ApiAgent {
     options: Record<string, any> | null;
     created_at: string;
     status: string;
+    avatar?: string | null;
+    description?: string | null;
+    vibe_tags?: string[] | null;
+    skills_count?: number | null;
 }
 
 /** API 响应中的 Agent 会话数据（后端格式） */
@@ -93,12 +101,24 @@ export interface AgentSession {
 export interface CreateAgentParams {
     name: string;
     options?: Partial<AgentOptions>;
+    avatar?: string;
+    description?: string;
+    vibe_tags?: string[];
 }
 
 /** 更新 Agent 参数 */
 export interface UpdateAgentParams {
     name?: string;
     options?: Partial<AgentOptions>;
+    avatar?: string;
+    description?: string;
+    vibe_tags?: string[];
+}
+
+export interface AgentIdentityDraft {
+    avatar?: string;
+    description?: string;
+    vibe_tags?: string[];
 }
 
 /** Agent 名称校验结果 */

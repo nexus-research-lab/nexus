@@ -61,7 +61,7 @@ type Repository interface {
 	GetConversationContext(context.Context, string) (*roomdomain.ConversationContextAggregate, error)
 	FindDMRoomContext(context.Context, string) (*roomdomain.ConversationContextAggregate, error)
 	CreateRoom(context.Context, roomdomain.CreateRoomBundle) (*roomdomain.ConversationContextAggregate, error)
-	UpdateRoom(context.Context, string, *string, *string, *string) (*roomdomain.ConversationContextAggregate, error)
+	UpdateRoom(context.Context, string, *string, *string, *string, *string) (*roomdomain.ConversationContextAggregate, error)
 	AddRoomMember(context.Context, string, roomdomain.AgentRuntimeRef) (*roomdomain.ConversationContextAggregate, error)
 	RemoveRoomMember(context.Context, string, string) (*roomdomain.ConversationContextAggregate, error)
 	DeleteRoom(context.Context, string) (bool, error)
@@ -209,6 +209,7 @@ func (s *Service) createRoom(ctx context.Context, request CreateRoomRequest, roo
 			RoomType:    normalizedRoomType,
 			Name:        roomName,
 			Description: normalizeDescription(request.Description),
+			Avatar:      normalizeOptionalText(request.Avatar),
 		},
 		Members: buildMembers(roomID, normalizedAgentIDs),
 		Conversation: roomdomain.ConversationRecord{
@@ -233,6 +234,7 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request UpdateR
 		namePtr        *string
 		descriptionPtr *string
 		titlePtr       *string
+		avatarPtr      *string
 	)
 	if hasName {
 		namePtr = &nameValue
@@ -246,12 +248,16 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request UpdateR
 		}
 		titlePtr = &titleValue
 	}
+	if request.Avatar != nil {
+		avatarValue := normalizeOptionalText(*request.Avatar)
+		avatarPtr = &avatarValue
+	}
 
 	if _, err := s.GetRoom(ctx, roomID); err != nil {
 		return nil, err
 	}
 
-	contextValue, err := s.repository.UpdateRoom(ctx, strings.TrimSpace(roomID), namePtr, descriptionPtr, titlePtr)
+	contextValue, err := s.repository.UpdateRoom(ctx, strings.TrimSpace(roomID), namePtr, descriptionPtr, titlePtr, avatarPtr)
 	if err != nil {
 		return nil, err
 	}

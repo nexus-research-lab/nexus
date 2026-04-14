@@ -7,24 +7,21 @@
  * - 操作按钮（+ / →）在最右边，固定宽度占位保证对齐
  */
 
-import { ChevronDown, ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useSidebarStore } from "@/store/sidebar";
 
-const CONTEXT_MENU_CLASS_NAME =
-  "fixed z-[9990] w-40 rounded-xl py-1 backdrop-blur-[16px] animate-in fade-in zoom-in-95 duration-100";
-const CONTEXT_MENU_ITEM_CLASS_NAME =
-  "flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-[background,color] duration-150";
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
-  "group/item box-border flex w-full items-center gap-2.5 rounded-[14px] border border-transparent px-2.5 py-[8px] text-left text-[14px] transition-[background,color,box-shadow,border-color] duration-150";
+  "relative box-border flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] transition-[background,color,transform] duration-(--motion-duration-fast)";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
-  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-default)] transition-colors duration-150 hover:text-[color:var(--text-strong)]";
+  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
-  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--icon-muted)] transition-[background,color] duration-150 hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-default)]";
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)";
+const SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME =
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-transparent text-(--icon-muted) transition-[background,color,border-color,opacity,transform] duration-(--motion-duration-fast) focus-visible:opacity-100 focus-visible:outline-none";
 
 interface CollapsibleSectionProps {
   section_id: string;
@@ -61,69 +58,49 @@ export function SidebarListItem({
   on_delete,
 }: SidebarListItemProps) {
   const { t } = useI18n();
-  const [menu_pos, set_menu_pos] = useState<{ x: number; y: number } | null>(null);
-
-  const handle_context_menu = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!on_rename && !on_delete) return;
-    e.preventDefault();
-    set_menu_pos({ x: e.clientX, y: e.clientY });
-  }, [on_delete, on_rename]);
-
-  const handle_more_click = useCallback((e: React.MouseEvent<HTMLSpanElement>) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    set_menu_pos({ x: rect.right, y: rect.top });
-  }, []);
-
-  useEffect(() => {
-    if (!menu_pos) return;
-    const close = () => set_menu_pos(null);
-    window.addEventListener("mousedown", close);
-    return () => window.removeEventListener("mousedown", close);
-  }, [menu_pos]);
-
   const has_actions = Boolean(on_rename || on_delete);
 
   return (
-    <>
+    <div
+      className={cn(
+        "group/item relative flex min-w-0 items-center gap-1.5 rounded-[12px] transition-[background,color,transform] duration-(--motion-duration-fast)",
+        is_active
+          ? "text-(--text-strong)"
+          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+      )}
+      style={is_active ? {
+        background: "color-mix(in srgb, var(--surface-interactive-active-background) 72%, transparent)",
+      } : undefined}
+    >
+      {is_active ? (
+        <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
+      ) : null}
+
       <button
         className={cn(
           SIDEBAR_LIST_ITEM_CLASS_NAME,
+          "flex-1 bg-transparent",
           is_active
-            ? "font-medium text-[color:var(--text-strong)]"
-            : "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--text-strong)]",
+            ? "font-medium text-(--text-strong)"
+            : "text-(--text-default) group-hover/item:text-(--text-strong) hover:translate-x-[2px]",
         )}
-        style={is_active ? {
-          background: "var(--surface-interactive-active-background)",
-          borderColor: "var(--surface-interactive-active-border)",
-        } : undefined}
         onClick={on_click}
-        onContextMenu={handle_context_menu}
         type="button"
       >
         <span
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center",
-            is_active ? "text-[color:var(--icon-default)]" : "text-[color:var(--icon-muted)]",
+            is_active ? "text-(--primary)" : "text-(--icon-muted)",
           )}
         >
           {icon}
         </span>
         <span className="min-w-0 flex-1 truncate">{label}</span>
-        {has_actions ? (
-          <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[color:var(--icon-muted)] opacity-0 transition-all hover:text-[color:var(--icon-default)] group-hover/item:opacity-100"
-            onClick={handle_more_click}
-            role="button"
-            tabIndex={-1}
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" />
-          </span>
-        ) : meta ? (
+        {meta ? (
           <span
             className={cn(
               "shrink-0 text-[12px] font-medium tabular-nums",
-              is_active ? "text-[color:var(--text-muted)]" : "text-[color:var(--text-soft)]",
+              is_active ? "text-(--text-muted)" : "text-(--text-soft)",
             )}
           >
             {meta}
@@ -131,48 +108,50 @@ export function SidebarListItem({
         ) : null}
       </button>
 
-      {menu_pos ? createPortal(
-        <div
-          className={CONTEXT_MENU_CLASS_NAME}
-          style={{
-            top: menu_pos.y,
-            left: menu_pos.x,
-            background: "var(--surface-popover-background)",
-            border: "1px solid var(--surface-popover-border)",
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
+      {has_actions ? (
+        <div className="flex shrink-0 items-center gap-1 pr-2">
           {on_rename ? (
             <button
-              className={cn(CONTEXT_MENU_ITEM_CLASS_NAME, "text-[color:var(--text-default)] hover:bg-[var(--surface-interactive-hover-background)]")}
-              onClick={() => {
-                set_menu_pos(null);
+              aria-label={t("home.rename")}
+              className={cn(
+                SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME,
+                is_active
+                  ? "opacity-100 hover:-translate-y-[1px] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                  : "opacity-60 hover:-translate-y-[1px] hover:opacity-100 hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)",
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
                 on_rename();
               }}
+              title={t("home.rename")}
               type="button"
             >
               <Pencil className="h-3.5 w-3.5" />
-              {t("home.rename")}
             </button>
           ) : null}
 
           {on_delete ? (
             <button
-              className={cn(CONTEXT_MENU_ITEM_CLASS_NAME, "text-rose-500 hover:bg-rose-500/10")}
-              onClick={() => {
-                set_menu_pos(null);
+              aria-label={t("common.delete")}
+              className={cn(
+                SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME,
+                is_active
+                  ? "opacity-100 hover:-translate-y-[1px] hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)"
+                  : "opacity-60 hover:-translate-y-[1px] hover:opacity-100 hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)",
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
                 on_delete();
               }}
+              title={t("common.delete")}
               type="button"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              {t("common.delete")}
             </button>
           ) : null}
-        </div>,
-        document.body,
+        </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -192,7 +171,7 @@ export function CollapsibleSection({
   const toggle = useSidebarStore((s) => s.toggle_section);
 
   return (
-    <section className="border-b glass-divider pb-1.5 last:border-b-0">
+    <section className="border-b divider-subtle pb-1.5 last:border-b-0">
       <div className="group/section flex w-full items-center justify-between px-2.5 py-2">
         <button
           className={SIDEBAR_SECTION_TRIGGER_CLASS_NAME}
@@ -207,7 +186,7 @@ export function CollapsibleSection({
           {icon ? <span className="flex items-center">{icon}</span> : null}
           <span>{title}</span>
           {typeof count === "number" ? (
-            <span className="text-[12px] font-medium tabular-nums text-[color:var(--text-muted)]">{count}</span>
+            <span className="text-[12px] font-medium tabular-nums text-(--text-muted)">{count}</span>
           ) : null}
         </button>
 
@@ -227,7 +206,7 @@ export function CollapsibleSection({
       </div>
 
       {!is_collapsed ? (
-        <div className="flex flex-col gap-0.5 pb-1.5">{children}</div>
+        <div className="flex flex-col gap-0.5 pb-1">{children}</div>
       ) : null}
     </section>
   );

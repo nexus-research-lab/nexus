@@ -1,46 +1,99 @@
 "use client";
 
-import { KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Image as ImageIcon, Paperclip, Send, StopCircle, X } from "lucide-react";
+import { ChangeEvent, KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
+import { FileText, Paperclip, Send, StopCircle, X } from "lucide-react";
 
+import { useTextareaHeight } from "@/hooks/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
-import { useTextareaHeight } from "@/hooks/use-textarea-height";
 import { Agent } from "@/types/agent";
 
 import {
+  COMPOSER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_ATTACHMENT_CLASS_NAME,
   COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
+  COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
+  COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_FOOTER_CLASS_NAME,
+  COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
   getComposerShellClassName,
   getComposerShellStyle,
 } from "./composer-styles";
+import {
+  COMPOSER_ATTACHMENT_ACCEPT,
+  get_attachment_rejection_reason,
+  PreparedComposerAttachment,
+} from "./composer-attachments";
 import { MentionPopover } from "./mention-popover";
 
 interface AttachmentFile {
   id: string;
   file: File;
-  preview?: string;
-  type: "image" | "document";
 }
 
 interface ComposerPanelProps {
   compact: boolean;
-  is_loading: boolean;
+  is_loading?: boolean;
   on_send_message: (content: string) => void | Promise<void>;
-  on_stop: () => void;
+  on_stop?: () => void;
   initial_draft?: string | null;
   disabled?: boolean;
   placeholder?: string;
   max_length?: number;
   room_members?: Agent[];
+  mention_unavailable_agent_ids?: string[];
   control_status_text?: string;
+  on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+}
+
+function is_caret_on_first_line(target: HTMLTextAreaElement) {
+  const selection_start = target.selectionStart ?? 0;
+  const selection_end = target.selectionEnd ?? 0;
+  if (selection_start !== selection_end) {
+    return false;
+  }
+  return !target.value.slice(0, selection_start).includes("\n");
+}
+
+function is_caret_on_last_line(target: HTMLTextAreaElement) {
+  const selection_start = target.selectionStart ?? 0;
+  const selection_end = target.selectionEnd ?? 0;
+  if (selection_start !== selection_end) {
+    return false;
+  }
+  return !target.value.slice(selection_end).includes("\n");
+}
+
+function build_message_with_attachments(
+  content: string,
+  attachments: PreparedComposerAttachment[],
+) {
+  if (attachments.length === 0) {
+    return content.trim();
+  }
+
+  const attachment_manifest = attachments
+    .map((attachment) => `- ${attachment.file_name}（工作区文件：${attachment.workspace_path}）`)
+    .join("\n");
+  const attachment_blocks = attachments.map((attachment) => [
+    `文件《${attachment.file_name}》内容摘录：`,
+    "```text",
+    attachment.excerpt,
+    "```",
+    attachment.truncated ? "注：消息里只附带前 12000 个字符，完整内容已写入工作区文件。" : null,
+  ].filter(Boolean).join("\n"));
+
+  return [
+    content.trim(),
+    "已附加文本文件：",
+    attachment_manifest,
+    ...attachment_blocks,
+  ].filter(Boolean).join("\n\n");
 }
 
 const ComposerPanelView = memo(({
   compact,
-  is_loading,
+  is_loading = false,
   on_send_message,
   on_stop,
   initial_draft = null,
@@ -48,12 +101,23 @@ const ComposerPanelView = memo(({
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
+  mention_unavailable_agent_ids = [],
   control_status_text,
+  on_prepare_attachments,
 }: ComposerPanelProps) => {
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
+  const [history_draft, setHistoryDraft] = useState("");
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [attachment_error, setAttachmentError] = useState<string | null>(null);
+  const [is_preparing_attachments, setIsPreparingAttachments] = useState(false);
+
+  // 中文注释：共享 Composer 同时服务 DM 和 Room，这里统一在共享层过滤不可提及成员，
+  // 避免再保留第二套几乎相同的输入区实现。
+  const available_room_members = room_members.filter(
+    (member) => !mention_unavailable_agent_ids.includes(member.agent_id),
+  );
 
   // @mention 状态
   const [mention_active, set_mention_active] = useState(false);
@@ -64,28 +128,27 @@ const ComposerPanelView = memo(({
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
 
-  // Pretext-based auto-height: no scrollHeight reflow
-  useTextareaHeight(textarea_ref, input, { minHeight: 24, maxHeight: 128, lineHeight: 24, paddingY: 0 });
+  useTextareaHeight(textarea_ref, input, { minHeight: 24, maxHeight: 200, lineHeight: 24, paddingY: 0 });
 
-  // @mention：检测 @ 字符并追踪过滤文本
   const handle_input_change = useCallback((value: string) => {
     setInput(value);
+    if (attachment_error) {
+      setAttachmentError(null);
+    }
 
-    if (room_members.length === 0) {
+    if (available_room_members.length === 0) {
+      set_mention_active(false);
       return;
     }
 
     const cursor_pos = textarea_ref.current?.selectionStart ?? value.length;
-    // 从光标位置往前找最近的 @
     const before_cursor = value.slice(0, cursor_pos);
     const at_index = before_cursor.lastIndexOf("@");
 
     if (at_index >= 0) {
-      // @ 前面必须是空格、换行或行首
       const char_before_at = at_index > 0 ? before_cursor[at_index - 1] : " ";
       if (char_before_at === " " || char_before_at === "\n" || at_index === 0) {
         const filter_text = before_cursor.slice(at_index + 1);
-        // 不包含空格意味着还在输入名字
         if (!filter_text.includes(" ")) {
           set_mention_active(true);
           set_mention_filter(filter_text);
@@ -96,10 +159,9 @@ const ComposerPanelView = memo(({
     }
 
     set_mention_active(false);
-  }, [room_members.length]);
+  }, [attachment_error, available_room_members.length]);
 
   const handle_mention_select = useCallback((agent: Agent) => {
-    // 把 @filter 替换为 @AgentName + 空格
     const before = input.slice(0, mention_start_pos);
     const cursor_pos = textarea_ref.current?.selectionStart ?? input.length;
     const after = input.slice(cursor_pos);
@@ -107,9 +169,8 @@ const ComposerPanelView = memo(({
     setInput(next_input);
     set_mention_active(false);
 
-    // 恢复光标到插入点之后
     requestAnimationFrame(() => {
-      const new_cursor = mention_start_pos + agent.name.length + 2; // @name + space
+      const new_cursor = mention_start_pos + agent.name.length + 2;
       textarea_ref.current?.setSelectionRange(new_cursor, new_cursor);
       textarea_ref.current?.focus();
     });
@@ -133,36 +194,91 @@ const ComposerPanelView = memo(({
     setInput((current_value) => current_value || normalized_draft);
   }, [initial_draft]);
 
-  const handle_send = useCallback(() => {
+  const handle_send = useCallback(async () => {
     const trimmed_input = input.trim();
-    if ((!trimmed_input && attachments.length === 0) || disabled || is_loading) {
+    if ((!trimmed_input && attachments.length === 0) || disabled || is_loading || is_preparing_attachments) {
       return;
+    }
+
+    let next_message = trimmed_input;
+    if (attachments.length > 0) {
+      if (!on_prepare_attachments) {
+        setAttachmentError("当前会话暂不支持附件。");
+        return;
+      }
+
+      setIsPreparingAttachments(true);
+      setAttachmentError(null);
+      try {
+        const prepared_attachments = await on_prepare_attachments(attachments.map((attachment) => attachment.file));
+        next_message = build_message_with_attachments(trimmed_input, prepared_attachments);
+      } catch (error) {
+        setAttachmentError(error instanceof Error ? error.message : "附件整理失败，请稍后重试。");
+        return;
+      } finally {
+        setIsPreparingAttachments(false);
+      }
     }
 
     if (trimmed_input) {
       setInputHistory((prev) => [trimmed_input, ...prev.slice(0, 49)]);
     }
     setHistoryIndex(-1);
+    setHistoryDraft("");
 
-    on_send_message(trimmed_input);
+    await on_send_message(next_message);
     setInput("");
     setAttachments([]);
+    setAttachmentError(null);
 
     if (textarea_ref.current) {
       textarea_ref.current.style.height = "auto";
     }
-  }, [attachments.length, disabled, input, is_loading, on_send_message]);
+  }, [
+    attachments,
+    disabled,
+    input,
+    is_loading,
+    is_preparing_attachments,
+    on_prepare_attachments,
+    on_send_message,
+  ]);
+
+  const recall_previous_history = useCallback(() => {
+    if (input_history.length === 0) {
+      return;
+    }
+    if (history_index < 0) {
+      setHistoryDraft(input);
+    }
+    const next_index = Math.min(history_index + 1, input_history.length - 1);
+    setHistoryIndex(next_index);
+    setInput(input_history[next_index] ?? "");
+    setAttachmentError(null);
+  }, [history_index, input, input_history]);
+
+  const recall_next_history = useCallback(() => {
+    if (history_index > 0) {
+      const next_index = history_index - 1;
+      setHistoryIndex(next_index);
+      setInput(input_history[next_index] ?? "");
+      return;
+    }
+
+    if (history_index === 0) {
+      setHistoryIndex(-1);
+      setInput(history_draft);
+      setHistoryDraft("");
+    }
+  }, [history_draft, history_index, input_history]);
 
   const handle_key_down = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (is_composing_ref.current || event.nativeEvent.isComposing) {
       return;
     }
 
-    // @mention popover 激活时，让 popover 处理方向键/Enter/Esc
-    if (mention_active) {
-      if (["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
-        return; // popover 的 document keydown handler 会处理
-      }
+    if (mention_active && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
+      return;
     }
 
     if (event.key === "Enter" && !event.shiftKey) {
@@ -171,67 +287,63 @@ const ComposerPanelView = memo(({
       return;
     }
 
-    if (event.key === "ArrowUp" && event.ctrlKey && input_history.length > 0) {
+    const should_open_previous_history =
+      event.key === "ArrowUp" &&
+      input_history.length > 0 &&
+      (event.ctrlKey || is_caret_on_first_line(event.currentTarget));
+    if (should_open_previous_history) {
       event.preventDefault();
-      const next_index = Math.min(history_index + 1, input_history.length - 1);
-      setHistoryIndex(next_index);
-      setInput(input_history[next_index]);
+      recall_previous_history();
       return;
     }
 
-    if (event.key === "ArrowDown" && event.ctrlKey) {
+    const should_open_next_history =
+      event.key === "ArrowDown" &&
+      history_index >= 0 &&
+      (event.ctrlKey || is_caret_on_last_line(event.currentTarget));
+    if (should_open_next_history) {
       event.preventDefault();
-      if (history_index > 0) {
-        const next_index = history_index - 1;
-        setHistoryIndex(next_index);
-        setInput(input_history[next_index]);
-      } else if (history_index === 0) {
-        setHistoryIndex(-1);
-        setInput("");
-      }
+      recall_next_history();
       return;
     }
 
-    if (event.key === "Escape" && is_loading) {
+    if (event.key === "Escape" && is_loading && on_stop) {
       event.preventDefault();
       on_stop();
     }
   };
 
-  const handle_file_select = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handle_file_select = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) {
       return;
     }
 
     const next_attachments: AttachmentFile[] = [];
+    const rejected_files: string[] = [];
 
     Array.from(files).forEach((file) => {
-      const is_image = file.type.startsWith("image/");
-      const attachment: AttachmentFile = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-        file,
-        type: is_image ? "image" : "document",
-      };
-
-      if (is_image) {
-        const reader = new FileReader();
-        reader.onload = (load_event) => {
-          setAttachments((prev) =>
-            prev.map((item) => (
-              item.id === attachment.id
-                ? { ...item, preview: load_event.target?.result as string }
-                : item
-            )),
-          );
-        };
-        reader.readAsDataURL(file);
+      const rejection_reason = get_attachment_rejection_reason(file);
+      if (rejection_reason) {
+        rejected_files.push(rejection_reason);
+        return;
       }
 
-      next_attachments.push(attachment);
+      next_attachments.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        file,
+      });
     });
 
-    setAttachments((prev) => [...prev, ...next_attachments]);
+    if (rejected_files.length > 0) {
+      setAttachmentError(rejected_files[0] ?? "附件格式不受支持。");
+    } else {
+      setAttachmentError(null);
+    }
+
+    if (next_attachments.length > 0) {
+      setAttachments((prev) => [...prev, ...next_attachments].slice(0, 6));
+    }
 
     if (file_input_ref.current) {
       file_input_ref.current.value = "";
@@ -246,38 +358,32 @@ const ComposerPanelView = memo(({
   const char_count = input.length;
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
+  const is_send_disabled =
+    is_input_empty || disabled || is_over_limit || is_preparing_attachments;
 
   return (
-    <div
+    <section
       className={cn(
-        "w-full border-t border-[var(--surface-canvas-border)] bg-[var(--surface-canvas-background)]",
+        "mx-auto w-full max-w-[1020px] border-t border-(--surface-canvas-border) bg-transparent",
         compact ? "px-2 pb-2 pt-2" : "px-3 pb-3 pt-3 sm:px-5 xl:px-6",
       )}
     >
-      <div className="relative mx-auto w-full max-w-[1020px]">
+      <input
+        ref={file_input_ref}
+        accept={COMPOSER_ATTACHMENT_ACCEPT}
+        aria-label="选择附件文件"
+        className="hidden"
+        multiple
+        onChange={handle_file_select}
+        type="file"
+      />
+
+      <div className={getComposerShellClassName(disabled)} style={getComposerShellStyle(compact)}>
         {attachments.length > 0 ? (
-          <div className="glass-card radius-shell-md mb-3 flex flex-wrap gap-2 p-3">
+          <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
             {attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className={COMPOSER_ATTACHMENT_CLASS_NAME}
-              >
-                {attachment.type === "image" ? (
-                  attachment.preview ? (
-                    <img
-                      alt={attachment.file.name}
-                      className="h-8 w-8 rounded object-cover"
-                      height={32}
-                      loading="lazy"
-                      src={attachment.preview}
-                      width={32}
-                    />
-                  ) : (
-                    <ImageIcon size={16} className="text-primary" />
-                  )
-                ) : (
-                  <FileText size={16} className="text-accent" />
-                )}
+              <div key={attachment.id} className={COMPOSER_ATTACHMENT_CLASS_NAME}>
+                <FileText size={16} className="text-accent" />
                 <span className="max-w-[120px] truncate text-xs text-foreground/70">
                   {attachment.file.name}
                 </span>
@@ -293,149 +399,142 @@ const ComposerPanelView = memo(({
           </div>
         ) : null}
 
-        <div
-          className={getComposerShellClassName(disabled)}
-          style={getComposerShellStyle(compact)}
-        >
-          <div className={cn("flex items-end gap-2", compact ? "p-1.5" : "px-2 py-1.5")}>
-            <div className="flex items-center gap-1 pb-0.5">
-              <input
-                ref={file_input_ref}
-                accept="image/*,.pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
-                aria-label="选择附件文件"
-                className="hidden"
-                multiple
-                onChange={handle_file_select}
-                type="file"
-              />
-              <WorkspacePillButton
-                aria-label="添加附件"
-                density={compact ? "compact" : "default"}
-                disabled={disabled || is_loading}
-                onClick={() => file_input_ref.current?.click()}
-                size="icon"
-                variant="icon"
-              >
-                <Paperclip size={16} />
-              </WorkspacePillButton>
-            </div>
+        <div className={cn("flex items-end gap-2", compact ? "px-2 py-2" : "px-2.5 py-2.5")}>
+          <button
+            aria-label="添加附件"
+            className={COMPOSER_ACTION_BUTTON_CLASS_NAME}
+            disabled={disabled || is_loading}
+            onClick={() => file_input_ref.current?.click()}
+            type="button"
+          >
+            <Paperclip size={16} />
+          </button>
 
-            <div className="relative flex-1">
-              {mention_active && room_members.length > 0 ? (
-                <MentionPopover
-                  anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
-                  filter={mention_filter}
-                  members={room_members}
-                  on_close={handle_mention_close}
-                  on_select={handle_mention_select}
-                />
-              ) : null}
-              <textarea
-                ref={textarea_ref}
-                className={cn(
-                  "multiline-cursor min-h-6 max-h-24 w-full resize-none bg-transparent text-[14px] leading-6 text-[color:var(--text-strong)] outline-none shadow-none ring-0",
-                  "placeholder:text-[color:var(--text-soft)]",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                  "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
-                  "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
-                )}
-                disabled={disabled || is_loading}
-                onChange={(event) => handle_input_change(event.target.value)}
-                onCompositionEnd={() => {
-                  setTimeout(() => {
-                    is_composing_ref.current = false;
-                  }, 0);
-                }}
-                onCompositionStart={() => {
-                  is_composing_ref.current = true;
-                }}
-                onKeyDown={handle_key_down}
-                placeholder={placeholder}
-                rows={1}
-                value={input}
-              />
-            </div>
+          {mention_active && available_room_members.length > 0 ? (
+            <MentionPopover
+              anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
+              filter={mention_filter}
+              members={available_room_members}
+              on_close={handle_mention_close}
+              on_select={handle_mention_select}
+            />
+          ) : null}
 
-            <div className={cn("flex items-center gap-2 pb-0.5", compact && "gap-1.5")}>
-              {char_count > 0 ? (
-                <div className="text-[10px] tabular-nums">
-                  <span
-                    className={cn(
-                      is_over_limit && "text-destructive",
-                      is_near_limit && !is_over_limit && "text-warning",
-                      !is_near_limit && "text-[color:var(--text-soft)]",
-                    )}
-                  >
-                    {char_count}
-                  </span>
-                  <span className="text-[color:var(--text-soft)]">/{max_length}</span>
-                </div>
-              ) : null}
+          <textarea
+            ref={textarea_ref}
+            className={cn(
+              "multiline-cursor min-h-6 min-w-0 flex-1 max-h-[200px] resize-none overflow-y-auto bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
+              "placeholder:text-(--text-soft)",
+              "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+              "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
+            )}
+            disabled={disabled || is_loading}
+            onChange={(event) => handle_input_change(event.target.value)}
+            onCompositionEnd={() => {
+              setTimeout(() => {
+                is_composing_ref.current = false;
+              }, 0);
+            }}
+            onCompositionStart={() => {
+              is_composing_ref.current = true;
+            }}
+            onKeyDown={handle_key_down}
+            placeholder={placeholder}
+            rows={1}
+            value={input}
+          />
 
-              {is_loading ? (
-                <WorkspacePillButton
-                  aria-label="停止生成"
-                  density={compact ? "compact" : "default"}
-                  onClick={on_stop}
-                  size="icon"
-                  tone="danger"
-                  variant="icon"
-                >
-                  <StopCircle size={16} />
-                </WorkspacePillButton>
+          {is_loading && on_stop ? (
+            <button
+              aria-label="停止生成"
+              className={COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME}
+              onClick={on_stop}
+              type="button"
+            >
+              <StopCircle size={16} />
+            </button>
+          ) : (
+            <button
+              aria-label="发送消息"
+              className={COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME}
+              disabled={is_send_disabled}
+              onClick={() => {
+                void handle_send();
+              }}
+              type="button"
+            >
+              {is_preparing_attachments ? (
+                <LoadingOrb frames={["·", "◦", "•", "◦"]} />
               ) : (
-                <WorkspacePillButton
-                  aria-label="发送消息"
-                  density={compact ? "compact" : "default"}
-                  disabled={is_input_empty || disabled || is_over_limit}
-                  onClick={handle_send}
-                  size="icon"
-                  variant="primary"
-                >
-                  <Send size={16} />
-                </WorkspacePillButton>
+                <Send size={16} />
               )}
-            </div>
+            </button>
+          )}
+        </div>
+
+        <div className={COMPOSER_FOOTER_CLASS_NAME}>
+          <div className="flex items-center gap-3 text-[10px] text-(--text-soft)">
+            {disabled && control_status_text ? (
+              <span className="text-(--text-default)">{control_status_text}</span>
+            ) : is_loading && on_stop ? (
+              <span className="flex items-center gap-2 text-emerald-900/90">
+                <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
+                <span className="animate-pulse">正在回复中…</span>
+                <span className="text-(--text-soft)">[ESC 停止]</span>
+              </span>
+            ) : is_preparing_attachments ? (
+              <span className="flex items-center gap-2 text-(--text-default)">
+                <LoadingOrb frames={["·", "◦", "•", "◦"]} />
+                <span>正在整理附件并同步到工作区…</span>
+              </span>
+            ) : attachment_error ? (
+              <span className="text-(--destructive)">{attachment_error}</span>
+            ) : (
+              <>
+                <span className="flex items-center gap-1">
+                  <kbd>Enter</kbd>
+                  <span>发送</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd>Shift</kbd>
+                  <span>+</span>
+                  <kbd>Enter</kbd>
+                  <span>换行</span>
+                </span>
+                <span className="hidden sm:inline text-(--text-soft)">
+                  附件仅支持文本文件
+                </span>
+              </>
+            )}
+            {!disabled && control_status_text ? (
+              <span className="text-(--text-default)">{control_status_text}</span>
+            ) : null}
           </div>
 
-          <div className={COMPOSER_FOOTER_CLASS_NAME}>
-            <div className="flex items-center gap-3 text-[10px] text-[color:var(--text-soft)]">
-              {disabled && control_status_text ? (
-                <span className="text-[color:var(--text-default)]">{control_status_text}</span>
-              ) : is_loading ? (
-                <span className="flex items-center gap-2 text-emerald-900/90">
-                  <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                  <span className="animate-pulse">正在回复中…</span>
-                  <span className="text-[color:var(--text-soft)]">[ESC 停止]</span>
+          <div className="flex items-center gap-3 text-[10px] tabular-nums">
+            {char_count > 0 ? (
+              <div>
+                <span
+                  className={cn(
+                    is_over_limit && "text-destructive",
+                    is_near_limit && !is_over_limit && "text-warning",
+                    !is_near_limit && "text-(--text-soft)",
+                  )}
+                >
+                  {char_count}
                 </span>
-              ) : (
-                <>
-                  <span className="flex items-center gap-1">
-                    <kbd>Enter</kbd>
-                    <span>发送</span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd>Shift</kbd>
-                    <span>+</span>
-                    <kbd>Enter</kbd>
-                    <span>换行</span>
-                  </span>
-                </>
-              )}
-              {!disabled && control_status_text ? (
-                <span className="text-[color:var(--text-default)]">{control_status_text}</span>
-              ) : null}
-            </div>
-
+                <span className="text-(--text-soft)">/{max_length}</span>
+              </div>
+            ) : null}
             {history_index >= 0 ? (
-              <div className="text-[10px] text-[color:var(--text-default)]">
+              <div className="text-[10px] text-(--text-default)">
                 历史 {history_index + 1}/{input_history.length}
               </div>
             ) : null}
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 });
 

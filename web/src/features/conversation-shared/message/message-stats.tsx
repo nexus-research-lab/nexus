@@ -27,25 +27,25 @@ export function MessageStats(
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-x-2 gap-y-1 pt-2 text-[10.5px] text-[color:var(--text-muted)]",
+        "flex min-w-0 items-center gap-x-2 gap-y-1 pt-2 text-[10.5px] text-(--text-muted)",
         compact ? "flex-wrap" : "flex-wrap sm:flex-nowrap sm:gap-2.5",
       )}>
       {stats?.duration ? <span className="shrink-0 tabular-nums">耗时 {stats.duration}</span> : null}
       {stats?.tokens && (
         <>
-          {stats?.duration ? <span className="hidden text-[color:var(--text-soft)] sm:inline">•</span> : null}
+          {stats?.duration ? <span className="hidden text-(--text-soft) sm:inline">•</span> : null}
           <span className="min-w-0 truncate tabular-nums">Tokens {stats.tokens}</span>
         </>
       )}
       {stats?.cost && (
         <>
-          {stats?.duration || stats?.tokens ? <span className="hidden text-[color:var(--text-soft)] sm:inline">•</span> : null}
+          {stats?.duration || stats?.tokens ? <span className="hidden text-(--text-soft) sm:inline">•</span> : null}
           <span className="shrink-0 tabular-nums">成本 {stats.cost}</span>
         </>
       )}
       {stats?.cache_hit && (
         <>
-          {stats?.duration || stats?.tokens || stats?.cost ? <span className="hidden text-[color:var(--text-soft)] sm:inline">•</span> : null}
+          {stats?.duration || stats?.tokens || stats?.cost ? <span className="hidden text-(--text-soft) sm:inline">•</span> : null}
           <span className="shrink-0">缓存 {stats.cache_hit}</span>
         </>
       )}
@@ -55,7 +55,7 @@ export function MessageStats(
       {/* 状态/操作 */}
       {show_cursor ? (
         <div className="ml-auto flex items-center gap-1">
-          <Zap className="w-3 h-3 text-primary animate-pulse"/>
+          <Zap className="w-3 h-3 text-primary animate-pulse" />
         </div>
       ) : (
         <div className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
@@ -64,13 +64,13 @@ export function MessageStats(
             <button
               onClick={on_copy_assistant}
               className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-[color:var(--icon-default)] transition-[color,border-color,background] duration-150 hover:border-[var(--chip-default-border)] hover:bg-[var(--chip-default-background)] hover:text-[color:var(--icon-strong)]",
+                "inline-flex h-6 w-6 items-center justify-center rounded-[10px] border border-transparent text-(--icon-default) transition-[color,border-color,background] duration-(--motion-duration-fast) hover:border-(--chip-default-border) hover:bg-(--chip-default-background) hover:text-(--icon-strong)",
                 copied_assistant && "text-green-500",
               )}
               title="复制回答"
               type="button"
             >
-              {copied_assistant ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}
+              {copied_assistant ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
             </button>
           )}
         </div>

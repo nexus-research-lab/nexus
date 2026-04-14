@@ -204,12 +204,13 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, bundle roomdomain.Creat
 	defer tx.Rollback()
 
 	if _, err = tx.ExecContext(ctx, `
-INSERT INTO rooms (id, room_type, name, description)
-VALUES ($1, $2, $3, $4)`,
+INSERT INTO rooms (id, room_type, name, description, avatar)
+VALUES ($1, $2, $3, $4, $5)`,
 		bundle.Room.ID,
 		bundle.Room.RoomType,
 		nullIfEmpty(bundle.Room.Name),
 		bundle.Room.Description,
+		nullIfEmpty(bundle.Room.Avatar),
 	); err != nil {
 		return nil, err
 	}
@@ -272,6 +273,7 @@ func (r *RoomRepository) UpdateRoom(
 	name *string,
 	description *string,
 	title *string,
+	avatar *string,
 ) (*roomdomain.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -290,6 +292,11 @@ func (r *RoomRepository) UpdateRoom(
 	}
 	if description != nil {
 		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET description = $1, updated_at = now() WHERE id = $2`, *description, roomID); err != nil {
+			return nil, err
+		}
+	}
+	if avatar != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET avatar = $1, updated_at = now() WHERE id = $2`, nullIfEmpty(*avatar), roomID); err != nil {
 			return nil, err
 		}
 	}
@@ -617,7 +624,7 @@ func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQuery
 
 func (r *RoomRepository) loadRoom(ctx context.Context, querier roomQueryer, roomID string) (*roomdomain.RoomRecord, error) {
 	row := querier.QueryRowContext(ctx, `
-SELECT id, room_type, COALESCE(name, ''), description, created_at, updated_at
+SELECT id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
 FROM rooms
 WHERE id = $1`, roomID)
 	roomValue, err := scanRoomRecord(row)
@@ -734,6 +741,7 @@ func scanRoomRecord(scanner interface{ Scan(...any) error }) (roomdomain.RoomRec
 		&item.RoomType,
 		&item.Name,
 		&item.Description,
+		&item.Avatar,
 		&createdAt,
 		&updatedAt,
 	)

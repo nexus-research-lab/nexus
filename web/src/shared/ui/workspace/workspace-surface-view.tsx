@@ -4,6 +4,8 @@ import { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { WorkspaceSurfaceScaffold } from "./workspace-surface-scaffold";
+
 interface WorkspaceSurfaceViewProps {
   eyebrow: string;
   title: string;
@@ -25,26 +27,31 @@ export function WorkspaceSurfaceView({
   max_width_class_name = "max-w-[760px]",
 }: WorkspaceSurfaceViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
-      <div className="border-b glass-divider px-5 py-2.5 xl:px-6">
-        <div className={cn("mx-auto flex w-full items-center justify-between gap-3", max_width_class_name)}>
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-muted)]">
-              {eyebrow}
-            </p>
-            <h2 className="mt-1 truncate text-[16px] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
-              {title}
-            </h2>
+    <WorkspaceSurfaceScaffold
+      body_class_name={cn("px-4 py-4 sm:px-5 xl:px-6", body_class_name)}
+      body_scrollable
+      header={(
+        <div className="border-b divider-subtle px-5 py-3 xl:px-6">
+          <div className={cn("mx-auto flex w-full items-center justify-between gap-3", max_width_class_name)}>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
+                {eyebrow}
+              </p>
+              <h2 className="mt-1 truncate text-[17px] font-black tracking-[-0.045em] text-(--text-strong)">
+                {title}
+              </h2>
+            </div>
+            {action}
           </div>
-          {action}
         </div>
+      )}
+      stable_gutter
+    >
+      <div
+        className={cn("mx-auto w-full", max_width_class_name, content_class_name)}
+      >
+        {children}
       </div>
-
-      <div className={cn("soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 xl:px-6", body_class_name)}>
-        <div className={cn("mx-auto w-full", max_width_class_name, content_class_name)}>
-          {children}
-        </div>
-      </div>
-    </div>
+    </WorkspaceSurfaceScaffold>
   );
 }

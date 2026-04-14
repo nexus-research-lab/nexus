@@ -11,9 +11,7 @@
  */
 
 import {
-  Bot,
   Hash,
-  MessageCircleMore,
   Plus,
   Star,
 } from "lucide-react";
@@ -23,15 +21,16 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getAgentWsUrl } from "@/config/options";
 import { get_dm_display_name } from "@/lib/dm-utils";
+import { getIconAvatarSrc, getRoomAvatarIconId } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
 import { createRoom, deleteRoom, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
-import type { AgentRuntimeStatus } from "@/types/agent";
+import type { Agent, AgentRuntimeStatus } from "@/types/agent";
 import type { EventMessage } from "@/types/message";
 import { RoomAggregate } from "@/types/room";
 
@@ -64,6 +63,34 @@ function get_room_timestamp(room: RoomAggregate): number {
   ).getTime();
 }
 
+function render_agent_avatar_icon(agent_name: string, avatar?: string | null) {
+  const avatar_src = getIconAvatarSrc(avatar);
+  if (avatar_src) {
+    return (
+      <img
+        alt={agent_name}
+        className="h-4 w-4 rounded-full object-cover"
+        src={avatar_src}
+      />
+    );
+  }
+
+  return (
+    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
+      {agent_name.trim().slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
+function resolve_dm_agent(room: RoomAggregate, agents: Agent[]) {
+  const agent_member = room.members.find((member) => member.member_type === "agent");
+  if (!agent_member?.member_agent_id) {
+    return null;
+  }
+
+  return agents.find((agent) => agent.agent_id === agent_member.member_agent_id) ?? null;
+}
+
 // ==================== 主组件 ====================
 
 export const HomePanelContent = memo(function HomePanelContent() {
@@ -82,7 +109,11 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const [starred] = useState<StarredItem[]>(load_starred_items);
 
   // 对话框状态
-  const [delete_target, set_delete_target] = useState<{ id: string; name: string } | null>(null);
+  const [delete_target, set_delete_target] = useState<{
+    id: string;
+    name: string;
+    room_type: "room" | "dm";
+  } | null>(null);
   const [is_create_room_open, set_is_create_room_open] = useState(false);
   const [is_creating_room, set_is_creating_room] = useState(false);
   const untitled_room_label = t("home.untitled_room");
@@ -193,10 +224,14 @@ export const HomePanelContent = memo(function HomePanelContent() {
   }, []);
 
   // 确认创建 Room
-  const handle_confirm_create_room = useCallback(async (agent_ids: string[], name: string) => {
+  const handle_confirm_create_room = useCallback(async (
+    agent_ids: string[],
+    name: string,
+    avatar?: string,
+  ) => {
     set_is_creating_room(true);
     try {
-      const context = await createRoom({ agent_ids, name });
+      const context = await createRoom({ agent_ids, name, avatar });
       set_is_create_room_open(false);
       refresh_rooms();
       // 创建后直接导航到新 Room
@@ -209,13 +244,23 @@ export const HomePanelContent = memo(function HomePanelContent() {
   // 删除 Room
   const handle_delete_room = useCallback(async () => {
     if (!delete_target) return;
-    await deleteRoom(delete_target.id);
+    const deleted_room_id = delete_target.id;
+    await deleteRoom(deleted_room_id);
     set_delete_target(null);
+    // 中文注释：删除当前激活房间时，优先回到同类列表入口。
+    if (active_item_id === deleted_room_id) {
+      set_active_item(null);
+      if (delete_target?.room_type === "dm") {
+        navigate(AppRouteBuilders.dm_directory());
+      } else {
+        navigate(AppRouteBuilders.home());
+      }
+    }
     refresh_rooms();
-  }, [delete_target, refresh_rooms]);
+  }, [active_item_id, delete_target, navigate, refresh_rooms, set_active_item]);
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col">
       {/* Starred 分区 */}
       {starred.length > 0 ? (
         <CollapsibleSection
@@ -244,7 +289,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
 
       {/* Rooms 分区 — 带新建按钮 */}
       <CollapsibleSection
-        action_icon={<Plus className="h-3.5 w-3.5" />}
+        action_icon={<Plus className="h-4 w-4" />}
         action_title={t("home.create_room")}
         count={normal_rooms.length}
         on_action={handle_create_room}
@@ -255,15 +300,36 @@ export const HomePanelContent = memo(function HomePanelContent() {
           normal_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
-              icon={<Hash className="h-4 w-4" />}
+              icon={(() => {
+                const room_avatar_id = getRoomAvatarIconId(
+                  room.room.id,
+                  room.room.name,
+                  room.room.avatar,
+                );
+                const room_avatar_src = getIconAvatarSrc(room_avatar_id);
+
+                return room_avatar_src ? (
+                  <img
+                    alt={room.room.name?.trim() || untitled_room_label}
+                    className="h-4 w-4 rounded-[4px] object-contain"
+                    src={room_avatar_src}
+                  />
+                ) : (
+                  <Hash className="h-4 w-4" />
+                );
+              })()}
               is_active={active_item_id === room.room.id}
               label={room.room.name?.trim() || untitled_room_label}
               on_click={() => navigate_to_room(room.room.id)}
-              on_delete={() => set_delete_target({ id: room.room.id, name: room.room.name?.trim() || untitled_room_label })}
+              on_delete={() => set_delete_target({
+                id: room.room.id,
+                name: room.room.name?.trim() || untitled_room_label,
+                room_type: "room",
+              })}
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[13px] text-slate-400">{t("home.no_rooms")}</p>
+          <p className="px-2 py-2 text-[13px] text-(--text-soft)">{t("home.no_rooms")}</p>
         )}
       </CollapsibleSection>
 
@@ -277,15 +343,29 @@ export const HomePanelContent = memo(function HomePanelContent() {
           dm_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
-              icon={<MessageCircleMore className="h-4 w-4" />}
+              icon={(() => {
+                const dm_agent = resolve_dm_agent(room, agents);
+                if (dm_agent) {
+                  return render_agent_avatar_icon(dm_agent.name, dm_agent.avatar);
+                }
+
+                return render_agent_avatar_icon(
+                  get_dm_display_name(room, agents, untitled_dm_label),
+                  null,
+                );
+              })()}
               is_active={active_item_id === room.room.id}
               label={get_dm_display_name(room, agents, untitled_dm_label)}
               on_click={() => navigate_to_room(room.room.id)}
-              on_delete={() => set_delete_target({ id: room.room.id, name: get_dm_display_name(room, agents, untitled_dm_label) })}
+              on_delete={() => set_delete_target({
+                id: room.room.id,
+                name: get_dm_display_name(room, agents, untitled_dm_label),
+                room_type: "dm",
+              })}
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[13px] text-slate-400">{t("home.no_dms")}</p>
+          <p className="px-2 py-2 text-[13px] text-(--text-soft)">{t("home.no_dms")}</p>
         )}
       </CollapsibleSection>
 
@@ -299,7 +379,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
           agents.map((agent) => (
             <SidebarListItem
               key={agent.agent_id}
-              icon={<Bot className="h-4 w-4" />}
+              icon={render_agent_avatar_icon(agent.name, agent.avatar)}
               is_active={active_item_id === agent.agent_id}
               label={agent.name}
               meta={(() => {
@@ -314,7 +394,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
             />
           ))
         ) : (
-          <p className="px-2 py-2 text-[13px] text-[color:var(--text-soft)]">{t("home.no_agents")}</p>
+          <p className="px-2 py-2 text-[13px] text-(--text-soft)">{t("home.no_agents")}</p>
         )}
       </CollapsibleSection>
 
@@ -335,7 +415,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}
-        on_confirm={(ids, name) => void handle_confirm_create_room(ids, name)}
+        on_confirm={(ids, name, avatar) => void handle_confirm_create_room(ids, name, avatar)}
       />
     </div>
   );

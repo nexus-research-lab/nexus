@@ -27,7 +27,7 @@ function StatusIndicator({ status }: { status: AgentRoundStatus }) {
     case "error":
       return <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />;
     case "cancelled":
-      return <Square className="h-3 w-3 text-[color:var(--icon-muted)]" />;
+      return <Square className="h-3 w-3 text-(--icon-muted)" />;
   }
 }
 
@@ -57,26 +57,26 @@ export const AgentCard = memo(function AgentCard({
       type="button"
       onClick={on_click}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-150 ease-out",
+        "group flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-(--motion-duration-fast) ease-out",
         is_active
-          ? "border-[var(--surface-interactive-active-border)] bg-[var(--surface-interactive-active-background)]"
-          : "border-[var(--card-default-border)] bg-[var(--card-default-background)] hover:bg-[var(--surface-interactive-hover-background)]",
+          ? "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background)"
+          : "border-(--card-default-border) bg-(--card-default-background) hover:bg-(--surface-interactive-hover-background)",
       )}
     >
       {/* Agent 头像 */}
       <div
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border",
-            is_active
-              ? "border-[var(--surface-interactive-active-border)] bg-[var(--surface-interactive-active-background)] text-[color:var(--icon-default)]"
-              : "",
-          )}
-          style={!is_active ? {
-            background: "var(--surface-avatar-background)",
-            borderColor: "var(--surface-avatar-border)",
-            color: "var(--surface-avatar-foreground)",
-            boxShadow: "var(--surface-avatar-shadow)",
-          } : undefined}
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border",
+          is_active
+            ? "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--icon-default)"
+            : "",
+        )}
+        style={!is_active ? {
+          background: "var(--surface-avatar-background)",
+          borderColor: "var(--surface-avatar-border)",
+          color: "var(--surface-avatar-foreground)",
+          boxShadow: "var(--surface-avatar-shadow)",
+        } : undefined}
       >
         <Bot className="h-3.5 w-3.5" />
       </div>
@@ -84,14 +84,14 @@ export const AgentCard = memo(function AgentCard({
       {/* 内容区 */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-[color:var(--text-strong)]">{agent_name}</span>
+          <span className="text-sm font-medium text-(--text-strong)">{agent_name}</span>
           <StatusIndicator status={status} />
           {label ? (
-            <span className="text-xs text-[color:var(--text-soft)]">{label}</span>
+            <span className="text-xs text-(--text-soft)">{label}</span>
           ) : null}
         </div>
         {preview_text ? (
-          <p className="mt-0.5 truncate text-xs text-[color:var(--text-muted)]">{preview_text}</p>
+          <p className="mt-0.5 truncate text-xs text-(--text-muted)">{preview_text}</p>
         ) : null}
       </div>
 
@@ -104,7 +104,7 @@ export const AgentCard = memo(function AgentCard({
             e.stopPropagation();
             on_stop();
           }}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[color:var(--icon-muted)] opacity-0 transition duration-150 ease-out group-hover:opacity-100 hover:bg-[var(--surface-interactive-hover-background)] hover:text-[color:var(--icon-default)]"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-(--icon-muted) opacity-0 transition duration-(--motion-duration-fast) ease-out group-hover:opacity-100 hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
         >
           <Square className="h-3 w-3 fill-current" />
         </button>
@@ -112,7 +112,7 @@ export const AgentCard = memo(function AgentCard({
 
       {/* 展开箭头提示 */}
       <svg
-        className="h-4 w-4 shrink-0 text-[color:var(--icon-muted)] transition-colors duration-150 ease-out group-hover:text-[color:var(--icon-default)]"
+        className="h-4 w-4 shrink-0 text-(--icon-muted) transition-colors duration-(--motion-duration-fast) ease-out group-hover:text-(--icon-default)"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, MessageSquare, Search, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, MessageSquare, X } from "lucide-react";
 
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
@@ -55,6 +55,7 @@ export function RoomMobileWorkspace({
 }: RoomMobileWorkspaceProps) {
   const [is_conversation_sheet_open, setIsConversationSheetOpen] = useState(false);
   const is_dm = current_room_type === "dm";
+  const current_agent_avatar_src = getIconAvatarSrc(current_agent.avatar);
 
   const current_room_conversation_title = useMemo(() => {
     if (current_room_conversation?.title?.trim()) {
@@ -68,7 +69,7 @@ export function RoomMobileWorkspace({
       <div className="px-2 pb-2 pt-2">
         <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
           <button
-            className="glass-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-900/82 transition hover:text-slate-950"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
             onClick={on_back_to_directory}
             type="button"
           >
@@ -76,25 +77,33 @@ export function RoomMobileWorkspace({
           </button>
 
           <button
-            className="glass-card flex min-w-0 flex-1 items-center gap-3 rounded-[24px] px-3 py-2 text-left transition hover:bg-white/18"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
             onClick={() => setIsConversationSheetOpen(true)}
             type="button"
           >
-            <div className="glass-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-700/56">
-              <Search className="h-4 w-4" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
+              {current_agent_avatar_src ? (
+                <img
+                  alt={current_agent.name}
+                  className="h-full w-full object-cover"
+                  src={current_agent_avatar_src}
+                />
+              ) : (
+                getInitials(current_agent.name, "DM", 2)
+              )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-900/84">{current_agent.name}</p>
-              <p className="truncate text-[12px] text-slate-700/54">
+              <p className="truncate text-sm font-semibold text-(--text-strong)">{current_agent.name}</p>
+              <p className="truncate text-[12px] text-(--text-muted)">
                 {current_room_title || current_room_conversation_title}
               </p>
             </div>
 
-            <ChevronDown className="h-4 w-4 shrink-0 text-slate-700/50" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-(--text-muted)" />
           </button>
 
-          <div className="glass-chip inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-slate-700/44">
+          <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-(--divider-subtle-color) text-(--text-muted)">
             <MessageSquare className="h-4 w-4" />
           </div>
         </div>
@@ -104,6 +113,7 @@ export function RoomMobileWorkspace({
         {is_dm ? (
           <DmChatPanel
             current_agent_name={current_agent.name}
+            current_agent_avatar={current_agent.avatar ?? null}
             initial_draft={initial_draft}
             layout="mobile"
             on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -117,6 +127,7 @@ export function RoomMobileWorkspace({
               agent_id={current_agent.agent_id}
               conversation_id={conversation_id}
               current_agent_name={current_agent.name}
+              current_agent_avatar={current_agent.avatar ?? null}
               initial_draft={initial_draft}
               layout="mobile"
               on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -136,24 +147,24 @@ export function RoomMobileWorkspace({
         <>
           <button
             aria-label="关闭会话列表"
-            className="absolute inset-0 z-30 bg-black/20 backdrop-blur-[1px]"
+            className="absolute inset-0 z-30 bg-(--dialog-backdrop-color)"
             onClick={() => setIsConversationSheetOpen(false)}
             type="button"
           />
 
-          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-white/60 px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
-            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-black/10" />
+          <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-[28px] border-t border-(--surface-panel-border) bg-(--surface-panel-background) px-4 pb-6 pt-3 shadow-[0_-20px_40px_rgba(0,0,0,0.12)]">
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-(--divider-strong-color)" />
 
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900/84">切换会话</p>
-                <p className="text-xs text-slate-700/54">
+                <p className="text-sm font-semibold text-(--text-strong)">切换会话</p>
+                <p className="text-xs text-(--text-muted)">
                   {current_room_conversations.length} 个会话
                 </p>
               </div>
 
               <button
-                className="glass-chip inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-700/54 transition hover:text-slate-950"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--text-muted) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
                 onClick={() => setIsConversationSheetOpen(false)}
                 type="button"
               >
@@ -167,22 +178,22 @@ export function RoomMobileWorkspace({
                 return (
                   <button
                     key={conversation.conversation_id}
-                    className="glass-card flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/18"
+                    className="flex w-full items-start gap-3 rounded-2xl border border-(--divider-subtle-color) px-3 py-3 text-left transition hover:bg-(--interaction-hover-background)"
                     onClick={() => {
                       on_select_conversation(conversation.conversation_id);
                       setIsConversationSheetOpen(false);
                     }}
                     type="button"
                   >
-                    <div className="glass-chip mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900/76">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) text-(--text-strong)">
                       {is_active ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900/84">
+                      <p className="truncate text-sm font-medium text-(--text-strong)">
                         {conversation.title?.trim() || "未命名会话"}
                       </p>
-                      <p className="mt-1 text-xs text-slate-700/54">
+                      <p className="mt-1 text-xs text-(--text-muted)">
                         {formatRelativeTime(conversation.last_activity_at)} · {conversation.message_count ?? 0} 条
                       </p>
                     </div>
@@ -205,11 +216,12 @@ function MobileThreadOverlay() {
   if (!active_thread || !thread_panel_data) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background">
+    <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
       <ThreadDetailPanel
         round_id={active_thread.round_id}
         agent_id={active_thread.agent_id}
         agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
+        agent_avatar={thread_panel_data.agent_avatar}
         messages={thread_panel_data.messages}
         pending_permissions={thread_panel_data.pending_permissions}
         on_permission_response={thread_panel_data.on_permission_response}

@@ -92,19 +92,20 @@ function getSystemMessageContainerClassName(tone: "neutral" | "warning"): string
   if (tone === "warning") {
     return "border border-amber-200/60 bg-amber-50/70 text-amber-950/88";
   }
-  return "border border-[var(--surface-panel-subtle-border)] bg-[var(--surface-inset-background)] text-[color:var(--text-default)]";
+  return "border border-(--surface-panel-subtle-border) bg-(--surface-inset-background) text-(--text-default)";
 }
 
 function getSystemMessageIconClassName(tone: "neutral" | "warning"): string {
   if (tone === "warning") {
     return "text-amber-700/80";
   }
-  return "text-[color:var(--icon-muted)]";
+  return "text-(--icon-muted)";
 }
 
 interface MessageItemProps {
   compact?: boolean;
   current_agent_name?: string | null;
+  current_agent_avatar?: string | null;
   round_id: string;
   messages: Message[];
   is_last_round?: boolean;
@@ -132,6 +133,7 @@ function MessageItemInner(
   {
     compact = false,
     current_agent_name,
+    current_agent_avatar,
     round_id,
     messages,
     is_last_round,
@@ -784,8 +786,14 @@ function MessageItemInner(
     if (!on_stop_message || !firstAssistant) return;
     on_stop_message(firstAssistant.message_id);
   }, [on_stop_message, firstAssistant]);
+  const is_room_thread_mode = assistant_content_mode === "room_thread";
   const pendingPermissionBlock = unmatchedPendingPermissions.length > 0 ? (
-    <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-[var(--surface-inset-background)] p-3">
+    <div className={cn(
+      "mt-3 flex flex-col gap-3",
+      is_room_thread_mode
+        ? "border-t border-(--divider-subtle-color) pt-3"
+        : "rounded-2xl bg-(--surface-inset-background) p-3",
+    )}>
       {unmatchedPendingPermissions.map((permission) => (
         <ToolBlock
           key={permission.request_id}
@@ -885,7 +893,7 @@ function MessageItemInner(
               "group flex min-w-0 justify-end",
               compact ? "" : "gap-3",
             )}>
-              <div className="relative ml-auto min-w-0 w-full max-w-[min(100%,720px)]">
+              <div className="relative ml-auto min-w-0 max-w-[min(100%,720px)]">
                 {/* 头部 */}
                 <div className={cn(
                   "flex items-center justify-end gap-2",
@@ -915,21 +923,21 @@ function MessageItemInner(
                     </MessageActionButton>
                   </div>
 
-                  <span className="hidden shrink-0 text-xs text-[color:var(--text-muted)] sm:inline">
+                  <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
                     {userMessage.timestamp ? formatTime(userMessage.timestamp) : "--:--"}
                   </span>
-                  <span className="shrink-0 text-sm font-bold text-[color:var(--text-strong)]">你</span>
+                  <span className="shrink-0 text-sm font-bold text-(--text-strong)">你</span>
                   <MessageAvatar class_name="shrink-0" size={compact ? "compact" : "full"}>
                     <User className={compact ? "h-3 w-3" : "h-4 w-4"} />
                   </MessageAvatar>
                 </div>
 
                 {/* 内容 */}
-                <div className="pb-1 pt-1">
+                <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
                   <p className={cn(
                     "w-full",
-                    "whitespace-pre-wrap text-right text-[color:var(--text-strong)] wrap-anywhere",
-                    compact ? "text-[14px] leading-6" : "text-[15px] leading-7",
+                    "whitespace-pre-wrap text-left text-(--text-strong) wrap-anywhere",
+                    compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
                   )}>
                     {userContent}
                   </p>
@@ -943,14 +951,14 @@ function MessageItemInner(
       {/* ═══════════════════════ 助手消息 ═══════════════════════ */}
       {!shouldHideAssistantContent && (
         <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
-          <div className={cn("mx-auto w-full", compact ? "max-w-full" : "max-w-[980px]")}>
+          <div className={cn("w-full", compact ? "max-w-full" : "max-w-[980px]")}>
             <div className={cn(
               "group grid min-w-0",
               compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
             )}>
               {!compact ? (
-                <MessageAvatar>
-                  <Bot className="h-4 w-4" />
+                <MessageAvatar avatar_url={current_agent_avatar}>
+                  {!current_agent_avatar && <Bot className="h-4 w-4" />}
                 </MessageAvatar>
               ) : null}
 
@@ -961,21 +969,21 @@ function MessageItemInner(
                   compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
                 )}>
                   {compact ? (
-                    <MessageAvatar class_name="shrink-0" size="compact">
-                      <Bot className="h-3 w-3" />
+                    <MessageAvatar class_name="shrink-0" size="compact" avatar_url={current_agent_avatar}>
+                      {!current_agent_avatar && <Bot className="h-3 w-3" />}
                     </MessageAvatar>
                   ) : null}
-                  <span className="shrink-0 text-sm font-bold text-[color:var(--text-strong)]">
+                  <span className="shrink-0 text-sm font-bold text-(--text-strong)">
                     {current_agent_name || "协作成员"}
                   </span>
 
                   {/* 时间 */}
-                  <span className="hidden shrink-0 text-xs text-[color:var(--text-muted)] sm:inline">
+                  <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
                     {timestamp ? formatTime(timestamp) : "--:--"}
                   </span>
 
                   {/* 模型 */}
-                  {model ? <span className="min-w-0 truncate text-xs text-[color:var(--text-soft)]">{model}</span> : null}
+                  {model ? <span className="min-w-0 truncate text-xs text-(--text-soft)">{model}</span> : null}
 
                   <div className="flex-1" />
 
@@ -1005,7 +1013,8 @@ function MessageItemInner(
                 <div
                   ref={contentAreaRef}
                   className={cn(
-                    compact ? "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[14px] leading-6" : "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-[15px] leading-7",
+                    "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
+                    compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
                   )}
                   style={showCursor ? { minHeight: streamingMinHeight.current } : undefined}
                 >
@@ -1023,6 +1032,9 @@ function MessageItemInner(
                             className={cn(
                               "flex items-start gap-2 rounded-2xl px-3 py-2.5",
                               getSystemMessageContainerClassName(display_meta.tone),
+                              is_room_thread_mode && display_meta.tone === "neutral"
+                                ? "border border-(--divider-subtle-color) bg-transparent text-(--text-default)"
+                                : null,
                             )}
                           >
                             <RotateCcw
@@ -1047,7 +1059,7 @@ function MessageItemInner(
 
                   {/* Room 并发：已取消标记 */}
                   {stream_status === 'cancelled' && mergedContent.length === 0 && (
-                    <span className="text-xs italic text-[color:var(--text-soft)]">已停止</span>
+                    <span className="text-xs italic text-(--text-soft)">已停止</span>
                   )}
 
                   {stream_status === 'error' && mergedContent.length === 0 && (
@@ -1075,15 +1087,15 @@ function MessageItemInner(
                   {shouldRenderProcessCallchain ? (
                     <div ref={processAnchorRef as React.RefObject<HTMLDivElement>}>
                       <button
-                        className="flex w-full items-center gap-2 py-1.5 text-left text-[color:var(--text-muted)] transition-colors duration-150 hover:text-[color:var(--text-strong)]"
+                        className="flex w-full items-center gap-2 py-1.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
                         onClick={toggleProcessExpanded}
                         type="button"
                       >
-                        <Wrench className="h-3 w-3 shrink-0 text-[color:var(--icon-muted)]" />
-                        <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-[color:var(--text-muted)]">
+                        <Wrench className="h-3 w-3 shrink-0 text-(--icon-muted)" />
+                        <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-muted)">
                           {processSummary}
                         </div>
-                        <div className="text-[color:var(--icon-muted)]">
+                        <div className="text-(--icon-muted)">
                           {isProcessExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                         </div>
                       </button>

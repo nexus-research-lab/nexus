@@ -11,12 +11,14 @@ import { SessionSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 
 import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
+import { prepare_workspace_text_attachments } from "@/features/conversation-shared/composer-attachments";
 import { ConversationFeed } from "@/features/conversation-shared/conversation-feed";
 import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
 import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation-shared/utils";
 
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
+  current_agent_avatar?: string | null;
   session_identity: AgentConversationIdentity | null;
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
@@ -29,6 +31,7 @@ export interface DmChatPanelProps {
 
 export function DmChatPanel({
   current_agent_name,
+  current_agent_avatar,
   session_identity,
   layout = "desktop",
   initial_draft = null,
@@ -134,6 +137,14 @@ export function DmChatPanel({
 
   const handle_stop = () => stop_generation();
 
+  const handle_prepare_attachments = async (files: File[]) => {
+    const target_agent_id = session_identity?.agent_id;
+    if (!target_agent_id) {
+      throw new Error("当前会话尚未准备好，暂时无法附加文件。");
+    }
+    return prepare_workspace_text_attachments(target_agent_id, files);
+  };
+
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
     if (!session_key || !normalized_draft || is_loading || !can_control_session) {
@@ -188,7 +199,7 @@ export function DmChatPanel({
         className={
           is_mobile_layout
             ? "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2"
-            : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[var(--surface-canvas-background)] px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
+            : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
         }
         style={{ overflowAnchor: "none" }}
         onScroll={on_scroll}
@@ -202,6 +213,7 @@ export function DmChatPanel({
           feed_ref={feed_ref}
           scroll_ref={scroll_ref}
           current_agent_name={current_agent_name ?? null}
+          current_agent_avatar={current_agent_avatar ?? null}
           is_last_round_pending_permissions={pending_permissions}
           is_loading={is_loading}
           is_mobile_layout={is_mobile_layout}
@@ -226,6 +238,7 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         control_status_text={session_control_text}
         is_loading={is_loading}
+        on_prepare_attachments={handle_prepare_attachments}
         on_send_message={handle_send_message}
         on_stop={handle_stop}
         disabled={!can_control_session}

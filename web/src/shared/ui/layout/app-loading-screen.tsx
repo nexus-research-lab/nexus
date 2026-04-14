@@ -16,17 +16,12 @@ export function AppLoadingState({
   message = "正在加载...",
 }: AppLoadingStateProps) {
   return (
-    <div
-      className={cn(
-        "radius-shell-lg glass-surface flex flex-col items-center gap-3 px-12 py-10 text-center",
-        class_name,
-      )}
-    >
+    <div className={cn("surface-panel radius-shell-lg flex flex-col items-center gap-3 px-12 py-10 text-center", class_name)}>
       <LottiePlayer
         class_name={animation_class_name}
         src={ANIMATIONS.CAT}
       />
-      <p className="text-sm text-muted-foreground">{message}</p>
+      <p className="text-sm text-(--text-muted)">{message}</p>
     </div>
   );
 }

@@ -70,13 +70,13 @@ export function ContentRenderer(
 
   // 第二遍：匹配 tool_result 到 tool_use
   content.forEach((block, index) => {
-      if (block.type === 'tool_result') {
-        const toolUseData = toolUseMap.get(block.tool_use_id);
-        if (toolUseData) {
-          toolUseData.result = block;
-          renderedIndices.add(index); // 标记这个 result 已被处理
-        }
+    if (block.type === 'tool_result') {
+      const toolUseData = toolUseMap.get(block.tool_use_id);
+      if (toolUseData) {
+        toolUseData.result = block;
+        renderedIndices.add(index); // 标记这个 result 已被处理
       }
+    }
   });
 
   // 中文注释：只要当前轮次仍在进行，就持续在块尾渲染一个状态行；
@@ -107,11 +107,11 @@ export function ContentRenderer(
           return (
             <div key={index}>
               <ContentRenderer
-                        content={block.text}
-                        is_streaming={blockIsStreaming}
-                        fallback_activity_state={blockIsStreaming ? "replying" : null}
-                        on_open_workspace_file={on_open_workspace_file}
-                      />
+                content={block.text}
+                is_streaming={blockIsStreaming}
+                fallback_activity_state={blockIsStreaming ? "replying" : null}
+                on_open_workspace_file={on_open_workspace_file}
+              />
             </div>
           );
         }
@@ -131,7 +131,7 @@ export function ContentRenderer(
                 <MessageCalloutTitle>
                   {block.last_tool_name || '后台任务'} 正在执行
                 </MessageCalloutTitle>
-                <div className="mt-1 whitespace-pre-wrap break-words text-[color:var(--text-muted)]">
+                <div className="mt-1 whitespace-pre-wrap break-words text-(--text-muted)">
                   {block.description || '正在处理中…'}
                 </div>
               </MessageCallout>
@@ -234,7 +234,7 @@ export function ContentRenderer(
                 </MessageResultLabel>
                 <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                   {typeof block.content === 'string' ? (
-                    <pre className="rounded-2xl border border-[var(--divider-subtle-color)] bg-[var(--surface-inset-background)] p-3 text-xs text-[color:var(--text-default)] whitespace-pre-wrap break-words">
+                    <pre className="rounded-2xl border border-(--divider-subtle-color) bg-(--surface-inset-background) p-3 text-xs text-(--text-default) whitespace-pre-wrap break-words">
                       {block.content}
                     </pre>
                   ) : (

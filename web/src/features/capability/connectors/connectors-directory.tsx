@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useConnectorController } from "@/hooks/use-connector-controller";
 
 import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
 
 import { ConnectorDetailDialog } from "./connector-detail-dialog";
 import { ConnectorsGrid } from "./connectors-grid";
@@ -136,14 +137,16 @@ export function ConnectorsDirectory() {
   }, [handle_oauth_callback, location.pathname, location.search, navigate, set_error_message]);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ConnectorsHeader ctrl={ctrl} />
-
-      {/* 内容区 */}
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
+    <>
+      <WorkspaceSurfaceScaffold
+        body_class_name="px-5 py-5 xl:px-6"
+        body_scrollable
+        header={<ConnectorsHeader ctrl={ctrl} />}
+        stable_gutter
+      >
         <ConnectorsSearchBar ctrl={ctrl} />
         <ConnectorsGrid ctrl={ctrl} />
-      </div>
+      </WorkspaceSurfaceScaffold>
 
       {/* 详情弹窗 */}
       <ConnectorDetailDialog
@@ -176,6 +179,6 @@ export function ConnectorsDirectory() {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

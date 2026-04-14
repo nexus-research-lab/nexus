@@ -212,7 +212,7 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
 
 export function ThemeOverlay() {
   const { theme } = useTheme();
-  const T = "opacity 700ms cubic-bezier(0.23,1,0.32,1)";
+  const T = "opacity 700ms var(--motion-ease-standard)";
   const is_sunny = theme === "sunny";
   const is_rain = theme === "rain";
 

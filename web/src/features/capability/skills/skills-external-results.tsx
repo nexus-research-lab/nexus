@@ -1,9 +1,14 @@
 import { Download, Loader2 } from "lucide-react";
 
-import { WorkspacePillButton } from "@/shared/ui/workspace/workspace-pill-button";
 import {
   WorkspaceCatalogBadge,
+  WorkspaceCatalogBody,
   WorkspaceCatalogCard,
+  WorkspaceCatalogDescription,
+  WorkspaceCatalogFooter,
+  WorkspaceCatalogHeader,
+  WorkspaceCatalogTextAction,
+  WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import type { ExternalSkillSearchItem } from "@/types/skill";
 
@@ -17,7 +22,7 @@ interface SkillsExternalResultsProps {
 export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
   if (ctrl.external_loading) {
     return (
-      <div className="flex items-center gap-2 py-12 justify-center text-sm text-[color:var(--text-soft)]">
+      <div className="flex items-center gap-2 py-12 justify-center text-sm text-(--text-soft)">
         <Loader2 className="h-4 w-4 animate-spin" />
         正在搜索社区技能...
       </div>
@@ -26,7 +31,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
 
   if (ctrl.external_query && !ctrl.external_results.length) {
     return (
-      <div className="surface-inset radius-shell-md px-5 py-8 text-center text-sm text-[color:var(--text-soft)]">
+      <div className="rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         暂无匹配结果，试试更具体的关键词
       </div>
     );
@@ -36,9 +41,9 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-[12px] text-[color:var(--text-soft)]">
+      <div className="flex items-center justify-between text-[12px] text-(--text-soft)">
         <span>
-          找到 <span className="font-bold text-[color:var(--text-strong)]">{ctrl.external_results.length}</span> 个结果
+          找到 <span className="font-bold text-(--text-strong)">{ctrl.external_results.length}</span> 个结果
         </span>
         <span>优先展示安装量更高的技能</span>
       </div>
@@ -80,33 +85,44 @@ function ExternalResultCard({
 
   return (
     <WorkspaceCatalogCard
-      class_name="h-full min-h-[138px] cursor-pointer rounded-[20px] px-5 py-4"
+      class_name="h-full"
+      interactive
       onClick={on_preview}
+      size="compact"
     >
-      {/* 标题行 */}
-      <div className="flex items-start justify-between gap-3">
+      <WorkspaceCatalogHeader class_name="justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-bold tracking-tight text-[color:var(--text-strong)]">
+          <WorkspaceCatalogTitle class_name="tracking-tight" size="sm" truncate>
             {item.title || item.skill_slug}
-          </p>
-          <p className="mt-0.5 flex items-center gap-2 truncate text-[11px] text-[color:var(--text-muted)]">
+          </WorkspaceCatalogTitle>
+          <p className="mt-0.5 flex items-center gap-2 truncate text-[11px] text-(--text-muted)">
             <span>{item.package_spec}</span>
             <span>·</span>
             <span>{formatInstalls(item.installs)} installs</span>
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      </WorkspaceCatalogHeader>
+
+      <WorkspaceCatalogBody grow>
+        <WorkspaceCatalogDescription class_name="text-[12px] leading-[1.6]" lines={2}>
+          {item.readme_markdown || item.description}
+        </WorkspaceCatalogDescription>
+      </WorkspaceCatalogBody>
+
+      <WorkspaceCatalogFooter onClick={(e) => e.stopPropagation()}>
+        <div className="text-[11px] text-(--text-soft)">
+          社区技能
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
           {already_imported ? (
             <WorkspaceCatalogBadge tone="success">
               已导入
             </WorkspaceCatalogBadge>
           ) : (
-            <WorkspacePillButton
+            <WorkspaceCatalogTextAction
               disabled={is_busy}
-              density="compact"
               onClick={on_import}
-              size="sm"
-              variant="primary"
+              tone="primary"
             >
               {is_busy ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -114,15 +130,10 @@ function ExternalResultCard({
                 <Download className="h-3 w-3" />
               )}
               导入
-            </WorkspacePillButton>
+            </WorkspaceCatalogTextAction>
           )}
         </div>
-      </div>
-
-      {/* 描述 */}
-      <p className="mt-2.5 line-clamp-2 min-h-[38px] flex-1 text-[12px] leading-[1.6] text-[color:var(--text-default)]">
-        {item.readme_markdown || item.description}
-      </p>
+      </WorkspaceCatalogFooter>
     </WorkspaceCatalogCard>
   );
 }

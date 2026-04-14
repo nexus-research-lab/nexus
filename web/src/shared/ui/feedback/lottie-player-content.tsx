@@ -20,7 +20,10 @@ export function LottiePlayerContent({ src, class_name, inline_style }: LottiePla
   }, [dotLottieInstance]);
 
   return (
-    <div className={class_name} style={inline_style}>
+    <div
+      className={class_name}
+      style={inline_style}
+    >
       <DotLottieReact
         autoplay
         className="block h-full w-full"
