@@ -1,6 +1,6 @@
 "use client";
 
-import { MarkdownRendererContent } from "@/features/conversation-shared/message/markdown-renderer-content";
+import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown-renderer-content";
 import { cn } from "@/lib/utils";
 
 const SKILL_MARKDOWN_CLASS_NAME =

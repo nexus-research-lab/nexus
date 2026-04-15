@@ -4,8 +4,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { Loader2 } from "lucide-react";
 
-import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
-import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
+import { RoomWorkspaceShell } from "@/features/conversation/room/room-workspace-shell";
+import { RoomRouteEntry } from "@/features/conversation/room/room-route-entry";
 import { useRoomPageController } from "@/hooks/use-room-page-controller";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";

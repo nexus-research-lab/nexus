@@ -149,6 +149,11 @@ class RoomService:
         if not contexts:
             raise LookupError("Room not found")
         context = self._pick_context_by_conversation(contexts, main_conversation.id)
+        await self._broadcast_room_list_updated(
+            reason="updated",
+            room_id=context.room.id,
+            room_type=context.room.room_type,
+        )
         return context
 
     async def create_room(
@@ -212,6 +217,11 @@ class RoomService:
             members=room_aggregate.members,
             conversation=created_conversation,
             sessions=sessions,
+        )
+        await self._broadcast_room_list_updated(
+            reason="created",
+            room_id=context.room.id,
+            room_type=context.room.room_type,
         )
         return context
 
@@ -315,6 +325,11 @@ class RoomService:
             delivery_mode="ephemeral",
             data={"room_id": room_id, "agent_id": agent_id},
         ))
+        await self._broadcast_room_list_updated(
+            reason="member_added",
+            room_id=room_id,
+            room_type=context.room.room_type,
+        )
         return context
 
     async def remove_agent_member(
@@ -402,6 +417,11 @@ class RoomService:
             delivery_mode="ephemeral",
             data={"room_id": room_id, "agent_id": agent_id},
         ))
+        await self._broadcast_room_list_updated(
+            reason="member_removed",
+            room_id=room_id,
+            room_type=context.room.room_type,
+        )
         return context
 
     async def delete_room(self, room_id: str) -> None:
@@ -441,6 +461,10 @@ class RoomService:
             room_id=room_id,
             data={"room_id": room_id},
         ))
+        await self._broadcast_room_list_updated(
+            reason="deleted",
+            room_id=room_id,
+        )
 
     def _normalize_agent_ids(self, agent_ids: list[str], room_type: str) -> list[str]:
         """按房间类型筛选合法成员并保持输入顺序。"""
@@ -592,6 +616,27 @@ class RoomService:
             if context.conversation.id == conversation_id:
                 return context
         return contexts[0]
+
+    async def _broadcast_room_list_updated(
+        self,
+        reason: str,
+        room_id: str | None,
+        room_type: str | None = None,
+    ) -> None:
+        """向全局前端广播 room 列表变更。"""
+        from agent.service.channels.ws.ws_connection_registry import ws_connection_registry
+        from agent.schema.model_message import EventMessage
+
+        await ws_connection_registry.broadcast(EventMessage(
+            event_type="room_list_updated",
+            delivery_mode="ephemeral",
+            room_id=room_id,
+            data={
+                "reason": reason,
+                "room_id": room_id,
+                "room_type": room_type,
+            },
+        ))
 
 
 room_service = RoomService()

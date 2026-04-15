@@ -25,25 +25,3 @@ export interface ConversationWithOwner {
   conversation: Conversation;
 }
 
-export interface LauncherQueryRequest {
-  query: string;
-}
-
-export interface LauncherQueryResponse {
-  action_type: 'open_agent_dm' | 'open_room';
-  target_id: string;
-  initial_message?: string;
-}
-
-export interface LauncherSuggestion {
-  type: 'agent' | 'room';
-  id: string;
-  name: string;
-  avatar?: string;
-  last_activity?: string;
-}
-
-export interface LauncherSuggestionsResponse {
-  agents: LauncherSuggestion[];
-  rooms: LauncherSuggestion[];
-}

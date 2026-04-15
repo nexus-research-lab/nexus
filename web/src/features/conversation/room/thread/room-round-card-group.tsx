@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo } from "react";
-import { MessageItem } from "@/features/conversation-shared/message";
+import { MessageItem } from "@/features/conversation/shared/message";
 
 import { cn } from "@/lib/utils";
 import {
@@ -15,7 +15,7 @@ import {
   buildRoomAgentRoundEntries,
   RoomAgentRoundEntry,
   isAgentRoundActive,
-} from "@/features/conversation-shared/utils";
+} from "@/features/conversation/shared/utils";
 import { AgentStatusCard } from "./agent-status-card";
 import { useRoomThread } from "./room-thread-state";
 

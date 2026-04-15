@@ -12,9 +12,9 @@ import { PendingPermission, PermissionDecisionPayload } from "@/types/permission
 import {
   AgentRoundStatus,
   extractAgentPreviewText,
-} from "@/features/conversation-shared/utils";
-import { MessageAvatar } from "@/features/conversation-shared/message/message-primitives";
-import { MarkdownRendererContent } from "@/features/conversation-shared/message/markdown-renderer-content";
+} from "@/features/conversation/shared/utils";
+import { MessageAvatar } from "@/features/conversation/shared/message/message-primitives";
+import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown-renderer-content";
 
 interface AgentStatusCardProps {
   agent_id: string;

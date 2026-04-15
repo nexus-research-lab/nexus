@@ -2,15 +2,13 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { MessageItem } from "@/features/conversation-shared/message";
-import { hasRoomAgentRoundEntries } from "@/features/conversation-shared/utils";
+import { MessageItem } from "@/features/conversation/shared/message";
 import { AgentConversationRuntimePhase } from "@/types/agent-conversation";
-import { Message, RoomPendingAgentSlotState } from "@/types/message";
+import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import { estimateRoundHeights } from "@/hooks/use-message-height";
-import { RoomRoundCardGroup } from "./thread/room-round-card-group";
 
-interface RoomConversationFeedProps {
+interface ConversationFeedProps {
   bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
   feed_ref?: RefObject<HTMLDivElement | null>;
   /** The scrollable container — needed by the virtualizer */
@@ -20,15 +18,13 @@ interface RoomConversationFeedProps {
   current_agent_avatar?: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
-  /** Room 模式下的 agent_id → avatar 映射（用于多 Agent 显示） */
+  /** Room 模式下的 agent_id → avatar 映射 */
   agent_avatar_map?: Record<string, string | null>;
   is_last_round_pending_permissions: PendingPermission[];
   is_loading: boolean;
   runtime_phase?: AgentConversationRuntimePhase | null;
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
-  pending_permission_groups: Map<string, PendingPermission[]>;
-  pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
@@ -72,7 +68,7 @@ function resolve_round_agent_avatar(
   return undefined;
 }
 
-export const RoomConversationFeed = memo(function RoomConversationFeed({
+export const ConversationFeed = memo(function ConversationFeed({
   bottom_anchor_ref,
   feed_ref,
   scroll_ref,
@@ -86,15 +82,13 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
   runtime_phase,
   is_mobile_layout,
   message_groups,
-  pending_permission_groups,
-  pending_slot_groups,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
   permission_read_only_reason,
   on_stop_message,
   round_ids,
-}: RoomConversationFeedProps) {
+}: ConversationFeedProps) {
   const use_virtual = round_ids.length >= VIRTUAL_THRESHOLD;
 
   if (use_virtual && scroll_ref) {
@@ -113,8 +107,6 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         runtime_phase={runtime_phase}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
-        pending_permission_groups={pending_permission_groups}
-        pending_slot_groups={pending_slot_groups}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
         can_respond_to_permissions={can_respond_to_permissions}
@@ -132,36 +124,11 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
     >
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
-        const round_pending_permissions = pending_permission_groups.get(roundId) || [];
-        const round_pending_slots = pending_slot_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
-        const has_room_entries = hasRoomAgentRoundEntries(roundMessages, round_pending_slots);
-
-        // Room 中一旦出现 Agent 回复，就统一走 RoomRoundCardGroup。
-        if (has_room_entries) {
-          return (
-            <RoomRoundCardGroup
-              key={roundId}
-              round_id={roundId}
-              messages={roundMessages}
-              pending_permissions={round_pending_permissions}
-              pending_slots={round_pending_slots}
-              agent_name_map={agent_name_map}
-              agent_avatar_map={agent_avatar_map}
-              is_last_round={isLastRound}
-              is_loading={is_loading}
-              on_permission_response={on_permission_response}
-              can_respond_to_permissions={can_respond_to_permissions}
-              permission_read_only_reason={permission_read_only_reason}
-              on_stop_message={on_stop_message}
-              on_open_workspace_file={on_open_workspace_file}
-            />
-          );
-        }
-
-        // 纯用户轮次或尚未分配到 Agent 的轮次，沿用 MessageItem。
+        const should_keep_round_live = isLastRound && is_loading;
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
         const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
+
         return (
           <MessageItem
             key={roundId}
@@ -170,6 +137,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
             current_agent_avatar={round_agent_avatar}
             round_id={roundId}
             messages={roundMessages}
+            assistant_content_mode={should_keep_round_live ? "dm_live" : "dm_archived"}
             is_last_round={isLastRound}
             is_loading={is_loading}
             runtime_phase={isLastRound ? runtime_phase : null}
@@ -203,15 +171,13 @@ function VirtualFeed({
   runtime_phase,
   is_mobile_layout,
   message_groups,
-  pending_permission_groups,
-  pending_slot_groups,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
   permission_read_only_reason,
   on_stop_message,
   round_ids,
-}: Omit<RoomConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
+}: Omit<ConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
   const container_ref = useRef<HTMLDivElement>(null);
 
   // Measure scroll container width for pretext height estimation
@@ -268,10 +234,10 @@ function VirtualFeed({
         {virtual_items.map((virtual_item) => {
           const roundId = round_ids[virtual_item.index];
           const roundMessages = message_groups.get(roundId) || [];
-          const round_pending_permissions = pending_permission_groups.get(roundId) || [];
-          const round_pending_slots = pending_slot_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
-          const has_room_entries = hasRoomAgentRoundEntries(roundMessages, round_pending_slots);
+          const should_keep_round_live = isLastRound && is_loading;
+          const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
+          const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
 
           return (
             <div
@@ -279,40 +245,23 @@ function VirtualFeed({
               data-index={virtual_item.index}
               ref={virtualizer.measureElement}
             >
-              {has_room_entries ? (
-                <RoomRoundCardGroup
-                  round_id={roundId}
-                  messages={roundMessages}
-                  pending_permissions={round_pending_permissions}
-                  pending_slots={round_pending_slots}
-                  agent_name_map={agent_name_map}
-                  agent_avatar_map={agent_avatar_map}
-                  is_last_round={isLastRound}
-                  is_loading={is_loading}
-                  on_permission_response={on_permission_response}
-                  can_respond_to_permissions={can_respond_to_permissions}
-                  permission_read_only_reason={permission_read_only_reason}
-                  on_stop_message={on_stop_message}
-                  on_open_workspace_file={on_open_workspace_file}
-                />
-              ) : (
-                <MessageItem
-                  compact={compact}
-                  current_agent_name={resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name}
-                  current_agent_avatar={resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar}
-                  round_id={roundId}
-                  messages={roundMessages}
-                  is_last_round={isLastRound}
-                  is_loading={is_loading}
-                  runtime_phase={isLastRound ? runtime_phase : null}
-                  pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
-                  on_permission_response={on_permission_response}
-                  can_respond_to_permissions={can_respond_to_permissions}
-                  permission_read_only_reason={permission_read_only_reason}
-                  on_open_workspace_file={on_open_workspace_file}
-                  on_stop_message={on_stop_message}
-                />
-              )}
+              <MessageItem
+                compact={compact}
+                current_agent_name={round_agent_name}
+                current_agent_avatar={round_agent_avatar}
+                round_id={roundId}
+                messages={roundMessages}
+                assistant_content_mode={should_keep_round_live ? "dm_live" : "dm_archived"}
+                is_last_round={isLastRound}
+                is_loading={is_loading}
+                runtime_phase={isLastRound ? runtime_phase : null}
+                pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
+                on_permission_response={on_permission_response}
+                can_respond_to_permissions={can_respond_to_permissions}
+                permission_read_only_reason={permission_read_only_reason}
+                on_open_workspace_file={on_open_workspace_file}
+                on_stop_message={on_stop_message}
+              />
             </div>
           );
         })}

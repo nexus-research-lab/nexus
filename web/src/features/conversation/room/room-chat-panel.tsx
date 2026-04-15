@@ -13,9 +13,9 @@ import { PendingPermission } from "@/types/permission";
 import { TodoItem } from "@/types/todo";
 import { Agent } from "@/types/agent";
 
-import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
-import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
-import { prepare_workspace_text_attachments } from "@/features/conversation-shared/composer-attachments";
+import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
+import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
 import {
   buildRoomAgentRoundEntries,
   getRoomAgentRoundEntry,
@@ -26,7 +26,7 @@ import {
   groupRoomPendingSlotsByRound,
   groupRoomMessagesByRound,
   isAgentRoundActive,
-} from "@/features/conversation-shared/utils";
+} from "@/features/conversation/shared/utils";
 import { RoomConversationFeed } from "./room-conversation-feed";
 import { useRoomThread, useSetThreadPanelData } from "./thread/room-thread-state";
 import { RoomConversationEmptyState } from "./room-conversation-empty-state";

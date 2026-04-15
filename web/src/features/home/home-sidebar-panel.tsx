@@ -23,7 +23,7 @@ import { getAgentWsUrl, isMainAgent } from "@/config/options";
 import { get_dm_display_name } from "@/lib/dm-utils";
 import { getIconAvatarSrc, getRoomAvatarIconId } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
-import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
+import { CreateRoomDialog } from "@/features/conversation/room-members/create-room-dialog";
 import { createRoom, deleteRoom, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";

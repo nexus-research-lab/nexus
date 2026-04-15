@@ -8,7 +8,7 @@ import { Agent } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
 
-import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
+import { DmChatPanel } from "@/features/conversation/dm/dm-chat-panel";
 import { RoomChatPanel } from "./room-chat-panel";
 import { RoomThreadContextProvider } from "./thread/room-thread-context";
 import { useRoomThread, useThreadPanelData } from "./thread/room-thread-state";
