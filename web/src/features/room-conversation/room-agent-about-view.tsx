@@ -1,5 +1,6 @@
 "use client";
 
+import { ReactNode } from "react";
 import { Bot, Shield } from "lucide-react";
 
 import { getIconAvatarSrc, getInitials } from "@/lib/utils";
@@ -10,17 +11,20 @@ import { format_provider_label } from "@/types/provider";
 
 interface RoomAgentAboutViewProps {
   agent: Agent;
+  header_action?: ReactNode;
 }
 
-export function RoomAgentAboutView({ agent }: RoomAgentAboutViewProps) {
+export function RoomAgentAboutView({ agent, header_action }: RoomAgentAboutViewProps) {
   const { t } = useI18n();
   const avatar_src = getIconAvatarSrc(agent.avatar);
 
   return (
     <WorkspaceSurfaceView
+      action={header_action}
       body_class_name="px-4 py-5 sm:px-5 xl:px-6"
       eyebrow={t("room.about")}
       max_width_class_name="max-w-[820px]"
+      show_eyebrow={false}
       title={agent.name}
     >
       <div className="rounded-[24px] border border-(--divider-subtle-color) p-5">

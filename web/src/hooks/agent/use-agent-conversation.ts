@@ -37,7 +37,7 @@ import {
   resetAgentSession,
   startAgentSession,
 } from './conversation-lifecycle';
-import { applyStreamMessage } from './message-helpers';
+import { applyStreamMessage, dedupeMessagesById } from './message-helpers';
 import { handleAgentConversationWebSocketMessage } from './websocket-event-handler';
 import {
   sendSessionMessage,
@@ -145,7 +145,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     runtime_machine_ref.current.snapshot()
   ));
 
-  const [messages, set_messages] = useState<Message[]>([]);
+  const [messages, set_messages_state] = useState<Message[]>([]);
   const [error, set_error] = useState<string | null>(null);
   const [session_key, set_session_key] = useState<string | null>(identity?.session_key ?? null);
   const [is_session_loading, set_is_session_loading] = useState(false);
@@ -172,6 +172,19 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const is_loading = runtime_snapshot.is_loading;
   const runtime_phase = runtime_snapshot.phase;
   const is_session_controller = session_control_state === 'controller';
+
+  const set_messages = useCallback((
+    next_state: SetStateAction<Message[]>,
+  ) => {
+    set_messages_state((current_messages) => {
+      const next_messages = (
+        typeof next_state === 'function'
+          ? next_state(current_messages)
+          : next_state
+      );
+      return dedupeMessagesById(next_messages);
+    });
+  }, []);
 
   // ── Stream batching ──────────────────────────────────────────────────────
   // WebSocket fires on every token (~50-100/sec during streaming).
@@ -334,7 +347,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
         return next;
       });
     });
-  }, []);
+  }, [set_messages]);
 
   const enqueue_stream_payload = useCallback((payload: StreamMessage) => {
     stream_buffer_ref.current.push(payload);
@@ -397,7 +410,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       });
       return has_changes ? next_messages : prev;
     });
-  }, [apply_runtime_transition, chat_type, set_pending_agent_slots, set_pending_permissions]);
+  }, [apply_runtime_transition, chat_type, set_messages, set_pending_agent_slots, set_pending_permissions]);
 
   const sync_session_status = useCallback((payload: SessionStatusEventPayload) => {
     const next_controller_client_id = typeof payload.controller_client_id === 'string' && payload.controller_client_id
@@ -461,7 +474,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     apply_runtime_transition((machine) => {
       machine.update_message_status(msg_id, status, round_id);
     });
-  }, [apply_runtime_transition, set_pending_agent_slots]);
+  }, [apply_runtime_transition, set_messages, set_pending_agent_slots]);
 
   const track_chat_ack = useCallback((ack: import('@/types').ChatAckData, _session_key?: string | null) => {
     apply_runtime_transition((machine) => {
@@ -537,7 +550,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       });
       return has_changes ? next_messages : prev;
       });
-  }, [apply_runtime_transition, set_pending_agent_slots, set_pending_permissions]);
+  }, [apply_runtime_transition, set_messages, set_pending_agent_slots, set_pending_permissions]);
 
   const build_session_bind_message = useCallback((
     target_session_key: string,
@@ -654,6 +667,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     reload_current_session,
     apply_round_status,
     set_pending_agent_slots,
+    set_messages,
     set_pending_permissions,
     sync_session_status,
     track_assistant_message,

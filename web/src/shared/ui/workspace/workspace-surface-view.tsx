@@ -11,6 +11,8 @@ interface WorkspaceSurfaceViewProps {
   title: string;
   action?: ReactNode;
   children: ReactNode;
+  body_scrollable?: boolean;
+  show_eyebrow?: boolean;
   /** 中文注释：这里只允许滚动区和内容宽度的布局调整，不再承担视觉覆写。 */
   body_class_name?: string;
   content_class_name?: string;
@@ -22,6 +24,8 @@ export function WorkspaceSurfaceView({
   title,
   action,
   children,
+  body_scrollable = true,
+  show_eyebrow = true,
   body_class_name,
   content_class_name,
   max_width_class_name = "max-w-[760px]",
@@ -29,21 +33,26 @@ export function WorkspaceSurfaceView({
   return (
     <WorkspaceSurfaceScaffold
       body_class_name={cn("px-4 py-4 sm:px-5 xl:px-6", body_class_name)}
-      body_scrollable
+      body_scrollable={body_scrollable}
       header={(
-        <div className="px-5 py-3 xl:px-6">
+        <div className={cn("px-5 xl:px-6", show_eyebrow ? "py-3" : "py-2.5")}>
           <div className={cn("mx-auto flex w-full items-center justify-between gap-3", max_width_class_name)}>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
-                {eyebrow}
-              </p>
-              <h2 className="mt-1 truncate text-[17px] font-black tracking-[-0.045em] text-(--text-strong)">
+              {show_eyebrow ? (
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
+                  {eyebrow}
+                </p>
+              ) : null}
+              <h2 className={cn(
+                "truncate text-[17px] font-black tracking-[-0.045em] text-(--text-strong)",
+                show_eyebrow && "mt-1",
+              )}>
                 {title}
               </h2>
             </div>
             {action}
           </div>
-          <div className={cn("mx-auto mt-3 w-full", max_width_class_name)}>
+          <div className={cn("mx-auto w-full", max_width_class_name, show_eyebrow ? "mt-3" : "mt-2")}>
             <div className="h-px w-full rounded-full bg-(--divider-subtle-color)" />
           </div>
         </div>

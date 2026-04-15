@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, RefObject, useCallback } from "react";
+import { GripVertical, X } from "lucide-react";
 
-import { EditorPanel } from "@/features/conversation-shared/context/editor-panel";
 import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
 import { DmConversationHeader } from "@/features/dm-conversation/dm-conversation-header";
 import { cn } from "@/lib/utils";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
 import { Agent } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
@@ -17,8 +18,8 @@ import { UpdateRoomParams } from "@/types/room";
 import { RoomChatPanel } from "./room-chat-panel";
 import { RoomChatErrorBoundary } from "./room-chat-error-boundary";
 import { RoomConversationHeader } from "./room-conversation-header";
-import { RoomConversationHistoryView } from "./room-conversation-history-view";
 import { RoomWorkspaceView } from "./room-workspace-view";
+import { RoomConversationHistoryView } from "./room-conversation-history-view";
 import { RoomAgentAboutView } from "./room-agent-about-view";
 import { RoomThreadContextProvider } from "./thread/room-thread-context";
 import { useRoomThread, useThreadPanelData } from "./thread/room-thread-state";
@@ -120,10 +121,22 @@ function RoomWorkspaceLayoutInner({
   on_room_event,
 }: RoomWorkspaceLayoutProps) {
   const is_dm = current_room_type === "dm";
+  const is_auxiliary_panel_open = active_surface_tab !== "chat";
 
   const handle_open_workspace_file = useCallback((path: string | null) => {
     on_open_workspace_file(path);
   }, [on_open_workspace_file]);
+
+  const handle_close_auxiliary_panel = useCallback(() => {
+    on_change_surface_tab("chat");
+  }, [on_change_surface_tab]);
+
+  const auxiliary_close_action = (
+    <WorkspaceSurfaceToolbarAction onClick={handle_close_auxiliary_panel}>
+      <X className="h-3.5 w-3.5" />
+      关闭
+    </WorkspaceSurfaceToolbarAction>
+  );
 
   return (
     <section
@@ -171,104 +184,119 @@ function RoomWorkspaceLayoutInner({
         >
             <div className="flex h-full min-h-0 min-w-0">
               <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                <div className={cn("h-full min-h-0 min-w-0", active_surface_tab !== "chat" && "hidden")}>
-                  {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
-                      进而触发 useWebSocket 清理并关闭连接。 */}
-                  {is_dm ? (
-                    <ChatBoundary>
-                      <DmChatPanel
-                        current_agent_name={current_agent.name}
-                        current_agent_avatar={current_agent.avatar ?? null}
-                        initial_draft={initial_draft}
-                        on_initial_draft_consumed={on_initial_draft_consumed}
-                        on_conversation_snapshot_change={on_conversation_snapshot_change}
-                        on_loading_change={on_loading_change}
-                        on_open_workspace_file={handle_open_workspace_file}
-                        on_todos_change={on_todos_change}
-                        session_identity={current_agent_session_identity}
-                      />
-                    </ChatBoundary>
-                  ) : (
-                    <ChatBoundary>
-                      <RoomChatPanel
-                        agent_id={current_agent.agent_id}
-                        conversation_id={conversation_id}
-                        current_agent_name={current_agent.name}
-                        current_agent_avatar={current_agent.avatar ?? null}
-                        initial_draft={initial_draft}
-                        on_initial_draft_consumed={on_initial_draft_consumed}
-                        on_conversation_snapshot_change={on_conversation_snapshot_change}
-                        on_create_conversation={on_create_conversation}
-                        on_loading_change={on_loading_change}
-                        on_open_workspace_file={handle_open_workspace_file}
-                        on_room_event={on_room_event}
-                        on_todos_change={on_todos_change}
-                        room_id={room_id}
-                        room_members={room_members}
-                      />
-                    </ChatBoundary>
-                  )}
-                </div>
-
-                <div className={cn(active_surface_tab !== "history" && "hidden")}>
-                  <RoomConversationHistoryView
-                    conversations={current_room_conversations}
-                    conversation_id={conversation_id}
-                    current_room_type={current_room_type}
-                    on_create_conversation={on_create_conversation}
-                    on_delete_conversation={on_delete_conversation}
-                    on_select_conversation={on_select_conversation}
-                    on_update_conversation_title={on_update_conversation_title}
-                  />
-                </div>
-
-                <div className={cn("h-full min-h-0 min-w-0", active_surface_tab !== "workspace" && "hidden")}>
-                  <RoomWorkspaceView
-                    active_workspace_path={active_workspace_path}
-                    agent_id={current_agent.agent_id}
-                    is_dm={is_dm}
-                    room_members={room_members}
-                    on_open_workspace_file={on_open_workspace_file}
-                  />
-                </div>
-
+                {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
+                    进而触发 useWebSocket 清理并关闭连接。 */}
                 {is_dm ? (
-                  <div className={cn(active_surface_tab !== "about" && "hidden")}>
-                    <RoomAgentAboutView agent={current_agent} />
-                  </div>
-                ) : null}
+                  <ChatBoundary>
+                    <DmChatPanel
+                      current_agent_name={current_agent.name}
+                      current_agent_avatar={current_agent.avatar ?? null}
+                      initial_draft={initial_draft}
+                      on_initial_draft_consumed={on_initial_draft_consumed}
+                      on_conversation_snapshot_change={on_conversation_snapshot_change}
+                      on_loading_change={on_loading_change}
+                      on_open_workspace_file={handle_open_workspace_file}
+                      on_todos_change={on_todos_change}
+                      session_identity={current_agent_session_identity}
+                    />
+                  </ChatBoundary>
+                ) : (
+                  <ChatBoundary>
+                    <RoomChatPanel
+                      agent_id={current_agent.agent_id}
+                      conversation_id={conversation_id}
+                      current_agent_name={current_agent.name}
+                      current_agent_avatar={current_agent.avatar ?? null}
+                      initial_draft={initial_draft}
+                      on_initial_draft_consumed={on_initial_draft_consumed}
+                      on_conversation_snapshot_change={on_conversation_snapshot_change}
+                      on_create_conversation={on_create_conversation}
+                      on_loading_change={on_loading_change}
+                      on_open_workspace_file={handle_open_workspace_file}
+                      on_room_event={on_room_event}
+                      on_todos_change={on_todos_change}
+                      room_id={room_id}
+                      room_members={room_members}
+                    />
+                  </ChatBoundary>
+                )}
               </div>
 
-              <EditorPanel
-                agent_id={current_agent.agent_id}
-                class_name={cn("hidden lg:flex", is_editor_open && "lg:ml-2")}
-                is_open={is_editor_open}
-                on_close={on_close_workspace_pane}
-                on_resize_start={on_start_editor_resize}
-                path={active_workspace_path}
-                width_percent={editor_width_percent}
-              />
+              {is_auxiliary_panel_open ? (
+                <section
+                  className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
+                  style={{
+                    width: `${editor_width_percent}%`,
+                    minWidth: active_surface_tab === "workspace" ? "560px" : "360px",
+                    maxWidth: active_surface_tab === "workspace" ? "860px" : "560px",
+                  }}
+                >
+                  <button
+                    aria-label="调整右侧面板宽度"
+                    className="absolute -left-3 top-0 z-20 hidden h-full w-6 cursor-col-resize items-center justify-center text-muted-foreground/60 transition-colors hover:text-primary lg:flex"
+                    onMouseDown={on_start_editor_resize}
+                    type="button"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </button>
+
+                  <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "history" && "hidden")}>
+                    <RoomConversationHistoryView
+                      conversations={current_room_conversations}
+                      conversation_id={conversation_id}
+                      current_room_type={current_room_type}
+                      header_action={auxiliary_close_action}
+                      on_create_conversation={on_create_conversation}
+                      on_delete_conversation={on_delete_conversation}
+                      on_select_conversation={on_select_conversation}
+                      on_update_conversation_title={on_update_conversation_title}
+                    />
+                  </div>
+
+                  <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "workspace" && "hidden")}>
+                    <RoomWorkspaceView
+                      active_workspace_path={active_workspace_path}
+                      agent_id={current_agent.agent_id}
+                      header_action={auxiliary_close_action}
+                      is_dm={is_dm}
+                      is_editor_open={is_editor_open}
+                      room_members={room_members}
+                      on_close_workspace_pane={on_close_workspace_pane}
+                      on_open_workspace_file={on_open_workspace_file}
+                    />
+                  </div>
+
+                  {is_dm ? (
+                    <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "about" && "hidden")}>
+                      <RoomAgentAboutView agent={current_agent} header_action={auxiliary_close_action} />
+                    </div>
+                  ) : null}
+                </section>
+              ) : !is_dm ? (
+                <RoomThreadInlinePanel
+                  active_surface_tab={active_surface_tab}
+                  class_name="hidden lg:flex"
+                  editor_width_percent={editor_width_percent}
+                  on_start_editor_resize={on_start_editor_resize}
+                />
+              ) : null}
             </div>
         </WorkspaceSurfaceScaffold>
       </div>
-
-      {!is_dm ? (
-        <RoomThreadSidePanel
-          active_surface_tab={active_surface_tab}
-          class_name="hidden lg:flex lg:ml-2"
-        />
-      ) : null}
-
     </section>
   );
 }
 
-function RoomThreadSidePanel({
+function RoomThreadInlinePanel({
   active_surface_tab,
+  editor_width_percent,
   class_name,
+  on_start_editor_resize,
 }: {
   active_surface_tab: RoomSurfaceTabKey;
+  editor_width_percent: number;
   class_name?: string;
+  on_start_editor_resize: () => void;
 }) {
   const { active_thread, close_thread } = useRoomThread();
   const { thread_panel_data } = useThreadPanelData();
@@ -279,9 +307,25 @@ function RoomThreadSidePanel({
 
   return (
     <section
-      className={cn("surface-panel radius-shell-lg min-h-0 min-w-0 shrink-0 overflow-hidden", class_name)}
-      style={{ width: "clamp(320px,34vw,436px)" }}
+      className={cn(
+        "relative ml-2 min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none",
+        class_name,
+      )}
+      style={{
+        width: `${editor_width_percent}%`,
+        minWidth: "360px",
+        maxWidth: "560px",
+      }}
     >
+      <button
+        aria-label="调整 Thread 面板宽度"
+        className="absolute -left-3 top-0 z-20 hidden h-full w-6 cursor-col-resize items-center justify-center text-muted-foreground/60 transition-colors hover:text-primary lg:flex"
+        onMouseDown={on_start_editor_resize}
+        type="button"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
       <ThreadDetailPanel
         round_id={active_thread.round_id}
         agent_id={active_thread.agent_id}

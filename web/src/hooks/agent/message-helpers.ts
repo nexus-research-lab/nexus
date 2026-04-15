@@ -29,6 +29,43 @@ function normalize_assistant_messages(messages: Message[]): Message[] {
 }
 
 /**
+ * 按 message_id 压缩消息列表，统一保留最后一次写入。
+ *
+ * 中文说明：
+ * 前端消息会同时来自历史加载、WebSocket 完整消息、流式 patch、本地 optimistic。
+ * 这些通道在重连和 reload 交错时，可能短暂把同一条业务消息重复带进来。
+ * 这里建立消息状态层的硬约束：message_id 在内存里必须唯一。
+ */
+export function dedupeMessagesById(messages: Message[]): Message[] {
+  if (messages.length <= 1) {
+    return messages;
+  }
+
+  const last_index_by_id = new Map<string, number>();
+  let has_duplicates = false;
+
+  messages.forEach((message, index) => {
+    if (last_index_by_id.has(message.message_id)) {
+      has_duplicates = true;
+    }
+    last_index_by_id.set(message.message_id, index);
+  });
+
+  if (!has_duplicates) {
+    return messages;
+  }
+
+  const next_messages: Message[] = [];
+  messages.forEach((message, index) => {
+    if (last_index_by_id.get(message.message_id) !== index) {
+      return;
+    }
+    next_messages.push(message);
+  });
+  return next_messages;
+}
+
+/**
  * 将后端 assistant 快照统一归一化为前端运行态语义。
  *
  * 中文说明：
@@ -58,12 +95,14 @@ export function upsertMessage(messages: Message[], incoming: Message): Message[]
     (message) => message.message_id === normalized_incoming.message_id,
   );
   if (existingIndex === -1) {
-    return normalize_assistant_messages([...messages, normalized_incoming]);
+    return normalize_assistant_messages(
+      dedupeMessagesById([...messages, normalized_incoming]),
+    );
   }
 
   const nextMessages = [...messages];
   nextMessages[existingIndex] = normalized_incoming;
-  return normalize_assistant_messages(nextMessages);
+  return normalize_assistant_messages(dedupeMessagesById(nextMessages));
 }
 
 /**
@@ -134,8 +173,9 @@ export function applyStreamMessage(messages: Message[], event: StreamMessage): M
  * 按时间戳排序消息，保证历史与实时消息顺序稳定。
  */
 export function sortMessages(messages: Message[]): Message[] {
+  const unique_messages = dedupeMessagesById(messages);
   return normalize_assistant_messages(
-    [...messages].sort((left, right) => left.timestamp - right.timestamp),
+    [...unique_messages].sort((left, right) => left.timestamp - right.timestamp),
   );
 }
 
@@ -151,14 +191,15 @@ export function mergeLoadedMessages(
   loaded_messages: Message[],
   local_messages: Message[],
 ): Message[] {
+  const unique_loaded_messages = dedupeMessagesById(loaded_messages);
   if (local_messages.length === 0) {
-    return loaded_messages;
+    return sortMessages(unique_loaded_messages);
   }
 
   const loaded_message_ids = new Set(
-    loaded_messages.map((message) => message.message_id),
+    unique_loaded_messages.map((message) => message.message_id),
   );
-  const merged_messages = [...loaded_messages];
+  const merged_messages = [...unique_loaded_messages];
 
   for (const local_message of local_messages) {
     if (!loaded_message_ids.has(local_message.message_id)) {
@@ -166,5 +207,5 @@ export function mergeLoadedMessages(
     }
   }
 
-  return sortMessages(merged_messages);
+  return sortMessages(dedupeMessagesById(merged_messages));
 }

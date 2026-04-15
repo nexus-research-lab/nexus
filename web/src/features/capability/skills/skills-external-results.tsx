@@ -1,7 +1,7 @@
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Puzzle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import {
-  WorkspaceCatalogBadge,
   WorkspaceCatalogBody,
   WorkspaceCatalogCard,
   WorkspaceCatalogDescription,
@@ -9,6 +9,7 @@ import {
   WorkspaceCatalogHeader,
   WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
+  WorkspaceIconFrame,
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import type { ExternalSkillSearchItem } from "@/types/skill";
 
@@ -73,6 +74,32 @@ interface ExternalResultCardProps {
   on_import: () => void;
 }
 
+function ExternalSkillStatePill({
+  children,
+  tone = "neutral",
+}: {
+  children: string;
+  tone?: "neutral" | "success" | "warning";
+}) {
+  const tone_class_name =
+    tone === "warning"
+      ? "border-amber-200/80 bg-amber-50/88 text-amber-700"
+      : tone === "success"
+        ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-700"
+        : "border-(--surface-panel-subtle-border) bg-(--surface-panel-subtle-background) text-(--text-soft)";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium leading-none tracking-[0.01em]",
+        tone_class_name,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 function ExternalResultCard({
   item,
   busy_external_key,
@@ -85,6 +112,8 @@ function ExternalResultCard({
   const has_name_conflict = !!imported_sources && !already_imported;
   const external_key = `${item.package_spec}@@${item.skill_slug}`;
   const is_busy = busy_external_key === external_key;
+  const state_label = already_imported ? "已导入" : has_name_conflict ? "同名冲突" : "可导入";
+  const state_tone = already_imported ? "success" : has_name_conflict ? "warning" : "neutral";
 
   return (
     <WorkspaceCatalogCard
@@ -93,12 +122,20 @@ function ExternalResultCard({
       onClick={on_preview}
       size="compact"
     >
-      <WorkspaceCatalogHeader class_name="justify-between gap-3">
+      <WorkspaceCatalogHeader class_name="items-center gap-3.5">
+        <WorkspaceIconFrame
+          class_name="shrink-0 text-sky-600"
+          size="sm"
+          tone="primary"
+        >
+          <Puzzle className="h-4 w-4" />
+        </WorkspaceIconFrame>
+
         <div className="min-w-0 flex-1">
           <WorkspaceCatalogTitle class_name="tracking-tight" size="sm" truncate>
             {item.title || item.skill_slug}
           </WorkspaceCatalogTitle>
-          <p className="mt-0.5 flex items-center gap-2 truncate text-[11px] text-(--text-muted)">
+          <p className="mt-1 flex items-center gap-2 truncate text-[11px] text-(--text-soft)">
             <span>{item.package_spec}</span>
             <span>·</span>
             <span>{formatInstalls(item.installs)} installs</span>
@@ -112,24 +149,17 @@ function ExternalResultCard({
         </WorkspaceCatalogDescription>
       </WorkspaceCatalogBody>
 
-      <WorkspaceCatalogFooter onClick={(e) => e.stopPropagation()}>
-        <div className="text-[11px] text-(--text-soft)">
-          社区技能
-        </div>
+      <WorkspaceCatalogFooter justify="end" onClick={(e) => e.stopPropagation()}>
         <div className="flex shrink-0 items-center gap-1.5">
-          {already_imported ? (
-            <WorkspaceCatalogBadge tone="success">
-              已导入
-            </WorkspaceCatalogBadge>
-          ) : has_name_conflict ? (
-            <WorkspaceCatalogBadge tone="warning">
-              同名冲突
-            </WorkspaceCatalogBadge>
-          ) : (
+          <ExternalSkillStatePill tone={state_tone}>
+            {state_label}
+          </ExternalSkillStatePill>
+          {!already_imported && !has_name_conflict ? (
             <WorkspaceCatalogTextAction
               disabled={is_busy || has_name_conflict}
               onClick={on_import}
               tone="primary"
+              class_name="px-1"
             >
               {is_busy ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -138,7 +168,7 @@ function ExternalResultCard({
               )}
               导入
             </WorkspaceCatalogTextAction>
-          )}
+          ) : null}
         </div>
       </WorkspaceCatalogFooter>
     </WorkspaceCatalogCard>

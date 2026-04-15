@@ -12,21 +12,21 @@ import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 
 // 文件类型检测
 function getFileType(path: string): "text" | "pdf" | "image" | "binary" | "unknown" {
-    const ext = path.split(".").pop()?.toLowerCase() || "";
-    const textExtensions = new Set([
-        "txt", "md", "markdown", "json", "jsonl", "yaml", "yml", "toml", "xml",
-        "csv", "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "java", "go", "rs",
-        "rb", "php", "sh", "bash", "zsh", "sql", "r", "html", "css", "scss", "less",
-        "log", "ini", "conf", "env", "dockerfile", "makefile", "cmake", "gradle",
-        "proto", "graphql", "rst", "adoc"
-    ]);
-    const imageExtensions = new Set([
-        "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"
-    ]);
-    if (ext === "pdf") return "pdf";
-    if (imageExtensions.has(ext)) return "image";
-    if (textExtensions.has(ext)) return "text";
-    return "binary";
+  const ext = path.split(".").pop()?.toLowerCase() || "";
+  const textExtensions = new Set([
+    "txt", "md", "markdown", "json", "jsonl", "yaml", "yml", "toml", "xml",
+    "csv", "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "java", "go", "rs",
+    "rb", "php", "sh", "bash", "zsh", "sql", "r", "html", "css", "scss", "less",
+    "log", "ini", "conf", "env", "dockerfile", "makefile", "cmake", "gradle",
+    "proto", "graphql", "rst", "adoc"
+  ]);
+  const imageExtensions = new Set([
+    "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"
+  ]);
+  if (ext === "pdf") return "pdf";
+  if (imageExtensions.has(ext)) return "image";
+  if (textExtensions.has(ext)) return "text";
+  return "binary";
 }
 
 interface EditorPanelProps {
@@ -38,6 +38,62 @@ interface EditorPanelProps {
   class_name?: string;
   on_close: () => void;
   on_resize_start: () => void;
+}
+
+function EditorPanelHeader({
+  actions,
+  embedded,
+  meta,
+  title,
+}: {
+  actions: React.ReactNode;
+  embedded?: boolean;
+  meta?: React.ReactNode;
+  title: string;
+}) {
+  if (embedded) {
+    return (
+      <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <p
+            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
+            title={title}
+          >
+            {title}
+          </p>
+          <div className="flex shrink-0 items-center gap-2 self-start">
+            {actions}
+          </div>
+        </div>
+        {meta ? (
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
+            {meta}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
+      <div className="min-w-0 flex-1 overflow-hidden pr-3">
+        <p
+          className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+          title={title}
+        >
+          {title}
+        </p>
+        {meta ? (
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
+            {meta}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {actions}
+      </div>
+    </div>
+  );
 }
 
 // PDF 预览组件
@@ -76,15 +132,35 @@ function PdfPreview({
         </button>
       ) : null}
 
-      <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
-        <div className="min-w-0 flex-1 overflow-hidden pr-3">
-          <p
-            className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-            title={file_name}
-          >
-            {file_name}
-          </p>
-          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+      <EditorPanelHeader
+        actions={(
+          <>
+            <button
+              aria-label="下载 PDF"
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
+              style={{
+                background: "var(--card-default-background)",
+                borderColor: "var(--card-default-border)",
+              }}
+              onClick={handle_download}
+              type="button"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>下载</span>
+            </button>
+            <button
+              aria-label="关闭预览"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+              onClick={on_close}
+              type="button"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </>
+        )}
+        embedded={embedded}
+        meta={(
+          <>
             <span className="flex items-center gap-1">
               <FileText className="h-3 w-3" />
               PDF 预览
@@ -100,33 +176,10 @@ function PdfPreview({
                 加载中
               </span>
             )}
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            aria-label="下载 PDF"
-            className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
-            style={{
-              background: "var(--card-default-background)",
-              borderColor: "var(--card-default-border)",
-            }}
-            onClick={handle_download}
-            type="button"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>下载</span>
-          </button>
-          <button
-            aria-label="关闭预览"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-            onClick={on_close}
-            type="button"
-          >
-            <Minimize2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+          </>
+        )}
+        title={file_name}
+      />
 
       <div className="flex-1 bg-[var(--surface-panel-subtle-background)]">
         <iframe
@@ -177,15 +230,35 @@ function ImagePreview({
         </button>
       ) : null}
 
-      <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
-        <div className="min-w-0 flex-1 overflow-hidden pr-3">
-          <p
-            className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-            title={file_name}
-          >
-            {file_name}
-          </p>
-          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+      <EditorPanelHeader
+        actions={(
+          <>
+            <button
+              aria-label="下载图片"
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
+              style={{
+                background: "var(--card-default-background)",
+                borderColor: "var(--card-default-border)",
+              }}
+              onClick={handle_download}
+              type="button"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>下载</span>
+            </button>
+            <button
+              aria-label="关闭预览"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+              onClick={on_close}
+              type="button"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </>
+        )}
+        embedded={embedded}
+        meta={(
+          <>
             <span className="flex items-center gap-1">
               <FileImage className="h-3 w-3" />
               图片预览
@@ -206,33 +279,10 @@ function ImagePreview({
                 加载中
               </span>
             )}
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            aria-label="下载图片"
-            className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
-            style={{
-              background: "var(--card-default-background)",
-              borderColor: "var(--card-default-border)",
-            }}
-            onClick={handle_download}
-            type="button"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>下载</span>
-          </button>
-          <button
-            aria-label="关闭预览"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-            onClick={on_close}
-            type="button"
-          >
-            <Minimize2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+          </>
+        )}
+        title={file_name}
+      />
 
       <div className="flex-1 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-6">
         {has_error ? (
@@ -277,46 +327,41 @@ function BinaryFilePlaceholder({
 
   return (
     <>
-      <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
-        <div className="min-w-0 flex-1 overflow-hidden pr-3">
-          <p
-            className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-            title={file_name}
-          >
-            {file_name}
-          </p>
-          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <FileWarning className="h-3 w-3" />
-              此文件类型不支持预览
-            </span>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            aria-label="下载文件"
-            className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
-            style={{
-              background: "var(--card-default-background)",
-              borderColor: "var(--card-default-border)",
-            }}
-            onClick={handle_download}
-            type="button"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>下载</span>
-          </button>
-          <button
-            aria-label="关闭"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-            onClick={on_close}
-            type="button"
-          >
-            <Minimize2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      <EditorPanelHeader
+        actions={(
+          <>
+            <button
+              aria-label="下载文件"
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
+              style={{
+                background: "var(--card-default-background)",
+                borderColor: "var(--card-default-border)",
+              }}
+              onClick={handle_download}
+              type="button"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>下载</span>
+            </button>
+            <button
+              aria-label="关闭"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+              onClick={on_close}
+              type="button"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </>
+        )}
+        embedded={embedded}
+        meta={(
+          <span className="flex items-center gap-1">
+            <FileWarning className="h-3 w-3" />
+            此文件类型不支持预览
+          </span>
+        )}
+        title={file_name}
+      />
 
       <div className="flex-1 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8">
         <div className="max-w-xs text-center">
@@ -461,14 +506,13 @@ export function EditorPanel({
     <section
       className={cn(
         "relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        "border-l divider-subtle bg-transparent shadow-none",
+        embedded ? "border-0 bg-transparent shadow-none" : "border-l divider-subtle bg-transparent shadow-none",
         is_open ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-3 opacity-0",
-        embedded && !is_open && "border-l-transparent",
         class_name,
       )}
       style={
         embedded
-          ? { width: is_open ? "calc(100% - 280px)" : "0px" }
+          ? { width: "100%" }
           : { width: is_open ? `${width_percent}%` : "0px" }
       }
     >
@@ -525,56 +569,49 @@ export function EditorPanel({
                 </button>
               ) : null}
 
-              <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
-                <div className="min-w-0 flex-1 overflow-hidden pr-3">
-                  <p
-                    className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-                    title={file_name}
-                  >
-                    {file_name}
-                  </p>
-                  {live_state && live_state.source !== "api" ? (
-                    <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-                      {is_external_writing ? (
-                        <>
-                          <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
-                          <span className="truncate">模型正在实时写入该文件</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                          <span className="truncate">
-                            已同步最新内容
-                            {live_state.diff_stats
-                              ? ` · +${live_state.diff_stats.additions} -${live_state.diff_stats.deletions}`
-                              : ""}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    disabled={!is_dirty || is_saving || is_external_writing}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-                    onClick={() => void handle_save()}
-                    type="button"
-                  >
-                    <Save className="h-4 w-4" />
-                    {is_saving ? "保存中" : "保存"}
-                  </button>
-                  <button
-                    aria-label="关闭编辑器"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-                    onClick={on_close}
-                    type="button"
-                  >
-                    <Minimize2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+              <EditorPanelHeader
+                actions={(
+                  <>
+                    <button
+                      disabled={!is_dirty || is_saving || is_external_writing}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+                      onClick={() => void handle_save()}
+                      type="button"
+                    >
+                      <Save className="h-4 w-4" />
+                      {is_saving ? "保存中" : "保存"}
+                    </button>
+                    <button
+                      aria-label="关闭编辑器"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+                      onClick={on_close}
+                      type="button"
+                    >
+                      <Minimize2 className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+                embedded={embedded}
+                meta={live_state && live_state.source !== "api" ? (
+                  is_external_writing ? (
+                    <>
+                      <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
+                      <span className="truncate">模型正在实时写入该文件</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      <span className="truncate">
+                        已同步最新内容
+                        {live_state.diff_stats
+                          ? ` · +${live_state.diff_stats.additions} -${live_state.diff_stats.deletions}`
+                          : ""}
+                      </span>
+                    </>
+                  )
+                ) : undefined}
+                title={file_name}
+              />
 
               {error ? (
                 <div className="px-4 py-3 text-sm text-destructive">{error}</div>

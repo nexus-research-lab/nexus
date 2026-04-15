@@ -102,6 +102,15 @@ export function RoomWorkspaceShell({
     on_select_conversation(conversation_id);
   }, [on_select_conversation]);
 
+  const handle_change_surface_tab = useCallback((next_tab: RoomSurfaceTabKey) => {
+    set_active_surface_tab((current_tab) => {
+      if (next_tab === "chat") {
+        return "chat";
+      }
+      return current_tab === next_tab ? "chat" : next_tab;
+    });
+  }, []);
+
   const handle_create_conversation_in_shell = useCallback(async (title?: string) => {
     const next_conversation_id = await on_create_conversation(title);
     set_active_surface_tab("chat");
@@ -162,7 +171,7 @@ export function RoomWorkspaceShell({
       is_conversation_busy={is_conversation_busy}
       on_add_room_member={on_add_room_member}
       on_remove_room_member={on_remove_room_member}
-      on_change_surface_tab={set_active_surface_tab}
+      on_change_surface_tab={handle_change_surface_tab}
       on_close_workspace_pane={on_close_workspace_pane}
       on_conversation_snapshot_change={on_conversation_snapshot_change}
       on_create_conversation={handle_create_conversation_in_shell}

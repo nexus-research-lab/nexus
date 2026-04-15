@@ -1,11 +1,11 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronRight, File, FileText, Folder, FolderOpen, FolderTree,
   Image, FileArchive, FileSpreadsheet, FileType2, FileJson, FileCode2,
-  Upload, LoaderCircle, Pencil, Trash2, FilePlus, FolderPlus,
+  Upload, LoaderCircle, Pencil, Trash2, FilePlus, FolderPlus, GripVertical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -16,6 +16,7 @@ import { Agent, WorkspaceFileEntry } from "@/types/agent";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
+import { EditorPanel } from "@/features/conversation-shared/context/editor-panel";
 import {
   useRoomWorkspaceController,
 } from "./use-room-workspace-controller";
@@ -23,10 +24,17 @@ import {
 interface RoomWorkspaceViewProps {
   active_workspace_path: string | null;
   agent_id: string;
+  header_action?: ReactNode;
   is_dm: boolean;
+  is_editor_open: boolean;
   room_members: Agent[];
+  on_close_workspace_pane: () => void;
   on_open_workspace_file: (path: string | null) => void;
 }
+
+const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 200;
+const WORKSPACE_FILE_LIST_MIN_WIDTH = 200;
+const WORKSPACE_FILE_LIST_MAX_WIDTH = 300;
 
 // ── file icon ──────────────────────────────────────────────────────────────
 
@@ -318,6 +326,7 @@ const TreeRow = memo(function TreeRow({
   const { entry, children } = node;
   const is_active = entry.path === active_path;
   const is_directory_target = entry.is_dir && entry.path === focused_directory_path;
+  const is_selected = is_active || is_directory_target;
   const { Icon: FileIcon, icon_class_name } = get_file_visual(entry.name);
   const [is_open, setIsOpen] = useState(depth === 0);
 
@@ -340,42 +349,59 @@ const TreeRow = memo(function TreeRow({
     <div>
       <div
         className={cn(
-          "group flex w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left transition-colors",
+          "group relative flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left transition-colors",
           "hover:bg-(--surface-interactive-hover-background)",
-          is_active || is_directory_target
-            ? "bg-primary/10 text-primary"
+          is_selected
+            ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
             : "text-(--text-default)",
         )}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         onClick={handle_click}
         onContextMenu={handle_context_menu}
       >
+        {is_selected ? (
+          <span
+            aria-hidden="true"
+            className="absolute left-1 top-2 bottom-2 w-px rounded-full bg-[color:color-mix(in_srgb,var(--primary)_72%,white_28%)]"
+          />
+        ) : null}
+
         {entry.is_dir ? (
-          <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform", is_open && "rotate-90")} />
+          <ChevronRight className={cn(
+            "h-3.5 w-3.5 shrink-0 transition-transform",
+            is_selected ? "text-(--icon-default)" : "text-(--icon-muted)",
+            is_open && "rotate-90",
+          )} />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
 
         {entry.is_dir ? (
           is_open ? (
-            <FolderOpen className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+            <FolderOpen className={cn(
+              "h-4 w-4 shrink-0",
+              is_directory_target ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]" : "text-[var(--accent)]",
+            )} />
           ) : (
-            <Folder className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+            <Folder className={cn(
+              "h-4 w-4 shrink-0",
+              is_directory_target ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]" : "text-[var(--accent)]",
+            )} />
           )
         ) : (
-          <FileIcon className={cn("h-4 w-4 shrink-0", is_active ? "text-primary" : icon_class_name)} />
+          <FileIcon className={cn("h-4 w-4 shrink-0", icon_class_name)} />
         )}
 
         <span className={cn(
-          "min-w-0 flex-1 truncate text-[14px] leading-6",
-          entry.is_dir ? "font-medium" : "font-normal",
+          "min-w-0 flex-1 truncate text-[14px] leading-[1.45rem]",
+          entry.is_dir || is_selected ? "font-medium" : "font-normal",
         )}>
           {entry.name}
         </span>
 
         <div className={cn(
           "ml-auto flex shrink-0 items-center gap-0.5 transition-opacity",
-          is_active || is_directory_target ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          is_selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}>
           <button
             type="button"
@@ -437,7 +463,7 @@ function MemberSwitcher({
   on_select: (id: string) => void;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
       {members.map((m) => {
         const is_active = m.agent_id === selected_id;
         return (
@@ -475,13 +501,20 @@ function MemberSwitcher({
 export function RoomWorkspaceView({
   active_workspace_path,
   agent_id,
+  header_action,
   is_dm,
+  is_editor_open,
   room_members,
+  on_close_workspace_pane,
   on_open_workspace_file,
 }: RoomWorkspaceViewProps) {
   const { t } = useI18n();
   const file_input_ref = useRef<HTMLInputElement>(null);
+  const workspace_panel_ref = useRef<HTMLDivElement>(null);
+  const [file_list_width, set_file_list_width] = useState(WORKSPACE_FILE_LIST_DEFAULT_WIDTH);
+  const [is_resizing_file_list, set_is_resizing_file_list] = useState(false);
   const {
+    view_agent_id,
     files,
     selected_agent_id,
     set_selected_agent_id,
@@ -517,6 +550,39 @@ export function RoomWorkspaceView({
 
   const tree = useMemo(() => buildTree(files), [files]);
 
+  useEffect(() => {
+    if (!is_resizing_file_list) {
+      return;
+    }
+
+    const handle_mouse_move = (event: MouseEvent) => {
+      const bounds = workspace_panel_ref.current?.getBoundingClientRect();
+      if (!bounds) {
+        return;
+      }
+
+      const next_width = event.clientX - bounds.left;
+      set_file_list_width(
+        Math.min(
+          Math.max(next_width, WORKSPACE_FILE_LIST_MIN_WIDTH),
+          WORKSPACE_FILE_LIST_MAX_WIDTH,
+        ),
+      );
+    };
+
+    const handle_mouse_up = () => {
+      set_is_resizing_file_list(false);
+    };
+
+    window.addEventListener("mousemove", handle_mouse_move);
+    window.addEventListener("mouseup", handle_mouse_up);
+
+    return () => {
+      window.removeEventListener("mousemove", handle_mouse_move);
+      window.removeEventListener("mouseup", handle_mouse_up);
+    };
+  }, [is_resizing_file_list]);
+
   return (
     <>
       <input
@@ -528,102 +594,136 @@ export function RoomWorkspaceView({
       />
 
       <WorkspaceSurfaceView
-        body_class_name="px-4 py-5 sm:px-5 xl:px-6"
-        content_class_name="space-y-4"
+        action={header_action}
+        body_class_name="px-4 pt-1 pb-0 sm:px-5 xl:px-6"
+        body_scrollable={false}
+        content_class_name="flex h-full min-h-0 min-w-0 gap-4"
         eyebrow={t("room.workspace")}
-        max_width_class_name="max-w-[820px]"
+        max_width_class_name="max-w-none"
+        show_eyebrow={false}
         title={t("room.workspace_title")}
       >
-        {!is_dm && room_members.length > 1 && (
-          <MemberSwitcher
-            members={room_members}
-            selected_id={selected_agent_id}
-            on_select={set_selected_agent_id}
-          />
-        )}
+        <div
+          ref={workspace_panel_ref}
+          className={cn("flex h-full min-h-0 min-w-0 flex-1", is_resizing_file_list && "cursor-col-resize select-none")}
+        >
+          <div
+            className="flex min-h-0 shrink-0 flex-col"
+            style={{ width: `${file_list_width}px` }}
+          >
+            {!is_dm && room_members.length > 1 ? (
+              <div className="mb-4">
+                <MemberSwitcher
+                  members={room_members}
+                  selected_id={selected_agent_id}
+                  on_select={set_selected_agent_id}
+                />
+              </div>
+            ) : null}
 
-        <div className="mx-auto flex w-full max-w-[820px] items-center justify-between gap-3">
-          <div className="inline-flex min-w-0 items-center gap-2 rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[12px] text-(--text-default)">
-            {focused_directory_path ? (
-              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
-            ) : (
-              <FolderTree className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            )}
-            <span className="truncate font-medium text-(--text-strong)">{current_directory_label}</span>
+            <div className="mb-3 inline-flex min-w-0 items-center gap-2 rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[12px] text-(--text-default)">
+              {focused_directory_path ? (
+                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+              ) : (
+                <FolderTree className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+              )}
+              <span className="truncate font-medium text-(--text-strong)">{current_directory_label}</span>
+            </div>
+
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <WorkspaceSurfaceToolbarAction onClick={() => handle_upload_click()} disabled={is_uploading} tone="primary">
+                {is_uploading ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                {t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+              </WorkspaceSurfaceToolbarAction>
+
+              <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("directory")}>
+                <FolderPlus className="h-3.5 w-3.5" />
+                {t("room.workspace_action_new_folder")}
+              </WorkspaceSurfaceToolbarAction>
+
+              <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("file")}>
+                <FilePlus className="h-3.5 w-3.5" />
+                {t("room.workspace_action_new_file")}
+              </WorkspaceSurfaceToolbarAction>
+            </div>
+
+            {error_message ? (
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
+                <span className="min-w-0 flex-1 truncate">{error_message}</span>
+                <button
+                  type="button"
+                  className="ml-3 shrink-0 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-destructive/10"
+                  onClick={clear_error_message}
+                >
+                  {t("common.close")}
+                </button>
+              </div>
+            ) : null}
+
+            <div className="min-h-0 flex-1 overflow-hidden" onContextMenu={handle_root_context_menu}>
+              {tree.length > 0 ? (
+                <div className="soft-scrollbar h-full overflow-y-auto py-1">
+                  {tree.map((node) => (
+                    <TreeRow
+                      key={node.entry.path}
+                      node={node}
+                      active_path={active_workspace_path}
+                      focused_directory_path={focused_directory_path}
+                      depth={0}
+                      on_click_file={handle_click_file}
+                      on_click_directory={handle_click_directory}
+                      on_rename_entry={open_rename_prompt}
+                      on_delete_entry={set_delete_target}
+                      on_context_menu={handle_context_menu}
+                    />
+                  ))}
+                </div>
+              ) : is_loading_files ? (
+                <div className="flex h-full items-center justify-center text-(--text-soft)">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                </div>
+              ) : (
+                <div className="rounded-[24px] border border-(--divider-subtle-color) px-6 py-10 text-center">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
+                    <FolderTree className="h-4 w-4" />
+                  </div>
+                  <p className="mt-4 text-[15px] font-semibold text-(--text-strong)">
+                    {t("room.no_files")}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-6 text-(--text-soft)">
+                    {t("room.workspace_empty_description")}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
-            <WorkspaceSurfaceToolbarAction onClick={() => handle_upload_click()} disabled={is_uploading} tone="primary">
-              {is_uploading ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              {t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
-            </WorkspaceSurfaceToolbarAction>
+          <button
+            aria-label="调整文件列表宽度"
+            className="hidden h-full w-6 shrink-0 cursor-col-resize items-center justify-center text-muted-foreground/60 transition-colors hover:text-primary lg:flex"
+            onMouseDown={() => set_is_resizing_file_list(true)}
+            type="button"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
 
-            <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("directory")}>
-              <FolderPlus className="h-3.5 w-3.5" />
-              {t("room.workspace_action_new_folder")}
-            </WorkspaceSurfaceToolbarAction>
-
-            <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("file")}>
-              <FilePlus className="h-3.5 w-3.5" />
-              {t("room.workspace_action_new_file")}
-            </WorkspaceSurfaceToolbarAction>
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <EditorPanel
+              agent_id={view_agent_id}
+              class_name="h-full w-full"
+              embedded
+              is_open={is_editor_open}
+              on_close={on_close_workspace_pane}
+              on_resize_start={() => { }}
+              path={active_workspace_path}
+              width_percent={100}
+            />
           </div>
         </div>
-
-        {error_message ? (
-          <div className="mx-auto flex w-full max-w-[820px] items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
-            <span className="min-w-0 flex-1 truncate">{error_message}</span>
-            <button
-              type="button"
-              className="ml-3 shrink-0 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-destructive/10"
-              onClick={clear_error_message}
-            >
-              {t("common.close")}
-            </button>
-          </div>
-        ) : null}
-
-        {tree.length > 0 ? (
-          <div className="mx-auto w-full max-w-[820px] py-1" onContextMenu={handle_root_context_menu}>
-            {tree.map((node) => (
-              <TreeRow
-                key={node.entry.path}
-                node={node}
-                active_path={active_workspace_path}
-                focused_directory_path={focused_directory_path}
-                depth={0}
-                on_click_file={handle_click_file}
-                on_click_directory={handle_click_directory}
-                on_rename_entry={open_rename_prompt}
-                on_delete_entry={set_delete_target}
-                on_context_menu={handle_context_menu}
-              />
-            ))}
-          </div>
-        ) : is_loading_files ? (
-          <div className="mx-auto flex w-full max-w-[820px] items-center justify-center py-12 text-(--text-soft)">
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-          </div>
-        ) : (
-          <div
-            className="mx-auto w-full max-w-[820px] rounded-[24px] border border-(--divider-subtle-color) px-6 py-10 text-center"
-            onContextMenu={handle_root_context_menu}
-          >
-            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
-              <FolderTree className="h-4 w-4" />
-            </div>
-            <p className="mt-4 text-[15px] font-semibold text-(--text-strong)">
-              {t("room.no_files")}
-            </p>
-            <p className="mt-1 text-[12px] leading-6 text-(--text-soft)">
-              {t("room.workspace_empty_description")}
-            </p>
-          </div>
-        )}
       </WorkspaceSurfaceView>
 
       {/* 上下文菜单 */}

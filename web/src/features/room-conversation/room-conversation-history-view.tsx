@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { ReactNode, useCallback, useState } from "react";
 import { Check, Clock3, MessageSquarePlus, Pencil, TextCursorInput, Trash2, X } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
@@ -14,6 +14,7 @@ interface RoomConversationHistoryViewProps {
   conversations: RoomConversationView[];
   conversation_id: string | null;
   current_room_type: string;
+  header_action?: ReactNode;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
@@ -30,13 +31,14 @@ export function RoomConversationHistoryView({
   conversations,
   conversation_id,
   current_room_type,
+  header_action,
   on_create_conversation,
   on_delete_conversation,
   on_select_conversation,
   on_update_conversation_title,
 }: RoomConversationHistoryViewProps) {
   const { t } = useI18n();
-  const action = can_manage_conversations ? (
+  const create_action = can_manage_conversations ? (
     <WorkspaceSurfaceToolbarAction
       onClick={() => {
         void on_create_conversation();
@@ -48,6 +50,13 @@ export function RoomConversationHistoryView({
     </WorkspaceSurfaceToolbarAction>
   ) : null;
 
+  const action = create_action || header_action ? (
+    <div className="flex items-center gap-3">
+      {create_action}
+      {header_action}
+    </div>
+  ) : null;
+
   return (
     <WorkspaceSurfaceView
       action={action}
@@ -55,6 +64,7 @@ export function RoomConversationHistoryView({
       content_class_name="space-y-3"
       eyebrow={t("room.history")}
       max_width_class_name="max-w-[820px]"
+      show_eyebrow={false}
       title={current_room_type === "dm" ? t("room.history_view_title_dm") : t("room.history_view_title")}
     >
       {conversations.length > 0 ? (
