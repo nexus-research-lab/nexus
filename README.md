@@ -102,8 +102,16 @@ DATABASE_URL=sqlite+aiosqlite:///./cache/data/data.db
 
 ### 3. 安装
 
+如果只运行服务本身，安装 runtime 依赖即可：
+
 ```bash
 make install
+```
+
+如果还需要运行后端测试，请安装 dev/test 依赖：
+
+```bash
+make install-dev
 ```
 
 ### 4. 初始化数据库（首次启动）
@@ -163,6 +171,8 @@ make run-web
 ```bash
 make help
 make install
+make install-dev
+make test
 make dev
 make run-backend
 make run-web
@@ -171,6 +181,12 @@ make start
 make logs
 make stop
 ```
+
+其中：
+
+- `make install`：安装运行服务所需的 runtime 依赖
+- `make install-dev`：安装 runtime + pytest/httpx 等测试依赖
+- `make test`：执行基础检查并运行 `python -m pytest -q tests`
 
 Docker 构建与启动命令默认使用当前用户执行。
 如果当前用户还没有 Docker 权限，请先完成服务器上的 Docker 用户权限配置，再重新登录终端。

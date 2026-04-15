@@ -7,7 +7,7 @@ COMPOSE_CMD ?= docker compose --env-file .env -f deploy/docker-compose.yml
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web start stop restart logs clean status \
-	dev install db-init lint-web typecheck-web check-backend check test \
+	dev install install-dev db-init lint-web typecheck-web check-backend check test \
 	run-web run-backend up down log reboot
 
 # Show help
@@ -61,8 +61,8 @@ dev: ## Run both frontend and backend in development mode
 	fi
 	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
-install: ## Install all dependencies
-	@echo "Installing backend dependencies..."
+install: ## Install runtime dependencies
+	@echo "Installing backend runtime dependencies..."
 	@if [ -x .venv/bin/python ] && .venv/bin/python -m pip --version >/dev/null 2>&1; then \
 		PYTHON=.venv/bin/python; \
 		$$PYTHON -m pip install -r agent/requirements.txt; \
@@ -71,6 +71,24 @@ install: ## Install all dependencies
 	elif command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then \
 		PYTHON=$$(command -v python3); \
 		$$PYTHON -m pip install -r agent/requirements.txt; \
+	else \
+		echo "No usable Python package installer found (.venv pip, uv, or python3 -m pip)"; \
+		exit 1; \
+	fi
+	@echo "Installing frontend dependencies..."
+	cd web && npm install
+
+install-dev: ## Install runtime + test dependencies
+	@echo "Installing backend runtime + test dependencies..."
+	@if [ -x .venv/bin/python ] && .venv/bin/python -m pip --version >/dev/null 2>&1; then \
+		PYTHON=.venv/bin/python; \
+		$$PYTHON -m pip install -r requirements-dev.txt; \
+	elif command -v uv >/dev/null 2>&1; then \
+		uv venv .venv; \
+		uv pip install --python .venv/bin/python -r requirements-dev.txt --index-url https://mirrors.aliyun.com/pypi/simple; \
+	elif command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then \
+		PYTHON=$$(command -v python3); \
+		$$PYTHON -m pip install -r requirements-dev.txt; \
 	else \
 		echo "No usable Python package installer found (.venv pip, uv, or python3 -m pip)"; \
 		exit 1; \
@@ -98,7 +116,19 @@ check-backend: ## Run backend syntax check
 
 check: check-backend lint-web typecheck-web ## Run basic validation checks
 
-test: check ## Alias of check
+test: check ## Run checks and backend pytest suite
+	@if [ -x .venv/bin/python ]; then \
+		.venv/bin/python -m pytest -q tests; \
+	elif command -v uv >/dev/null 2>&1; then \
+		uv run --with-requirements requirements-dev.txt python -m pytest -q tests; \
+	elif command -v python3 >/dev/null 2>&1; then \
+		python3 -m pytest -q tests; \
+	elif command -v python >/dev/null 2>&1; then \
+		python -m pytest -q tests; \
+	else \
+		echo "No usable Python runtime found"; \
+		exit 1; \
+	fi
 
 # Docker commands
 build: ## Build Docker images
