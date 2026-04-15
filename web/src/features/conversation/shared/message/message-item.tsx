@@ -20,112 +20,28 @@ import {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/permission";
-import { isAskUserQuestionTimedOutResult } from "@/types/ask-user-question";
 import { ContentRenderer } from "./content-renderer";
 import { MessageStats } from "./message-stats";
 import { ToolBlock } from "./block/tool-block";
+import {
+  AssistantContentMode,
+  AssistantTurnEntry,
+  ContentProjection,
+  extractTextFromContentBlocks,
+  find_latest_streaming_block,
+  getSystemMessageContainerClassName,
+  getSystemMessageIconClassName,
+  has_timed_out_ask_user_question,
+  map_runtime_phase_to_activity_state,
+  OrderedAssistantEntry,
+  projectionFromOrderedEntries,
+} from "./message-item-support";
 import {
   MessageActionButton,
   MessageActivityStatus,
   MessageAvatar,
   MessageShell,
 } from "./message-primitives";
-
-interface OrderedAssistantEntry {
-  block: ContentBlock;
-  merged_index: number;
-  source_message_id: string;
-}
-
-interface AssistantTurnEntry {
-  message_id: string;
-  content: ContentBlock[];
-  text_content: ContentBlock[];
-  streaming_indexes: Set<number>;
-  text_streaming_indexes: Set<number>;
-}
-
-interface ContentProjection {
-  content: ContentBlock[];
-  streaming_indexes: Set<number>;
-}
-
-type AssistantContentMode = "dm_live" | "dm_archived" | "room_thread" | "room_result";
-
-function map_runtime_phase_to_activity_state(
-  phase?: AgentConversationRuntimePhase | null,
-) {
-  switch (phase) {
-    case "awaiting_permission":
-      return "waiting_permission" as const;
-    case "queued":
-    case "running":
-      return "thinking" as const;
-    case "streaming":
-      return "replying" as const;
-    default:
-      return null;
-  }
-}
-
-function find_latest_streaming_block(
-  content: ContentBlock[],
-  streaming_block_indexes: ReadonlySet<number>,
-): ContentBlock | null {
-  const indexes = Array.from(streaming_block_indexes).sort((left, right) => right - left);
-  for (const index of indexes) {
-    const block = content[index];
-    if (!block) {
-      continue;
-    }
-    if (block.type === "text" && !block.text.trim()) {
-      continue;
-    }
-    if (block.type === "thinking" && !block.thinking.trim()) {
-      continue;
-    }
-    return block;
-  }
-  return null;
-}
-
-function has_timed_out_ask_user_question(content: ContentBlock[]): boolean {
-  const ask_tool_use_ids = new Set<string>();
-
-  for (const block of content) {
-    if (block.type === "tool_use" && block.name === "AskUserQuestion") {
-      ask_tool_use_ids.add(block.id);
-    }
-  }
-
-  for (const block of content) {
-    if (block.type !== "tool_result" || !block.is_error) {
-      continue;
-    }
-    if (!ask_tool_use_ids.has(block.tool_use_id)) {
-      continue;
-    }
-    if (isAskUserQuestionTimedOutResult(block)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function getSystemMessageContainerClassName(tone: "neutral" | "warning"): string {
-  if (tone === "warning") {
-    return "border border-amber-200/60 bg-amber-50/70 text-amber-950/88";
-  }
-  return "border border-(--surface-panel-subtle-border) bg-(--surface-inset-background) text-(--text-default)";
-}
-
-function getSystemMessageIconClassName(tone: "neutral" | "warning"): string {
-  if (tone === "warning") {
-    return "text-amber-700/80";
-  }
-  return "text-(--icon-muted)";
-}
 
 interface MessageItemProps {
   compact?: boolean;
@@ -1250,36 +1166,5 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   // 回调由上游 useCallback 保持稳定，这里不做深比较以避免额外开销。
   return true;
 });
-
-function projectionFromOrderedEntries(
-  entries: OrderedAssistantEntry[],
-  streaming_block_indexes: Set<number>,
-): ContentProjection {
-  const content: ContentBlock[] = [];
-  const streaming_indexes = new Set<number>();
-
-  entries.forEach((entry, index) => {
-    content.push(entry.block);
-    if (streaming_block_indexes.has(entry.merged_index)) {
-      streaming_indexes.add(index);
-    }
-  });
-
-  return { content, streaming_indexes };
-}
-
-function extractTextFromContentBlocks(content?: ContentBlock[] | null): string {
-  if (!content || content.length === 0) {
-    return "";
-  }
-
-  const texts: string[] = [];
-  content.forEach((block) => {
-    if (block.type === "text" && block.text.trim()) {
-      texts.push(block.text);
-    }
-  });
-  return texts.join("\n\n");
-}
 
 export default MessageItem;

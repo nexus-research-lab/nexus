@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
-import { MessageItem } from "@/features/conversation-shared/message";
-import { MessageAvatar } from "@/features/conversation-shared/message/message-primitives";
+import { MessageItem } from "@/features/conversation/shared/message";
+import { MessageAvatar } from "@/features/conversation/shared/message/message-primitives";
 
 interface ThreadDetailPanelProps {
   round_id: string;

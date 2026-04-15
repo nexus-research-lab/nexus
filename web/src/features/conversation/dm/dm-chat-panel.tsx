@@ -10,11 +10,11 @@ import { AgentConversationIdentity, getSessionControlStatusText } from "@/types/
 import { SessionSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 
-import { ComposerPanel } from "@/features/conversation-shared/composer-panel";
-import { prepare_workspace_text_attachments } from "@/features/conversation-shared/composer-attachments";
-import { ConversationFeed } from "@/features/conversation-shared/conversation-feed";
-import { ScrollToLatestButton } from "@/features/conversation-shared/scroll-to-latest-button";
-import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation-shared/utils";
+import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
+import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
+import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation/shared/utils";
 
 export interface DmChatPanelProps {
   current_agent_name?: string | null;

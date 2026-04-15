@@ -20,7 +20,7 @@ import { RoomAggregate } from "@/types/room";
 import { queryLauncher } from "@/lib/launcher-api";
 import { ensureDirectRoom, getRoomContexts } from "@/lib/room-api";
 import { parseSessionKey } from "@/lib/session-key";
-import { MentionTargetItem, MentionTargetPopover } from "@/features/conversation-shared/mention-popover";
+import { MentionTargetItem, MentionTargetPopover } from "@/features/conversation/shared/mention-popover";
 
 import { AgentPile } from "./launcher-agent-pile";
 import { AnimatedHeroText, FadeSlideIn } from "@/shared/ui/feedback/animated-hero-text";

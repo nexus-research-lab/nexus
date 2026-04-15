@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Bot, Check, Square, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AgentRoundStatus } from "@/features/conversation-shared/utils";
+import type { AgentRoundStatus } from "@/features/conversation/shared/utils";
 import { MessageLoadingDots } from "./message-primitives";
 
 interface AgentCardProps {

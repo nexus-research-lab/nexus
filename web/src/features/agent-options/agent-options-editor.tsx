@@ -27,16 +27,16 @@ import { setDefaultAgentProvider } from "@/config/options";
 import {
   AgentOptionsNav,
   type TabKey,
-} from "@/shared/ui/dialog/agent-options/agent-options-nav";
-import { AgentOptionsIdentityTab } from "@/shared/ui/dialog/agent-options/agent-options-identity-tab";
-import { AgentOptionsPersonaTab } from "@/shared/ui/dialog/agent-options/agent-options-persona-tab";
-import { AgentOptionsSkillsTab } from "@/shared/ui/dialog/agent-options/agent-options-skills-tab";
-import { AgentOptionsAdvancedTab } from "@/shared/ui/dialog/agent-options/agent-options-advanced-tab";
+} from "@/features/agent-options/components/agent-options-nav";
+import { AgentOptionsIdentityTab } from "@/features/agent-options/components/agent-options-identity-tab";
+import { AgentOptionsPersonaTab } from "@/features/agent-options/components/agent-options-persona-tab";
+import { AgentOptionsSkillsTab } from "@/features/agent-options/components/agent-options-skills-tab";
+import { AgentOptionsAdvancedTab } from "@/features/agent-options/components/agent-options-advanced-tab";
 import {
   build_agent_option_provider_options,
   DEFAULT_AGENT_OPTION_PROVIDER,
   normalize_agent_option_provider,
-} from "@/shared/ui/dialog/agent-options/agent-options-constants";
+} from "@/features/agent-options/agent-options-constants";
 
 export interface AgentOptionsEditorProps {
   agent_id?: string;

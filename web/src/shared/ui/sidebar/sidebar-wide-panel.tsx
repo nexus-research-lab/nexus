@@ -14,7 +14,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getDefaultAgentId, isMainAgent } from "@/config/options";
-import { CapabilitiesPanelContent } from "@/features/capabilities/capabilities-sidebar-panel";
+import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import { HomePanelContent } from "@/features/home/home-sidebar-panel";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/lib/direct-room-navigation";

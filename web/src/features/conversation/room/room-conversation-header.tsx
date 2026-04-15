@@ -19,7 +19,7 @@ import { UpdateRoomParams } from "@/types/room";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
 import { TodoItem } from "@/types/todo";
 
-import { CreateRoomDialog } from "@/features/room-members/create-room-dialog";
+import { CreateRoomDialog } from "@/features/conversation/room-members/create-room-dialog";
 
 interface RoomConversationHeaderProps {
   conversation_id: string | null;

@@ -48,14 +48,6 @@ export interface UserQuestionAnswer {
   selected_options: string[];
 }
 
-/** 完整回答 */
-export interface UserQuestionResponse {
-  /** tool_use 的 id */
-  tool_use_id: string;
-  /** 所有问题的回答 */
-  answers: UserQuestionAnswer[];
-}
-
 export const ASK_USER_QUESTION_TIMEOUT_ERROR_CODE = 'permission_request_timeout';
 
 export function isAskUserQuestionTimedOutResult(

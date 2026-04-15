@@ -3,8 +3,8 @@
 import { Fragment, RefObject, useCallback } from "react";
 import { GripVertical, X } from "lucide-react";
 
-import { DmChatPanel } from "@/features/dm-conversation/dm-chat-panel";
-import { DmConversationHeader } from "@/features/dm-conversation/dm-conversation-header";
+import { DmChatPanel } from "@/features/conversation/dm/dm-chat-panel";
+import { DmConversationHeader } from "@/features/conversation/dm/dm-conversation-header";
 import { cn } from "@/lib/utils";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";

@@ -17,7 +17,7 @@ import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-vi
 import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { EditorPanel } from "@/features/conversation-shared/context/editor-panel";
+import { EditorPanel } from "@/features/conversation/shared/context/editor-panel";
 import {
   useRoomWorkspaceController,
 } from "./use-room-workspace-controller";

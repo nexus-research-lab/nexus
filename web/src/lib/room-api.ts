@@ -12,7 +12,7 @@ import {
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const ROOM_LIST_UPDATED_EVENT_NAME = "nexus:room-list-updated";
 
-function notify_room_list_updated() {
+export function notify_room_list_updated() {
   if (typeof window === "undefined") {
     return;
   }

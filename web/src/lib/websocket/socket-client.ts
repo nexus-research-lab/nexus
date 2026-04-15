@@ -9,6 +9,7 @@ import {
   WebSocketState,
 } from '@/types/websocket';
 import { notify_auth_required } from '@/lib/http';
+import { notify_room_list_updated } from '@/lib/room-api';
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -147,6 +148,12 @@ export class WebSocketClient {
         this.lastPongTime = Date.now();
         this.resetHeartbeatTimeout();
         return;
+      }
+
+      if (data.event_type === 'room_list_updated') {
+        // 中文注释：主智能体可能在后端直接创建 room / dm。
+        // 这类变更不会经过前端 room-api，必须在 WS 基础层统一转发为列表刷新事件。
+        notify_room_list_updated();
       }
 
       this.callbacks.on_message?.(data);
