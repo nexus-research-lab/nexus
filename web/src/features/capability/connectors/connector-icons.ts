@@ -4,7 +4,7 @@
  */
 
 /** 连接器品牌配色 */
-export const CONNECTOR_ICON_COLORS: Record<string, { bg: string; text: string }> = {
+const CONNECTOR_ICON_COLORS: Record<string, { bg: string; text: string }> = {
   gmail: { bg: "bg-red-50", text: "text-red-600" },
   "x-twitter": { bg: "bg-slate-100", text: "text-slate-900" },
   linkedin: { bg: "bg-blue-50", text: "text-blue-700" },
@@ -35,7 +35,7 @@ export const CONNECTOR_ICON_COLORS: Record<string, { bg: string; text: string }>
 };
 
 /** 首字母缩写 */
-export const CONNECTOR_ICON_LETTERS: Record<string, string> = {
+const CONNECTOR_ICON_LETTERS: Record<string, string> = {
   gmail: "G",
   "x-twitter": "𝕏",
   linkedin: "in",

@@ -33,8 +33,8 @@ class LauncherQueryRequest(BaseModel):
 class LauncherQueryResponse(BaseModel):
     """Launcher 查询响应。"""
 
-    action_type: str = Field(..., description="动作类型：open_agent_dm, open_room, open_app")
-    target_id: str = Field(..., description="目标 ID（room_id 或 agent_id 或 'app'）")
+    action_type: str = Field(..., description="动作类型：open_agent_dm, open_room")
+    target_id: str = Field(..., description="目标 ID（room_id 或 agent_id）")
     initial_message: str | None = Field(default=None, description="初始消息内容")
 
 

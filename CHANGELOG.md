@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 workspace 文件下载接口，前端可直接获取 Agent 工作区中的原始文件。
 
 ### Changed
+- Launcher 不再内嵌 Nexus 聊天面板；主智能体入口改为直接按普通 DM 打开，并直接落到标准 DM room/多会话链路。
+- 侧边栏中的 Nexus 改为 header 里的独立一级入口，不再混入“私信”列表或宽面板二级列表；其内部仍复用标准 DM room 会话链路。
 - 重构 `/app` 与 `launcher` 前端视觉骨架：收口 surface recipe、统一目录卡片语法、移除多余玻璃壳与中间 wrapper，整体层级更薄、更接近桌面端结构。
 - Agent Options 全面接入 i18n：导航、标题、身份/设定/技能/工具页文案统一走国际化字典，工具预授权说明补齐中英文描述，并明确默认语言兜底为中文、首次加载优先遵循浏览器语言。
 - 简化 Launcher Hero、右侧 Nexus 信息面板与输入/动作区结构，恢复 `/app` 首页原有 `nexus` ASCII 文字动画入口。
@@ -79,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复 Alembic 迁移多 head 冲突问题。
 - 修复 `make dev` / `make db-init` 因 Alembic 双 `head` 与后端启动旧导入路径导致的本地启动失败问题。
 - 修复 DM / Room 在权限确认、工具执行、停止生成、AskUserQuestion 回答后等场景下输入框提前解锁、状态闪断、确认卡片丢失与光标/状态提示错位的问题。
+- 修复主智能体 DM 进入 room 后被前端错误判成“没有对应成员”的空状态，主智能体现已并入统一 agent 数据链路。
+- 修复 Room 页面过度依赖全局 agent 目录导致的空态误判；当前成员解析现已以 room context 为真值。
 - 修复 `AskUserQuestion` 多选字段兼容问题，前端现在同时支持 `multi_select` 与 `multiSelect`。
 - 修复 Room / DM 删除会话时遗漏 workspace session 目录清理，以及历史页最后一个 / 主对话删除按钮缺失、说明提示被裁切的问题。
 - 修复 `web` 依赖安装失败：移除失效且未使用的 `@anthropic-ai/claude-code` 遗留依赖，并增加项目级 npm registry 配置。
@@ -101,6 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复同一会话多窗口场景下最后绑定窗口独占实时流、权限卡重复弹出、非主窗口仍可误发 `chat / interrupt / permission_response` 的问题。
 
 ### Removed
+- 删除 Launcher 右侧内嵌 Nexus 会话面板及其 `surface=app` 双轨前端实现。
+- 删除旧入口 URL 兼容：不再接受 `/?surface=app`、`app_prompt` 与 `/app/neuxs/session`。
 - 删除 `backfill_service` 旧数据回填服务及全部回填调用链。
 - 删除 `legacy_sync_bridge` 旧模型到新数据库的桥接模块。
 - 删除 `migrate_workspace_runtime_layout` 工作区布局迁移逻辑及 6 处调用。

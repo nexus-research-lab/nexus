@@ -25,7 +25,6 @@ export function handleAgentConversationWebSocketMessage({
   is_current_session_event,
   set_error,
   set_messages,
-  set_pending_agent_slots,
   set_pending_permissions,
   enqueue_stream_payload,
   on_background_message,

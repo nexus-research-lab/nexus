@@ -69,10 +69,6 @@ function countToolBlocks(messages: Message[]): number {
   return count;
 }
 
-function countCodeBlocks(text: string): number {
-  return (text.match(/```[\s\S]*?```/g) ?? []).length;
-}
-
 function estimateCodeBlockHeight(text: string): number {
   const blocks = text.match(/```[\s\S]*?```/g) ?? [];
   return blocks.reduce((sum, block) => {

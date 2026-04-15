@@ -161,9 +161,12 @@ class RoomService:
         avatar: Optional[str] = None,
     ) -> ConversationContextAggregate:
         """创建 Room，并为每个 Agent 初始化会话。"""
-        normalized_agent_ids = self._normalize_agent_ids(agent_ids)
-        agent_aggregates = await self._load_agent_aggregates(normalized_agent_ids)
         normalized_room_type = self._normalize_room_type(room_type)
+        normalized_agent_ids = self._normalize_agent_ids(
+            agent_ids,
+            room_type=normalized_room_type,
+        )
+        agent_aggregates = await self._load_agent_aggregates(normalized_agent_ids)
 
         room_id = random_uuid()
         conversation_id = random_uuid()
@@ -439,19 +442,31 @@ class RoomService:
             data={"room_id": room_id},
         ))
 
-    def _normalize_agent_ids(self, agent_ids: list[str]) -> list[str]:
-        """去重并保持输入顺序。"""
+    def _normalize_agent_ids(self, agent_ids: list[str], room_type: str) -> list[str]:
+        """按房间类型筛选合法成员并保持输入顺序。"""
         normalized_ids: list[str] = []
         for agent_id in agent_ids:
             cleaned = agent_id.strip()
-            if not MainAgentProfile.is_regular_agent(cleaned):
+            if not cleaned:
+                continue
+            if room_type == "dm":
+                if not (
+                    MainAgentProfile.is_regular_agent(cleaned)
+                    or MainAgentProfile.is_main_agent(cleaned)
+                ):
+                    continue
+            elif not MainAgentProfile.is_regular_agent(cleaned):
                 continue
             if cleaned not in normalized_ids:
                 normalized_ids.append(cleaned)
         if not normalized_ids:
+            if room_type == "dm":
+                raise ValueError("dm 至少需要一个合法 agent")
             raise ValueError(
                 f"room 至少需要一个普通成员 agent，{MainAgentProfile.display_label()} 不能作为 room 成员"
             )
+        if room_type == "dm" and len(normalized_ids) != 1:
+            raise ValueError("dm 仅支持一个 agent")
         return normalized_ids
 
     async def _load_agent_aggregates(

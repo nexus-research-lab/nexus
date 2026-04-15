@@ -38,6 +38,9 @@ from agent.service.room.room_round_store import room_round_store
 from agent.service.room.room_session_keys import (
     parse_room_conversation_id,
 )
+from agent.service.session.round_snapshot_normalizer import (
+    RoundSnapshotNormalizer,
+)
 from agent.service.session.cost_repository import cost_repository
 from agent.service.session.session_manager import session_manager
 
@@ -50,6 +53,7 @@ class RoomMessageStore:
         self._paths = FileStoragePaths()
         self._db = get_db("async_sqlite")
         self._lock = Lock()
+        self._snapshot_normalizer = RoundSnapshotNormalizer()
         self._bootstrap.ensure_ready()
 
     def _get_conversation_dir(self, conversation_id: str) -> Path:
@@ -234,8 +238,14 @@ class RoomMessageStore:
         if not conversation_id:
             return []
 
+        compacted_rows = self._load_compacted_rows(conversation_id)
+        round_status = self._snapshot_normalizer.build_round_status(compacted_rows)
+        normalized_rows = self._snapshot_normalizer.normalize_assistant_rows(
+            compacted_rows,
+            round_status,
+        )
         messages: list[Message] = []
-        for row in self._load_compacted_rows(conversation_id):
+        for row in normalized_rows:
             try:
                 messages.append(parse_message(row))
             except Exception:

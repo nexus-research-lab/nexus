@@ -43,7 +43,6 @@ interface WorkspaceSurfaceToolbarActionProps {
 
 export function WorkspaceSurfaceHeader<TTabKey extends string>({
   title,
-  badge,
   density = "default",
   leading,
   title_trailing,

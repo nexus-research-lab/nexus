@@ -44,9 +44,9 @@
 
 ### 2.5 主智能体入口会话
 
-- 表示首页 Launcher 右侧的 Nexus 对话入口，以及其他默认落到主智能体的外部通道入口
+- 表示主智能体的 Web DM 入口以及其他默认落到主智能体的外部通道入口
 - 这些入口共享同一个主智能体身份
-- 但不代表它们都属于同一条业务会话历史
+- Web 主入口会落到主智能体的标准 DM room，并支持多会话
 
 ### 2.6 普通成员 Agent
 
@@ -154,6 +154,9 @@ agent/service/agent/main_agent_profile.py
 - `DEFAULT_AGENT_ID` 现在是前端运行时缓存，不是独立配置
 - React 启动前必须先执行 `hydrateRuntimeOptions()`
 - 页面和 hook 只能消费这份运行时值，不允许再自行推导
+- 前端全局 agent 主缓存必须包含主智能体，避免 DM / Room 成员解析缺失
+- Contacts、Launcher 成员推荐、Room 邀请候选等“普通成员目录”再显式过滤主智能体
+- Room 页面解析当前成员时，必须以 room context 的 `members / sessions` 为真值，agent store 只负责补充名称、头像等元数据
 
 ## 6. 生命周期规范
 
@@ -304,15 +307,27 @@ Heartbeat 相关能力当前通过后端 automation API 暴露：
 
 ### 9.1 首页 Launcher
 
-首页右侧 Nexus 面板是主智能体入口。
+首页 Launcher 不再内嵌 Nexus 聊天面板。
 
 规则如下：
 
 - 入口 Agent 必须使用当前运行时 `DEFAULT_AGENT_ID`
-- 会话种子键只能基于当前主智能体生成
+- 纯文本查询与 handoff 动作统一直接打开主智能体 DM room
 - 不能写死 `main`、`nexus` 或其他固定字面量
 
-### 9.2 默认 Agent 回退
+### 9.2 侧边栏入口
+
+侧边栏里的主智能体入口必须收敛到 header，不能混入“私信”列表，也不能继续挂在宽面板列表里。
+
+规则如下：
+
+- Nexus 入口固定放在侧边栏 header
+- Nexus 入口必须作为一级入口直接显示，不得再包在二级分区标题之下，也不得继续作为宽面板列表项重复出现
+- 该入口点击后必须直接确保主智能体 DM room 存在，并跳转到真实对话路由
+- 私信分区必须只展示普通成员 DM，不得再把主智能体 DM 混入其中
+- 侧边栏高亮必须兼容 Nexus header 入口和其真实 DM room 路由，避免跳转后高亮丢失
+
+### 9.3 默认 Agent 回退
 
 以下入口在未显式指定 Agent 时，会默认路由到主智能体：
 
@@ -326,7 +341,7 @@ Heartbeat 相关能力当前通过后端 automation API 暴露：
 - 这些回退都必须基于后端 `settings.DEFAULT_AGENT_ID`
 - 不能在各模块各自维护一个“默认 agent 名称”
 
-### 9.3 Launcher 推荐边界
+### 9.4 Launcher 推荐边界
 
 Launcher 推荐列表明确不推荐主智能体：
 
@@ -339,14 +354,14 @@ Launcher 推荐列表明确不推荐主智能体：
 
 ## 10. Room 与成员边界
 
-主智能体不能参与 Room 成员关系。
+主智能体不能参与普通 `room` 成员关系，但允许作为 Nexus 专属 `dm` 的唯一 agent 成员。
 
 当前明确限制包括：
 
-- 不可加入 Room
-- 不可作为 Room 成员保留
-- 创建 Room 时会自动跳过主智能体
-- 如果传入成员列表只剩主智能体，直接报错
+- 不可加入 group room
+- 不可作为 group room 成员保留
+- 创建 group room 时会自动跳过主智能体
+- 如果 group room 传入成员列表只剩主智能体，直接报错
 
 同时：
 
@@ -360,9 +375,11 @@ Launcher 推荐列表明确不推荐主智能体：
 前端当前需要遵守这些规则：
 
 1. `DEFAULT_AGENT_ID` 只读运行时配置
-2. Room 邀请候选列表要过滤主智能体
-3. 首页 Nexus 对话只走主智能体，不与普通成员入口混用
-4. 会话默认归属、路由解析和 session_key builder 不能再手写主智能体名字
+2. 全局 agent store 必须包含主智能体，Room / DM 页面禁止再依赖“普通成员列表”推导成员真值
+3. Room 邀请候选列表、Contacts 与 Launcher 成员展示要过滤主智能体
+4. Nexus 对话页面必须复用 DM 主链路，不再维护 launcher 内嵌会话面板
+5. 侧边栏必须把主智能体作为独立系统入口展示，不得混入私信列表
+6. 会话默认归属、路由解析和 session_key builder 不能再手写主智能体名字
 
 ## 12. 当前代码落点
 
@@ -383,6 +400,7 @@ Launcher 推荐列表明确不推荐主智能体：
 - Heartbeat automation API：`agent/api/automation/api_heartbeat.py`
 - Room 边界：`agent/service/room/room_service.py`
 - 首页入口：`web/src/pages/launcher/launcher-page.tsx`
+- Nexus DM 入口页：`web/src/pages/nexus-session/nexus-session-page.tsx`
 - 前端运行时配置：`web/src/config/options.ts`
 - 默认聊天回退：`agent/service/chat/chat_service.py`
 - 多通道入口：`agent/service/channels/im/discord_channel.py`、`agent/service/channels/im/telegram_channel.py`
@@ -398,7 +416,7 @@ Launcher 推荐列表明确不推荐主智能体：
 5. 允许用户删除或重命名主智能体
 6. 把 `nexus-manager` 暴露到公开 skill 列表
 7. 用普通成员模板初始化主智能体 Workspace
-8. 让首页 Nexus 面板和普通成员 DM 共用一套心智
+8. 继续维护 Launcher 内嵌 Nexus 面板与 DM 页面两套实现
 9. 在文档里把“主智能体名字”写成固定字面量，而不强调它来自后端配置
 
 ## 14. 最终结论

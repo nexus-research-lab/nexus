@@ -143,7 +143,7 @@ export function MessageActionButton({
 }
 
 export function MessageLoadingDots({
-  size = "md",
+  size: _size = "md",
   class_name,
   name = "braille",
 }: {

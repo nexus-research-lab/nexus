@@ -311,8 +311,6 @@ function MessageItemInner(
     };
   }, [messages, pending_permissions]);
 
-  const hasInlinePendingTool = matchedPendingPermissionsByToolUseId.size > 0;
-
   const hiddenToolUseIds = useMemo(() => {
     const nextIds = new Set<string>();
     for (const block of mergedContent) {
@@ -1009,7 +1007,7 @@ function MessageItemInner(
                 <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
                   <p className={cn(
                     "w-full",
-                    "whitespace-pre-wrap text-left text-(--text-strong) wrap-anywhere",
+                    "message-cjk-font whitespace-pre-wrap text-left text-(--text-strong) wrap-anywhere",
                     compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
                   )}>
                     {userContent}

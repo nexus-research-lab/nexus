@@ -33,8 +33,8 @@ interface RoomWorkspaceViewProps {
   on_open_workspace_file: (path: string | null) => void;
 }
 
-const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 200;
-const WORKSPACE_FILE_LIST_MIN_WIDTH = 200;
+const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 248;
+const WORKSPACE_FILE_LIST_MIN_WIDTH = 248;
 const WORKSPACE_FILE_LIST_MAX_WIDTH = 300;
 
 // ── file icon ──────────────────────────────────────────────────────────────

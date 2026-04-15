@@ -24,7 +24,7 @@ from agent.service.session.session_store import session_store
 class AgentService:
     """负责编排 Agent 相关用例。"""
 
-    async def get_agents(self, include_main: bool = False) -> List[AAgent]:
+    async def get_agents(self, include_main: bool = True) -> List[AAgent]:
         """获取所有 Agent。"""
         agents = await agent_manager.get_all_agents()
         if not include_main:
@@ -112,7 +112,7 @@ class AgentService:
 
     async def get_agent_runtime_statuses(self) -> List[dict[str, Any]]:
         """获取全部成员的运行态快照。"""
-        agents = await self.get_agents()
+        agents = await self.get_agents(include_main=True)
         agent_ids = [agent.agent_id for agent in agents]
         return ws_chat_task_registry.build_agent_runtime_snapshots(agent_ids)
 

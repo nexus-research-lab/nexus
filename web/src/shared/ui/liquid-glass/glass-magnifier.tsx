@@ -28,6 +28,7 @@ interface GlassMagnifierProps {
   class_name?: string;
   content_class_name?: string;
   height?: number;
+  underlay?: ReactNode;
   width?: number;
 }
 
@@ -60,6 +61,7 @@ export function GlassMagnifier({
   class_name,
   content_class_name,
   height = 36,
+  underlay,
   width = 58,
 }: GlassMagnifierProps) {
   const raw_filter_id = useId();
@@ -73,10 +75,6 @@ export function GlassMagnifier({
   const base_scale_x = width / BASE_LENS_WIDTH;
   const base_scale_y = height / BASE_LENS_HEIGHT;
   const idle_transform = `scale(${base_scale_x}, ${base_scale_y})`;
-
-  const buildShellTransform = useCallback((x_multiplier: number, y_multiplier: number) => {
-    return `scale(${base_scale_x * x_multiplier}, ${base_scale_y * y_multiplier})`;
-  }, [base_scale_x, base_scale_y]);
 
   const buildRootTransform = useCallback((x_multiplier: number, y_multiplier: number) => {
     return `translateZ(0px) scale(${x_multiplier}, ${y_multiplier})`;
@@ -252,6 +250,12 @@ export function GlassMagnifier({
         width: `${width}px`,
       }}
     >
+      {underlay ? (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[999px]">
+          {underlay}
+        </div>
+      ) : null}
+
       {can_use_true_glass ? (
         <svg
           aria-hidden="true"

@@ -10,7 +10,6 @@
 import {
   ApiConversation,
   Conversation,
-  CreateConversationParams,
   UpdateConversationParams,
 } from '@/types/conversation';
 import { ApiAgentSession as ApiAgentSessionRecord, AgentSession as AgentSessionRecord } from '@/types/agent';
@@ -105,23 +104,6 @@ export const deleteConversation = async (session_key: string): Promise<{ success
   return request_api<{ success: boolean }>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
     method: 'DELETE',
   });
-};
-
-export const createConversation = async (
-  session_key: string,
-  params: CreateConversationParams,
-): Promise<Conversation> => {
-  const normalized_session_key = assertStructuredSessionKey(session_key);
-  const result = await request_api<ApiConversation>(`${AGENT_API_BASE_URL}/sessions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_key: normalized_session_key,
-      agent_id: params.agent_id,
-      title: params.title,
-    }),
-  });
-  return transformApiConversation(result);
 };
 
 export const updateConversation = async (

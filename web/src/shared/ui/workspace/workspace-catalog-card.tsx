@@ -13,7 +13,6 @@ import { ButtonHTMLAttributes, CSSProperties, ElementType, HTMLAttributes, React
 
 import { cn } from "@/lib/utils";
 
-type CatalogBadgeTone = "neutral" | "info" | "success" | "warning";
 type CatalogMediaShape = "round" | "rounded";
 type CatalogActionTone = "default" | "danger";
 type CatalogActionSize = "sm" | "md";
@@ -25,29 +24,6 @@ type CatalogTitleSize = "sm" | "md" | "lg" | "hero";
 type CatalogDescriptionSize = "sm" | "md";
 type IconFrameTone = "default" | "primary" | "success" | "warning";
 type IconFrameSize = "sm" | "md" | "lg";
-
-const BADGE_STYLE_MAP: Record<CatalogBadgeTone, { background: string; border: string; color: string }> = {
-  neutral: {
-    background: "var(--surface-panel-subtle-background)",
-    border: "1px solid var(--surface-panel-subtle-border)",
-    color: "var(--text-default)",
-  },
-  info: {
-    background: "color-mix(in srgb, var(--primary) 14%, transparent)",
-    border: "1px solid color-mix(in srgb, var(--primary) 30%, var(--surface-panel-subtle-border))",
-    color: "color-mix(in srgb, var(--primary) 78%, var(--text-strong))",
-  },
-  success: {
-    background: "color-mix(in srgb, var(--success) 14%, transparent)",
-    border: "1px solid color-mix(in srgb, var(--success) 30%, var(--surface-panel-subtle-border))",
-    color: "color-mix(in srgb, var(--success) 78%, var(--text-strong))",
-  },
-  warning: {
-    background: "color-mix(in srgb, var(--warning) 14%, transparent)",
-    border: "1px solid color-mix(in srgb, var(--warning) 30%, var(--surface-panel-subtle-border))",
-    color: "color-mix(in srgb, var(--warning) 82%, var(--text-strong))",
-  },
-};
 
 const ICON_FRAME_TONE_CLASS_MAP: Record<IconFrameTone, string> = {
   default: "border-transparent bg-(--chip-default-background) text-(--text-default)",
@@ -274,30 +250,6 @@ export function WorkspaceCatalogDescription({
   );
 }
 
-export function WorkspaceCatalogMedia({
-  children,
-  class_name,
-  shape = "rounded",
-  ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  children: ReactNode;
-  class_name?: string;
-  shape?: CatalogMediaShape;
-}) {
-  return (
-    <div
-      className={cn(
-        "chip-default flex items-center justify-center",
-        shape === "round" ? "rounded-full" : "rounded-[14px]",
-        class_name,
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
 /** 中文注释：统一高频图标容器，侧栏、卡片和弹窗都用这套边界语法。 */
 export function WorkspaceIconFrame({
   children,
@@ -391,25 +343,6 @@ export function WorkspaceCatalogTextAction({
   );
 }
 
-export function WorkspaceCatalogBadge({
-  children,
-  class_name,
-  tone = "neutral",
-}: {
-  children: ReactNode;
-  class_name?: string;
-  tone?: CatalogBadgeTone;
-}) {
-  return (
-    <span
-      className={cn("inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-2xs font-semibold leading-none", class_name)}
-      style={BADGE_STYLE_MAP[tone]}
-    >
-      {children}
-    </span>
-  );
-}
-
 export function WorkspaceCatalogTag({
   children,
   class_name,
@@ -460,26 +393,3 @@ export function WorkspaceCatalogGhostCard({
   );
 }
 
-export function WorkspaceCatalogEmptyShell({
-  children,
-  class_name,
-  size = "panel",
-  ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  children: ReactNode;
-  class_name?: string;
-  size?: Extract<CatalogCardSize, "panel" | "hero">;
-}) {
-  return (
-    <div
-      className={cn(
-        "surface-card flex min-h-80 items-center justify-center text-center",
-        size === "hero" ? CATALOG_CARD_SIZE_CLASS_MAP.hero : CATALOG_CARD_SIZE_CLASS_MAP.panel,
-        class_name,
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}

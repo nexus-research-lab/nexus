@@ -115,6 +115,27 @@
     font: inherit;
   }
 
+  .message-cjk-font {
+    font-family:
+      "KingHwa_OldSong",
+      "PingFang SC",
+      "Hiragino Sans GB",
+      "Source Han Serif SC",
+      "Songti SC",
+      serif;
+  }
+
+  .message-cjk-code-font {
+    font-family:
+      "KingHwa_OldSong",
+      var(--font-mono),
+      "PingFang SC",
+      "Hiragino Sans GB",
+      "Source Han Serif SC",
+      "Songti SC",
+      monospace;
+  }
+
   ::selection {
     background: color-mix(in srgb, var(--primary) 22%, transparent);
     color: var(--foreground);

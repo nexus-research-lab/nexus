@@ -338,6 +338,9 @@ DM 必须区分“实时态”和“归档态”。
 - 调用链默认隐藏
 - 主区只显示最终结果
 - 若没有 `result`，回退到最后一个 assistant turn
+- 后端返回历史快照前，必须先按 durable `round_status` 归一化 assistant 消息
+  - 已结束 round 内的 assistant 不得继续以 `streaming / 未完成` 形态返回
+  - 否则固定 session 在 reload 后会把旧消息重新点亮成“正在回复”
 
 ### 7.4 AskUserQuestion 展示规则
 

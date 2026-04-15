@@ -35,11 +35,6 @@ interface RoomRoundCardGroupProps {
   on_open_workspace_file?: (path: string) => void;
 }
 
-interface RoomAgentEntry extends RoomAgentRoundEntry {
-  agent_name: string;
-  agent_avatar: string | null;
-}
-
 function RoomCompletedReply({
   round_id,
   agent_id,

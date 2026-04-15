@@ -10,18 +10,23 @@
 
 import { LogOut, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { getDefaultAgentId, isMainAgent } from "@/config/options";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
+import { resolveDirectRoomNavigationTarget } from "@/lib/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/home-layout";
-import { cn } from "@/lib/utils";
+import { cn, getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
 import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/workspace-header-layout";
+import { useAgentStore } from "@/store/agent";
 import {
   derive_sidebar_item_id_from_path,
+  SIDEBAR_SYSTEM_ITEM_IDS,
   useSidebarStore,
 } from "@/store/sidebar";
 
@@ -36,13 +41,23 @@ export function SidebarWidePanel() {
   const { t } = useI18n();
   const { logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const agents = useAgentStore((s) => s.agents);
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
+  const nexus_room_id = useSidebarStore((s) => s.nexus_room_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
   const root_ref = useRef<HTMLDivElement | null>(null);
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
   const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
+  const prefers_reduced_motion = usePrefersReducedMotion();
+  const default_agent_id = getDefaultAgentId();
+  const nexus_agent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
+  const nexus_avatar_src = getIconAvatarSrc(nexus_agent?.avatar);
+  const nexus_initials = getInitials(nexus_agent?.name, "NX", 2);
+  const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
+    || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -138,6 +153,19 @@ export function SidebarWidePanel() {
     set_active_panel_item(next_active_item_id);
   }, [active_panel_item_id, location.pathname, set_active_panel_item]);
 
+  const handle_open_nexus = useCallback(() => {
+    if (!default_agent_id) {
+      return;
+    }
+
+    set_active_panel_item(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
+    void resolveDirectRoomNavigationTarget(default_agent_id).then(({ route }) => {
+      navigate(route);
+    }).catch((error) => {
+      console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
+    });
+  }, [default_agent_id, navigate, set_active_panel_item]);
+
   return (
     <div
       className={cn(
@@ -154,29 +182,92 @@ export function SidebarWidePanel() {
     >
       {/* 面板头部 */}
       <div className={cn("flex items-center gap-3 border-b divider-subtle px-4", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
-        <Link
-          className="shrink-0 transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
-          to={AppRouteBuilders.launcher()}
-          title={t("sidebar.back_to_launcher")}
+        <button
+          className="group/nexus relative flex h-12 w-[68px] shrink-0 items-center justify-center"
+          onClick={handle_open_nexus}
+          title="Nexus"
+          type="button"
         >
           <GlassMagnifierStatic
-            class_name="translate-y-[1px]"
-            height={34}
+            class_name={cn(
+              "relative z-10 transition-transform duration-(--motion-duration-normal)",
+              !prefers_reduced_motion && "group-hover/nexus:scale-[1.03]",
+              is_nexus_active && "drop-shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
+            )}
+            height={38}
+            underlay={is_nexus_active ? (
+              <>
+                {/* 中文注释：把圆形彩光作为玻璃组件的下层内容，保证折射和高光都基于真实下层，而不是页面层假叠加。 */}
+                <span
+                  className={cn(
+                    "absolute left-1/2 top-1/2 h-[36px] w-[36px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-88 blur-[0.5px]",
+                    !prefers_reduced_motion && "animate-[spin_5.2s_linear_infinite]",
+                  )}
+                  style={{
+                    background: "conic-gradient(from 180deg, transparent 0deg, transparent 24deg, rgba(96,165,250,0.98) 58deg, rgba(167,139,250,0.92) 104deg, transparent 146deg, transparent 206deg, rgba(52,211,153,0.9) 240deg, rgba(245,158,11,0.92) 280deg, rgba(244,114,182,0.94) 320deg, transparent 348deg, transparent 360deg)",
+                    WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 1px))",
+                    mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 1px))",
+                  }}
+                />
+                <span
+                  className={cn(
+                    "absolute left-1/2 top-1/2 h-[28px] w-[28px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-48 blur-[8px]",
+                    !prefers_reduced_motion && "animate-[spin_8.6s_linear_infinite_reverse]",
+                  )}
+                  style={{
+                    background: "conic-gradient(from 180deg, transparent 0deg, rgba(96,165,250,0.84) 66deg, transparent 136deg, transparent 214deg, rgba(244,114,182,0.82) 292deg, rgba(52,211,153,0.74) 336deg, transparent 360deg)",
+                  }}
+                />
+                <span className="absolute left-1/2 top-1/2 h-[24px] w-[24px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_34%_28%,rgba(255,255,255,0.34),transparent_42%),radial-gradient(circle_at_68%_72%,rgba(255,255,255,0.14),transparent_48%)] opacity-82 blur-[3px]" />
+              </>
+            ) : undefined}
             width={58}
           >
-            <span className="text-[24px] font-black tracking-[-0.08em] text-primary ">N</span>
+            <span className="relative flex h-8 w-8 items-center justify-center">
+              <span
+                className={cn(
+                  "relative z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+                  is_nexus_active && "shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_0_10px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+                )}
+              >
+                {is_nexus_active ? (
+                  <>
+                    {/* 中文注释：这一层只做很轻的玻璃反光，不再承担主动画；主动态来自下层彩光被玻璃折射。 */}
+                    <span className="pointer-events-none absolute inset-0 z-20 rounded-full bg-[radial-gradient(circle_at_28%_24%,rgba(255,255,255,0.24),transparent_38%),linear-gradient(132deg,rgba(255,255,255,0.18),transparent_42%,transparent_60%,rgba(255,255,255,0.08))] mix-blend-screen opacity-72" />
+                    <span className="pointer-events-none absolute inset-[1px] z-20 rounded-full border border-[rgba(255,255,255,0.22)] opacity-72" />
+                  </>
+                ) : null}
+                {nexus_avatar_src ? (
+                  <img
+                    alt="Nexus"
+                    className="relative z-10 h-full w-full object-cover"
+                    src={nexus_avatar_src}
+                  />
+                ) : (
+                  <span className="relative z-10 text-[11px] font-semibold tracking-[0.08em] text-primary">
+                    {nexus_initials}
+                  </span>
+                )}
+              </span>
+            </span>
           </GlassMagnifierStatic>
-        </Link>
+        </button>
         <div className="min-w-0">
-          <p
-            className="text-[26px] uppercase tracking-[0.14em]"
-            style={{
-              fontFamily: "\"Panchang\", var(--font-sans)",
-              fontWeight: 200,
-            }}
+          <Link
+            className="block transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
+            title={t("sidebar.back_to_launcher")}
+            to={AppRouteBuilders.launcher()}
           >
-            NEXUS
-          </p>
+            <p
+              className="text-[24px] uppercase tracking-[0.14em]"
+              style={{
+                fontFamily: "\"Panchang\", var(--font-sans)",
+                fontWeight: 200,
+              }}
+            >
+              NEXUS
+            </p>
+          </Link>
         </div>
       </div>
 

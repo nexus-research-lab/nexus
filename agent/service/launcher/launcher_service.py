@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from agent.infra.database.get_db import get_db
 from agent.schema.model_agent_persistence import AgentAggregate
 from agent.schema.model_chat_persistence import RoomAggregate
+from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.repository.repository_service import persistence_service
 from agent.utils.logger import logger
 
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 class LauncherAction:
     """Launcher 动作结果。"""
 
-    action_type: str  # "open_agent_dm", "open_room", "open_app"
+    action_type: str  # "open_agent_dm", "open_room"
     target_id: str
     initial_message: str | None = None
 
@@ -57,7 +58,7 @@ class LauncherService:
         - "#room-name": 打开指定 Room
         - "agent-name": 启动与指定 Agent 的对话（没有@）
         - "room-name": 搜索并打开 Room（没有#）
-        - 纯文本：启动 Nexus App 对话
+        - 纯文本：打开主智能体 DM 对话
 
         Args:
             query: 用户输入的查询字符串
@@ -68,10 +69,10 @@ class LauncherService:
         """
         trimmed_query = query.strip()
         if not trimmed_query:
-            logger.debug("Empty launcher query, returning open_app action")
+            logger.debug("Empty launcher query, returning open_agent_dm action")
             return LauncherAction(
-                action_type="open_app",
-                target_id="app",
+                action_type="open_agent_dm",
+                target_id=MainAgentProfile.AGENT_ID,
                 initial_message=trimmed_query or None,
             )
 
@@ -90,10 +91,10 @@ class LauncherService:
                     initial_message=initial_msg,
                 )
             else:
-                logger.info(f"Agent keyword '{agent_keyword}' not found, treating as app query")
+                logger.info(f"Agent keyword '{agent_keyword}' not found, treating as main agent DM query")
                 return LauncherAction(
-                    action_type="open_app",
-                    target_id="app",
+                    action_type="open_agent_dm",
+                    target_id=MainAgentProfile.AGENT_ID,
                     initial_message=trimmed_query,
                 )
 
@@ -112,10 +113,10 @@ class LauncherService:
                     initial_message=initial_msg,
                 )
             else:
-                logger.info(f"Room keyword '{room_keyword}' not found, treating as app query")
+                logger.info(f"Room keyword '{room_keyword}' not found, treating as main agent DM query")
                 return LauncherAction(
-                    action_type="open_app",
-                    target_id="app",
+                    action_type="open_agent_dm",
+                    target_id=MainAgentProfile.AGENT_ID,
                     initial_message=trimmed_query,
                 )
 
@@ -139,11 +140,11 @@ class LauncherService:
                 initial_message=None,
             )
 
-        # 默认：打开 App 对话
-        logger.debug(f"No match found for query: '{trimmed_query}', returning open_app action")
+        # 默认：直接打开主智能体 DM，避免再维护第二套入口语义。
+        logger.debug(f"No match found for query: '{trimmed_query}', returning open_agent_dm action")
         return LauncherAction(
-            action_type="open_app",
-            target_id="app",
+            action_type="open_agent_dm",
+            target_id=MainAgentProfile.AGENT_ID,
             initial_message=trimmed_query,
         )
 

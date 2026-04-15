@@ -62,9 +62,9 @@ export function buildWsDmSessionKey(ref: string, agent_id?: string | null): stri
   });
 }
 
-export function buildLauncherAppSessionKey(agent_id?: string | null): string {
-  const resolved_agent_id = resolveAgentId(agent_id);
-  return buildWsDmSessionKey(`launcher-app-${resolved_agent_id}`, resolved_agent_id);
+export function isLegacyLauncherAppSessionKey(session_key: string | null | undefined): boolean {
+  const parsed = parseSessionKey(session_key);
+  return parsed.kind === "agent" && Boolean(parsed.ref?.startsWith("launcher-app-"));
 }
 
 export function buildRoomSharedSessionKey(conversation_id: string): string {

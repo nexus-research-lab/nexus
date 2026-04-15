@@ -12,7 +12,7 @@ import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent";
-import { getInitialAgentOptions } from "@/config/options";
+import { getInitialAgentOptions, isMainAgent } from "@/config/options";
 
 export function ContactsPage() {
   const navigate = useNavigate();
@@ -29,10 +29,14 @@ export function ContactsPage() {
   const [dialog_mode, set_dialog_mode] = useState<"create" | "edit">("create");
   const [editing_agent_id, set_editing_agent_id] = useState<string | null>(null);
   const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
+  const regular_agents = useMemo(
+    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
+    [agents],
+  );
 
   const editing_agent = useMemo(
-    () => agents.find((agent) => agent.agent_id === editing_agent_id) ?? null,
-    [agents, editing_agent_id],
+    () => regular_agents.find((agent) => agent.agent_id === editing_agent_id) ?? null,
+    [editing_agent_id, regular_agents],
   );
   const dialog_initial_title = useMemo(
     () => (dialog_mode === "edit" ? editing_agent?.name : undefined),
@@ -145,6 +149,9 @@ export function ContactsPage() {
 
   const handle_request_delete_agent = useCallback((agent_id: string) => {
     const target_agent = agents.find((agent) => agent.agent_id === agent_id);
+    if (!target_agent || isMainAgent(target_agent.agent_id)) {
+      return;
+    }
     set_is_dialog_open(false);
     set_pending_delete_agent({
       id: agent_id,
@@ -158,7 +165,7 @@ export function ContactsPage() {
   }, [load_agents_from_server, load_conversations_from_server]);
 
   // 加载中 — 内联 loading，外层布局由路由层提供
-  if (loading && !agents.length) {
+  if (loading && !regular_agents.length) {
     return (
       <WorkspacePageFrame content_padding_class_name="p-0">
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -175,7 +182,7 @@ export function ContactsPage() {
     <>
       <WorkspacePageFrame content_padding_class_name="p-0">
         <ContactsDirectory
-          agents={agents}
+          agents={regular_agents}
           conversations={conversations}
           on_create_agent={handle_open_create_agent}
           on_create_team={handle_create_team}

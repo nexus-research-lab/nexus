@@ -68,36 +68,6 @@ export function GlassPanel<T extends GlassPrimitiveTagName = "div">(
 }
 
 /**
- * 中文注释：GlassFocusControl 只保留给少数高关注控件，
- * 当前用于 launcher Hero 的发送按钮。
- */
-export function GlassFocusControl<T extends GlassPrimitiveTagName = "div">(
-  props: GlassPrimitiveProps<T>,
-) {
-  return <BaseGlassPrimitive {...props} variant="focus" />;
-}
-
-/**
- * 中文注释：GlassDialog 用于模态对话框容器，
- * 高模糊 + 低折射，宽 bezel 配合大圆角。
- */
-export function GlassDialog<T extends GlassPrimitiveTagName = "div">(
-  props: GlassPrimitiveProps<T>,
-) {
-  return <BaseGlassPrimitive {...props} variant="dialog" />;
-}
-
-/**
- * 中文注释：GlassChip 用于小面积交互元素（标签、按钮），
- * 低模糊微折射，保持文字清晰。
- */
-export function GlassChip<T extends GlassPrimitiveTagName = "div">(
-  props: GlassPrimitiveProps<T>,
-) {
-  return <BaseGlassPrimitive {...props} variant="chip" />;
-}
-
-/**
  * 中文注释：GlassMagnifier 用于放大镜效果，高折射产生真实放大感，
  * 强阴影多层叠加模拟深度，用于 logo 按钮等视觉焦点。
  */

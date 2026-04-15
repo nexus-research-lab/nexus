@@ -1,11 +1,11 @@
 /**
  * Home 面板内容
  *
- * 工作台侧边栏面板，包含 4 个可折叠分区：
+ * 工作台侧边栏面板，包含 4 个分区：
  * - Starred（置顶项，localStorage 管理）
  * - Rooms（所有非 DM 类型的 Room）
- * - Direct Messages（所有 DM 类型的 Room）
- * - Agents（所有 Agent 列表）
+ * - Direct Messages（除主智能体外的 DM）
+ * - Agents（普通成员列表）
  *
  * 数据源复用现有 API：listRooms() + useAgentStore。
  */
@@ -19,7 +19,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { getAgentWsUrl } from "@/config/options";
+import { getAgentWsUrl, isMainAgent } from "@/config/options";
 import { get_dm_display_name } from "@/lib/dm-utils";
 import { getIconAvatarSrc, getRoomAvatarIconId } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
@@ -91,6 +91,19 @@ function resolve_dm_agent(room: RoomAggregate, agents: Agent[]) {
   return agents.find((agent) => agent.agent_id === agent_member.member_agent_id) ?? null;
 }
 
+function resolve_dm_agent_id(room: RoomAggregate): string | null {
+  const agent_member = room.members.find((member) => member.member_type === "agent");
+  return agent_member?.member_agent_id ?? null;
+}
+
+function is_main_agent_dm_room(room: RoomAggregate): boolean {
+  if (room.room.room_type !== "dm") {
+    return false;
+  }
+  const agent_id = resolve_dm_agent_id(room);
+  return Boolean(agent_id && isMainAgent(agent_id));
+}
+
 // ==================== 主组件 ====================
 
 export const HomePanelContent = memo(function HomePanelContent() {
@@ -104,6 +117,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const apply_agent_runtime_status = useAgentStore((s) => s.apply_agent_runtime_status);
   const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
+  const set_nexus_room_id = useSidebarStore((s) => s.set_nexus_room_id);
 
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const [starred] = useState<StarredItem[]>(load_starred_items);
@@ -135,6 +149,10 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const agent_ids = useMemo(() => agents.map((agent) => agent.agent_id), [agents]);
   const has_agents = agent_ids.length > 0;
   const agent_id_set = useMemo(() => new Set(agent_ids), [agent_ids]);
+  const regular_agents = useMemo(
+    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
+    [agents],
+  );
 
   useEffect(() => {
     if (!has_agents) {
@@ -190,15 +208,22 @@ export const HomePanelContent = memo(function HomePanelContent() {
   }, [agent_ids, has_agents, load_agent_runtime_statuses, runtime_ws_send, runtime_ws_state]);
 
   // 分离 Room 和 DM
-  const { normal_rooms, dm_rooms } = useMemo(() => {
+  const { normal_rooms, nexus_dm_room, regular_dm_rooms } = useMemo(() => {
     const sorted = [...rooms].sort(
       (a, b) => get_room_timestamp(b) - get_room_timestamp(a),
     );
+    const dm_rooms = sorted.filter((r) => r.room.room_type === "dm");
     return {
       normal_rooms: sorted.filter((r) => r.room.room_type !== "dm"),
-      dm_rooms: sorted.filter((r) => r.room.room_type === "dm"),
+      nexus_dm_room: dm_rooms.find((room) => is_main_agent_dm_room(room)) ?? null,
+      regular_dm_rooms: dm_rooms.filter((room) => !is_main_agent_dm_room(room)),
     };
   }, [rooms]);
+
+  useEffect(() => {
+    // 中文注释：Nexus 已提升为 header 一级入口，这里只同步其真实 DM room_id，供 header 激活态复用。
+    set_nexus_room_id(nexus_dm_room?.room.id ?? null);
+  }, [nexus_dm_room, set_nexus_room_id]);
 
   // 导航到 Room
   const navigate_to_room = useCallback(
@@ -330,12 +355,12 @@ export const HomePanelContent = memo(function HomePanelContent() {
 
       {/* Direct Messages 分区 */}
       <CollapsibleSection
-        count={dm_rooms.length}
+        count={regular_dm_rooms.length}
         section_id="home-dms"
         title={t("home.direct_messages")}
       >
-        {dm_rooms.length > 0 ? (
-          dm_rooms.map((room) => (
+        {regular_dm_rooms.length > 0 ? (
+          regular_dm_rooms.map((room) => (
             <SidebarListItem
               key={room.room.id}
               icon={(() => {
@@ -366,12 +391,12 @@ export const HomePanelContent = memo(function HomePanelContent() {
 
       {/* Agents 分区 */}
       <CollapsibleSection
-        count={agents.length}
+        count={regular_agents.length}
         section_id="home-agents"
         title={t("home.agents")}
       >
-        {agents.length > 0 ? (
-          agents.map((agent) => (
+        {regular_agents.length > 0 ? (
+          regular_agents.map((agent) => (
             <SidebarListItem
               key={agent.agent_id}
               icon={render_agent_avatar_icon(agent.name, agent.avatar)}
@@ -406,7 +431,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
 
       {/* 创建 Room 对话框 */}
       <CreateRoomDialog
-        agents={agents}
+        agents={regular_agents}
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}

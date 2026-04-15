@@ -24,6 +24,7 @@ from agent.infra.file_store.storage_bootstrap import FileStorageBootstrap
 from agent.infra.file_store.storage_paths import FileStoragePaths
 from agent.schema.model_message import Message, parse_message
 from agent.schema.model_session import ASession
+from agent.service.session.round_snapshot_normalizer import RoundSnapshotNormalizer
 from agent.service.session.session_router import resolve_agent_id
 from agent.utils.logger import logger
 
@@ -35,6 +36,7 @@ class SessionRepository:
         self._bootstrap = FileStorageBootstrap()
         self._paths = FileStoragePaths()
         self._lock = Lock()
+        self._snapshot_normalizer = RoundSnapshotNormalizer()
 
     def ensure_ready(self) -> None:
         """显式初始化，由 lifespan 调用而非导入时执行。"""
@@ -123,19 +125,6 @@ class SessionRepository:
         raw_rows = self._load_raw_message_rows(log_path)
         return self._bootstrap.compact_messages(raw_rows)
 
-    @staticmethod
-    def _build_round_status(message_rows: List[Dict[str, Any]]) -> Dict[str, str]:
-        """根据消息快照构建轮次状态。"""
-        status_map: Dict[str, str] = {}
-        for row in message_rows:
-            round_id = row.get("round_id")
-            if not round_id:
-                continue
-            status_map.setdefault(round_id, "running")
-            if row.get("role") == "result":
-                status_map[round_id] = str(row.get("subtype") or "success")
-        return status_map
-
     def _refresh_meta_from_messages(
         self,
         meta: Dict[str, Any],
@@ -144,7 +133,9 @@ class SessionRepository:
         """根据当前消息快照刷新 meta。"""
         compacted_rows = self._bootstrap.compact_messages(message_rows)
         meta["message_count"] = len(compacted_rows)
-        meta["round_status"] = self._build_round_status(compacted_rows)
+        meta["round_status"] = self._snapshot_normalizer.build_round_status(
+            compacted_rows
+        )
         meta["latest_round_id"] = compacted_rows[-1].get("round_id") if compacted_rows else None
 
         if compacted_rows:
@@ -206,7 +197,7 @@ class SessionRepository:
         """为未完成轮次补齐中断态工具结果和 result。"""
         interrupted_text = "任务已中断（未收到最终结束事件）"
         rows = [dict(row) for row in message_rows]
-        round_status = dict(meta.get("round_status") or self._build_round_status(rows))
+        round_status = self._snapshot_normalizer.build_round_status(rows)
         active_round_ids = active_round_ids or set()
 
         for round_id, status in round_status.items():
@@ -668,9 +659,14 @@ class SessionRepository:
                 compacted_rows,
                 active_round_ids=active_round_ids,
             )
+            round_status = self._snapshot_normalizer.build_round_status(materialized_rows)
+            normalized_rows = self._snapshot_normalizer.normalize_assistant_rows(
+                materialized_rows,
+                round_status,
+            )
 
             message_list: List[Message] = []
-            for row in materialized_rows:
+            for row in normalized_rows:
                 try:
                     message_list.append(parse_message(row))
                 except Exception as exc:

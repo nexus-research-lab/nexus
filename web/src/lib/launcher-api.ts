@@ -10,7 +10,7 @@ export interface LauncherQueryParams {
 }
 
 export interface LauncherQueryResponse {
-  action_type: 'open_agent_dm' | 'open_room' | 'open_app';
+  action_type: 'open_agent_dm' | 'open_room';
   target_id: string;
   initial_message?: string;
 }

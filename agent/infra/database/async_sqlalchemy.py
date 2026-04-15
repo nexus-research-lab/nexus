@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, declared_attr
+from sqlalchemy.pool import NullPool
 
 from agent.config.config import settings
 from agent.utils.logger import logger
@@ -49,9 +51,12 @@ class AsyncDatabase:
             database_url = f"{scheme}:///{db_path}"
 
         connect_args = None
-        if database_url.startswith("sqlite"):
+        engine_kwargs = {}
+        if self._is_sqlite_url(database_url):
             # 中文注释：SQLite 在并发写入时容易触发 locked，必须开启超时等待。
             connect_args = {"timeout": 30}
+            # 中文注释：本地 SQLite 不应长期复用连接池，避免瞬时 I/O 故障把坏连接放大到整个进程。
+            engine_kwargs["poolclass"] = NullPool
 
         self.engine = create_async_engine(
             database_url,
@@ -61,9 +66,10 @@ class AsyncDatabase:
             # JSON 字段写入数据库时保留中文，不转义为 \uXXXX
             json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
             connect_args=connect_args,
+            **engine_kwargs,
         )
 
-        if database_url.startswith("sqlite"):
+        if self._is_sqlite_url(database_url):
             # SQLite 默认不会启用外键约束，必须在每个连接上显式打开。
             @event.listens_for(self.engine.sync_engine, "connect")
             def _set_sqlite_foreign_keys(dbapi_connection, _connection_record):
@@ -82,6 +88,23 @@ class AsyncDatabase:
         )
 
         logger.info(f"Database initialized: {database_url}")
+
+    @staticmethod
+    def _is_sqlite_url(database_url: str) -> bool:
+        """判断当前数据库是否为 SQLite。"""
+        return database_url.startswith("sqlite")
+
+    @staticmethod
+    def _is_sqlite_disk_io_error(error: Exception) -> bool:
+        """判断是否为 SQLite disk I/O 故障。"""
+        return "disk i/o error" in str(error).lower()
+
+    async def _recover_from_sqlite_disk_io_error(self) -> None:
+        """遇到 SQLite I/O 故障时主动回收引擎，避免继续复用坏连接。"""
+        if self.engine is None:
+            return
+        logger.warning("⚠️ 检测到 SQLite disk I/O error，主动回收数据库引擎连接")
+        await self.engine.dispose()
 
 
     async def create_tables(self):
@@ -103,6 +126,11 @@ class AsyncDatabase:
         async with self.session_factory() as session:
             try:
                 yield session
+            except OperationalError as exc:
+                await session.rollback()
+                if self._is_sqlite_disk_io_error(exc):
+                    await self._recover_from_sqlite_disk_io_error()
+                raise
             except Exception:
                 await session.rollback()
                 raise

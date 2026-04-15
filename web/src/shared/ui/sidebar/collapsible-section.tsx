@@ -8,7 +8,7 @@
  */
 
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
-import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -41,8 +41,11 @@ interface CollapsibleSectionProps {
 interface SidebarListItemProps {
   icon: ReactNode;
   label: string;
+  label_class_name?: string;
+  label_style?: CSSProperties;
   meta?: string;
   is_active?: boolean;
+  active_variant?: "default" | "avatar_emphasis";
   on_click: () => void;
   on_rename?: () => void;
   on_delete?: () => void;
@@ -51,14 +54,18 @@ interface SidebarListItemProps {
 export function SidebarListItem({
   icon,
   label,
+  label_class_name,
+  label_style,
   meta,
   is_active = false,
+  active_variant = "default",
   on_click,
   on_rename,
   on_delete,
 }: SidebarListItemProps) {
   const { t } = useI18n();
   const has_actions = Boolean(on_rename || on_delete);
+  const is_avatar_emphasis_active = is_active && active_variant === "avatar_emphasis";
   const handle_key_down = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {
       return;
@@ -74,7 +81,9 @@ export function SidebarListItem({
     <div
       className={cn(
         "group/item relative box-border flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-[12px] px-2.5 py-[7px] transition-[background,color,transform] duration-(--motion-duration-fast)",
-        is_active
+        is_avatar_emphasis_active
+          ? "text-(--text-strong)"
+          : is_active
           ? "text-(--text-strong)"
           : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
       )}
@@ -82,11 +91,11 @@ export function SidebarListItem({
       onKeyDown={handle_key_down}
       role="button"
       tabIndex={0}
-      style={is_active ? {
+      style={is_avatar_emphasis_active ? undefined : is_active ? {
         background: "color-mix(in srgb, var(--surface-interactive-active-background) 72%, transparent)",
       } : undefined}
     >
-      {is_active ? (
+      {is_active && !is_avatar_emphasis_active ? (
         <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
       ) : null}
 
@@ -100,13 +109,33 @@ export function SidebarListItem({
       >
         <span
           className={cn(
-            "flex h-5 w-5 shrink-0 items-center justify-center",
-            is_active ? "text-(--primary)" : "text-(--icon-muted)",
+            "relative flex h-6 w-6 shrink-0 items-center justify-center",
+            is_avatar_emphasis_active
+              ? "text-(--text-strong)"
+              : is_active
+                ? "text-(--primary)"
+                : "text-(--icon-muted)",
           )}
         >
-          {icon}
+          {is_avatar_emphasis_active ? (
+            <>
+              {/* 中文注释：系统入口激活时只强调头像，不复用常规列表项的底色和左侧指示条。 */}
+              <span className="pointer-events-none absolute inset-[-3px] rounded-full bg-[conic-gradient(from_180deg,color-mix(in_srgb,var(--primary)_72%,transparent),transparent_32%,color-mix(in_srgb,var(--primary)_38%,white),transparent_76%,color-mix(in_srgb,var(--primary)_72%,transparent))] opacity-90 animate-[spin_5.5s_linear_infinite]" />
+              <span className="pointer-events-none absolute inset-[-1px] rounded-full border border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] animate-[pulse_2.2s_ease-in-out_infinite]" />
+              <span className="relative z-10 flex h-5 w-5 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_92%,white)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_14%,transparent),0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]">
+                {icon}
+              </span>
+            </>
+          ) : (
+            icon
+          )}
         </span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span
+          className={cn("min-w-0 flex-1 truncate", label_class_name)}
+          style={label_style}
+        >
+          {label}
+        </span>
         {meta ? (
           <span
             className={cn(

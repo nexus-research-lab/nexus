@@ -15,6 +15,8 @@ interface CodeBlockContentProps {
   value: string;
 }
 
+const MESSAGE_CODE_FONT_FAMILY = "\"KingHwa_OldSong\", var(--font-mono), monospace";
+
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -63,15 +65,25 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
         <SyntaxHighlighter
           language={language || "text"}
           style={is_dark_theme ? vscDarkPlus : oneLight}
+          codeTagProps={{
+            className: "message-cjk-code-font",
+            style: {
+              fontFamily: MESSAGE_CODE_FONT_FAMILY,
+            },
+          }}
           customStyle={{
             margin: 0,
             padding: "1.5rem",
             background: "transparent",
+            fontFamily: MESSAGE_CODE_FONT_FAMILY,
             fontSize: "0.875rem",
             lineHeight: "1.5",
             overflowWrap: "anywhere",
             wordBreak: "break-word",
             whiteSpace: "pre-wrap",
+          }}
+          lineNumberStyle={{
+            fontFamily: MESSAGE_CODE_FONT_FAMILY,
           }}
           showLineNumbers
           wrapLines

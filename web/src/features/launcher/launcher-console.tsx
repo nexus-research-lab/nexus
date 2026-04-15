@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
+import { ArrowRight, ArrowUp, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
@@ -26,40 +26,26 @@ import { AgentPile } from "./launcher-agent-pile";
 import { AnimatedHeroText, FadeSlideIn } from "@/shared/ui/feedback/animated-hero-text";
 
 interface LauncherConsoleProps {
-  app_conversation_draft: string;
-  app_conversation_loading: boolean;
-  app_conversation_can_control: boolean;
   agents: Agent[];
   conversations: Conversation[];
   rooms: RoomAggregate[];
   current_agent_id: string | null;
-  on_change_app_conversation_draft: (value: string) => void;
-  on_open_app_conversation: (initial_prompt?: string) => void;
-  on_close_app_conversation: () => void;
-  is_app_conversation_open: boolean;
+  on_open_main_agent_dm: (initial_prompt?: string) => void;
   on_select_agent: (agent_id: string) => void;
-  on_stop_app_conversation: () => void;
-  on_submit_app_conversation: (prompt: string) => void;
-  surface: "launcher" | "app";
 }
 
 interface HeroStageProps {
   current_agent_id: string | null;
   decorative_tokens: SpotlightToken[];
-  input_disabled?: boolean;
-  input_placeholder?: string;
   mention_targets: MentionTargetItem[];
   on_enter_home: () => void;
-  on_open_app_conversation: (initial_prompt?: string) => void;
-  on_close_app_conversation: () => void;
-  is_app_conversation_open: boolean;
+  on_open_main_agent_dm: (initial_prompt?: string) => void;
   on_query_change: (value: string) => void;
   on_select_agent: (agent_id: string) => void;
   on_open_recent_entry: (entry: RecentLauncherEntry) => void;
   on_submit: (submitted_query: string) => boolean;
   query: string;
   recent_entries: RecentLauncherEntry[];
-  surface: "launcher" | "app";
   is_query_loading: boolean;
 }
 
@@ -256,11 +242,6 @@ function buildRecentLauncherEntries(
   const latest_room_by_id = new Map<string, RecentLauncherEntry>();
 
   for (const { conversation, owner } of conversations_with_owners) {
-    const parsed_session_key = parseSessionKey(conversation.session_key);
-    if (parsed_session_key.ref?.startsWith("launcher-app-")) {
-      continue;
-    }
-
     if (conversation.room_id && conversation.conversation_id) {
       const existing_room = latest_room_by_id.get(conversation.room_id);
       if (!existing_room || conversation.last_activity_at > existing_room.last_activity_at) {
@@ -303,20 +284,15 @@ function buildRecentLauncherEntries(
 const HeroStage = memo(function HeroStage({
   current_agent_id,
   decorative_tokens,
-  input_disabled = false,
-  input_placeholder,
   mention_targets,
   on_enter_home,
-  on_open_app_conversation,
-  on_close_app_conversation,
-  is_app_conversation_open,
+  on_open_main_agent_dm,
   on_query_change,
   on_select_agent,
   on_open_recent_entry,
   on_submit,
   query,
   recent_entries,
-  surface,
   is_query_loading,
 }: HeroStageProps) {
   const { t } = useI18n();
@@ -503,14 +479,13 @@ const HeroStage = memo(function HeroStage({
                     sync_mention_match(target.value, target.selectionStart ?? target.value.length);
                   }}
                   value={local_query}
-                  placeholder={input_placeholder || (surface === "app" ? "告诉 Nexus 你要推进什么..." : t("launcher.query_placeholder"))}
-                  disabled={surface === "launcher" ? is_query_loading : input_disabled}
+                  placeholder={t("launcher.query_placeholder")}
+                  disabled={is_query_loading}
                 />
                 <button
                   className={cn(
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition duration-150 ease-out hover:-translate-y-0.5 sm:h-11 sm:w-11",
-                    ((surface === "launcher" && is_query_loading) || (surface === "app" && input_disabled))
-                    && "cursor-not-allowed opacity-(--disabled-opacity) hover:translate-y-0",
+                    is_query_loading && "cursor-not-allowed opacity-(--disabled-opacity) hover:translate-y-0",
                   )}
                   style={{
                     background: "var(--launcher-submit-background)",
@@ -520,15 +495,9 @@ const HeroStage = memo(function HeroStage({
                   }}
                   onClick={handle_submit}
                   type="button"
-                  disabled={surface === "launcher" ? is_query_loading : input_disabled}
+                  disabled={is_query_loading}
                 >
-                  {surface === "app" ? (
-                    is_query_loading ? (
-                      <RotateCcw className="h-4 w-4" />
-                    ) : (
-                      <ArrowUp className="h-4 w-4" />
-                    )
-                  ) : is_query_loading ? (
+                  {is_query_loading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
                     <ArrowUp className="h-4 w-4" />
@@ -540,7 +509,7 @@ const HeroStage = memo(function HeroStage({
 
           <div className={cn(
             "flex flex-wrap items-center justify-center gap-2",
-            surface === "launcher" ? "mt-3 sm:mt-4" : "mt-1 sm:mt-2",
+            "mt-3 sm:mt-4",
           )}>
             {recent_entries.map((entry, index) => (
               <FadeSlideIn key={entry.key} delay_ms={580 + index * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
@@ -598,54 +567,36 @@ const HeroStage = memo(function HeroStage({
               <button
                 className="px-2 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
                 style={{ color: "var(--launcher-handoff-color)" }}
-                onClick={() => is_app_conversation_open ? on_close_app_conversation() : on_open_app_conversation(query)}
+                onClick={() => on_open_main_agent_dm(query)}
                 type="button"
               >
-                {is_app_conversation_open ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    {t("launcher.back_to_hub")}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5">
-                    {t("launcher.handoff")}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1.5">
+                  {t("launcher.handoff")}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </span>
               </button>
             </FadeSlideIn>
           </div>
         </div>
       </HeroBlobShell>
 
-      {surface === "launcher" ? (
-        <MemoAgentPile
-          class_name="hidden min-[400px]:block"
-          current_agent_id={current_agent_id}
-          on_select_agent={on_select_agent}
-          tokens={decorative_tokens}
-        />
-      ) : null}
+      <MemoAgentPile
+        class_name="hidden min-[400px]:block"
+        current_agent_id={current_agent_id}
+        on_select_agent={on_select_agent}
+        tokens={decorative_tokens}
+      />
     </div>
   );
 });
 
 export function LauncherConsole({
-  app_conversation_draft,
-  app_conversation_loading,
-  app_conversation_can_control,
   agents,
   conversations,
   rooms,
   current_agent_id,
-  on_change_app_conversation_draft,
-  on_open_app_conversation,
-  on_close_app_conversation,
-  is_app_conversation_open,
+  on_open_main_agent_dm,
   on_select_agent,
-  on_stop_app_conversation,
-  on_submit_app_conversation,
-  surface,
 }: LauncherConsoleProps) {
   const [query, setQuery] = useState("");
   const [isQueryLoading, setIsQueryLoading] = useState(false);
@@ -755,59 +706,23 @@ export function LauncherConsole({
           }
           break;
         }
-        case "open_app":
-          on_open_app_conversation(action.initial_message);
-          break;
       }
     } catch (error) {
       console.error("Launcher query failed:", error);
     } finally {
       setIsQueryLoading(false);
     }
-  }, [query, isQueryLoading, on_open_app_conversation, navigate, set_active_panel_item]);
-
-  const input_value = surface === "app" ? app_conversation_draft : query;
-  const input_loading = surface === "app" ? app_conversation_loading : isQueryLoading;
+  }, [query, isQueryLoading, navigate, set_active_panel_item]);
 
   const handle_enter_home = useCallback(() => {
     navigate(AppRouteBuilders.home());
   }, [navigate]);
 
   const handle_input_change = useCallback((value: string) => {
-    if (surface === "app") {
-      on_change_app_conversation_draft(value);
-      return;
-    }
     setQuery(value);
-  }, [on_change_app_conversation_draft, surface]);
-
-  useEffect(() => {
-    if (surface === "app" && query) {
-      setQuery("");
-    }
-  }, [query, surface]);
+  }, []);
 
   const handle_primary_action = useCallback((submitted_input: string) => {
-    if (surface === "app") {
-      if (!app_conversation_can_control) {
-        return false;
-      }
-      if (app_conversation_loading) {
-        on_stop_app_conversation();
-        return false;
-      }
-
-      const trimmed_input = submitted_input.trim();
-      if (!trimmed_input) {
-        return false;
-      }
-
-      // 中文注释：异步发送前先清空草稿，避免回车后残留旧文本。
-      on_change_app_conversation_draft("");
-      void on_submit_app_conversation(trimmed_input);
-      return true;
-    }
-
     const trimmed_query = submitted_input.trim();
     if (!trimmed_query || isQueryLoading) {
       return false;
@@ -816,16 +731,7 @@ export function LauncherConsole({
     setQuery("");
     void handle_submit(trimmed_query);
     return true;
-  }, [
-    app_conversation_can_control,
-    app_conversation_loading,
-    handle_submit,
-    isQueryLoading,
-    on_change_app_conversation_draft,
-    on_stop_app_conversation,
-    on_submit_app_conversation,
-    surface,
-  ]);
+  }, [handle_submit, isQueryLoading]);
 
   return (
     <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -849,25 +755,21 @@ export function LauncherConsole({
       </div>
       <div className={cn(
         "relative flex min-h-0 flex-1 items-center justify-center px-8",
-        surface === "app" ? "pb-0 pt-0" : "pb-8 pt-6",
+        "pb-8 pt-6",
       )}>
         <HeroStage
           current_agent_id={current_agent_id}
           decorative_tokens={decorative_tokens}
-          input_disabled={surface === "app" ? !app_conversation_can_control : false}
           mention_targets={mention_targets}
           on_enter_home={handle_enter_home}
-          on_open_app_conversation={on_open_app_conversation}
-          on_close_app_conversation={on_close_app_conversation}
-          is_app_conversation_open={is_app_conversation_open}
+          on_open_main_agent_dm={on_open_main_agent_dm}
           on_query_change={handle_input_change}
           on_select_agent={on_select_agent}
           on_open_recent_entry={handle_open_recent_entry}
           on_submit={handle_primary_action}
-          query={input_value}
+          query={query}
           recent_entries={recent_entries}
-          surface={surface}
-          is_query_loading={input_loading}
+          is_query_loading={isQueryLoading}
         />
       </div>
     </section>

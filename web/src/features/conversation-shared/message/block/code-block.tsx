@@ -19,14 +19,14 @@ function CodeBlockFallback({ language, value }: CodeBlockProps) {
     <CodeShell
       language={language}
       right_slot={(
-        <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+        <span className="message-cjk-code-font text-xs" style={{ color: "var(--text-muted)" }}>
           Loading
         </span>
       )}
       content_class_name="overflow-x-auto"
     >
       <pre
-        className="whitespace-pre-wrap break-words px-6 py-6 text-sm leading-[1.7]"
+        className="message-cjk-code-font whitespace-pre-wrap break-words px-6 py-6 text-sm leading-[1.7]"
         style={{ color: "var(--text-strong)" }}
       >
         {value}

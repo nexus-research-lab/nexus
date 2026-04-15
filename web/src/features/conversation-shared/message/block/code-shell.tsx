@@ -54,7 +54,7 @@ export function CodeShell({
             <div className="h-2.5 w-2.5 rounded-full border border-green-500/50 bg-green-500/18" />
           </div>
           <span
-            className="ml-2 font-mono text-xs"
+            className="message-cjk-code-font ml-2 text-xs"
             style={{ color: "var(--text-muted)" }}
           >
             {language || "text"}

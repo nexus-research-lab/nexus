@@ -14,11 +14,7 @@ import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 
 import { ContactsAgentCard } from "./contacts-agent-card";
-import {
-  get_contacts_agent_conversations,
-  get_contacts_agent_description,
-  matches_contacts_search,
-} from "./contacts-directory-helpers";
+import { matches_contacts_search } from "./contacts-directory-helpers";
 
 interface ContactsDirectoryProps {
   agents: Agent[];
@@ -44,15 +40,6 @@ export function ContactsDirectory({
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
   const [search_query, set_search_query] = useState("");
-
-  // 按 agent 分组 conversations（用于后续扩展）
-  const _conversations_by_agent = useMemo(() => {
-    const grouped = new Map<string, Conversation[]>();
-    agents.forEach((agent) => {
-      grouped.set(agent.agent_id, get_contacts_agent_conversations(conversations, agent.agent_id));
-    });
-    return grouped;
-  }, [agents, conversations]);
 
   // Tab 过滤 + 搜索
   const filtered_agents = useMemo(() => {

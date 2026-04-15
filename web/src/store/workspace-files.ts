@@ -19,7 +19,7 @@ interface WorkspaceFilesStoreState {
   refresh_files: (agent_id: string) => Promise<WorkspaceFileEntry[]>;
 }
 
-export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set, get) => ({
+export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) => ({
   files_by_agent: {},
 
   set_files: (agent_id, files) => {
