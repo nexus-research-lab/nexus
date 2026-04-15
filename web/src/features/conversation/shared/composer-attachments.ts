@@ -9,7 +9,7 @@
 # =====================================================
 */
 
-import { create_workspace_entry_api } from "@/lib/agent-manage-api";
+import { create_workspace_entry_api } from "@/lib/api/agent-manage-api";
 
 export interface PreparedComposerAttachment {
   file_name: string;
@@ -135,7 +135,7 @@ export async function prepare_workspace_text_attachments(
       throw new Error(rejection_reason);
     }
 
-    // 中文注释：附件当前仅走“文本文件同步到工作区”这条真实链路，
+    // 附件当前仅走“文本文件同步到工作区”这条真实链路，
     // 避免前端伪造图片/二进制上传能力而后端实际上无法消费。
     const content = await file.text();
     const workspace_path = build_attachment_path(file.name, index);

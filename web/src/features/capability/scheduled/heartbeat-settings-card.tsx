@@ -2,9 +2,9 @@
 
 import { Activity, RefreshCw, TimerReset, Zap } from "lucide-react";
 
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
-import type { HeartbeatConfig } from "@/types/heartbeat";
+import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import type { HeartbeatConfig } from "@/types/capability/heartbeat";
 
 function format_datetime(value: number | null): string {
   if (!value) {

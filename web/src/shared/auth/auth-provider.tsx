@@ -17,8 +17,8 @@ import {
   useState,
 } from "react";
 
-import { AuthStatus, get_auth_status, login_api, logout_api } from "@/lib/auth-api";
-import { AUTH_REQUIRED_EVENT } from "@/lib/http";
+import { AuthStatus, get_auth_status, login_api, logout_api } from "@/lib/api/auth-api";
+import { AUTH_REQUIRED_EVENT } from "@/lib/api/http";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 
 const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {

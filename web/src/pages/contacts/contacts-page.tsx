@@ -4,14 +4,14 @@ import { Loader2 } from "lucide-react";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
-import { validate_agent_name_api } from "@/lib/agent-manage-api";
-import { create_room, ensure_direct_room } from "@/lib/room-api";
+import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
+import { create_room, ensure_direct_room } from "@/lib/api/room-api";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
-import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent";
+import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent/agent";
 import { get_initial_agent_options, is_main_agent } from "@/config/options";
 
 export function ContactsPage() {

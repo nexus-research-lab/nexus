@@ -1,7 +1,7 @@
-import { get_conversation_messages } from '@/lib/agent-api';
-import { build_room_shared_session_key, build_ws_dm_session_key } from '@/lib/session-key';
+import { get_conversation_messages } from '@/lib/api/agent-api';
+import { build_room_shared_session_key, build_ws_dm_session_key } from '@/lib/conversation/session-key';
 import { generate_uuid } from '@/lib/uuid';
-import { AgentConversationLifecycleContext } from '@/types/agent-conversation';
+import { AgentConversationLifecycleContext } from '@/types/agent/agent-conversation';
 
 import { merge_loaded_messages, sort_messages } from './message-helpers';
 
@@ -57,7 +57,7 @@ export async function load_agent_session(
     context.set_is_session_loading(true);
   }
 
-  // 中文注释：同 session 重拉只刷新消息快照，不要顺手清空运行时状态，
+  // 同 session 重拉只刷新消息快照，不要顺手清空运行时状态，
   // 否则执行中的轮次会在前端闪断成“可输入”后再恢复。
   if (is_reload) {
     context.set_error(null);

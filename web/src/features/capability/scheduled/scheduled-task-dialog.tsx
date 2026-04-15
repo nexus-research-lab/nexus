@@ -7,7 +7,7 @@ import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
-import type { ScheduledTaskItem } from "@/types/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
 import { TaskBasicsPanel } from "./dialog/task-basics-panel";
 import { TaskSchedulePanel } from "./dialog/task-schedule-panel";

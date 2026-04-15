@@ -3,10 +3,10 @@
  */
 
 // 统一消息组件 - 主要推荐使用
-export { default as MessageItem } from './message-item';
+export { default as MessageItem } from "./item/message-item";
 
 // 专用消息组件
-export { ToolBlock } from './block/tool-block';
+export { ToolBlock } from "./blocks/tool-block";
 
 // 类型定义
 export type {
@@ -20,5 +20,5 @@ export type {
   UserMessage,
   AssistantMessage,
   SystemMessage,
-  ResultMessage
-} from '@/types/message';
+  ResultMessage,
+} from "@/types/conversation/message";

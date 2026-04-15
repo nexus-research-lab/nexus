@@ -13,13 +13,13 @@ import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { useSidebarStore } from "@/store/sidebar";
-import { Agent } from "@/types/agent";
-import { Conversation } from "@/types/conversation";
-import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
-import { RoomAggregate } from "@/types/room";
-import { query_launcher } from "@/lib/launcher-api";
-import { ensure_direct_room, get_room_contexts } from "@/lib/room-api";
-import { parse_session_key } from "@/lib/session-key";
+import { Agent } from "@/types/agent/agent";
+import { Conversation } from "@/types/conversation/conversation";
+import { ConversationWithOwner, SpotlightToken } from "@/types/app/launcher";
+import { RoomAggregate } from "@/types/conversation/room";
+import { query_launcher } from "@/lib/api/launcher-api";
+import { ensure_direct_room, get_room_contexts } from "@/lib/api/room-api";
+import { parse_session_key } from "@/lib/conversation/session-key";
 import { MentionTargetItem, MentionTargetPopover } from "@/features/conversation/shared/mention-popover";
 
 import { AgentPile } from "./launcher-agent-pile";
@@ -97,7 +97,7 @@ function truncate_launcher_chip_label(label: string, max_chars: number = 8): str
     return label.trim();
   }
 
-  // 中文注释：Hero 推荐项空间很窄，超长名称改为中间省略。
+  // Hero 推荐项空间很窄，超长名称改为中间省略。
   const head_count = Math.max(2, Math.ceil((max_chars - 1) / 2));
   const tail_count = Math.max(2, max_chars - 1 - head_count);
   return `${chars.slice(0, head_count).join("")}…${chars.slice(-tail_count).join("")}`;
@@ -372,7 +372,7 @@ const HeroStage = memo(function HeroStage({
       return;
     }
 
-    // 中文注释：提交后先在本地立即清空，避免受控值回流慢一拍。
+    // 提交后先在本地立即清空，避免受控值回流慢一拍。
     set_local_query("");
     on_query_change("");
     set_mention_match(null);

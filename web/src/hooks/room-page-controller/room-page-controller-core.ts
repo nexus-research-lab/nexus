@@ -7,11 +7,11 @@
  * =====================================================
  */
 
-import { build_room_agent_session_key, build_room_shared_session_key } from "@/lib/session-key";
-import { Agent } from "@/types/agent";
-import { AgentConversationIdentity } from "@/types/agent-conversation";
-import { Conversation, RoomConversationView } from "@/types/conversation";
-import { RoomContextAggregate } from "@/types/room";
+import { build_room_agent_session_key, build_room_shared_session_key } from "@/lib/conversation/session-key";
+import { Agent } from "@/types/agent/agent";
+import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import { Conversation, RoomConversationView } from "@/types/conversation/conversation";
+import { RoomContextAggregate } from "@/types/conversation/room";
 
 function to_timestamp(value?: string | null): number {
   if (!value) {

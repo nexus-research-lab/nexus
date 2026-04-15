@@ -16,15 +16,15 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_default_agent_id, is_main_agent } from "@/config/options";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import { HomePanelContent } from "@/features/home/home-sidebar-panel";
-import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
-import { resolve_direct_room_navigation_target } from "@/lib/direct-room-navigation";
-import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/home-layout";
+import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
+import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
+import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn, get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
-import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/workspace-header-layout";
+import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { useAgentStore } from "@/store/agent";
 import {
   derive_sidebar_item_id_from_path,

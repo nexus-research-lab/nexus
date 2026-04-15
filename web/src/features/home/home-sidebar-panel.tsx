@@ -20,19 +20,19 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_agent_ws_url, is_main_agent } from "@/config/options";
-import { get_dm_display_name } from "@/lib/dm-utils";
+import { get_dm_display_name } from "@/lib/conversation/dm-utils";
 import { get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
-import { CreateRoomDialog } from "@/features/conversation/room-members/create-room-dialog";
-import { create_room, delete_room, list_rooms, subscribe_room_list_updates } from "@/lib/room-api";
+import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
+import { create_room, delete_room, list_rooms, subscribe_room_list_updates } from "@/lib/api/room-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
-import type { Agent, AgentRuntimeStatus } from "@/types/agent";
-import type { EventMessage } from "@/types/message";
-import { RoomAggregate } from "@/types/room";
+import type { Agent, AgentRuntimeStatus } from "@/types/agent/agent";
+import type { EventMessage } from "@/types/conversation/message";
+import { RoomAggregate } from "@/types/conversation/room";
 
 // ==================== 置顶项 localStorage 管理 ====================
 
@@ -221,7 +221,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
   }, [rooms]);
 
   useEffect(() => {
-    // 中文注释：Nexus 已提升为 header 一级入口，这里只同步其真实 DM room_id，供 header 激活态复用。
+    // Nexus 已提升为 header 一级入口，这里只同步其真实 DM room_id，供 header 激活态复用。
     set_nexus_room_id(nexus_dm_room?.room.id ?? null);
   }, [nexus_dm_room, set_nexus_room_id]);
 
@@ -272,7 +272,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
     const deleted_room_id = delete_target.id;
     await delete_room(deleted_room_id);
     set_delete_target(null);
-    // 中文注释：删除当前激活房间时不立即跳转，留给路由层做失效判断。
+    // 删除当前激活房间时不立即跳转，留给路由层做失效判断。
     if (active_item_id === deleted_room_id) {
       set_active_item(null);
     }

@@ -11,8 +11,8 @@ import {
   remove_room_member,
   update_room,
   update_room_conversation,
-} from "@/lib/room-api";
-import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
+} from "@/lib/api/room-api";
+import { useHomeWorkspaceController } from "@/hooks/home/use-home-workspace-controller";
 import {
   build_room_conversation_views,
   resolve_current_agent_session_identity,
@@ -25,15 +25,15 @@ import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-pa
 import { useRoomPageData } from "@/hooks/room-page-controller/use-room-page-data";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
-import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
-import { UpdateRoomParams } from "@/types/room";
-import { RoomPageControllerOptions } from "@/types/route";
+import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
+import { UpdateRoomParams } from "@/types/conversation/room";
+import { RoomPageControllerOptions } from "@/types/app/route";
 
 export function useRoomPageController({
   room_id,
   conversation_id,
 }: RoomPageControllerOptions) {
-  // 中文注释：这里坚持使用细粒度 selector，避免 Room 页面因为 store
+  // 这里坚持使用细粒度 selector，避免 Room 页面因为 store
   // 里无关字段变动而整页重渲染。
   const agents = useAgentStore((s) => s.agents);
   const create_agent = useAgentStore((s) => s.create_agent);
@@ -146,7 +146,7 @@ export function useRoomPageController({
     [active_room_session?.id, conversations],
   );
 
-  // 中文注释：DM 模式下，store 里可能暂时没有对应 conversation，
+  // DM 模式下，store 里可能暂时没有对应 conversation，
   // 这里直接回退到 room session，避免 workspace loader 被空 session_key 卡住。
   const current_agent_session_identity = useMemo(() => {
     return resolve_current_agent_session_identity({
@@ -361,7 +361,7 @@ export function useRoomPageController({
   }, [load_conversations_from_server, refresh_room_contexts, refresh_rooms, room_id]);
 
   const handle_open_conversation_from_launcher = useCallback((conversation_id: string, agent_id?: string) => {
-    // 中文注释：Launcher 打开 Room 时只认 conversation_id，不再接受其他回退标识。
+    // Launcher 打开 Room 时只认 conversation_id，不再接受其他回退标识。
     const target_conversation = room_conversations.find(
       (conversation) => conversation.conversation_id === conversation_id,
     );
@@ -395,7 +395,7 @@ export function useRoomPageController({
 
   const is_hydrated = is_bootstrapped && !is_room_loading;
 
-  // 中文注释：对外 controller 对象本身保持稳定，避免消费端因为对象引用变化
+  // 对外 controller 对象本身保持稳定，避免消费端因为对象引用变化
   // 产生无意义重渲染。
   return useMemo(() => ({
     agents,

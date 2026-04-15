@@ -1,15 +1,15 @@
 /**
  * Conversation Store Actions
  *
- * [INPUT]: 依赖 @/types, @/lib/agent-api
+ * [INPUT]: 依赖 @/types, @/lib/api/agent-api
  * [OUTPUT]: 对外提供 conversation 元数据同步 actions
  * [POS]: store/conversation 模块的操作函数
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { Conversation, ConversationStoreState } from '@/types/conversation';
-import { get_conversations } from "@/lib/agent-api";
-import { is_legacy_launcher_app_session_key } from "@/lib/session-key";
+import { Conversation, ConversationStoreState } from '@/types/conversation/conversation';
+import { get_conversations } from "@/lib/api/agent-api";
+import { is_legacy_launcher_app_session_key } from "@/lib/conversation/session-key";
 
 type ConversationStoreSetter = (
   update:
@@ -31,7 +31,7 @@ function dedupe_conversations_by_session_key(
       continue;
     }
 
-    // 中文注释：同一 session_key 必须只保留一条。
+    // 同一 session_key 必须只保留一条。
     // 冲突时优先使用最近活跃的记录，避免首页和 Launcher 出现重复 key。
     if (conversation.last_activity_at >= existing_conversation.last_activity_at) {
       unique_conversations.set(conversation.session_key, conversation);
@@ -59,7 +59,7 @@ export const sync_conversation_snapshot_action = (
       current.message_count !== next_message_count ||
       current.session_id !== next_session_id;
 
-    // 中文注释：流式过程中会高频同步快照，同值更新必须直接短路，避免触发无意义重渲染。
+    // 流式过程中会高频同步快照，同值更新必须直接短路，避免触发无意义重渲染。
     if (!has_changed) {
       return { error: null };
     }

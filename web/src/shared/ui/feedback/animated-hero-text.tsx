@@ -66,7 +66,7 @@ export function AnimatedHeroText({
           aria-hidden
           className="inline-block"
           style={{
-            // 中文注释：进入动画结束后移除最终态 transform，
+            // 进入动画结束后移除最终态 transform，
             // 避免标题里的每个字长期保留独立合成层。
             ...(visible ? null : {
               opacity: 0,
@@ -117,7 +117,7 @@ export function FadeSlideIn({
     <div
       className={class_name}
       style={{
-        // 中文注释：容器完成进入动画后不再保留 transform，
+        // 容器完成进入动画后不再保留 transform，
         // 这样 launcher 推荐按钮和 Hero 分组不会持续挂在独立层上。
         ...(visible ? null : {
           opacity: 0,

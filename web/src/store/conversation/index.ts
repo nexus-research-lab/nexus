@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { create_browser_json_storage } from "@/lib/browser-storage";
-import { ConversationStoreState } from "@/types/conversation";
+import { create_browser_json_storage } from "@/lib/storage/browser-storage";
+import { ConversationStoreState } from "@/types/conversation/conversation";
 
 import * as actions from "./actions";
 

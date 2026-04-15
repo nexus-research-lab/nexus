@@ -12,8 +12,8 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { get_initial_agent_options } from "@/config/options";
-import { validate_agent_name_api } from "@/lib/agent-manage-api";
-import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent";
+import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
+import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
 
 interface UseRoomPageAgentDialogOptions {
   agents: Agent[];

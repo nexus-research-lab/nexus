@@ -5,8 +5,8 @@
  * 只有显式配置了绝对地址时，才会直连外部 API / WebSocket。
  */
 
-import { request_api } from "@/lib/http";
-import type { AgentOptions, AgentProvider } from "@/types/agent";
+import { request_api } from "@/lib/api/http";
+import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 
 export let DEFAULT_AGENT_ID = "";
 export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";

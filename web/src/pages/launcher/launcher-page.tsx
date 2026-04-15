@@ -17,15 +17,15 @@ import { useNavigate } from "react-router-dom";
 import { get_default_agent_id, is_main_agent } from "@/config/options";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { get_launcher_surface_theme_style } from "@/features/launcher/launcher-surface-theme";
-import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
-import { resolve_direct_room_navigation_target } from "@/lib/direct-room-navigation";
+import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
+import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { SIDEBAR_SYSTEM_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
-import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent";
+import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent/agent";
 
 export function LauncherPage() {
   const { theme } = useTheme();

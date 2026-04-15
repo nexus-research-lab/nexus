@@ -10,11 +10,11 @@ import {
   WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
   WorkspaceIconFrame,
-} from "@/shared/ui/workspace/workspace-catalog-card";
-import type { ExternalSkillSearchItem } from "@/types/skill";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import type { ExternalSkillSearchItem } from "@/types/capability/skill";
 
-import { format_installs } from "@/hooks/use-skill-marketplace";
-import type { SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
+import { format_installs } from "@/hooks/capability/use-skill-marketplace";
+import type { SkillMarketplaceController } from "@/hooks/capability/use-skill-marketplace";
 
 interface SkillsExternalResultsProps {
   ctrl: SkillMarketplaceController;

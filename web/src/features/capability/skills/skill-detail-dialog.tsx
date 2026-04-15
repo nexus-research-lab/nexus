@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/skill-api";
+import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
@@ -26,7 +26,7 @@ import {
   get_dialog_note_class_name,
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
-import { SkillDetail } from "@/types/skill";
+import { SkillDetail } from "@/types/capability/skill";
 
 import { SkillMarkdown } from "./skill-markdown";
 

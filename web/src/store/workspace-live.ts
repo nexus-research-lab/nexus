@@ -1,7 +1,7 @@
 /**
  * Workspace Live Store
  *
- * [INPUT]: 依赖 zustand，依赖 @/types/workspace-live
+ * [INPUT]: 依赖 zustand，依赖 @/types/app/workspace-live
  * [OUTPUT]: 对外提供 useWorkspaceLiveStore
  * [POS]: store 层的 workspace 实时状态，驱动文件树/编辑器动态反馈
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -9,7 +9,7 @@
 
 import { create } from 'zustand';
 
-import { WorkspaceActivityItem, WorkspaceLiveEvent, WorkspaceLiveFileState } from '@/types/workspace-live';
+import { WorkspaceActivityItem, WorkspaceLiveEvent, WorkspaceLiveFileState } from '@/types/app/workspace-live';
 
 interface WorkspaceLiveStoreState {
   recent_events: WorkspaceActivityItem[];

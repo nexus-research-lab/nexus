@@ -1,7 +1,7 @@
 /**
  * Workspace Files Store
  *
- * [INPUT]: 依赖 zustand，依赖 @/types/agent
+ * [INPUT]: 依赖 zustand，依赖 @/types/agent/agent
  * [OUTPUT]: 对外提供 useWorkspaceFilesStore
  * [POS]: store 层共享当前 workspace 文件列表，用于跨组件判断文件是否存在
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -9,8 +9,8 @@
 
 import { create } from 'zustand';
 
-import { get_workspace_files_api } from '@/lib/agent-manage-api';
-import { WorkspaceFileEntry } from '@/types/agent';
+import { get_workspace_files_api } from '@/lib/api/agent-manage-api';
+import { WorkspaceFileEntry } from '@/types/agent/agent';
 
 interface WorkspaceFilesStoreState {
   files_by_agent: Record<string, WorkspaceFileEntry[]>;

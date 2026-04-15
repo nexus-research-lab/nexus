@@ -1,10 +1,10 @@
 import { resolve_agent_id } from '@/config/options';
-import { WebSocketMessage } from '@/types/websocket';
-import { is_structured_session_key } from '@/lib/session-key';
+import { WebSocketMessage } from '@/types/system/websocket';
+import { is_structured_session_key } from '@/lib/conversation/session-key';
 import { generate_uuid } from '@/lib/uuid';
 import { Message } from '@/types';
-import { AgentConversationActionContext } from '@/types/agent-conversation';
-import { PermissionDecisionPayload } from '@/types/permission';
+import { AgentConversationActionContext } from '@/types/agent/agent-conversation';
+import { PermissionDecisionPayload } from '@/types/conversation/permission';
 
 import { upsert_message } from './message-helpers';
 
@@ -142,7 +142,7 @@ export function stop_session_generation(
   // per-msg_id interrupt for Room multi-agent scenario
   if (msg_id) {
     payload.msg_id = msg_id;
-    // 中文注释：Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
+    // Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
     const target_message = messages.find((m) => m.message_id === msg_id);
     const target_slot = pending_agent_slots.find((slot) => slot.msg_id === msg_id);
     if (target_message?.agent_id || target_slot?.agent_id) {

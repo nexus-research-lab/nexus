@@ -14,7 +14,7 @@ import { ChevronRight, Folder, FolderOpen, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceFileEntry } from "@/types/agent";
+import { WorkspaceFileEntry } from "@/types/agent/agent";
 
 import { get_workspace_file_visual } from "./workspace-file-visuals";
 

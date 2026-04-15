@@ -3,10 +3,10 @@
 import { ChangeEvent, KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Paperclip, Send, StopCircle, X } from "lucide-react";
 
-import { useTextareaHeight } from "@/hooks/use-textarea-height";
+import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
-import { Agent } from "@/types/agent";
+import { Agent } from "@/types/agent/agent";
 
 import {
   COMPOSER_ACTION_BUTTON_CLASS_NAME,
@@ -121,7 +121,7 @@ const ComposerPanelView = memo(({
   const [attachment_error, setAttachmentError] = useState<string | null>(null);
   const [is_preparing_attachments, setIsPreparingAttachments] = useState(false);
 
-  // 中文注释：共享 Composer 同时服务 DM 和 Room，这里统一在共享层过滤不可提及成员，
+  // 共享 Composer 同时服务 DM 和 Room，这里统一在共享层过滤不可提及成员，
   // 避免再保留第二套几乎相同的输入区实现。
   const available_room_members = room_members.filter(
     (member) => !mention_unavailable_agent_ids.includes(member.agent_id),
@@ -288,7 +288,7 @@ const ComposerPanelView = memo(({
       last_composition_end_at_ref.current > 0 &&
       Date.now() - last_composition_end_at_ref.current <= COMPOSITION_END_ENTER_GUARD_MS;
 
-    // 中文注释：Safari 在中文输入法确认候选词后，可能补发一个不带 composing 标记的 Enter。
+    // Safari 在中文输入法确认候选词后，可能补发一个不带 composing 标记的 Enter。
     // 这里同时拦截 IME 的 229/Process 信号，并且只吞掉紧跟 compositionend 的下一次 Enter，
     // 避免候选词确认被误判成发送消息。
     if (

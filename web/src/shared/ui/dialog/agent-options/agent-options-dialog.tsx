@@ -13,7 +13,7 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Settings, X } from "lucide-react";
 
-import { AgentOptionsEditor } from "@/features/agent-options/agent-options-editor";
+import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -25,7 +25,7 @@ import type {
   AgentIdentityDraft,
   AgentNameValidationResult,
   AgentOptions as AgentConfigOptions,
-} from "@/types/agent";
+} from "@/types/agent/agent";
 
 export interface AgentOptionsProps {
   agent_id?: string;
@@ -130,4 +130,4 @@ export function AgentOptions({
   );
 }
 
-export { AgentOptionsEditor } from "@/features/agent-options/agent-options-editor";
+export { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";

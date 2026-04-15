@@ -3,10 +3,10 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { useConnectorController } from "@/hooks/use-connector-controller";
+import { useConnectorController } from "@/hooks/capability/use-connector-controller";
 
 import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ConnectorDetailDialog } from "./connector-detail-dialog";
 import { ConnectorsGrid } from "./connectors-grid";

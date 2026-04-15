@@ -3,7 +3,7 @@
  *
  * 使用 Zustand 管理 Agent 状态
  *
- * [INPUT]: 依赖 @/lib/agent-manage-api 的 Agent API
+ * [INPUT]: 依赖 @/lib/api/agent-manage-api 的 Agent API
  * [OUTPUT]: 对外提供 useAgentStore
  * [POS]: store 模块的 Agent 管理，被侧边栏和 Agent 设置页消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -16,15 +16,15 @@ import {
     AgentRuntimeStatus,
     CreateAgentParams,
     UpdateAgentParams,
-} from '@/types/agent';
-import { create_browser_json_storage } from '@/lib/browser-storage';
+} from '@/types/agent/agent';
+import { create_browser_json_storage } from '@/lib/storage/browser-storage';
 import {
     get_agents,
     get_agent_runtime_statuses_api,
     create_agent_api,
     update_agent_api,
     delete_agent_api,
-} from '@/lib/agent-manage-api';
+} from '@/lib/api/agent-manage-api';
 
 // ==================== Store 类型 ====================
 

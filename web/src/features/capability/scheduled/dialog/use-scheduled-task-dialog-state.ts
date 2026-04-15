@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { create_scheduled_task_api, update_scheduled_task_api } from "@/lib/scheduled-task-api";
+import { create_scheduled_task_api, update_scheduled_task_api } from "@/lib/api/scheduled-task-api";
 import type {
   ScheduledTaskItem,
   ScheduledTaskSchedule,
   ScheduledTaskSessionTarget,
   ScheduledTaskSource,
-} from "@/types/scheduled-task";
+} from "@/types/capability/scheduled-task";
 
 import {
   build_daily_cron_expression,

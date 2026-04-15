@@ -18,8 +18,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { LanguageSwitch } from "@/shared/ui/i18n/language-switch";
 import { useTheme } from "@/shared/theme/theme-context";
 import { ThemeSwitch } from "@/shared/ui/theme/theme-switch";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ProviderSettingsPanel } from "./provider-settings-panel";
 

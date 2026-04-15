@@ -4,14 +4,14 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { Loader2 } from "lucide-react";
 
-import { RoomWorkspaceShell } from "@/features/conversation/room/room-workspace-shell";
-import { RoomRouteEntry } from "@/features/conversation/room/room-route-entry";
-import { useRoomPageController } from "@/hooks/use-room-page-controller";
+import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
+import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
+import { useRoomPageController } from "@/hooks/room-page-controller/use-room-page-controller";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
-import { RoomRouteParams } from "@/types/route";
-import { UpdateRoomParams } from "@/types/room";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import { RoomRouteParams } from "@/types/app/route";
+import { UpdateRoomParams } from "@/types/conversation/room";
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
@@ -89,7 +89,7 @@ export function RoomPage() {
     await controller.handle_update_conversation_title(conversation_id, title);
   }, [controller]);
 
-  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent-conversation").RoomEventPayload) => {
+  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
     if (event_type === "room_deleted") {
       if (_data.room_id && _data.room_id === params.room_id) {
         set_pending_deleted_room({
@@ -123,7 +123,7 @@ export function RoomPage() {
     }
 
     if (controller.current_room && !controller.room_error) {
-      // 中文注释：Room 仍可访问，继续留在当前路径。
+      // Room 仍可访问，继续留在当前路径。
       set_pending_deleted_room(null);
       return;
     }
@@ -209,7 +209,7 @@ export function RoomPage() {
         <WorkspacePageFrame
           content_padding_class_name="p-0"
         >
-          <RoomWorkspaceShell
+          <RoomSurfaceShell
             active_workspace_path={controller.active_workspace_path}
             available_room_agents={controller.available_room_agents}
             current_agent={controller.current_agent}
@@ -282,7 +282,7 @@ export function RoomPage() {
 
   return (
     <WorkspacePageFrame>
-      <RoomRouteEntry
+      <GroupRouteEntry
         agents={controller.room_members}
         conversations={controller.conversations}
         conversation_id={params.conversation_id}

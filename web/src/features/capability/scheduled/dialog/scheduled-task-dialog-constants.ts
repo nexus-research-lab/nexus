@@ -1,8 +1,8 @@
 "use client";
 
-import { build_room_agent_session_key } from "@/lib/session-key";
-import type { RoomContextAggregate, RoomSessionSelection } from "@/types/room";
-import type { ScheduledTaskSchedule } from "@/types/scheduled-task";
+import { build_room_agent_session_key } from "@/lib/conversation/session-key";
+import type { RoomContextAggregate, RoomSessionSelection } from "@/types/conversation/room";
+import type { ScheduledTaskSchedule } from "@/types/capability/scheduled-task";
 
 import { type Weekday, WEEKDAY_OPTIONS } from "../pickers/picker-utils";
 

@@ -45,7 +45,7 @@ async function bootstrap() {
     await hydrate_runtime_options();
     render_application();
   } catch (error) {
-    // 中文注释：启动期失败时必须把真实错误渲染出来，否则生产环境只会看到空白页或 failed。
+    // 启动期失败时必须把真实错误渲染出来，否则生产环境只会看到空白页或 failed。
     const message = error instanceof Error ? error.message : "加载运行时配置失败";
     console.error("Bootstrap failed:", error);
     render_bootstrap_error(message);

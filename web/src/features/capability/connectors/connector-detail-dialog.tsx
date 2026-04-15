@@ -13,7 +13,7 @@ import {
   get_dialog_note_class_name,
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
-import { ConnectorDetail } from "@/types/connector";
+import { ConnectorDetail } from "@/types/capability/connector";
 
 import { get_connector_colors, get_connector_letter } from "./connector-icons";
 

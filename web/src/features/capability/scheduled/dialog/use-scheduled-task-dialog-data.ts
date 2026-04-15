@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { get_agents } from "@/lib/agent-manage-api";
-import { get_agent_sessions_api } from "@/lib/agent-api";
-import { get_room_contexts, list_rooms } from "@/lib/room-api";
-import type { Agent, AgentSession } from "@/types/agent";
-import type { RoomAggregate, RoomContextAggregate } from "@/types/room";
+import { get_agents } from "@/lib/api/agent-manage-api";
+import { get_agent_sessions_api } from "@/lib/api/agent-api";
+import { get_room_contexts, list_rooms } from "@/lib/api/room-api";
+import type { Agent, AgentSession } from "@/types/agent/agent";
+import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 
 import {
   build_room_session_selections,

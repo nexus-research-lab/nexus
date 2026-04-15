@@ -8,7 +8,7 @@ import {
   DIALOG_TAG_CLASS_NAME,
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
-import { ExternalSkillSearchItem } from "@/types/skill";
+import { ExternalSkillSearchItem } from "@/types/capability/skill";
 
 import { SkillMarkdown } from "./skill-markdown";
 

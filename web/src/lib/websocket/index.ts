@@ -4,6 +4,6 @@
  * 提供统一的WebSocket客户端和Hook
  */
 
-export * from '@/types/websocket';
+export * from '@/types/system/websocket';
 export * from './socket-client';
 export * from './use-socket';

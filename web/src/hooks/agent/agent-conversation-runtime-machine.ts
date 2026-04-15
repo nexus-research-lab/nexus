@@ -17,7 +17,7 @@ import {
 import {
   AgentConversationChatType,
   AgentConversationRuntimePhase,
-} from '@/types/agent-conversation';
+} from '@/types/agent/agent-conversation';
 
 export interface ActiveMessageTracker {
   round_id: string;

@@ -3,8 +3,8 @@ import {
   Message,
   ResultMessage,
   RoomPendingAgentSlotState,
-} from "@/types/message";
-import { PendingPermission } from "@/types/permission";
+} from "@/types/conversation/message";
+import { PendingPermission } from "@/types/conversation/permission";
 
 /** 将消息按 round_id 分组 */
 export function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
@@ -200,7 +200,7 @@ export function get_agent_round_status(
   if (has_cancelled) return "cancelled";
   if (has_done) return "done";
 
-  // 中文注释：Room 的执行态必须由 pending slot 或 ResultMessage 驱动。
+  // Room 的执行态必须由 pending slot 或 ResultMessage 驱动。
   // 仅凭“历史里留着 assistant 过程消息”不能继续判成 streaming，
   // 但如果 assistant 本身已经明确收口为 done，则仍应视为完成，
   // 这样无 ResultMessage 的正常结束轮次才能正确回退显示最终 assistant。
@@ -313,7 +313,7 @@ export function group_room_pending_slots_by_round(
 export function get_room_thread_messages(messages: Message[], agent_id: string): Message[] {
   return messages.filter((message) => (
     message.role === "user" ||
-    // 中文注释：Thread 只看过程，不展示 result。
+    // Thread 只看过程，不展示 result。
     // 最终结果只留在 Room 主时间线，避免中间 assistant 被误当成最终回答。
     (message.agent_id === agent_id && message.role === "assistant")
   ));
@@ -332,7 +332,7 @@ function normalize_preview_text(text: string, max_length: number): string {
 
 /** 从 assistant 消息中提取最新的文本/思路预览（截取前 80 字符） */
 export function extract_agent_preview_text(messages: AssistantMessage[], max_length = 80): string {
-  // 中文注释：Room 主时间线的占位摘要应该跟随“最新一段 assistant 完整消息”推进，
+  // Room 主时间线的占位摘要应该跟随“最新一段 assistant 完整消息”推进，
   // 而不是永远停在第一段文本上。这里只看 text / thinking，忽略 tool_* 块。
   for (let message_index = messages.length - 1; message_index >= 0; message_index -= 1) {
     const message = messages[message_index];

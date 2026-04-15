@@ -13,8 +13,8 @@ import {
   WorkspaceCatalogTag,
   WorkspaceCatalogTitle,
   WorkspaceIconFrame,
-} from "@/shared/ui/workspace/workspace-catalog-card";
-import { ConnectorInfo } from "@/types/connector";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { ConnectorInfo } from "@/types/capability/connector";
 
 import { get_connector_colors, get_connector_letter } from "./connector-icons";
 

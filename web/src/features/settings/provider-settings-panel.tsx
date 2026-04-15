@@ -21,17 +21,17 @@ import {
   delete_provider_config_api,
   list_provider_configs_api,
   update_provider_config_api,
-} from "@/lib/provider-config-api";
+} from "@/lib/api/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type {
   ProviderConfigPayload,
   ProviderConfigRecord,
   UpdateProviderConfigPayload,
-} from "@/types/provider";
+} from "@/types/capability/provider";
 
 type SettingsTabKey = "providers";
 type FeedbackTone = "success" | "error";

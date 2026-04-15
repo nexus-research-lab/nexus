@@ -89,7 +89,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
   const raf_id_ref = useRef(0);
 
   useEffect(() => {
-    // 中文注释：默认全部退回静态材质，只有显式声明的原语才允许尝试真折射。
+    // 默认全部退回静态材质，只有显式声明的原语才允许尝试真折射。
     set_can_use_true_glass(enable_true_glass && supports_true_liquid_glass());
   }, [enable_true_glass]);
 
@@ -117,7 +117,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
     return `url(#${filter_id}) blur(${variant_preset.blur}px) saturate(${variant_preset.saturation}%)`;
   }, [assets, can_use_true_glass, filter_id, variant_preset.blur, variant_preset.saturation]);
 
-  // 中文注释：玻璃折射入场动画，scale 从 0 渐变到目标值，约 220ms，避免视觉突变。
+  // 玻璃折射入场动画，scale 从 0 渐变到目标值，约 220ms，避免视觉突变。
   const target_distortion = variant_preset.distortion;
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
     const animate = (now: number) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
-      // 中文注释：ease-out 缓动让折射效果自然展开
+      // ease-out 缓动让折射效果自然展开
       const eased = 1 - Math.pow(1 - progress, 3);
       node.scale.baseVal = eased * target_distortion;
 
@@ -155,7 +155,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
 
   const root_style = useMemo<CSSProperties>(() => ({
     contain: "paint",
-    // 中文注释：把玻璃材质直接收回根节点，避免额外的 surface/content 包装层。
+    // 把玻璃材质直接收回根节点，避免额外的 surface/content 包装层。
     ...surface_shape_style,
     background: variant_preset.background,
     boxShadow: `inset 0 0 0 1px ${variant_preset.border_color}, ${variant_preset.shadow}`,

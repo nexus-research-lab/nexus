@@ -20,7 +20,7 @@ import {
   get_dialog_note_class_name,
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
-import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
+import { PermissionRiskLevel, PermissionUpdate } from "@/types/conversation/permission";
 
 interface PermissionDialogProps {
   is_open: boolean;

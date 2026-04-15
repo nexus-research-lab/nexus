@@ -1,6 +1,6 @@
 import { SetStateAction, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import { get_agent_ws_url } from '@/config/options';
-import { are_equivalent_session_keys } from '@/lib/session-key';
+import { are_equivalent_session_keys } from '@/lib/conversation/session-key';
 import { get_browser_client_id } from '@/lib/uuid';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
@@ -18,7 +18,7 @@ import {
   match_pending_permissions_to_tool_uses,
   PendingPermission,
   PermissionDecisionPayload,
-} from '@/types/permission';
+} from '@/types/conversation/permission';
 import {
   AgentConversationActionContext,
   AgentConversationLifecycleContext,
@@ -28,7 +28,7 @@ import {
   UseAgentConversationOptions,
   UseAgentConversationReturn,
   get_agent_conversation_identity_key,
-} from '@/types/agent-conversation';
+} from '@/types/agent/agent-conversation';
 import { AssistantMessage, AssistantMessageStatus, RoomPendingAgentSlotState } from '@/types';
 import { upsert_message } from './message-helpers';
 import {
@@ -100,7 +100,7 @@ function filter_pending_permissions_from_snapshot(
     }
 
     if (!permission.message_id) {
-      // 中文注释：缺少 message_id 的旧权限事件无法做唯一绑定，
+      // 缺少 message_id 的旧权限事件无法做唯一绑定，
       // 快照阶段只能保留，等待明确的 result / reload 收口。
       return true;
     }
@@ -558,7 +558,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     type: 'bind_session',
     session_key: target_session_key,
     client_id: browser_client_id_ref.current,
-    // 中文注释：自动重绑只恢复观察关系，不主动抢占控制权。
+    // 自动重绑只恢复观察关系，不主动抢占控制权。
     // 这样多窗口之间不会因为聚焦或重连把主理人被动抢走。
     request_control: false,
     ...(session_seq_cursor_ref.current > 0 ? { last_seen_session_seq: session_seq_cursor_ref.current } : {}),
@@ -776,12 +776,12 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     }
     const client_id = browser_client_id_ref.current;
 
-    // 中文注释：WebSocket 重连后，后端需要重新知道“当前这个连接服务哪个 session”，
+    // WebSocket 重连后，后端需要重新知道“当前这个连接服务哪个 session”，
     // 否则挂起中的权限请求无法重投到新连接。
     ws_send(build_session_bind_message(session_key));
 
     return () => {
-      // 中文注释：共享 WebSocket 常驻于应用路由壳后，
+      // 共享 WebSocket 常驻于应用路由壳后，
       // 会话组件卸载时必须显式解绑旧 session，避免权限请求和 session 状态继续路由到已离开的页面上下文。
       ws_send({
         type: 'unbind_session',
@@ -939,4 +939,4 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   };
 }
 
-export type { UseAgentConversationOptions, UseAgentConversationReturn } from '@/types/agent-conversation';
+export type { UseAgentConversationOptions, UseAgentConversationReturn } from '@/types/agent/agent-conversation';

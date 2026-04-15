@@ -3,9 +3,9 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/workspace-surface-header";
+} from "@/shared/ui/workspace/surface/workspace-surface-header";
 
-import type { DiscoveryMode, SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
+import type { DiscoveryMode, SkillMarketplaceController } from "@/hooks/capability/use-skill-marketplace";
 
 const DISCOVERY_OPTIONS: { key: DiscoveryMode; label: string }[] = [
   { key: "catalog", label: "库内技能" },

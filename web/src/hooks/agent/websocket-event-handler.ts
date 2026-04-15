@@ -11,8 +11,8 @@ import {
   AgentThinkingPayload,
   HandleAgentConversationWebSocketMessageParams,
   RoomEventPayload,
-} from '@/types/agent-conversation';
-import { WorkspaceEventPayload } from '@/types/workspace-live';
+} from '@/types/agent/agent-conversation';
+import { WorkspaceEventPayload } from '@/types/app/workspace-live';
 
 import { apply_stream_message, normalize_assistant_message, upsert_message } from './message-helpers';
 

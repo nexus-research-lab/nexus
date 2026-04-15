@@ -1,9 +1,9 @@
 "use client";
 
 import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
-import { useSkillMarketplace } from "@/hooks/use-skill-marketplace";
+import { useSkillMarketplace } from "@/hooks/capability/use-skill-marketplace";
 
 import { ExternalSkillPreviewDialog } from "./external-skill-preview-dialog";
 import { FeedbackBanner } from "./feedback-banner";

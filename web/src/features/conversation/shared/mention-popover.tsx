@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
-import { Agent } from "@/types/agent";
+import { Agent } from "@/types/agent/agent";
 
 export interface MentionTargetItem {
     id: string;

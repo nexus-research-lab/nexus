@@ -1,6 +1,6 @@
 "use client";
 
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown-renderer-content";
+import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import { cn } from "@/lib/utils";
 
 const SKILL_MARKDOWN_CLASS_NAME =
@@ -43,7 +43,7 @@ function strip_leading_duplicate_content(markdown: string, title?: string, descr
     next_markdown = next_markdown.slice(heading_match[0].length).trimStart();
   }
 
-  // 中文注释：很多 Skill README 的首段会把 description 原样再写一遍，
+  // 很多 Skill README 的首段会把 description 原样再写一遍，
   // 这里在详情弹窗里裁掉这段重复导语，保留正文结构不变。
   if (normalized_description) {
     const first_block_match = next_markdown.match(/^([\s\S]*?)(?:\n\s*\n|$)/);

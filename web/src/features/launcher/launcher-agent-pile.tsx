@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import Matter from "matter-js";
 
 import { cn } from "@/lib/utils";
-import { SpotlightToken } from "@/types/launcher";
+import { SpotlightToken } from "@/types/app/launcher";
 
 interface SpotlightTokenPileProps {
   class_name?: string;
@@ -326,9 +326,9 @@ export function AgentPile({
         }
 
         const nextOpacity = "1";
-        // 中文注释：z-index 不能跟随掉落过程进入负值，否则 token 会在动画中被压到容器层后面，看起来像“消失”。
+        // z-index 不能跟随掉落过程进入负值，否则 token 会在动画中被压到容器层后面，看起来像“消失”。
         const nextZIndex = `${1000 + Math.max(0, Math.round(body.position.y))}`;
-        // 中文注释：这里改回 2D transform，不再用 translate3d 强制提 GPU 合成层。
+        // 这里改回 2D transform，不再用 translate3d 强制提 GPU 合成层。
         // Token 数量不多时，2D 位移足够流畅，同时能显著减少层树里“一颗 token 一层”的情况。
         const nextTransform = `translate(${Math.round((body.position.x - config.size / 2) * 10) / 10}px, ${Math.round((body.position.y - config.size / 2) * 10) / 10}px) rotate(${Math.round(body.angle * 1000) / 1000}rad)`;
         const previousRender = renderCache.get(config.key);

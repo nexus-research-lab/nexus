@@ -50,7 +50,7 @@ function smootherstep(value: number): number {
   return normalized * normalized * normalized * (normalized * (normalized * 6 - 15) + 10);
 }
 
-// 中文注释：squircle 曲面轮廓 y = ⁴√(1-(1-x)⁴)，
+// squircle 曲面轮廓 y = ⁴√(1-(1-x)⁴)，
 // 比 smootherstep 幂曲线产生更柔和的边缘过渡。
 function squircle_surface_profile(x: number): number {
   const t = clamp(x, 0, 1);
@@ -118,7 +118,7 @@ function build_cache_key({
   specular_power = 2.2,
   specular_opacity = 1.0,
 }: LiquidGlassAssetOptions): string {
-  // 中文注释：折射贴图按尺寸档位复用，避免每个像素级尺寸都生成新位移图。
+  // 折射贴图按尺寸档位复用，避免每个像素级尺寸都生成新位移图。
   return [
     quantize(width, CACHE_SIZE_STEP),
     quantize(height, CACHE_SIZE_STEP),
@@ -163,7 +163,7 @@ function create_glass_assets({
     y: Math.sin(light_radians),
   };
 
-  // 中文注释：这里按“圆角矩形 SDF + 法线近似”生成折射位移图，
+  // 这里按“圆角矩形 SDF + 法线近似”生成折射位移图，
   // 不是简单高斯模糊叠层，而是真正给 feDisplacementMap 提供向量场。
   for (let y = 0; y < sample_height; y += 1) {
     for (let x = 0; x < sample_width; x += 1) {
@@ -194,7 +194,7 @@ function create_glass_assets({
         y: -outward_normal.y,
       };
       const normalized_bezel_position = clamp(distance_from_edge / sample_bezel, 0, 1);
-      // 中文注释：switch 走 lip 轮廓，外缘向内折射，内槽轻微向外散，
+      // switch 走 lip 轮廓，外缘向内折射，内槽轻微向外散，
       // 让中部看起来被“拉远”，更接近参考站的玻璃开关。
       const profile_strength = surface_profile === "lip"
         ? lip_surface_profile(normalized_bezel_position)

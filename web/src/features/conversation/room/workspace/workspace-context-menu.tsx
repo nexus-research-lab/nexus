@@ -15,7 +15,7 @@ import { FilePlus, FolderPlus, Pencil, Trash2, Upload } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
-import { WorkspaceFileEntry } from "@/types/agent";
+import { WorkspaceFileEntry } from "@/types/agent/agent";
 
 interface WorkspaceContextMenuProps {
   position: { x: number; y: number } | null;

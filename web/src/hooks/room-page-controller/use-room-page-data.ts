@@ -11,8 +11,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { get_room, get_room_contexts, list_rooms, subscribe_room_list_updates } from "@/lib/room-api";
-import { RoomAggregate, RoomContextAggregate } from "@/types/room";
+import { get_room, get_room_contexts, list_rooms, subscribe_room_list_updates } from "@/lib/api/room-api";
+import { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 
 interface UseRoomPageDataOptions {
   room_id?: string | null;

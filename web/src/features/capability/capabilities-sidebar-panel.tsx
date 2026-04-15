@@ -19,13 +19,13 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { resolve_agent_id } from "@/config/options";
-import { get_connected_count_api } from "@/lib/connector-api";
-import { list_scheduled_tasks_api } from "@/lib/scheduled-task-api";
-import { get_available_skills_api } from "@/lib/skill-api";
+import { get_connected_count_api } from "@/lib/api/connector-api";
+import { list_scheduled_tasks_api } from "@/lib/api/scheduled-task-api";
+import { get_available_skills_api } from "@/lib/api/skill-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
-import { SkillInfo } from "@/types/skill";
+import { SkillInfo } from "@/types/capability/skill";
 
 const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
 

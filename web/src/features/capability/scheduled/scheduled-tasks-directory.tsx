@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
-import { useAutomationController } from "@/hooks/use-automation-controller";
-import { delete_scheduled_task_api, run_scheduled_task_api, update_scheduled_task_status_api } from "@/lib/scheduled-task-api";
+import { useAutomationController } from "@/hooks/capability/use-automation-controller";
+import { delete_scheduled_task_api, run_scheduled_task_api, update_scheduled_task_status_api } from "@/lib/api/scheduled-task-api";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/workspace-surface-header";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
-import type { ScheduledTaskItem } from "@/types/scheduled-task";
+} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
 import { FeedbackBanner } from "../skills/feedback-banner";
 import { ScheduledTaskDialog } from "./scheduled-task-dialog";

@@ -11,12 +11,12 @@ import { MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { list_rooms, get_room_contexts, subscribe_room_list_updates } from "@/lib/room-api";
-import { sort_rooms_by_recency } from "@/lib/room-utils";
-import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/workspace-catalog-card";
-import { WorkspaceEmptyState } from "@/shared/ui/workspace/workspace-empty-state";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
-import { RoomAggregate } from "@/types/room";
+import { list_rooms, get_room_contexts, subscribe_room_list_updates } from "@/lib/api/room-api";
+import { sort_rooms_by_recency } from "@/lib/conversation/room-utils";
+import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { WorkspaceEmptyState } from "@/shared/ui/workspace/frame/workspace-empty-state";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import { RoomAggregate } from "@/types/conversation/room";
 
 export function DmsPage() {
   const navigate = useNavigate();

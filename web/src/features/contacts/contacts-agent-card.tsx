@@ -4,8 +4,8 @@ import { Bot, MessageSquareText, Users } from "lucide-react";
 
 import { get_icon_avatar_src } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { Agent } from "@/types/agent";
-import { format_provider_label } from "@/types/provider";
+import { Agent } from "@/types/agent/agent";
+import { format_provider_label } from "@/types/capability/provider";
 import {
   WorkspaceCatalogBody,
   WorkspaceCatalogCard,
@@ -14,7 +14,7 @@ import {
   WorkspaceIconFrame,
   WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/workspace-catalog-card";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 
 interface ContactsAgentCardProps {
   agent: Agent;

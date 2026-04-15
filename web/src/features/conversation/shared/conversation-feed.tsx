@@ -3,10 +3,10 @@ import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageItem } from "@/features/conversation/shared/message";
-import { AgentConversationRuntimePhase } from "@/types/agent-conversation";
-import { Message } from "@/types/message";
-import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
-import { estimate_round_heights } from "@/hooks/use-message-height";
+import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
+import { Message } from "@/types/conversation/message";
+import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
+import { estimate_round_heights } from "@/hooks/conversation/use-message-height";
 
 interface ConversationFeedProps {
   bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;

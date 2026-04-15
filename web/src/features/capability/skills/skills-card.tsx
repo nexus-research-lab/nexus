@@ -13,8 +13,8 @@ import {
   WorkspaceIconFrame,
   WorkspaceCatalogTag,
   WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/workspace-catalog-card";
-import { SkillInfo } from "@/types/skill";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { SkillInfo } from "@/types/capability/skill";
 
 interface SkillsCardProps {
   skill: SkillInfo;

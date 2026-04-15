@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
-import { list_scheduled_task_runs_api } from "@/lib/scheduled-task-api";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
-import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/scheduled-task";
+import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
+import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
+import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
 
 function format_datetime(value: number | null): string {
   if (!value) {

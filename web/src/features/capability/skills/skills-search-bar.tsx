@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
+import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 
-import type { SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
+import type { SkillMarketplaceController } from "@/hooks/capability/use-skill-marketplace";
 
 interface SkillsSearchBarProps {
   ctrl: SkillMarketplaceController;

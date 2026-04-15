@@ -2,18 +2,18 @@
 
 import { Clock3, History, Pencil, Play, Trash2 } from "lucide-react";
 
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
+import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import {
   WorkspaceCatalogAction,
   WorkspaceCatalogTextAction,
-} from "@/shared/ui/workspace/workspace-catalog-card";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type {
   ScheduledTaskDeliveryTarget,
   ScheduledTaskItem,
   ScheduledTaskSchedule,
   ScheduledTaskSource,
   ScheduledTaskSessionTarget,
-} from "@/types/scheduled-task";
+} from "@/types/capability/scheduled-task";
 
 function format_datetime(value: number | null): string {
   if (!value) {

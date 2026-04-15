@@ -4,14 +4,14 @@ import { Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
+import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import {
   WorkspaceCatalogGhostCard,
   WorkspaceIconFrame,
-} from "@/shared/ui/workspace/workspace-catalog-card";
-import { Agent } from "@/types/agent";
-import { Conversation } from "@/types/conversation";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { Agent } from "@/types/agent/agent";
+import { Conversation } from "@/types/conversation/conversation";
 
 import { ContactsAgentCard } from "./contacts-agent-card";
 import { matches_contacts_search } from "./contacts-directory-helpers";

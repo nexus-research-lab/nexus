@@ -5,12 +5,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { is_main_agent } from "@/config/options";
-import { list_rooms, subscribe_room_list_updates } from "@/lib/room-api";
+import { list_rooms, subscribe_room_list_updates } from "@/lib/api/room-api";
 import { useAgentStore } from "@/store/agent";
-import { RoomAggregate } from "@/types/room";
+import { RoomAggregate } from "@/types/conversation/room";
 
-import { HomeAsciiHero } from "./home-ascii-hero";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
+import { HomeAsciiHero } from "@/features/home/home-ascii-hero";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 
 export function HomePage() {
   const agents = useAgentStore((s) => s.agents);

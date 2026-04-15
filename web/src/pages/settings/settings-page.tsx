@@ -12,7 +12,7 @@
 "use client";
 
 import { SettingsPanel } from "@/features/settings/settings-panel";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 
 export function SettingsPage() {
   return (
