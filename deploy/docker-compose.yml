@@ -38,7 +38,6 @@ services:
     volumes:
       - ${HOST_DATA_DIR:-./data}/.nexus:/home/agent/.nexus
       - ${HOST_DATA_DIR:-./data}/.claude:/home/agent/.claude
-      - ${HOST_DATA_DIR:-./data}/.claude.json:/home/agent/.claude.json
     expose:
       - "8010"
     healthcheck:
