@@ -27,6 +27,7 @@ export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProp
     >
       <DotLottieReact
         autoplay
+        backgroundColor="transparent"
         className="block h-full w-full"
         dotLottieRefCallback={setDotLottieInstance}
         loop

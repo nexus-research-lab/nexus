@@ -21,6 +21,7 @@ export class WebSocketClient {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private heartbeatTimeoutTimer: NodeJS.Timeout | null = null;
   private messageQueue: WebSocketMessage[] = [];
+  private lastPongTime = 0;
 
   private readonly DEFAULT_CONFIG: Required<WebSocketConfig> = {
     url: '',
