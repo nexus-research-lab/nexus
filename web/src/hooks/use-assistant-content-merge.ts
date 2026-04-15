@@ -17,25 +17,25 @@ interface UseAssistantContentMergeOptions {
 
 interface UseAssistantContentMergeReturn {
   /** 用户消息 */
-  userMessage: Message | undefined;
+  user_message: Message | undefined;
   /** 所有 assistant 消息 */
-  assistantMessages: Message[];
+  assistant_messages: Message[];
   /** result 消息 */
-  resultMessage: ResultMessage | undefined;
+  result_message: ResultMessage | undefined;
   /** 当前正在流式输出的 assistant 消息 ID */
-  streamingAssistantMessageId: string | null;
+  streaming_assistant_message_id: string | null;
   /** 合并去重后的所有内容块 */
-  mergedContent: ContentBlock[];
-  /** mergedContent 每个块对应的来源 assistant 消息 ID */
-  mergedContentSourceMessageIds: string[];
-  /** 正在流式输出的 block 在 mergedContent 中的索引 */
-  streamingBlockIndexes: Set<number>;
+  merged_content: ContentBlock[];
+  /** merged_content 每个块对应的来源 assistant 消息 ID */
+  merged_content_source_message_ids: string[];
+  /** 正在流式输出的 block 在 merged_content 中的索引 */
+  streaming_block_indexes: Set<number>;
   /** 可见的 assistant 文本内容块 */
-  visibleAssistantTextContent: ContentBlock[];
-  /** 正在流式输出的文本在 visibleAssistantTextContent 中的索引 */
-  assistantTextStreamingIndexes: Set<number>;
+  visible_assistant_text_content: ContentBlock[];
+  /** 正在流式输出的文本在 visible_assistant_text_content 中的索引 */
+  assistant_text_streaming_indexes: Set<number>;
   /** 纯文本内容（用于复制） */
-  assistantTextContent: string;
+  assistant_text_content: string;
 }
 
 export function useAssistantContentMerge({
@@ -44,20 +44,20 @@ export function useAssistantContentMerge({
   is_loading,
 }: UseAssistantContentMergeOptions): UseAssistantContentMergeReturn {
   // 分离消息
-  const { userMessage, assistantMessages, resultMessage } = useMemo(() => {
+  const { user_message, assistant_messages, result_message } = useMemo(() => {
     const user = messages.find((m) => m.role === "user");
     const result = messages.find((m) => m.role === "result") as ResultMessage | undefined;
     const assistant = messages.filter((m) => m.role === "assistant");
-    return { userMessage: user, assistantMessages: assistant, resultMessage: result };
+    return { user_message: user, assistant_messages: assistant, result_message: result };
   }, [messages]);
 
-  const streamingAssistantMessageId = useMemo(() => {
+  const streaming_assistant_message_id = useMemo(() => {
     if (!is_last_round || !is_loading) {
       return null;
     }
 
-    for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
-      const message = assistantMessages[index];
+    for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
+      const message = assistant_messages[index];
       if (
         message.stream_status !== 'done'
         && message.stream_status !== 'cancelled'
@@ -69,18 +69,18 @@ export function useAssistantContentMerge({
     }
 
     return null;
-  }, [assistantMessages, is_last_round, is_loading]);
+  }, [assistant_messages, is_last_round, is_loading]);
 
   // 合并并去重 assistant 内容
-  const { mergedContent, mergedContentSourceMessageIds, streamingBlockIndexes } = useMemo(() => {
+  const { merged_content, merged_content_source_message_ids, streaming_block_indexes } = useMemo(() => {
     const allBlocks: ContentBlock[] = [];
     const sourceMessageIds: string[] = [];
     const nextStreamingBlockIndexes = new Set<number>();
     const seenToolIds = new Set<string>();
 
-    for (const msg of assistantMessages) {
+    for (const msg of assistant_messages) {
       if (!Array.isArray(msg.content)) continue;
-      const isStreamingMessage = msg.message_id === streamingAssistantMessageId;
+      const isStreamingMessage = msg.message_id === streaming_assistant_message_id;
       const streamingContentIndex = isStreamingMessage
         ? find_last_streamable_block_index(msg.content)
         : -1;
@@ -107,25 +107,25 @@ export function useAssistantContentMerge({
       });
     }
       return {
-        mergedContent: allBlocks,
-        mergedContentSourceMessageIds: sourceMessageIds,
-        streamingBlockIndexes: nextStreamingBlockIndexes,
+        merged_content: allBlocks,
+        merged_content_source_message_ids: sourceMessageIds,
+        streaming_block_indexes: nextStreamingBlockIndexes,
       };
-  }, [assistantMessages, streamingAssistantMessageId]);
+  }, [assistant_messages, streaming_assistant_message_id]);
 
-  const visibleAssistantTextContent = useMemo(() => {
-    return mergedContent.filter(
+  const visible_assistant_text_content = useMemo(() => {
+    return merged_content.filter(
       (block) => block.type === "text" && Boolean(block.text.trim()),
     );
-  }, [mergedContent]);
+  }, [merged_content]);
 
-  const assistantTextStreamingIndexes = useMemo(() => {
+  const assistant_text_streaming_indexes = useMemo(() => {
     const nextIndexes = new Set<number>();
     let textIndex = 0;
 
-    mergedContent.forEach((block, index) => {
+    merged_content.forEach((block, index) => {
       if (block.type === "text" && Boolean(block.text.trim())) {
-        if (streamingBlockIndexes.has(index)) {
+        if (streaming_block_indexes.has(index)) {
           nextIndexes.add(textIndex);
         }
         textIndex += 1;
@@ -133,29 +133,29 @@ export function useAssistantContentMerge({
     });
 
     return nextIndexes;
-  }, [mergedContent, streamingBlockIndexes]);
+  }, [merged_content, streaming_block_indexes]);
 
-  const assistantTextContent = useMemo(() => {
+  const assistant_text_content = useMemo(() => {
     const texts: string[] = [];
-    for (const block of visibleAssistantTextContent) {
+    for (const block of visible_assistant_text_content) {
       if (block.type === "text" && block.text) {
         texts.push(block.text);
       }
     }
     return texts.join("\n\n");
-  }, [visibleAssistantTextContent]);
+  }, [visible_assistant_text_content]);
 
   return {
-    userMessage,
-    assistantMessages,
-    resultMessage,
-    streamingAssistantMessageId,
-    mergedContent,
-    mergedContentSourceMessageIds,
-    streamingBlockIndexes,
-    visibleAssistantTextContent,
-    assistantTextStreamingIndexes,
-    assistantTextContent,
+    user_message,
+    assistant_messages,
+    result_message,
+    streaming_assistant_message_id,
+    merged_content,
+    merged_content_source_message_ids,
+    streaming_block_indexes,
+    visible_assistant_text_content,
+    assistant_text_streaming_indexes,
+    assistant_text_content,
   };
 }
 

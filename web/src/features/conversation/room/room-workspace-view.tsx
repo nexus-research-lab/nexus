@@ -268,12 +268,12 @@ export function RoomWorkspaceView({
         position={context_menu.position}
         entry={context_menu.entry}
         can_create_children={context_menu.entry === null || context_menu.entry.is_dir}
-        onUpload={() => handle_upload_click(context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        onCreateFile={() => open_create_prompt("file", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        onCreateFolder={() => open_create_prompt("directory", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        onRename={() => { if (context_menu.entry) open_rename_prompt(context_menu.entry); }}
-        onDelete={() => { if (context_menu.entry) set_delete_target(context_menu.entry); }}
-        onClose={close_context_menu}
+        on_upload={() => handle_upload_click(context_menu.entry?.is_dir ? context_menu.entry.path : null)}
+        on_create_file={() => open_create_prompt("file", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
+        on_create_folder={() => open_create_prompt("directory", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
+        on_rename={() => { if (context_menu.entry) open_rename_prompt(context_menu.entry); }}
+        on_delete={() => { if (context_menu.entry) set_delete_target(context_menu.entry); }}
+        on_close={close_context_menu}
       />
 
       <PromptDialog

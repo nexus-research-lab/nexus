@@ -34,16 +34,16 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 interface AgentOptionsNavProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
+  active_tab: TabKey;
+  on_tab_change: (tab: TabKey) => void;
   variant?: "sidebar" | "inline";
   trailing?: ReactNode;
 }
 
 /** 左侧图标导航栏组件 */
 export function AgentOptionsNav({
-  activeTab,
-  onTabChange,
+  active_tab,
+  on_tab_change,
   variant = "sidebar",
   trailing,
 }: AgentOptionsNavProps) {
@@ -55,12 +55,12 @@ export function AgentOptionsNav({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.key;
+            const isActive = active_tab === item.key;
             const label = t(item.label_key);
             return (
               <button
                 key={item.key}
-                onClick={() => onTabChange(item.key)}
+                onClick={() => on_tab_change(item.key)}
                 title={label}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-[color,background,border-color] duration-(--motion-duration-normal)",
@@ -89,12 +89,12 @@ export function AgentOptionsNav({
     <div className="flex w-36 flex-col border-r dialog-divider bg-transparent px-2.5 py-3">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
-        const isActive = activeTab === item.key;
+        const isActive = active_tab === item.key;
         const label = t(item.label_key);
         return (
           <button
             key={item.key}
-            onClick={() => onTabChange(item.key)}
+            onClick={() => on_tab_change(item.key)}
             title={label}
             className={cn(
               "relative flex w-full items-center gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left transition-[color,background] duration-(--motion-duration-normal)",

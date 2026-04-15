@@ -14,6 +14,9 @@ This file provides guidance to agents when working with code in this repository.
 ## Critical Conventions
 - **Python file size hard limit: 300 lines**, target 100–200. One class per file. Split proactively.
 - **Chinese comments** required for non-trivial logic blocks.
+- Frontend naming: in `web/src`, ordinary functions, `interface/type` field names, component custom props, hook return values, and hook option objects should use `snake_case`.
+- Frontend naming exceptions: `interface/type/class/component` identifiers stay `PascalCase`; Hooks stay `useXxx`; React/DOM/third-party protocol fields keep their original names (e.g. `className`, `onClick`, `multiSelect`, `keyCode`, `saveData`).
+- Frontend protocol rule: for backend request/response fields and SDK/tool payloads, follow the actual upstream contract first; do not rename wire fields only for style consistency.
 - All API routes live under prefix `/agent/v1/...` (set in [`config.py`](agent/config/config.py:47)).
 - Settings use `pydantic-settings` with `case_sensitive=True` and `extra="allow"` — env vars must match field names exactly.
 - Pydantic models must extend [`AModel`](agent/infra/schemas/model_cython.py:23) (not raw `BaseModel`) to handle CyFunction detection.

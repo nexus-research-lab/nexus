@@ -21,24 +21,24 @@ interface WorkspaceContextMenuProps {
   position: { x: number; y: number } | null;
   entry: WorkspaceFileEntry | null;
   can_create_children: boolean;
-  onUpload: () => void;
-  onCreateFile: () => void;
-  onCreateFolder: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-  onClose: () => void;
+  on_upload: () => void;
+  on_create_file: () => void;
+  on_create_folder: () => void;
+  on_rename: () => void;
+  on_delete: () => void;
+  on_close: () => void;
 }
 
 export function WorkspaceContextMenu({
   position,
   entry,
   can_create_children,
-  onUpload,
-  onCreateFile,
-  onCreateFolder,
-  onRename,
-  onDelete,
-  onClose,
+  on_upload,
+  on_create_file,
+  on_create_folder,
+  on_rename,
+  on_delete,
+  on_close,
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n();
   const menu_ref = useRef<HTMLDivElement>(null);
@@ -46,7 +46,7 @@ export function WorkspaceContextMenu({
   useEffect(() => {
     const handle_click_outside = (event: MouseEvent) => {
       if (menu_ref.current && !menu_ref.current.contains(event.target as Node)) {
-        onClose();
+        on_close();
       }
     };
 
@@ -54,12 +54,12 @@ export function WorkspaceContextMenu({
     return () => {
       document.removeEventListener("mousedown", handle_click_outside);
     };
-  }, [onClose]);
+  }, [on_close]);
 
   useEffect(() => {
     const handle_key_down = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        on_close();
       }
     };
 
@@ -67,7 +67,7 @@ export function WorkspaceContextMenu({
     return () => {
       document.removeEventListener("keydown", handle_key_down);
     };
-  }, [onClose]);
+  }, [on_close]);
 
   if (!position) {
     return null;
@@ -89,7 +89,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { onUpload(); onClose(); }}
+              onClick={() => { on_upload(); on_close(); }}
             >
               <Upload className="h-4 w-4" />
               <span>{t("room.workspace_action_upload")}</span>
@@ -97,7 +97,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { onCreateFile(); onClose(); }}
+              onClick={() => { on_create_file(); on_close(); }}
             >
               <FilePlus className="h-4 w-4" />
               <span>{t("room.workspace_action_new_file")}</span>
@@ -105,7 +105,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { onCreateFolder(); onClose(); }}
+              onClick={() => { on_create_folder(); on_close(); }}
             >
               <FolderPlus className="h-4 w-4" />
               <span>{t("room.workspace_action_new_folder")}</span>
@@ -119,7 +119,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { onRename(); onClose(); }}
+              onClick={() => { on_rename(); on_close(); }}
             >
               <Pencil className="h-4 w-4" />
               <span>{t("home.rename")}</span>
@@ -127,7 +127,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-destructive"
-              onClick={() => { onDelete(); onClose(); }}
+              onClick={() => { on_delete(); on_close(); }}
             >
               <Trash2 className="h-4 w-4" />
               <span>{t("common.delete")}</span>

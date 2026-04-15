@@ -138,7 +138,7 @@ const ComposerPanelView = memo(({
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
 
-  useTextareaHeight(textarea_ref, input, { minHeight: 24, maxHeight: 200, lineHeight: 24, paddingY: 0 });
+  useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
   const handle_input_change = useCallback((value: string) => {
     setInput(value);

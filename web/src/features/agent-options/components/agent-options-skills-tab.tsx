@@ -137,7 +137,7 @@ export function AgentOptionsSkillsTab({
             ) : null}
           </div>
           {skill.description ? (
-            <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-[1.5] text-(--text-muted)">
+            <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-normal text-(--text-muted)">
               {skill.description}
             </p>
           ) : null}

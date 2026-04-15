@@ -104,12 +104,12 @@ function MessageItemInner(
 
   // 分离消息 + 合并内容
   const {
-    userMessage,
-    assistantMessages,
-    resultMessage,
-    mergedContent,
-    mergedContentSourceMessageIds,
-    streamingBlockIndexes,
+    user_message,
+    assistant_messages,
+    result_message,
+    merged_content,
+    merged_content_source_message_ids,
+    streaming_block_indexes,
   } = useAssistantContentMerge({
     messages,
     is_last_round,
@@ -124,9 +124,9 @@ function MessageItemInner(
   ), [messages]);
 
   // 元数据
-  const firstAssistant = assistantMessages[0];
+  const firstAssistant = assistant_messages[0];
   const model = firstAssistant && 'model' in firstAssistant ? firstAssistant.model : undefined;
-  const timestamp = firstAssistant?.timestamp || systemMessages[0]?.timestamp || resultMessage?.timestamp;
+  const timestamp = firstAssistant?.timestamp || systemMessages[0]?.timestamp || result_message?.timestamp;
 
   // Room 并发场景：读取 stream_status（仅 AssistantMessage 携带此字段）
   const stream_status = useMemo(() => {
@@ -136,27 +136,27 @@ function MessageItemInner(
 
   // 统计信息
   const stats = useMemo(() => {
-    if (!resultMessage) return null;
-    const cacheHit = resultMessage.usage?.cache_read_input_tokens;
+    if (!result_message) return null;
+    const cacheHit = result_message.usage?.cache_read_input_tokens;
     return {
-      duration: resultMessage.duration_ms >= 1000
-        ? `${(resultMessage.duration_ms / 1000).toFixed(1)}s`
-        : `${resultMessage.duration_ms}ms`,
-      tokens: resultMessage.usage
-        ? `↑ ${resultMessage.usage.input_tokens} ↓ ${resultMessage.usage.output_tokens}`
+      duration: result_message.duration_ms >= 1000
+        ? `${(result_message.duration_ms / 1000).toFixed(1)}s`
+        : `${result_message.duration_ms}ms`,
+      tokens: result_message.usage
+        ? `↑ ${result_message.usage.input_tokens} ↓ ${result_message.usage.output_tokens}`
         : null,
-      cost: resultMessage.total_cost_usd !== undefined
-        ? `$ ${resultMessage.total_cost_usd ? resultMessage.total_cost_usd.toFixed(4) : null}`
+      cost: result_message.total_cost_usd !== undefined
+        ? `$ ${result_message.total_cost_usd ? result_message.total_cost_usd.toFixed(4) : null}`
         : null,
       cache_hit: cacheHit && cacheHit > 0 ? `💾 ${cacheHit}` : null,
     };
-  }, [resultMessage]);
+  }, [result_message]);
 
   // 状态
   const userContent = useMemo(() => {
-    if (!userMessage || userMessage.role !== 'user') return '';
-    return typeof userMessage.content === 'string' ? userMessage.content : '';
-  }, [userMessage]);
+    if (!user_message || user_message.role !== 'user') return '';
+    return typeof user_message.content === 'string' ? user_message.content : '';
+  }, [user_message]);
 
   const {
     matchedPendingPermissionsByToolUseId,
@@ -229,24 +229,24 @@ function MessageItemInner(
 
   const hiddenToolUseIds = useMemo(() => {
     const nextIds = new Set<string>();
-    for (const block of mergedContent) {
+    for (const block of merged_content) {
       if (block.type === "tool_use" && hidden_tool_names.includes(block.name)) {
         nextIds.add(block.id);
       }
     }
     return nextIds;
-  }, [mergedContent, hidden_tool_names]);
+  }, [merged_content, hidden_tool_names]);
 
   const visibleOrderedAssistantEntries = useMemo<OrderedAssistantEntry[]>(() => {
     const entries: OrderedAssistantEntry[] = [];
 
-    mergedContent.forEach((block, mergedIndex) => {
+    merged_content.forEach((block, mergedIndex) => {
       if (block.type === "text") {
         if (block.text.trim()) {
           entries.push({
             block,
             merged_index: mergedIndex,
-            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+            source_message_id: merged_content_source_message_ids[mergedIndex] || "",
           });
         }
         return;
@@ -256,7 +256,7 @@ function MessageItemInner(
           entries.push({
             block,
             merged_index: mergedIndex,
-            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+            source_message_id: merged_content_source_message_ids[mergedIndex] || "",
           });
         }
         return;
@@ -266,7 +266,7 @@ function MessageItemInner(
           entries.push({
             block,
             merged_index: mergedIndex,
-            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+            source_message_id: merged_content_source_message_ids[mergedIndex] || "",
           });
         }
         return;
@@ -276,7 +276,7 @@ function MessageItemInner(
           entries.push({
             block,
             merged_index: mergedIndex,
-            source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+            source_message_id: merged_content_source_message_ids[mergedIndex] || "",
           });
         }
         return;
@@ -285,13 +285,13 @@ function MessageItemInner(
         entries.push({
           block,
           merged_index: mergedIndex,
-          source_message_id: mergedContentSourceMessageIds[mergedIndex] || "",
+          source_message_id: merged_content_source_message_ids[mergedIndex] || "",
         });
       }
     });
 
     return entries;
-  }, [hiddenToolUseIds, hidden_tool_names, mergedContent, mergedContentSourceMessageIds]);
+  }, [hiddenToolUseIds, hidden_tool_names, merged_content, merged_content_source_message_ids]);
 
   const visibleOrderedAssistantContent = useMemo(() => {
     return visibleOrderedAssistantEntries.map((entry) => entry.block);
@@ -301,17 +301,17 @@ function MessageItemInner(
     const nextIndexes = new Set<number>();
 
     visibleOrderedAssistantEntries.forEach((entry, visibleIndex) => {
-      if (streamingBlockIndexes.has(entry.merged_index)) {
+      if (streaming_block_indexes.has(entry.merged_index)) {
         nextIndexes.add(visibleIndex);
       }
     });
 
     return nextIndexes;
-  }, [streamingBlockIndexes, visibleOrderedAssistantEntries]);
+  }, [streaming_block_indexes, visibleOrderedAssistantEntries]);
 
   const visibleAssistantTurns = useMemo<AssistantTurnEntry[]>(() => {
     const turn_map = new Map<string, AssistantTurnEntry>();
-    assistantMessages.forEach((message) => {
+    assistant_messages.forEach((message) => {
       turn_map.set(message.message_id, {
         message_id: message.message_id,
         content: [],
@@ -329,23 +329,23 @@ function MessageItemInner(
 
       const content_index = turn.content.length;
       turn.content.push(entry.block);
-      if (streamingBlockIndexes.has(entry.merged_index)) {
+      if (streaming_block_indexes.has(entry.merged_index)) {
         turn.streaming_indexes.add(content_index);
       }
 
       if (entry.block.type === "text" && entry.block.text.trim()) {
         const text_index = turn.text_content.length;
         turn.text_content.push(entry.block);
-        if (streamingBlockIndexes.has(entry.merged_index)) {
+        if (streaming_block_indexes.has(entry.merged_index)) {
           turn.text_streaming_indexes.add(text_index);
         }
       }
     });
 
-    return assistantMessages
+    return assistant_messages
       .map((message) => turn_map.get(message.message_id))
       .filter((turn): turn is AssistantTurnEntry => Boolean(turn && turn.content.length > 0));
-  }, [assistantMessages, streamingBlockIndexes, visibleOrderedAssistantEntries]);
+  }, [assistant_messages, streaming_block_indexes, visibleOrderedAssistantEntries]);
 
   const orderedProjection = useMemo<ContentProjection>(() => ({
     content: visibleOrderedAssistantContent,
@@ -358,14 +358,14 @@ function MessageItemInner(
   );
 
   const finalAssistantTurn = useMemo(() => {
-    for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
-      const message = assistantMessages[index] as AssistantMessage;
+    for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
+      const message = assistant_messages[index] as AssistantMessage;
       if (!message.parent_id || message.parent_id === round_id) {
         return visibleAssistantTurns.find((turn) => turn.message_id === message.message_id) ?? null;
       }
     }
     return lastAssistantTurn;
-  }, [assistantMessages, lastAssistantTurn, round_id, visibleAssistantTurns]);
+  }, [assistant_messages, lastAssistantTurn, round_id, visibleAssistantTurns]);
 
   const finalTailEntries = useMemo<OrderedAssistantEntry[]>(() => {
     if (!finalAssistantTurn) {
@@ -414,7 +414,7 @@ function MessageItemInner(
   }, [finalAssistantTurn, visibleOrderedAssistantEntries]);
 
   const archivedProcessProjection = useMemo<ContentProjection>(() => {
-    const result_text = resultMessage?.result?.trim();
+    const result_text = result_message?.result?.trim();
     const should_strip_tail = finalTailEntries.length > 0
       && (
         !result_text
@@ -431,7 +431,7 @@ function MessageItemInner(
       const tail_indexes = new Set(finalTailEntries.map((entry) => entry.merged_index));
       return projection_from_ordered_entries(
         visibleOrderedAssistantEntries.filter((entry) => !tail_indexes.has(entry.merged_index)),
-        streamingBlockIndexes,
+        streaming_block_indexes,
       );
     }
 
@@ -441,18 +441,18 @@ function MessageItemInner(
           entry.source_message_id !== finalAssistantTurn.message_id
           || !finalAssistantTextMergedIndexes.has(entry.merged_index)
         )),
-        streamingBlockIndexes,
+        streaming_block_indexes,
       );
     }
 
-    return projection_from_ordered_entries(visibleOrderedAssistantEntries, streamingBlockIndexes);
+    return projection_from_ordered_entries(visibleOrderedAssistantEntries, streaming_block_indexes);
   }, [
     finalTailEntries,
     finalTailText,
     finalAssistantTurn,
     finalAssistantTextMergedIndexes,
-    resultMessage,
-    streamingBlockIndexes,
+    result_message,
+    streaming_block_indexes,
     visibleOrderedAssistantEntries,
   ]);
 
@@ -476,7 +476,7 @@ function MessageItemInner(
     if (finalTailEntries.length > 0) {
       const next_indexes = new Set<number>();
       finalTailEntries.forEach((entry, index) => {
-        if (streamingBlockIndexes.has(entry.merged_index)) {
+        if (streaming_block_indexes.has(entry.merged_index)) {
           next_indexes.add(index);
         }
       });
@@ -489,7 +489,7 @@ function MessageItemInner(
       return finalAssistantTurn.text_streaming_indexes;
     }
     return finalAssistantTurn.streaming_indexes;
-  }, [finalAssistantTurn, finalTailEntries, streamingBlockIndexes]);
+  }, [finalAssistantTurn, finalTailEntries, streaming_block_indexes]);
 
   const directOrderedProjection = useMemo<ContentProjection>(() => {
     if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
@@ -510,7 +510,7 @@ function MessageItemInner(
       return null;
     }
 
-    const result_text = resultMessage?.result?.trim();
+    const result_text = result_message?.result?.trim();
     if (result_text) {
       return result_text;
     }
@@ -531,7 +531,7 @@ function MessageItemInner(
     fallbackFinalAssistantContent,
     finalAssistantTurn,
     finalTailEntries,
-    resultMessage,
+    result_message,
   ]);
 
   const finalAssistantStreamingIndexes = useMemo(() => {
@@ -617,8 +617,8 @@ function MessageItemInner(
     }
 
     const latest_streaming_block = find_latest_streaming_block(
-      mergedContent,
-      streamingBlockIndexes,
+      merged_content,
+      streaming_block_indexes,
     );
     if (latest_streaming_block?.type === "thinking") {
       return "thinking";
@@ -627,10 +627,10 @@ function MessageItemInner(
       return "replying";
     }
 
-    const has_visible_reply_text = mergedContent.some((block) => (
+    const has_visible_reply_text = merged_content.some((block) => (
       block.type === "text" && Boolean(block.text.trim())
     ));
-    if (has_visible_reply_text && (stream_status === "streaming" || assistantMessages.length > 0)) {
+    if (has_visible_reply_text && (stream_status === "streaming" || assistant_messages.length > 0)) {
       return "replying";
     }
 
@@ -639,16 +639,16 @@ function MessageItemInner(
     }
 
     return map_runtime_phase_to_activity_state(runtime_phase)
-      ?? (assistantMessages.length > 0 ? "replying" : "thinking");
+      ?? (assistant_messages.length > 0 ? "replying" : "thinking");
   }, [
-    assistantMessages.length,
+    assistant_messages.length,
     is_last_round,
     is_loading,
-    mergedContent,
+    merged_content,
     pending_permissions,
     runtime_phase,
     stream_status,
-    streamingBlockIndexes,
+    streaming_block_indexes,
   ]);
 
   const shouldHideAssistantContent = useMemo(() => {
@@ -685,13 +685,13 @@ function MessageItemInner(
     if (finalAssistantContent && finalAssistantContent.length > 0) {
       return false;
     }
-    return !resultMessage;
+    return !result_message;
   }, [
     directOrderedProjection.content.length,
     finalAssistantContent,
     liveActivityState,
     processProjection.content.length,
-    resultMessage,
+    result_message,
     stream_status,
     systemMessages.length,
     unmatchedPendingPermissions.length,
@@ -750,8 +750,8 @@ function MessageItemInner(
     is_last_round
     && is_loading
     && (
-      streamingBlockIndexes.size > 0
-      || assistantMessages.length > 0
+      streaming_block_indexes.size > 0
+      || assistant_messages.length > 0
       || pending_permissions.length > 0
       || stream_status === 'pending'
       || stream_status === 'streaming'
@@ -873,7 +873,7 @@ function MessageItemInner(
     >
 
       {/* ═══════════════════════ 用户消息 ═══════════════════════ */}
-      {userMessage && (
+      {user_message && (
         <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
           <div className="w-full">
             <div className={cn(
@@ -893,7 +893,7 @@ function MessageItemInner(
                         onClick={() => {
                           const newContent = prompt('编辑消息:', userContent);
                           if (newContent && newContent !== userContent) {
-                            on_edit_user_message(userMessage.message_id, newContent);
+                            on_edit_user_message(user_message.message_id, newContent);
                           }
                         }}
                         tone="default"
@@ -911,7 +911,7 @@ function MessageItemInner(
                   </div>
 
                   <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                    {userMessage.timestamp ? format_time(userMessage.timestamp) : "--:--"}
+                    {user_message.timestamp ? format_time(user_message.timestamp) : "--:--"}
                   </span>
                   <span className="shrink-0 text-sm font-bold text-(--text-strong)">你</span>
                   <MessageAvatar class_name="shrink-0" size={compact ? "compact" : "full"}>
@@ -920,7 +920,7 @@ function MessageItemInner(
                 </div>
 
                 {/* 内容 */}
-                <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
+                <div className="rounded-2xl bg-[color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
                   <p className={cn(
                     "w-full",
                     "message-cjk-font whitespace-pre-wrap text-left text-(--text-strong) wrap-anywhere",
@@ -1045,11 +1045,11 @@ function MessageItemInner(
                   ) : null}
 
                   {/* Room 并发：已取消标记 */}
-                  {stream_status === 'cancelled' && mergedContent.length === 0 && (
+                  {stream_status === 'cancelled' && merged_content.length === 0 && (
                     <span className="text-xs italic text-(--text-soft)">已停止</span>
                   )}
 
-                  {stream_status === 'error' && mergedContent.length === 0 && (
+                  {stream_status === 'error' && merged_content.length === 0 && (
                     <span className="text-xs text-rose-500 italic">执行失败</span>
                   )}
 

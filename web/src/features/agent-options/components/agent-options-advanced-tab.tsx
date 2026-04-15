@@ -44,41 +44,41 @@ const AVAILABLE_TOOLS: ReadonlyArray<{
   name: string;
   description_key: TranslationKey;
 }> = [
-  { name: "Task", description_key: "agent_options.advanced.tool.task" },
-  { name: "TaskOutput", description_key: "agent_options.advanced.tool.task_output" },
-  { name: "Bash", description_key: "agent_options.advanced.tool.bash" },
-  { name: "Glob", description_key: "agent_options.advanced.tool.glob" },
-  { name: "Grep", description_key: "agent_options.advanced.tool.grep" },
-  { name: "ExitPlanMode", description_key: "agent_options.advanced.tool.exit_plan_mode" },
-  { name: "Read", description_key: "agent_options.advanced.tool.read" },
-  { name: "Edit", description_key: "agent_options.advanced.tool.edit" },
-  { name: "Write", description_key: "agent_options.advanced.tool.write" },
-  { name: "NotebookEdit", description_key: "agent_options.advanced.tool.notebook_edit" },
-  { name: "WebFetch", description_key: "agent_options.advanced.tool.web_fetch" },
-  { name: "TodoWrite", description_key: "agent_options.advanced.tool.todo_write" },
-  {
-    name: "WebSearch",
-    description_key: "agent_options.advanced.tool.web_search",
-  },
-  { name: "KillShell", description_key: "agent_options.advanced.tool.kill_shell" },
-  { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
-  { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
-  { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
-];
+    { name: "Task", description_key: "agent_options.advanced.tool.task" },
+    { name: "TaskOutput", description_key: "agent_options.advanced.tool.task_output" },
+    { name: "Bash", description_key: "agent_options.advanced.tool.bash" },
+    { name: "Glob", description_key: "agent_options.advanced.tool.glob" },
+    { name: "Grep", description_key: "agent_options.advanced.tool.grep" },
+    { name: "ExitPlanMode", description_key: "agent_options.advanced.tool.exit_plan_mode" },
+    { name: "Read", description_key: "agent_options.advanced.tool.read" },
+    { name: "Edit", description_key: "agent_options.advanced.tool.edit" },
+    { name: "Write", description_key: "agent_options.advanced.tool.write" },
+    { name: "NotebookEdit", description_key: "agent_options.advanced.tool.notebook_edit" },
+    { name: "WebFetch", description_key: "agent_options.advanced.tool.web_fetch" },
+    { name: "TodoWrite", description_key: "agent_options.advanced.tool.todo_write" },
+    {
+      name: "WebSearch",
+      description_key: "agent_options.advanced.tool.web_search",
+    },
+    { name: "KillShell", description_key: "agent_options.advanced.tool.kill_shell" },
+    { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
+    { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
+    { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
+  ];
 
 interface AgentOptionsAdvancedTabProps {
-  permissionMode: string;
-  onPermissionModeChange: (mode: string) => void;
-  allowedTools: string[];
-  onToggleTool: (toolName: string, type: "allowed" | "disallowed") => void;
+  permission_mode: string;
+  on_permission_mode_change: (mode: string) => void;
+  allowed_tools: string[];
+  on_toggle_tool: (tool_name: string, type: "allowed" | "disallowed") => void;
 }
 
 /** Advanced Tab 组件 — 权限控制与工具授权 */
 export function AgentOptionsAdvancedTab({
-  permissionMode,
-  onPermissionModeChange,
-  allowedTools,
-  onToggleTool,
+  permission_mode,
+  on_permission_mode_change,
+  allowed_tools,
+  on_toggle_tool,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
 
@@ -103,17 +103,17 @@ export function AgentOptionsAdvancedTab({
           {PERMISSION_MODES.map((pm) => (
             <button
               key={pm.value}
-              onClick={() => onPermissionModeChange(pm.value)}
+              onClick={() => on_permission_mode_change(pm.value)}
               className={cn(
                 "relative overflow-hidden rounded-[15px] border px-3 py-2.5 text-left transition-[background,border-color,color] duration-(--motion-duration-normal)",
-                permissionMode === pm.value
+                permission_mode === pm.value
                   ? "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)"
                   : "border-(--divider-subtle-color) bg-transparent text-(--text-strong) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
               )}
-              >
+            >
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
-                {permissionMode === pm.value && (
+                {permission_mode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <svg
                       width="10"
@@ -141,8 +141,8 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* bypassPermissions 警告 */}
-        {permissionMode === "bypassPermissions" &&
-          allowedTools.length > 0 && (
+        {permission_mode === "bypassPermissions" &&
+          allowed_tools.length > 0 && (
             <div className="rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
               {t("agent_options.advanced.bypass_warning")}
             </div>
@@ -160,12 +160,12 @@ export function AgentOptionsAdvancedTab({
             </h3>
           </div>
           <span className="text-[11px] text-(--text-soft)">
-            {t("agent_options.advanced.enabled_tools", { count: allowedTools.length })}
+            {t("agent_options.advanced.enabled_tools", { count: allowed_tools.length })}
           </span>
         </div>
 
         {/* 安全提示 */}
-        <div className="flex gap-2.5 rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2.5">
+        <div className="flex gap-2.5 rounded-[15px] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2.5">
           <div className="mt-0.5 text-(--warning)">
             <svg
               width="15"
@@ -183,8 +183,8 @@ export function AgentOptionsAdvancedTab({
             </svg>
           </div>
           <div>
-            <p className="text-[12.5px] font-medium text-[color:color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
-            <p className="mt-0.5 text-[11.5px] leading-[1.5] text-[color:color-mix(in_srgb,var(--warning)_70%,white)]">
+            <p className="text-[12.5px] font-medium text-[color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
+            <p className="mt-0.5 text-[11.5px] leading-normal text-[color-mix(in_srgb,var(--warning)_70%,white)]">
               {t("agent_options.advanced.security_hint")}
             </p>
           </div>
@@ -193,14 +193,14 @@ export function AgentOptionsAdvancedTab({
         {/* 工具列表 */}
         <div className="grid grid-cols-1 gap-1.5">
           {AVAILABLE_TOOLS.map((tool) => {
-            const isChecked = allowedTools.includes(tool.name);
+            const isChecked = allowed_tools.includes(tool.name);
             return (
               <div
                 key={tool.name}
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-[15px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
                   isChecked
-                    ? "border-[color:color-mix(in_srgb,var(--primary)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)]"
+                    ? "border-[color-mix(in_srgb,var(--primary)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)]"
                     : "border-(--divider-subtle-color) bg-transparent hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
                 )}
               >
@@ -213,7 +213,7 @@ export function AgentOptionsAdvancedTab({
                 <div className="origin-right scale-[0.84]">
                   <GlassSwitch
                     checked={isChecked}
-                    on_change={() => onToggleTool(tool.name, "allowed")}
+                    on_change={() => on_toggle_tool(tool.name, "allowed")}
                   />
                 </div>
               </div>

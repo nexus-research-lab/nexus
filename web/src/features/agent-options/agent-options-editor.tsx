@@ -338,39 +338,39 @@ export function AgentOptionsEditor({
       {activeTab === "identity" && (
         <AgentOptionsIdentityTab
           avatar={avatar}
-          onAvatarChange={setAvatar}
+          on_avatar_change={setAvatar}
           title={title}
-          onTitleChange={setTitle}
+          on_title_change={setTitle}
           description={description}
-          onDescriptionChange={setDescription}
-          vibeTags={vibeTags}
-          onVibeTagsChange={setVibeTags}
+          on_description_change={setDescription}
+          vibe_tags={vibeTags}
+          on_vibe_tags_change={setVibeTags}
           provider={provider}
-          defaultProvider={defaultProvider}
-          providerOptions={build_agent_option_provider_options(providerOptions, provider)}
-          providerOptionsError={providerOptionsError}
-          providerOptionsLoading={providerOptionsLoading}
-          onProviderChange={setProvider}
-          nameValidation={nameValidation}
-          isValidatingName={isValidatingName}
+          default_provider={defaultProvider}
+          provider_options={build_agent_option_provider_options(providerOptions, provider)}
+          provider_options_error={providerOptionsError}
+          provider_options_loading={providerOptionsLoading}
+          on_provider_change={setProvider}
+          name_validation={nameValidation}
+          is_validating_name={isValidatingName}
           variant={variant}
         />
       )}
 
       {activeTab === "persona" && (
         <AgentOptionsPersonaTab
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
+          system_prompt={systemPrompt}
+          on_system_prompt_change={setSystemPrompt}
           variant={variant}
         />
       )}
 
       {activeTab === "advanced" && (
         <AgentOptionsAdvancedTab
-          permissionMode={permissionMode}
-          onPermissionModeChange={setPermissionMode}
-          allowedTools={allowedTools}
-          onToggleTool={toggle_tool}
+          permission_mode={permissionMode}
+          on_permission_mode_change={setPermissionMode}
+          allowed_tools={allowedTools}
+          on_toggle_tool={toggle_tool}
         />
       )}
 
@@ -390,8 +390,8 @@ export function AgentOptionsEditor({
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <AgentOptionsNav
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+          active_tab={activeTab}
+          on_tab_change={setActiveTab}
           variant="inline"
           trailing={(
             <button
@@ -458,8 +458,8 @@ export function AgentOptionsEditor({
     <>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <AgentOptionsNav
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+          active_tab={activeTab}
+          on_tab_change={setActiveTab}
         />
 
         <div className="flex-1 overflow-y-auto bg-transparent p-6">

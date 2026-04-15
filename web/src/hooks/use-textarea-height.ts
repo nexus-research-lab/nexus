@@ -19,30 +19,30 @@ import { prepare, layout } from "@chenglou/pretext";
 //
 // Usage:
 //   const textareaRef = useRef<HTMLTextAreaElement>(null);
-//   useTextareaHeight(textareaRef, value, { minHeight: 24, maxHeight: 128 });
+//   useTextareaHeight(textareaRef, value, { min_height: 24, max_height: 128 });
 //
 // The hook writes `style.height` on the ref directly (same as the old pattern)
 // so no React state / re-render is needed.
 
 interface UseTextareaHeightOptions {
   /** Minimum height in px (default 24) */
-  minHeight?: number;
+  min_height?: number;
   /** Maximum height in px, element scrolls beyond this (default 128) */
-  maxHeight?: number;
+  max_height?: number;
   /** Line height in px matching the textarea's CSS (default 24) */
-  lineHeight?: number;
+  line_height?: number;
   /** Extra vertical padding inside the textarea in px (default 0) */
-  paddingY?: number;
+  padding_y?: number;
 }
 
 export function useTextareaHeight(
   ref: RefObject<HTMLTextAreaElement | null>,
   value: string,
   {
-    minHeight = 24,
-    maxHeight = 128,
-    lineHeight = 24,
-    paddingY = 0,
+    min_height = 24,
+    max_height = 128,
+    line_height = 24,
+    padding_y = 0,
   }: UseTextareaHeightOptions = {},
 ): void {
   // Cache container width across renders — only update on resize
@@ -81,17 +81,17 @@ export function useTextareaHeight(
     try {
       // pretext measures the full text including \n hard breaks
       const prepared = prepare(value || " ", fontRef.current);
-      const result = layout(prepared, widthRef.current, lineHeight);
-      contentHeight = result.height + paddingY;
+      const result = layout(prepared, widthRef.current, line_height);
+      contentHeight = result.height + padding_y;
     } catch {
-      // Fallback: count newlines × lineHeight (rough but reflow-free)
+      // Fallback: count newlines × line_height (rough but reflow-free)
       const lines = (value.match(/\n/g) ?? []).length + 1;
-      contentHeight = lines * lineHeight + paddingY;
+      contentHeight = lines * line_height + padding_y;
     }
 
-    const clamped = Math.min(Math.max(contentHeight, minHeight), maxHeight);
+    const clamped = Math.min(Math.max(contentHeight, min_height), max_height);
     el.style.height = `${clamped}px`;
-    // Show scrollbar only when content exceeds maxHeight
-    el.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
-  }, [value, lineHeight, minHeight, maxHeight, paddingY, ref]);
+    // Show scrollbar only when content exceeds max_height
+    el.style.overflowY = contentHeight > max_height ? "auto" : "hidden";
+  }, [value, line_height, min_height, max_height, padding_y, ref]);
 }

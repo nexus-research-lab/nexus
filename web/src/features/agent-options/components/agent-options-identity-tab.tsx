@@ -19,60 +19,60 @@ import { format_provider_label } from "@/types/provider";
 
 interface AgentOptionsIdentityTabProps {
   avatar: string;
-  onAvatarChange: (value: string) => void;
+  on_avatar_change: (value: string) => void;
   title: string;
-  onTitleChange: (value: string) => void;
+  on_title_change: (value: string) => void;
   description: string;
-  onDescriptionChange: (value: string) => void;
-  vibeTags: string[];
-  onVibeTagsChange: (tags: string[]) => void;
+  on_description_change: (value: string) => void;
+  vibe_tags: string[];
+  on_vibe_tags_change: (tags: string[]) => void;
   provider: AgentProvider;
-  defaultProvider: AgentProvider;
-  providerOptions: ProviderOption[];
-  providerOptionsError: string | null;
-  providerOptionsLoading: boolean;
-  onProviderChange: (value: AgentProvider) => void;
-  nameValidation: AgentNameValidationResult | null;
-  isValidatingName: boolean;
+  default_provider: AgentProvider;
+  provider_options: ProviderOption[];
+  provider_options_error: string | null;
+  provider_options_loading: boolean;
+  on_provider_change: (value: AgentProvider) => void;
+  name_validation: AgentNameValidationResult | null;
+  is_validating_name: boolean;
   variant?: "dialog" | "inline";
 }
 
 /** Identity Tab 组件 */
 export function AgentOptionsIdentityTab({
   avatar,
-  onAvatarChange,
+  on_avatar_change,
   title,
-  onTitleChange,
+  on_title_change,
   description,
-  onDescriptionChange,
-  vibeTags,
-  onVibeTagsChange,
+  on_description_change,
+  vibe_tags,
+  on_vibe_tags_change,
   provider,
-  defaultProvider,
-  providerOptions,
-  providerOptionsError,
-  providerOptionsLoading,
-  onProviderChange,
-  nameValidation,
-  isValidatingName,
+  default_provider,
+  provider_options,
+  provider_options_error,
+  provider_options_loading,
+  on_provider_change,
+  name_validation,
+  is_validating_name,
   variant = "dialog",
 }: AgentOptionsIdentityTabProps) {
   const { t } = useI18n();
   const [tagInput, setTagInput] = useState("");
-  const defaultProviderOptionLabel = defaultProvider
+  const defaultProviderOptionLabel = default_provider
     ? t("agent_options.identity.follow_default_provider_named", {
-      name: format_provider_label(defaultProvider),
+      name: format_provider_label(default_provider),
     })
     : t("agent_options.identity.follow_default_provider");
 
   /** 添加标签 */
   const handleAddTag = useCallback(() => {
     const trimmed = tagInput.trim();
-    if (trimmed && !vibeTags.includes(trimmed)) {
-      onVibeTagsChange([...vibeTags, trimmed]);
+    if (trimmed && !vibe_tags.includes(trimmed)) {
+      on_vibe_tags_change([...vibe_tags, trimmed]);
     }
     setTagInput("");
-  }, [tagInput, vibeTags, onVibeTagsChange]);
+  }, [tagInput, vibe_tags, on_vibe_tags_change]);
 
   /** 按回车添加标签 */
   const handleTagKeyDown = useCallback(
@@ -88,25 +88,25 @@ export function AgentOptionsIdentityTab({
   /** 删除标签 */
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      onVibeTagsChange(vibeTags.filter((t) => t !== tag));
+      on_vibe_tags_change(vibe_tags.filter((t) => t !== tag));
     },
-    [vibeTags, onVibeTagsChange]
+    [vibe_tags, on_vibe_tags_change]
   );
 
   const validation_message = (
     <div className="min-h-5 text-xs">
-      {isValidatingName ? (
+      {is_validating_name ? (
         <span className="text-muted-foreground">{t("agent_options.identity.validating_name")}</span>
       ) : null}
-      {!isValidatingName && nameValidation?.reason ? (
-        <span className="text-red-500">{nameValidation.reason}</span>
+      {!is_validating_name && name_validation?.reason ? (
+        <span className="text-red-500">{name_validation.reason}</span>
       ) : null}
-      {!isValidatingName &&
-        nameValidation?.is_valid &&
-        nameValidation?.is_available ? (
+      {!is_validating_name &&
+        name_validation?.is_valid &&
+        name_validation?.is_available ? (
         <span className="text-emerald-600">
           {t("agent_options.identity.name_available", {
-            path: nameValidation.workspace_path ?? "",
+            path: name_validation.workspace_path ?? "",
           })}
         </span>
       ) : null}
@@ -119,7 +119,7 @@ export function AgentOptionsIdentityTab({
     gap_class_name: string
   ) => (
     <div className="soft-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden pb-1">
-      {vibeTags.map((tag) => (
+      {vibe_tags.map((tag) => (
         <span
           key={tag}
           className={cn(
@@ -180,7 +180,7 @@ export function AgentOptionsIdentityTab({
                 <input
                   type="text"
                   value={title}
-                  onChange={(e) => onTitleChange(e.target.value)}
+                  onChange={(e) => on_title_change(e.target.value)}
                   className="dialog-input rounded-xl flex h-9 w-full px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
                   placeholder={t("agent_options.identity.name_placeholder")}
                 />
@@ -192,7 +192,7 @@ export function AgentOptionsIdentityTab({
               icon_size="sm"
               layout="row"
               max_icons={12}
-              on_select={onAvatarChange}
+              on_select={on_avatar_change}
               show_clear={false}
               value={avatar}
             />
@@ -219,12 +219,12 @@ export function AgentOptionsIdentityTab({
               <div className="relative">
                 <select
                   value={provider}
-                  onChange={(e) => onProviderChange(e.target.value as AgentProvider)}
+                  onChange={(e) => on_provider_change(e.target.value as AgentProvider)}
                   className="dialog-input rounded-xl flex h-9 w-full appearance-none px-3 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                  disabled={providerOptionsLoading && providerOptions.length === 0}
+                  disabled={provider_options_loading && provider_options.length === 0}
                 >
                   <option value="">{defaultProviderOptionLabel}</option>
-                  {providerOptions.map((item) => (
+                  {provider_options.map((item) => (
                     <option key={item.provider} value={item.provider}>
                       {item.display_name}
                     </option>
@@ -248,8 +248,8 @@ export function AgentOptionsIdentityTab({
                   </svg>
                 </div>
               </div>
-              {providerOptionsError ? (
-                <p className="text-xs text-rose-500">{providerOptionsError}</p>
+              {provider_options_error ? (
+                <p className="text-xs text-rose-500">{provider_options_error}</p>
               ) : null}
             </div>
           </div>
@@ -259,7 +259,7 @@ export function AgentOptionsIdentityTab({
           <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.description")}</label>
           <textarea
             value={description}
-            onChange={(e) => onDescriptionChange(e.target.value)}
+            onChange={(e) => on_description_change(e.target.value)}
             className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
             rows={3}
             placeholder={t("agent_options.identity.description_placeholder")}
@@ -292,7 +292,7 @@ export function AgentOptionsIdentityTab({
               <input
                 type="text"
                 value={title}
-                onChange={(e) => onTitleChange(e.target.value)}
+                onChange={(e) => on_title_change(e.target.value)}
                 className="dialog-input rounded-xl flex h-10 w-full px-3.5 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
                 placeholder={t("agent_options.identity.name_placeholder")}
               />
@@ -304,7 +304,7 @@ export function AgentOptionsIdentityTab({
             icon_size="md"
             layout="row"
             max_icons={12}
-            on_select={onAvatarChange}
+            on_select={on_avatar_change}
             show_clear={false}
             value={avatar}
           />
@@ -331,12 +331,12 @@ export function AgentOptionsIdentityTab({
             <div className="relative">
               <select
                 value={provider}
-                onChange={(e) => onProviderChange(e.target.value as AgentProvider)}
+                onChange={(e) => on_provider_change(e.target.value as AgentProvider)}
                 className="dialog-input rounded-xl flex h-10 w-full appearance-none px-3.5 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                disabled={providerOptionsLoading && providerOptions.length === 0}
+                disabled={provider_options_loading && provider_options.length === 0}
               >
                 <option value="">{defaultProviderOptionLabel}</option>
-                {providerOptions.map((item) => (
+                {provider_options.map((item) => (
                   <option key={item.provider} value={item.provider}>
                     {item.display_name}
                   </option>
@@ -360,8 +360,8 @@ export function AgentOptionsIdentityTab({
                 </svg>
               </div>
             </div>
-            {providerOptionsError ? (
-              <p className="mt-2 text-xs text-rose-500">{providerOptionsError}</p>
+            {provider_options_error ? (
+              <p className="mt-2 text-xs text-rose-500">{provider_options_error}</p>
             ) : null}
           </div>
         </div>
@@ -371,7 +371,7 @@ export function AgentOptionsIdentityTab({
         <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.description")}</label>
         <textarea
           value={description}
-          onChange={(e) => onDescriptionChange(e.target.value)}
+          onChange={(e) => on_description_change(e.target.value)}
           className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
           rows={3}
           placeholder={t("agent_options.identity.description_placeholder")}
