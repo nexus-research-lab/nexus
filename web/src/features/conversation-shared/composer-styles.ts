@@ -29,19 +29,14 @@ export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
 
 export function getComposerShellClassName(disabled: boolean) {
   return cn(
-    "rounded-[18px] transition-[border-color,background,box-shadow] duration-(--motion-duration-fast) focus-within:shadow-[0_0_0_1px_var(--material-input-focus-border)]",
+    "input-shell overflow-hidden rounded-[18px]",
     disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
   );
 }
 
 export function getComposerShellStyle(compact: boolean) {
-  return {
-    background: "var(--material-input-background)",
-    border: `1px solid ${"var(--material-input-border)"}`,
-    boxShadow: compact
-      ? "0 6px 18px rgba(24, 34, 48, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
-      : "0 10px 28px rgba(24, 34, 48, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.16)",
-  } as const;
+  void compact;
+  return undefined;
 }
 
 export const COMPOSER_FOOTER_CLASS_NAME =

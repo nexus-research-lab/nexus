@@ -117,7 +117,7 @@ export function LoginPage() {
               </span>
               <input
                 autoComplete="username"
-                className="min-h-12 w-full rounded-[18px] border border-(--input-shell-border) bg-(--input-shell-background) px-4 text-base text-(--text-strong) outline-none transition focus:border-[rgba(var(--primary-rgb),0.42)] focus:ring-4 focus:ring-[rgba(var(--primary-rgb),0.14)]"
+                className="input-shell min-h-12 w-full rounded-[18px] px-4 text-base text-(--text-strong) outline-none"
                 onChange={(event) => set_username(event.target.value)}
                 placeholder={t("login.username_placeholder")}
                 type="text"
@@ -131,7 +131,7 @@ export function LoginPage() {
               </span>
               <input
                 autoComplete="current-password"
-                className="min-h-12 w-full rounded-[18px] border border-(--input-shell-border) bg-(--input-shell-background) px-4 text-base text-(--text-strong) outline-none transition focus:border-[rgba(var(--primary-rgb),0.42)] focus:ring-4 focus:ring-[rgba(var(--primary-rgb),0.14)]"
+                className="input-shell min-h-12 w-full rounded-[18px] px-4 text-base text-(--text-strong) outline-none"
                 onChange={(event) => set_password(event.target.value)}
                 placeholder={t("login.password_placeholder")}
                 type="password"

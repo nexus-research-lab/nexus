@@ -46,6 +46,14 @@ interface ComposerPanelProps {
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
 }
 
+type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
+  keyCode?: number;
+  which?: number;
+};
+
+const IME_COMPOSITION_KEY_CODE = 229;
+const COMPOSITION_END_ENTER_GUARD_MS = 80;
+
 function is_caret_on_first_line(target: HTMLTextAreaElement) {
   const selection_start = target.selectionStart ?? 0;
   const selection_end = target.selectionEnd ?? 0;
@@ -125,6 +133,8 @@ const ComposerPanelView = memo(({
   const [mention_start_pos, set_mention_start_pos] = useState(-1);
 
   const is_composing_ref = useRef(false);
+  const ignore_next_enter_after_composition_ref = useRef(false);
+  const last_composition_end_at_ref = useRef(0);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
 
@@ -273,8 +283,26 @@ const ComposerPanelView = memo(({
   }, [history_draft, history_index, input_history]);
 
   const handle_key_down = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (is_composing_ref.current || event.nativeEvent.isComposing) {
+    const native_event = event.nativeEvent as ComposerNativeKeyboardEvent;
+    const just_finished_composition =
+      last_composition_end_at_ref.current > 0 &&
+      Date.now() - last_composition_end_at_ref.current <= COMPOSITION_END_ENTER_GUARD_MS;
+
+    // 中文注释：Safari 在中文输入法确认候选词后，可能补发一个不带 composing 标记的 Enter。
+    // 这里同时拦截 IME 的 229/Process 信号，并且只吞掉紧跟 compositionend 的下一次 Enter，
+    // 避免候选词确认被误判成发送消息。
+    if (
+      is_composing_ref.current ||
+      native_event.isComposing ||
+      native_event.key === "Process" ||
+      native_event.keyCode === IME_COMPOSITION_KEY_CODE ||
+      native_event.which === IME_COMPOSITION_KEY_CODE
+    ) {
       return;
+    }
+
+    if (ignore_next_enter_after_composition_ref.current && event.key !== "Enter") {
+      ignore_next_enter_after_composition_ref.current = false;
     }
 
     if (mention_active && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
@@ -282,6 +310,11 @@ const ComposerPanelView = memo(({
     }
 
     if (event.key === "Enter" && !event.shiftKey) {
+      if (ignore_next_enter_after_composition_ref.current && just_finished_composition) {
+        ignore_next_enter_after_composition_ref.current = false;
+        return;
+      }
+
       event.preventDefault();
       handle_send();
       return;
@@ -399,7 +432,7 @@ const ComposerPanelView = memo(({
           </div>
         ) : null}
 
-        <div className={cn("flex items-end gap-2", compact ? "px-2 py-2" : "px-2.5 py-2.5")}>
+        <div className={cn("flex items-end gap-2", compact ? "px-2 py-2" : "px-3 py-3")}>
           <button
             aria-label="添加附件"
             className={COMPOSER_ACTION_BUTTON_CLASS_NAME}
@@ -431,12 +464,13 @@ const ComposerPanelView = memo(({
             disabled={disabled || is_loading}
             onChange={(event) => handle_input_change(event.target.value)}
             onCompositionEnd={() => {
-              setTimeout(() => {
-                is_composing_ref.current = false;
-              }, 0);
+              is_composing_ref.current = false;
+              ignore_next_enter_after_composition_ref.current = true;
+              last_composition_end_at_ref.current = Date.now();
             }}
             onCompositionStart={() => {
               is_composing_ref.current = true;
+              ignore_next_enter_after_composition_ref.current = false;
             }}
             onKeyDown={handle_key_down}
             placeholder={placeholder}
