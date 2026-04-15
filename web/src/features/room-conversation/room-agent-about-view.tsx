@@ -1,72 +1,121 @@
+/**
+ * =====================================================
+ * @File   : room-agent-about-view.tsx
+ * @Date   : 2026-04-15 15:08
+ * @Author : leemysw
+ * 2026-04-15 15:08   Create
+ * =====================================================
+ */
+
 "use client";
 
-import { ReactNode } from "react";
-import { Bot, Shield } from "lucide-react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
-import { getIconAvatarSrc, getInitials } from "@/lib/utils";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
-import { Agent } from "@/types/agent";
-import { format_provider_label } from "@/types/provider";
+import { AgentIdentityDraft, AgentNameValidationResult, AgentOptions, Agent } from "@/types/agent";
+import { AgentOptionsEditor } from "@/shared/ui/dialog/agent-options/agent-options-dialog";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { RoomAgentSwitcher } from "./room-agent-switcher";
 
 interface RoomAgentAboutViewProps {
   agent: Agent;
+  room_members: Agent[];
   header_action?: ReactNode;
+  is_visible: boolean;
+  on_save_agent_options: (
+    agent_id: string,
+    title: string,
+    options: AgentOptions,
+    identity: AgentIdentityDraft,
+  ) => Promise<void>;
+  on_validate_agent_name: (
+    name: string,
+    agent_id?: string,
+  ) => Promise<AgentNameValidationResult>;
 }
 
-export function RoomAgentAboutView({ agent, header_action }: RoomAgentAboutViewProps) {
+export function RoomAgentAboutView({
+  agent,
+  room_members,
+  header_action,
+  is_visible,
+  on_save_agent_options,
+  on_validate_agent_name,
+}: RoomAgentAboutViewProps) {
   const { t } = useI18n();
-  const avatar_src = getIconAvatarSrc(agent.avatar);
+  const [selected_agent_id, set_selected_agent_id] = useState(agent.agent_id);
+
+  useEffect(() => {
+    set_selected_agent_id(agent.agent_id);
+  }, [agent.agent_id]);
+
+  const selected_agent = useMemo(() => {
+    return room_members.find((member) => member.agent_id === selected_agent_id) ?? agent;
+  }, [agent, room_members, selected_agent_id]);
+
+  const initial_options = useMemo(() => ({
+    provider: selected_agent.options.provider,
+    permission_mode: selected_agent.options.permission_mode,
+    allowed_tools: selected_agent.options.allowed_tools,
+    disallowed_tools: selected_agent.options.disallowed_tools,
+    system_prompt: selected_agent.options.system_prompt,
+    setting_sources: selected_agent.options.setting_sources,
+  }), [
+    selected_agent.options.allowed_tools,
+    selected_agent.options.disallowed_tools,
+    selected_agent.options.permission_mode,
+    selected_agent.options.provider,
+    selected_agent.options.setting_sources,
+    selected_agent.options.system_prompt,
+  ]);
+
+  const handle_save = useCallback(async (
+    title: string,
+    options: AgentOptions,
+    identity: AgentIdentityDraft,
+  ) => {
+    await on_save_agent_options(selected_agent.agent_id, title, options, identity);
+  }, [on_save_agent_options, selected_agent.agent_id]);
+
+  const handle_validate_name = useCallback(async (name: string) => {
+    return on_validate_agent_name(name, selected_agent.agent_id);
+  }, [on_validate_agent_name, selected_agent.agent_id]);
+
+  const title_trailing = room_members.length > 1 ? (
+    <RoomAgentSwitcher
+      members={room_members}
+      selected_id={selected_agent.agent_id}
+      on_select={set_selected_agent_id}
+    />
+  ) : null;
 
   return (
     <WorkspaceSurfaceView
       action={header_action}
-      body_class_name="px-4 py-5 sm:px-5 xl:px-6"
+      body_class_name="flex min-h-0 flex-1 flex-col px-0 py-0"
       eyebrow={t("room.about")}
-      max_width_class_name="max-w-[820px]"
+      max_width_class_name="max-w-none"
       show_eyebrow={false}
-      title={agent.name}
+      title={t("room.about")}
+      title_trailing={title_trailing}
     >
-      <div className="rounded-[24px] border border-(--divider-subtle-color) p-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-(--surface-avatar-background) text-(--icon-strong)">
-            {avatar_src ? (
-              <img
-                alt={agent.name}
-                className="h-full w-full object-cover"
-                src={avatar_src}
-              />
-            ) : (
-              <span className="text-[13px] font-bold text-(--text-strong)">
-                {getInitials(agent.name, "AG")}
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="text-base font-semibold text-(--text-strong)">{agent.name}</p>
-            <p className="text-[13px] text-(--text-muted)">{t("room.about_subtitle")}</p>
-          </div>
-        </div>
-
-        <dl className="mt-5 divide-y divide-(--divider-subtle-color) border-t border-(--divider-subtle-color)">
-          <div className="flex items-center justify-between gap-4 py-4">
-            <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-              {t("room.about_provider")}
-            </dt>
-            <dd className="text-[13px] font-semibold text-(--text-strong)">
-              {format_provider_label(agent.options.provider)}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 py-4">
-            <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-              {t("room.about_permission")}
-            </dt>
-            <dd className="inline-flex items-center gap-2 text-[13px] font-semibold text-(--text-strong)">
-              <Shield className="h-4 w-4 text-(--icon-default)" />
-              {agent.options.permission_mode || "default"}
-            </dd>
-          </div>
-        </dl>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <AgentOptionsEditor
+          agent_id={selected_agent.agent_id}
+          mode="edit"
+          is_active={is_visible}
+          on_save={handle_save}
+          on_validate_name={handle_validate_name}
+          initial_title={selected_agent.name}
+          initial_options={initial_options}
+          initial_avatar={selected_agent.avatar ?? ""}
+          initial_description={selected_agent.description ?? ""}
+          initial_vibe_tags={selected_agent.vibe_tags ?? []}
+          content_max_width_class_name="max-w-[860px]"
+          show_cancel_button={false}
+          show_delete_button={false}
+          variant="inline"
+        />
       </div>
     </WorkspaceSurfaceView>
   );

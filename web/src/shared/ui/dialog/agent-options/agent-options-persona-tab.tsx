@@ -8,30 +8,33 @@
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/lib/utils";
 
 interface AgentOptionsPersonaTabProps {
   systemPrompt: string;
   onSystemPromptChange: (value: string) => void;
+  variant?: "dialog" | "inline";
 }
 
 /** Persona Tab 组件 — 系统提示词编辑 */
 export function AgentOptionsPersonaTab({
   systemPrompt,
   onSystemPromptChange,
+  variant = "dialog",
 }: AgentOptionsPersonaTabProps) {
   const { t } = useI18n();
 
   return (
-    <div className="flex h-full flex-col space-y-5 animate-in slide-in-from-right-4 duration-300">
+    <div className="flex h-full w-full flex-col space-y-5 animate-in slide-in-from-right-4 duration-300">
       {/* 系统提示词编辑器 */}
       <div className="flex flex-1 flex-col space-y-2">
-        <label className="flex items-center justify-between text-[11px] font-semibold text-(--text-muted)">
+        <label className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-(--text-muted)">
           <span>{t("agent_options.persona.system_prompt")}</span>
           <span className="font-normal text-(--text-soft)">
             {t("agent_options.persona.supports_markdown")}
           </span>
         </label>
-        <div className="relative flex-1">
+        <div className={cn("relative flex-1", variant === "inline" ? "min-h-[420px]" : "min-h-[320px]")}>
           <textarea
             value={systemPrompt}
             onChange={(e) => onSystemPromptChange(e.target.value)}

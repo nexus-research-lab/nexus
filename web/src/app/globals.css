@@ -9,6 +9,8 @@
 
 /* 中文注释：全局入口只负责组装样式层次，不承载具体视觉细节。 */
 @import url("https://fonts.googleapis.com/css2?family=PT+Mono&display=swap");
+@import url("https://api.fontshare.com/v2/css?f[]=panchang@200&f[]=striper@400&display=swap");
+
 @import "tailwindcss";
 @import "./styles/theme-tokens.css";
 @import "./styles/theme-base.css";

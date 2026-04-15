@@ -8,7 +8,7 @@ import { DmConversationHeader } from "@/features/dm-conversation/dm-conversation
 import { cn } from "@/lib/utils";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/workspace-surface-scaffold";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
-import { Agent } from "@/types/agent";
+import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
@@ -54,6 +54,8 @@ interface RoomWorkspaceLayoutProps {
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
+  on_save_agent_options: (agent_id: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
+  on_validate_agent_name: (name: string, agent_id?: string) => Promise<AgentNameValidationResult>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
@@ -110,6 +112,8 @@ function RoomWorkspaceLayoutInner({
   on_delete_conversation,
   on_add_room_member,
   on_remove_room_member,
+  on_save_agent_options,
+  on_validate_agent_name,
   on_update_room,
   on_update_conversation_title,
   on_open_workspace_file,
@@ -266,11 +270,16 @@ function RoomWorkspaceLayoutInner({
                     />
                   </div>
 
-                  {is_dm ? (
-                    <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "about" && "hidden")}>
-                      <RoomAgentAboutView agent={current_agent} header_action={auxiliary_close_action} />
-                    </div>
-                  ) : null}
+                  <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "about" && "hidden")}>
+                    <RoomAgentAboutView
+                      agent={current_agent}
+                      room_members={room_members}
+                      header_action={auxiliary_close_action}
+                      is_visible={active_surface_tab === "about"}
+                      on_save_agent_options={on_save_agent_options}
+                      on_validate_agent_name={on_validate_agent_name}
+                    />
+                  </div>
                 </section>
               ) : !is_dm ? (
                 <RoomThreadInlinePanel

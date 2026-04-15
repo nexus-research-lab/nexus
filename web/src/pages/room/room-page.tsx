@@ -236,6 +236,7 @@ export function RoomPage() {
             on_loading_change={controller.set_is_conversation_busy}
             on_create_conversation={handleCreateConversation}
             on_open_workspace_file={controller.handle_open_workspace_file}
+            on_save_agent_options={controller.handle_save_existing_agent_options}
             on_update_room={handleUpdateRoom}
             on_update_conversation_title={handleUpdateConversationTitle}
             on_select_conversation={handleSelectConversation}
@@ -243,6 +244,7 @@ export function RoomPage() {
             on_initial_draft_consumed={handle_consume_initial_prompt}
             on_start_editor_resize={controller.handle_start_editor_resize}
             on_todos_change={controller.set_current_todos}
+            on_validate_agent_name={controller.handle_validate_agent_name_for_agent}
             workspace_split_ref={controller.workspace_split_ref}
             on_room_event={handleRoomEvent}
           />

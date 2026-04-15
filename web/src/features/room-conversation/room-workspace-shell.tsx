@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { Agent } from "@/types/agent";
+import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
 import { RoomSurfaceTabKey } from "@/types/room-surface";
@@ -40,6 +40,8 @@ interface RoomWorkspaceShellProps {
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
+  on_save_agent_options: (agent_id: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
+  on_validate_agent_name: (name: string, agent_id?: string) => Promise<AgentNameValidationResult>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
@@ -78,6 +80,8 @@ export function RoomWorkspaceShell({
   on_delete_conversation,
   on_add_room_member,
   on_remove_room_member,
+  on_save_agent_options,
+  on_validate_agent_name,
   on_update_room,
   on_update_conversation_title,
   on_open_workspace_file,
@@ -90,12 +94,6 @@ export function RoomWorkspaceShell({
 }: RoomWorkspaceShellProps) {
   const is_mobile = useMediaQuery("(max-width: 767px)");
   const [active_surface_tab, set_active_surface_tab] = useState<RoomSurfaceTabKey>("chat");
-
-  useEffect(() => {
-    if (current_room_type !== "dm" && active_surface_tab === "about") {
-      set_active_surface_tab("chat");
-    }
-  }, [active_surface_tab, current_room_type]);
 
   const handle_select_conversation_in_shell = useCallback((conversation_id: string) => {
     set_active_surface_tab("chat");
@@ -171,6 +169,8 @@ export function RoomWorkspaceShell({
       is_conversation_busy={is_conversation_busy}
       on_add_room_member={on_add_room_member}
       on_remove_room_member={on_remove_room_member}
+      on_save_agent_options={on_save_agent_options}
+      on_validate_agent_name={on_validate_agent_name}
       on_change_surface_tab={handle_change_surface_tab}
       on_close_workspace_pane={on_close_workspace_pane}
       on_conversation_snapshot_change={on_conversation_snapshot_change}

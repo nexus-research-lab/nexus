@@ -832,12 +832,19 @@ export function LauncherConsole({
       <div className="pointer-events-none absolute left-3 top-3 z-20 sm:left-5 sm:top-4">
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
-            class_name="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-12 sm:h-24 sm:w-24"
+            class_name="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
             inline_style={undefined}
             src={ANIMATIONS.BOM}
           />
           <img alt="" className="h-9 w-9 sm:h-10 sm:w-10" src="/logo.webp" />
-          <span className="text-sm font-semibold text-foreground sm:text-base">Nexus</span>
+          <span className="text-[32px] font-semibold text-foreground mb-3"
+            style={{
+              fontFamily: "\"striper\", var(--font-sans)",
+              fontWeight: 400,
+            }}
+          >
+            nexus
+          </span>
         </div>
       </div>
       <div className={cn(
