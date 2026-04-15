@@ -137,3 +137,13 @@ export function extract_text_from_content_blocks(content?: ContentBlock[] | null
   });
   return texts.join("\n\n");
 }
+
+export function format_message_time(timestamp?: number | null): string {
+  if (!timestamp) {
+    return "--:--";
+  }
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
