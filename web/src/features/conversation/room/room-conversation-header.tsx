@@ -9,7 +9,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-import { getIconAvatarSrc, getInitials, getRoomAvatarIconId } from "@/lib/utils";
+import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceHeader, WorkspaceTaskStrip } from "@/shared/ui/workspace/workspace-surface-header";
 import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/workspace-conversation-switcher";
@@ -58,7 +58,7 @@ function MemberAvatarStack({
     >
       <div className="flex items-center -space-x-1.5">
         {visible_members.map((member) => {
-          const avatar_src = getIconAvatarSrc(member.avatar);
+          const avatar_src = get_icon_avatar_src(member.avatar);
           return (
             <span
               className="flex h-5.5 w-5.5 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)"
@@ -72,7 +72,7 @@ function MemberAvatarStack({
                   src={avatar_src}
                 />
               ) : (
-                getInitials(member.name)
+                get_initials(member.name)
               )}
             </span>
           );
@@ -115,8 +115,8 @@ const RoomConversationHeaderView = memo(({
     { key: "about", label: t("room.about"), icon: Info },
   ];
 
-  const resolved_room_avatar_id = getRoomAvatarIconId(room_id, header_title, room_avatar);
-  const room_avatar_src = getIconAvatarSrc(resolved_room_avatar_id);
+  const resolved_room_avatar_id = get_room_avatar_icon_id(room_id, header_title, room_avatar);
+  const room_avatar_src = get_icon_avatar_src(resolved_room_avatar_id);
 
   const member_agent_ids = room_members.map((member) => member.agent_id);
   const all_room_agents = [

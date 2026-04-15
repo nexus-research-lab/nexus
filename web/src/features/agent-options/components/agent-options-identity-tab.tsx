@@ -14,7 +14,7 @@ import type { AgentNameValidationResult, AgentProvider } from "@/types/agent";
 import type { ProviderOption } from "@/types/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { getIconAvatarSrc } from "@/lib/utils";
+import { get_icon_avatar_src } from "@/lib/utils";
 import { format_provider_label } from "@/types/provider";
 
 interface AgentOptionsIdentityTabProps {
@@ -163,11 +163,11 @@ export function AgentOptionsIdentityTab({
           <div className="min-w-0 flex-1 space-y-3 xl:max-w-[480px]">
             <div className="flex items-end gap-2.5">
               <div className="flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-                {getIconAvatarSrc(avatar) ? (
+                {get_icon_avatar_src(avatar) ? (
                   <img
                     alt={t("agent_options.identity.avatar_alt")}
                     className="h-full w-full object-cover"
-                    src={getIconAvatarSrc(avatar) ?? undefined}
+                    src={get_icon_avatar_src(avatar) ?? undefined}
                   />
                 ) : (
                   <User className="h-6 w-6 text-primary" />
@@ -275,11 +275,11 @@ export function AgentOptionsIdentityTab({
         <div className="space-y-3">
           <div className="flex items-end gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-              {getIconAvatarSrc(avatar) ? (
+              {get_icon_avatar_src(avatar) ? (
                 <img
                   alt={t("agent_options.identity.avatar_alt")}
                   className="h-full w-full object-cover"
-                  src={getIconAvatarSrc(avatar) ?? undefined}
+                  src={get_icon_avatar_src(avatar) ?? undefined}
                 />
               ) : (
                 <User className="h-7 w-7 text-primary" />

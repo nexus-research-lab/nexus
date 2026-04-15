@@ -2,7 +2,7 @@
  * Launcher API 客户端
  */
 
-import { getAgentApiBaseUrl } from '@/config/options';
+import { get_agent_api_base_url } from '@/config/options';
 import { request_api } from '@/lib/http';
 
 export interface LauncherQueryParams {
@@ -31,8 +31,8 @@ export interface LauncherSuggestionsResponse {
 /**
  * 解析 Launcher 查询
  */
-export async function queryLauncher(params: LauncherQueryParams): Promise<LauncherQueryResponse> {
-  return request_api<LauncherQueryResponse>(`${getAgentApiBaseUrl()}/launcher/query`, {
+export async function query_launcher(params: LauncherQueryParams): Promise<LauncherQueryResponse> {
+  return request_api<LauncherQueryResponse>(`${get_agent_api_base_url()}/launcher/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -44,8 +44,8 @@ export async function queryLauncher(params: LauncherQueryParams): Promise<Launch
 /**
  * 获取 Launcher 推荐列表
  */
-export async function getLauncherSuggestions(): Promise<LauncherSuggestionsResponse> {
-  return request_api<LauncherSuggestionsResponse>(`${getAgentApiBaseUrl()}/launcher/suggestions`, {
+export async function get_launcher_suggestions(): Promise<LauncherSuggestionsResponse> {
+  return request_api<LauncherSuggestionsResponse>(`${get_agent_api_base_url()}/launcher/suggestions`, {
     method: 'GET',
   });
 }

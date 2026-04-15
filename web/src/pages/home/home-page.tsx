@@ -4,8 +4,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { isMainAgent } from "@/config/options";
-import { listRooms, subscribe_room_list_updates } from "@/lib/room-api";
+import { is_main_agent } from "@/config/options";
+import { list_rooms, subscribe_room_list_updates } from "@/lib/room-api";
 import { useAgentStore } from "@/store/agent";
 import { RoomAggregate } from "@/types/room";
 
@@ -17,11 +17,11 @@ export function HomePage() {
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const regular_agents = useMemo(
-    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
+    () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
   const refresh_rooms = useCallback(() => {
-    void listRooms(200).then(set_rooms).catch(() => {
+    void list_rooms(200).then(set_rooms).catch(() => {
     });
   }, []);
 

@@ -7,7 +7,7 @@
  * 此处提供兼容降级，避免创建会话和消息时直接抛错。
  */
 
-function fallbackUuidFromRandomValues(): string {
+function fallback_uuid_from_random_values(): string {
   const cryptoObject = globalThis.crypto;
   if (!cryptoObject?.getRandomValues) {
     return `fallback-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
@@ -29,20 +29,20 @@ function fallbackUuidFromRandomValues(): string {
   ].join("-");
 }
 
-export function generateUuid(): string {
+export function generate_uuid(): string {
   const cryptoObject = globalThis.crypto;
   if (cryptoObject?.randomUUID) {
     return cryptoObject.randomUUID();
   }
 
-  return fallbackUuidFromRandomValues();
+  return fallback_uuid_from_random_values();
 }
 
-export function getBrowserClientId(): string {
+export function get_browser_client_id(): string {
   const storage_key = 'nexus.browser_client_id';
   const storage = globalThis.sessionStorage;
   if (!storage) {
-    return generateUuid();
+    return generate_uuid();
   }
 
   try {
@@ -51,10 +51,10 @@ export function getBrowserClientId(): string {
       return existing_client_id;
     }
 
-    const next_client_id = generateUuid();
+    const next_client_id = generate_uuid();
     storage.setItem(storage_key, next_client_id);
     return next_client_id;
   } catch {
-    return generateUuid();
+    return generate_uuid();
   }
 }

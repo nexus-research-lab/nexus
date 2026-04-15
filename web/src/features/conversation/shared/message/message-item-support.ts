@@ -8,7 +8,7 @@
  */
 
 import { AgentConversationRuntimePhase } from "@/types/agent-conversation";
-import { isAskUserQuestionTimedOutResult } from "@/types/ask-user-question";
+import { is_ask_user_question_timed_out_result } from "@/types/ask-user-question";
 import { ContentBlock } from "@/types/message";
 
 export interface OrderedAssistantEntry {
@@ -85,7 +85,7 @@ export function has_timed_out_ask_user_question(content: ContentBlock[]): boolea
     if (!ask_tool_use_ids.has(block.tool_use_id)) {
       continue;
     }
-    if (isAskUserQuestionTimedOutResult(block)) {
+    if (is_ask_user_question_timed_out_result(block)) {
       return true;
     }
   }
@@ -93,21 +93,21 @@ export function has_timed_out_ask_user_question(content: ContentBlock[]): boolea
   return false;
 }
 
-export function getSystemMessageContainerClassName(tone: "neutral" | "warning"): string {
+export function get_system_message_container_class_name(tone: "neutral" | "warning"): string {
   if (tone === "warning") {
     return "border border-amber-200/60 bg-amber-50/70 text-amber-950/88";
   }
   return "border border-(--surface-panel-subtle-border) bg-(--surface-inset-background) text-(--text-default)";
 }
 
-export function getSystemMessageIconClassName(tone: "neutral" | "warning"): string {
+export function get_system_message_icon_class_name(tone: "neutral" | "warning"): string {
   if (tone === "warning") {
     return "text-amber-700/80";
   }
   return "text-(--icon-muted)";
 }
 
-export function projectionFromOrderedEntries(
+export function projection_from_ordered_entries(
   entries: OrderedAssistantEntry[],
   streaming_block_indexes: Set<number>,
 ): ContentProjection {
@@ -124,7 +124,7 @@ export function projectionFromOrderedEntries(
   return { content, streaming_indexes };
 }
 
-export function extractTextFromContentBlocks(content?: ContentBlock[] | null): string {
+export function extract_text_from_content_blocks(content?: ContentBlock[] | null): string {
   if (!content || content.length === 0) {
     return "";
   }

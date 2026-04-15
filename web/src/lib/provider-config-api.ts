@@ -9,7 +9,7 @@
  * # =====================================================
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/http";
 import type {
   ProviderConfigPayload,
@@ -18,21 +18,21 @@ import type {
   UpdateProviderConfigPayload,
 } from "@/types/provider";
 
-const PROVIDER_CONFIG_BASE_URL = `${getAgentApiBaseUrl()}/settings/providers`;
+const PROVIDER_CONFIG_BASE_URL = `${get_agent_api_base_url()}/settings/providers`;
 
-export async function listProviderConfigsApi(): Promise<ProviderConfigRecord[]> {
+export async function list_provider_configs_api(): Promise<ProviderConfigRecord[]> {
   return request_api<ProviderConfigRecord[]>(PROVIDER_CONFIG_BASE_URL, {
     method: "GET",
   });
 }
 
-export async function listProviderOptionsApi(): Promise<ProviderOptionsResponse> {
+export async function list_provider_options_api(): Promise<ProviderOptionsResponse> {
   return request_api<ProviderOptionsResponse>(`${PROVIDER_CONFIG_BASE_URL}/options`, {
     method: "GET",
   });
 }
 
-export async function createProviderConfigApi(payload: ProviderConfigPayload): Promise<ProviderConfigRecord> {
+export async function create_provider_config_api(payload: ProviderConfigPayload): Promise<ProviderConfigRecord> {
   return request_api<ProviderConfigRecord>(PROVIDER_CONFIG_BASE_URL, {
     method: "POST",
     headers: {
@@ -42,7 +42,7 @@ export async function createProviderConfigApi(payload: ProviderConfigPayload): P
   });
 }
 
-export async function updateProviderConfigApi(
+export async function update_provider_config_api(
   provider: string,
   payload: UpdateProviderConfigPayload,
 ): Promise<ProviderConfigRecord> {
@@ -55,7 +55,7 @@ export async function updateProviderConfigApi(
   });
 }
 
-export async function deleteProviderConfigApi(provider: string): Promise<{ provider: string }> {
+export async function delete_provider_config_api(provider: string): Promise<{ provider: string }> {
   return request_api<{ provider: string }>(`${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}`, {
     method: "DELETE",
   });

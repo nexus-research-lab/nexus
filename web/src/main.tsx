@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import "./app/globals.css";
-import { hydrateRuntimeOptions } from "./config/options";
+import { hydrate_runtime_options } from "./config/options";
 import { apply_theme, detect_initial_theme } from "./shared/theme/theme-context";
 
 const container = document.getElementById("root");
@@ -42,7 +42,7 @@ function render_bootstrap_error(message: string) {
 async function bootstrap() {
   apply_theme(detect_initial_theme());
   try {
-    await hydrateRuntimeOptions();
+    await hydrate_runtime_options();
     render_application();
   } catch (error) {
     // 中文注释：启动期失败时必须把真实错误渲染出来，否则生产环境只会看到空白页或 failed。

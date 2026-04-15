@@ -252,7 +252,7 @@ export interface SystemMessageDisplayMeta {
   tone: 'neutral' | 'warning';
 }
 
-export function getSystemMessageDisplayMeta(
+export function get_system_message_display_meta(
   message: SystemMessage,
 ): SystemMessageDisplayMeta {
   const subtype = message.metadata?.subtype;

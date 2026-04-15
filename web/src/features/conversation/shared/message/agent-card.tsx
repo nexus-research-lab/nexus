@@ -31,7 +31,7 @@ function StatusIndicator({ status }: { status: AgentRoundStatus }) {
   }
 }
 
-function statusLabel(status: AgentRoundStatus): string {
+function status_label(status: AgentRoundStatus): string {
   switch (status) {
     case "pending": return "等待中";
     case "streaming": return "回复中…";
@@ -50,7 +50,7 @@ export const AgentCard = memo(function AgentCard({
   on_stop,
 }: AgentCardProps) {
   const is_busy = status === "pending" || status === "streaming";
-  const label = statusLabel(status);
+  const label = status_label(status);
 
   return (
     <button

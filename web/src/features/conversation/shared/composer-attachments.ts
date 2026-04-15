@@ -9,7 +9,7 @@
 # =====================================================
 */
 
-import { createWorkspaceEntryApi } from "@/lib/agent-manage-api";
+import { create_workspace_entry_api } from "@/lib/agent-manage-api";
 
 export interface PreparedComposerAttachment {
   file_name: string;
@@ -139,7 +139,7 @@ export async function prepare_workspace_text_attachments(
     // 避免前端伪造图片/二进制上传能力而后端实际上无法消费。
     const content = await file.text();
     const workspace_path = build_attachment_path(file.name, index);
-    const created_entry = await createWorkspaceEntryApi(
+    const created_entry = await create_workspace_entry_api(
       agent_id,
       workspace_path,
       "file",

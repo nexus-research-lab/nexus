@@ -3,11 +3,11 @@ import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageItem } from "@/features/conversation/shared/message";
-import { hasRoomAgentRoundEntries } from "@/features/conversation/shared/utils";
+import { has_room_agent_round_entries } from "@/features/conversation/shared/utils";
 import { AgentConversationRuntimePhase } from "@/types/agent-conversation";
 import { Message, RoomPendingAgentSlotState } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
-import { estimateRoundHeights } from "@/hooks/use-message-height";
+import { estimate_round_heights } from "@/hooks/use-message-height";
 import { RoomRoundCardGroup } from "./thread/room-round-card-group";
 
 interface RoomConversationFeedProps {
@@ -135,7 +135,7 @@ export const RoomConversationFeed = memo(function RoomConversationFeed({
         const round_pending_permissions = pending_permission_groups.get(roundId) || [];
         const round_pending_slots = pending_slot_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
-        const has_room_entries = hasRoomAgentRoundEntries(roundMessages, round_pending_slots);
+        const has_room_entries = has_room_agent_round_entries(roundMessages, round_pending_slots);
 
         // Room 中一旦出现 Agent 回复，就统一走 RoomRoundCardGroup。
         if (has_room_entries) {
@@ -229,7 +229,7 @@ function VirtualFeed({
 
   // Pretext-based height estimates (recomputed when round count changes)
   const height_map = useMemo(
-    () => estimateRoundHeights(round_ids, message_groups, container_width_ref.current),
+    () => estimate_round_heights(round_ids, message_groups, container_width_ref.current),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [round_ids.length, message_groups],
   );
@@ -271,7 +271,7 @@ function VirtualFeed({
           const round_pending_permissions = pending_permission_groups.get(roundId) || [];
           const round_pending_slots = pending_slot_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
-          const has_room_entries = hasRoomAgentRoundEntries(roundMessages, round_pending_slots);
+          const has_room_entries = has_room_agent_round_entries(roundMessages, round_pending_slots);
 
           return (
             <div

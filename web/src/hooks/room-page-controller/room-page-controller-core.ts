@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import { buildRoomAgentSessionKey, buildRoomSharedSessionKey } from "@/lib/session-key";
+import { build_room_agent_session_key, build_room_shared_session_key } from "@/lib/session-key";
 import { Agent } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { Conversation, RoomConversationView } from "@/types/conversation";
@@ -44,7 +44,7 @@ function get_room_conversation_session_key(
     }
 
     if (fallback_session?.agent_id) {
-      return buildRoomAgentSessionKey(
+      return build_room_agent_session_key(
         context.conversation.id,
         fallback_session.agent_id,
         "dm",
@@ -52,7 +52,7 @@ function get_room_conversation_session_key(
     }
   }
 
-  return buildRoomSharedSessionKey(context.conversation.id);
+  return build_room_shared_session_key(context.conversation.id);
 }
 
 function build_fallback_room_member_agent(
@@ -215,8 +215,8 @@ export function resolve_current_agent_session_identity(params: {
   if (!resolved_session_key && resolved_conversation_id) {
     resolved_session_key = (
       current_room_type === "dm" && resolved_agent_id
-        ? buildRoomAgentSessionKey(resolved_conversation_id, resolved_agent_id, "dm")
-        : buildRoomSharedSessionKey(resolved_conversation_id)
+        ? build_room_agent_session_key(resolved_conversation_id, resolved_agent_id, "dm")
+        : build_room_shared_session_key(resolved_conversation_id)
     );
   }
 

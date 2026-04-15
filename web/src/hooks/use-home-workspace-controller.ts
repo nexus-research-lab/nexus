@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getConversationCostSummary } from "@/lib/agent-api";
+import { get_conversation_cost_summary } from "@/lib/agent-api";
 import {
-  clampHomeEditorWidthPercent,
+  clamp_home_editor_width_percent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/home-layout";
-import { getAgentCostSummaryApi } from "@/lib/agent-manage-api";
+import { get_agent_cost_summary_api } from "@/lib/agent-manage-api";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
 import { TodoItem } from "@/types/todo";
@@ -118,9 +118,9 @@ export function useHomeWorkspaceController({
 
     let ignore = false;
 
-    const loadAgentCostSummary = async () => {
+    const load_agent_cost_summary = async () => {
       try {
-        const nextSummary = await getAgentCostSummaryApi(current_agent_id);
+        const nextSummary = await get_agent_cost_summary_api(current_agent_id);
         if (!ignore) {
           setAgentCostSummary(nextSummary);
         }
@@ -135,7 +135,7 @@ export function useHomeWorkspaceController({
       }
     };
 
-    void loadAgentCostSummary();
+    void load_agent_cost_summary();
 
     return () => {
       ignore = true;
@@ -157,9 +157,9 @@ export function useHomeWorkspaceController({
 
     let ignore = false;
 
-    const loadConversationCostSummary = async () => {
+    const load_conversation_cost_summary = async () => {
       try {
-        const nextSummary = await getConversationCostSummary(current_session_key);
+        const nextSummary = await get_conversation_cost_summary(current_session_key);
         if (!ignore) {
           setConversationCostSummary(nextSummary);
         }
@@ -176,7 +176,7 @@ export function useHomeWorkspaceController({
       }
     };
 
-    void loadConversationCostSummary();
+    void load_conversation_cost_summary();
 
     return () => {
       ignore = true;
@@ -213,7 +213,7 @@ export function useHomeWorkspaceController({
       return;
     }
 
-    const handleMouseMove = (event: MouseEvent) => {
+    const handle_mouse_move = (event: MouseEvent) => {
       const container = workspace_split_ref.current;
       if (!container) {
         return;
@@ -221,19 +221,19 @@ export function useHomeWorkspaceController({
 
       const bounds = container.getBoundingClientRect();
       const nextPercent = ((bounds.right - event.clientX) / bounds.width) * 100;
-      setEditorWidthPercent(clampHomeEditorWidthPercent(nextPercent));
+      setEditorWidthPercent(clamp_home_editor_width_percent(nextPercent));
     };
 
-    const handleMouseUp = () => {
+    const handle_mouse_up = () => {
       setIsResizingEditor(false);
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mousemove", handle_mouse_move);
+    window.addEventListener("mouseup", handle_mouse_up);
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", handle_mouse_move);
+      window.removeEventListener("mouseup", handle_mouse_up);
     };
   }, [is_resizing_editor]);
 

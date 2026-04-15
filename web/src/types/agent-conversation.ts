@@ -8,7 +8,7 @@
  */
 
 import { Dispatch, RefObject, SetStateAction } from 'react';
-import { getSessionKeyIdentity } from '@/lib/session-key';
+import { get_session_key_identity } from '@/lib/session-key';
 
 import {
   AssistantMessage,
@@ -44,7 +44,7 @@ export interface AgentConversationIdentity {
   chat_type: AgentConversationChatType;
 }
 
-export function getAgentConversationIdentityKey(
+export function get_agent_conversation_identity_key(
   identity: AgentConversationIdentity | null | undefined,
 ): string | null {
   if (!identity) {
@@ -59,11 +59,11 @@ export function getAgentConversationIdentityKey(
     return `room-conversation:${identity.conversation_id}`;
   }
 
-  const session_identity = getSessionKeyIdentity(identity.session_key);
+  const session_identity = get_session_key_identity(identity.session_key);
   return session_identity ? `session:${session_identity}` : null;
 }
 
-export function getSessionControlStatusText(
+export function get_session_control_status_text(
   session_control_state: AgentConversationSessionControlState,
   observer_count: number,
 ): string {

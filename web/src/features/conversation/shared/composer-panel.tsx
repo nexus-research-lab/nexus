@@ -16,8 +16,8 @@ import {
   COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_FOOTER_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-  getComposerShellClassName,
-  getComposerShellStyle,
+  get_composer_shell_class_name,
+  get_composer_shell_style,
 } from "./composer-styles";
 import {
   COMPOSER_ATTACHMENT_ACCEPT,
@@ -411,7 +411,7 @@ const ComposerPanelView = memo(({
         type="file"
       />
 
-      <div className={getComposerShellClassName(disabled)} style={getComposerShellStyle(compact)}>
+      <div className={get_composer_shell_class_name(disabled)} style={get_composer_shell_style(compact)}>
         {attachments.length > 0 ? (
           <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
             {attachments.map((attachment) => (

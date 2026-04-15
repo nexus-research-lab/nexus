@@ -1,6 +1,6 @@
 "use client";
 
-import { buildRoomAgentSessionKey } from "@/lib/session-key";
+import { build_room_agent_session_key } from "@/lib/session-key";
 import type { RoomContextAggregate, RoomSessionSelection } from "@/types/room";
 import type { ScheduledTaskSchedule } from "@/types/scheduled-task";
 
@@ -55,14 +55,14 @@ export const TIMEZONE_OPTIONS = [
   "Europe/London",
 ];
 
-export function getDefaultTimezone(): string {
+export function get_default_timezone(): string {
   if (typeof Intl === "undefined") {
     return "Asia/Shanghai";
   }
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
 }
 
-export function buildDailyCronExpression(time_value: string, weekdays: Weekday[]): string | null {
+export function build_daily_cron_expression(time_value: string, weekdays: Weekday[]): string | null {
   const normalized = time_value.trim();
   const match = normalized.match(/^(\d{2}):(\d{2})$/);
   if (!match) {
@@ -86,7 +86,7 @@ export function buildDailyCronExpression(time_value: string, weekdays: Weekday[]
   return `${minute} ${hour} * * ${weekday_expression}`;
 }
 
-export function parseDailyCronExpression(
+export function parse_daily_cron_expression(
   cron_expression: string,
 ): { daily_time: string; selected_weekdays: Weekday[] } | null {
   const parts = cron_expression.trim().split(/\s+/);
@@ -123,7 +123,7 @@ export function parseDailyCronExpression(
   };
 }
 
-export function toIntervalSeconds(value: string, unit: EveryUnit): number | null {
+export function to_interval_seconds(value: string, unit: EveryUnit): number | null {
   const normalized_value = value.trim();
   if (!/^\d+$/.test(normalized_value)) {
     return null;
@@ -141,11 +141,11 @@ export function toIntervalSeconds(value: string, unit: EveryUnit): number | null
   return numeric_value;
 }
 
-export function formatSessionLabel(title: string, agent_name: string): string {
+export function format_session_label(title: string, agent_name: string): string {
   return `${title} · ${agent_name}`;
 }
 
-export function buildRoomSessionSelections(
+export function build_room_session_selections(
   contexts: RoomContextAggregate[],
   agent_name_by_id: Map<string, string>,
 ): RoomSessionSelection[] {
@@ -154,7 +154,7 @@ export function buildRoomSessionSelections(
     const room_type = context.room.room_type;
 
     return context.sessions.map((session) => ({
-      session_key: buildRoomAgentSessionKey(
+      session_key: build_room_agent_session_key(
         context.conversation.id,
         session.agent_id,
         room_type === "dm" ? "dm" : "room",
@@ -165,7 +165,7 @@ export function buildRoomSessionSelections(
       room_type,
       title: room_title,
       session,
-      label: formatSessionLabel(room_title, agent_name_by_id.get(session.agent_id) || session.agent_id),
+      label: format_session_label(room_title, agent_name_by_id.get(session.agent_id) || session.agent_id),
     }));
   });
 }

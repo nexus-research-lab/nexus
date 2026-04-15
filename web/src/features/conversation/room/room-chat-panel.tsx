@@ -6,8 +6,8 @@ import { useAgentConversation } from "@/hooks/agent";
 import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
-import { buildRoomSharedSessionKey } from "@/lib/session-key";
-import { AgentConversationIdentity, getSessionControlStatusText } from "@/types/agent-conversation";
+import { build_room_shared_session_key } from "@/lib/session-key";
+import { AgentConversationIdentity, get_session_control_status_text } from "@/types/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation";
 import { PendingPermission } from "@/types/permission";
 import { TodoItem } from "@/types/todo";
@@ -17,15 +17,15 @@ import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-l
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
 import {
-  buildRoomAgentRoundEntries,
-  getRoomAgentRoundEntry,
-  getRoomBaseRoundId,
-  getRoomThreadMessages,
+  build_room_agent_round_entries,
+  get_room_agent_round_entry,
+  get_room_base_round_id,
+  get_room_thread_messages,
   get_latest_reply_timestamp,
-  groupRoomPendingPermissionsByRound,
-  groupRoomPendingSlotsByRound,
-  groupRoomMessagesByRound,
-  isAgentRoundActive,
+  group_room_pending_permissions_by_round,
+  group_room_pending_slots_by_round,
+  group_room_messages_by_round,
+  is_agent_round_active,
 } from "@/features/conversation/shared/utils";
 import { RoomConversationFeed } from "./room-conversation-feed";
 import { useRoomThread, useSetThreadPanelData } from "./thread/room-thread-state";
@@ -66,7 +66,7 @@ function get_thread_pending_permissions(
     if (!permission.caused_by) {
       return false;
     }
-    if (getRoomBaseRoundId(permission.caused_by, permission.agent_id) !== round_id) {
+    if (get_room_base_round_id(permission.caused_by, permission.agent_id) !== round_id) {
       return false;
     }
     // 中文注释：Room 的权限请求在很多场景下绑定的是占位槽位 msg_id，
@@ -103,7 +103,7 @@ export function RoomChatPanel({
   const thread_loading_ref = useRef(false);
   const consumed_initial_draft_ref = useRef<string | null>(null);
 
-  const session_key = conversation_id ? buildRoomSharedSessionKey(conversation_id) : null;
+  const session_key = conversation_id ? build_room_shared_session_key(conversation_id) : null;
   const session_identity = useMemo<AgentConversationIdentity | null>(() => {
     if (!conversation_id) {
       return null;
@@ -176,7 +176,7 @@ export function RoomChatPanel({
   const can_control_session = session_control_state !== "observer";
   const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
   const session_control_text = useMemo(
-    () => getSessionControlStatusText(session_control_state, session_observer_count),
+    () => get_session_control_status_text(session_control_state, session_observer_count),
     [session_control_state, session_observer_count],
   );
 
@@ -204,13 +204,13 @@ export function RoomChatPanel({
     debug_name: "RoomChatPanel",
   });
 
-  const message_groups = useMemo(() => groupRoomMessagesByRound(messages), [messages]);
+  const message_groups = useMemo(() => group_room_messages_by_round(messages), [messages]);
   const pending_slot_groups = useMemo(
-    () => groupRoomPendingSlotsByRound(pending_agent_slots),
+    () => group_room_pending_slots_by_round(pending_agent_slots),
     [pending_agent_slots],
   );
   const pending_permission_groups = useMemo(
-    () => groupRoomPendingPermissionsByRound(pending_permissions),
+    () => group_room_pending_permissions_by_round(pending_permissions),
     [pending_permissions],
   );
   const round_ids = Array.from(message_groups.keys());
@@ -219,8 +219,8 @@ export function RoomChatPanel({
     for (const round_id of round_ids) {
       const round_messages = message_groups.get(round_id) ?? [];
       const round_pending_slots = pending_slot_groups.get(round_id) ?? [];
-      for (const entry of buildRoomAgentRoundEntries(round_messages, round_pending_slots)) {
-        if (isAgentRoundActive(entry.status)) {
+      for (const entry of build_room_agent_round_entries(round_messages, round_pending_slots)) {
+        if (is_agent_round_active(entry.status)) {
           next_ids.add(entry.agent_id);
         }
       }
@@ -279,11 +279,11 @@ export function RoomChatPanel({
       return [];
     }
 
-    return getRoomThreadMessages(thread_round_messages, active_thread.agent_id);
+    return get_room_thread_messages(thread_round_messages, active_thread.agent_id);
   }, [active_thread, thread_round_messages]);
   const thread_entry = useMemo(
     () => active_thread
-      ? getRoomAgentRoundEntry(
+      ? get_room_agent_round_entry(
         thread_round_messages,
         active_thread.agent_id,
         pending_slot_groups.get(active_thread.round_id) ?? [],
@@ -292,7 +292,7 @@ export function RoomChatPanel({
     [active_thread, pending_slot_groups, thread_round_messages],
   );
   const thread_is_loading = useMemo(
-    () => Boolean(thread_entry && isAgentRoundActive(thread_entry.status)),
+    () => Boolean(thread_entry && is_agent_round_active(thread_entry.status)),
     [thread_entry],
   );
   const thread_agent_name = active_thread && agent_name_map

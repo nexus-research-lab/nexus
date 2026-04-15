@@ -7,10 +7,10 @@
 import { ChangeEvent, MouseEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  createWorkspaceEntryApi,
-  deleteWorkspaceEntryApi,
-  renameWorkspaceEntryApi,
-  uploadWorkspaceFileApi,
+  create_workspace_entry_api,
+  delete_workspace_entry_api,
+  rename_workspace_entry_api,
+  upload_workspace_file_api,
 } from "@/lib/agent-manage-api";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import type { WorkspaceFileEntry } from "@/types/agent";
@@ -181,7 +181,7 @@ export function useRoomWorkspaceController({
     try {
       for (const file of Array.from(selected_files)) {
         const target_directory = upload_target_directory ? `${upload_target_directory}/` : undefined;
-        await uploadWorkspaceFileApi(view_agent_id, file, target_directory);
+        await upload_workspace_file_api(view_agent_id, file, target_directory);
       }
       await refresh_files(view_agent_id);
     } catch (error) {
@@ -225,7 +225,7 @@ export function useRoomWorkspaceController({
           return;
         }
 
-        const renamed_entry = await renameWorkspaceEntryApi(
+        const renamed_entry = await rename_workspace_entry_api(
           view_agent_id,
           prompt_state.entry.path,
           join_workspace_path(get_parent_directory_path(prompt_state.entry.path), normalized_name),
@@ -246,7 +246,7 @@ export function useRoomWorkspaceController({
           );
         }
       } else {
-        const created_entry = await createWorkspaceEntryApi(
+        const created_entry = await create_workspace_entry_api(
           view_agent_id,
           join_workspace_path(prompt_state.parent_path, normalized_name),
           prompt_state.mode === "create-file" ? "file" : "directory",
@@ -273,7 +273,7 @@ export function useRoomWorkspaceController({
 
     set_error_message(null);
     try {
-      await deleteWorkspaceEntryApi(view_agent_id, delete_target.path);
+      await delete_workspace_entry_api(view_agent_id, delete_target.path);
       await refresh_files(view_agent_id);
       if (is_workspace_path_affected(active_workspace_path, delete_target.path)) {
         on_open_workspace_file(null);

@@ -7,15 +7,15 @@ export function useMediaQuery(query: string) {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(query);
-    const updateMatches = () => {
+    const update_matches = () => {
       setMatches(mediaQuery.matches);
     };
 
-    updateMatches();
-    mediaQuery.addEventListener("change", updateMatches);
+    update_matches();
+    mediaQuery.addEventListener("change", update_matches);
 
     return () => {
-      mediaQuery.removeEventListener("change", updateMatches);
+      mediaQuery.removeEventListener("change", update_matches);
     };
   }, [query]);
 

@@ -74,7 +74,7 @@ export function TypewriterFileView({
 // A block-level write cursor: thicker than the streaming cursor,
 // using a bright amber/green accent to signal "agent writing"
 let writeCursorStyleInjected = false;
-function ensureWriteCursorStyle() {
+function ensure_write_cursor_style() {
   if (writeCursorStyleInjected || typeof document === "undefined") return;
   writeCursorStyleInjected = true;
   const style = document.createElement("style");
@@ -102,6 +102,6 @@ function ensureWriteCursorStyle() {
 }
 
 function WriteCursor() {
-  useEffect(() => { ensureWriteCursorStyle(); }, []);
+  useEffect(() => { ensure_write_cursor_style(); }, []);
   return <span className="nexus-write-cursor" aria-hidden />;
 }

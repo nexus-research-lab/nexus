@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
-import { listScheduledTaskRunsApi } from "@/lib/scheduled-task-api";
+import { list_scheduled_task_runs_api } from "@/lib/scheduled-task-api";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/workspace-status-badge";
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/scheduled-task";
 
@@ -73,7 +73,7 @@ export function ScheduledTaskRunHistoryDialog({
     set_is_loading(true);
     set_error_message(null);
     try {
-      const result = await listScheduledTaskRunsApi(job_id);
+      const result = await list_scheduled_task_runs_api(job_id);
       if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
         return;
       }

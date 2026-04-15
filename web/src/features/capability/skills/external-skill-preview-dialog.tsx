@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
+  get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { ExternalSkillSearchItem } from "@/types/skill";
 
@@ -23,7 +23,7 @@ interface ExternalSkillPreviewDialogProps {
   on_import_only: () => void;
 }
 
-function formatInstalls(installs: number): string {
+function format_installs(installs: number): string {
   if (installs >= 1000) {
     return `${(installs / 1000).toFixed(installs >= 100000 ? 0 : 1)}K`;
   }
@@ -60,7 +60,7 @@ export function ExternalSkillPreviewDialog({
               {item.title || item.skill_slug}
             </h2>
             <p className="dialog-subtitle">
-              {item.package_spec} · {formatInstalls(item.installs)} installs
+              {item.package_spec} · {format_installs(item.installs)} installs
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase")}>
@@ -107,7 +107,7 @@ export function ExternalSkillPreviewDialog({
           </a>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className={getDialogActionClassName("primary")}
+              className={get_dialog_action_class_name("primary")}
               disabled={busy || already_imported || name_conflict}
               onClick={on_import_only}
               type="button"

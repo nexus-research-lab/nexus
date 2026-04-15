@@ -22,7 +22,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const [copied, setCopied] = useState(false);
   const is_dark_theme = theme === "dark";
 
-  const handleCopy = () => {
+  const handle_copy = () => {
     navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -44,7 +44,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
             borderColor: "var(--chip-default-border)",
             color: "var(--text-muted)",
           }}
-          onClick={handleCopy}
+          onClick={handle_copy}
         >
           {copied ? (
             <>

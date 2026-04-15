@@ -16,7 +16,7 @@ import {
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import { ConnectorInfo } from "@/types/connector";
 
-import { getConnectorColors, getConnectorLetter } from "./connector-icons";
+import { get_connector_colors, get_connector_letter } from "./connector-icons";
 
 interface ConnectorCardProps {
   connector: ConnectorInfo;
@@ -73,8 +73,8 @@ export function ConnectorCard({
     category,
     auth_type,
   } = connector;
-  const colors = getConnectorColors(icon);
-  const letter = getConnectorLetter(icon, title);
+  const colors = get_connector_colors(icon);
+  const letter = get_connector_letter(icon, title);
   const is_connected = connection_state === "connected";
   const is_coming_soon = status === "coming_soon";
   const auth_label =

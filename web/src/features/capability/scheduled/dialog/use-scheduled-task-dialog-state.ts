@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createScheduledTaskApi, updateScheduledTaskApi } from "@/lib/scheduled-task-api";
+import { create_scheduled_task_api, update_scheduled_task_api } from "@/lib/scheduled-task-api";
 import type {
   ScheduledTaskItem,
   ScheduledTaskSchedule,
@@ -11,13 +11,13 @@ import type {
 } from "@/types/scheduled-task";
 
 import {
-  buildDailyCronExpression,
+  build_daily_cron_expression,
   type ExecutionMode,
-  getDefaultTimezone,
-  parseDailyCronExpression,
+  get_default_timezone,
+  parse_daily_cron_expression,
   type ReplyMode,
   type TargetType,
-  toIntervalSeconds,
+  to_interval_seconds,
 } from "./scheduled-task-dialog-constants";
 import { useScheduledTaskDialogData } from "./use-scheduled-task-dialog-data";
 import { useScheduledTaskDialogScheduleState } from "./use-scheduled-task-dialog-schedule";
@@ -47,7 +47,7 @@ export function useScheduledTaskDialogState({
   const [reply_mode, set_reply_mode] = useState<ReplyMode>("execution");
   const [selected_reply_session_key, set_selected_reply_session_key_state] = useState("");
   const [dedicated_session_key, set_dedicated_session_key] = useState("");
-  const [timezone, set_timezone] = useState(getDefaultTimezone());
+  const [timezone, set_timezone] = useState(get_default_timezone());
   const [enabled, set_enabled] = useState(true);
   const [instruction, set_instruction] = useState("");
   const [error_message, set_error_message] = useState<string | null>(null);
@@ -127,7 +127,7 @@ export function useScheduledTaskDialogState({
       set_reply_mode("execution");
       set_selected_reply_session_key_state("");
       set_dedicated_session_key("");
-      set_timezone(getDefaultTimezone());
+      set_timezone(get_default_timezone());
       set_enabled(true);
       set_instruction("");
       set_error_message(null);
@@ -174,7 +174,7 @@ export function useScheduledTaskDialogState({
     set_dedicated_session_key(
       initial_task.session_target.kind === "named" ? initial_task.session_target.named_session_key : "",
     );
-    set_timezone(initial_task.schedule.timezone?.trim() || getDefaultTimezone());
+    set_timezone(initial_task.schedule.timezone?.trim() || get_default_timezone());
     set_enabled(initial_task.enabled);
     set_instruction(initial_task.instruction);
     set_error_message(null);
@@ -205,7 +205,7 @@ export function useScheduledTaskDialogState({
     }
 
     if (initial_task.schedule.kind === "cron") {
-      const parsed_cron = parseDailyCronExpression(initial_task.schedule.cron_expression);
+      const parsed_cron = parse_daily_cron_expression(initial_task.schedule.cron_expression);
       schedule.hydrate({
         schedule_kind: "cron",
         daily_time: parsed_cron?.daily_time,
@@ -265,12 +265,12 @@ export function useScheduledTaskDialogState({
 
   function build_schedule(): ScheduledTaskSchedule {
     if (schedule.schedule_kind === "every") {
-      const interval_seconds = toIntervalSeconds(schedule.every_value, schedule.every_unit);
+      const interval_seconds = to_interval_seconds(schedule.every_value, schedule.every_unit);
       if (interval_seconds === null) throw new Error("循环间隔必须是大于 0 的整数");
       return { kind: "every", interval_seconds, timezone: timezone.trim() || "Asia/Shanghai" };
     }
     if (schedule.schedule_kind === "cron") {
-      const cron_expression = buildDailyCronExpression(schedule.daily_time, schedule.selected_weekdays);
+      const cron_expression = build_daily_cron_expression(schedule.daily_time, schedule.selected_weekdays);
       if (!cron_expression) throw new Error("请选择有效的固定执行时间");
       return { kind: "cron", cron_expression, timezone: timezone.trim() || "Asia/Shanghai" };
     }
@@ -306,10 +306,10 @@ export function useScheduledTaskDialogState({
     if (is_room_executor_selection_required() && !selected_session_key.trim()) return "请选择一个 Room 会话来确定执行智能体";
     if (execution_mode === "dedicated" && !dedicated_session_key.trim()) return "请输入专用长期会话名称";
     if (reply_mode === "selected" && !selected_reply_session_key.trim()) return "请选择回复会话";
-    if (schedule.schedule_kind === "every" && toIntervalSeconds(schedule.every_value, schedule.every_unit) === null) {
+    if (schedule.schedule_kind === "every" && to_interval_seconds(schedule.every_value, schedule.every_unit) === null) {
       return "循环间隔必须是大于 0 的整数";
     }
-    if (schedule.schedule_kind === "cron" && !buildDailyCronExpression(schedule.daily_time, schedule.selected_weekdays)) {
+    if (schedule.schedule_kind === "cron" && !build_daily_cron_expression(schedule.daily_time, schedule.selected_weekdays)) {
       return schedule.selected_weekdays.length === 0 ? "请至少选择一个执行日" : "请选择有效的固定执行时间";
     }
     if (schedule.schedule_kind === "at") {
@@ -341,14 +341,14 @@ export function useScheduledTaskDialogState({
       };
 
       if (initial_task) {
-        const updated = await updateScheduledTaskApi(initial_task.job_id, {
+        const updated = await update_scheduled_task_api(initial_task.job_id, {
           ...payload,
           agent_id: resolve_agent_id_for_task(),
           source: build_source_snapshot(source_session, initial_task.source),
         });
         await on_saved?.(updated);
       } else {
-        const created = await createScheduledTaskApi({
+        const created = await create_scheduled_task_api({
           ...payload,
           agent_id: resolve_agent_id_for_task(),
           source: build_source_snapshot(source_session),

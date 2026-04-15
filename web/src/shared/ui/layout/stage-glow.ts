@@ -20,7 +20,7 @@ const STAGE_GLOW_BACKGROUND_MAP: Record<StageGlowTone, string> = {
   peach: "var(--glow-peach)",
 };
 
-export function getStageGlowStyle(tone: StageGlowTone): CSSProperties {
+export function get_stage_glow_style(tone: StageGlowTone): CSSProperties {
   return {
     background: STAGE_GLOW_BACKGROUND_MAP[tone],
   };

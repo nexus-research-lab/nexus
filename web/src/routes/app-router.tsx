@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
-import { getAgentWsUrl } from "@/config/options";
+import { get_agent_ws_url } from "@/config/options";
 import { useWebSocket } from "@/lib/websocket";
 import { LauncherPage } from "@/pages/launcher/launcher-page";
 import { LoginPage } from "@/pages/login/login-page";
@@ -47,7 +47,7 @@ function PageFallback() {
 }
 
 function AuthenticatedAppSessionRoot() {
-  const ws_url = getAgentWsUrl();
+  const ws_url = get_agent_ws_url();
 
   useWebSocket({
     url: ws_url,

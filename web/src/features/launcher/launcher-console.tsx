@@ -17,9 +17,9 @@ import { Agent } from "@/types/agent";
 import { Conversation } from "@/types/conversation";
 import { ConversationWithOwner, SpotlightToken } from "@/types/launcher";
 import { RoomAggregate } from "@/types/room";
-import { queryLauncher } from "@/lib/launcher-api";
-import { ensureDirectRoom, getRoomContexts } from "@/lib/room-api";
-import { parseSessionKey } from "@/lib/session-key";
+import { query_launcher } from "@/lib/launcher-api";
+import { ensure_direct_room, get_room_contexts } from "@/lib/room-api";
+import { parse_session_key } from "@/lib/session-key";
 import { MentionTargetItem, MentionTargetPopover } from "@/features/conversation/shared/mention-popover";
 
 import { AgentPile } from "./launcher-agent-pile";
@@ -77,7 +77,7 @@ const TOKEN_SWATCHES = [
   { fill: "#E8945A", text: "#FFFFFF", ring: "#F0B186" },
 ];
 
-function getInitials(name: string) {
+function get_initials(name: string) {
   const parts = name
     .trim()
     .split(/\s+/)
@@ -91,7 +91,7 @@ function getInitials(name: string) {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
-function truncateLauncherChipLabel(label: string, max_chars: number = 8): string {
+function truncate_launcher_chip_label(label: string, max_chars: number = 8): string {
   const chars = Array.from(label.trim());
   if (chars.length <= max_chars) {
     return label.trim();
@@ -103,18 +103,18 @@ function truncateLauncherChipLabel(label: string, max_chars: number = 8): string
   return `${chars.slice(0, head_count).join("")}…${chars.slice(-tail_count).join("")}`;
 }
 
-function isLauncherChipTruncated(label: string, max_chars: number = 6): boolean {
+function is_launcher_chip_truncated(label: string, max_chars: number = 6): boolean {
   return Array.from(label.trim()).length > max_chars;
 }
 
-function buildDecorativeTokens(
+function build_decorative_tokens(
   agents: Agent[],
   conversations_with_owners: ConversationWithOwner[],
 ): SpotlightToken[] {
   const agent_tokens: SpotlightToken[] =
     agents.map((agent, index) => ({
       key: `agent-${agent.agent_id}`,
-      label: getInitials(agent.name),
+      label: get_initials(agent.name),
       agent_id: agent.agent_id,
       kind: "agent" as const,
       swatch: TOKEN_SWATCHES[index % TOKEN_SWATCHES.length],
@@ -123,7 +123,7 @@ function buildDecorativeTokens(
   const room_tokens: SpotlightToken[] =
     conversations_with_owners.slice(0, 8).map(({ conversation }, index) => ({
       key: `room-${conversation.session_key}`,
-      label: getInitials(conversation.title || "Room"),
+      label: get_initials(conversation.title || "Room"),
       agent_id: conversation.agent_id ?? null,
       kind: "room" as const,
       swatch: TOKEN_SWATCHES[(agent_tokens.length + index) % TOKEN_SWATCHES.length],
@@ -165,7 +165,7 @@ function buildDecorativeTokens(
   return source.slice(0, 12);
 }
 
-function buildLauncherMentionTargets(
+function build_launcher_mention_targets(
   agents: Agent[],
   rooms: RoomAggregate[],
   conversations_with_owners: ConversationWithOwner[],
@@ -190,7 +190,7 @@ function buildLauncherMentionTargets(
     if (!conversation.room_id || !conversation.conversation_id) {
       continue;
     }
-    const parsed_session_key = parseSessionKey(conversation.session_key);
+    const parsed_session_key = parse_session_key(conversation.session_key);
     if (parsed_session_key.chat_type !== "group") {
       continue;
     }
@@ -214,7 +214,7 @@ function buildLauncherMentionTargets(
   return [...agent_targets, ...room_targets];
 }
 
-function findLauncherMentionMatch(
+function find_launcher_mention_match(
   value: string,
   cursor_pos: number,
 ): LauncherMentionMatch | null {
@@ -235,7 +235,7 @@ function findLauncherMentionMatch(
 
 const MemoAgentPile = memo(AgentPile);
 
-function buildRecentLauncherEntries(
+function build_recent_launcher_entries(
   conversations_with_owners: ConversationWithOwner[],
 ): RecentLauncherEntry[] {
   const latest_dm_by_agent = new Map<string, RecentLauncherEntry>();
@@ -313,7 +313,7 @@ const HeroStage = memo(function HeroStage({
   }, [mention_match, mention_targets]);
 
   const sync_mention_match = useCallback((value: string, cursor_pos: number) => {
-    set_mention_match(findLauncherMentionMatch(value, cursor_pos));
+    set_mention_match(find_launcher_mention_match(value, cursor_pos));
   }, []);
 
   const handle_mention_close = useCallback(() => {
@@ -514,7 +514,7 @@ const HeroStage = memo(function HeroStage({
             {recent_entries.map((entry, index) => (
               <FadeSlideIn key={entry.key} delay_ms={580 + index * 55} duration_ms={360} y_offset={6} style={{ display: "inline-flex" }}>
                 <div className="group relative inline-flex">
-                  {isLauncherChipTruncated(entry.label) ? (
+                  {is_launcher_chip_truncated(entry.label) ? (
                     <div
                       className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[220px] -translate-x-1/2 translate-y-1 rounded-2xl px-3 py-2 text-center text-xs font-medium leading-5 opacity-0 shadow-[0_18px_42px_rgba(38,52,76,0.16)] transition duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
                       style={{
@@ -557,7 +557,7 @@ const HeroStage = memo(function HeroStage({
                       />
                     ) : null}
                     {entry.type === "room" ? "#" : ""}
-                    {truncateLauncherChipLabel(entry.label)}
+                    {truncate_launcher_chip_label(entry.label)}
                   </button>
                 </div>
               </FadeSlideIn>
@@ -618,17 +618,17 @@ export function LauncherConsole({
   }, [agents_by_id, conversations]);
 
   const decorative_tokens = useMemo(
-    () => buildDecorativeTokens(agents, conversations_with_owners),
+    () => build_decorative_tokens(agents, conversations_with_owners),
     [agents, conversations_with_owners],
   );
 
   const mention_targets = useMemo(
-    () => buildLauncherMentionTargets(agents, rooms, conversations_with_owners),
+    () => build_launcher_mention_targets(agents, rooms, conversations_with_owners),
     [agents, rooms, conversations_with_owners],
   );
 
   const recent_entries = useMemo(
-    () => buildRecentLauncherEntries(conversations_with_owners),
+    () => build_recent_launcher_entries(conversations_with_owners),
     [conversations_with_owners],
   );
 
@@ -637,7 +637,7 @@ export function LauncherConsole({
       try {
         if (entry.type === "dm" && entry.agent_id) {
           on_select_agent(entry.agent_id);
-          const context = await ensureDirectRoom(entry.agent_id);
+          const context = await ensure_direct_room(entry.agent_id);
           set_active_panel_item(context.room.id);
           navigate(
             AppRouteBuilders.room_conversation(
@@ -660,7 +660,7 @@ export function LauncherConsole({
           return;
         }
 
-        const contexts = await getRoomContexts(entry.room_id);
+        const contexts = await get_room_contexts(entry.room_id);
         if (contexts.length > 0) {
           set_active_panel_item(entry.room_id);
           navigate(AppRouteBuilders.room_conversation(entry.room_id, contexts[0].conversation.id));
@@ -679,11 +679,11 @@ export function LauncherConsole({
 
     setIsQueryLoading(true);
     try {
-      const action = await queryLauncher({ query: trimmed });
+      const action = await query_launcher({ query: trimmed });
 
       switch (action.action_type) {
         case "open_agent_dm": {
-          const context = await ensureDirectRoom(action.target_id);
+          const context = await ensure_direct_room(action.target_id);
           if (context) {
             set_active_panel_item(context.room.id);
             const route = AppRouteBuilders.room_conversation(context.room.id, context.conversation.id);
@@ -695,7 +695,7 @@ export function LauncherConsole({
           break;
         }
         case "open_room": {
-          const contexts = await getRoomContexts(action.target_id);
+          const contexts = await get_room_contexts(action.target_id);
           if (contexts.length > 0) {
             set_active_panel_item(action.target_id);
             const route = AppRouteBuilders.room_conversation(action.target_id, contexts[0].conversation.id);

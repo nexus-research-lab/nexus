@@ -18,10 +18,10 @@ import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { resolveAgentId } from "@/config/options";
-import { getConnectedCountApi } from "@/lib/connector-api";
-import { listScheduledTasksApi } from "@/lib/scheduled-task-api";
-import { getAvailableSkillsApi } from "@/lib/skill-api";
+import { resolve_agent_id } from "@/config/options";
+import { get_connected_count_api } from "@/lib/connector-api";
+import { list_scheduled_tasks_api } from "@/lib/scheduled-task-api";
+import { get_available_skills_api } from "@/lib/skill-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
@@ -34,14 +34,14 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   const navigate = useNavigate();
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-  const agent_id = resolveAgentId();
+  const agent_id = resolve_agent_id();
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [connector_count, set_connector_count] = useState(0);
   const [scheduled_task_enabled_count, set_scheduled_task_enabled_count] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void getAvailableSkillsApi()
+    void get_available_skills_api()
       .then((data) => {
         if (!cancelled) {
           set_skills(data.filter((skill) => skill.installed));
@@ -52,7 +52,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
           set_skills([]);
         }
       });
-    void getConnectedCountApi()
+    void get_connected_count_api()
       .then((count: number) => {
         if (!cancelled) {
           set_connector_count(count);
@@ -61,7 +61,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       .catch(() => { });
     const refresh_scheduled_task_count = async () => {
       try {
-        const tasks = await listScheduledTasksApi({ agent_id });
+        const tasks = await list_scheduled_tasks_api({ agent_id });
         if (!cancelled) {
           set_scheduled_task_enabled_count(tasks.filter((task) => task.enabled).length);
         }

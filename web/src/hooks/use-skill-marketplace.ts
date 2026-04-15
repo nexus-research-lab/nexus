@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  deleteSkillApi,
-  getExternalSkillPreviewApi,
-  getAvailableSkillsApi,
-  importSkillsShSkillApi,
-  importGitSkillApi,
-  importLocalSkillApi,
-  searchExternalSkillsApi,
-  updateImportedSkillsApi,
-  updateSingleSkillApi,
+  delete_skill_api,
+  get_external_skill_preview_api,
+  get_available_skills_api,
+  import_skills_sh_skill_api,
+  import_git_skill_api,
+  import_local_skill_api,
+  search_external_skills_api,
+  update_imported_skills_api,
+  update_single_skill_api,
 } from "@/lib/skill-api";
 import type { ExternalSkillSearchItem, SkillActionFailure, SkillInfo } from "@/types/skill";
 
 export type DiscoveryMode = "catalog" | "external";
 
-export function formatInstalls(n: number) {
+export function format_installs(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : `${n}`;
 }
 
@@ -43,7 +43,7 @@ export function useSkillMarketplace() {
   /* ── 数据加载 ───────────────────────────────── */
 
   const load_skills = useCallback(async (query: string) => {
-    const next_skills = await getAvailableSkillsApi({
+    const next_skills = await get_available_skills_api({
       q: query || undefined,
     });
     set_skills(next_skills);
@@ -91,7 +91,7 @@ export function useSkillMarketplace() {
         try {
           set_external_loading(true);
           set_error_message(null);
-          const results = await searchExternalSkillsApi(query, false);
+          const results = await search_external_skills_api(query, false);
           if (request_id !== external_search_request_ref.current) return;
           set_external_results(results);
         } catch (err) {
@@ -167,7 +167,7 @@ export function useSkillMarketplace() {
     clear_messages();
     try {
       set_busy_skill_name(skill_name);
-      await updateSingleSkillApi(skill_name);
+      await update_single_skill_api(skill_name);
       set_status_message(`已更新 ${skill_name}`);
       await refresh_marketplace();
     } catch (err) {
@@ -181,7 +181,7 @@ export function useSkillMarketplace() {
     clear_messages();
     try {
       set_busy_skill_name(skill.name);
-      await deleteSkillApi(skill.name);
+      await delete_skill_api(skill.name);
       set_status_message(`${skill.title || skill.name} 已从技能库删除`);
       if (selected_skill === skill.name) set_selected_skill(null);
       await refresh_marketplace();
@@ -195,7 +195,7 @@ export function useSkillMarketplace() {
   const handle_update_installed = useCallback(async () => {
     clear_messages();
     try {
-      const result = await updateImportedSkillsApi();
+      const result = await update_imported_skills_api();
       set_status_message(
         `更新完成：更新 ${result.updated_skills.length} 个，跳过 ${result.skipped_skills.length} 个`,
       );
@@ -213,7 +213,7 @@ export function useSkillMarketplace() {
   const handle_local_import = useCallback(async (file: File) => {
     clear_messages();
     try {
-      await importLocalSkillApi(file);
+      await import_local_skill_api(file);
       set_status_message(`已导入：${file.name}`);
       await refresh_marketplace();
     } catch (err) {
@@ -225,7 +225,7 @@ export function useSkillMarketplace() {
     clear_messages();
     if (!url.trim()) return;
     try {
-      await importGitSkillApi(url.trim());
+      await import_git_skill_api(url.trim());
       set_status_message("已通过 Git 导入");
       set_git_prompt_open(false);
       await refresh_marketplace();
@@ -241,7 +241,7 @@ export function useSkillMarketplace() {
     }
     try {
       set_external_preview_loading(true);
-      const result = await getExternalSkillPreviewApi(item.detail_url);
+      const result = await get_external_skill_preview_api(item.detail_url);
       set_preview_external_item((prev) => {
         if (!prev || prev.detail_url !== item.detail_url) return prev;
         return { ...prev, readme_markdown: result.readme_markdown };
@@ -258,7 +258,7 @@ export function useSkillMarketplace() {
     const external_key = `${item.package_spec}@@${item.skill_slug}`;
     try {
       set_busy_external_key(external_key);
-      await importSkillsShSkillApi(item.package_spec, item.skill_slug);
+      await import_skills_sh_skill_api(item.package_spec, item.skill_slug);
       set_status_message(`已导入：${item.skill_slug}`);
       await refresh_marketplace();
       set_preview_external_item(null);

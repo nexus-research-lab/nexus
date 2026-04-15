@@ -9,13 +9,13 @@ import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { ConnectorDetail } from "@/types/connector";
 
-import { getConnectorColors, getConnectorLetter } from "./connector-icons";
+import { get_connector_colors, get_connector_letter } from "./connector-icons";
 
 interface ConnectorDetailDialogProps {
   detail: ConnectorDetail | null;
@@ -42,8 +42,8 @@ export function ConnectorDetailDialog({
     [on_close],
   );
 
-  const colors = detail ? getConnectorColors(detail.icon) : { bg: "bg-(--surface-panel-subtle-background)", text: "text-(--text-muted)" };
-  const letter = detail ? getConnectorLetter(detail.icon, detail.title) : "?";
+  const colors = detail ? get_connector_colors(detail.icon) : { bg: "bg-(--surface-panel-subtle-background)", text: "text-(--text-muted)" };
+  const letter = detail ? get_connector_letter(detail.icon, detail.title) : "?";
   const is_connected = detail?.connection_state === "connected";
   const is_coming_soon = detail?.status === "coming_soon";
   const is_configured = detail?.is_configured ?? true;
@@ -143,7 +143,7 @@ export function ConnectorDetailDialog({
               )}
 
               {!is_coming_soon && (
-                <div className={getDialogNoteClassName("default")} style={getDialogNoteStyle("default")}>
+                <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
                   <div className="flex items-center gap-2 text-[13px] font-medium text-(--text-default)">
                     <Shield className="h-4 w-4" />
                     安全授权
@@ -155,7 +155,7 @@ export function ConnectorDetailDialog({
               )}
 
               {!is_connected && !is_coming_soon && !is_configured && detail.config_error ? (
-                <div className={getDialogNoteClassName("danger")} style={getDialogNoteStyle("danger")}>
+                <div className={get_dialog_note_class_name("danger")} style={get_dialog_note_style("danger")}>
                   {detail.config_error}
                 </div>
               ) : null}
@@ -180,7 +180,7 @@ export function ConnectorDetailDialog({
           <div className="dialog-footer flex-wrap gap-2">
             {is_connected ? (
               <button
-                className={getDialogActionClassName("default")}
+                className={get_dialog_action_class_name("default")}
                 disabled={busy}
                 onClick={() => on_disconnect(detail.connector_id)}
                 type="button"
@@ -190,7 +190,7 @@ export function ConnectorDetailDialog({
               </button>
             ) : (
               <button
-                className={getDialogActionClassName(is_configured ? "primary" : "default")}
+                className={get_dialog_action_class_name(is_configured ? "primary" : "default")}
                 disabled={busy || !is_configured}
                 onClick={() => on_connect(detail.connector_id)}
                 type="button"

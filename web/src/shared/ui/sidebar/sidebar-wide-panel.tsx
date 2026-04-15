@@ -13,13 +13,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { getDefaultAgentId, isMainAgent } from "@/config/options";
+import { get_default_agent_id, is_main_agent } from "@/config/options";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import { HomePanelContent } from "@/features/home/home-sidebar-panel";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
-import { resolveDirectRoomNavigationTarget } from "@/lib/direct-room-navigation";
+import { resolve_direct_room_navigation_target } from "@/lib/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/home-layout";
-import { cn, getIconAvatarSrc, getInitials } from "@/lib/utils";
+import { cn, get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
@@ -51,10 +51,10 @@ export function SidebarWidePanel() {
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
   const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
   const prefers_reduced_motion = usePrefersReducedMotion();
-  const default_agent_id = getDefaultAgentId();
-  const nexus_agent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
-  const nexus_avatar_src = getIconAvatarSrc(nexus_agent?.avatar);
-  const nexus_initials = getInitials(nexus_agent?.name, "NX", 2);
+  const default_agent_id = get_default_agent_id();
+  const nexus_agent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
+  const nexus_avatar_src = get_icon_avatar_src(nexus_agent?.avatar);
+  const nexus_initials = get_initials(nexus_agent?.name, "NX", 2);
   const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
     || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
 
@@ -158,7 +158,7 @@ export function SidebarWidePanel() {
     }
 
     set_active_panel_item(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
-    void resolveDirectRoomNavigationTarget(default_agent_id).then(({ route }) => {
+    void resolve_direct_room_navigation_target(default_agent_id).then(({ route }) => {
       navigate(route);
     }).catch((error) => {
       console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);

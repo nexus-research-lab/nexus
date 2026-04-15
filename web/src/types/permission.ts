@@ -83,7 +83,7 @@ export interface PendingPermissionMatchResult {
  * 这里先把当前 assistant 消息里仍未被 tool_result 收口的 tool_use 全部抽出来，
  * 后续所有权限绑定都只允许在这批候选里做精确匹配，不再跨消息猜测。
  */
-export function collectUnresolvedToolUseCandidates(
+export function collect_unresolved_tool_use_candidates(
   messages: Message[],
 ): PendingPermissionToolUseCandidate[] {
   const ordered_candidates: PendingPermissionToolUseCandidate[] = [];
@@ -130,7 +130,7 @@ export function collectUnresolvedToolUseCandidates(
  * 同一条 assistant message 内如果有多个 tool_use，再用后端原样携带的工具载荷做精确定位；
  * 一旦缺少 `message_id` 或载荷不一致，就保留成未匹配卡片，不走跨消息签名兜底。
  */
-export function matchPendingPermissionsToToolUses(
+export function match_pending_permissions_to_tool_uses(
   pending_permissions: PendingPermission[],
   candidates: PendingPermissionToolUseCandidate[],
 ): PendingPermissionMatchResult {
@@ -155,7 +155,7 @@ export function matchPendingPermissionsToToolUses(
       continue;
     }
 
-    const matched_index = queue.findIndex((candidate) => isSameToolInvocation(permission, candidate));
+    const matched_index = queue.findIndex((candidate) => is_same_tool_invocation(permission, candidate));
     if (matched_index < 0) {
       continue;
     }
@@ -178,17 +178,17 @@ export function matchPendingPermissionsToToolUses(
   };
 }
 
-function isSameToolInvocation(
+function is_same_tool_invocation(
   permission: PendingPermission,
   candidate: PendingPermissionToolUseCandidate,
 ): boolean {
   return (
     permission.tool_name === candidate.tool_name
-    && stableStringify(permission.tool_input) === stableStringify(candidate.tool_input)
+    && stable_stringify(permission.tool_input) === stable_stringify(candidate.tool_input)
   );
 }
 
-function stableStringify(value: unknown): string {
+function stable_stringify(value: unknown): string {
   if (value == null) {
     return 'null';
   }
@@ -199,12 +199,12 @@ function stableStringify(value: unknown): string {
     return String(value);
   }
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    return `[${value.map((item) => stable_stringify(item)).join(',')}]`;
   }
   if (typeof value === 'object') {
     return `{${Object.keys(value as Record<string, unknown>)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${stable_stringify((value as Record<string, unknown>)[key])}`)
       .join(',')}}`;
   }
   return JSON.stringify(String(value));

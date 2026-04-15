@@ -12,9 +12,9 @@ import {
 } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import {
-  buildRoomAgentRoundEntries,
+  build_room_agent_round_entries,
   RoomAgentRoundEntry,
-  isAgentRoundActive,
+  is_agent_round_active,
 } from "@/features/conversation/shared/utils";
 import { AgentStatusCard } from "./agent-status-card";
 import { useRoomThread } from "./room-thread-state";
@@ -123,7 +123,7 @@ function RoomRoundCardGroupInner({
   );
 
   const agent_entries = useMemo(() => {
-    return buildRoomAgentRoundEntries(messages, pending_slots).map((entry) => ({
+    return build_room_agent_round_entries(messages, pending_slots).map((entry) => ({
       ...entry,
       agent_name: agent_name_map?.[entry.agent_id] ?? entry.agent_id,
       agent_avatar: agent_avatar_map?.[entry.agent_id] ?? null,
@@ -212,7 +212,7 @@ function RoomRoundCardGroupInner({
                       can_respond_to_permissions={can_respond_to_permissions}
                       permission_read_only_reason={permission_read_only_reason}
                       on_stop_message={
-                        entry.pending_slot && on_stop_message && isAgentRoundActive(entry.status)
+                        entry.pending_slot && on_stop_message && is_agent_round_active(entry.status)
                           ? () => on_stop_message(entry.pending_slot!.msg_id)
                           : undefined
                       }

@@ -15,7 +15,7 @@ import { ComponentPropsWithoutRef, CSSProperties, ReactNode, useEffect, useId, u
 
 import { cn } from "@/lib/utils";
 
-import { getLiquidGlassAssets, supportsTrueLiquidGlass } from "./liquid-glass-engine";
+import { get_liquid_glass_assets, supports_true_liquid_glass } from "./liquid-glass-engine";
 import { LIQUID_GLASS_VARIANTS, LiquidGlassVariant } from "./liquid-glass-presets";
 
 type LiquidGlassTagName = "aside" | "button" | "div" | "main" | "section";
@@ -90,7 +90,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
 
   useEffect(() => {
     // 中文注释：默认全部退回静态材质，只有显式声明的原语才允许尝试真折射。
-    set_can_use_true_glass(enable_true_glass && supportsTrueLiquidGlass());
+    set_can_use_true_glass(enable_true_glass && supports_true_liquid_glass());
   }, [enable_true_glass]);
 
   const assets = useMemo(() => {
@@ -98,7 +98,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
       return null;
     }
 
-    return getLiquidGlassAssets({
+    return get_liquid_glass_assets({
       width: size.width,
       height: size.height,
       radius,

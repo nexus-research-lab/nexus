@@ -7,10 +7,10 @@
  * =====================================================
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/http";
 
-const AUTH_API_BASE_URL = getAgentApiBaseUrl();
+const AUTH_API_BASE_URL = get_agent_api_base_url();
 
 export interface AuthStatus {
   auth_required: boolean;
@@ -24,14 +24,14 @@ export interface LoginParams {
   password: string;
 }
 
-export async function getAuthStatus(): Promise<AuthStatus> {
+export async function get_auth_status(): Promise<AuthStatus> {
   return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
     method: "GET",
     notify_on_401: false,
   });
 }
 
-export async function loginApi(params: LoginParams): Promise<AuthStatus> {
+export async function login_api(params: LoginParams): Promise<AuthStatus> {
   return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/login`, {
     method: "POST",
     notify_on_401: false,
@@ -42,7 +42,7 @@ export async function loginApi(params: LoginParams): Promise<AuthStatus> {
   });
 }
 
-export async function logoutApi(): Promise<AuthStatus> {
+export async function logout_api(): Promise<AuthStatus> {
   return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/logout`, {
     method: "POST",
     notify_on_401: false,

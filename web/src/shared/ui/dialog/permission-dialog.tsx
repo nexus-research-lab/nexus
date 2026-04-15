@@ -16,9 +16,9 @@ import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { PermissionRiskLevel, PermissionUpdate } from "@/types/permission";
 
@@ -51,17 +51,17 @@ const FIELD_LABEL_MAP: Record<string, string> = {
   answers: '回答',
 };
 
-const formatInlineValue = (value: unknown): string => {
+const format_inline_value = (value: unknown): string => {
   if (value == null || value === '') return '空';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) {
-    return value.map((item) => formatInlineValue(item)).join('、');
+    return value.map((item) => format_inline_value(item)).join('、');
   }
   if (typeof value === 'object') {
     const pairs = Object.entries(value as Record<string, unknown>)
       .slice(0, 4)
-      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${formatInlineValue(nestedValue)}`);
+      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${format_inline_value(nestedValue)}`);
     return pairs.join('；');
   }
   return String(value);
@@ -111,7 +111,7 @@ export function PermissionDialog(
     return Object.entries(tool_input).map(([key, value]) => ({
       key,
       label: FIELD_LABEL_MAP[key] || key,
-      value: formatInlineValue(value),
+      value: format_inline_value(value),
     }));
   }, [tool_input]);
 
@@ -128,19 +128,19 @@ export function PermissionDialog(
   }, [is_open]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handle_key_down = (event: KeyboardEvent) => {
       if (!is_open) return;
       if (event.key === "Escape") {
         event.preventDefault();
         on_close();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_close]);
 
   // 格式化显示工具输入参数
-  const formatToolInput = () => {
+  const format_tool_input = () => {
     if (readableFields.length === 0) return null;
 
     return (
@@ -226,7 +226,7 @@ export function PermissionDialog(
             ) : null}
           </div>
 
-          <div className={getDialogNoteClassName("default")} style={getDialogNoteStyle("default")}>
+          <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
             <div className="text-[15px] leading-8 break-words text-(--text-default)">
               {summary || "确认后继续执行"}
             </div>
@@ -286,19 +286,19 @@ export function PermissionDialog(
             </div>
           )}
 
-          {formatToolInput()}
+          {format_tool_input()}
         </div>
 
         <div className="dialog-footer">
           <button
-            className={getDialogActionClassName("default")}
+            className={get_dialog_action_class_name("default")}
             onClick={() => on_deny()}
             type="button"
           >
             拒绝
           </button>
           <button
-            className={getDialogActionClassName("primary")}
+            className={get_dialog_action_class_name("primary")}
             ref={confirmButtonRef}
             onClick={() => {
               const selectedUpdate = selectedSuggestionIndex >= 0

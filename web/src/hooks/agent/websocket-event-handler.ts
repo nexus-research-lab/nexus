@@ -14,12 +14,12 @@ import {
 } from '@/types/agent-conversation';
 import { WorkspaceEventPayload } from '@/types/workspace-live';
 
-import { applyStreamMessage, normalizeAssistantMessage, upsertMessage } from './message-helpers';
+import { apply_stream_message, normalize_assistant_message, upsert_message } from './message-helpers';
 
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
-export function handleAgentConversationWebSocketMessage({
+export function handle_agent_conversation_web_socket_message({
   backend_message,
   apply_workspace_event,
   is_current_session_event,
@@ -210,7 +210,7 @@ export function handleAgentConversationWebSocketMessage({
     if (enqueue_stream_payload) {
       enqueue_stream_payload(payload);
     } else {
-      set_messages((prev) => applyStreamMessage(prev, payload));
+      set_messages((prev) => apply_stream_message(prev, payload));
     }
     return;
   }
@@ -232,11 +232,11 @@ export function handleAgentConversationWebSocketMessage({
 
   const normalized_payload = (
     payload.role === 'assistant'
-      ? normalizeAssistantMessage(payload as AssistantMessage)
+      ? normalize_assistant_message(payload as AssistantMessage)
       : payload
   );
 
-  set_messages((prev) => upsertMessage(prev, normalized_payload));
+  set_messages((prev) => upsert_message(prev, normalized_payload));
   if (payload.role === 'result') {
     return;
   }

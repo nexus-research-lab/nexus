@@ -14,11 +14,11 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getDefaultAgentId, isMainAgent } from "@/config/options";
+import { get_default_agent_id, is_main_agent } from "@/config/options";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
-import { getLauncherSurfaceThemeStyle } from "@/features/launcher/launcher-surface-theme";
+import { get_launcher_surface_theme_style } from "@/features/launcher/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/use-launcher-page-controller";
-import { resolveDirectRoomNavigationTarget } from "@/lib/direct-room-navigation";
+import { resolve_direct_room_navigation_target } from "@/lib/direct-room-navigation";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useTheme } from "@/shared/theme/theme-context";
@@ -32,18 +32,18 @@ export function LauncherPage() {
   const controller = useLauncherPageController();
   const navigate = useNavigate();
   const set_active_panel_item = useSidebarStore((state) => state.set_active_panel_item);
-  const default_agent_id = getDefaultAgentId();
+  const default_agent_id = get_default_agent_id();
   const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
 
   const open_agent_dm = useCallback((agent_id: string, initial_prompt?: string) => {
-    const next_active_item_id = isMainAgent(agent_id)
+    const next_active_item_id = is_main_agent(agent_id)
       ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
       : agent_id;
     set_active_panel_item(next_active_item_id);
 
-    void resolveDirectRoomNavigationTarget(agent_id, initial_prompt).then(({ context, route }) => {
+    void resolve_direct_room_navigation_target(agent_id, initial_prompt).then(({ context, route }) => {
       controller.handle_select_agent(agent_id);
-      set_active_panel_item(isMainAgent(agent_id) ? SIDEBAR_SYSTEM_ITEM_IDS.nexus : context.room.id);
+      set_active_panel_item(is_main_agent(agent_id) ? SIDEBAR_SYSTEM_ITEM_IDS.nexus : context.room.id);
       navigate(route);
     }).catch((error) => {
       console.error("[LauncherPage] 打开 Agent DM 失败:", error);
@@ -79,7 +79,7 @@ export function LauncherPage() {
       return;
     }
 
-    const { context, route } = await resolveDirectRoomNavigationTarget(next_agent_id);
+    const { context, route } = await resolve_direct_room_navigation_target(next_agent_id);
     set_active_panel_item(context.room.id);
     navigate(route);
   }, [controller, navigate, set_active_panel_item]);
@@ -110,7 +110,7 @@ export function LauncherPage() {
     <>
       <div
         className="relative flex min-h-0 flex-1 overflow-hidden"
-        style={getLauncherSurfaceThemeStyle(theme)}
+        style={get_launcher_surface_theme_style(theme)}
       >
         <LauncherConsole
           agents={controller.agents}

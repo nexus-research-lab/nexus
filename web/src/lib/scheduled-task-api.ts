@@ -4,7 +4,7 @@
  * 对齐 capability/scheduled/tasks 的结构化自动化任务接口。
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/http";
 import type {
   ApiScheduledTask,
@@ -20,7 +20,7 @@ import type {
   UpdateScheduledTaskStatusParams,
 } from "@/types/scheduled-task";
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/tasks`;
 
 function to_timestamp(value?: string | null): number | null {
@@ -68,7 +68,7 @@ function build_query(params: Record<string, string | undefined>): string {
   return query_string ? `?${query_string}` : "";
 }
 
-export async function listScheduledTasksApi(
+export async function list_scheduled_tasks_api(
   params?: ListScheduledTasksParams,
 ): Promise<ScheduledTaskItem[]> {
   const result = await request_api<ApiScheduledTask[]>(
@@ -84,7 +84,7 @@ export async function listScheduledTasksApi(
   return result.map(transform_task);
 }
 
-export async function createScheduledTaskApi(
+export async function create_scheduled_task_api(
   params: CreateScheduledTaskParams,
 ): Promise<ScheduledTaskItem> {
   const result = await request_api<ApiScheduledTask>(SCHEDULED_TASKS_API_BASE_URL, {
@@ -96,7 +96,7 @@ export async function createScheduledTaskApi(
   return transform_task(result);
 }
 
-export async function updateScheduledTaskApi(
+export async function update_scheduled_task_api(
   job_id: string,
   params: UpdateScheduledTaskParams,
 ): Promise<ScheduledTaskItem> {
@@ -112,7 +112,7 @@ export async function updateScheduledTaskApi(
   return transform_task(result);
 }
 
-export async function deleteScheduledTaskApi(
+export async function delete_scheduled_task_api(
   job_id: string,
 ): Promise<DeleteScheduledTaskResponse> {
   return request_api<DeleteScheduledTaskResponse>(
@@ -124,7 +124,7 @@ export async function deleteScheduledTaskApi(
   );
 }
 
-export async function runScheduledTaskApi(
+export async function run_scheduled_task_api(
   job_id: string,
 ): Promise<ScheduledTaskRunNowResponse> {
   const result = await request_api<ApiScheduledTaskExecutionResult>(
@@ -138,7 +138,7 @@ export async function runScheduledTaskApi(
   return transform_run_now_result(result);
 }
 
-export async function updateScheduledTaskStatusApi(
+export async function update_scheduled_task_status_api(
   job_id: string,
   params: UpdateScheduledTaskStatusParams,
 ): Promise<ScheduledTaskItem> {
@@ -154,7 +154,7 @@ export async function updateScheduledTaskStatusApi(
   return transform_task(result);
 }
 
-export async function listScheduledTaskRunsApi(
+export async function list_scheduled_task_runs_api(
   job_id: string,
 ): Promise<ScheduledTaskRunItem[]> {
   const result = await request_api<ApiScheduledTaskRun[]>(

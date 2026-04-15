@@ -18,7 +18,7 @@ import {
     AskUserQuestionInput,
     UserQuestion,
     UserQuestionAnswer,
-    isAskUserQuestionTimedOutResult,
+    is_ask_user_question_timed_out_result,
 } from '@/types/ask-user-question';
 import { ToolResultContent, ToolUseContent } from '@/types/message';
 import { MessageRail } from '../message-rail';
@@ -44,7 +44,7 @@ interface AskUserQuestionBlockProps {
     interaction_disabled_reason?: string;
 }
 
-function normalizeQuestion(question: UserQuestion): UserQuestion {
+function normalize_question(question: UserQuestion): UserQuestion {
     return {
         ...question,
         // 兼容 SDK 直接透传的 camelCase 字段，组件内部统一使用 snake_case。
@@ -250,7 +250,7 @@ export function AskUserQuestionBlock({
     // 解析输入
     const input = tool_use.input as AskUserQuestionInput;
     const questions = useMemo(
-        () => (input?.questions || []).map(normalizeQuestion),
+        () => (input?.questions || []).map(normalize_question),
         [input?.questions],
     );
 
@@ -265,7 +265,7 @@ export function AskUserQuestionBlock({
         questions.forEach((_, index) => map.set(index, ''));
         return map;
     });
-    const isTimedOut = isAskUserQuestionTimedOutResult(tool_result);
+    const isTimedOut = is_ask_user_question_timed_out_result(tool_result);
     const isFailed = Boolean(tool_result?.is_error && !isTimedOut);
     const [hasLocalSubmission, setHasLocalSubmission] = useState(false);
     const isSubmitted = initialSubmitted || hasLocalSubmission;

@@ -15,16 +15,16 @@ import {
   X,
 } from "lucide-react";
 
-import { deleteSkillApi, getSkillDetailApi, updateSingleSkillApi } from "@/lib/skill-api";
+import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/skill-api";
 import { cn } from "@/lib/utils";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { SkillDetail } from "@/types/skill";
 
@@ -75,7 +75,7 @@ export function SkillDetailDialog({
     try {
       set_loading(true);
       set_error(null);
-      const detail = await getSkillDetailApi(skill_name);
+      const detail = await get_skill_detail_api(skill_name);
       set_skill(detail);
     } catch (err) {
       set_error(err instanceof Error ? err.message : "加载 skill 详情失败");
@@ -92,7 +92,7 @@ export function SkillDetailDialog({
     if (!skill) return;
     try {
       set_acting(true);
-      await updateSingleSkillApi(skill.name);
+      await update_single_skill_api(skill.name);
       await Promise.resolve(on_refresh());
       await load_detail();
     } catch (err) {
@@ -106,7 +106,7 @@ export function SkillDetailDialog({
     if (!skill || !skill.deletable) return;
     try {
       set_acting(true);
-      await deleteSkillApi(skill.name);
+      await delete_skill_api(skill.name);
       await Promise.resolve(on_refresh());
       on_close();
     } catch (err) {
@@ -191,7 +191,7 @@ export function SkillDetailDialog({
               ) : null}
 
               {error ? (
-                <div className={getDialogNoteClassName("danger", "mb-5")} style={getDialogNoteStyle("danger")}>
+                <div className={get_dialog_note_class_name("danger", "mb-5")} style={get_dialog_note_style("danger")}>
                   {error}
                 </div>
               ) : null}
@@ -212,7 +212,7 @@ export function SkillDetailDialog({
         <div className="dialog-footer flex-wrap gap-2">
           {skill?.locked ? (
           <button
-              className={cn(getDialogActionClassName("default"), "text-amber-700")}
+              className={cn(get_dialog_action_class_name("default"), "text-amber-700")}
               disabled
               type="button"
             >
@@ -222,7 +222,7 @@ export function SkillDetailDialog({
             <>
               {skill.source_type === "external" && skill.has_update ? (
                 <button
-                  className={getDialogActionClassName("primary")}
+                  className={get_dialog_action_class_name("primary")}
                   disabled={acting}
                   onClick={() => void handle_update()}
                   type="button"
@@ -241,7 +241,7 @@ export function SkillDetailDialog({
               )}
               {skill.deletable ? (
                 <button
-                  className={getDialogActionClassName("danger")}
+                  className={get_dialog_action_class_name("danger")}
                   disabled={acting}
                   onClick={() => void handle_delete()}
                   type="button"

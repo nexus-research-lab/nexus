@@ -1,7 +1,7 @@
 import { SetStateAction, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
-import { getAgentWsUrl } from '@/config/options';
-import { areEquivalentSessionKeys } from '@/lib/session-key';
-import { getBrowserClientId } from '@/lib/uuid';
+import { get_agent_ws_url } from '@/config/options';
+import { are_equivalent_session_keys } from '@/lib/session-key';
+import { get_browser_client_id } from '@/lib/uuid';
 import { useWebSocket } from '@/lib/websocket';
 import { useWorkspaceLiveStore } from '@/store/workspace-live';
 import {
@@ -14,8 +14,8 @@ import {
   WebSocketState,
 } from '@/types';
 import {
-  collectUnresolvedToolUseCandidates,
-  matchPendingPermissionsToToolUses,
+  collect_unresolved_tool_use_candidates,
+  match_pending_permissions_to_tool_uses,
   PendingPermission,
   PermissionDecisionPayload,
 } from '@/types/permission';
@@ -27,29 +27,29 @@ import {
   RoomEventPayload,
   UseAgentConversationOptions,
   UseAgentConversationReturn,
-  getAgentConversationIdentityKey,
+  get_agent_conversation_identity_key,
 } from '@/types/agent-conversation';
 import { AssistantMessage, AssistantMessageStatus, RoomPendingAgentSlotState } from '@/types';
-import { upsertMessage } from './message-helpers';
+import { upsert_message } from './message-helpers';
 import {
-  clearAgentSession,
-  loadAgentSession,
-  resetAgentSession,
-  startAgentSession,
+  clear_agent_session,
+  load_agent_session,
+  reset_agent_session,
+  start_agent_session,
 } from './conversation-lifecycle';
-import { applyStreamMessage, dedupeMessagesById } from './message-helpers';
-import { handleAgentConversationWebSocketMessage } from './websocket-event-handler';
+import { apply_stream_message, dedupe_messages_by_id } from './message-helpers';
+import { handle_agent_conversation_web_socket_message } from './websocket-event-handler';
 import {
-  sendSessionMessage,
-  sendSessionPermissionResponse,
-  stopSessionGeneration,
+  send_session_message,
+  send_session_permission_response,
+  stop_session_generation,
 } from './conversation-actions';
 import {
   AgentConversationRuntimeMachine,
   AgentConversationRuntimeSnapshot,
 } from './agent-conversation-runtime-machine';
 
-function filterPendingSlotsFromSnapshot(
+function filter_pending_slots_from_snapshot(
   current_slots: RoomPendingAgentSlotState[],
   messages: Message[],
   is_round_terminal: (round_id: string) => boolean,
@@ -69,7 +69,7 @@ function filterPendingSlotsFromSnapshot(
   ));
 }
 
-function filterPendingPermissionsFromSnapshot(
+function filter_pending_permissions_from_snapshot(
   current_permissions: PendingPermission[],
   messages: Message[],
   is_round_terminal: (round_id: string) => boolean,
@@ -78,8 +78,8 @@ function filterPendingPermissionsFromSnapshot(
     return current_permissions;
   }
   const loaded_assistant_message_ids = new Set<string>();
-  const unresolved_tool_use_candidates = collectUnresolvedToolUseCandidates(messages);
-  const permission_match_result = matchPendingPermissionsToToolUses(
+  const unresolved_tool_use_candidates = collect_unresolved_tool_use_candidates(messages);
+  const permission_match_result = match_pending_permissions_to_tool_uses(
     current_permissions,
     unresolved_tool_use_candidates,
   );
@@ -109,7 +109,7 @@ function filterPendingPermissionsFromSnapshot(
   });
 }
 
-function areRuntimeSnapshotsEqual(
+function are_runtime_snapshots_equal(
   left: AgentConversationRuntimeSnapshot,
   right: AgentConversationRuntimeSnapshot,
 ): boolean {
@@ -131,7 +131,7 @@ function get_terminal_message_status(status: RoundLifecycleStatus): AssistantMes
 }
 
 export function useAgentConversation(options: UseAgentConversationOptions = {}): UseAgentConversationReturn {
-  const ws_url = options.ws_url || getAgentWsUrl();
+  const ws_url = options.ws_url || get_agent_ws_url();
   const identity = options.identity ?? null;
   const agent_id = identity?.agent_id ?? null;
   const room_id = identity?.room_id ?? null;
@@ -157,8 +157,8 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [session_observer_count, set_session_observer_count] = useState(0);
 
   const active_session_key_ref = useRef<string | null>(identity?.session_key ?? null);
-  const active_identity_key_ref = useRef<string | null>(getAgentConversationIdentityKey(identity));
-  const browser_client_id_ref = useRef<string>(getBrowserClientId());
+  const active_identity_key_ref = useRef<string | null>(get_agent_conversation_identity_key(identity));
+  const browser_client_id_ref = useRef<string>(get_browser_client_id());
   const load_request_id_ref = useRef(0);
   const session_seq_cursor_ref = useRef(0);
   const room_seq_cursor_ref = useRef(0);
@@ -182,7 +182,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
           ? next_state(current_messages)
           : next_state
       );
-      return dedupeMessagesById(next_messages);
+      return dedupe_messages_by_id(next_messages);
     });
   }, []);
 
@@ -201,7 +201,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const sync_runtime_snapshot = useCallback(() => {
     const next_snapshot = runtime_machine_ref.current.snapshot();
     set_runtime_snapshot((current_snapshot) => (
-      areRuntimeSnapshotsEqual(current_snapshot, next_snapshot)
+      are_runtime_snapshots_equal(current_snapshot, next_snapshot)
         ? current_snapshot
         : next_snapshot
     ));
@@ -245,13 +245,13 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     if (!incoming_session_key) {
       return false;
     }
-    return areEquivalentSessionKeys(active_session_key_ref.current, incoming_session_key);
+    return are_equivalent_session_keys(active_session_key_ref.current, incoming_session_key);
   }, []);
 
   const on_background_message = useCallback((key: string, message: Message) => {
     const cache = bg_message_cache_ref.current;
     const existing = cache.get(key) ?? [];
-    const next = upsertMessage(existing, message);
+    const next = upsert_message(existing, message);
     cache.set(key, next);
   }, []);
 
@@ -280,14 +280,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     const is_round_terminal = (round_id: string) => runtime_machine_ref.current.is_round_terminal(round_id);
 
     set_pending_agent_slots(
-      filterPendingSlotsFromSnapshot(
+      filter_pending_slots_from_snapshot(
         pending_agent_slots_ref.current,
         snapshot_messages,
         is_round_terminal,
       ),
     );
     set_pending_permissions(
-      filterPendingPermissionsFromSnapshot(
+      filter_pending_permissions_from_snapshot(
         pending_permissions_ref.current,
         snapshot_messages,
         is_round_terminal,
@@ -329,7 +329,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       return;
     }
 
-    await loadAgentSession(active_session_key, lifecycle_context, true);
+    await load_agent_session(active_session_key, lifecycle_context, true);
   }, [lifecycle_context]);
 
   const flush_stream_buffer = useCallback(() => {
@@ -342,7 +342,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_messages((prev) => {
         let next = prev;
         for (const payload of payloads) {
-          next = applyStreamMessage(next, payload);
+          next = apply_stream_message(next, payload);
         }
         return next;
       });
@@ -635,7 +635,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       return;
     }
 
-    handleAgentConversationWebSocketMessage({
+    handle_agent_conversation_web_socket_message({
       backend_message,
       apply_workspace_event,
       is_current_session_event,
@@ -681,7 +681,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [chat_type, sync_runtime_snapshot]);
 
   useEffect(() => {
-    const next_identity_key = getAgentConversationIdentityKey(identity);
+    const next_identity_key = get_agent_conversation_identity_key(identity);
     if (active_identity_key_ref.current === next_identity_key) {
       return;
     }
@@ -835,7 +835,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }), [identity, session_key, ws_state, session_control_state, ws_send, pending_permissions, pending_agent_slots, messages, set_error, set_messages, set_pending_agent_slots, set_pending_permissions]);
 
   const send_message = useCallback(async (content: string) => {
-    const round_id = await sendSessionMessage(content, action_context);
+    const round_id = await send_session_message(content, action_context);
     if (!round_id) {
       return;
     }
@@ -846,7 +846,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [action_context, apply_runtime_transition]);
 
   const stop_generation = useCallback((msg_id?: string) => {
-    stopSessionGeneration(action_context, msg_id);
+    stop_session_generation(action_context, msg_id);
     if (msg_id) {
       apply_runtime_transition((machine) => {
         machine.update_message_status(msg_id, 'cancelled');
@@ -864,21 +864,21 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [action_context, apply_runtime_transition, set_pending_agent_slots]);
 
   const send_permission_response = useCallback((payload: PermissionDecisionPayload) => {
-    return sendSessionPermissionResponse(payload, action_context);
+    return send_session_permission_response(payload, action_context);
   }, [action_context]);
 
   const start_session = useCallback(() => {
-    startAgentSession(lifecycle_context);
+    start_agent_session(lifecycle_context);
     reset_runtime_machine();
     set_agent_thinking(null);
   }, [lifecycle_context, reset_runtime_machine]);
 
   const load_session = useCallback(async (id: string): Promise<void> => {
-    await loadAgentSession(id, lifecycle_context);
+    await load_agent_session(id, lifecycle_context);
   }, [lifecycle_context]);
 
   const clear_session = useCallback(() => {
-    clearAgentSession(lifecycle_context);
+    clear_agent_session(lifecycle_context);
     reset_runtime_machine();
     set_agent_thinking(null);
   }, [lifecycle_context, reset_runtime_machine]);
@@ -908,7 +908,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [reset_runtime_machine, reset_session_control, set_is_session_loading, set_pending_agent_slots, set_pending_permissions]);
 
   const reset_session = useCallback(() => {
-    resetAgentSession(lifecycle_context);
+    reset_agent_session(lifecycle_context);
     reset_runtime_machine();
     set_agent_thinking(null);
   }, [lifecycle_context, reset_runtime_machine]);

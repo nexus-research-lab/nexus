@@ -40,11 +40,11 @@ export const REHYPE_PLUGINS = [rehypeKatex];
 export const MARKDOWN_BODY_CLASS_NAME = "message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-(--divider-subtle-color)";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
 
-function normalizeWorkspaceReference(value: string): string {
+function normalize_workspace_reference(value: string): string {
   return value.replace(/^[("'`【]+|[)"'`】,，。；：:!?]+$/g, "");
 }
 
-function looksLikeWorkspaceFileReference(value: string): boolean {
+function looks_like_workspace_file_reference(value: string): boolean {
   if (!value.includes(".") || /^https?:\/\//i.test(value) || value.startsWith("/")) {
     return false;
   }
@@ -52,9 +52,9 @@ function looksLikeWorkspaceFileReference(value: string): boolean {
   return /[A-Za-z0-9]/.test(value);
 }
 
-function resolveWorkspaceFileReference(value: string, files: WorkspaceFileEntry[]): string | null {
-  const normalized = normalizeWorkspaceReference(value);
-  if (!looksLikeWorkspaceFileReference(normalized)) {
+function resolve_workspace_file_reference(value: string, files: WorkspaceFileEntry[]): string | null {
+  const normalized = normalize_workspace_reference(value);
+  if (!looks_like_workspace_file_reference(normalized)) {
     return null;
   }
 
@@ -68,7 +68,7 @@ function resolveWorkspaceFileReference(value: string, files: WorkspaceFileEntry[
   return basename_matches.length === 1 ? basename_matches[0].path : null;
 }
 
-function isBlockCode(node: MarkdownNodeLike | null | undefined, class_name: string | undefined, value: string): boolean {
+function is_block_code(node: MarkdownNodeLike | null | undefined, class_name: string | undefined, value: string): boolean {
   if (class_name && /language-\w+/.test(class_name)) {
     return true;
   }
@@ -112,12 +112,12 @@ export function useMarkdownFileResolver(): ResolveWorkspaceFilePath {
   );
 
   return useCallback(
-    (value: string) => resolveWorkspaceFileReference(value, agent_files),
+    (value: string) => resolve_workspace_file_reference(value, agent_files),
     [agent_files],
   );
 }
 
-export function normalizeMarkdownContent(
+export function normalize_markdown_content(
   content: string,
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
@@ -128,7 +128,7 @@ export function normalizeMarkdownContent(
   });
 }
 
-export function createMarkdownComponents(
+export function create_markdown_components(
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
 ): Components {
@@ -138,7 +138,7 @@ export function createMarkdownComponents(
     },
     code({ children, className, node }) {
       const value = String(children).replace(/\n$/, "");
-      if (isBlockCode(node as MarkdownNodeLike | undefined, className, value)) {
+      if (is_block_code(node as MarkdownNodeLike | undefined, className, value)) {
         const language = /language-(\w+)/.exec(className || "")?.[1] || "text";
         return <CodeBlock language={language} value={value} />;
       }
@@ -228,11 +228,11 @@ export function createMarkdownComponents(
   };
 }
 
-export function createMarkdownSummaryComponents(
+export function create_markdown_summary_components(
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
 ): Components {
-  const base_components = createMarkdownComponents(resolve_file_path, on_open_workspace_file);
+  const base_components = create_markdown_components(resolve_file_path, on_open_workspace_file);
 
   return {
     ...base_components,

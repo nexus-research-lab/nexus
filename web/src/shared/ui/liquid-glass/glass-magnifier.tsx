@@ -21,7 +21,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import { supportsTrueLiquidGlass } from "./liquid-glass-engine";
+import { supports_true_liquid_glass } from "./liquid-glass-engine";
 
 interface GlassMagnifierProps {
   children?: ReactNode;
@@ -45,7 +45,7 @@ const MAGNIFYING_MAP_URL = "/liquid-glass/magnifier-magnifying-map.png";
 const DISPLACEMENT_MAP_URL = "/liquid-glass/magnifier-displacement-map.png";
 const SPECULAR_MAP_URL = "/liquid-glass/magnifier-specular-map.png";
 
-function buildGlassSurfaceStyle(filter_id: string | null): CSSProperties {
+function build_glass_surface_style(filter_id: string | null): CSSProperties {
   return {
     borderRadius: `${BASE_LENS_RADIUS}px`,
     boxShadow: "rgba(0, 0, 0, 0.16) 0px 4px 9px, rgba(0, 0, 0, 0.2) 0px 2px 24px inset, rgba(255, 255, 255, 0.2) 0px -2px 24px inset",
@@ -66,7 +66,7 @@ export function GlassMagnifier({
 }: GlassMagnifierProps) {
   const raw_filter_id = useId();
   const filter_id = `glass-magnifier-${raw_filter_id.replace(/:/g, "")}`;
-  const [can_use_true_glass, set_can_use_true_glass] = useState<boolean>(() => supportsTrueLiquidGlass());
+  const [can_use_true_glass, set_can_use_true_glass] = useState<boolean>(() => supports_true_liquid_glass());
   const root_ref = useRef<HTMLDivElement | null>(null);
   const shell_ref = useRef<HTMLDivElement | null>(null);
   const content_ref = useRef<HTMLDivElement | null>(null);
@@ -206,7 +206,7 @@ export function GlassMagnifier({
   }, [settleHoverWave]);
 
   useEffect(() => {
-    set_can_use_true_glass(supportsTrueLiquidGlass());
+    set_can_use_true_glass(supports_true_liquid_glass());
   }, []);
 
   useEffect(() => {
@@ -349,7 +349,7 @@ export function GlassMagnifier({
           className="absolute left-0 top-0 origin-top-left ring-1 ring-black/10 dark:ring-white/10"
           ref={shell_ref}
           style={{
-            ...buildGlassSurfaceStyle(can_use_true_glass ? filter_id : null),
+            ...build_glass_surface_style(can_use_true_glass ? filter_id : null),
             height: `${BASE_LENS_HEIGHT}px`,
             transform: idle_transform,
             width: `${BASE_LENS_WIDTH}px`,

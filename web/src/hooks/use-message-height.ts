@@ -24,7 +24,7 @@ type HeightEstimate = {
   height: number;
 };
 
-function estimateTextHeight(text: string, containerWidth: number): number {
+function estimate_text_height(text: string, containerWidth: number): number {
   if (!text.trim()) return 0;
   try {
     const prepared = prepare(text, PROSE_FONT);
@@ -38,7 +38,7 @@ function estimateTextHeight(text: string, containerWidth: number): number {
   }
 }
 
-function extractTextFromMessages(messages: Message[]): string {
+function extract_text_from_messages(messages: Message[]): string {
   const parts: string[] = [];
   for (const msg of messages) {
     if (msg.role === "user" && typeof msg.content === "string") {
@@ -57,7 +57,7 @@ function extractTextFromMessages(messages: Message[]): string {
   return parts.join("\n");
 }
 
-function countToolBlocks(messages: Message[]): number {
+function count_tool_blocks(messages: Message[]): number {
   let count = 0;
   for (const msg of messages) {
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
@@ -69,7 +69,7 @@ function countToolBlocks(messages: Message[]): number {
   return count;
 }
 
-function estimateCodeBlockHeight(text: string): number {
+function estimate_code_block_height(text: string): number {
   const blocks = text.match(/```[\s\S]*?```/g) ?? [];
   return blocks.reduce((sum, block) => {
     const lines = block.split("\n").length;
@@ -88,13 +88,13 @@ export function useMessageHeight(
   return useMemo(() => {
     if (containerWidth <= 0) return { height: 200 };
 
-    const text = extractTextFromMessages(messages);
-    const toolCount = countToolBlocks(messages);
-    const codeBlockHeight = estimateCodeBlockHeight(text);
+    const text = extract_text_from_messages(messages);
+    const toolCount = count_tool_blocks(messages);
+    const codeBlockHeight = estimate_code_block_height(text);
 
     // Strip code blocks from text before measuring prose
     const proseText = text.replace(/```[\s\S]*?```/g, "");
-    const proseHeight = estimateTextHeight(proseText, containerWidth);
+    const proseHeight = estimate_text_height(proseText, containerWidth);
 
     const height =
       ROUND_CHROME_HEIGHT +
@@ -111,7 +111,7 @@ export function useMessageHeight(
  * More efficient than calling useMessageHeight in a loop since we share
  * the prepare() cache across all messages.
  */
-export function estimateRoundHeights(
+export function estimate_round_heights(
   round_ids: string[],
   message_groups: Map<string, Message[]>,
   containerWidth: number,
@@ -125,11 +125,11 @@ export function estimateRoundHeights(
 
   for (const id of round_ids) {
     const messages = message_groups.get(id) ?? [];
-    const text = extractTextFromMessages(messages);
-    const toolCount = countToolBlocks(messages);
-    const codeBlockHeight = estimateCodeBlockHeight(text);
+    const text = extract_text_from_messages(messages);
+    const toolCount = count_tool_blocks(messages);
+    const codeBlockHeight = estimate_code_block_height(text);
     const proseText = text.replace(/```[\s\S]*?```/g, "");
-    const proseHeight = estimateTextHeight(proseText, containerWidth);
+    const proseHeight = estimate_text_height(proseText, containerWidth);
 
     const height = Math.max(
       80,

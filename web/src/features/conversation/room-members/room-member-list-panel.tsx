@@ -18,10 +18,10 @@ import { useMemo, useState } from "react";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_SHELL_CLASS_NAME,
-  getDialogActionClassName,
+  get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getIconAvatarSrc, getInitials } from "@/lib/utils";
+import { get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 
 import { RoomMemberPickerDialog } from "./room-member-picker-dialog";
@@ -104,7 +104,7 @@ export function RoomMemberListPanel({
                 </div>
                 {available_agents.length > 0 ? (
                   <button
-                    className={getDialogActionClassName("primary")}
+                    className={get_dialog_action_class_name("primary")}
                     onClick={() => set_is_picker_open(true)}
                     type="button"
                   >
@@ -117,7 +117,7 @@ export function RoomMemberListPanel({
               <div className="mt-4 space-y-2">
                 {members.length > 0 ? (
                   members.map((member, index) => {
-                    const avatar_src = getIconAvatarSrc(member.avatar);
+                    const avatar_src = get_icon_avatar_src(member.avatar);
                     const is_owner = index === 0;
                     const can_remove = !is_owner;
 
@@ -134,7 +134,7 @@ export function RoomMemberListPanel({
                               src={avatar_src}
                             />
                           ) : (
-                            getInitials(member.name)
+                            get_initials(member.name)
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -187,7 +187,7 @@ export function RoomMemberListPanel({
 
           <div className="dialog-footer">
             <button
-              className={getDialogActionClassName("default")}
+              className={get_dialog_action_class_name("default")}
               onClick={on_close}
               type="button"
             >

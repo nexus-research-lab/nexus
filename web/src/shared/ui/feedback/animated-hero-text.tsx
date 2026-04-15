@@ -17,7 +17,7 @@ interface AnimatedHeroTextProps {
   initial_delay_ms?: number;
 }
 
-function splitGraphemes(text: string, font: string): string[] {
+function split_graphemes(text: string, font: string): string[] {
   try {
     const prepared = prepareWithSegments(text, font);
     return prepared.segments;
@@ -45,7 +45,7 @@ export function AnimatedHeroText({
     const font = el
       ? window.getComputedStyle(el).font || "800 42px system-ui"
       : "800 42px system-ui";
-    setGraphemes(splitGraphemes(text, font));
+    setGraphemes(split_graphemes(text, font));
     const t = setTimeout(() => setVisible(true), 16);
     return () => clearTimeout(t);
   }, [text]);

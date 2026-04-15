@@ -11,7 +11,7 @@ import {
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
 import {
   AgentRoundStatus,
-  extractAgentPreviewText,
+  extract_agent_preview_text,
 } from "@/features/conversation/shared/utils";
 import { MessageAvatar } from "@/features/conversation/shared/message/message-primitives";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown-renderer-content";
@@ -49,7 +49,7 @@ function AgentStatusCardInner({
   permission_read_only_reason,
   on_stop_message,
 }: AgentStatusCardProps) {
-  const preview = useMemo(() => extractAgentPreviewText(messages), [messages]);
+  const preview = useMemo(() => extract_agent_preview_text(messages), [messages]);
   const primary_pending_permission = pending_permissions[0];
   const is_question_pending = Boolean(
     primary_pending_permission
@@ -157,7 +157,7 @@ function AgentStatusCardInner({
             <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
           ) : null}
           <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-            {timestamp ? formatTime(timestamp) : "--:--"}
+            {timestamp ? format_time(timestamp) : "--:--"}
           </span>
           {model ? <span className="min-w-0 truncate text-xs text-(--text-soft)">{model}</span> : null}
           <div className="min-w-0 flex-1" />
@@ -250,7 +250,7 @@ function AgentStatusCardInner({
 
 export const AgentStatusCard = memo(AgentStatusCardInner);
 
-function formatTime(timestamp: number): string {
+function format_time(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",

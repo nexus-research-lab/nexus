@@ -19,7 +19,7 @@ interface WorkspaceLiveStoreState {
   clear_agent: (agent_id: string) => void;
 }
 
-function buildKey(agent_id: string, path: string) {
+function build_key(agent_id: string, path: string) {
   return `${agent_id}:${path}`;
 }
 
@@ -28,7 +28,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   file_states: {},
 
   apply_event: (event) => {
-    const key = buildKey(event.agent_id, event.path);
+    const key = build_key(event.agent_id, event.path);
     const nextStatus: WorkspaceLiveFileState['status'] =
       event.type === 'file_write_end' ? 'updated' : 'writing';
     const nextUpdatedAt = Date.parse(event.timestamp) || Date.now();
@@ -56,7 +56,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
         };
       }
 
-      const nextLiveContent = resolveLiveContent(state.file_states[key]?.live_content, event);
+      const nextLiveContent = resolve_live_content(state.file_states[key]?.live_content, event);
 
       return {
         recent_events: [
@@ -92,7 +92,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   },
 
   mark_file_seen: (agent_id, path) => {
-    const key = buildKey(agent_id, path);
+    const key = build_key(agent_id, path);
 
     set((state) => {
       const next_file_states = { ...state.file_states };
@@ -117,7 +117,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   },
 }));
 
-function resolveLiveContent(
+function resolve_live_content(
   previous_content: string | null | undefined,
   event: WorkspaceLiveEvent,
 ): string | null | undefined {

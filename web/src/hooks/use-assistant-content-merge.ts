@@ -82,7 +82,7 @@ export function useAssistantContentMerge({
       if (!Array.isArray(msg.content)) continue;
       const isStreamingMessage = msg.message_id === streamingAssistantMessageId;
       const streamingContentIndex = isStreamingMessage
-        ? findLastStreamableBlockIndex(msg.content)
+        ? find_last_streamable_block_index(msg.content)
         : -1;
 
       msg.content.forEach((block, blockIndex) => {
@@ -159,7 +159,7 @@ export function useAssistantContentMerge({
   };
 }
 
-function findLastStreamableBlockIndex(blocks: ContentBlock[]): number {
+function find_last_streamable_block_index(blocks: ContentBlock[]): number {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     const block = blocks[index];
     if (!block) {

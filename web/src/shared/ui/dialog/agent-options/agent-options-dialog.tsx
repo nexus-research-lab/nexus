@@ -64,15 +64,15 @@ export function AgentOptions({
       return;
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handle_key_down = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         on_close();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_close]);
 
   if (!is_open || typeof document === "undefined") {

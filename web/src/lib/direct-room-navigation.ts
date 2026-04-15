@@ -10,7 +10,7 @@
 */
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { ensureDirectRoom } from "@/lib/room-api";
+import { ensure_direct_room } from "@/lib/room-api";
 import type { RoomContextAggregate } from "@/types/room";
 
 export interface DirectRoomNavigationTarget {
@@ -23,11 +23,11 @@ export interface DirectRoomNavigationTarget {
  * 无论来自 Launcher、侧边栏 header 还是其他入口，都必须先确保 direct room 存在，
  * 然后统一落到真实的 room_conversation 路由，避免再维护中转页。
  */
-export async function resolveDirectRoomNavigationTarget(
+export async function resolve_direct_room_navigation_target(
   agent_id: string,
   initial_message?: string,
 ): Promise<DirectRoomNavigationTarget> {
-  const context = await ensureDirectRoom(agent_id);
+  const context = await ensure_direct_room(agent_id);
   const normalized_initial_message = initial_message?.trim() ?? "";
   const base_route = AppRouteBuilders.room_conversation(
     context.room.id,

@@ -3,8 +3,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Loader2, Lock, Search } from "lucide-react";
 
-import { getAgentSkillsApi, installSkillApi, uninstallSkillApi } from "@/lib/skill-api";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { get_agent_skills_api, install_skill_api, uninstall_skill_api } from "@/lib/skill-api";
+import { get_dialog_action_class_name } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/skill";
 
@@ -35,7 +35,7 @@ export function AgentOptionsSkillsTab({
     try {
       setLoading(true);
       setErrorMessage(null);
-      const data = await getAgentSkillsApi(agent_id);
+      const data = await get_agent_skills_api(agent_id);
       setSkills(data);
     } catch (error) {
       setErrorMessage(
@@ -63,9 +63,9 @@ export function AgentOptionsSkillsTab({
         setToggling(skill.name);
         setErrorMessage(null);
         if (skill.installed) {
-          await uninstallSkillApi(agent_id, skill.name);
+          await uninstall_skill_api(agent_id, skill.name);
         } else {
-          await installSkillApi(agent_id, skill.name);
+          await install_skill_api(agent_id, skill.name);
         }
         await loadSkills();
       } catch (error) {
@@ -108,7 +108,7 @@ export function AgentOptionsSkillsTab({
     });
   }, [addableSkills, deferredSearchQuery]);
 
-  const renderSkillCard = (
+  const render_skill_card = (
     skill: AgentSkillEntry,
     actionLabel: string,
     tone: "installed" | "add"
@@ -149,7 +149,7 @@ export function AgentOptionsSkillsTab({
           </span>
         ) : (
           <button
-            className={getDialogActionClassName(tone === "installed" ? "default" : "primary", "compact")}
+            className={get_dialog_action_class_name(tone === "installed" ? "default" : "primary", "compact")}
             disabled={isBusy}
             onClick={() => void handleToggle(skill)}
             type="button"
@@ -202,7 +202,7 @@ export function AgentOptionsSkillsTab({
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-1.5">
-                {installedSkills.map((skill) => renderSkillCard(skill, t("agent_options.skills.remove"), "installed"))}
+                {installedSkills.map((skill) => render_skill_card(skill, t("agent_options.skills.remove"), "installed"))}
               </div>
             )}
           </div>
@@ -242,7 +242,7 @@ export function AgentOptionsSkillsTab({
 
             {filteredAddableSkills.length > 0 ? (
               <div className="grid grid-cols-1 gap-1.5">
-                {filteredAddableSkills.map((skill) => renderSkillCard(skill, t("agent_options.skills.add_button"), "add"))}
+                {filteredAddableSkills.map((skill) => render_skill_card(skill, t("agent_options.skills.add_button"), "add"))}
               </div>
             ) : null}
           </div>

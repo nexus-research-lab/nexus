@@ -13,7 +13,7 @@ import {
 } from "@/shared/ui/workspace/workspace-catalog-card";
 import type { ExternalSkillSearchItem } from "@/types/skill";
 
-import { formatInstalls } from "@/hooks/use-skill-marketplace";
+import { format_installs } from "@/hooks/use-skill-marketplace";
 import type { SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
 
 interface SkillsExternalResultsProps {
@@ -138,7 +138,7 @@ function ExternalResultCard({
           <p className="mt-1 flex items-center gap-2 truncate text-[11px] text-(--text-soft)">
             <span>{item.package_spec}</span>
             <span>·</span>
-            <span>{formatInstalls(item.installs)} installs</span>
+            <span>{format_installs(item.installs)} installs</span>
           </p>
         </div>
       </WorkspaceCatalogHeader>

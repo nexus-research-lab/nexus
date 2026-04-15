@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, MessageSquare, X } from "lucide-react";
 
-import { formatRelativeTime, getIconAvatarSrc, getInitials } from "@/lib/utils";
+import { format_relative_time, get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 import { AgentConversationIdentity } from "@/types/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation";
@@ -55,7 +55,7 @@ export function RoomMobileWorkspace({
 }: RoomMobileWorkspaceProps) {
   const [is_conversation_sheet_open, setIsConversationSheetOpen] = useState(false);
   const is_dm = current_room_type === "dm";
-  const current_agent_avatar_src = getIconAvatarSrc(current_agent.avatar);
+  const current_agent_avatar_src = get_icon_avatar_src(current_agent.avatar);
 
   const current_room_conversation_title = useMemo(() => {
     if (current_room_conversation?.title?.trim()) {
@@ -89,7 +89,7 @@ export function RoomMobileWorkspace({
                   src={current_agent_avatar_src}
                 />
               ) : (
-                getInitials(current_agent.name, "DM", 2)
+                get_initials(current_agent.name, "DM", 2)
               )}
             </div>
 
@@ -194,7 +194,7 @@ export function RoomMobileWorkspace({
                         {conversation.title?.trim() || "未命名会话"}
                       </p>
                       <p className="mt-1 text-xs text-(--text-muted)">
-                        {formatRelativeTime(conversation.last_activity_at)} · {conversation.message_count ?? 0} 条
+                        {format_relative_time(conversation.last_activity_at)} · {conversation.message_count ?? 0} 条
                       </p>
                     </div>
                   </button>

@@ -2,7 +2,7 @@
 
 import { Bot, MessageSquareText, Users } from "lucide-react";
 
-import { getIconAvatarSrc } from "@/lib/utils";
+import { get_icon_avatar_src } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { Agent } from "@/types/agent";
 import { format_provider_label } from "@/types/provider";
@@ -54,11 +54,11 @@ export function ContactsAgentCard({
         shape="round"
         size="lg"
       >
-        {getIconAvatarSrc(agent.avatar) ? (
+        {get_icon_avatar_src(agent.avatar) ? (
           <img
             alt={agent.name}
             className="h-full w-full object-cover transition-transform duration-300 hover:scale-105 hover:rotate-3"
-            src={getIconAvatarSrc(agent.avatar) ?? undefined}
+            src={get_icon_avatar_src(agent.avatar) ?? undefined}
           />
         ) : (
           <Bot className="h-6 w-6 text-(--icon-strong) transition-transform duration-300 hover:scale-110 hover:rotate-6" />

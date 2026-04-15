@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/use-automation-controller";
-import { deleteScheduledTaskApi, runScheduledTaskApi, updateScheduledTaskStatusApi } from "@/lib/scheduled-task-api";
+import { delete_scheduled_task_api, run_scheduled_task_api, update_scheduled_task_status_api } from "@/lib/scheduled-task-api";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -149,7 +149,7 @@ export function ScheduledTasksDirectory() {
   const handle_run_now = async (task: ScheduledTaskItem) => {
     set_run_pending_job_id(task.job_id);
     try {
-      const result = await runScheduledTaskApi(task.job_id);
+      const result = await run_scheduled_task_api(task.job_id);
       await refresh_tasks_best_effort(
         automation,
         automation.agent_id,
@@ -176,7 +176,7 @@ export function ScheduledTasksDirectory() {
   const handle_toggle_enabled = async (task: ScheduledTaskItem) => {
     set_toggle_pending_job_id(task.job_id);
     try {
-      await updateScheduledTaskStatusApi(task.job_id, { enabled: !task.enabled });
+      await update_scheduled_task_status_api(task.job_id, { enabled: !task.enabled });
       await refresh_tasks_best_effort(
         automation,
         automation.agent_id,
@@ -206,7 +206,7 @@ export function ScheduledTasksDirectory() {
     }
     set_delete_pending_job_id(task.job_id);
     try {
-      await deleteScheduledTaskApi(task.job_id);
+      await delete_scheduled_task_api(task.job_id);
       await refresh_tasks_best_effort(
         automation,
         automation.agent_id,

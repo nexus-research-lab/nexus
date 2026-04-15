@@ -9,7 +9,7 @@
 
 import { createJSONStorage, StateStorage } from 'zustand/middleware';
 
-const memoryStorage = (): StateStorage => {
+const memory_storage = (): StateStorage => {
   const storage = new Map<string, string>();
   return {
     getItem: (name) => storage.get(name) ?? null,
@@ -22,9 +22,9 @@ const memoryStorage = (): StateStorage => {
   };
 };
 
-export const createBrowserJSONStorage = () => createJSONStorage(() => {
+export const create_browser_json_storage = () => createJSONStorage(() => {
   if (typeof window !== 'undefined' && window.localStorage) {
     return window.localStorage;
   }
-  return memoryStorage();
+  return memory_storage();
 });

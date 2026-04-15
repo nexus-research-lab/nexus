@@ -9,7 +9,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-import { getIconAvatarSrc } from "@/lib/utils";
+import { get_icon_avatar_src } from "@/lib/utils";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceTaskStrip,
@@ -48,7 +48,7 @@ const DmConversationHeaderView = memo(({
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
   const header_title = current_agent_name?.trim() || t("room.untitled_dm");
-  const current_agent_avatar_src = getIconAvatarSrc(current_agent_avatar);
+  const current_agent_avatar_src = get_icon_avatar_src(current_agent_avatar);
   const dm_tabs: { key: RoomSurfaceTabKey; label: string; icon: typeof MessageSquare }[] = [
     { key: "chat", label: t("room.chat"), icon: MessageSquare },
     { key: "history", label: t("room.history"), icon: History },

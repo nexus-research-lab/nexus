@@ -14,7 +14,7 @@ import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
-import { cn, getIconAvatarSrc } from "@/lib/utils";
+import { cn, get_icon_avatar_src } from "@/lib/utils";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";
@@ -38,7 +38,7 @@ const ACTION_TONE_CLASS_MAP: Record<MessageActionTone, string> = {
   danger: "hover:bg-rose-500/10 hover:text-rose-500",
 };
 
-function getFirstVisibleSpinnerFrameIndex(name: BrailleSpinnerName): number {
+function get_first_visible_spinner_frame_index(name: BrailleSpinnerName): number {
   const first_visible_frame_index = spinners[name].frames.findIndex(
     (frame) => frame.replace(/⠀/g, "").length > 0,
   );
@@ -83,7 +83,7 @@ export function MessageAvatar({
   size?: MessageAvatarSize;
   class_name?: string;
 }) {
-  const resolved_avatar_url = getIconAvatarSrc(avatar_url);
+  const resolved_avatar_url = get_icon_avatar_src(avatar_url);
   const avatar_shell_class_name = cn(
     "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
     "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",
@@ -153,7 +153,7 @@ export function MessageLoadingDots({
 }) {
   const prefers_reduced_motion = usePrefersReducedMotion();
   const spinner = spinners[name];
-  const first_visible_frame_index = getFirstVisibleSpinnerFrameIndex(name);
+  const first_visible_frame_index = get_first_visible_spinner_frame_index(name);
   const [frame_index, setFrameIndex] = useState(first_visible_frame_index);
 
   useEffect(() => {

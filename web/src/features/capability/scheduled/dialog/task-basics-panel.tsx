@@ -3,8 +3,8 @@
 import { type RefObject } from "react";
 
 import {
-  getDialogChoiceClassName,
-  getDialogChoiceStyle,
+  get_dialog_choice_class_name,
+  get_dialog_choice_style,
 } from "@/shared/ui/dialog/dialog-styles";
 
 type TargetType = "agent" | "room";
@@ -134,13 +134,13 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <div className="flex flex-wrap gap-2">
           {target_type_options.map((opt) => (
             <button
-              className={getDialogChoiceClassName(target_type === opt.key)}
+              className={get_dialog_choice_class_name(target_type === opt.key)}
               key={opt.key}
               onClick={() => {
                 set_target_type(opt.key);
                 on_reset_context_error();
               }}
-              style={getDialogChoiceStyle(target_type === opt.key)}
+              style={get_dialog_choice_style(target_type === opt.key)}
               type="button"
             >
               {opt.label}
@@ -191,13 +191,13 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <div className="flex flex-wrap gap-2">
           {execution_mode_options.map((opt) => (
             <button
-              className={getDialogChoiceClassName(execution_mode === opt.key)}
+              className={get_dialog_choice_class_name(execution_mode === opt.key)}
               key={opt.key}
               onClick={() => {
                 set_execution_mode(opt.key);
                 on_reset_context_error();
               }}
-              style={getDialogChoiceStyle(execution_mode === opt.key)}
+              style={get_dialog_choice_style(execution_mode === opt.key)}
               type="button"
             >
               {opt.label}
@@ -257,13 +257,13 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <div className="flex flex-wrap gap-2">
           {reply_mode_options.map((opt) => (
             <button
-              className={getDialogChoiceClassName(reply_mode === opt.key)}
+              className={get_dialog_choice_class_name(reply_mode === opt.key)}
               key={opt.key}
               onClick={() => {
                 set_reply_mode(opt.key);
                 on_reset_context_error();
               }}
-              style={getDialogChoiceStyle(reply_mode === opt.key)}
+              style={get_dialog_choice_style(reply_mode === opt.key)}
               type="button"
             >
               {opt.label}

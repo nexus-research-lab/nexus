@@ -14,13 +14,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cable, Loader2, Plus, Star } from "lucide-react";
 
-import { setDefaultAgentProvider } from "@/config/options";
+import { set_default_agent_provider } from "@/config/options";
 import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
 import {
-  createProviderConfigApi,
-  deleteProviderConfigApi,
-  listProviderConfigsApi,
-  updateProviderConfigApi,
+  create_provider_config_api,
+  delete_provider_config_api,
+  list_provider_configs_api,
+  update_provider_config_api,
 } from "@/lib/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -161,7 +161,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   ) => {
     const ordered_items = order_provider_records(items, providers_ref.current);
     set_providers(ordered_items);
-    setDefaultAgentProvider(ordered_items.find((item) => item.is_default)?.provider);
+    set_default_agent_provider(ordered_items.find((item) => item.is_default)?.provider);
 
     if (ordered_items.length === 0) {
       set_mode("empty");
@@ -180,7 +180,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
   const refresh_providers = useCallback(async (preferred_provider?: string | null) => {
     try {
-      const items = await listProviderConfigsApi();
+      const items = await list_provider_configs_api();
       sync_provider_snapshot(items, preferred_provider);
       set_feedback((current) => (current?.tone === "error" ? null : current));
     } catch (error) {
@@ -232,7 +232,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
     try {
       set_pending_default_provider(item.provider);
-      await updateProviderConfigApi(item.provider, {
+      await update_provider_config_api(item.provider, {
         display_name: get_provider_title(item),
         base_url: item.base_url,
         model: item.model,
@@ -273,8 +273,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       }
 
       const result = is_editing && selected_record
-        ? await updateProviderConfigApi(selected_record.provider, base_payload)
-        : await createProviderConfigApi({
+        ? await update_provider_config_api(selected_record.provider, base_payload)
+        : await create_provider_config_api({
           provider: normalized_provider,
           auth_token: normalized_auth_token,
           ...base_payload,
@@ -304,7 +304,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
     try {
       set_submitting(true);
-      await deleteProviderConfigApi(selected_record.provider);
+      await delete_provider_config_api(selected_record.provider);
       set_delete_confirm_open(false);
       await refresh_providers();
       set_feedback({

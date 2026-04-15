@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Settings, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { getIconAvatarSrc } from "@/lib/utils";
+import { get_icon_avatar_src } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
@@ -14,9 +14,9 @@ import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { UpdateRoomParams } from "@/types/room";
 
@@ -115,7 +115,7 @@ export function RoomSettingsPanel({
     }
   };
 
-  const preview_avatar_src = getIconAvatarSrc(edit_avatar_value || fallback_avatar);
+  const preview_avatar_src = get_icon_avatar_src(edit_avatar_value || fallback_avatar);
 
   const handle_delete_room = async () => {
     set_is_delete_confirm_open(false);
@@ -188,7 +188,7 @@ export function RoomSettingsPanel({
                     />
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        className={getDialogActionClassName("default")}
+                        className={get_dialog_action_class_name("default")}
                         disabled={is_updating}
                         onClick={() => {
                           set_edit_name_value(room_name);
@@ -199,7 +199,7 @@ export function RoomSettingsPanel({
                         {t("common.cancel")}
                       </button>
                       <button
-                        className={getDialogActionClassName("primary")}
+                        className={get_dialog_action_class_name("primary")}
                         disabled={is_updating}
                         onClick={() => handle_update_name(edit_name_value)}
                         type="button"
@@ -250,7 +250,7 @@ export function RoomSettingsPanel({
                     />
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        className={getDialogActionClassName("default")}
+                        className={get_dialog_action_class_name("default")}
                         disabled={is_updating}
                         onClick={() => {
                           set_edit_description_value(room_description);
@@ -261,7 +261,7 @@ export function RoomSettingsPanel({
                         {t("common.cancel")}
                       </button>
                       <button
-                        className={getDialogActionClassName("primary")}
+                        className={get_dialog_action_class_name("primary")}
                         disabled={is_updating}
                         onClick={() => handle_update_description(edit_description_value)}
                         type="button"
@@ -322,8 +322,8 @@ export function RoomSettingsPanel({
             </section>
 
             <section
-              className={getDialogNoteClassName("danger")}
-              style={getDialogNoteStyle("danger")}
+              className={get_dialog_note_class_name("danger")}
+              style={get_dialog_note_style("danger")}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -335,7 +335,7 @@ export function RoomSettingsPanel({
                   </p>
                 </div>
                 <button
-                  className={getDialogActionClassName("danger", "shrink-0")}
+                  className={get_dialog_action_class_name("danger", "shrink-0")}
                   onClick={() => set_is_delete_confirm_open(true)}
                   type="button"
                 >
@@ -348,7 +348,7 @@ export function RoomSettingsPanel({
 
           <div className="dialog-footer">
             <button
-              className={getDialogActionClassName("default")}
+              className={get_dialog_action_class_name("default")}
               onClick={on_close}
               type="button"
             >

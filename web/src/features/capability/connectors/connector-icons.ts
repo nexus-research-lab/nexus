@@ -66,11 +66,11 @@ const CONNECTOR_ICON_LETTERS: Record<string, string> = {
 };
 
 /** 获取图标配色，有默认值 */
-export function getConnectorColors(icon: string): { bg: string; text: string } {
+export function get_connector_colors(icon: string): { bg: string; text: string } {
   return CONNECTOR_ICON_COLORS[icon] ?? { bg: "bg-slate-100", text: "text-slate-600" };
 }
 
 /** 获取图标首字母 */
-export function getConnectorLetter(icon: string, title: string): string {
+export function get_connector_letter(icon: string, title: string): string {
   return CONNECTOR_ICON_LETTERS[icon] ?? title.charAt(0).toUpperCase();
 }

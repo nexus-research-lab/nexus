@@ -5,7 +5,7 @@ import { Pencil, X } from "lucide-react";
 
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
-  getDialogActionClassName,
+  get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import type { ScheduledTaskItem } from "@/types/scheduled-task";
 
@@ -198,7 +198,7 @@ export function ScheduledTaskDialog({
 
           <div className="dialog-footer">
             <button
-              className={getDialogActionClassName("default")}
+              className={get_dialog_action_class_name("default")}
               disabled={state.is_submitting}
               onClick={on_close}
               type="button"
@@ -206,7 +206,7 @@ export function ScheduledTaskDialog({
               取消
             </button>
             <button
-              className={getDialogActionClassName("primary")}
+              className={get_dialog_action_class_name("primary")}
               disabled={state.is_submitting}
               onClick={() => void state.handle_submit()}
               type="button"

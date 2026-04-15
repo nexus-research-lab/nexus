@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { Bot, Check, Hash, Plus, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { getIconAvatarSrc, getInitials, getRoomAvatarIconId } from "@/lib/utils";
+import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   DIALOG_BACKDROP_CLASS_NAME,
@@ -20,7 +20,7 @@ import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_SHELL_CLASS_NAME,
-  getDialogActionClassName,
+  get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/workspace-catalog-card";
@@ -126,8 +126,8 @@ export function CreateRoomDialog({
   if (!is_open) return null;
 
   const can_create = selected_ids.length > 0 && room_name.trim().length > 0 && !is_creating;
-  const preview_avatar_id = getRoomAvatarIconId(null, room_name, selected_avatar);
-  const preview_avatar_src = getIconAvatarSrc(preview_avatar_id);
+  const preview_avatar_id = get_room_avatar_icon_id(null, room_name, selected_avatar);
+  const preview_avatar_src = get_icon_avatar_src(preview_avatar_id);
   const resolved_dialog_title = dialog_title ?? (mode === "manage" ? t("room.manage_dialog_title") : t("room.create_dialog_title"));
   const resolved_dialog_subtitle = dialog_subtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
   const resolved_confirm_label = confirm_label ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
@@ -251,14 +251,14 @@ export function CreateRoomDialog({
                         shape="round"
                         size="sm"
                       >
-                        {getIconAvatarSrc(agent.avatar) ? (
+                        {get_icon_avatar_src(agent.avatar) ? (
                           <img
                             alt={agent.name}
                             className="h-full w-full object-cover"
-                            src={getIconAvatarSrc(agent.avatar) ?? undefined}
+                            src={get_icon_avatar_src(agent.avatar) ?? undefined}
                           />
                         ) : (
-                          getInitials(agent.name)
+                          get_initials(agent.name)
                         )}
                       </WorkspaceIconFrame>
                       <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-strong)">
@@ -318,11 +318,11 @@ export function CreateRoomDialog({
                           shape="round"
                           size="sm"
                         >
-                          {getIconAvatarSrc(agent.avatar) ? (
+                          {get_icon_avatar_src(agent.avatar) ? (
                             <img
                               alt={agent.name}
                               className="h-full w-full object-cover"
-                              src={getIconAvatarSrc(agent.avatar) ?? undefined}
+                              src={get_icon_avatar_src(agent.avatar) ?? undefined}
                             />
                           ) : (
                             <Bot className="h-4 w-4" />
@@ -366,14 +366,14 @@ export function CreateRoomDialog({
           <div className="dialog-footer justify-end gap-3">
             {/* 操作按钮 */}
             <button
-              className={getDialogActionClassName("default")}
+              className={get_dialog_action_class_name("default")}
               onClick={on_cancel}
               type="button"
             >
               {t("common.cancel")}
             </button>
             <button
-              className={getDialogActionClassName(can_create ? "primary" : "default")}
+              className={get_dialog_action_class_name(can_create ? "primary" : "default")}
               disabled={!can_create}
               onClick={handle_create}
               type="button"

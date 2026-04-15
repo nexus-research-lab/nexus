@@ -15,16 +15,16 @@ import {
 import { ApiAgentSession as ApiAgentSessionRecord, AgentSession as AgentSessionRecord } from '@/types/agent';
 import { Message as ChatMessage } from '@/types/message';
 import { ConversationCostSummary } from '@/types/cost';
-import { getAgentApiBaseUrl } from '@/config/options';
+import { get_agent_api_base_url } from '@/config/options';
 import { request_api } from '@/lib/http';
-import { assertStructuredSessionKey } from '@/lib/session-key';
+import { assert_structured_session_key } from '@/lib/session-key';
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 
 // ==================== 类型转换 ====================
 
 /** 将 API 响应转换为前端标准格式 */
-export function transformApiConversation(api: ApiConversation): Conversation {
+export function transform_api_conversation(api: ApiConversation): Conversation {
   return {
     session_key: api.session_key,
     agent_id: api.agent_id,
@@ -50,7 +50,7 @@ function to_timestamp(value: string | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function transformApiAgentSession(api: ApiAgentSessionRecord): AgentSessionRecord {
+export function transform_api_agent_session(api: ApiAgentSessionRecord): AgentSessionRecord {
   return {
     session_key: api.session_key,
     agent_id: api.agent_id,
@@ -71,46 +71,46 @@ export function transformApiAgentSession(api: ApiAgentSessionRecord): AgentSessi
 
 // ==================== 对话 API ====================
 
-export const getConversations = async (): Promise<Conversation[]> => {
+export const get_conversations = async (): Promise<Conversation[]> => {
   const result = await request_api<ApiConversation[]>(`${AGENT_API_BASE_URL}/sessions`, {
     method: 'GET',
   });
-  return result.map(transformApiConversation);
+  return result.map(transform_api_conversation);
 };
 
-export const getAgentSessionsApi = async (agent_id: string): Promise<AgentSessionRecord[]> => {
+export const get_agent_sessions_api = async (agent_id: string): Promise<AgentSessionRecord[]> => {
   const result = await request_api<ApiAgentSessionRecord[]>(`${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/sessions`, {
     method: 'GET',
   });
-  return result.map(transformApiAgentSession);
+  return result.map(transform_api_agent_session);
 };
 
-export const getConversationMessages = async (session_key: string): Promise<ChatMessage[]> => {
-  const normalized_session_key = assertStructuredSessionKey(session_key);
+export const get_conversation_messages = async (session_key: string): Promise<ChatMessage[]> => {
+  const normalized_session_key = assert_structured_session_key(session_key);
   return request_api<ChatMessage[]>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}/messages`, {
     method: 'GET',
   });
 };
 
-export const getConversationCostSummary = async (session_key: string): Promise<ConversationCostSummary> => {
-  const normalized_session_key = assertStructuredSessionKey(session_key);
+export const get_conversation_cost_summary = async (session_key: string): Promise<ConversationCostSummary> => {
+  const normalized_session_key = assert_structured_session_key(session_key);
   return request_api<ConversationCostSummary>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}/cost/summary`, {
     method: 'GET',
   });
 };
 
-export const deleteConversation = async (session_key: string): Promise<{ success: boolean }> => {
-  const normalized_session_key = assertStructuredSessionKey(session_key);
+export const delete_conversation = async (session_key: string): Promise<{ success: boolean }> => {
+  const normalized_session_key = assert_structured_session_key(session_key);
   return request_api<{ success: boolean }>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
     method: 'DELETE',
   });
 };
 
-export const updateConversation = async (
+export const update_conversation = async (
   session_key: string,
   params: UpdateConversationParams,
 ): Promise<Conversation> => {
-  const normalized_session_key = assertStructuredSessionKey(session_key);
+  const normalized_session_key = assert_structured_session_key(session_key);
   const result = await request_api<ApiConversation>(`${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -118,5 +118,5 @@ export const updateConversation = async (
       title: params.title,
     }),
   });
-  return transformApiConversation(result);
+  return transform_api_conversation(result);
 };

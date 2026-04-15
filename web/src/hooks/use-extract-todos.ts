@@ -1,13 +1,13 @@
 import { useMemo, useRef } from "react";
-import { areEquivalentSessionKeys } from "@/lib/session-key";
+import { are_equivalent_session_keys } from "@/lib/session-key";
 import { Message, ResultMessage } from "@/types/message";
 import { TodoItem } from "@/types/todo";
 
-function isSameSessionMessage(message: Message, external_session_key: string): boolean {
-  return !message.session_key || areEquivalentSessionKeys(message.session_key, external_session_key);
+function is_same_session_message(message: Message, external_session_key: string): boolean {
+  return !message.session_key || are_equivalent_session_keys(message.session_key, external_session_key);
 }
 
-function isSameTodo(left: TodoItem, right: TodoItem): boolean {
+function is_same_todo(left: TodoItem, right: TodoItem): boolean {
   return (
     left.content === right.content &&
     left.status === right.status &&
@@ -15,14 +15,14 @@ function isSameTodo(left: TodoItem, right: TodoItem): boolean {
   );
 }
 
-function areTodosEqual(left: TodoItem[], right: TodoItem[]): boolean {
+function are_todos_equal(left: TodoItem[], right: TodoItem[]): boolean {
   if (left === right) {
     return true;
   }
   if (left.length !== right.length) {
     return false;
   }
-  return left.every((item, index) => isSameTodo(item, right[index]));
+  return left.every((item, index) => is_same_todo(item, right[index]));
 }
 
 export const useExtractTodos = (
@@ -43,7 +43,7 @@ export const useExtractTodos = (
 
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (!isSameSessionMessage(msg, external_session_key)) {
+      if (!is_same_session_message(msg, external_session_key)) {
         continue;
       }
 
@@ -77,7 +77,7 @@ export const useExtractTodos = (
       .find((msg): msg is ResultMessage =>
         msg.role === "result"
         && msg.round_id === latestTodoRoundId
-        && isSameSessionMessage(msg, external_session_key)
+        && is_same_session_message(msg, external_session_key)
       );
 
     if (roundResult && roundResult.is_error) {
@@ -85,7 +85,7 @@ export const useExtractTodos = (
     }
 
     const hasLaterRoundMessage = messages.slice(latestTodoIndex + 1).some((msg) =>
-      isSameSessionMessage(msg, external_session_key)
+      is_same_session_message(msg, external_session_key)
       && msg.round_id
       && msg.round_id !== latestTodoRoundId
       && msg.role !== "system"
@@ -98,7 +98,7 @@ export const useExtractTodos = (
     return latestTodos;
   }, [external_session_key, messages]);
 
-  if (!areTodosEqual(stable_todos_ref.current, computed_todos)) {
+  if (!are_todos_equal(stable_todos_ref.current, computed_todos)) {
     stable_todos_ref.current = computed_todos;
   }
 

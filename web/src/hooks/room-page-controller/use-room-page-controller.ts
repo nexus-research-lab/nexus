@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { isMainAgent } from "@/config/options";
+import { is_main_agent } from "@/config/options";
 import {
-  addRoomMember,
-  createRoomConversation,
-  deleteRoom,
-  deleteRoomConversation,
-  removeRoomMember,
-  updateRoom,
-  updateRoomConversation,
+  add_room_member,
+  create_room_conversation,
+  delete_room,
+  delete_room_conversation,
+  remove_room_member,
+  update_room,
+  update_room_conversation,
 } from "@/lib/room-api";
 import { useHomeWorkspaceController } from "@/hooks/use-home-workspace-controller";
 import {
@@ -168,7 +168,7 @@ export function useRoomPageController({
     const joined_agent_ids = new Set(room_member_agents.map((agent) => agent.agent_id));
     return agents.filter((agent) => (
       !joined_agent_ids.has(agent.agent_id) &&
-      !isMainAgent(agent.agent_id)
+      !is_main_agent(agent.agent_id)
     ));
   }, [agents, room_member_agents]);
 
@@ -299,7 +299,7 @@ export function useRoomPageController({
     if (!room_id) {
       return;
     }
-    await updateRoom(room_id, params);
+    await update_room(room_id, params);
     await refresh_rooms();
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
@@ -309,7 +309,7 @@ export function useRoomPageController({
     if (!room_id) {
       return;
     }
-    await deleteRoom(room_id);
+    await delete_room(room_id);
     await refresh_rooms();
   }, [refresh_rooms, room_id]);
 
@@ -317,7 +317,7 @@ export function useRoomPageController({
     if (!room_id) {
       return null;
     }
-    const context = await createRoomConversation(room_id, {title});
+    const context = await create_room_conversation(room_id, {title});
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
     return context.conversation.id;
@@ -327,7 +327,7 @@ export function useRoomPageController({
     if (!room_id) {
       return null;
     }
-    const fallback_context = await deleteRoomConversation(room_id, conversation_id);
+    const fallback_context = await delete_room_conversation(room_id, conversation_id);
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
     return fallback_context.conversation.id;
@@ -335,7 +335,7 @@ export function useRoomPageController({
 
   const handle_update_conversation_title = useCallback(async (conversation_id: string, title: string) => {
     if (!room_id) return;
-    await updateRoomConversation(room_id, conversation_id, { title });
+    await update_room_conversation(room_id, conversation_id, { title });
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
   }, [load_conversations_from_server, refresh_room_contexts, room_id]);
@@ -344,7 +344,7 @@ export function useRoomPageController({
     if (!room_id) {
       return;
     }
-    await addRoomMember(room_id, agent_id);
+    await add_room_member(room_id, agent_id);
     await refresh_rooms();
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();
@@ -354,7 +354,7 @@ export function useRoomPageController({
     if (!room_id) {
       return;
     }
-    await removeRoomMember(room_id, agent_id);
+    await remove_room_member(room_id, agent_id);
     await refresh_rooms();
     await refresh_room_contexts(room_id);
     await load_conversations_from_server();

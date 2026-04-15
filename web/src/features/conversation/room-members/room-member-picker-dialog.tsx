@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 
 import { Agent } from "@/types/agent";
 import { cn } from "@/lib/utils";
-import { getIconAvatarSrc, getInitials } from "@/lib/utils";
+import { get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   DIALOG_EMPTY_CLASS_NAME,
@@ -85,14 +85,14 @@ export function RoomMemberPickerDialog({
                     type="button"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-                      {getIconAvatarSrc(agent.avatar) ? (
+                      {get_icon_avatar_src(agent.avatar) ? (
                         <img
                           alt={agent.name}
                           className="h-full w-full object-cover"
-                          src={getIconAvatarSrc(agent.avatar) ?? undefined}
+                          src={get_icon_avatar_src(agent.avatar) ?? undefined}
                         />
                       ) : (
-                        getInitials(agent.name)
+                        get_initials(agent.name)
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

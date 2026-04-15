@@ -3,7 +3,7 @@
 import { ReactNode, useCallback, useState } from "react";
 import { Check, Clock3, MessageSquarePlus, Pencil, TextCursorInput, Trash2, X } from "lucide-react";
 
-import { cn, formatRelativeTime } from "@/lib/utils";
+import { cn, format_relative_time } from "@/lib/utils";
 import { I18nContextValue, useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
@@ -70,7 +70,7 @@ export function RoomConversationHistoryView({
       {conversations.length > 0 ? (
         <div className="space-y-3">
           {conversations.map((conversation) => {
-            const delete_state = resolveConversationDeleteState(
+            const delete_state = resolve_conversation_delete_state(
               conversation,
               conversations.length,
               can_manage_conversations,
@@ -227,7 +227,7 @@ function ConversationHistoryItem({
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-(--text-soft)">
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatRelativeTime(conversation.last_activity_at)}</span>
+                      <span>{format_relative_time(conversation.last_activity_at)}</span>
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <TextCursorInput className="h-3.5 w-3.5 shrink-0" />
@@ -248,7 +248,7 @@ function ConversationHistoryItem({
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-(--text-soft)">
               <span className="inline-flex items-center gap-1.5">
                 <Clock3 className="h-3.5 w-3.5 shrink-0" />
-                <span>{formatRelativeTime(conversation.last_activity_at)}</span>
+                <span>{format_relative_time(conversation.last_activity_at)}</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <TextCursorInput className="h-3.5 w-3.5 shrink-0" />
@@ -320,7 +320,7 @@ function ConversationHistoryItem({
   );
 }
 
-function resolveConversationDeleteState(
+function resolve_conversation_delete_state(
   conversation: RoomConversationView,
   conversation_count: number,
   can_manage_conversations: boolean,

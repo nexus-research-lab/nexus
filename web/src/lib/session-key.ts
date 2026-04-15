@@ -1,4 +1,4 @@
-import { resolveAgentId } from "@/config/options";
+import { resolve_agent_id } from "@/config/options";
 
 const AGENT_SESSION_PREFIX = "agent";
 const ROOM_SESSION_PREFIX = "room";
@@ -28,21 +28,21 @@ export interface ParsedSessionKey {
   conversation_id: string | null;
 }
 
-function findTopicIndex(parts: string[]): number {
+function find_topic_index(parts: string[]): number {
   return parts.findIndex((part, index) => part === TOPIC_SEGMENT && index >= 4);
 }
 
 /**
  * 中文注释：前后端共享同一套 session_key 语义，前端不要再散落手拼字符串。
  */
-export function buildSessionKey({
+export function build_session_key({
   channel,
   chat_type,
   ref,
   agent_id,
   thread_id,
 }: BuildSessionKeyOptions): string {
-  const resolved_agent_id = resolveAgentId(agent_id);
+  const resolved_agent_id = resolve_agent_id(agent_id);
   const resolved_channel = channel.trim();
   const resolved_chat_type = chat_type.trim();
   const resolved_ref = ref.trim();
@@ -53,8 +53,8 @@ export function buildSessionKey({
   return key;
 }
 
-export function buildWsDmSessionKey(ref: string, agent_id?: string | null): string {
-  return buildSessionKey({
+export function build_ws_dm_session_key(ref: string, agent_id?: string | null): string {
+  return build_session_key({
     channel: "ws",
     chat_type: "dm",
     ref,
@@ -62,21 +62,21 @@ export function buildWsDmSessionKey(ref: string, agent_id?: string | null): stri
   });
 }
 
-export function isLegacyLauncherAppSessionKey(session_key: string | null | undefined): boolean {
-  const parsed = parseSessionKey(session_key);
+export function is_legacy_launcher_app_session_key(session_key: string | null | undefined): boolean {
+  const parsed = parse_session_key(session_key);
   return parsed.kind === "agent" && Boolean(parsed.ref?.startsWith("launcher-app-"));
 }
 
-export function buildRoomSharedSessionKey(conversation_id: string): string {
+export function build_room_shared_session_key(conversation_id: string): string {
   return `${ROOM_SHARED_SESSION_PREFIX}${conversation_id}`;
 }
 
-export function buildRoomAgentSessionKey(
+export function build_room_agent_session_key(
   conversation_id: string,
   agent_id: string,
   room_type: "dm" | "room" = "room",
 ): string {
-  return buildSessionKey({
+  return build_session_key({
     channel: "ws",
     chat_type: room_type === "dm" ? "dm" : "group",
     ref: conversation_id,
@@ -84,7 +84,7 @@ export function buildRoomAgentSessionKey(
   });
 }
 
-export function getSessionKeyValidationError(session_key: string | null | undefined): string | null {
+export function get_session_key_validation_error(session_key: string | null | undefined): string | null {
   const normalized_key = (session_key ?? "").trim();
   if (!normalized_key) {
     return "session_key is required";
@@ -96,7 +96,7 @@ export function getSessionKeyValidationError(session_key: string | null | undefi
       return "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]";
     }
 
-    const topic_index = findTopicIndex(parts);
+    const topic_index = find_topic_index(parts);
     if (topic_index >= 0) {
       const ref = parts.slice(4, topic_index).join(":").trim();
       const thread_id = parts.slice(topic_index + 1).join(":").trim();
@@ -121,26 +121,26 @@ export function getSessionKeyValidationError(session_key: string | null | undefi
   return "session_key must use structured gateway format";
 }
 
-export function isStructuredSessionKey(session_key: string): boolean {
-  return getSessionKeyValidationError(session_key) === null;
+export function is_structured_session_key(session_key: string): boolean {
+  return get_session_key_validation_error(session_key) === null;
 }
 
-export function assertStructuredSessionKey(session_key: string | null | undefined): string {
-  const error_message = getSessionKeyValidationError(session_key);
+export function assert_structured_session_key(session_key: string | null | undefined): string {
+  const error_message = get_session_key_validation_error(session_key);
   if (error_message) {
     throw new Error(error_message);
   }
   return (session_key ?? "").trim();
 }
 
-export function isRoomSharedSessionKey(session_key: string): boolean {
-  const parsed = parseSessionKey(session_key);
+export function is_room_shared_session_key(session_key: string): boolean {
+  const parsed = parse_session_key(session_key);
   return parsed.kind === "room" && parsed.is_structured && Boolean(parsed.conversation_id);
 }
 
-export function parseSessionKey(session_key: string | null | undefined): ParsedSessionKey {
+export function parse_session_key(session_key: string | null | undefined): ParsedSessionKey {
   const normalized_key = (session_key ?? "").trim();
-  const validation_error = getSessionKeyValidationError(normalized_key);
+  const validation_error = get_session_key_validation_error(normalized_key);
   const result: ParsedSessionKey = {
     raw: normalized_key,
     kind: "unknown",
@@ -158,12 +158,12 @@ export function parseSessionKey(session_key: string | null | undefined): ParsedS
     const parts = normalized_key.split(":");
     result.kind = "agent";
     result.is_structured = validation_error === null;
-    result.agent_id = resolveAgentId(parts[1]);
+    result.agent_id = resolve_agent_id(parts[1]);
     result.channel = parts[2] || null;
     result.chat_type = parts[3] || "dm";
 
     // 中文注释：`:topic:` 是协议保留边界，ref 中允许冒号，但不能跨过该边界。
-    const topic_index = findTopicIndex(parts);
+    const topic_index = find_topic_index(parts);
     if (topic_index >= 0) {
       result.ref = parts.slice(4, topic_index).join(":") || null;
       result.thread_id = parts.slice(topic_index + 1).join(":") || null;
@@ -187,8 +187,8 @@ export function parseSessionKey(session_key: string | null | undefined): ParsedS
   return result;
 }
 
-export function getSessionKeyIdentity(session_key: string | null | undefined): string | null {
-  const parsed = parseSessionKey(session_key);
+export function get_session_key_identity(session_key: string | null | undefined): string | null {
+  const parsed = parse_session_key(session_key);
   if (!parsed.raw) {
     return null;
   }
@@ -201,11 +201,11 @@ export function getSessionKeyIdentity(session_key: string | null | undefined): s
   return parsed.raw;
 }
 
-export function areEquivalentSessionKeys(
+export function are_equivalent_session_keys(
   left: string | null | undefined,
   right: string | null | undefined,
 ): boolean {
-  const left_identity = getSessionKeyIdentity(left);
-  const right_identity = getSessionKeyIdentity(right);
+  const left_identity = get_session_key_identity(left);
+  const right_identity = get_session_key_identity(right);
   return Boolean(left_identity && right_identity && left_identity === right_identity);
 }

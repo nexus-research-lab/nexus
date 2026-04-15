@@ -11,8 +11,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { getInitialAgentOptions } from "@/config/options";
-import { validateAgentNameApi } from "@/lib/agent-manage-api";
+import { get_initial_agent_options } from "@/config/options";
+import { validate_agent_name_api } from "@/lib/agent-manage-api";
 import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent";
 
 interface UseRoomPageAgentDialogOptions {
@@ -69,7 +69,7 @@ export function useRoomPageAgentDialog({
 
   const dialog_initial_options = useMemo(() => {
     if (dialog_mode !== "edit" || !editing_agent) {
-      return getInitialAgentOptions();
+      return get_initial_agent_options();
     }
 
     return {
@@ -158,11 +158,11 @@ export function useRoomPageAgentDialog({
 
   const handle_validate_agent_name = useCallback(async (name: string) => {
     const exclude_agent_id = dialog_mode === "edit" ? editing_agent_id ?? undefined : undefined;
-    return validateAgentNameApi(name, exclude_agent_id);
+    return validate_agent_name_api(name, exclude_agent_id);
   }, [dialog_mode, editing_agent_id]);
 
   const handle_validate_agent_name_for_agent = useCallback(async (name: string, agent_id?: string) => {
-    return validateAgentNameApi(name, agent_id);
+    return validate_agent_name_api(name, agent_id);
   }, []);
 
   return {

@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { getAgents } from "@/lib/agent-manage-api";
-import { getAgentSessionsApi } from "@/lib/agent-api";
-import { getRoomContexts, listRooms } from "@/lib/room-api";
+import { get_agents } from "@/lib/agent-manage-api";
+import { get_agent_sessions_api } from "@/lib/agent-api";
+import { get_room_contexts, list_rooms } from "@/lib/room-api";
 import type { Agent, AgentSession } from "@/types/agent";
 import type { RoomAggregate, RoomContextAggregate } from "@/types/room";
 
 import {
-  buildRoomSessionSelections,
-  formatSessionLabel,
+  build_room_session_selections,
+  format_session_label,
   type TargetType,
 } from "./scheduled-task-dialog-constants";
 
@@ -45,7 +45,7 @@ export function useScheduledTaskDialogData({
     let cancelled = false;
     set_agents_loading(true);
     set_agents_error(null);
-    void getAgents()
+    void get_agents()
       .then((next_agents) => {
         if (!cancelled) {
           set_agents(next_agents);
@@ -73,7 +73,7 @@ export function useScheduledTaskDialogData({
     let cancelled = false;
     set_rooms_loading(true);
     set_rooms_error(null);
-    void listRooms(200)
+    void list_rooms(200)
       .then((next_rooms) => {
         if (!cancelled) {
           set_rooms(next_rooms);
@@ -102,7 +102,7 @@ export function useScheduledTaskDialogData({
     let cancelled = false;
     set_agent_sessions_loading(true);
     set_agent_sessions_error(null);
-    void getAgentSessionsApi(selected_agent_id)
+    void get_agent_sessions_api(selected_agent_id)
       .then((next_sessions) => {
         if (!cancelled) {
           set_agent_sessions(next_sessions);
@@ -131,7 +131,7 @@ export function useScheduledTaskDialogData({
     let cancelled = false;
     set_room_contexts_loading(true);
     set_room_contexts_error(null);
-    void getRoomContexts(selected_room_id)
+    void get_room_contexts(selected_room_id)
       .then((next_contexts) => {
         if (!cancelled) {
           set_room_contexts(next_contexts);
@@ -171,13 +171,13 @@ export function useScheduledTaskDialogData({
     () => agent_sessions.map((session) => ({
       session_key: session.session_key,
       agent_id: session.agent_id,
-      label: formatSessionLabel(session.title?.trim() || "未命名会话", agent_name_by_id.get(session.agent_id) || session.agent_id),
+      label: format_session_label(session.title?.trim() || "未命名会话", agent_name_by_id.get(session.agent_id) || session.agent_id),
     })),
     [agent_name_by_id, agent_sessions],
   );
 
   const room_session_options = useMemo(() => {
-    const options = buildRoomSessionSelections(room_contexts, agent_name_by_id);
+    const options = build_room_session_selections(room_contexts, agent_name_by_id);
     return options.map((option) => ({
       session_key: option.session_key,
       agent_id: option.agent_id,

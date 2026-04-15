@@ -5,13 +5,13 @@ import {
   FileText, GripVertical, LoaderCircle, Minimize2, Save, FileWarning, Download, Eye, EyeOff, FileImage,
 } from "lucide-react";
 
-import { getWorkspaceFileContentApi, updateWorkspaceFileContentApi, getWorkspaceFileDownloadUrl } from "@/lib/agent-manage-api";
+import { get_workspace_file_content_api, update_workspace_file_content_api, get_workspace_file_download_url } from "@/lib/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 
 // 文件类型检测
-function getFileType(path: string): "text" | "pdf" | "image" | "binary" | "unknown" {
+function get_file_type(path: string): "text" | "pdf" | "image" | "binary" | "unknown" {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   const textExtensions = new Set([
     "txt", "md", "markdown", "json", "jsonl", "yaml", "yml", "toml", "xml",
@@ -113,7 +113,7 @@ function PdfPreview({
   embedded?: boolean;
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
-  const download_url = getWorkspaceFileDownloadUrl(agent_id, path);
+  const download_url = get_workspace_file_download_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
@@ -211,7 +211,7 @@ function ImagePreview({
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
   const [has_error, setHasError] = useState(false);
-  const download_url = getWorkspaceFileDownloadUrl(agent_id, path);
+  const download_url = get_workspace_file_download_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
@@ -319,7 +319,7 @@ function BinaryFilePlaceholder({
   on_close: () => void;
   embedded?: boolean;
 }) {
-  const download_url = getWorkspaceFileDownloadUrl(agent_id, path);
+  const download_url = get_workspace_file_download_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
@@ -398,7 +398,7 @@ export function EditorPanel({
   const file_states = useWorkspaceLiveStore((state) => state.file_states);
 
   // 检测文件类型
-  const file_type = path ? getFileType(path) : "unknown";
+  const file_type = path ? get_file_type(path) : "unknown";
   const is_pdf = file_type === "pdf";
   const is_image = file_type === "image";
   const is_text = file_type === "text";
@@ -433,7 +433,7 @@ export function EditorPanel({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getWorkspaceFileContentApi(agent_id, path);
+      const response = await get_workspace_file_content_api(agent_id, path);
       if (load_content_ref.current) return;
       setDraftContent(response.content);
       setSavedContent(response.content);
@@ -488,7 +488,7 @@ export function EditorPanel({
     setIsSaving(true);
     setError(null);
     try {
-      const response = await updateWorkspaceFileContentApi(agent_id, path, draft_content);
+      const response = await update_workspace_file_content_api(agent_id, path, draft_content);
       setDraftContent(response.content);
       setSavedContent(response.content);
     } catch (save_error) {

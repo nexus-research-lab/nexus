@@ -82,7 +82,7 @@ export function ContentRenderer(
   // 中文注释：只要当前轮次仍在进行，就持续在块尾渲染一个状态行；
   // 不再要求“没有 streaming block”才显示，否则纯文本回复阶段会出现状态空窗。
   const activityState = is_streaming
-    ? resolveActivityState({
+    ? resolve_activity_state({
       content,
       streaming_block_indexes,
       tool_use_map: toolUseMap,
@@ -255,7 +255,7 @@ export function ContentRenderer(
   );
 }
 
-function resolveActivityState({
+function resolve_activity_state({
   content,
   streaming_block_indexes,
   tool_use_map,
@@ -276,7 +276,7 @@ function resolveActivityState({
   pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
   hidden_tool_names: string[];
 }): MessageActivityState {
-  const latest_pending_tool = findLatestPendingToolUse(
+  const latest_pending_tool = find_latest_pending_tool_use(
     content,
     tool_use_map,
     hidden_tool_names,
@@ -294,10 +294,10 @@ function resolveActivityState({
       return fallback_activity_state ?? 'thinking';
     }
 
-    return mapToolNameToActivityState(latest_pending_tool.name);
+    return map_tool_name_to_activity_state(latest_pending_tool.name);
   }
 
-  const latest_visible_block = findLatestVisibleBlock(
+  const latest_visible_block = find_latest_visible_block(
     content,
     rendered_indices,
     hidden_tool_names,
@@ -307,7 +307,7 @@ function resolveActivityState({
   }
 
   if (latest_visible_block.type === 'task_progress') {
-    return mapProgressToActivityState(latest_visible_block);
+    return map_progress_to_activity_state(latest_visible_block);
   }
 
   if (latest_visible_block.type === 'tool_use') {
@@ -316,7 +316,7 @@ function resolveActivityState({
         ? 'waiting_input'
         : (fallback_activity_state ?? 'thinking');
     }
-    return mapToolNameToActivityState(latest_visible_block.name);
+    return map_tool_name_to_activity_state(latest_visible_block.name);
   }
 
   if (latest_visible_block.type === 'thinking') {
@@ -324,13 +324,13 @@ function resolveActivityState({
   }
 
   if (latest_visible_block.type === 'text') {
-    return hasStreamingTextBlock(content, streaming_block_indexes) ? 'replying' : (fallback_activity_state ?? 'replying');
+    return has_streaming_text_block(content, streaming_block_indexes) ? 'replying' : (fallback_activity_state ?? 'replying');
   }
 
   return fallback_activity_state ?? 'thinking';
 }
 
-function findLatestPendingToolUse(
+function find_latest_pending_tool_use(
   content: ContentBlock[],
   tool_use_map: ReadonlyMap<string, {
     use: ToolUseContent;
@@ -357,7 +357,7 @@ function findLatestPendingToolUse(
   return null;
 }
 
-function findLatestVisibleBlock(
+function find_latest_visible_block(
   content: ContentBlock[],
   rendered_indices: ReadonlySet<number>,
   hidden_tool_names: string[],
@@ -385,11 +385,11 @@ function findLatestVisibleBlock(
   return null;
 }
 
-function mapProgressToActivityState(block: TaskProgressContent): MessageActivityState {
-  return mapToolNameToActivityState(block.last_tool_name ?? null);
+function map_progress_to_activity_state(block: TaskProgressContent): MessageActivityState {
+  return map_tool_name_to_activity_state(block.last_tool_name ?? null);
 }
 
-function mapToolNameToActivityState(tool_name?: string | null): MessageActivityState {
+function map_tool_name_to_activity_state(tool_name?: string | null): MessageActivityState {
   if (!tool_name) {
     return 'executing';
   }
@@ -410,7 +410,7 @@ function mapToolNameToActivityState(tool_name?: string | null): MessageActivityS
   return 'executing';
 }
 
-function hasStreamingTextBlock(
+function has_streaming_text_block(
   content: ContentBlock[],
   streaming_block_indexes?: ReadonlySet<number>,
 ): boolean {

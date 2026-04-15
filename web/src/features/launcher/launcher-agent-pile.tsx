@@ -39,31 +39,31 @@ type TokenBrandStyle = {
   ring: boolean;
 };
 
-function seededUnit(seed: number, salt: number) {
+function seeded_unit(seed: number, salt: number) {
   const value = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
   return value - Math.floor(value);
 }
 
-function createTokenConfig(tokens: SpotlightToken[], width: number): TokenPhysicsConfig[] {
+function create_token_config(tokens: SpotlightToken[], width: number): TokenPhysicsConfig[] {
   const horizontalPadding = 108;
   return tokens.map((token, index) => {
-    const seed = hashString(token.key);
+    const seed = hash_string(token.key);
     const baseSize = token.kind === "agent" ? 40 : 44;
-    const size = baseSize + Math.round(seededUnit(seed, 1) * 12);
+    const size = baseSize + Math.round(seeded_unit(seed, 1) * 12);
     return {
       key: token.key,
       size,
       radius: token.kind === "agent" ? size / 2 : Math.max(12, Math.round(size * 0.28)),
       spawn_x:
-        horizontalPadding + seededUnit(seed, 2) * Math.max(width - horizontalPadding * 2, 72),
-      spawn_y: -180 - seededUnit(seed, 3) * 240 - index * 14,
-      angle: ((seededUnit(seed, 4) * 36 - 18) * Math.PI) / 180,
+        horizontalPadding + seeded_unit(seed, 2) * Math.max(width - horizontalPadding * 2, 72),
+      spawn_y: -180 - seeded_unit(seed, 3) * 240 - index * 14,
+      angle: ((seeded_unit(seed, 4) * 36 - 18) * Math.PI) / 180,
       delay: 40 + index * 55,
     };
   });
 }
 
-function hexToRgba(hex: string, alpha: number) {
+function hex_to_rgba(hex: string, alpha: number) {
   const normalized = hex.replace("#", "");
   const value =
     normalized.length === 3
@@ -78,14 +78,14 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
-function getLabelSize(label: string) {
+function get_label_size(label: string) {
   if (label.length >= 3) {
     return "text-2xs";
   }
   return "text-sm";
 }
 
-function hashString(value: string) {
+function hash_string(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
     hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
@@ -93,8 +93,8 @@ function hashString(value: string) {
   return hash;
 }
 
-function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
-  const hash = hashString(token.key);
+function get_token_brand_style(token: SpotlightToken): TokenBrandStyle {
+  const hash = hash_string(token.key);
   const variant = hash % 5;
 
   if (variant === 0) {
@@ -153,7 +153,7 @@ function getTokenBrandStyle(token: SpotlightToken): TokenBrandStyle {
 
   if (variant === 3) {
     return {
-      label_class_name: getLabelSize(token.label),
+      label_class_name: get_label_size(token.label),
       label_transform: "capitalize",
       tag: token.kind === "agent" ? "ai" : "hub",
       tag_class_name: "text-[6px] tracking-[0.28em]",
@@ -195,7 +195,7 @@ export function AgentPile({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const configs = useMemo(() => createTokenConfig(tokens, 560), [tokens]);
+  const configs = useMemo(() => create_token_config(tokens, 560), [tokens]);
   const configByKey = useMemo(
     () => new Map(configs.map((config) => [config.key, config])),
     [configs],
@@ -357,14 +357,14 @@ export function AgentPile({
       animationFrame = window.requestAnimationFrame(update);
     };
 
-    const stopAnimation = () => {
+    const stop_animation = () => {
       if (animationFrame !== 0) {
         window.cancelAnimationFrame(animationFrame);
         animationFrame = 0;
       }
     };
 
-    const startAnimation = () => {
+    const start_animation = () => {
       if (disposed || animationFrame !== 0 || !isDocumentVisible || !isInView) {
         return;
       }
@@ -373,38 +373,38 @@ export function AgentPile({
       animationFrame = window.requestAnimationFrame(update);
     };
 
-    const syncAnimationState = () => {
+    const sync_animation_state = () => {
       if (isDocumentVisible && isInView) {
-        startAnimation();
+        start_animation();
         return;
       }
 
-      stopAnimation();
+      stop_animation();
     };
 
     const intersectionObserver = new IntersectionObserver(
       ([entry]) => {
         isInView = entry?.isIntersecting ?? true;
-        syncAnimationState();
+        sync_animation_state();
       },
       { threshold: 0.05 },
     );
     intersectionObserver.observe(container);
 
-    const handleVisibilityChange = () => {
+    const handle_visibility_change = () => {
       isDocumentVisible = document.visibilityState !== "hidden";
-      syncAnimationState();
+      sync_animation_state();
     };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handle_visibility_change);
 
-    syncAnimationState();
+    sync_animation_state();
 
     return () => {
       disposed = true;
       timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      stopAnimation();
+      stop_animation();
       intersectionObserver.disconnect();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handle_visibility_change);
       Matter.World.clear(engine.world, false);
       Matter.Engine.clear(engine);
     };
@@ -428,7 +428,7 @@ export function AgentPile({
         }
 
         const isActive = token.agent_id && token.agent_id === current_agent_id;
-        const brandStyle = getTokenBrandStyle(token);
+        const brandStyle = get_token_brand_style(token);
 
         return (
           <button
@@ -448,11 +448,11 @@ export function AgentPile({
               height: config.size,
               background: `linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,248,244,0.92) 100%)`,
               color: token.swatch.text,
-              borderColor: hexToRgba("#ffffff", 0.46),
+              borderColor: hex_to_rgba("#ffffff", 0.46),
               boxShadow:
                 token.kind === "agent"
-                  ? `inset 0 1px 0 ${hexToRgba("#ffffff", 0.74)}, 0 16px 34px rgba(10,14,28,0.16), 0 0 18px ${hexToRgba(token.swatch.fill, 0.18)}`
-                  : `inset 0 1px 0 ${hexToRgba("#ffffff", 0.68)}, 0 18px 38px rgba(10,14,28,0.18), 0 0 20px ${hexToRgba(token.swatch.fill, 0.2)}`,
+                  ? `inset 0 1px 0 ${hex_to_rgba("#ffffff", 0.74)}, 0 16px 34px rgba(10,14,28,0.16), 0 0 18px ${hex_to_rgba(token.swatch.fill, 0.18)}`
+                  : `inset 0 1px 0 ${hex_to_rgba("#ffffff", 0.68)}, 0 18px 38px rgba(10,14,28,0.18), 0 0 20px ${hex_to_rgba(token.swatch.fill, 0.2)}`,
             }}
             type="button"
           >
@@ -465,9 +465,9 @@ export function AgentPile({
               style={{
                 inset: brandStyle.inner_inset,
                 borderRadius: brandStyle.inner_radius,
-                background: `radial-gradient(circle at 28% 24%, ${hexToRgba("#ffffff", 0.32)} 0%, transparent 34%), linear-gradient(180deg, ${hexToRgba(token.swatch.fill, 0.88)} 0%, ${hexToRgba(token.swatch.fill, 1)} 100%)`,
-                borderColor: hexToRgba(token.swatch.ring, 0.78),
-                boxShadow: `inset 0 1px 0 ${hexToRgba("#ffffff", 0.34)}, inset 0 -3px 8px ${hexToRgba("#000000", 0.06)}`,
+                background: `radial-gradient(circle at 28% 24%, ${hex_to_rgba("#ffffff", 0.32)} 0%, transparent 34%), linear-gradient(180deg, ${hex_to_rgba(token.swatch.fill, 0.88)} 0%, ${hex_to_rgba(token.swatch.fill, 1)} 100%)`,
+                borderColor: hex_to_rgba(token.swatch.ring, 0.78),
+                boxShadow: `inset 0 1px 0 ${hex_to_rgba("#ffffff", 0.34)}, inset 0 -3px 8px ${hex_to_rgba("#000000", 0.06)}`,
               }}
             />
             <span
@@ -481,7 +481,7 @@ export function AgentPile({
                 right: "16%",
                 top: token.kind === "agent" ? "18%" : "16%",
                 height: "22%",
-                background: `linear-gradient(180deg, ${hexToRgba("#ffffff", brandStyle.gloss_opacity)} 0%, rgba(255,255,255,0) 100%)`,
+                background: `linear-gradient(180deg, ${hex_to_rgba("#ffffff", brandStyle.gloss_opacity)} 0%, rgba(255,255,255,0) 100%)`,
               }}
             />
             <span
@@ -496,9 +496,9 @@ export function AgentPile({
                   brandStyle.label_class_name,
                 )}
                 style={{
-                  color: hexToRgba(token.swatch.text, 0.98),
+                  color: hex_to_rgba(token.swatch.text, 0.98),
                   textTransform: brandStyle.label_transform as "none" | "uppercase" | "capitalize",
-                  textShadow: `0 1px 0 ${hexToRgba("#ffffff", 0.24)}, 0 2px 5px ${hexToRgba("#000000", 0.12)}`,
+                  textShadow: `0 1px 0 ${hex_to_rgba("#ffffff", 0.24)}, 0 2px 5px ${hex_to_rgba("#000000", 0.12)}`,
                 }}
               >
                 {token.label}
@@ -506,7 +506,7 @@ export function AgentPile({
               <span
                 className={cn("mt-0.5 font-semibold uppercase", brandStyle.tag_class_name)}
                 style={{
-                  color: hexToRgba(token.swatch.text, brandStyle.tag_opacity),
+                  color: hex_to_rgba(token.swatch.text, brandStyle.tag_opacity),
                 }}
               >
                 {brandStyle.tag}

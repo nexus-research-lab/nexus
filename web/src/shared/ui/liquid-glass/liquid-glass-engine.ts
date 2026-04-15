@@ -52,20 +52,20 @@ function smootherstep(value: number): number {
 
 // 中文注释：squircle 曲面轮廓 y = ⁴√(1-(1-x)⁴)，
 // 比 smootherstep 幂曲线产生更柔和的边缘过渡。
-function squircleSurfaceProfile(x: number): number {
+function squircle_surface_profile(x: number): number {
   const t = clamp(x, 0, 1);
   return Math.pow(1 - Math.pow(1 - t, 4), 0.25);
 }
 
-function lipSurfaceProfile(x: number): number {
+function lip_surface_profile(x: number): number {
   const t = clamp(x, 0, 1);
-  const convex = squircleSurfaceProfile(1 - t);
-  const concave = squircleSurfaceProfile(t);
+  const convex = squircle_surface_profile(1 - t);
+  const concave = squircle_surface_profile(t);
   const blend = smootherstep(t);
   return convex * (1 - blend) - concave * blend * 0.28;
 }
 
-function getRoundedRectSdf(x: number, y: number, width: number, height: number, radius: number): number {
+function get_rounded_rect_sdf(x: number, y: number, width: number, height: number, radius: number): number {
   const half_width = width / 2;
   const half_height = height / 2;
   const dx = Math.abs(x - half_width) - (half_width - radius);
@@ -75,12 +75,12 @@ function getRoundedRectSdf(x: number, y: number, width: number, height: number, 
   return Math.hypot(outer_x, outer_y) + Math.min(Math.max(dx, dy), 0) - radius;
 }
 
-function getSdfNormal(x: number, y: number, width: number, height: number, radius: number): Vector2 {
+function get_sdf_normal(x: number, y: number, width: number, height: number, radius: number): Vector2 {
   const epsilon = 0.85;
-  const dx = getRoundedRectSdf(x + epsilon, y, width, height, radius)
-    - getRoundedRectSdf(x - epsilon, y, width, height, radius);
-  const dy = getRoundedRectSdf(x, y + epsilon, width, height, radius)
-    - getRoundedRectSdf(x, y - epsilon, width, height, radius);
+  const dx = get_rounded_rect_sdf(x + epsilon, y, width, height, radius)
+    - get_rounded_rect_sdf(x - epsilon, y, width, height, radius);
+  const dy = get_rounded_rect_sdf(x, y + epsilon, width, height, radius)
+    - get_rounded_rect_sdf(x, y - epsilon, width, height, radius);
   const length = Math.hypot(dx, dy);
 
   if (length < 0.0001) {
@@ -93,7 +93,7 @@ function getSdfNormal(x: number, y: number, width: number, height: number, radiu
   };
 }
 
-function createCanvasContext(width: number, height: number): CanvasRenderingContext2D | null {
+function create_canvas_context(width: number, height: number): CanvasRenderingContext2D | null {
   if (typeof document === "undefined") {
     return null;
   }
@@ -104,11 +104,11 @@ function createCanvasContext(width: number, height: number): CanvasRenderingCont
   return canvas.getContext("2d");
 }
 
-function encodeVectorChannel(value: number): number {
+function encode_vector_channel(value: number): number {
   return Math.round(clamp(128 + value * 127, 0, 255));
 }
 
-function buildCacheKey({
+function build_cache_key({
   width,
   height,
   radius,
@@ -131,7 +131,7 @@ function buildCacheKey({
   ].join(":");
 }
 
-function createGlassAssets({
+function create_glass_assets({
   width,
   height,
   radius,
@@ -146,8 +146,8 @@ function createGlassAssets({
   const sample_height = Math.max(MIN_SAMPLE_SIZE, Math.round(height * scale_ratio));
   const sample_radius = clamp(radius * scale_ratio, 4, Math.min(sample_width, sample_height) / 2);
   const sample_bezel = clamp(bezel * scale_ratio, 6, Math.min(sample_radius, sample_width / 3, sample_height / 3));
-  const displacement_context = createCanvasContext(sample_width, sample_height);
-  const highlight_context = createCanvasContext(sample_width, sample_height);
+  const displacement_context = create_canvas_context(sample_width, sample_height);
+  const highlight_context = create_canvas_context(sample_width, sample_height);
 
   if (!displacement_context || !highlight_context) {
     return null;
@@ -168,7 +168,7 @@ function createGlassAssets({
   for (let y = 0; y < sample_height; y += 1) {
     for (let x = 0; x < sample_width; x += 1) {
       const pixel_index = (y * sample_width + x) * 4;
-      const signed_distance = getRoundedRectSdf(x + 0.5, y + 0.5, sample_width, sample_height, sample_radius);
+      const signed_distance = get_rounded_rect_sdf(x + 0.5, y + 0.5, sample_width, sample_height, sample_radius);
 
       displacement_buffer[pixel_index] = 128;
       displacement_buffer[pixel_index + 1] = 128;
@@ -188,7 +188,7 @@ function createGlassAssets({
         continue;
       }
 
-      const outward_normal = getSdfNormal(x + 0.5, y + 0.5, sample_width, sample_height, sample_radius);
+      const outward_normal = get_sdf_normal(x + 0.5, y + 0.5, sample_width, sample_height, sample_radius);
       const inward_normal = {
         x: -outward_normal.x,
         y: -outward_normal.y,
@@ -197,12 +197,12 @@ function createGlassAssets({
       // 中文注释：switch 走 lip 轮廓，外缘向内折射，内槽轻微向外散，
       // 让中部看起来被“拉远”，更接近参考站的玻璃开关。
       const profile_strength = surface_profile === "lip"
-        ? lipSurfaceProfile(normalized_bezel_position)
-        : squircleSurfaceProfile(1 - normalized_bezel_position);
+        ? lip_surface_profile(normalized_bezel_position)
+        : squircle_surface_profile(1 - normalized_bezel_position);
       const displacement_strength = profile_strength * (0.82 + (1 - normalized_bezel_position) * 0.18);
 
-      displacement_buffer[pixel_index] = encodeVectorChannel(inward_normal.x * displacement_strength);
-      displacement_buffer[pixel_index + 1] = encodeVectorChannel(inward_normal.y * displacement_strength);
+      displacement_buffer[pixel_index] = encode_vector_channel(inward_normal.x * displacement_strength);
+      displacement_buffer[pixel_index + 1] = encode_vector_channel(inward_normal.y * displacement_strength);
 
       const light_facing = Math.max(0, outward_normal.x * light_direction.x + outward_normal.y * light_direction.y);
       const rim_strength = Math.pow(1 - normalized_bezel_position, 2.35);
@@ -221,14 +221,14 @@ function createGlassAssets({
   };
 }
 
-export function getLiquidGlassAssets(options: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
-  const cache_key = buildCacheKey(options);
+export function get_liquid_glass_assets(options: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
+  const cache_key = build_cache_key(options);
   const cached = LIQUID_GLASS_CACHE.get(cache_key);
   if (cached) {
     return cached;
   }
 
-  const assets = createGlassAssets(options);
+  const assets = create_glass_assets(options);
   if (!assets) {
     return null;
   }
@@ -237,7 +237,7 @@ export function getLiquidGlassAssets(options: LiquidGlassAssetOptions): LiquidGl
   return assets;
 }
 
-export function supportsTrueLiquidGlass(): boolean {
+export function supports_true_liquid_glass(): boolean {
   if (typeof window === "undefined" || typeof CSS === "undefined" || typeof navigator === "undefined") {
     return false;
   }

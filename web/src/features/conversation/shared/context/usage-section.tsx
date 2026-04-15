@@ -1,7 +1,7 @@
 import { Cpu } from "lucide-react";
 
 import { AgentCostSummary, ConversationCostSummary } from "@/types/cost";
-import { formatCost, formatTokens } from "@/lib/utils";
+import { format_cost, format_tokens } from "@/lib/utils";
 
 import { ContextSection } from "./context-section";
 
@@ -27,13 +27,13 @@ export function UsageSection({
         <div className={METRIC_CARD_CLASS_NAME}>
           <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">当前 room</p>
           <p className="mt-1 text-sm font-semibold text-(--text-strong)">
-            {formatCost(conversation_cost_summary.total_cost_usd)}
+            {format_cost(conversation_cost_summary.total_cost_usd)}
           </p>
         </div>
         <div className={METRIC_CARD_CLASS_NAME}>
           <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">成员累计</p>
           <p className="mt-1 text-sm font-semibold text-(--text-strong)">
-            {formatCost(agent_cost_summary.total_cost_usd)}
+            {format_cost(agent_cost_summary.total_cost_usd)}
           </p>
         </div>
       </div>
@@ -41,19 +41,19 @@ export function UsageSection({
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-(--text-soft)">总 Tokens</span>
           <span className="text-[11px] font-medium text-(--text-default)">
-            {formatTokens(conversation_cost_summary.total_tokens)}
+            {format_tokens(conversation_cost_summary.total_tokens)}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-(--text-soft)">输入 / 输出</span>
           <span className="text-[11px] font-medium text-(--text-default)">
-            {formatTokens(conversation_cost_summary.total_input_tokens)} / {formatTokens(conversation_cost_summary.total_output_tokens)}
+            {format_tokens(conversation_cost_summary.total_input_tokens)} / {format_tokens(conversation_cost_summary.total_output_tokens)}
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-[11px] text-(--text-soft)">缓存</span>
           <span className="text-[11px] font-medium text-(--text-default)">
-            {formatTokens(conversation_cost_summary.total_cache_read_input_tokens)} / {formatTokens(conversation_cost_summary.total_cache_creation_input_tokens)}
+            {format_tokens(conversation_cost_summary.total_cache_read_input_tokens)} / {format_tokens(conversation_cost_summary.total_cache_creation_input_tokens)}
           </span>
         </div>
         <div className="flex justify-between gap-4">

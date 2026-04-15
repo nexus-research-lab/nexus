@@ -51,7 +51,7 @@ function get_file_extension(name: string): string | null {
 }
 
 /** 中文注释：文件图标映射独立成纯函数，避免视图文件继续承载规则表。 */
-export function getWorkspaceFileVisual(name: string): WorkspaceFileVisual {
+export function get_workspace_file_visual(name: string): WorkspaceFileVisual {
   const extension = get_file_extension(name);
 
   if (!extension) {

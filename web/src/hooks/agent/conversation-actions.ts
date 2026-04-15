@@ -1,17 +1,17 @@
-import { resolveAgentId } from '@/config/options';
+import { resolve_agent_id } from '@/config/options';
 import { WebSocketMessage } from '@/types/websocket';
-import { isStructuredSessionKey } from '@/lib/session-key';
-import { generateUuid } from '@/lib/uuid';
+import { is_structured_session_key } from '@/lib/session-key';
+import { generate_uuid } from '@/lib/uuid';
 import { Message } from '@/types';
 import { AgentConversationActionContext } from '@/types/agent-conversation';
 import { PermissionDecisionPayload } from '@/types/permission';
 
-import { upsertMessage } from './message-helpers';
+import { upsert_message } from './message-helpers';
 
 /**
  * 发送用户消息并建立当前轮次的本地状态。
  */
-export async function sendSessionMessage(
+export async function send_session_message(
   content: string,
   context: AgentConversationActionContext,
 ): Promise<string | null> {
@@ -39,7 +39,7 @@ export async function sendSessionMessage(
     set_error('请先选择或创建会话');
     return null;
   }
-  if (!isStructuredSessionKey(resolved_session_key)) {
+  if (!is_structured_session_key(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，请刷新后重试');
     return null;
   }
@@ -52,20 +52,20 @@ export async function sendSessionMessage(
     return null;
   }
 
-  const round_id = generateUuid();
+  const round_id = generate_uuid();
   active_session_key_ref.current = resolved_session_key;
   const userMessage: Message = {
     message_id: round_id,
     session_key: resolved_session_key,
     round_id,
-    agent_id: resolveAgentId(agent_id),
+    agent_id: resolve_agent_id(agent_id),
     role: 'user',
     content,
     timestamp: Date.now(),
     ...(chat_type === 'group' ? { room_id: room_id ?? undefined, conversation_id: conversation_id ?? undefined } : {}),
   };
 
-  set_messages((prev) => upsertMessage(prev, userMessage));
+  set_messages((prev) => upsert_message(prev, userMessage));
   set_pending_permissions([]);
   set_error(null);
 
@@ -73,7 +73,7 @@ export async function sendSessionMessage(
     type: 'chat',
     content,
     session_key: resolved_session_key,
-    agent_id: resolveAgentId(agent_id),
+    agent_id: resolve_agent_id(agent_id),
     round_id,
     req_id: round_id,  // echo'd back in chat_ack for correlation
   };
@@ -94,7 +94,7 @@ export async function sendSessionMessage(
  * @param context - 会话上下文
  * @param msg_id - 可选，指定只取消某个 Agent 气泡（Room 并发场景）
  */
-export function stopSessionGeneration(
+export function stop_session_generation(
   context: AgentConversationActionContext,
   msg_id?: string,
 ): void {
@@ -119,7 +119,7 @@ export function stopSessionGeneration(
   if (!resolved_session_key || ws_state !== 'connected') {
     return;
   }
-  if (!isStructuredSessionKey(resolved_session_key)) {
+  if (!is_structured_session_key(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，无法中断');
     return;
   }
@@ -135,7 +135,7 @@ export function stopSessionGeneration(
   const payload: Record<string, unknown> = {
     type: 'interrupt',
     session_key: resolved_session_key,
-    agent_id: resolveAgentId(agent_id),
+    agent_id: resolve_agent_id(agent_id),
     round_id: latest_user_round_id,
   };
 
@@ -161,7 +161,7 @@ export function stopSessionGeneration(
 /**
  * 提交权限决策。
  */
-export function sendSessionPermissionResponse(
+export function send_session_permission_response(
   payload: PermissionDecisionPayload,
   context: AgentConversationActionContext,
 ): boolean {
@@ -189,7 +189,7 @@ export function sendSessionPermissionResponse(
     set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
     return false;
   }
-  if (!isStructuredSessionKey(resolved_session_key)) {
+  if (!is_structured_session_key(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，无法提交权限决策');
     return false;
   }
@@ -214,7 +214,7 @@ export function sendSessionPermissionResponse(
     type: 'permission_response',
     request_id: payload.request_id,
     session_key: resolved_session_key,
-    agent_id: resolveAgentId(pending_permission.agent_id || agent_id),
+    agent_id: resolve_agent_id(pending_permission.agent_id || agent_id),
     decision: payload.decision,
     message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
     interrupt: payload.interrupt ?? false,

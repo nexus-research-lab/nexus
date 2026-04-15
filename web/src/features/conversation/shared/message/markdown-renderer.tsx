@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import "katex/dist/katex.min.css";
 
 import {
-  createMarkdownComponents,
+  create_markdown_components,
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_PLUGINS,
   REHYPE_PLUGINS,
@@ -33,7 +33,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
       )}
     >
       <ReactMarkdown
-        components={createMarkdownComponents(resolve_file_path, on_open_workspace_file)}
+        components={create_markdown_components(resolve_file_path, on_open_workspace_file)}
         rehypePlugins={REHYPE_PLUGINS}
         remarkPlugins={MARKDOWN_PLUGINS}
       >

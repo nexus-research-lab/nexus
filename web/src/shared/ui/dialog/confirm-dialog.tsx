@@ -8,9 +8,9 @@ import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 
 interface ConfirmDialogProps {
@@ -53,15 +53,15 @@ export function ConfirmDialog({
   }, [is_open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handle_key_down = (e: KeyboardEvent) => {
       if (!is_open) return;
       if (e.key === "Escape") {
         e.preventDefault();
         on_cancel();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_cancel]);
 
   if (!is_open) return null;
@@ -116,9 +116,9 @@ export function ConfirmDialog({
 
         <div className="dialog-body">
           <div
-            className={getDialogNoteClassName(is_danger ? "danger" : "default")}
+            className={get_dialog_note_class_name(is_danger ? "danger" : "default")}
             id="confirm-dialog-message"
-            style={getDialogNoteStyle(is_danger ? "danger" : "default")}
+            style={get_dialog_note_style(is_danger ? "danger" : "default")}
           >
             {message}
           </div>
@@ -126,14 +126,14 @@ export function ConfirmDialog({
 
         <div className="dialog-footer border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--modal-card-background)_84%,transparent)]">
           <button
-            className={getDialogActionClassName("default")}
+            className={get_dialog_action_class_name("default")}
             onClick={on_cancel}
             type="button"
           >
             {cancel_text}
           </button>
           <button
-            className={getDialogActionClassName(is_danger ? "danger" : "primary", "min-w-[110px]")}
+            className={get_dialog_action_class_name(is_danger ? "danger" : "primary", "min-w-[110px]")}
             ref={confirmButtonRef}
             onClick={on_confirm}
             type="button"
@@ -179,7 +179,7 @@ export function PromptDialog({
   }, [is_open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handle_key_down = (e: KeyboardEvent) => {
       if (!is_open) return;
       if (e.key === "Escape") {
         e.preventDefault();
@@ -191,8 +191,8 @@ export function PromptDialog({
         on_confirm(value);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_cancel, on_confirm, value, default_value]);
 
   if (!is_open) return null;
@@ -242,7 +242,7 @@ export function PromptDialog({
 
         <div className="dialog-footer">
           <button
-            className={getDialogActionClassName("default")}
+            className={get_dialog_action_class_name("default")}
             onClick={() => {
               setValue(default_value);
               on_cancel();
@@ -251,7 +251,7 @@ export function PromptDialog({
           >
             取消
           </button>
-          <button className={getDialogActionClassName("primary")} onClick={() => on_confirm(value)} type="button">
+          <button className={get_dialog_action_class_name("primary")} onClick={() => on_confirm(value)} type="button">
             确认
           </button>
         </div>

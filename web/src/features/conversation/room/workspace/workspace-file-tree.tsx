@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceFileEntry } from "@/types/agent";
 
-import { getWorkspaceFileVisual } from "./workspace-file-visuals";
+import { get_workspace_file_visual } from "./workspace-file-visuals";
 
 interface TreeNode {
   entry: WorkspaceFileEntry;
@@ -89,7 +89,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   const is_active = entry.path === active_path;
   const is_directory_target = entry.is_dir && entry.path === focused_directory_path;
   const is_selected = is_active || is_directory_target;
-  const { Icon: FileIcon, icon_class_name } = getWorkspaceFileVisual(entry.name);
+  const { Icon: FileIcon, icon_class_name } = get_workspace_file_visual(entry.name);
   const [is_open, set_is_open] = useState(depth === 0);
 
   const handle_click = useCallback(() => {

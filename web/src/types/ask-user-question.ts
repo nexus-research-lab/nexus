@@ -50,7 +50,7 @@ export interface UserQuestionAnswer {
 
 export const ASK_USER_QUESTION_TIMEOUT_ERROR_CODE = 'permission_request_timeout';
 
-export function isAskUserQuestionTimedOutResult(
+export function is_ask_user_question_timed_out_result(
   tool_result?: Pick<ToolResultContent, 'is_error' | 'error_code'> | null,
 ): boolean {
   return Boolean(

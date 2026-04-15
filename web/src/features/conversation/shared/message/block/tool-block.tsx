@@ -56,7 +56,7 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   Task: '委派任务',
 };
 
-const getToolTitle = (tool_name: string): string => {
+const get_tool_title = (tool_name: string): string => {
   return TOOL_TITLE_MAP[tool_name] ?? tool_name;
 };
 
@@ -87,22 +87,22 @@ const PRIMARY_INPUT_KEYS = [
   'task',
 ] as const;
 
-const formatPermissionValue = (value: unknown): string => {
+const format_permission_value = (value: unknown): string => {
   if (value == null || value === '') return '空';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) {
-    return value.map((item) => formatPermissionValue(item)).join('、');
+    return value.map((item) => format_permission_value(item)).join('、');
   }
   if (typeof value === 'object') {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${formatPermissionValue(nestedValue)}`)
+      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${format_permission_value(nestedValue)}`)
       .join('；');
   }
   return String(value);
 };
 
-const getReadableSuggestions = (suggestions: PermissionUpdate[] = []) => {
+const get_readable_suggestions = (suggestions: PermissionUpdate[] = []) => {
   const destinationMap: Record<string, string> = {
     session: '仅本会话',
     projectSettings: '项目设置',
@@ -133,7 +133,7 @@ const getReadableSuggestions = (suggestions: PermissionUpdate[] = []) => {
 };
 
 /** 获取工具输入的简短摘要 */
-const getInputSummary = (input: any): string | null => {
+const get_input_summary = (input: any): string | null => {
   if (!input) return null;
   if (input.file_path) return input.file_path;
   if (input.path) return input.path;
@@ -148,7 +148,7 @@ const getInputSummary = (input: any): string | null => {
 };
 
 /** 获取工具输入的完整展示文本 */
-const getPrimaryInputDetail = (input: any): { key: string; value: string } | null => {
+const get_primary_input_detail = (input: any): { key: string; value: string } | null => {
   if (!input) return null;
   for (const key of PRIMARY_INPUT_KEYS) {
     const value = input[key];
@@ -160,7 +160,7 @@ const getPrimaryInputDetail = (input: any): { key: string; value: string } | nul
 };
 
 /** 获取结果摘要 */
-const getResultSummary = (content: any): string => {
+const get_result_summary = (content: any): string => {
   if (typeof content === 'string') {
     return content.slice(0, 80) + (content.length > 80 ? '...' : '');
   }
@@ -183,7 +183,7 @@ const TOOL_LABEL_STYLES: Record<string, string> = {
   waiting: 'text-(--warning)',
 };
 
-const getPermissionChoiceClassName = (selected: boolean) =>
+const get_permission_choice_class_name = (selected: boolean) =>
   cn(
     "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
     selected
@@ -244,14 +244,14 @@ export function ToolBlock({
   }, [duration]);
 
   // 路径显示
-  const inputSummary = useMemo(() => getInputSummary(tool_use.input), [tool_use.input]);
-  const toolTitle = useMemo(() => getToolTitle(tool_use.name), [tool_use.name]);
+  const inputSummary = useMemo(() => get_input_summary(tool_use.input), [tool_use.input]);
+  const toolTitle = useMemo(() => get_tool_title(tool_use.name), [tool_use.name]);
   const primaryInputDetail = useMemo(
-    () => getPrimaryInputDetail(permission_request?.tool_input || tool_use.input),
+    () => get_primary_input_detail(permission_request?.tool_input || tool_use.input),
     [permission_request?.tool_input, tool_use.input],
   );
   const readableSuggestions = useMemo(
-    () => getReadableSuggestions(permission_request?.suggestions || []),
+    () => get_readable_suggestions(permission_request?.suggestions || []),
     [permission_request?.suggestions],
   );
   const readablePermissionFields = useMemo(() => {
@@ -262,12 +262,12 @@ export function ToolBlock({
       .map(([key, value]) => ({
         key,
         label: FIELD_LABEL_MAP[key] || key,
-        value: formatPermissionValue(value),
+        value: format_permission_value(value),
       }));
   }, [permission_request?.tool_input, primaryInputDetail?.key]);
   const resultSummary = useMemo(() => {
     if (!tool_result) return null;
-    return getResultSummary(tool_result.content);
+    return get_result_summary(tool_result.content);
   }, [tool_result]);
   const permissionFieldSummary = useMemo(() => {
     if (readablePermissionFields.length === 0) return null;
@@ -482,7 +482,7 @@ export function ToolBlock({
               <div className="text-[10px] font-medium text-(--text-soft)">权限范围</div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <label
-                  className={getPermissionChoiceClassName(selectedSuggestionIndex === -1)}
+                  className={get_permission_choice_class_name(selectedSuggestionIndex === -1)}
                 >
                   <input
                     type="radio"
@@ -497,7 +497,7 @@ export function ToolBlock({
                 {readableSuggestions.map((suggestion) => (
                   <label
                     key={suggestion.index}
-                    className={getPermissionChoiceClassName(selectedSuggestionIndex === suggestion.index)}
+                    className={get_permission_choice_class_name(selectedSuggestionIndex === suggestion.index)}
                   >
                     <input
                       type="radio"

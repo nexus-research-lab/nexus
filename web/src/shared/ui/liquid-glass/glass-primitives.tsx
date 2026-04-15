@@ -20,7 +20,7 @@ type GlassPrimitiveProps<T extends GlassPrimitiveTagName> =
     true_glass?: boolean;
   };
 
-function getDefaultRadius(variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier"): number {
+function get_default_radius(variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier"): number {
   if (variant === "panel") {
     return 28;
   }
@@ -42,7 +42,7 @@ function BaseGlassPrimitive<T extends GlassPrimitiveTagName>({
     <LiquidGlassPanel
       {...props}
       enable_true_glass={true_glass}
-      radius={radius ?? getDefaultRadius(props.variant)}
+      radius={radius ?? get_default_radius(props.variant)}
       variant={props.variant}
     />
   );

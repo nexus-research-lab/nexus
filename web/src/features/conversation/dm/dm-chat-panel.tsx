@@ -6,7 +6,7 @@ import { useAgentConversation } from "@/hooks/agent";
 import { useSessionLoader } from "@/hooks/use-session-loader";
 import { useExtractTodos } from "@/hooks/use-extract-todos";
 import { useFollowScroll } from "@/hooks/use-follow-scroll";
-import { AgentConversationIdentity, getSessionControlStatusText } from "@/types/agent-conversation";
+import { AgentConversationIdentity, get_session_control_status_text } from "@/types/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation";
 import { TodoItem } from "@/types/todo";
 
@@ -14,7 +14,7 @@ import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { groupMessagesByRound, get_latest_reply_timestamp } from "@/features/conversation/shared/utils";
+import { group_messages_by_round, get_latest_reply_timestamp } from "@/features/conversation/shared/utils";
 
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
@@ -84,7 +84,7 @@ export function DmChatPanel({
   const can_control_session = session_control_state !== "observer";
   const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
   const session_control_text = useMemo(
-    () => getSessionControlStatusText(session_control_state, session_observer_count),
+    () => get_session_control_status_text(session_control_state, session_observer_count),
     [session_control_state, session_observer_count],
   );
 
@@ -122,7 +122,7 @@ export function DmChatPanel({
     debug_name: "DmChatPanel",
   });
 
-  const message_groups = useMemo(() => groupMessagesByRound(messages), [messages]);
+  const message_groups = useMemo(() => group_messages_by_round(messages), [messages]);
   const round_ids = Array.from(message_groups.keys());
 
   const handle_send_message = async (content: string) => {

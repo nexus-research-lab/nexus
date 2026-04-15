@@ -11,7 +11,7 @@ import { MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { listRooms, getRoomContexts, subscribe_room_list_updates } from "@/lib/room-api";
+import { list_rooms, get_room_contexts, subscribe_room_list_updates } from "@/lib/room-api";
 import { sort_rooms_by_recency } from "@/lib/room-utils";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/workspace-catalog-card";
 import { WorkspaceEmptyState } from "@/shared/ui/workspace/workspace-empty-state";
@@ -29,7 +29,7 @@ export function DmsPage() {
 
     async function bootstrap() {
       try {
-        const next_rooms = await listRooms(200);
+        const next_rooms = await list_rooms(200);
         if (is_cancelled) return;
         set_rooms(next_rooms);
       } finally {
@@ -42,7 +42,7 @@ export function DmsPage() {
   }, []);
 
   useEffect(() => subscribe_room_list_updates(() => {
-    void listRooms(200).then(set_rooms);
+    void list_rooms(200).then(set_rooms);
   }), []);
 
   // 找到最近的 DM Room
@@ -58,7 +58,7 @@ export function DmsPage() {
     const target_room = latest_dm_room;
 
     async function open_latest_dm() {
-      const contexts = await getRoomContexts(target_room.room.id);
+      const contexts = await get_room_contexts(target_room.room.id);
       if (is_cancelled) return;
 
       if (contexts[0]?.conversation?.id) {

@@ -8,8 +8,8 @@
  */
 
 import { Conversation, ConversationStoreState } from '@/types/conversation';
-import { getConversations } from "@/lib/agent-api";
-import { isLegacyLauncherAppSessionKey } from "@/lib/session-key";
+import { get_conversations } from "@/lib/agent-api";
+import { is_legacy_launcher_app_session_key } from "@/lib/session-key";
 
 type ConversationStoreSetter = (
   update:
@@ -22,7 +22,7 @@ function dedupe_conversations_by_session_key(
 ): Conversation[] {
   const unique_conversations = new Map<string, Conversation>();
   for (const conversation of conversations) {
-    if (isLegacyLauncherAppSessionKey(conversation.session_key)) {
+    if (is_legacy_launcher_app_session_key(conversation.session_key)) {
       continue;
     }
     const existing_conversation = unique_conversations.get(conversation.session_key);
@@ -40,7 +40,7 @@ function dedupe_conversations_by_session_key(
   return Array.from(unique_conversations.values());
 }
 
-export const syncConversationSnapshotAction = (
+export const sync_conversation_snapshot_action = (
   set: ConversationStoreSetter
 ) => (
   key: string,
@@ -87,13 +87,13 @@ export const syncConversationSnapshotAction = (
   });
 };
 
-export const loadConversationsFromServerAction = (
+export const load_conversations_from_server_action = (
   set: ConversationStoreSetter,
 ) => async (): Promise<void> => {
   try {
     set({ loading: true, error: null });
 
-    const conversations = await getConversations();
+    const conversations = await get_conversations();
 
     if (conversations && Array.isArray(conversations)) {
       const sorted_conversations = dedupe_conversations_by_session_key(conversations)
@@ -112,7 +112,7 @@ export const loadConversationsFromServerAction = (
   }
 };
 
-export const clearAllConversationsAction = (
+export const clear_all_conversations_action = (
   set: ConversationStoreSetter
 ) => (): void => {
   set({

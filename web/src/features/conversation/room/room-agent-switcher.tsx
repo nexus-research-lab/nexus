@@ -12,7 +12,7 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-import { getIconAvatarSrc, getInitials } from "@/lib/utils";
+import { get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent";
 
@@ -44,7 +44,7 @@ export function RoomAgentSwitcher({
     return null;
   }
 
-  const selected_avatar_src = getIconAvatarSrc(selected_member.avatar);
+  const selected_avatar_src = get_icon_avatar_src(selected_member.avatar);
 
   return (
     <div className={cn("relative", class_name)}>
@@ -66,7 +66,7 @@ export function RoomAgentSwitcher({
             />
           ) : (
             <span className="text-[8px] font-bold text-(--text-strong)">
-              {getInitials(selected_member.name)}
+              {get_initials(selected_member.name)}
             </span>
           )}
         </span>
@@ -91,7 +91,7 @@ export function RoomAgentSwitcher({
             <div className="p-1.5">
               {members.map((member) => {
                 const is_active = member.agent_id === selected_id;
-                const avatar_src = getIconAvatarSrc(member.avatar);
+                const avatar_src = get_icon_avatar_src(member.avatar);
 
                 return (
                   <button
@@ -118,7 +118,7 @@ export function RoomAgentSwitcher({
                         />
                       ) : (
                         <span className="text-[8px] font-bold text-(--text-strong)">
-                          {getInitials(member.name)}
+                          {get_initials(member.name)}
                         </span>
                       )}
                     </span>

@@ -13,10 +13,10 @@ import { cn } from "@/lib/utils";
 import { useAssistantContentMerge } from "@/hooks/use-assistant-content-merge";
 import { useScrollAnchoredState } from "@/hooks/use-scroll-anchored-state";
 import { AgentConversationRuntimePhase } from "@/types/agent-conversation";
-import { AssistantMessage, ContentBlock, getSystemMessageDisplayMeta, Message, SystemMessage } from "@/types/message";
+import { AssistantMessage, ContentBlock, get_system_message_display_meta, Message, SystemMessage } from "@/types/message";
 import {
-  collectUnresolvedToolUseCandidates,
-  matchPendingPermissionsToToolUses,
+  collect_unresolved_tool_use_candidates,
+  match_pending_permissions_to_tool_uses,
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/permission";
@@ -27,14 +27,14 @@ import {
   AssistantContentMode,
   AssistantTurnEntry,
   ContentProjection,
-  extractTextFromContentBlocks,
+  extract_text_from_content_blocks,
   find_latest_streaming_block,
-  getSystemMessageContainerClassName,
-  getSystemMessageIconClassName,
+  get_system_message_container_class_name,
+  get_system_message_icon_class_name,
   has_timed_out_ask_user_question,
   map_runtime_phase_to_activity_state,
   OrderedAssistantEntry,
-  projectionFromOrderedEntries,
+  projection_from_ordered_entries,
 } from "./message-item-support";
 import {
   MessageActionButton,
@@ -169,8 +169,8 @@ function MessageItemInner(
       };
     }
 
-    const unresolved_tool_use_candidates = collectUnresolvedToolUseCandidates(messages);
-    const permission_match_result = matchPendingPermissionsToToolUses(
+    const unresolved_tool_use_candidates = collect_unresolved_tool_use_candidates(messages);
+    const permission_match_result = match_pending_permissions_to_tool_uses(
       pending_permissions,
       unresolved_tool_use_candidates,
     );
@@ -429,14 +429,14 @@ function MessageItemInner(
 
     if (should_strip_tail) {
       const tail_indexes = new Set(finalTailEntries.map((entry) => entry.merged_index));
-      return projectionFromOrderedEntries(
+      return projection_from_ordered_entries(
         visibleOrderedAssistantEntries.filter((entry) => !tail_indexes.has(entry.merged_index)),
         streamingBlockIndexes,
       );
     }
 
     if (!result_text && finalAssistantTurn) {
-      return projectionFromOrderedEntries(
+      return projection_from_ordered_entries(
         visibleOrderedAssistantEntries.filter((entry) => (
           entry.source_message_id !== finalAssistantTurn.message_id
           || !finalAssistantTextMergedIndexes.has(entry.merged_index)
@@ -445,7 +445,7 @@ function MessageItemInner(
       );
     }
 
-    return projectionFromOrderedEntries(visibleOrderedAssistantEntries, streamingBlockIndexes);
+    return projection_from_ordered_entries(visibleOrderedAssistantEntries, streamingBlockIndexes);
   }, [
     finalTailEntries,
     finalTailText,
@@ -548,7 +548,7 @@ function MessageItemInner(
     if (typeof finalAssistantContent === "string") {
       return finalAssistantContent;
     }
-    return extractTextFromContentBlocks(finalAssistantContent);
+    return extract_text_from_content_blocks(finalAssistantContent);
   }, [finalAssistantContent]);
   const shouldRenderDirectAssistantContent = directOrderedProjection.content.length > 0;
   const hasVisibleProcess = processProjection.content.length > 0 || unmatchedPendingPermissions.length > 0;
@@ -827,7 +827,7 @@ function MessageItemInner(
 
   useEffect(() => {
     const layout_text = assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread"
-      ? extractTextFromContentBlocks(directOrderedProjection.content)
+      ? extract_text_from_content_blocks(directOrderedProjection.content)
       : finalAssistantText;
 
     if (!showCursor || !layout_text) return;
@@ -858,7 +858,7 @@ function MessageItemInner(
   }, [showCursor]);
 
   // 格式化时间
-  const formatTime = (ts: number) => {
+  const format_time = (ts: number) => {
     const date = new Date(ts);
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   };
@@ -911,7 +911,7 @@ function MessageItemInner(
                   </div>
 
                   <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                    {userMessage.timestamp ? formatTime(userMessage.timestamp) : "--:--"}
+                    {userMessage.timestamp ? format_time(userMessage.timestamp) : "--:--"}
                   </span>
                   <span className="shrink-0 text-sm font-bold text-(--text-strong)">你</span>
                   <MessageAvatar class_name="shrink-0" size={compact ? "compact" : "full"}>
@@ -966,7 +966,7 @@ function MessageItemInner(
 
                   {/* 时间 */}
                   <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                    {timestamp ? formatTime(timestamp) : "--:--"}
+                    {timestamp ? format_time(timestamp) : "--:--"}
                   </span>
 
                   {/* 模型 */}
@@ -1012,13 +1012,13 @@ function MessageItemInner(
                   {systemMessages.length > 0 ? (
                     <div className="mb-3 flex flex-col gap-2">
                       {systemMessages.map((message) => {
-                        const display_meta = getSystemMessageDisplayMeta(message);
+                        const display_meta = get_system_message_display_meta(message);
                         return (
                           <div
                             key={message.message_id}
                             className={cn(
                               "flex items-start gap-2 rounded-2xl px-3 py-2.5",
-                              getSystemMessageContainerClassName(display_meta.tone),
+                              get_system_message_container_class_name(display_meta.tone),
                               is_room_thread_mode && display_meta.tone === "neutral"
                                 ? "border border-(--divider-subtle-color) bg-transparent text-(--text-default)"
                                 : null,
@@ -1027,7 +1027,7 @@ function MessageItemInner(
                             <RotateCcw
                               className={cn(
                                 "mt-0.5 h-3.5 w-3.5 shrink-0",
-                                getSystemMessageIconClassName(display_meta.tone),
+                                get_system_message_icon_class_name(display_meta.tone),
                               )}
                             />
                             <div className="min-w-0">

@@ -27,14 +27,14 @@ export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-[color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[color-mix(in_srgb,var(--destructive)_86%,var(--foreground)_14%)] transition-[background,border-color,color] duration-(--motion-duration-fast) hover:bg-[color-mix(in_srgb,var(--destructive)_14%,transparent)] hover:border-[color-mix(in_srgb,var(--destructive)_36%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
-export function getComposerShellClassName(disabled: boolean) {
+export function get_composer_shell_class_name(disabled: boolean) {
   return cn(
     "input-shell overflow-hidden rounded-[18px]",
     disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
   );
 }
 
-export function getComposerShellStyle(compact: boolean) {
+export function get_composer_shell_style(compact: boolean) {
   void compact;
   return undefined;
 }

@@ -7,12 +7,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  completeConnectorOAuthApi,
-  connectConnectorApi,
-  disconnectConnectorApi,
-  getConnectorAuthUrlApi,
-  getConnectorDetailApi,
-  getConnectorsApi,
+  complete_connector_o_auth_api,
+  connect_connector_api,
+  disconnect_connector_api,
+  get_connector_auth_url_api,
+  get_connector_detail_api,
+  get_connectors_api,
 } from "@/lib/connector-api";
 import { ConnectorDetail, ConnectorInfo } from "@/types/connector";
 
@@ -58,7 +58,7 @@ export function useConnectorController(): ConnectorController {
   const load = useCallback(async () => {
     set_loading(true);
     try {
-      const items = await getConnectorsApi();
+      const items = await get_connectors_api();
       set_all_connectors(items);
     } catch (e) {
       set_error_message(e instanceof Error ? e.message : "加载失败");
@@ -102,7 +102,7 @@ export function useConnectorController(): ConnectorController {
     set_detail_loading(true);
     set_selected_detail(null);
     try {
-      const detail = await getConnectorDetailApi(connector_id);
+      const detail = await get_connector_detail_api(connector_id);
       set_selected_detail(detail);
     } catch (e) {
       set_error_message(e instanceof Error ? e.message : "获取详情失败");
@@ -125,7 +125,7 @@ export function useConnectorController(): ConnectorController {
         if (target?.auth_type === "oauth2") {
           // 获取 OAuth 授权 URL 并在新窗口打开
           const redirect_uri = `${window.location.origin}/capability/connectors`;
-          const { auth_url } = await getConnectorAuthUrlApi(connector_id, redirect_uri);
+          const { auth_url } = await get_connector_auth_url_api(connector_id, redirect_uri);
           if (!auth_url) {
             throw new Error("授权地址为空，请检查连接器配置");
           }
@@ -140,11 +140,11 @@ export function useConnectorController(): ConnectorController {
           set_status_message("已打开授权页面，请在新窗口完成授权");
         } else {
           // API Key / Token 等方式直接连接
-          await connectConnectorApi(connector_id);
+          await connect_connector_api(connector_id);
           set_status_message("连接成功");
           await load();
           if (selected_detail?.connector_id === connector_id) {
-            const detail = await getConnectorDetailApi(connector_id);
+            const detail = await get_connector_detail_api(connector_id);
             set_selected_detail(detail);
           }
         }
@@ -162,11 +162,11 @@ export function useConnectorController(): ConnectorController {
     async (connector_id: string) => {
       set_busy_id(connector_id);
       try {
-        await disconnectConnectorApi(connector_id);
+        await disconnect_connector_api(connector_id);
         set_status_message("已断开连接");
         await load();
         if (selected_detail?.connector_id === connector_id) {
-          const detail = await getConnectorDetailApi(connector_id);
+          const detail = await get_connector_detail_api(connector_id);
           set_selected_detail(detail);
         }
       } catch (e) {
@@ -181,7 +181,7 @@ export function useConnectorController(): ConnectorController {
   const handle_oauth_callback = useCallback(
     async (payload: { code: string; state: string; redirect_uri?: string }) => {
       try {
-        await completeConnectorOAuthApi(payload.code, payload.state, payload.redirect_uri);
+        await complete_connector_o_auth_api(payload.code, payload.state, payload.redirect_uri);
         set_status_message("连接成功");
         await load();
       } catch (e) {

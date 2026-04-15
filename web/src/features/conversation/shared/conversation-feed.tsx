@@ -6,7 +6,7 @@ import { MessageItem } from "@/features/conversation/shared/message";
 import { AgentConversationRuntimePhase } from "@/types/agent-conversation";
 import { Message } from "@/types/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/permission";
-import { estimateRoundHeights } from "@/hooks/use-message-height";
+import { estimate_round_heights } from "@/hooks/use-message-height";
 
 interface ConversationFeedProps {
   bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
@@ -195,7 +195,7 @@ function VirtualFeed({
 
   // Pretext-based height estimates (recomputed when round count changes)
   const height_map = useMemo(
-    () => estimateRoundHeights(round_ids, message_groups, container_width_ref.current),
+    () => estimate_round_heights(round_ids, message_groups, container_width_ref.current),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [round_ids.length, message_groups],
   );
