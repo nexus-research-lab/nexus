@@ -102,9 +102,24 @@
   }
 
   .input-shell {
-    background: var(--input-shell-background);
-    border: 1px solid var(--input-shell-border);
-    box-shadow: var(--input-shell-shadow);
+    background: color-mix(in srgb, var(--input-shell-background) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--input-shell-border) 92%, transparent);
+    box-shadow: none;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .input-shell:hover {
+    border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 88%, transparent);
+    background: color-mix(in srgb, var(--input-shell-background) 58%, transparent);
+  }
+
+  .input-shell:focus-within {
+    background: color-mix(in srgb, var(--input-shell-focus-background, var(--material-input-focus-background)) 62%, transparent);
+    border-color: color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 96%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
   .liquid-glass-surface {
@@ -160,15 +175,25 @@
   }
 
   .dialog-input {
-    background: var(--modal-input-background);
-    border: 1px solid var(--modal-input-border);
-    box-shadow: var(--modal-input-shadow);
+    background: color-mix(in srgb, var(--modal-input-background) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--modal-input-border) 92%, transparent);
+    box-shadow: none;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
-  .dialog-input:focus {
-    background: var(--modal-input-focus-background);
-    border-color: var(--modal-input-focus-border);
-    box-shadow: var(--modal-input-focus-shadow);
+  .dialog-input:hover {
+    border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 88%, transparent);
+    background: color-mix(in srgb, var(--modal-input-background) 58%, transparent);
+  }
+
+  .dialog-input:focus,
+  .dialog-input:focus-within {
+    background: color-mix(in srgb, var(--modal-input-focus-background) 62%, transparent);
+    border-color: color-mix(in srgb, var(--modal-input-focus-border) 96%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--modal-input-focus-border) 32%, transparent);
   }
 
   .dialog-divider {
