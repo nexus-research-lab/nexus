@@ -20,6 +20,7 @@ import { EditorPanel } from "@/features/conversation-shared/context/editor-panel
 import {
   useRoomWorkspaceController,
 } from "./use-room-workspace-controller";
+import { RoomAgentSwitcher } from "./room-agent-switcher";
 
 interface RoomWorkspaceViewProps {
   active_workspace_path: string | null;
@@ -451,51 +452,6 @@ const TreeRow = memo(function TreeRow({
   );
 });
 
-// ── member switcher (room only) ────────────────────────────────────────────
-
-function MemberSwitcher({
-  members,
-  selected_id,
-  on_select,
-}: {
-  members: Agent[];
-  selected_id: string;
-  on_select: (id: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {members.map((m) => {
-        const is_active = m.agent_id === selected_id;
-        return (
-          <button
-            key={m.agent_id}
-            type="button"
-            onClick={() => on_select(m.agent_id)}
-            className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-medium transition-all",
-              is_active
-                ? "border-primary/30 bg-primary/10 text-primary"
-                : "text-(--text-default) hover:text-(--text-strong)",
-            )}
-            style={!is_active ? {
-              background: "var(--card-default-background)",
-              borderColor: "var(--card-default-border)",
-            } : undefined}
-          >
-            <span className={cn(
-              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
-              is_active ? "bg-primary/20 text-primary" : "bg-(--surface-interactive-hover-background) text-(--text-default)",
-            )}>
-              {m.name.slice(0, 1).toUpperCase()}
-            </span>
-            {m.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── main view ──────────────────────────────────────────────────────────────
 
 export function RoomWorkspaceView({
@@ -549,6 +505,13 @@ export function RoomWorkspaceView({
   });
 
   const tree = useMemo(() => buildTree(files), [files]);
+  const title_trailing = !is_dm && room_members.length > 1 ? (
+    <RoomAgentSwitcher
+      members={room_members}
+      selected_id={selected_agent_id}
+      on_select={set_selected_agent_id}
+    />
+  ) : null;
 
   useEffect(() => {
     if (!is_resizing_file_list) {
@@ -602,6 +565,7 @@ export function RoomWorkspaceView({
         max_width_class_name="max-w-none"
         show_eyebrow={false}
         title={t("room.workspace_title")}
+        title_trailing={title_trailing}
       >
         <div
           ref={workspace_panel_ref}
@@ -611,16 +575,6 @@ export function RoomWorkspaceView({
             className="flex min-h-0 shrink-0 flex-col"
             style={{ width: `${file_list_width}px` }}
           >
-            {!is_dm && room_members.length > 1 ? (
-              <div className="mb-4">
-                <MemberSwitcher
-                  members={room_members}
-                  selected_id={selected_agent_id}
-                  on_select={set_selected_agent_id}
-                />
-              </div>
-            ) : null}
-
             <div className="mb-3 inline-flex min-w-0 items-center gap-2 rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[12px] text-(--text-default)">
               {focused_directory_path ? (
                 <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />

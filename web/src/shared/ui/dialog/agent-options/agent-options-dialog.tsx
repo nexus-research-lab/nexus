@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,13 +45,33 @@ interface AgentOptionsProps {
   is_open: boolean;
   on_close: () => void;
   on_delete?: (agent_id: string) => void;
-  on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void;
+  on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
   on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   initial_title?: string;
   initial_options?: Partial<AgentConfigOptions>;
   initial_avatar?: string;
   initial_description?: string;
   initial_vibe_tags?: string[];
+}
+
+interface AgentOptionsEditorProps {
+  agent_id?: string;
+  mode: "create" | "edit";
+  is_active: boolean;
+  on_delete?: (agent_id: string) => void;
+  on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
+  on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
+  initial_title?: string;
+  initial_options?: Partial<AgentConfigOptions>;
+  initial_avatar?: string;
+  initial_description?: string;
+  initial_vibe_tags?: string[];
+  on_cancel?: () => void;
+  close_after_save?: boolean;
+  show_cancel_button?: boolean;
+  show_delete_button?: boolean;
+  variant?: "dialog" | "inline";
+  content_max_width_class_name?: string;
 }
 
 /** 扩展选项 */
@@ -63,12 +83,11 @@ interface AgentDialogInitialOptions extends Partial<AgentConfigOptions> {
 
 // ==================== 主组件 ====================
 
-/** AgentOptions 对话框 */
-export function AgentOptions({
+/** AgentOptions 表单主体 */
+export function AgentOptionsEditor({
   agent_id,
   mode,
-  is_open,
-  on_close,
+  is_active,
   on_delete,
   on_save,
   on_validate_name,
@@ -77,9 +96,19 @@ export function AgentOptions({
   initial_avatar = "",
   initial_description = "",
   initial_vibe_tags = [],
-}: AgentOptionsProps) {
+  on_cancel,
+  close_after_save = false,
+  show_cancel_button = true,
+  show_delete_button = true,
+  variant = "dialog",
+  content_max_width_class_name = "max-w-[920px]",
+}: AgentOptionsEditorProps) {
   const { t } = useI18n();
   const sourceOptions = initial_options as AgentDialogInitialOptions;
+  const initial_resolved_title = useMemo(
+    () => initial_title || t("agent_options.default_name"),
+    [initial_title, t],
+  );
 
   // ---- 导航状态 ----
   const [activeTab, setActiveTab] = useState<TabKey>("identity");
@@ -117,13 +146,16 @@ export function AgentOptions({
   const [nameValidation, setNameValidation] =
     useState<AgentNameValidationResult | null>(null);
   const [isValidatingName, setIsValidatingName] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const trimmed_title = title.trim();
+  const has_title_changed = trimmed_title !== initial_resolved_title.trim();
 
   // ---- 对话框打开时重置状态 ----
   useEffect(() => {
-    if (!is_open) return;
+    if (!is_active) return;
     const opts = initial_options as AgentDialogInitialOptions;
     setActiveTab("identity");
-    setTitle(initial_title || t("agent_options.default_name"));
+    setTitle(initial_resolved_title);
     setAvatar(initial_avatar);
     setDescription(initial_description);
     setVibeTags(initial_vibe_tags);
@@ -136,10 +168,11 @@ export function AgentOptions({
     setDisallowedTools(opts.disallowed_tools || []);
     setNameValidation(null);
     setIsValidatingName(false);
-  }, [initial_avatar, initial_description, initial_options, initial_title, initial_vibe_tags, is_open, t]);
+    setIsSaving(false);
+  }, [initial_avatar, initial_description, initial_options, initial_resolved_title, initial_vibe_tags, is_active]);
 
   useEffect(() => {
-    if (!is_open) {
+    if (!is_active) {
       return;
     }
 
@@ -175,33 +208,21 @@ export function AgentOptions({
     return () => {
       cancelled = true;
     };
-  }, [is_open, t]);
-
-  useEffect(() => {
-    if (!is_open) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        on_close();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [is_open, on_close]);
+  }, [is_active, t]);
 
   // ---- 名称校验 debounce ----
   useEffect(() => {
-    if (!is_open) return;
+    if (!is_active) return;
     if (!on_validate_name) {
       setNameValidation(null);
       return;
     }
-    const trimmed = title.trim();
-    if (!trimmed) {
+    if (!trimmed_title) {
+      setNameValidation(null);
+      setIsValidatingName(false);
+      return;
+    }
+    if (!has_title_changed) {
       setNameValidation(null);
       setIsValidatingName(false);
       return;
@@ -211,13 +232,13 @@ export function AgentOptions({
     const timer = window.setTimeout(async () => {
       try {
         setIsValidatingName(true);
-        const result = await on_validate_name(trimmed);
+        const result = await on_validate_name(trimmed_title);
         if (!cancelled) setNameValidation(result);
       } catch (error) {
         if (!cancelled) {
           setNameValidation({
-            name: trimmed,
-            normalized_name: trimmed,
+            name: trimmed_title,
+            normalized_name: trimmed_title,
             is_valid: false,
             is_available: false,
             reason:
@@ -236,7 +257,7 @@ export function AgentOptions({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [title, is_open, on_validate_name, t]);
+  }, [trimmed_title, has_title_changed, is_active, on_validate_name, t]);
 
   // ---- 切换工具授权 ----
   const toggleTool = (
@@ -259,15 +280,44 @@ export function AgentOptions({
   };
 
   // ---- 保存逻辑 ----
-  const handleSave = () => {
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) return;
-    if (isValidatingName) return;
-    if (
-      nameValidation &&
-      (!nameValidation.is_valid || !nameValidation.is_available)
-    )
-      return;
+  const handleSave = async () => {
+    if (!trimmed_title) return;
+    if (isValidatingName || isSaving) return;
+    const requires_final_name_validation = Boolean(on_validate_name) && (mode === "create" || has_title_changed);
+    let latest_name_validation = nameValidation;
+
+    if (requires_final_name_validation) {
+      const has_current_valid_result = latest_name_validation?.name === trimmed_title;
+      if (!has_current_valid_result) {
+        setIsValidatingName(true);
+        try {
+          latest_name_validation = await on_validate_name!(trimmed_title);
+          setNameValidation(latest_name_validation);
+        } catch (error) {
+          latest_name_validation = {
+            name: trimmed_title,
+            normalized_name: trimmed_title,
+            is_valid: false,
+            is_available: false,
+            reason:
+              error instanceof Error
+                ? error.message
+                : t("agent_options.identity.validation_failed"),
+            workspace_path: null,
+          };
+          setNameValidation(latest_name_validation);
+        } finally {
+          setIsValidatingName(false);
+        }
+      }
+
+      if (
+        latest_name_validation &&
+        (!latest_name_validation.is_valid || !latest_name_validation.is_available)
+      ) {
+        return;
+      }
+    }
 
     const options: AgentConfigOptions = {
       provider: provider.trim() || undefined,
@@ -277,20 +327,237 @@ export function AgentOptions({
       system_prompt: systemPrompt || undefined,
       setting_sources: ["project"],
     };
-    on_save(trimmedTitle, options, {
-      avatar,
-      description: description.trim(),
-      vibe_tags: vibeTags,
-    });
-    on_close();
+    setIsSaving(true);
+    try {
+      await on_save(trimmed_title, options, {
+        avatar,
+        description: description.trim(),
+        vibe_tags: vibeTags,
+      });
+      if (close_after_save) {
+        on_cancel?.();
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isNameInvalid = !!(
     nameValidation &&
     (!nameValidation.is_valid || !nameValidation.is_available)
   );
-  const canSave = !!title.trim() && !isValidatingName && !isNameInvalid;
-  const canDelete = mode === "edit" && Boolean(agent_id) && Boolean(on_delete);
+  const canSave = !!trimmed_title && !isValidatingName && !isNameInvalid && !isSaving;
+  const canDelete = show_delete_button && mode === "edit" && Boolean(agent_id) && Boolean(on_delete);
+
+  const content = (
+    <>
+      {activeTab === "identity" && (
+        <AgentOptionsIdentityTab
+          avatar={avatar}
+          onAvatarChange={setAvatar}
+          title={title}
+          onTitleChange={setTitle}
+          description={description}
+          onDescriptionChange={setDescription}
+          vibeTags={vibeTags}
+          onVibeTagsChange={setVibeTags}
+          provider={provider}
+          defaultProvider={defaultProvider}
+          providerOptions={build_agent_option_provider_options(providerOptions, provider)}
+          providerOptionsError={providerOptionsError}
+          providerOptionsLoading={providerOptionsLoading}
+          onProviderChange={setProvider}
+          nameValidation={nameValidation}
+          isValidatingName={isValidatingName}
+          variant={variant}
+        />
+      )}
+
+      {activeTab === "persona" && (
+        <AgentOptionsPersonaTab
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
+          variant={variant}
+        />
+      )}
+
+      {activeTab === "advanced" && (
+        <AgentOptionsAdvancedTab
+          permissionMode={permissionMode}
+          onPermissionModeChange={setPermissionMode}
+          allowedTools={allowedTools}
+          onToggleTool={toggleTool}
+        />
+      )}
+
+      {activeTab === "skills" && (
+        <AgentOptionsSkillsTab
+          agent_id={mode === "edit" ? agent_id : undefined}
+          is_visible={is_active && activeTab === "skills"}
+        />
+      )}
+    </>
+  );
+
+  if (variant === "inline") {
+    const inline_content_width_class_name =
+      activeTab === "identity" ? content_max_width_class_name : "max-w-none";
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <AgentOptionsNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          variant="inline"
+          trailing={(
+            <button
+              className={getDialogActionClassName(canSave ? "primary" : "default", "compact")}
+              onClick={() => {
+                void handleSave();
+              }}
+              disabled={!canSave}
+              type="button"
+            >
+              {isSaving
+                ? t("common.saving")
+                : mode === "create"
+                  ? t("agent_options.title_create")
+                  : t("agent_options.save_changes")}
+            </button>
+          )}
+        />
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            className={cn(
+              "w-full px-6 py-5",
+              inline_content_width_class_name,
+              activeTab === "identity" && "mx-auto"
+            )}
+          >
+            {content}
+          </div>
+        </div>
+
+        {canDelete || (show_cancel_button && on_cancel) ? (
+          <div className="flex items-center justify-end border-t dialog-divider px-6 py-3">
+            {canDelete ? (
+              <button
+                className={cn(getDialogActionClassName("danger"), "mr-auto")}
+                onClick={() => {
+                  if (!agent_id || !on_delete) {
+                    return;
+                  }
+                  on_delete(agent_id);
+                }}
+                type="button"
+              >
+                {t("agent_options.delete_agent")}
+              </button>
+            ) : null}
+            {show_cancel_button && on_cancel ? (
+              <button
+                className={getDialogActionClassName("default")}
+                onClick={on_cancel}
+                type="button"
+              >
+                {t("common.cancel")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <AgentOptionsNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+
+        <div className="flex-1 overflow-y-auto bg-transparent p-6">
+          {content}
+        </div>
+      </div>
+
+      <div className="dialog-footer px-5 py-3.5">
+        {canDelete ? (
+          <button
+            className={cn(getDialogActionClassName("danger"), "mr-auto")}
+            onClick={() => {
+              if (!agent_id || !on_delete) {
+                return;
+              }
+              on_delete(agent_id);
+            }}
+            type="button"
+          >
+            {t("agent_options.delete_agent")}
+          </button>
+        ) : null}
+        {show_cancel_button && on_cancel ? (
+          <button
+            className={getDialogActionClassName("default")}
+            onClick={on_cancel}
+            type="button"
+          >
+            {t("common.cancel")}
+          </button>
+        ) : null}
+        <button
+          className={getDialogActionClassName(canSave ? "primary" : "default")}
+          onClick={() => {
+            void handleSave();
+          }}
+          disabled={!canSave}
+          type="button"
+        >
+          {isSaving
+            ? t("common.saving")
+            : mode === "create"
+              ? t("agent_options.title_create")
+              : t("agent_options.save_changes")}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** AgentOptions 对话框 */
+export function AgentOptions({
+  agent_id,
+  mode,
+  is_open,
+  on_close,
+  on_delete,
+  on_save,
+  on_validate_name,
+  initial_title = "",
+  initial_options = {},
+  initial_avatar = "",
+  initial_description = "",
+  initial_vibe_tags = [],
+}: AgentOptionsProps) {
+  const { t } = useI18n();
+
+  useEffect(() => {
+    if (!is_open) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        on_close();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [is_open, on_close]);
 
   if (!is_open || typeof document === "undefined") return null;
 
@@ -304,7 +571,7 @@ export function AgentOptions({
             </div>
             <div className="min-w-0">
               <h2 className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]">
-                {mode === "create" ? t("agent_options.title_create") : title}
+                {mode === "create" ? t("agent_options.title_create") : initial_title}
               </h2>
               {mode === "edit" && agent_id ? (
                 <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agent_id}</p>
@@ -323,94 +590,22 @@ export function AgentOptions({
           </button>
         </div>
 
-        {/* 主体：左导航 + 右内容 */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* 左侧图标导航 */}
-          <AgentOptionsNav
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
-
-          {/* 中间内容区 */}
-          <div className="flex-1 overflow-y-auto bg-transparent p-6">
-            {activeTab === "identity" && (
-              <AgentOptionsIdentityTab
-                avatar={avatar}
-                onAvatarChange={setAvatar}
-                title={title}
-                onTitleChange={setTitle}
-                description={description}
-                onDescriptionChange={setDescription}
-                vibeTags={vibeTags}
-                onVibeTagsChange={setVibeTags}
-                provider={provider}
-                defaultProvider={defaultProvider}
-                providerOptions={build_agent_option_provider_options(providerOptions, provider)}
-                providerOptionsError={providerOptionsError}
-                providerOptionsLoading={providerOptionsLoading}
-                onProviderChange={setProvider}
-                nameValidation={nameValidation}
-                isValidatingName={isValidatingName}
-              />
-            )}
-
-            {activeTab === "persona" && (
-              <AgentOptionsPersonaTab
-                systemPrompt={systemPrompt}
-                onSystemPromptChange={setSystemPrompt}
-              />
-            )}
-
-            {activeTab === "advanced" && (
-              <AgentOptionsAdvancedTab
-                permissionMode={permissionMode}
-                onPermissionModeChange={setPermissionMode}
-                allowedTools={allowedTools}
-                onToggleTool={toggleTool}
-              />
-            )}
-
-            {activeTab === "skills" && (
-              <AgentOptionsSkillsTab
-                agent_id={mode === "edit" ? agent_id : undefined}
-                is_visible={activeTab === "skills"}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* 底部按钮 */}
-        <div className="dialog-footer px-5 py-3.5">
-          {canDelete ? (
-            <button
-              className={cn(getDialogActionClassName("danger"), "mr-auto")}
-              onClick={() => {
-                if (!agent_id || !on_delete) {
-                  return;
-                }
-                on_delete(agent_id);
-              }}
-              type="button"
-            >
-              {t("agent_options.delete_agent")}
-            </button>
-          ) : null}
-          <button
-            className={getDialogActionClassName("default")}
-            onClick={on_close}
-            type="button"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            className={getDialogActionClassName(canSave ? "primary" : "default")}
-            onClick={handleSave}
-            disabled={!canSave}
-            type="button"
-          >
-            {mode === "create" ? t("agent_options.title_create") : t("agent_options.save_changes")}
-          </button>
-        </div>
+        <AgentOptionsEditor
+          agent_id={agent_id}
+          mode={mode}
+          is_active={is_open}
+          on_cancel={on_close}
+          on_delete={on_delete}
+          on_save={on_save}
+          on_validate_name={on_validate_name}
+          initial_title={initial_title}
+          initial_options={initial_options}
+          initial_avatar={initial_avatar}
+          initial_description={initial_description}
+          initial_vibe_tags={initial_vibe_tags}
+          close_after_save
+          show_cancel_button
+        />
       </div>
     </div>
   );

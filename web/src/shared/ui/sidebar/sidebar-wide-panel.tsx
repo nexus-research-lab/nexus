@@ -168,7 +168,13 @@ export function SidebarWidePanel() {
           </GlassMagnifierStatic>
         </Link>
         <div className="min-w-0">
-          <p className="text-[26px] font-semibold uppercase tracking-[0.24em] text-(--text-strong)">
+          <p
+            className="text-[26px] uppercase tracking-[0.14em]"
+            style={{
+              fontFamily: "\"Panchang\", var(--font-sans)",
+              fontWeight: 200,
+            }}
+          >
             NEXUS
           </p>
         </div>
@@ -196,7 +202,7 @@ export function SidebarWidePanel() {
           title={t("sidebar.settings")}
           to={AppRouteBuilders.settings()}
         >
-            <Settings className="h-4 w-4" />
+          <Settings className="h-4 w-4" />
         </Link>
 
         <div className="min-w-0 flex-1" />

@@ -9,6 +9,7 @@ import { WorkspaceSurfaceScaffold } from "./workspace-surface-scaffold";
 interface WorkspaceSurfaceViewProps {
   eyebrow: string;
   title: string;
+  title_trailing?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   body_scrollable?: boolean;
@@ -22,6 +23,7 @@ interface WorkspaceSurfaceViewProps {
 export function WorkspaceSurfaceView({
   eyebrow,
   title,
+  title_trailing,
   action,
   children,
   body_scrollable = true,
@@ -43,12 +45,16 @@ export function WorkspaceSurfaceView({
                   {eyebrow}
                 </p>
               ) : null}
-              <h2 className={cn(
-                "truncate text-[17px] font-black tracking-[-0.045em] text-(--text-strong)",
-                show_eyebrow && "mt-1",
-              )}>
-                {title}
-              </h2>
+              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1", show_eyebrow && "mt-1")}>
+                <h2 className="truncate text-[17px] font-black tracking-[-0.045em] text-(--text-strong)">
+                  {title}
+                </h2>
+                {title_trailing ? (
+                  <div className="min-w-0 shrink text-(--text-default)">
+                    {title_trailing}
+                  </div>
+                ) : null}
+              </div>
             </div>
             {action}
           </div>

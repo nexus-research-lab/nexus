@@ -6,6 +6,7 @@
 
 "use client";
 
+import { ReactNode } from "react";
 import { UserPen, Brain, ToolCase, Album, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -35,11 +36,54 @@ const NAV_ITEMS: NavItem[] = [
 interface AgentOptionsNavProps {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
+  variant?: "sidebar" | "inline";
+  trailing?: ReactNode;
 }
 
 /** 左侧图标导航栏组件 */
-export function AgentOptionsNav({ activeTab, onTabChange }: AgentOptionsNavProps) {
+export function AgentOptionsNav({
+  activeTab,
+  onTabChange,
+  variant = "sidebar",
+  trailing,
+}: AgentOptionsNavProps) {
   const { t } = useI18n();
+
+  if (variant === "inline") {
+    return (
+      <div className="flex items-center justify-between gap-4 border-b dialog-divider px-6 py-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.key;
+            const label = t(item.label_key);
+            return (
+              <button
+                key={item.key}
+                onClick={() => onTabChange(item.key)}
+                title={label}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-[color,background,border-color] duration-(--motion-duration-normal)",
+                  isActive
+                    ? "border border-primary/18 bg-primary/8 text-primary"
+                    : "border border-transparent text-(--text-muted) hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                )}
+                type="button"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+        {trailing ? (
+          <div className="ml-4 flex shrink-0 items-center gap-2">
+            {trailing}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="flex w-36 flex-col border-r dialog-divider bg-transparent px-2.5 py-3">

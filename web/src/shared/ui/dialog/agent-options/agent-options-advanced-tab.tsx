@@ -83,9 +83,9 @@ export function AgentOptionsAdvancedTab({
   const { t } = useI18n();
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
       {/* 权限模式 */}
-      <div className="space-y-3.5">
+      <div className="space-y-2.5">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
@@ -99,19 +99,19 @@ export function AgentOptionsAdvancedTab({
             {t("agent_options.advanced.permission_control_hint")}
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {PERMISSION_MODES.map((pm) => (
             <button
               key={pm.value}
               onClick={() => onPermissionModeChange(pm.value)}
               className={cn(
-                "radius-shell-md relative overflow-hidden p-3.5 text-left transition-[background,border-color,color] duration-(--motion-duration-normal)",
+                "relative overflow-hidden rounded-[15px] border px-3 py-2.5 text-left transition-[background,border-color,color] duration-(--motion-duration-normal)",
                 permissionMode === pm.value
-                  ? "dialog-card-active"
-                  : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
+                  ? "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)"
+                  : "border-(--divider-subtle-color) bg-transparent text-(--text-strong) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
               )}
               >
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-1 flex items-center justify-between">
                 <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
                 {permissionMode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
@@ -133,7 +133,7 @@ export function AgentOptionsAdvancedTab({
                   </div>
                 )}
               </div>
-              <p className="text-[12px] leading-5 text-muted-foreground">
+              <p className="text-[11.5px] leading-[1.5] text-muted-foreground">
                 {t(pm.description_key)}
               </p>
             </button>
@@ -143,13 +143,13 @@ export function AgentOptionsAdvancedTab({
         {/* bypassPermissions 警告 */}
         {permissionMode === "bypassPermissions" &&
           allowedTools.length > 0 && (
-            <div className="radius-shell-md border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] p-4 text-xs leading-relaxed text-(--warning)">
+            <div className="rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
               {t("agent_options.advanced.bypass_warning")}
             </div>
           )}
       </div>
 
-      <div className="space-y-3.5">
+      <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
@@ -165,11 +165,11 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* 安全提示 */}
-        <div className="radius-shell-md flex gap-3 border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] p-3.5">
+        <div className="flex gap-2.5 rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2.5">
           <div className="mt-0.5 text-(--warning)">
             <svg
-              width="16"
-              height="16"
+              width="15"
+              height="15"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -183,32 +183,39 @@ export function AgentOptionsAdvancedTab({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-medium text-[color:color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
-            <p className="mt-1 text-xs leading-relaxed text-[color:color-mix(in_srgb,var(--warning)_70%,white)]">
+            <p className="text-[12.5px] font-medium text-[color:color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
+            <p className="mt-0.5 text-[11.5px] leading-[1.5] text-[color:color-mix(in_srgb,var(--warning)_70%,white)]">
               {t("agent_options.advanced.security_hint")}
             </p>
           </div>
         </div>
 
         {/* 工具列表 */}
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className="grid grid-cols-1 gap-1.5">
           {AVAILABLE_TOOLS.map((tool) => {
             const isChecked = allowedTools.includes(tool.name);
             return (
               <div
                 key={tool.name}
-                className="radius-shell-md flex items-center justify-between gap-4 border border-(--divider-subtle-color) bg-(--surface-card-background) p-3.5"
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-[15px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
+                  isChecked
+                    ? "border-[color:color-mix(in_srgb,var(--primary)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)]"
+                    : "border-(--divider-subtle-color) bg-transparent hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
+                )}
               >
-                <div className="mr-4 flex-1">
-                  <div className="text-[13px] font-semibold">{tool.name}</div>
-                  <div className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12.5px] font-semibold leading-[1.35]">{tool.name}</div>
+                  <div className="mt-0.5 text-[11.5px] leading-[1.45] text-muted-foreground">
                     {t(tool.description_key)}
                   </div>
                 </div>
-                <GlassSwitch
-                  checked={isChecked}
-                  on_change={() => onToggleTool(tool.name, "allowed")}
-                />
+                <div className="origin-right scale-[0.84]">
+                  <GlassSwitch
+                    checked={isChecked}
+                    on_change={() => onToggleTool(tool.name, "allowed")}
+                  />
+                </div>
               </div>
             );
           })}

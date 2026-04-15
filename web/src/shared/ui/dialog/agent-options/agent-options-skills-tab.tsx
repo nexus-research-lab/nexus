@@ -117,99 +117,97 @@ export function AgentOptionsSkillsTab({
     return (
       <div
         key={skill.name}
-        className="dialog-card rounded-[20px] px-4 py-3.5 transition-all duration-(--motion-duration-normal) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
+        className="flex items-start justify-between gap-3 rounded-[15px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-(--text-strong)">
-                {skill.title || skill.name}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[12.5px] font-semibold leading-[1.35] text-(--text-strong)">
+              {skill.title || skill.name}
+            </span>
+            {skill.locked ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/8 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                <Lock className="h-3 w-3" />
+                {t("agent_options.skills.system_builtin")}
               </span>
-              {skill.locked ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                  <Lock className="h-3 w-3" />
-                  {t("agent_options.skills.system_builtin")}
-                </span>
-              ) : null}
-              {skill.scope === "main" ? (
-                <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300">
-                  {t("agent_options.skills.main_only")}
-                </span>
-              ) : null}
-            </div>
-            {skill.description ? (
-              <p className="mt-2 line-clamp-1 text-sm leading-6 text-(--text-muted)">
-                {skill.description}
-              </p>
+            ) : null}
+            {skill.scope === "main" ? (
+              <span className="rounded-full border border-sky-400/20 bg-sky-500/8 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
+                {t("agent_options.skills.main_only")}
+              </span>
             ) : null}
           </div>
-
-          {skill.locked ? (
-            <span className="inline-flex h-9 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-600">
-              {t("agent_options.skills.enabled")}
-            </span>
-          ) : (
-            <button
-              className={getDialogActionClassName(tone === "installed" ? "default" : "primary")}
-              disabled={isBusy}
-              onClick={() => void handleToggle(skill)}
-              type="button"
-            >
-              {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
-            </button>
-          )}
+          {skill.description ? (
+            <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-[1.5] text-(--text-muted)">
+              {skill.description}
+            </p>
+          ) : null}
         </div>
+
+        {skill.locked ? (
+          <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-emerald-400/20 bg-emerald-500/8 px-2.5 text-[11px] font-semibold text-emerald-600">
+            {t("agent_options.skills.enabled")}
+          </span>
+        ) : (
+          <button
+            className={getDialogActionClassName(tone === "installed" ? "default" : "primary", "compact")}
+            disabled={isBusy}
+            onClick={() => void handleToggle(skill)}
+            type="button"
+          >
+            {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
+          </button>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-3.5 animate-in slide-in-from-right-4 duration-300">
       <div className="flex items-center justify-between gap-4">
-        <h3 className="text-[18px] font-semibold tracking-tight text-(--text-strong)">
+        <h3 className="text-[16px] font-semibold tracking-tight text-(--text-strong)">
           {t("agent_options.skills.summary", { count: installedCount })}
         </h3>
-        <span className="text-sm text-(--text-soft)">{t("agent_options.skills.total", { count: skills.length })}</span>
+        <span className="text-[12px] text-(--text-soft)">{t("agent_options.skills.total", { count: skills.length })}</span>
       </div>
 
       {errorMessage ? (
-        <div className="radius-shell-md border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+        <div className="rounded-[15px] border border-rose-400/20 bg-rose-500/10 px-3.5 py-2.5 text-[12px] text-rose-300">
           {errorMessage}
         </div>
       ) : null}
 
       {loading ? (
-        <div className="surface-card radius-shell-md flex items-center justify-center py-12 text-(--text-soft)">
+        <div className="flex items-center justify-center rounded-[15px] border border-(--divider-subtle-color) py-10 text-(--text-soft)">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : null}
 
       {!agent_id ? (
-        <div className="surface-card radius-shell-md px-5 py-6 text-sm text-(--text-muted)">
+        <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
           {t("agent_options.skills.create_first")}
         </div>
       ) : null}
 
       {agent_id && !loading ? (
         <>
-          <div className="space-y-4">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-4">
               <h4 className="text-sm font-semibold text-(--text-strong)">{t("agent_options.skills.installed")}</h4>
               <span className="text-xs text-(--text-soft)">{installedSkills.length}</span>
             </div>
 
             {installedSkills.length === 0 ? (
-              <div className="surface-card radius-shell-md px-5 py-6 text-sm text-(--text-muted)">
+              <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
                 {t("agent_options.skills.empty_installed")}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-1.5">
                 {installedSkills.map((skill) => renderSkillCard(skill, t("agent_options.skills.remove"), "installed"))}
               </div>
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-4">
               <h4 className="text-sm font-semibold text-(--text-strong)">{t("agent_options.skills.add")}</h4>
               <span className="text-xs text-(--text-soft)">
@@ -217,27 +215,25 @@ export function AgentOptionsSkillsTab({
               </span>
             </div>
 
-            <div className="surface-card radius-shell-md p-4">
-              <div className="dialog-input flex items-center gap-3 rounded-[18px] px-4 py-3">
-                <Search className="h-4 w-4 text-(--text-soft)" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={t("agent_options.skills.search_placeholder")}
-                  className="w-full bg-transparent text-sm text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-                />
-              </div>
+            <div className="dialog-input flex items-center gap-2.5 rounded-[15px] px-3.5 py-2">
+              <Search className="h-4 w-4 text-(--text-soft)" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={t("agent_options.skills.search_placeholder")}
+                className="w-full bg-transparent text-[13px] text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+              />
             </div>
 
             {skills.length === 0 ? (
-              <div className="surface-card radius-shell-md px-5 py-6 text-sm text-(--text-muted)">
+              <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
                 {t("agent_options.skills.empty_available")}
               </div>
             ) : null}
 
             {skills.length > 0 && filteredAddableSkills.length === 0 ? (
-              <div className="surface-card radius-shell-md px-5 py-6 text-sm text-(--text-muted)">
+              <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
                 {addableSkills.length === 0
                   ? t("agent_options.skills.empty_addable")
                   : t("agent_options.skills.empty_search")}
@@ -245,7 +241,7 @@ export function AgentOptionsSkillsTab({
             ) : null}
 
             {filteredAddableSkills.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-1.5">
                 {filteredAddableSkills.map((skill) => renderSkillCard(skill, t("agent_options.skills.add_button"), "add"))}
               </div>
             ) : null}

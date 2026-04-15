@@ -5,6 +5,7 @@ import {
   FolderTree,
   Hash,
   History,
+  Info,
   MessageSquare,
 } from "lucide-react";
 
@@ -111,6 +112,7 @@ const RoomConversationHeaderView = memo(({
     { key: "chat", label: t("room.chat"), icon: MessageSquare },
     { key: "history", label: t("room.history"), icon: History },
     { key: "workspace", label: t("room.workspace"), icon: FolderTree },
+    { key: "about", label: t("room.about"), icon: Info },
   ];
 
   const resolved_room_avatar_id = getRoomAvatarIconId(room_id, header_title, room_avatar);
