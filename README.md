@@ -170,6 +170,7 @@ make dev
 make run-backend
 make run-web
 make build
+make prepare-host-data
 make start
 make logs
 make stop
@@ -177,21 +178,30 @@ make stop
 
 Docker 构建与启动命令默认使用当前用户执行。
 如果当前用户还没有 Docker 权限，请先完成服务器上的 Docker 用户权限配置，再重新登录终端。
+`Makefile` 会自动加载仓库根目录 `.env`，所以 `HOST_DATA_DIR`、`TAG` 等变量既可以手工 `export`，也可以直接写进 `.env`。
 
 生产部署默认使用单一宿主机根目录变量 `${HOST_DATA_DIR:-./data}`。
 由于 Compose 文件位于 `deploy/` 目录下，如果你不显式传入 `HOST_DATA_DIR`，默认实际路径会解析为 `deploy/data`。
-其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`，`${HOST_DATA_DIR}/.claude.json` 挂载到容器内 `/home/agent/.claude.json`。
+其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`。
 如果要把数据统一放到宿主机目录 `/data`，启动前执行：
 
 ```bash
 export HOST_DATA_DIR=/data
-mkdir -p "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
-touch "$HOST_DATA_DIR/.claude.json"
-chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
-chown 1001:1001 "$HOST_DATA_DIR/.claude.json"
+make prepare-host-data
 ```
 
-注意：`${HOST_DATA_DIR}/.claude.json` 必须是文件，不能是目录；如果之前被 Docker 自动创建成目录，需要先删除再重新 `touch`。
+`make prepare-host-data` 会直接在宿主机执行 `mkdir/chown/chmod`，把 `.nexus` 和 `.claude` 目录准备好，并修正为容器内 `agent` 使用的 `1001:1001`。这一步已经是 `make start` 的前置依赖，所以正常部署直接执行 `make start` 即可。
+如果当前用户没有修改属主的权限，`make prepare-host-data` 会通过 `sudo` 执行 `chown/chmod`；如果你已经是 root，或者不需要 `sudo`，可以覆盖：
+
+```bash
+HOST_SUDO= make prepare-host-data
+```
+
+如果需要覆盖容器运行用户映射，可以同时传入：
+
+```bash
+AGENT_UID=1001 AGENT_GID=1001 make prepare-host-data
+```
 
 生产 Compose 现在包含：
 

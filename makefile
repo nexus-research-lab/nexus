@@ -1,13 +1,23 @@
+ENV_FILE ?= .env
+
+ifneq (,$(wildcard $(ENV_FILE)))
+include $(ENV_FILE)
+export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
+endif
+
 TAG:=0.0.1
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
-COMPOSE_CMD ?= docker compose --env-file .env -f deploy/docker-compose.yml
+AGENT_UID ?= 1001
+AGENT_GID ?= 1001
+HOST_SUDO ?= sudo
+COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 
 # Default target
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web start stop restart logs clean status \
-	dev install db-init lint-web typecheck-web check-backend check test \
+	dev install db-init lint-web typecheck-web check-backend check test prepare-host-data \
 	run-web run-backend up down log reboot
 
 # Show help
@@ -104,14 +114,31 @@ test: check ## Alias of check
 build: ## Build Docker images
 	TAG=$(TAG) $(COMPOSE_CMD) build
 
+prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
+	@set -eu; \
+	host_data_dir="$(HOST_DATA_DIR)"; \
+	if [ -z "$$host_data_dir" ]; then \
+		host_data_dir="./data"; \
+	fi; \
+	case "$$host_data_dir" in \
+		/*) resolved_dir="$$host_data_dir" ;; \
+		~|~/*) resolved_dir="$${HOME}$${host_data_dir#\~}" ;; \
+		*) resolved_dir="$(CURDIR)/deploy/$${host_data_dir#./}" ;; \
+	esac; \
+	echo "Preparing host data directory: $$resolved_dir"; \
+	mkdir -p "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	$(HOST_SUDO) chown -R $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	echo "Host data directory is ready: $$resolved_dir"
+
 build-backend: ## Build backend Docker image
 	docker build --progress=plain -f deploy/Dockerfile -t leemysw/nexus:app-$(TAG) .
 
 build-web: ## Build frontend + nginx gateway image
 	docker build --progress=plain -f web/Dockerfile -t leemysw/nexus:web-$(TAG) .
 
-start: ## Start all services with Docker
-	TAG=$(TAG) $(COMPOSE_CMD) up -d --build
+start: prepare-host-data ## Start all services with Docker
+	TAG=$(TAG) $(COMPOSE_CMD) up -d --build --force-recreate
 	@echo ""
 	@echo "✅ Nexus Core is running!"
 	@echo "🌐 Web UI: http://localhost"
