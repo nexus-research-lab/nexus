@@ -11,9 +11,9 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
+import { AgentOptionsEditor } from "@/features/agent-options/agent-options-editor";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/workspace-surface-view";
 import { AgentIdentityDraft, AgentNameValidationResult, AgentOptions, Agent } from "@/types/agent";
-import { AgentOptionsEditor } from "@/shared/ui/dialog/agent-options/agent-options-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { RoomAgentSwitcher } from "./room-agent-switcher";
 

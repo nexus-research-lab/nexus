@@ -14,6 +14,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getDefaultAgentId, isMainAgent } from "@/config/options";
+import { CapabilitiesPanelContent } from "@/features/capabilities/capabilities-sidebar-panel";
+import { HomePanelContent } from "@/features/home/home-sidebar-panel";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/lib/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/home-layout";
@@ -29,9 +31,6 @@ import {
   SIDEBAR_SYSTEM_ITEM_IDS,
   useSidebarStore,
 } from "@/store/sidebar";
-
-import { HomePanelContent } from "./sidebar-panel-content/home-panel";
-import { CapabilitiesPanelContent } from "./sidebar-panel-content/capabilities-panel";
 
 const CAPABILITY_SECTION_COUNT = 5;
 const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
