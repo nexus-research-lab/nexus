@@ -98,6 +98,7 @@ export function ScheduledTaskDialog({
               on_reset_context_error={() => state.set_error_message(null)}
               reply_mode={state.reply_mode}
               reply_mode_options={REPLY_MODE_OPTIONS}
+              disabled_reply_modes={state.execution_mode === "main" ? ["execution", "selected"] : []}
               room_options={state.room_options}
               rooms_error={state.rooms_error}
               rooms_loading={state.rooms_loading}

@@ -275,6 +275,7 @@ class MainAgentOrchestrationService:
         instruction: str,
         session_target: AutomationSessionTarget | None = None,
         source: AutomationCronSource | None = None,
+        delivery: AutomationDeliveryTarget | None = None,
         session_key: str | None = None,
         schedule_kind: str,
         interval_seconds: int | None = None,
@@ -321,7 +322,7 @@ class MainAgentOrchestrationService:
             schedule=schedule,
             instruction=instruction,
             session_target=resolved_session_target,
-            delivery=AutomationDeliveryTarget(mode="none"),
+            delivery=delivery or AutomationDeliveryTarget(mode="none"),
             source=source or AutomationCronSource(
                 kind="agent",
                 context_type="agent",
@@ -330,6 +331,33 @@ class MainAgentOrchestrationService:
             enabled=enabled,
         )
         task = await scheduled_task_service.create_task(payload)
+        return task.model_dump(mode="json")
+
+    async def update_scheduled_task(
+        self,
+        *,
+        job_id: str,
+        name: str | None = None,
+        agent_id: str | None = None,
+        instruction: str | None = None,
+        schedule: AutomationCronSchedule | None = None,
+        session_target: AutomationSessionTarget | None = None,
+        delivery: AutomationDeliveryTarget | None = None,
+        source: AutomationCronSource | None = None,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        """更新定时任务。"""
+        task = await scheduled_task_service.update_task(
+            job_id,
+            name=name,
+            agent_id=agent_id,
+            schedule=schedule,
+            instruction=instruction,
+            session_target=session_target,
+            delivery=delivery,
+            source=source,
+            enabled=enabled,
+        )
         return task.model_dump(mode="json")
 
     async def delete_scheduled_task(self, job_id: str) -> dict[str, Any]:

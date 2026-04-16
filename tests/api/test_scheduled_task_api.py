@@ -53,10 +53,12 @@ class FakeScheduledTaskService:
         job_id: str,
         *,
         name=None,
+        agent_id=None,
         schedule=None,
         instruction=None,
         session_target=None,
         delivery=None,
+        source=None,
         enabled=None,
     ):
         self.calls.append(
@@ -65,12 +67,14 @@ class FakeScheduledTaskService:
                 (job_id,),
                 {
                     "name": name,
+                    "agent_id": agent_id,
                     "schedule": None if schedule is None else schedule.model_dump(mode="json"),
                     "instruction": instruction,
                     "session_target": None
                     if session_target is None
                     else session_target.model_dump(mode="json"),
                     "delivery": None if delivery is None else delivery.model_dump(mode="json"),
+                    "source": None if source is None else source.model_dump(mode="json"),
                     "enabled": enabled,
                 },
             )
@@ -232,6 +236,7 @@ def test_patch_scheduled_task_route_updates_job(monkeypatch):
             ("job-1",),
             {
                 "name": "Nightly sync",
+                "agent_id": None,
                 "schedule": {
                     "kind": "cron",
                     "run_at": None,
@@ -253,6 +258,7 @@ def test_patch_scheduled_task_route_updates_job(monkeypatch):
                     "account_id": None,
                     "thread_id": None,
                 },
+                "source": None,
                 "enabled": False,
             },
         )

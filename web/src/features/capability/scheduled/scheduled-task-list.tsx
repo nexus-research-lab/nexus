@@ -370,9 +370,10 @@ export function ScheduledTaskList({
                         </WorkspaceCatalogAction>
                         <WorkspaceCatalogAction
                           aria-label="运行历史"
+                          disabled={task.session_target.kind === "main"}
                           onClick={() => on_open_history?.(task)}
                           size="md"
-                          title="查看最近几次执行记录"
+                          title={task.session_target.kind === "main" ? "主会话任务暂不提供独立运行历史" : "查看最近几次执行记录"}
                         >
                           <History className="h-3.5 w-3.5" />
                         </WorkspaceCatalogAction>

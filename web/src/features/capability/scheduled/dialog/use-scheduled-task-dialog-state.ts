@@ -15,9 +15,11 @@ import {
   type ExecutionMode,
   get_default_timezone,
   parse_daily_cron_expression,
+  isoToZonedLocalInput,
   type ReplyMode,
   type TargetType,
   to_interval_seconds,
+  zonedDateTimeToEpochMs,
 } from "./scheduled-task-dialog-constants";
 import { useScheduledTaskDialogData } from "./use-scheduled-task-dialog-data";
 import { useScheduledTaskDialogScheduleState } from "./use-scheduled-task-dialog-schedule";
@@ -42,7 +44,7 @@ export function useScheduledTaskDialogState({
   const [target_type, set_target_type_state] = useState<TargetType>("agent");
   const [selected_agent_id, set_selected_agent_id_state] = useState(agent_id);
   const [selected_room_id, set_selected_room_id_state] = useState("");
-  const [execution_mode, set_execution_mode] = useState<ExecutionMode>("existing");
+  const [execution_mode, set_execution_mode_state] = useState<ExecutionMode>("existing");
   const [selected_session_key, set_selected_session_key_state] = useState("");
   const [reply_mode, set_reply_mode] = useState<ReplyMode>("execution");
   const [selected_reply_session_key, set_selected_reply_session_key_state] = useState("");
@@ -55,7 +57,7 @@ export function useScheduledTaskDialogState({
   const daily_picker_anchor_ref = useRef<HTMLButtonElement>(null);
   const single_picker_anchor_ref = useRef<HTMLButtonElement>(null);
 
-  const schedule = useScheduledTaskDialogScheduleState();
+  const schedule = useScheduledTaskDialogScheduleState(timezone);
 
   const reset_context_selection = useCallback(() => {
     set_selected_session_key_state("");
@@ -85,6 +87,15 @@ export function useScheduledTaskDialogState({
 
   const set_selected_reply_session_key = useCallback((value: string) => {
     set_selected_reply_session_key_state(value);
+    set_error_message(null);
+  }, []);
+
+  const set_execution_mode = useCallback((value: ExecutionMode) => {
+    set_execution_mode_state(value);
+    if (value === "main") {
+      set_reply_mode("none");
+      set_selected_reply_session_key_state("");
+    }
     set_error_message(null);
   }, []);
 
@@ -122,7 +133,7 @@ export function useScheduledTaskDialogState({
       set_target_type_state("agent");
       set_selected_agent_id_state(agent_id);
       set_selected_room_id_state("");
-      set_execution_mode("existing");
+      set_execution_mode_state("existing");
       set_selected_session_key_state("");
       set_reply_mode("execution");
       set_selected_reply_session_key_state("");
@@ -142,8 +153,10 @@ export function useScheduledTaskDialogState({
       ? (initial_task.source.context_id || initial_task.agent_id)
       : initial_task.agent_id);
     set_selected_room_id_state(initial_task.source?.context_type === "room" ? (initial_task.source.context_id || "") : "");
-    set_execution_mode(
-      initial_task.session_target.kind === "named"
+    set_execution_mode_state(
+      initial_task.session_target.kind === "main"
+        ? "main"
+        : initial_task.session_target.kind === "named"
         ? "dedicated"
         : initial_task.session_target.kind === "isolated"
           ? "temporary"
@@ -152,22 +165,29 @@ export function useScheduledTaskDialogState({
     set_selected_session_key_state(
       initial_task.session_target.kind === "bound"
         ? initial_task.session_target.bound_session_key
-        : (initial_task.source?.session_key || ""),
+        : (initial_task.source?.context_type === "room" ? (initial_task.source?.session_key || "") : ""),
     );
+    const execution_delivery_target = initial_task.session_target.kind === "bound"
+      ? initial_task.session_target.bound_session_key
+      : initial_task.source?.context_type === "room"
+        ? (initial_task.source?.session_key || "")
+        : "";
     set_reply_mode(
       initial_task.delivery.mode === "none"
         ? "none"
         : initial_task.delivery.mode === "explicit"
           && initial_task.delivery.to
-          && initial_task.source?.session_key
-          && initial_task.delivery.to !== initial_task.source.session_key
+          && execution_delivery_target
+          && initial_task.delivery.to !== execution_delivery_target
           ? "selected"
-          : "execution",
+          : initial_task.delivery.mode === "explicit" && !execution_delivery_target
+            ? "selected"
+            : "execution",
     );
     set_selected_reply_session_key_state(
       initial_task.delivery.mode === "explicit"
         && initial_task.delivery.to
-        && initial_task.delivery.to !== initial_task.source?.session_key
+        && initial_task.delivery.to !== execution_delivery_target
         ? initial_task.delivery.to
         : "",
     );
@@ -216,7 +236,10 @@ export function useScheduledTaskDialogState({
 
     schedule.hydrate({
       schedule_kind: "at",
-      run_at: initial_task.schedule.run_at.replace("Z", "").slice(0, 19),
+      run_at: isoToZonedLocalInput(
+        initial_task.schedule.run_at,
+        initial_task.schedule.timezone?.trim() || get_default_timezone(),
+      ) || initial_task.schedule.run_at.replace("Z", "").slice(0, 19),
     });
   }, [agent_id, initial_task, is_open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -228,6 +251,9 @@ export function useScheduledTaskDialogState({
   }
 
   function build_session_target(): ScheduledTaskSessionTarget {
+    if (execution_mode === "main") {
+      return { kind: "main", wake_mode: "next-heartbeat" };
+    }
     if (execution_mode === "temporary") {
       return { kind: "isolated", wake_mode: "next-heartbeat" };
     }
@@ -243,6 +269,9 @@ export function useScheduledTaskDialogState({
   function build_delivery() {
     if (reply_mode === "none") return { mode: "none" as const };
     if (reply_mode === "execution") {
+      if (execution_mode === "main") {
+        return { mode: "none" as const };
+      }
       if (execution_mode === "existing") {
         if (!selected_session) throw new Error("请选择执行会话");
         return { mode: "explicit" as const, channel: "websocket", to: selected_session.session_key };
@@ -314,10 +343,13 @@ export function useScheduledTaskDialogState({
     }
     if (schedule.schedule_kind === "at") {
       if (!schedule.run_at.trim()) return "请选择有效的执行时间";
-      if (new Date(schedule.run_at).getTime() <= Date.now()) {
+      const run_at_epoch = zonedDateTimeToEpochMs(schedule.run_at, timezone.trim() || "Asia/Shanghai");
+      if (run_at_epoch === null) return "请选择有效的执行时间";
+      if (run_at_epoch <= Date.now()) {
         return "单次执行时间必须晚于当前时间";
       }
     }
+    if (execution_mode === "main" && reply_mode !== "none") return "主会话任务暂不支持额外结果回传";
     return null;
   }
 
@@ -330,7 +362,7 @@ export function useScheduledTaskDialogState({
     set_is_submitting(true);
     set_error_message(null);
     try {
-      const source_session = selected_session ?? selected_reply_session;
+      const source_session = selected_session;
       const payload = {
         name: task_name.trim(),
         schedule: build_schedule(),

@@ -18,9 +18,8 @@ import re
 import tarfile
 import zipfile
 from pathlib import Path
+from typing import Any
 from urllib.parse import urljoin, urlparse
-
-import requests
 
 from agent.config.config import settings
 
@@ -220,12 +219,13 @@ class SkillWellKnownLoader:
         except json.JSONDecodeError as exc:
             raise ValueError(f"skills index.json 解析失败: {exc}") from exc
 
-    def _get_stream(self, url: str) -> requests.Response:
+    def _get_stream(self, url: str) -> Any:
+        requests_module = self._require_requests()
         proxies = None
         proxy = os.getenv("HTTP_PROXY")
         if proxy and url.startswith("https"):
             proxies = {"http": proxy, "https": proxy}
-        response = requests.get(
+        response = requests_module.get(
             url,
             timeout=self._timeout,
             proxies=proxies,
@@ -253,3 +253,12 @@ class SkillWellKnownLoader:
         if not candidates:
             raise ValueError("导入内容中未找到 SKILL.md")
         raise ValueError("导入内容中找到多个 SKILL.md，请确保只包含一个 skill")
+
+    @staticmethod
+    def _require_requests():
+        """按需导入 requests，避免服务启动时被可选依赖阻断。"""
+        try:
+            import requests as requests_module
+        except ModuleNotFoundError as exc:
+            raise ValueError("requests 未安装，无法加载远端 skill 索引") from exc
+        return requests_module
