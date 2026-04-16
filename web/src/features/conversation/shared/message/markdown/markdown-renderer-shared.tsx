@@ -134,7 +134,7 @@ export function create_markdown_components(
 ): Components {
   return {
     pre({ children }) {
-      return <div className="my-4 w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
+      return <div className="my-2 w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
     },
     code({ children, className, node }) {
       const value = String(children).replace(/\n$/, "");

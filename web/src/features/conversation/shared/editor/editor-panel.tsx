@@ -9,6 +9,7 @@ import { get_workspace_file_content_api, update_workspace_file_content_api, get_
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
+import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 
 // 文件类型检测
 function get_file_type(path: string): "text" | "pdf" | "image" | "binary" | "unknown" {
@@ -392,9 +393,11 @@ export function EditorPanel({
   const [saved_content, setSavedContent] = useState("");
   const [is_loading, setIsLoading] = useState(false);
   const [is_saving, setIsSaving] = useState(false);
+  const [is_editing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editor_width, setEditorWidth] = useState(0);
   const editor_area_ref = useRef<HTMLDivElement>(null);
+  const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_states = useWorkspaceLiveStore((state) => state.file_states);
 
   // 检测文件类型
@@ -454,6 +457,17 @@ export function EditorPanel({
   }, [load_content]);
 
   useEffect(() => {
+    setIsEditing(false);
+  }, [path]);
+
+  useEffect(() => {
+    if (!is_editing) {
+      return;
+    }
+    textarea_ref.current?.focus();
+  }, [is_editing]);
+
+  useEffect(() => {
     if (!is_open || !path || !live_state || !has_live_content || !is_text) {
       return;
     }
@@ -479,6 +493,13 @@ export function EditorPanel({
 
     void load_content();
   }, [is_open, live_state, load_content, path, is_text]);
+
+  const enable_editing = useCallback(() => {
+    if (is_external_writing) {
+      return;
+    }
+    setIsEditing(true);
+  }, [is_external_writing]);
 
   const handle_save = async () => {
     if (!path || !is_dirty || is_saving || !is_text) {
@@ -573,6 +594,20 @@ export function EditorPanel({
                 actions={(
                   <>
                     <button
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--text-muted) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
+                      onClick={() => {
+                        if (is_editing) {
+                          setIsEditing(false);
+                          return;
+                        }
+                        enable_editing();
+                      }}
+                      type="button"
+                    >
+                      {is_editing ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {is_editing ? "预览" : "编辑"}
+                    </button>
+                    <button
                       disabled={!is_dirty || is_saving || is_external_writing}
                       className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
                       onClick={() => void handle_save()}
@@ -624,10 +659,23 @@ export function EditorPanel({
                     container_width={editor_width > 0 ? editor_width - 40 : undefined}
                     class_name="h-full"
                   />
+                ) : !is_editing ? (
+                  <div className="soft-scrollbar h-full overflow-auto">
+                    {is_loading ? (
+                      <div className="font-mono text-sm leading-6 text-(--text-muted)">加载中...</div>
+                    ) : (
+                      <MarkdownRendererContent
+                        class_name="min-h-full"
+                        content={draft_content}
+                      />
+                    )}
+                  </div>
                 ) : (
                   <textarea
+                    ref={textarea_ref}
                     className="soft-scrollbar h-full w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) outline-none disabled:opacity-70"
                     disabled={is_loading}
+                    onBlur={() => setIsEditing(false)}
                     onChange={(event) => setDraftContent(event.target.value)}
                     value={is_loading ? "加载中..." : draft_content}
                   />

@@ -14,7 +14,7 @@ import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface CodeShellProps {
-  language: string;
+  language?: string;
   right_slot?: ReactNode;
   content_class_name?: string;
   class_name?: string;
@@ -32,37 +32,32 @@ export function CodeShell({
   return (
     <div
       className={cn(
-        "relative my-4 overflow-hidden rounded-[22px] border",
+        "relative overflow-hidden rounded-[10px] border",
         class_name,
       )}
       style={{
-        background: "var(--surface-panel-subtle-background)",
-        borderColor: "var(--surface-panel-subtle-border)",
+        background: "color-mix(in srgb, var(--surface-panel-background) 90%, transparent)",
+        borderColor: "color-mix(in srgb, var(--surface-panel-subtle-border) 80%, transparent)",
       }}
     >
-      <div
-        className="flex items-center justify-between border-b px-4 py-2"
-        style={{
-          background: "var(--surface-interactive-active-background)",
-          borderColor: "var(--divider-subtle-color)",
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full border border-red-500/50 bg-red-500/18" />
-            <div className="h-2.5 w-2.5 rounded-full border border-yellow-500/50 bg-yellow-500/18" />
-            <div className="h-2.5 w-2.5 rounded-full border border-green-500/50 bg-green-500/18" />
-          </div>
+      {language || right_slot ? (
+        <div
+          className="flex items-center justify-between gap-2 border-b px-2.5"
+          style={{ borderColor: "var(--divider-subtle-color)" }}
+        >
           <span
-            className="message-cjk-code-font ml-2 text-xs"
+            className="message-cjk-code-font truncate text-[10px] lowpercase tracking-[0.12em]"
             style={{ color: "var(--text-muted)" }}
           >
             {language || "text"}
           </span>
+          {right_slot ? (
+            <div className="shrink-0">
+              {right_slot}
+            </div>
+          ) : null}
         </div>
-        {right_slot}
-      </div>
-
+      ) : null}
       <div className={content_class_name}>
         {children}
       </div>
