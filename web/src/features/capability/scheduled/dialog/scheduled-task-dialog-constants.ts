@@ -9,7 +9,7 @@ import { type Weekday, WEEKDAY_OPTIONS } from "../pickers/picker-utils";
 export type ScheduleKind = ScheduledTaskSchedule["kind"];
 export type EveryUnit = "seconds" | "minutes" | "hours";
 export type TargetType = "agent" | "room";
-export type ExecutionMode = "existing" | "temporary" | "dedicated";
+export type ExecutionMode = "main" | "existing" | "temporary" | "dedicated";
 export type ReplyMode = "none" | "execution" | "selected";
 
 interface ChoiceDef<TValue extends string> {
@@ -35,6 +35,7 @@ export const EVERY_UNIT_OPTIONS: ChoiceDef<EveryUnit>[] = [
 ];
 
 export const EXECUTION_MODE_OPTIONS: ChoiceDef<ExecutionMode>[] = [
+  { key: "main", label: "使用主会话" },
   { key: "existing", label: "使用现有会话" },
   { key: "temporary", label: "每次新建临时会话" },
   { key: "dedicated", label: "使用专用长期会话" },
@@ -60,6 +61,115 @@ export function get_default_timezone(): string {
     return "Asia/Shanghai";
   }
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+}
+
+function formatZonedParts(date: Date, timezone: string): {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  second: string;
+} {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const part_map = new Map(
+    formatter.formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    year: part_map.get("year") || "1970",
+    month: part_map.get("month") || "01",
+    day: part_map.get("day") || "01",
+    hour: part_map.get("hour") || "00",
+    minute: part_map.get("minute") || "00",
+    second: part_map.get("second") || "00",
+  };
+}
+
+function parseDatetimeLocalInput(value: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} | null {
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) {
+    return null;
+  }
+  const [, year_text, month_text, day_text, hour_text, minute_text, second_text] = match;
+  return {
+    year: Number(year_text),
+    month: Number(month_text),
+    day: Number(day_text),
+    hour: Number(hour_text),
+    minute: Number(minute_text),
+    second: Number(second_text || "00"),
+  };
+}
+
+export function zonedDateTimeToEpochMs(value: string, timezone: string): number | null {
+  const parsed = parseDatetimeLocalInput(value);
+  if (!parsed) {
+    return null;
+  }
+  let candidate = Date.UTC(
+    parsed.year,
+    parsed.month - 1,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second,
+  );
+  for (let index = 0; index < 3; index += 1) {
+    const zoned = formatZonedParts(new Date(candidate), timezone);
+    const desired_utc = Date.UTC(parsed.year, parsed.month - 1, parsed.day, parsed.hour, parsed.minute, parsed.second);
+    const current_utc = Date.UTC(
+      Number(zoned.year),
+      Number(zoned.month) - 1,
+      Number(zoned.day),
+      Number(zoned.hour),
+      Number(zoned.minute),
+      Number(zoned.second),
+    );
+    const diff = current_utc - desired_utc;
+    if (diff === 0) {
+      break;
+    }
+    candidate -= diff;
+  }
+  const verified = formatZonedParts(new Date(candidate), timezone);
+  if (
+    Number(verified.year) !== parsed.year
+    || Number(verified.month) !== parsed.month
+    || Number(verified.day) !== parsed.day
+    || Number(verified.hour) !== parsed.hour
+    || Number(verified.minute) !== parsed.minute
+    || Number(verified.second) !== parsed.second
+  ) {
+    return null;
+  }
+  return candidate;
+}
+
+export function isoToZonedLocalInput(value: string, timezone: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const parts = formatZonedParts(date, timezone);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 export function build_daily_cron_expression(time_value: string, weekdays: Weekday[]): string | null {

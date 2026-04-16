@@ -4,6 +4,8 @@ import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+from agent.schema.model_message import Message
+
 
 class FakeCronStore:
     """内存版 run store，便于验证 cron runner ledger 行为。"""
@@ -95,6 +97,33 @@ class FakeOrchestrator:
         )
 
 
+class FakeDeliveryRouter:
+    """记录 cron 任务完成后的 delivery 投递。"""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def send_text(self, *, agent_id: str, text: str, target):
+        self.calls.append(
+            {
+                "agent_id": agent_id,
+                "text": text,
+                "target": dict(target or {}),
+            }
+        )
+        return None
+
+
+class FakeMessageStore:
+    """返回会话消息，供 cron runner 抽取结果文本。"""
+
+    def __init__(self, messages_by_session: dict[str, list[Message]] | None = None) -> None:
+        self._messages_by_session = messages_by_session or {}
+
+    async def get_session_messages(self, session_key: str) -> list[Message]:
+        return list(self._messages_by_session.get(session_key, []))
+
+
 def _build_job(
     *,
     kind: str,
@@ -111,6 +140,23 @@ def _build_job(
         named_session_key=named_session_key,
         wake_mode=wake_mode,
         delivery_mode="none",
+        delivery_channel=None,
+        delivery_to=None,
+        delivery_account_id=None,
+        delivery_thread_id=None,
+    )
+
+
+def _build_result_message(*, session_key: str, round_id: str, result: str) -> Message:
+    return Message(
+        message_id=f"msg-{round_id}",
+        session_key=session_key,
+        agent_id="research",
+        round_id=round_id,
+        session_id="session-1",
+        role="result",
+        subtype="success",
+        result=result,
     )
 
 
@@ -283,5 +329,64 @@ def test_cron_runner_isolated_target_uses_run_scoped_automation_session_key():
         assert [ctx.session_key for ctx in orchestrator.calls] == [result.session_key]
         assert event_queue.calls == []
         assert heartbeat_service.calls == []
+
+    asyncio.run(scenario())
+
+
+def test_cron_runner_non_main_target_delivers_result_text_when_delivery_is_configured():
+    async def scenario():
+        from agent.service.automation.cron.cron_runner import CronRunner
+
+        store = FakeCronStore()
+        delivery_router = FakeDeliveryRouter()
+        message_store = FakeMessageStore(
+            {
+                "agent:research:automation:dm:morning-brief": [
+                    _build_result_message(
+                        session_key="agent:research:automation:dm:morning-brief",
+                        round_id="round-1",
+                        result="daily summary",
+                    )
+                ]
+            }
+        )
+        runner = CronRunner(
+            store=store,
+            system_event_queue=FakeSystemEventQueue(),
+            heartbeat_service=FakeHeartbeatService(),
+            agent_run_orchestrator=FakeOrchestrator(),
+            delivery_router=delivery_router,
+            message_store=message_store,
+            now_fn=lambda: datetime(2026, 4, 13, 8, 0, tzinfo=timezone.utc),
+        )
+        job = _build_job(
+            kind="named",
+            named_session_key="morning-brief",
+        )
+        job.delivery_mode = "explicit"
+        job.delivery_channel = "websocket"
+        job.delivery_to = "agent:research:ws:dm:reply-room"
+
+        result = await runner.run_job(
+            job,
+            run_id="run-named-1",
+            trigger_kind="cron",
+            scheduled_for=datetime(2026, 4, 13, 8, 2, tzinfo=timezone.utc),
+        )
+
+        assert result.status == "succeeded"
+        assert delivery_router.calls == [
+            {
+                "agent_id": "research",
+                "text": "daily summary",
+                    "target": {
+                        "mode": "explicit",
+                        "channel": "websocket",
+                        "to": "agent:research:ws:dm:reply-room",
+                        "account_id": None,
+                        "thread_id": None,
+                    },
+                }
+            ]
 
     asyncio.run(scenario())

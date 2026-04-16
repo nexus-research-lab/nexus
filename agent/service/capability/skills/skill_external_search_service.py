@@ -15,8 +15,6 @@ import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-import requests
-
 from agent.config.config import settings
 from agent.schema.model_skill import ExternalSkillSearchItem
 from agent.service.capability.skills.skill_cli_runner import SkillCliRunner
@@ -85,9 +83,10 @@ class SkillExternalSearchService:
             return SkillsShOutputParser.parse(output)
 
     def _search_via_api(self, query: str) -> list[ExternalSkillSearchItem]:
+        requests_module = self._require_requests()
         api_base = self._skills_api_base()
         search_url = f"{api_base}/api/search"
-        response = requests.get(
+        response = requests_module.get(
             search_url,
             params={"q": query, "limit": str(settings.SKILLS_API_SEARCH_LIMIT)},
             timeout=settings.HTTP_TIMEOUT,
@@ -165,3 +164,12 @@ class SkillExternalSearchService:
                 allowed_hosts.add(host)
         if parsed.netloc not in allowed_hosts:
             raise ValueError("skills 预览链接域名非法")
+
+    @staticmethod
+    def _require_requests():
+        """按需导入 requests，避免模块加载期因为可选依赖缺失而中断启动。"""
+        try:
+            import requests as requests_module
+        except ModuleNotFoundError as exc:
+            raise ValueError("requests 未安装，回退到 skills CLI 搜索") from exc
+        return requests_module

@@ -14,9 +14,26 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from agent.infra.schemas.model_cython import AModel
+from agent.service.automation.delivery.delivery_memory import DeliveryMemory
+from agent.service.automation.delivery.delivery_router import DeliveryRouter
 from agent.service.automation.cron.cron_normalizer import resolve_session_key
 from agent.service.automation.cron.cron_run_log import CronRunLog
 from agent.service.automation.runtime.run_context import AutomationRunContext
+from agent.service.channels.message_sender import MessageSender
+from agent.service.channels.ws.ws_session_routing_sender import WsSessionRoutingSender
+
+
+class _NoopMessageSender(MessageSender):
+    """为 websocket delivery 提供兜底 sender，避免无活跃连接时中断任务。"""
+
+    async def send_message(self, message) -> None:
+        del message
+
+    async def send_stream_message(self, message) -> None:
+        del message
+
+    async def send_event_message(self, event) -> None:
+        del event
 
 
 class CronExecutionResult(AModel):
@@ -43,6 +60,8 @@ class CronRunner:
         system_event_queue=None,
         heartbeat_service=None,
         agent_run_orchestrator=None,
+        delivery_router=None,
+        message_store=None,
         run_log: CronRunLog | None = None,
         now_fn=None,
     ) -> None:
@@ -58,9 +77,20 @@ class CronRunner:
             from agent.service.automation.runtime.agent_run_orchestrator import AgentRunOrchestrator
 
             agent_run_orchestrator = AgentRunOrchestrator()
+        if delivery_router is None:
+            delivery_router = DeliveryRouter(
+                memory=DeliveryMemory(),
+                websocket_sender=WsSessionRoutingSender(_NoopMessageSender()),
+            )
+        if message_store is None:
+            from agent.service.session.session_store import session_store as default_session_store
+
+            message_store = default_session_store
         self._system_event_queue = system_event_queue
         self._heartbeat_service = heartbeat_service
         self._agent_run_orchestrator = agent_run_orchestrator
+        self._delivery_router = delivery_router
+        self._message_store = message_store
         self._run_log = run_log or CronRunLog(store=store, now_fn=now_fn)
         self._now_fn = now_fn or (lambda: datetime.now(timezone.utc))
 
@@ -176,6 +206,7 @@ class CronRunner:
         if result.ok:
             await self._run_log.mark_succeeded(run_id)
             status = "succeeded"
+            await self._deliver_result_text(job, session_key=session_key, round_id=result.round_id)
         else:
             await self._run_log.mark_failed(run_id, result.error_message)
             status = "failed"
@@ -190,3 +221,36 @@ class CronRunner:
             message_count=result.message_count,
             error_message=result.error_message,
         )
+
+    async def _deliver_result_text(self, job, *, session_key: str, round_id: str | None) -> None:
+        if str(getattr(job, "delivery_mode", "none")) == "none":
+            return
+        text = await self._extract_result_text(session_key, round_id)
+        if not text.strip():
+            return
+        await self._delivery_router.send_text(
+            agent_id=str(getattr(job, "agent_id", "")),
+            text=text,
+            target={
+                "mode": getattr(job, "delivery_mode", "none"),
+                "channel": getattr(job, "delivery_channel", None),
+                "to": getattr(job, "delivery_to", None),
+                "account_id": getattr(job, "delivery_account_id", None),
+                "thread_id": getattr(job, "delivery_thread_id", None),
+            },
+        )
+
+    async def _extract_result_text(self, session_key: str, round_id: str | None) -> str:
+        messages = await self._message_store.get_session_messages(session_key)
+        for message in reversed(messages):
+            if round_id and getattr(message, "round_id", None) != round_id:
+                continue
+            if getattr(message, "role", None) == "result" and getattr(message, "result", None):
+                return str(message.result)
+            content = getattr(message, "content", None)
+            if getattr(message, "role", None) != "assistant" or not isinstance(content, list):
+                continue
+            text_parts = [getattr(block, "text", "") for block in content if getattr(block, "type", "") == "text"]
+            if text_parts:
+                return "\n".join(part for part in text_parts if part)
+        return ""

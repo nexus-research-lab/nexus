@@ -17,9 +17,13 @@ import {
   type Meridiem,
   type Weekday,
 } from "../pickers/picker-utils";
-import { type EveryUnit, type ScheduleKind } from "./scheduled-task-dialog-constants";
+import {
+  zonedDateTimeToEpochMs,
+  type EveryUnit,
+  type ScheduleKind,
+} from "./scheduled-task-dialog-constants";
 
-export function useScheduledTaskDialogScheduleState() {
+export function useScheduledTaskDialogScheduleState(timezone: string) {
   const now = new Date();
   const now_date = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, "0")}-${`${now.getDate()}`.padStart(2, "0")}`;
   const [schedule_kind, set_schedule_kind] = useState<ScheduleKind>("every");
@@ -116,13 +120,13 @@ export function useScheduledTaskDialogScheduleState() {
     set_single_picker_month(format_datetime_local_input(now_value).slice(0, 7));
   }
 
-  function build_single_candidate(params: {
+  function build_single_candidate_input(params: {
     date?: string;
     meridiem?: Meridiem;
     hour12?: string;
     minute?: string;
     second?: string;
-  }): Date {
+  }): string {
     const merged = {
       date: params.date ?? run_at_parts.date,
       meridiem: params.meridiem ?? single_meridiem_parts.meridiem,
@@ -131,27 +135,32 @@ export function useScheduledTaskDialogScheduleState() {
       second: params.second ?? single_meridiem_parts.second,
     };
     const converted = from_meridiem_parts(merged.meridiem, merged.hour12, merged.minute, merged.second);
-    return new Date(build_datetime_local_input(merged.date, converted.hour24, converted.minute, converted.second));
+    return build_datetime_local_input(merged.date, converted.hour24, converted.minute, converted.second);
   }
 
   function is_single_date_disabled(date_value: string): boolean {
-    return build_single_candidate({ date: date_value }) <= now;
+    const epoch_ms = zonedDateTimeToEpochMs(build_single_candidate_input({ date: date_value }), timezone);
+    return epoch_ms !== null && epoch_ms <= Date.now();
   }
 
   function is_single_meridiem_disabled(value: Meridiem): boolean {
-    return build_single_candidate({ meridiem: value }) <= now;
+    const epoch_ms = zonedDateTimeToEpochMs(build_single_candidate_input({ meridiem: value }), timezone);
+    return epoch_ms !== null && epoch_ms <= Date.now();
   }
 
   function is_single_hour_disabled(value: string): boolean {
-    return build_single_candidate({ hour12: value }) <= now;
+    const epoch_ms = zonedDateTimeToEpochMs(build_single_candidate_input({ hour12: value }), timezone);
+    return epoch_ms !== null && epoch_ms <= Date.now();
   }
 
   function is_single_minute_disabled(value: string): boolean {
-    return build_single_candidate({ minute: value }) <= now;
+    const epoch_ms = zonedDateTimeToEpochMs(build_single_candidate_input({ minute: value }), timezone);
+    return epoch_ms !== null && epoch_ms <= Date.now();
   }
 
   function is_single_second_disabled(value: string): boolean {
-    return build_single_candidate({ second: value }) <= now;
+    const epoch_ms = zonedDateTimeToEpochMs(build_single_candidate_input({ second: value }), timezone);
+    return epoch_ms !== null && epoch_ms <= Date.now();
   }
 
   return {

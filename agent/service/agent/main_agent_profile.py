@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, TypeVar
 
 from agent.config.config import settings
+from agent.service.agent.main_agent_scheduled_task_sdk_server import TOOL_NAMES as SCHEDULED_TASK_TOOL_NAMES
 
 _T = TypeVar("_T")
 
@@ -22,7 +23,7 @@ class MainAgentProfile:
     """负责描述系统保留主智能体的固定身份与默认运行参数。"""
 
     AGENT_ID = settings.DEFAULT_AGENT_ID
-    ALLOWED_TOOLS = [
+    _BASE_ALLOWED_TOOLS = [
         "AskUserQuestion",
         "Bash",
         "Edit",
@@ -36,7 +37,8 @@ class MainAgentProfile:
         "WebSearch",
         "Write",
     ]
-    REGULAR_AGENT_ALLOWED_TOOLS = ALLOWED_TOOLS.copy()
+    ALLOWED_TOOLS = _BASE_ALLOWED_TOOLS + list(SCHEDULED_TASK_TOOL_NAMES)
+    REGULAR_AGENT_ALLOWED_TOOLS = _BASE_ALLOWED_TOOLS + list(SCHEDULED_TASK_TOOL_NAMES)
     SETTING_SOURCES = ["project"]
 
     @classmethod
