@@ -18,6 +18,7 @@ import (
 	"github.com/nexus-research-lab/nexus-core/internal/logx"
 	permission3 "github.com/nexus-research-lab/nexus-core/internal/permission"
 	"github.com/nexus-research-lab/nexus-core/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus-core/internal/providerconfig"
 	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
 	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
 	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
@@ -58,8 +59,13 @@ type Service struct {
 	agents     *agent3.Service
 	runtime    *runtimectx.Manager
 	permission *permission3.Context
+	providers  providerRuntimeResolver
 	files      *workspacestore.SessionFileStore
 	logger     *slog.Logger
+}
+
+type providerRuntimeResolver interface {
+	ResolveRuntimeConfig(context.Context, string) (*providercfg.RuntimeConfig, error)
 }
 
 type roundRunner struct {
@@ -99,6 +105,11 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 		return
 	}
 	s.logger = logger
+}
+
+// SetProviderResolver 注入 Provider 运行时解析器。
+func (s *Service) SetProviderResolver(resolver providerRuntimeResolver) {
+	s.providers = resolver
 }
 
 // HandleChat 处理一条 DM chat 写请求。
@@ -244,6 +255,9 @@ func (s *Service) ensureClient(
 	if permissionMode == "" {
 		permissionMode = sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
 	}
+	if permissionMode == "" {
+		permissionMode = sdkprotocol.PermissionModeDefault
+	}
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
@@ -252,13 +266,32 @@ func (s *Service) ensureClient(
 	}
 	// 中文注释：当前 Go SDK 链路先与 Python 主线对齐，暂不透传 model，
 	// 避免向底层 CLI 传入尚未稳定支持的选项。
-	client := s.runtime.GetOrCreate(sessionKey, agentclient.Options{
+	runtimeEnv, err := s.buildRuntimeEnv(ctx, agentValue)
+	if err != nil {
+		return nil, err
+	}
+	options := agentclient.Options{
 		CWD:               agentValue.WorkspacePath,
 		PermissionMode:    permissionMode,
 		AllowedTools:      append([]string(nil), agentValue.Options.AllowedTools...),
 		DisallowedTools:   append([]string(nil), agentValue.Options.DisallowedTools...),
+		SettingSources:    append([]string(nil), agentValue.Options.SettingSources...),
+		Env:               runtimeEnv,
 		PermissionHandler: permissionHandler,
-	})
+	}
+	if model := strings.TrimSpace(agentValue.Options.Model); model != "" {
+		options.Model = model
+	}
+	if agentValue.Options.MaxThinkingTokens != nil && *agentValue.Options.MaxThinkingTokens > 0 {
+		options.MaxThinkingTokens = *agentValue.Options.MaxThinkingTokens
+	}
+	if agentValue.Options.MaxTurns != nil && *agentValue.Options.MaxTurns > 0 {
+		options.MaxTurns = *agentValue.Options.MaxTurns
+	}
+	client, err := s.runtime.GetOrCreate(ctx, sessionKey, options)
+	if err != nil {
+		return nil, err
+	}
 	if err := client.Connect(ctx); err != nil {
 		return nil, err
 	}
@@ -268,6 +301,28 @@ func (s *Service) ensureClient(
 		}
 	}
 	return client, nil
+}
+
+func (s *Service) buildRuntimeEnv(ctx context.Context, agentValue *agent3.Agent) (map[string]string, error) {
+	if s.providers == nil {
+		return nil, nil
+	}
+	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, agentValue.Options.Provider)
+	if err != nil {
+		return nil, err
+	}
+	if runtimeConfig == nil {
+		return nil, nil
+	}
+	env := map[string]string{
+		"ANTHROPIC_AUTH_TOKEN": runtimeConfig.AuthToken,
+		"ANTHROPIC_BASE_URL":   runtimeConfig.BaseURL,
+		"ANTHROPIC_MODEL":      runtimeConfig.Model,
+	}
+	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
+		env["ENABLE_TOOL_SEARCH"] = "false"
+	}
+	return env, nil
 }
 
 func (s *Service) ensureSession(

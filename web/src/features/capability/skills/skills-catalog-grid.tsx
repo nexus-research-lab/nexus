@@ -1,9 +1,9 @@
 import { Fragment } from "react";
 import { Loader2, Puzzle } from "lucide-react";
 
-import type { SkillInfo } from "@/types/skill";
+import type { SkillInfo } from "@/types/capability/skill";
 
-import type { SkillMarketplaceController } from "@/hooks/use-skill-marketplace";
+import type { SkillMarketplaceController } from "@/hooks/capability/use-skill-marketplace";
 
 import { SkillsCard } from "./skills-card";
 

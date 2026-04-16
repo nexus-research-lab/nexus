@@ -11,8 +11,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { getRoom, getRoomContexts, listRooms, subscribe_room_list_updates } from "@/lib/room-api";
-import { RoomAggregate, RoomContextAggregate } from "@/types/room";
+import { get_room, get_room_contexts, list_rooms, subscribe_room_list_updates } from "@/lib/api/room-api";
+import { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 
 interface UseRoomPageDataOptions {
   room_id?: string | null;
@@ -39,7 +39,7 @@ export function useRoomPageData({
         await Promise.all([
           load_agents_from_server(),
           load_conversations_from_server(),
-          listRooms(200).then(set_rooms),
+          list_rooms(200).then(set_rooms),
         ]);
       } finally {
         if (!cancelled) {
@@ -56,7 +56,7 @@ export function useRoomPageData({
   }, [load_agents_from_server, load_conversations_from_server]);
 
   const refresh_rooms = useCallback(async () => {
-    const next_rooms = await listRooms(200);
+    const next_rooms = await list_rooms(200);
     set_rooms(next_rooms);
     return next_rooms;
   }, []);
@@ -67,8 +67,8 @@ export function useRoomPageData({
 
   const load_room_contexts = useCallback(async (next_room_id: string): Promise<RoomContextAggregate[]> => {
     const [room, contexts] = await Promise.all([
-      getRoom(next_room_id),
-      getRoomContexts(next_room_id),
+      get_room(next_room_id),
+      get_room_contexts(next_room_id),
     ]);
 
     if (contexts.length) {

@@ -60,6 +60,10 @@ func (c *fakeRoomClient) Interrupt(context.Context) error {
 
 func (c *fakeRoomClient) Disconnect(context.Context) error { return nil }
 
+func (c *fakeRoomClient) Reconfigure(context.Context, agentclient.Options) error {
+	return nil
+}
+
 func (c *fakeRoomClient) SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error {
 	return nil
 }
@@ -144,7 +148,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 						ID:    "assistant-sdk-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							{Type: "text", Text: "已收到，正在处理。"},
+							sdkprotocol.TextBlock{Text: "已收到，正在处理。"},
 						},
 					},
 				},

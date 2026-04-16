@@ -17,7 +17,7 @@ import {
 import {
   AgentConversationChatType,
   AgentConversationRuntimePhase,
-} from '@/types/agent-conversation';
+} from '@/types/agent/agent-conversation';
 
 export interface ActiveMessageTracker {
   round_id: string;
@@ -28,6 +28,7 @@ export interface AgentConversationRuntimeSnapshot {
   phase: AgentConversationRuntimePhase;
   pending_round_ids: string[];
   running_round_ids: string[];
+  terminal_round_ids: string[];
   active_messages: Record<string, ActiveMessageTracker>;
   pending_permission_count: number;
   is_loading: boolean;
@@ -256,13 +257,14 @@ export class AgentConversationRuntimeMachine {
       phase,
       pending_round_ids: [...this.pending_round_ids],
       running_round_ids: [...this.running_round_ids],
+      terminal_round_ids: [...this.terminal_round_ids],
       active_messages: build_active_message_record(this.active_message_trackers),
       pending_permission_count: this.pending_permission_count,
       is_loading: phase !== 'idle',
     };
   }
 
-  private is_round_terminal(round_id: string): boolean {
+  public is_round_terminal(round_id: string): boolean {
     if (!round_id) {
       return false;
     }

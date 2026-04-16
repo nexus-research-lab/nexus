@@ -38,6 +38,7 @@ SELECT
     COALESCE(a.description, ''),
     COALESCE(a.vibe_tags::text, '[]'),
     a.created_at,
+    COALESCE(rt.provider, ''),
     COALESCE(rt.model, ''),
     COALESCE(rt.permission_mode, ''),
     COALESCE(rt.allowed_tools_json, '[]'),
@@ -78,6 +79,7 @@ SELECT
     COALESCE(a.description, ''),
     COALESCE(a.vibe_tags::text, '[]'),
     a.created_at,
+    COALESCE(rt.provider, ''),
     COALESCE(rt.model, ''),
     COALESCE(rt.permission_mode, ''),
     COALESCE(rt.allowed_tools_json, '[]'),
@@ -137,11 +139,12 @@ VALUES ($1, $2, $3, NULL, $4, $5)`,
 
 	if _, err = tx.ExecContext(ctx, `
 INSERT INTO runtimes (
-    id, agent_id, model, permission_mode, allowed_tools_json, disallowed_tools_json,
+    id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
     mcp_servers_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 		record.RuntimeID,
 		record.AgentID,
+		nullIfEmpty(record.Provider),
 		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
@@ -159,6 +162,63 @@ INSERT INTO runtimes (
 		return nil, err
 	}
 	return r.GetAgent(ctx, record.AgentID)
+}
+
+// UpdateAgent 更新 Agent 配置。
+func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentdomain.UpdateRecord) (*agentdomain.Agent, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if _, err = tx.ExecContext(ctx, `
+UPDATE agents
+SET slug = $1, name = $2, workspace_path = $3, avatar = $4, description = $5, vibe_tags = $6::json, updated_at = now()
+WHERE id = $7`,
+		record.Slug,
+		record.Name,
+		record.WorkspacePath,
+		nullIfEmpty(record.Avatar),
+		record.Description,
+		record.VibeTagsJSON,
+		record.AgentID,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+UPDATE runtimes
+SET provider = $1, model = $2, permission_mode = $3, allowed_tools_json = $4, disallowed_tools_json = $5,
+    mcp_servers_json = $6, max_turns = $7, max_thinking_tokens = $8, setting_sources_json = $9, updated_at = now()
+WHERE agent_id = $10`,
+		nullIfEmpty(record.Provider),
+		nullIfEmpty(record.Model),
+		nullIfEmpty(record.PermissionMode),
+		record.AllowedToolsJSON,
+		record.DisallowedToolsJSON,
+		record.MCPServersJSON,
+		record.MaxTurns,
+		record.MaxThinkingTokens,
+		record.SettingSourcesJSON,
+		record.AgentID,
+	); err != nil {
+		return nil, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetAgent(ctx, record.AgentID)
+}
+
+// ArchiveAgent 软删除 Agent。
+func (r *AgentRepository) ArchiveAgent(ctx context.Context, agentID string) error {
+	_, err := r.db.ExecContext(ctx, `
+UPDATE agents
+SET status = 'archived', updated_at = now()
+WHERE id = $1`, agentID)
+	return err
 }
 
 // ExistsActiveAgentName 检查活跃名称是否已占用。
@@ -201,6 +261,7 @@ func scanAgent(scanner interface {
 		&item.Description,
 		&vibeTagsJSON,
 		&createdAt,
+		&item.Options.Provider,
 		&item.Options.Model,
 		&item.Options.PermissionMode,
 		&allowedToolsJSON,

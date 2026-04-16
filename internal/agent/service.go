@@ -92,7 +92,7 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*Agent, error) 
 	if err != nil {
 		return nil, err
 	}
-	if agent == nil {
+	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
@@ -162,6 +162,117 @@ func (s *Service) CreateAgent(ctx context.Context, request CreateRequest) (*Agen
 		return nil, err
 	}
 	return s.repository.CreateAgent(ctx, record)
+}
+
+// UpdateAgent 更新 Agent 配置。
+func (s *Service) UpdateAgent(ctx context.Context, agentID string, request UpdateRequest) (*Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil || existing.Status != "active" {
+		return nil, ErrAgentNotFound
+	}
+
+	normalizedName := existing.Name
+	workspacePath := existing.WorkspacePath
+	if request.Name != nil {
+		candidate := NormalizeName(*request.Name)
+		if candidate != existing.Name {
+			if existing.AgentID == s.config.DefaultAgentID {
+				return nil, errors.New("主智能体名称不可修改")
+			}
+			validation, validateErr := s.ValidateName(ctx, candidate, existing.AgentID)
+			if validateErr != nil {
+				return nil, validateErr
+			}
+			if !validation.IsValid || !validation.IsAvailable {
+				return nil, errors.New(validation.Reason)
+			}
+			normalizedName = validation.NormalizedName
+			workspacePath = validation.WorkspacePath
+		}
+	}
+
+	nextOptions := existing.Options
+	if request.Options != nil {
+		nextOptions = mergeOptions(existing.Options, *request.Options)
+	}
+
+	avatar := existing.Avatar
+	if request.Avatar != nil {
+		avatar = strings.TrimSpace(*request.Avatar)
+	}
+	description := existing.Description
+	if request.Description != nil {
+		description = strings.TrimSpace(*request.Description)
+	}
+	vibeTags := existing.VibeTags
+	if request.VibeTags != nil {
+		vibeTags = append([]string(nil), request.VibeTags...)
+	}
+
+	if err = s.syncWorkspacePath(existing.WorkspacePath, workspacePath); err != nil {
+		return nil, err
+	}
+
+	updated, err := s.repository.UpdateAgent(ctx, UpdateRecord{
+		AgentID:             existing.AgentID,
+		Slug:                BuildWorkspaceDirName(normalizedName),
+		Name:                normalizedName,
+		WorkspacePath:       workspacePath,
+		Avatar:              avatar,
+		Description:         description,
+		VibeTagsJSON:        mustJSONString(vibeTags, "[]"),
+		Provider:            nextOptions.Provider,
+		Model:               nextOptions.Model,
+		PermissionMode:      nextOptions.PermissionMode,
+		AllowedToolsJSON:    mustJSONString(nextOptions.AllowedTools, "[]"),
+		DisallowedToolsJSON: mustJSONString(nextOptions.DisallowedTools, "[]"),
+		MCPServersJSON:      mustJSONString(nextOptions.MCPServers, "{}"),
+		MaxTurns:            nextOptions.MaxTurns,
+		MaxThinkingTokens:   nextOptions.MaxThinkingTokens,
+		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources, "[]"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, ErrAgentNotFound
+	}
+	if err = os.MkdirAll(updated.WorkspacePath, 0o755); err != nil {
+		return nil, err
+	}
+	if err = enrichAgentWithSkillsCount(updated); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// DeleteAgent 软删除 Agent，并清理 workspace 目录。
+func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
+	if err := s.EnsureReady(ctx); err != nil {
+		return err
+	}
+
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return err
+	}
+	if existing == nil || existing.Status != "active" {
+		return ErrAgentNotFound
+	}
+	if existing.AgentID == s.config.DefaultAgentID {
+		return errors.New("主智能体不可删除")
+	}
+	if err = os.RemoveAll(existing.WorkspacePath); err != nil {
+		return err
+	}
+	return s.repository.ArchiveAgent(ctx, existing.AgentID)
 }
 
 func (s *Service) ensureReady(ctx context.Context) error {
@@ -238,4 +349,29 @@ func countDeployedSkills(workspacePath string) (int, error) {
 		}
 	}
 	return count, nil
+}
+
+func (s *Service) syncWorkspacePath(currentPath string, targetPath string) error {
+	source := strings.TrimSpace(currentPath)
+	target := strings.TrimSpace(targetPath)
+	if source == "" || target == "" || source == target {
+		if target == "" {
+			return nil
+		}
+		return os.MkdirAll(target, 0o755)
+	}
+	if _, err := os.Stat(source); os.IsNotExist(err) {
+		return os.MkdirAll(target, 0o755)
+	} else if err != nil {
+		return err
+	}
+	if _, err := os.Stat(target); err == nil {
+		return errors.New("目标工作区目录已存在")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	return os.Rename(source, target)
 }

@@ -149,6 +149,9 @@ func (c *fakeGatewayRoomClient) Interrupt(context.Context) error {
 }
 
 func (c *fakeGatewayRoomClient) Disconnect(context.Context) error { return nil }
+func (c *fakeGatewayRoomClient) Reconfigure(context.Context, agentclient.Options) error {
+	return nil
+}
 func (c *fakeGatewayRoomClient) SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error {
 	return nil
 }

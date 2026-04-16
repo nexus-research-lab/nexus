@@ -11,21 +11,20 @@ import {
   AgentThinkingPayload,
   HandleAgentConversationWebSocketMessageParams,
   RoomEventPayload,
-} from '@/types/agent-conversation';
-import { WorkspaceEventPayload } from '@/types/workspace-live';
+} from '@/types/agent/agent-conversation';
+import { WorkspaceEventPayload } from '@/types/app/workspace-live';
 
-import { applyStreamMessage, normalizeAssistantMessage, upsertMessage } from './message-helpers';
+import { apply_stream_message, normalize_assistant_message, upsert_message } from './message-helpers';
 
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
-export function handleAgentConversationWebSocketMessage({
+export function handle_agent_conversation_web_socket_message({
   backend_message,
   apply_workspace_event,
   is_current_session_event,
   set_error,
   set_messages,
-  set_pending_agent_slots,
   set_pending_permissions,
   enqueue_stream_payload,
   on_background_message,
@@ -37,12 +36,6 @@ export function handleAgentConversationWebSocketMessage({
   track_chat_ack,
   track_assistant_message,
 }: HandleAgentConversationWebSocketMessageParams): void {
-  const clearTimedOutQuestionPermissions = (incoming_session: string | null) => {
-    set_pending_permissions((prev) => prev.filter((item) => !(
-      (item.interaction_mode === 'question' || item.tool_name === 'AskUserQuestion') &&
-      (item.session_key ?? null) === incoming_session
-    )));
-  };
   const event = backend_message as EventMessage;
   const incoming_session_key = event.session_key || null;
 
@@ -217,7 +210,7 @@ export function handleAgentConversationWebSocketMessage({
     if (enqueue_stream_payload) {
       enqueue_stream_payload(payload);
     } else {
-      set_messages((prev) => applyStreamMessage(prev, payload));
+      set_messages((prev) => apply_stream_message(prev, payload));
     }
     return;
   }
@@ -226,10 +219,6 @@ export function handleAgentConversationWebSocketMessage({
   const message_session_key = payload?.session_key || incoming_session_key;
   if (!payload || !message_session_key) {
     return;
-  }
-  const tool_use_result = (payload as { tool_use_result?: string }).tool_use_result;
-  if (payload.role === 'user' && tool_use_result === 'Error: Permission request timeout') {
-    clearTimedOutQuestionPermissions(message_session_key);
   }
 
   if (!is_current_session_event(message_session_key)) {
@@ -243,11 +232,11 @@ export function handleAgentConversationWebSocketMessage({
 
   const normalized_payload = (
     payload.role === 'assistant'
-      ? normalizeAssistantMessage(payload as AssistantMessage)
+      ? normalize_assistant_message(payload as AssistantMessage)
       : payload
   );
 
-  set_messages((prev) => upsertMessage(prev, normalized_payload));
+  set_messages((prev) => upsert_message(prev, normalized_payload));
   if (payload.role === 'result') {
     return;
   }

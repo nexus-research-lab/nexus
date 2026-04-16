@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebSocketClient } from './socket-client';
-import { WebSocketConfig, WebSocketState, WebSocketMessage } from '@/types/websocket';
+import { WebSocketConfig, WebSocketState, WebSocketMessage } from '@/types/system/websocket';
 
 export interface UseWebSocketOptions extends Omit<WebSocketConfig, 'protocols'> {
   on_message?: (message: any) => void;
@@ -171,7 +171,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
       set_state: setState,
     });
 
-    // 中文注释：已登录应用内的多个页面共享同一条 WebSocket。
+    // 已登录应用内的多个页面共享同一条 WebSocket。
     // 这里仅在首次订阅时建立连接，后续页面切换复用现有客户端。
     if (options.auto_connect !== false) {
       channel.connect();

@@ -5,19 +5,16 @@
  * 只有显式配置了绝对地址时，才会直连外部 API / WebSocket。
  */
 
-import { request_api } from "@/lib/http";
-
-export const initialOptions = {
-  model: import.meta.env.VITE_DEFAULT_MODEL || 'glm-5.1',
-  permissionMode: 'default',
-}
+import { request_api } from "@/lib/api/http";
+import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 
 export let DEFAULT_AGENT_ID = "";
+export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 
 const DEFAULT_API_PATH = "/agent/v1";
 const DEFAULT_WS_PATH = "/agent/v1/chat/ws";
 
-function buildBrowserUrl(pathname: string, use_websocket_protocol: boolean): string {
+function build_browser_url(pathname: string, use_websocket_protocol: boolean): string {
   if (typeof window === "undefined") {
     return pathname;
   }
@@ -29,29 +26,44 @@ function buildBrowserUrl(pathname: string, use_websocket_protocol: boolean): str
   return `${origin}${normalized_path}`;
 }
 
-function resolveRuntimeUrl(rawUrl: string | undefined, fallbackPath: string, use_websocket_protocol: boolean): string {
+function resolve_runtime_url(rawUrl: string | undefined, fallbackPath: string, use_websocket_protocol: boolean): string {
   const normalized_raw_url = rawUrl?.trim();
   if (!normalized_raw_url) {
-    return buildBrowserUrl(fallbackPath, use_websocket_protocol);
+    return build_browser_url(fallbackPath, use_websocket_protocol);
   }
 
   if (normalized_raw_url.startsWith("/")) {
-    return buildBrowserUrl(normalized_raw_url, use_websocket_protocol);
+    return build_browser_url(normalized_raw_url, use_websocket_protocol);
   }
 
   return normalized_raw_url;
 }
 
 export function getAgentApiBaseUrl(): string {
-  return resolveRuntimeUrl(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
+  return resolve_runtime_url(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
 }
 
 export function getAgentWsUrl(): string {
-  return resolveRuntimeUrl(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
+  return resolve_runtime_url(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
 }
 
 export function getDefaultAgentId(): string {
   return DEFAULT_AGENT_ID;
+}
+
+export function getDefaultAgentProvider(): AgentProvider {
+  return DEFAULT_AGENT_PROVIDER;
+}
+
+export function setDefaultAgentProvider(provider?: string | null): void {
+  const normalized_provider = provider?.trim();
+  DEFAULT_AGENT_PROVIDER = normalized_provider || "";
+}
+
+export function getInitialAgentOptions(): Partial<AgentOptions> {
+  return {
+    permission_mode: "default",
+  };
 }
 
 export function isMainAgent(agent_id?: string | null): boolean {
@@ -63,7 +75,7 @@ export function resolveAgentId(agent_id?: string | null): string {
 }
 
 export async function hydrateRuntimeOptions(): Promise<void> {
-  const payload = await request_api<{ default_agent_id: string }>(
+  const payload = await request_api<{ default_agent_id: string; default_agent_provider?: string | null }>(
     `${getAgentApiBaseUrl()}/runtime/options`,
     {
       method: "GET",
@@ -76,4 +88,5 @@ export async function hydrateRuntimeOptions(): Promise<void> {
   }
 
   DEFAULT_AGENT_ID = next_default_agent_id;
+  setDefaultAgentProvider(payload?.default_agent_provider);
 }

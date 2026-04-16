@@ -15,7 +15,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { supportsTrueLiquidGlass } from "./liquid-glass-engine";
+import { supports_true_liquid_glass } from "./liquid-glass-engine";
 
 interface GlassSwitchProps {
   checked: boolean;
@@ -69,7 +69,7 @@ export function GlassSwitch({
   const previous_checked_ref = useRef(checked);
 
   useEffect(() => {
-    set_can_use_true_glass(supportsTrueLiquidGlass());
+    set_can_use_true_glass(supports_true_liquid_glass());
   }, []);
 
   useEffect(() => {

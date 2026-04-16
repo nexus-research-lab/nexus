@@ -11,6 +11,7 @@ import "time"
 
 // Options 表示 Agent 运行时配置。
 type Options struct {
+	Provider          string         `json:"provider,omitempty"`
 	Model             string         `json:"model,omitempty"`
 	PermissionMode    string         `json:"permission_mode,omitempty"`
 	AllowedTools      []string       `json:"allowed_tools,omitempty"`
@@ -44,6 +45,15 @@ type CreateRequest struct {
 	VibeTags    []string `json:"vibe_tags,omitempty"`
 }
 
+// UpdateRequest 表示更新 Agent 请求。
+type UpdateRequest struct {
+	Name        *string  `json:"name,omitempty"`
+	Options     *Options `json:"options,omitempty"`
+	Avatar      *string  `json:"avatar,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	VibeTags    []string `json:"vibe_tags,omitempty"`
+}
+
 // ValidateNameResponse 对齐当前校验协议。
 type ValidateNameResponse struct {
 	Name           string `json:"name"`
@@ -69,6 +79,7 @@ type CreateRecord struct {
 	ProfileMarkdown     string
 	RuntimeID           string
 	ProfileID           string
+	Provider            string
 	Model               string
 	PermissionMode      string
 	AllowedToolsJSON    string
@@ -78,4 +89,24 @@ type CreateRecord struct {
 	MaxThinkingTokens   *int
 	SettingSourcesJSON  string
 	RuntimeVersion      int
+}
+
+// UpdateRecord 表示落库前的 Agent 更新记录。
+type UpdateRecord struct {
+	AgentID             string
+	Slug                string
+	Name                string
+	WorkspacePath       string
+	Avatar              string
+	Description         string
+	VibeTagsJSON        string
+	Provider            string
+	Model               string
+	PermissionMode      string
+	AllowedToolsJSON    string
+	DisallowedToolsJSON string
+	MCPServersJSON      string
+	MaxTurns            *int
+	MaxThinkingTokens   *int
+	SettingSourcesJSON  string
 }

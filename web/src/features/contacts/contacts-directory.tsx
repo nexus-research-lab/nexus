@@ -4,21 +4,17 @@ import { Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/workspace-search-input";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/workspace-surface-header";
+import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import {
   WorkspaceCatalogGhostCard,
   WorkspaceIconFrame,
-} from "@/shared/ui/workspace/workspace-catalog-card";
-import { Agent } from "@/types/agent";
-import { Conversation } from "@/types/conversation";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { Agent } from "@/types/agent/agent";
+import { Conversation } from "@/types/conversation/conversation";
 
 import { ContactsAgentCard } from "./contacts-agent-card";
-import {
-  get_contacts_agent_conversations,
-  get_contacts_agent_description,
-  matches_contacts_search,
-} from "./contacts-directory-helpers";
+import { matches_contacts_search } from "./contacts-directory-helpers";
 
 interface ContactsDirectoryProps {
   agents: Agent[];
@@ -44,15 +40,6 @@ export function ContactsDirectory({
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
   const [search_query, set_search_query] = useState("");
-
-  // 按 agent 分组 conversations（用于后续扩展）
-  const _conversations_by_agent = useMemo(() => {
-    const grouped = new Map<string, Conversation[]>();
-    agents.forEach((agent) => {
-      grouped.set(agent.agent_id, get_contacts_agent_conversations(conversations, agent.agent_id));
-    });
-    return grouped;
-  }, [agents, conversations]);
 
   // Tab 过滤 + 搜索
   const filtered_agents = useMemo(() => {

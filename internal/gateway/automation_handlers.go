@@ -27,6 +27,7 @@ type scheduledTaskCreatePayload struct {
 	Instruction   string                        `json:"instruction"`
 	SessionTarget *automationsvc.SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *automationsvc.DeliveryTarget `json:"delivery,omitempty"`
+	Source        *automationsvc.Source         `json:"source,omitempty"`
 	Enabled       *bool                         `json:"enabled,omitempty"`
 }
 
@@ -36,6 +37,7 @@ type scheduledTaskUpdatePayload struct {
 	Instruction   *string                       `json:"instruction,omitempty"`
 	SessionTarget *automationsvc.SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *automationsvc.DeliveryTarget `json:"delivery,omitempty"`
+	Source        *automationsvc.Source         `json:"source,omitempty"`
 	Enabled       *bool                         `json:"enabled,omitempty"`
 }
 
@@ -78,6 +80,10 @@ func (s *Server) handleCreateScheduledTask(writer http.ResponseWriter, request *
 	if payload.Delivery != nil {
 		delivery = *payload.Delivery
 	}
+	source := automationsvc.Source{}
+	if payload.Source != nil {
+		source = *payload.Source
+	}
 	enabled := true
 	if payload.Enabled != nil {
 		enabled = *payload.Enabled
@@ -89,6 +95,7 @@ func (s *Server) handleCreateScheduledTask(writer http.ResponseWriter, request *
 		Instruction:   payload.Instruction,
 		SessionTarget: sessionTarget,
 		Delivery:      delivery,
+		Source:        source,
 		Enabled:       enabled,
 	})
 	if err != nil {
@@ -114,6 +121,7 @@ func (s *Server) handleUpdateScheduledTask(writer http.ResponseWriter, request *
 		Instruction:   payload.Instruction,
 		SessionTarget: payload.SessionTarget,
 		Delivery:      payload.Delivery,
+		Source:        payload.Source,
 		Enabled:       payload.Enabled,
 	})
 	if err != nil {

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { createBrowserJSONStorage } from "@/lib/browser-storage";
-import { ConversationStoreState } from "@/types/conversation";
+import { create_browser_json_storage } from "@/lib/storage/browser-storage";
+import { ConversationStoreState } from "@/types/conversation/conversation";
 
 import * as actions from "./actions";
 
@@ -17,13 +17,13 @@ export const useConversationStore = create<ConversationStoreState>()(
       loading: false,
       error: null,
 
-      sync_conversation_snapshot: actions.syncConversationSnapshotAction(set),
-      load_conversations_from_server: actions.loadConversationsFromServerAction(set),
-      clear_all_conversations: actions.clearAllConversationsAction(set),
+      sync_conversation_snapshot: actions.sync_conversation_snapshot_action(set),
+      load_conversations_from_server: actions.load_conversations_from_server_action(set),
+      clear_all_conversations: actions.clear_all_conversations_action(set),
     }),
     {
       name: "agent-ui-conversations",
-      storage: createBrowserJSONStorage(),
+      storage: create_browser_json_storage(),
       version: 4,
       migrate: (persisted_state: unknown): PersistedConversationStoreState => {
         const state = (persisted_state ?? {}) as PersistedConversationStoreState;
@@ -38,6 +38,6 @@ export const useConversationStore = create<ConversationStoreState>()(
   ),
 );
 
-export function getConversationStoreSnapshot(): ConversationStoreState {
+export function get_conversation_store_snapshot(): ConversationStoreState {
   return useConversationStore.getState();
 }

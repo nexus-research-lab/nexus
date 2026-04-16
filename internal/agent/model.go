@@ -17,4 +17,6 @@ type Agent = agentdomain.Agent
 
 type CreateRequest = agentdomain.CreateRequest
 
+type UpdateRequest = agentdomain.UpdateRequest
+
 type ValidateNameResponse = agentdomain.ValidateNameResponse

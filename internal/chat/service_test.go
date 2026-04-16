@@ -35,6 +35,7 @@ type fakeChatClient struct {
 	sessionID      string
 	messages       chan sdkprotocol.ReceivedMessage
 	interruptCalls int
+	reconfigureOps []agentclient.Options
 	onQuery        func(context.Context, string)
 }
 
@@ -66,6 +67,13 @@ func (c *fakeChatClient) Interrupt(context.Context) error {
 }
 
 func (c *fakeChatClient) Disconnect(context.Context) error { return nil }
+
+func (c *fakeChatClient) Reconfigure(_ context.Context, options agentclient.Options) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.reconfigureOps = append(c.reconfigureOps, options)
+	return nil
+}
 
 func (c *fakeChatClient) SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error {
 	return nil
@@ -134,7 +142,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 						ID:    "assistant-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							{Type: "text", Text: "你好，世界"},
+							sdkprotocol.TextBlock{Text: "你好，世界"},
 						},
 					},
 				},
@@ -199,14 +207,29 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
-func TestServiceHandleChatDoesNotForwardModelOption(t *testing.T) {
+func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	cfg := newChatTestConfig(t)
-	cfg.MainAgentModel = "glm-5.1"
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
 	agentService, err := agentsvc.NewService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	maxThinkingTokens := 2048
+	maxTurns := 6
+	updatedAgent, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, agentsvc.UpdateRequest{
+		Options: &agentsvc.Options{
+			Model:             "glm-5.1",
+			MaxThinkingTokens: &maxThinkingTokens,
+			MaxTurns:          &maxTurns,
+			SettingSources:    []string{"user"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("更新 agent 配置失败: %v", err)
+	}
+	if updatedAgent == nil {
+		t.Fatal("更新 agent 后返回为空")
 	}
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
@@ -246,8 +269,18 @@ func TestServiceHandleChatDoesNotForwardModelOption(t *testing.T) {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
 	})
 
-	if options := factory.LastOptions(); options.Model != "" {
-		t.Fatalf("runtime 不应向 SDK 透传 model: %+v", options)
+	options := factory.LastOptions()
+	if options.Model != "glm-5.1" {
+		t.Fatalf("runtime 未向 SDK 透传 model: %+v", options)
+	}
+	if options.MaxThinkingTokens != maxThinkingTokens {
+		t.Fatalf("runtime 未向 SDK 透传 max thinking tokens: %+v", options)
+	}
+	if options.MaxTurns != maxTurns {
+		t.Fatalf("runtime 未向 SDK 透传 max turns: %+v", options)
+	}
+	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
+		t.Fatalf("runtime 未向 SDK 透传 setting_sources: %+v", options)
 	}
 }
 

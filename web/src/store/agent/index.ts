@@ -3,7 +3,7 @@
  *
  * 使用 Zustand 管理 Agent 状态
  *
- * [INPUT]: 依赖 @/lib/agent-manage-api 的 Agent API
+ * [INPUT]: 依赖 @/lib/api/agent-manage-api 的 Agent API
  * [OUTPUT]: 对外提供 useAgentStore
  * [POS]: store 模块的 Agent 管理，被侧边栏和 Agent 设置页消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -16,15 +16,15 @@ import {
     AgentRuntimeStatus,
     CreateAgentParams,
     UpdateAgentParams,
-} from '@/types/agent';
-import { createBrowserJSONStorage } from '@/lib/browser-storage';
+} from '@/types/agent/agent';
+import { create_browser_json_storage } from '@/lib/storage/browser-storage';
 import {
-    getAgents,
-    getAgentRuntimeStatusesApi,
-    createAgentApi,
-    updateAgentApi,
-    deleteAgentApi,
-} from '@/lib/agent-manage-api';
+    get_agents,
+    get_agent_runtime_statuses_api,
+    create_agent_api,
+    update_agent_api,
+    delete_agent_api,
+} from '@/lib/api/agent-manage-api';
 
 // ==================== Store 类型 ====================
 
@@ -77,7 +77,7 @@ export const useAgentStore = create<AgentStoreState>()(
 
             create_agent: async (params: CreateAgentParams): Promise<string> => {
                 try {
-                    const agent = await createAgentApi(params);
+                    const agent = await create_agent_api(params);
                     set((state) => ({
                         agents: [agent, ...state.agents],
                         agent_runtime_statuses: {
@@ -97,7 +97,7 @@ export const useAgentStore = create<AgentStoreState>()(
 
             delete_agent: async (agent_id: string): Promise<void> => {
                 try {
-                    await deleteAgentApi(agent_id);
+                    await delete_agent_api(agent_id);
                     set((state) => {
                         const new_agents = state.agents.filter(a => a.agent_id !== agent_id);
                         const new_current = state.current_agent_id === agent_id
@@ -121,7 +121,7 @@ export const useAgentStore = create<AgentStoreState>()(
 
             update_agent: async (agent_id: string, params: UpdateAgentParams): Promise<void> => {
                 try {
-                    const updated = await updateAgentApi(agent_id, params);
+                    const updated = await update_agent_api(agent_id, params);
                     set((state) => ({
                         agents: state.agents.map(a =>
                             a.agent_id === agent_id ? updated : a
@@ -155,7 +155,7 @@ export const useAgentStore = create<AgentStoreState>()(
             load_agents_from_server: async (): Promise<void> => {
                 try {
                     set({ loading: true, error: null });
-                    const agents = await getAgents();
+                    const agents = await get_agents();
                     set((state) => ({
                         agents,
                         agent_runtime_statuses: Object.fromEntries(
@@ -180,7 +180,7 @@ export const useAgentStore = create<AgentStoreState>()(
 
             load_agent_runtime_statuses: async (): Promise<void> => {
                 try {
-                    const statuses = await getAgentRuntimeStatusesApi();
+                    const statuses = await get_agent_runtime_statuses_api();
                     set((state) => ({
                         agent_runtime_statuses: {
                             ...state.agent_runtime_statuses,
@@ -205,7 +205,7 @@ export const useAgentStore = create<AgentStoreState>()(
         }),
         {
             name: 'agent-ui-agents',
-            storage: createBrowserJSONStorage(),
+            storage: create_browser_json_storage(),
             partialize: (state) => ({
                 agents: state.agents,
                 current_agent_id: state.current_agent_id,

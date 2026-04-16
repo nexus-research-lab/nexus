@@ -225,6 +225,9 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 
 // ImportLocalPath 从本地目录导入外部 skill。
 func (s *Service) ImportLocalPath(localPath string) (*Detail, error) {
+	if strings.TrimSpace(localPath) == "" {
+		return nil, errors.New("请提供本地 zip 上传文件或 local_path")
+	}
 	sourceDir := filepath.Clean(strings.TrimSpace(localPath))
 	content, skillMDPath, skillName, err := readSkillSource(sourceDir)
 	if err != nil {
@@ -474,7 +477,7 @@ func (s *Service) loadExternalRecords() (map[string]catalogRecord, error) {
 				SourceRef:    firstNonEmpty(manifest.SourceRef, skillDir),
 				Version:      firstNonEmpty(manifest.Version, parsed.Version, "external"),
 				Locked:       false,
-				HasUpdate:    false,
+				HasUpdate:    manifest.ImportMode == "git" || manifest.ImportMode == "skills_sh",
 				Deletable:    true,
 			},
 			ReadmeMarkdown: parsed.ReadmeMarkdown,

@@ -4,20 +4,24 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { Loader2 } from "lucide-react";
 
-import { RoomWorkspaceShell } from "@/features/room-conversation/room-workspace-shell";
-import { RoomRouteEntry } from "@/features/room-conversation/room-route-entry";
-import { useRoomPageController } from "@/hooks/use-room-page-controller";
+import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
+import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
+import { useRoomPageController } from "@/hooks/room-page-controller/use-room-page-controller";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { WorkspacePageFrame } from "@/shared/ui/workspace/workspace-page-frame";
-import { RoomRouteParams } from "@/types/route";
-import { UpdateRoomParams } from "@/types/room";
+import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import { RoomRouteParams } from "@/types/app/route";
+import { UpdateRoomParams } from "@/types/conversation/room";
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [pending_initial_prompt, set_pending_initial_prompt] = useState<string | null>(null);
+  const [pending_deleted_room, set_pending_deleted_room] = useState<{
+    id: string;
+    room_type: "room" | "dm";
+  } | null>(null);
   const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
   const controller = useRoomPageController({
     room_id: params.room_id,
@@ -85,12 +89,14 @@ export function RoomPage() {
     await controller.handle_update_conversation_title(conversation_id, title);
   }, [controller]);
 
-  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent-conversation").RoomEventPayload) => {
+  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
     if (event_type === "room_deleted") {
-      if (controller.current_room?.room_type === "dm") {
-        navigate(AppRouteBuilders.dm_directory());
-      } else {
-        navigate(AppRouteBuilders.home());
+      if (_data.room_id && _data.room_id === params.room_id) {
+        set_pending_deleted_room({
+          id: _data.room_id,
+          room_type: controller.current_room?.room_type === "dm" ? "dm" : "room",
+        });
+        void controller.handle_refresh_room_state();
       }
       return;
     }
@@ -100,7 +106,41 @@ export function RoomPage() {
     }
     // room_member_added / room_member_removed are handled by the next server-rendered
     // room context fetch; no extra action needed here.
-  }, [controller, navigate]);
+  }, [controller, params.room_id]);
+
+  useEffect(() => {
+    if (!pending_deleted_room) {
+      return;
+    }
+
+    if (!controller.is_hydrated) {
+      return;
+    }
+
+    if (!params.room_id || params.room_id !== pending_deleted_room.id) {
+      set_pending_deleted_room(null);
+      return;
+    }
+
+    if (controller.current_room && !controller.room_error) {
+      // Room 仍可访问，继续留在当前路径。
+      set_pending_deleted_room(null);
+      return;
+    }
+
+    const fallback_route = pending_deleted_room.room_type === "dm"
+      ? AppRouteBuilders.dm_directory()
+      : AppRouteBuilders.home();
+    navigate(fallback_route, { replace: true });
+    set_pending_deleted_room(null);
+  }, [
+    controller.current_room,
+    controller.is_hydrated,
+    controller.room_error,
+    navigate,
+    params.room_id,
+    pending_deleted_room,
+  ]);
 
   const handle_request_delete_agent = useCallback((agent_id: string) => {
     const target_agent = controller.agents.find((agent) => agent.agent_id === agent_id);
@@ -169,7 +209,7 @@ export function RoomPage() {
         <WorkspacePageFrame
           content_padding_class_name="p-0"
         >
-          <RoomWorkspaceShell
+          <RoomSurfaceShell
             active_workspace_path={controller.active_workspace_path}
             available_room_agents={controller.available_room_agents}
             current_agent={controller.current_agent}
@@ -196,6 +236,7 @@ export function RoomPage() {
             on_loading_change={controller.set_is_conversation_busy}
             on_create_conversation={handleCreateConversation}
             on_open_workspace_file={controller.handle_open_workspace_file}
+            on_save_agent_options={controller.handle_save_existing_agent_options}
             on_update_room={handleUpdateRoom}
             on_update_conversation_title={handleUpdateConversationTitle}
             on_select_conversation={handleSelectConversation}
@@ -203,6 +244,7 @@ export function RoomPage() {
             on_initial_draft_consumed={handle_consume_initial_prompt}
             on_start_editor_resize={controller.handle_start_editor_resize}
             on_todos_change={controller.set_current_todos}
+            on_validate_agent_name={controller.handle_validate_agent_name_for_agent}
             workspace_split_ref={controller.workspace_split_ref}
             on_room_event={handleRoomEvent}
           />
@@ -240,7 +282,7 @@ export function RoomPage() {
 
   return (
     <WorkspacePageFrame>
-      <RoomRouteEntry
+      <GroupRouteEntry
         agents={controller.room_members}
         conversations={controller.conversations}
         conversation_id={params.conversation_id}

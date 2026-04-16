@@ -26,6 +26,7 @@ type Client interface {
 	ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage
 	Interrupt(context.Context) error
 	Disconnect(context.Context) error
+	Reconfigure(context.Context, agentclient.Options) error
 	SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error
 	SessionID() string
 }
@@ -70,23 +71,31 @@ func NewManagerWithFactory(factory Factory) *Manager {
 	}
 }
 
-// GetOrCreate 获取或创建 client。
-func (m *Manager) GetOrCreate(sessionKey string, options agentclient.Options) Client {
+// GetOrCreate 获取或创建 client，并在复用时应用最新运行时配置。
+func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options agentclient.Options) (Client, error) {
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
 	m.mu.RUnlock()
 	if ok && state.Client != nil {
-		return state.Client
+		if err := state.Client.Reconfigure(ctx, options); err != nil {
+			return nil, err
+		}
+		return state.Client, nil
 	}
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	state = m.ensureStateLocked(sessionKey)
 	if state.Client == nil {
 		state.Client = m.factory.New(options)
+		m.mu.Unlock()
+		return state.Client, nil
 	}
-	return state.Client
+	client := state.Client
+	m.mu.Unlock()
+	if err := client.Reconfigure(ctx, options); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 // StartRound 注册运行中的 round，并记录其取消函数。

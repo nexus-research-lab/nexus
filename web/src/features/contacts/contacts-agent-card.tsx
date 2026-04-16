@@ -4,7 +4,8 @@ import { Bot, MessageSquareText, Users } from "lucide-react";
 
 import { getIconAvatarSrc } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { Agent } from "@/types/agent";
+import { Agent } from "@/types/agent/agent";
+import { format_provider_label } from "@/types/capability/provider";
 import {
   WorkspaceCatalogBody,
   WorkspaceCatalogCard,
@@ -13,7 +14,7 @@ import {
   WorkspaceIconFrame,
   WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/workspace-catalog-card";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 
 interface ContactsAgentCardProps {
   agent: Agent;
@@ -36,7 +37,7 @@ export function ContactsAgentCard({
 
   // 提取配置信息
   const permissionMode = agent.options.permission_mode || "default";
-  const model = agent.options.model || "claude-sonnet-4-5";
+  const provider = format_provider_label(agent.options.provider);
   const allowedToolsCount = agent.options.allowed_tools?.length || 0;
   const skillsCount = agent.skills_count || 0;
 
@@ -83,8 +84,8 @@ export function ContactsAgentCard({
             <span className="text-(--text-muted)">{permissionMode}</span>
           </div>
           <div className="flex flex-wrap gap-1.5 items-center justify-center">
-            <span className="text-(--text-default)">模型:</span>
-            <span className="text-(--text-muted)">{model}</span>
+            <span className="text-(--text-default)">Provider:</span>
+            <span className="text-(--text-muted)">{provider}</span>
             <span className="mx-0.5">•</span>
             <span className="text-(--text-default)">工具:</span>
             <span className="text-(--text-muted)">{allowedToolsCount}</span>

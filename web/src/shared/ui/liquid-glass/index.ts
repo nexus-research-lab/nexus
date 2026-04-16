@@ -10,9 +10,6 @@
 */
 
 export {
-  GlassChip,
-  GlassDialog,
-  GlassFocusControl,
   GlassMagnifier,
   GlassPanel,
   GlassToolbar,

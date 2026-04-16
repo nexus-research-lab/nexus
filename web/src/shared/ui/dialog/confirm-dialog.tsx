@@ -53,15 +53,15 @@ export function ConfirmDialog({
   }, [is_open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handle_key_down = (e: KeyboardEvent) => {
       if (!is_open) return;
       if (e.key === "Escape") {
         e.preventDefault();
         on_cancel();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_cancel]);
 
   if (!is_open) return null;
@@ -179,7 +179,7 @@ export function PromptDialog({
   }, [is_open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handle_key_down = (e: KeyboardEvent) => {
       if (!is_open) return;
       if (e.key === "Escape") {
         e.preventDefault();
@@ -191,8 +191,8 @@ export function PromptDialog({
         on_confirm(value);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
   }, [is_open, on_cancel, on_confirm, value, default_value]);
 
   if (!is_open) return null;

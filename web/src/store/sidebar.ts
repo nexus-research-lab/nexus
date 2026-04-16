@@ -12,6 +12,9 @@ import { persist } from "zustand/middleware";
 export const WIDE_PANEL_MIN_WIDTH = 264;
 export const WIDE_PANEL_MAX_WIDTH = 400;
 export const WIDE_PANEL_DEFAULT_WIDTH = 264;
+export const SIDEBAR_SYSTEM_ITEM_IDS = {
+  nexus: "system:nexus",
+} as const;
 export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   skills: "capability:skills",
   connectors: "capability:connectors",
@@ -49,6 +52,8 @@ function clamp_panel_width(width: number): number {
 interface SidebarState {
   /** 宽面板中当前高亮的条目 ID（Room/DM/Agent/Skill） */
   active_panel_item_id: string | null;
+  /** 主智能体 DM 的真实 room_id，用于 header 入口和真实 room 路由共用同一激活语义。 */
+  nexus_room_id: string | null;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;
   /** 宽面板各 Section 的折叠状态 */
@@ -57,6 +62,7 @@ interface SidebarState {
 
 interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
+  set_nexus_room_id: (room_id: string | null) => void;
   /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
   set_wide_panel_width: (width: number) => void;
   toggle_section: (section_id: string) => void;
@@ -66,10 +72,12 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
   persist(
     (set) => ({
       active_panel_item_id: null,
+      nexus_room_id: null,
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
+      set_nexus_room_id: (room_id) => set({ nexus_room_id: room_id }),
 
       set_wide_panel_width: (width) =>
         set({ wide_panel_width: clamp_panel_width(width) }),

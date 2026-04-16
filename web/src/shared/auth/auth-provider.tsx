@@ -17,8 +17,8 @@ import {
   useState,
 } from "react";
 
-import { AuthStatus, getAuthStatus, loginApi, logoutApi } from "@/lib/auth-api";
-import { AUTH_REQUIRED_EVENT } from "@/lib/http";
+import { AuthStatus, get_auth_status, login_api, logout_api } from "@/lib/api/auth-api";
+import { AUTH_REQUIRED_EVENT } from "@/lib/api/http";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 
 const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh_status = useCallback(async (): Promise<AuthStatus> => {
     set_loading(true);
     try {
-      const next_status = await getAuthStatus();
+      const next_status = await get_auth_status();
       startTransition(() => {
         set_status(next_status);
         set_error(null);
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string): Promise<AuthStatus> => {
-    const next_status = await loginApi({ username, password });
+    const next_status = await login_api({ username, password });
     startTransition(() => {
       set_status(next_status);
       set_error(null);
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<AuthStatus> => {
-    const next_status = await logoutApi();
+    const next_status = await logout_api();
     startTransition(() => {
       set_status(next_status);
       set_error(null);

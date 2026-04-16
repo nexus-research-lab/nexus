@@ -20,7 +20,7 @@ type GlassPrimitiveProps<T extends GlassPrimitiveTagName> =
     true_glass?: boolean;
   };
 
-function getDefaultRadius(variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier"): number {
+function get_default_radius(variant: "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier"): number {
   if (variant === "panel") {
     return 28;
   }
@@ -42,7 +42,7 @@ function BaseGlassPrimitive<T extends GlassPrimitiveTagName>({
     <LiquidGlassPanel
       {...props}
       enable_true_glass={true_glass}
-      radius={radius ?? getDefaultRadius(props.variant)}
+      radius={radius ?? get_default_radius(props.variant)}
       variant={props.variant}
     />
   );
@@ -65,36 +65,6 @@ export function GlassPanel<T extends GlassPrimitiveTagName = "div">(
   props: GlassPrimitiveProps<T>,
 ) {
   return <BaseGlassPrimitive {...props} variant="panel" />;
-}
-
-/**
- * 中文注释：GlassFocusControl 只保留给少数高关注控件，
- * 当前用于 launcher Hero 的发送按钮。
- */
-export function GlassFocusControl<T extends GlassPrimitiveTagName = "div">(
-  props: GlassPrimitiveProps<T>,
-) {
-  return <BaseGlassPrimitive {...props} variant="focus" />;
-}
-
-/**
- * 中文注释：GlassDialog 用于模态对话框容器，
- * 高模糊 + 低折射，宽 bezel 配合大圆角。
- */
-export function GlassDialog<T extends GlassPrimitiveTagName = "div">(
-  props: GlassPrimitiveProps<T>,
-) {
-  return <BaseGlassPrimitive {...props} variant="dialog" />;
-}
-
-/**
- * 中文注释：GlassChip 用于小面积交互元素（标签、按钮），
- * 低模糊微折射，保持文字清晰。
- */
-export function GlassChip<T extends GlassPrimitiveTagName = "div">(
-  props: GlassPrimitiveProps<T>,
-) {
-  return <BaseGlassPrimitive {...props} variant="chip" />;
 }
 
 /**

@@ -45,6 +45,15 @@ const (
 	// DeliveryModeExplicit 表示投递到显式目标。
 	DeliveryModeExplicit = "explicit"
 
+	// SourceKindUserPage 表示来自页面创建。
+	SourceKindUserPage = "user_page"
+	// SourceKindAgent 表示来自 Agent 创建。
+	SourceKindAgent = "agent"
+	// SourceKindCLI 表示来自 CLI 创建。
+	SourceKindCLI = "cli"
+	// SourceKindSystem 表示来自系统创建。
+	SourceKindSystem = "system"
+
 	// RunStatusPending 表示已登记但未开始执行。
 	RunStatusPending = "pending"
 	// RunStatusRunning 表示执行中。
@@ -206,6 +215,17 @@ type DeliveryTarget struct {
 	ThreadID  string `json:"thread_id,omitempty"`
 }
 
+// Source 表示任务来源元数据。
+type Source struct {
+	Kind           string `json:"kind"`
+	CreatorAgentID string `json:"creator_agent_id,omitempty"`
+	ContextType    string `json:"context_type,omitempty"`
+	ContextID      string `json:"context_id,omitempty"`
+	ContextLabel   string `json:"context_label,omitempty"`
+	SessionKey     string `json:"session_key,omitempty"`
+	SessionLabel   string `json:"session_label,omitempty"`
+}
+
 // Validate 校验投递目标。
 func (d DeliveryTarget) Validate() error {
 	switch strings.TrimSpace(d.Mode) {
@@ -230,6 +250,42 @@ func (d DeliveryTarget) Normalized() DeliveryTarget {
 	return result
 }
 
+// Validate 校验任务来源。
+func (s Source) Validate() error {
+	switch strings.TrimSpace(s.Kind) {
+	case "", SourceKindUserPage, SourceKindAgent, SourceKindCLI, SourceKindSystem:
+	default:
+		return errors.New("source.kind must be one of user_page, agent, cli, system")
+	}
+	switch strings.TrimSpace(s.ContextType) {
+	case "", "agent", "room":
+	default:
+		return errors.New("source.context_type must be one of agent, room")
+	}
+	if strings.TrimSpace(s.SessionKey) != "" {
+		if _, err := protocol.RequireStructuredSessionKey(s.SessionKey); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Normalized 返回带默认值的来源副本。
+func (s Source) Normalized() Source {
+	result := s
+	result.Kind = strings.TrimSpace(result.Kind)
+	if result.Kind == "" {
+		result.Kind = SourceKindSystem
+	}
+	result.CreatorAgentID = strings.TrimSpace(result.CreatorAgentID)
+	result.ContextType = strings.TrimSpace(result.ContextType)
+	result.ContextID = strings.TrimSpace(result.ContextID)
+	result.ContextLabel = strings.TrimSpace(result.ContextLabel)
+	result.SessionKey = strings.TrimSpace(result.SessionKey)
+	result.SessionLabel = strings.TrimSpace(result.SessionLabel)
+	return result
+}
+
 // CronJob 表示对外暴露的定时任务视图。
 type CronJob struct {
 	JobID         string         `json:"job_id"`
@@ -239,6 +295,7 @@ type CronJob struct {
 	Instruction   string         `json:"instruction"`
 	SessionTarget SessionTarget  `json:"session_target"`
 	Delivery      DeliveryTarget `json:"delivery"`
+	Source        Source         `json:"source"`
 	Enabled       bool           `json:"enabled"`
 	NextRunAt     *time.Time     `json:"next_run_at,omitempty"`
 	Running       bool           `json:"running"`
@@ -280,6 +337,7 @@ type CreateJobInput struct {
 	Instruction   string         `json:"instruction"`
 	SessionTarget SessionTarget  `json:"session_target"`
 	Delivery      DeliveryTarget `json:"delivery"`
+	Source        Source         `json:"source"`
 	Enabled       bool           `json:"enabled"`
 }
 
@@ -303,6 +361,9 @@ func (i CreateJobInput) Validate() error {
 	if err := i.Delivery.Normalized().Validate(); err != nil {
 		return err
 	}
+	if err := i.Source.Normalized().Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -315,6 +376,7 @@ func (i CreateJobInput) Normalized() CreateJobInput {
 	result.Schedule = result.Schedule.Normalized()
 	result.SessionTarget = result.SessionTarget.Normalized()
 	result.Delivery = result.Delivery.Normalized()
+	result.Source = result.Source.Normalized()
 	return result
 }
 
@@ -325,6 +387,7 @@ type UpdateJobInput struct {
 	Instruction   *string         `json:"instruction,omitempty"`
 	SessionTarget *SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *DeliveryTarget `json:"delivery,omitempty"`
+	Source        *Source         `json:"source,omitempty"`
 	Enabled       *bool           `json:"enabled,omitempty"`
 }
 

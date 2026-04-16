@@ -17,6 +17,8 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
+replace github.com/nexus-research-lab/nexus-agent-sdk-go => /Users/leemysw/Projects/nexus-agent-sdk/nexus-agent-sdk-go
+
 require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

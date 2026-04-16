@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
 
 ### Changed
-- Go 后端 `list_agents` / `get_agent` 现在补齐 `skills_count`，并与 Python 主线对齐，DM / Room 运行时暂不再向底层 SDK 透传 `model`。
+- Go 后端 `list_agents` / `get_agent` 现在补齐 `skills_count`，并与 Python 主线对齐；DM session 复用 SDK client 时会自动执行 `Reconfigure`，`model / max_thinking_tokens / max_turns / setting_sources` 等配置会在下一轮尽可能热更新，涉及工作区、工具白名单和运行时环境的变更则自动带 `resume` 重连。
 - 前端默认 Agent 模型 fallback 与部署默认值统一切换为 `glm-5.1`。
 - `make dev`、`make run-backend`、`make check`、`deploy/Dockerfile`、`deploy/docker-compose.yml` 默认切换为 Go 后端链路；Python 入口降级为 `make run-backend-python` / `make dev-python` 兼容命令。
 - Docker 后端镜像改为 Go 多阶段构建，并通过 vendored SDK 依赖消除本地绝对路径 `replace` 对容器构建的阻塞。

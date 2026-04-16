@@ -7,11 +7,11 @@
  * =====================================================
  */
 
-import { buildRoomAgentSessionKey, buildRoomSharedSessionKey } from "@/lib/session-key";
-import { Agent } from "@/types/agent";
-import { AgentConversationIdentity } from "@/types/agent-conversation";
-import { Conversation, RoomConversationView } from "@/types/conversation";
-import { RoomContextAggregate } from "@/types/room";
+import { build_room_agent_session_key, build_room_shared_session_key } from "@/lib/conversation/session-key";
+import { Agent } from "@/types/agent/agent";
+import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import { Conversation, RoomConversationView } from "@/types/conversation/conversation";
+import { RoomContextAggregate } from "@/types/conversation/room";
 
 function to_timestamp(value?: string | null): number {
   if (!value) {
@@ -44,7 +44,7 @@ function get_room_conversation_session_key(
     }
 
     if (fallback_session?.agent_id) {
-      return buildRoomAgentSessionKey(
+      return build_room_agent_session_key(
         context.conversation.id,
         fallback_session.agent_id,
         "dm",
@@ -52,7 +52,35 @@ function get_room_conversation_session_key(
     }
   }
 
-  return buildRoomSharedSessionKey(context.conversation.id);
+  return build_room_shared_session_key(context.conversation.id);
+}
+
+function build_fallback_room_member_agent(
+  agent_id: string,
+  room_contexts: RoomContextAggregate[],
+): Agent {
+  const primary_context = room_contexts[0] ?? null;
+  const is_dm = primary_context?.room.room_type === "dm";
+  const fallback_name = (
+    is_dm
+      ? primary_context?.room.name?.trim() ||
+        primary_context?.conversation.title?.trim() ||
+        agent_id
+      : agent_id
+  );
+
+  return {
+    agent_id,
+    name: fallback_name,
+    workspace_path: "",
+    options: {},
+    created_at: 0,
+    status: "active",
+    avatar: null,
+    description: null,
+    vibe_tags: [],
+    skills_count: null,
+  };
 }
 
 export function build_room_conversation_views(
@@ -187,8 +215,8 @@ export function resolve_current_agent_session_identity(params: {
   if (!resolved_session_key && resolved_conversation_id) {
     resolved_session_key = (
       current_room_type === "dm" && resolved_agent_id
-        ? buildRoomAgentSessionKey(resolved_conversation_id, resolved_agent_id, "dm")
-        : buildRoomSharedSessionKey(resolved_conversation_id)
+        ? build_room_agent_session_key(resolved_conversation_id, resolved_agent_id, "dm")
+        : build_room_shared_session_key(resolved_conversation_id)
     );
   }
 
@@ -210,12 +238,14 @@ export function resolve_room_member_agents(
   agents: Agent[],
   room_contexts: RoomContextAggregate[],
 ): Agent[] {
-  const agent_ids = new Set(
+  const member_agent_ids =
     room_contexts[0]?.members
       .filter((member) => member.member_type === "agent")
       .map((member) => member.member_agent_id)
-      .filter((member_agent_id): member_agent_id is string => Boolean(member_agent_id)) ?? [],
-  );
+      .filter((member_agent_id): member_agent_id is string => Boolean(member_agent_id)) ?? [];
 
-  return agents.filter((agent) => agent_ids.has(agent.agent_id));
+  return member_agent_ids.map((agent_id) => (
+    agents.find((agent) => agent.agent_id === agent_id) ??
+    build_fallback_room_member_agent(agent_id, room_contexts)
+  ));
 }

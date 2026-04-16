@@ -13,9 +13,9 @@ import {
   getDialogNoteClassName,
   getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { ConnectorDetail } from "@/types/connector";
+import { ConnectorDetail } from "@/types/capability/connector";
 
-import { getConnectorColors, getConnectorLetter } from "./connector-icons";
+import { get_connector_colors, get_connector_letter } from "./connector-icons";
 
 interface ConnectorDetailDialogProps {
   detail: ConnectorDetail | null;
@@ -42,8 +42,8 @@ export function ConnectorDetailDialog({
     [on_close],
   );
 
-  const colors = detail ? getConnectorColors(detail.icon) : { bg: "bg-(--surface-panel-subtle-background)", text: "text-(--text-muted)" };
-  const letter = detail ? getConnectorLetter(detail.icon, detail.title) : "?";
+  const colors = detail ? get_connector_colors(detail.icon) : { bg: "bg-(--surface-panel-subtle-background)", text: "text-(--text-muted)" };
+  const letter = detail ? get_connector_letter(detail.icon, detail.title) : "?";
   const is_connected = detail?.connection_state === "connected";
   const is_coming_soon = detail?.status === "coming_soon";
   const is_configured = detail?.is_configured ?? true;

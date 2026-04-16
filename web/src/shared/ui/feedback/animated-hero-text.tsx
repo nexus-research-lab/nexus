@@ -17,7 +17,7 @@ interface AnimatedHeroTextProps {
   initial_delay_ms?: number;
 }
 
-function splitGraphemes(text: string, font: string): string[] {
+function split_graphemes(text: string, font: string): string[] {
   try {
     const prepared = prepareWithSegments(text, font);
     return prepared.segments;
@@ -45,7 +45,7 @@ export function AnimatedHeroText({
     const font = el
       ? window.getComputedStyle(el).font || "800 42px system-ui"
       : "800 42px system-ui";
-    setGraphemes(splitGraphemes(text, font));
+    setGraphemes(split_graphemes(text, font));
     const t = setTimeout(() => setVisible(true), 16);
     return () => clearTimeout(t);
   }, [text]);
@@ -66,7 +66,7 @@ export function AnimatedHeroText({
           aria-hidden
           className="inline-block"
           style={{
-            // 中文注释：进入动画结束后移除最终态 transform，
+            // 进入动画结束后移除最终态 transform，
             // 避免标题里的每个字长期保留独立合成层。
             ...(visible ? null : {
               opacity: 0,
@@ -117,7 +117,7 @@ export function FadeSlideIn({
     <div
       className={class_name}
       style={{
-        // 中文注释：容器完成进入动画后不再保留 transform，
+        // 容器完成进入动画后不再保留 transform，
         // 这样 launcher 推荐按钮和 Hero 分组不会持续挂在独立层上。
         ...(visible ? null : {
           opacity: 0,

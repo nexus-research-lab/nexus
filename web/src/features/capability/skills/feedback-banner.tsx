@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-function splitFeedbackItems(message: string): string[] {
+function split_feedback_items(message: string): string[] {
   return message
     .split(/[；\n]+/)
     .map((item) => item.trim())
@@ -18,7 +18,7 @@ interface FeedbackBannerProps {
 }
 
 export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBannerProps) {
-  const items = splitFeedbackItems(message);
+  const items = split_feedback_items(message);
   const is_success = tone === "success";
   const is_warning = tone === "warning";
   const Icon = is_success ? CheckCircle2 : AlertCircle;

@@ -7,7 +7,7 @@ const DEFAULT_FRAMES = ["✽", "✻", "✶", "✢", "·"];
 const FRAME_DURATION_MS = 120;
 
 let injected = false;
-function ensureStyle(count: number, duration: number) {
+function ensure_style(count: number, duration: number) {
   if (injected || typeof document === "undefined") return;
   injected = true;
   // step(1, end) keyframe: visible 1/count of the total cycle, then hidden.
@@ -25,7 +25,7 @@ function ensureStyle(count: number, duration: number) {
 }
 
 export function LoadingOrb({ frames = DEFAULT_FRAMES }: { frames?: string[] }) {
-  ensureStyle(frames.length, FRAME_DURATION_MS);
+  ensure_style(frames.length, FRAME_DURATION_MS);
   const total = frames.length * FRAME_DURATION_MS;
 
   return (

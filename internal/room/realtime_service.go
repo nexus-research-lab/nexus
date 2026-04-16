@@ -20,6 +20,7 @@ import (
 	"github.com/nexus-research-lab/nexus-core/internal/logx"
 	permission3 "github.com/nexus-research-lab/nexus-core/internal/permission"
 	"github.com/nexus-research-lab/nexus-core/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus-core/internal/providerconfig"
 	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
 	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
 	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
@@ -97,6 +98,7 @@ type RealtimeService struct {
 	agents      *agent2.Service
 	runtime     *runtimectx.Manager
 	permission  *permission3.Context
+	providers   roomProviderResolver
 	files       *workspacestore.SessionFileStore
 	factory     roomClientFactory
 	broadcaster RoomBroadcaster
@@ -104,6 +106,10 @@ type RealtimeService struct {
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
+}
+
+type roomProviderResolver interface {
+	ResolveRuntimeConfig(context.Context, string) (*providercfg.RuntimeConfig, error)
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。
@@ -154,6 +160,11 @@ func (s *RealtimeService) SetLogger(logger *slog.Logger) {
 		return
 	}
 	s.logger = logger
+}
+
+// SetProviderResolver 注入 Provider 运行时解析器。
+func (s *RealtimeService) SetProviderResolver(resolver roomProviderResolver) {
+	s.providers = resolver
 }
 
 // HandleChat 处理 Room 主对话消息。
@@ -544,11 +555,17 @@ func (s *RealtimeService) runSlot(
 
 	// 中文注释：当前 Go SDK 链路先与 Python 主线对齐，暂不透传 model，
 	// 避免向底层 CLI 传入尚未稳定支持的选项。
+	runtimeEnv, err := s.buildRuntimeEnv(slotCtx, agentValue)
+	if err != nil {
+		s.handleSlotFailure(roundValue, slot, err)
+		return
+	}
 	client := s.factory.New(agentclient.Options{
 		CWD:             agentValue.WorkspacePath,
 		PermissionMode:  sdkprotocol.PermissionMode(agentValue.Options.PermissionMode),
 		AllowedTools:    append([]string(nil), agentValue.Options.AllowedTools...),
 		DisallowedTools: append([]string(nil), agentValue.Options.DisallowedTools...),
+		Env:             runtimeEnv,
 		PermissionHandler: func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
 			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
 		},
@@ -643,6 +660,28 @@ func (s *RealtimeService) runSlot(
 			}
 		}
 	}
+}
+
+func (s *RealtimeService) buildRuntimeEnv(ctx context.Context, agentValue *agent2.Agent) (map[string]string, error) {
+	if s.providers == nil {
+		return nil, nil
+	}
+	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, agentValue.Options.Provider)
+	if err != nil {
+		return nil, err
+	}
+	if runtimeConfig == nil {
+		return nil, nil
+	}
+	env := map[string]string{
+		"ANTHROPIC_AUTH_TOKEN": runtimeConfig.AuthToken,
+		"ANTHROPIC_BASE_URL":   runtimeConfig.BaseURL,
+		"ANTHROPIC_MODEL":      runtimeConfig.Model,
+	}
+	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
+		env["ENABLE_TOOL_SEARCH"] = "false"
+	}
+	return env, nil
 }
 
 func (s *RealtimeService) handleSlotFailure(roundValue *activeRoomRound, slot *activeRoomSlot, err error) {

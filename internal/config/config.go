@@ -35,6 +35,9 @@ type Config struct {
 	DefaultAgentID                 string
 	WorkspacePath                  string
 	CacheFileDir                   string
+	NpmRegistry                    string
+	SkillsAPIURL                   string
+	SkillsAPISearchLimit           int
 	MainAgentModel                 string
 	DatabaseDriver                 string
 	DatabaseURL                    string
@@ -105,6 +108,9 @@ func Load() Config {
 		DefaultAgentID:                 getenv("DEFAULT_AGENT_ID", "nexus"),
 		WorkspacePath:                  getenv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
+		NpmRegistry:                    getenv("NPM_REGISTRY", ""),
+		SkillsAPIURL:                   getenv("SKILLS_API_URL", "https://skills.sh"),
+		SkillsAPISearchLimit:           mustInt(getenv("SKILLS_API_SEARCH_LIMIT", "20")),
 		MainAgentModel:                 getenv("MAIN_AGENT_MODEL", getenv("DEFAULT_MODEL", "")),
 		DatabaseDriver:                 getenv("DATABASE_DRIVER", "sqlite"),
 		DatabaseURL:                    getenv("DATABASE_URL", "~/.nexus/data/nexus.db"),

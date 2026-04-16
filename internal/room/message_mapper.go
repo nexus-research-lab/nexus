@@ -10,6 +10,7 @@
 package room
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
@@ -237,36 +238,12 @@ func (m *slotMessageMapper) wrapEvent(eventType protocol.EventType, data map[str
 func normalizeRoomConversationContent(blocks []sdkprotocol.ContentBlock) []map[string]any {
 	result := make([]map[string]any, 0, len(blocks))
 	for _, block := range blocks {
-		payload := make(map[string]any, len(block.Additional))
-		for key, value := range block.Additional {
-			payload[key] = value
-		}
+		payload := cloneRoomBlockPayload(block)
 		if len(payload) == 0 {
 			payload = map[string]any{}
 		}
-		payload["type"] = block.Type
-		switch block.Type {
-		case "text":
-			payload["text"] = block.Text
-		case "thinking":
-			payload["thinking"] = block.Thinking
-			if strings.TrimSpace(block.Signature) != "" {
-				payload["signature"] = block.Signature
-			}
-		case "tool_use":
-			payload["id"] = block.ID
-			payload["name"] = block.Name
-			payload["input"] = firstNonNilMap(block.Input, map[string]any{})
-		case "tool_result":
-			payload["tool_use_id"] = block.ToolUseID
-			if block.Content != nil {
-				payload["content"] = block.Content
-			}
-			payload["is_error"] = block.IsError
-			if strings.TrimSpace(block.MimeType) != "" {
-				payload["mime_type"] = block.MimeType
-			}
-		}
+		payload["type"] = string(block.Type())
+		mergeNormalizedRoomBlockPayload(payload, block)
 		result = append(result, payload)
 	}
 	return result
@@ -339,4 +316,65 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func cloneRoomBlockPayload(block sdkprotocol.ContentBlock) map[string]any {
+	if block == nil {
+		return map[string]any{}
+	}
+	payload := block.RawPayload()
+	if len(payload) == 0 {
+		return map[string]any{}
+	}
+	result := make(map[string]any, len(payload))
+	for key, value := range payload {
+		result[key] = value
+	}
+	return result
+}
+
+func mergeNormalizedRoomBlockPayload(payload map[string]any, block sdkprotocol.ContentBlock) {
+	switch typed, ok := sdkprotocol.AsTextBlock(block); {
+	case ok:
+		payload["text"] = typed.Text
+		return
+	}
+	switch typed, ok := sdkprotocol.AsThinkingBlock(block); {
+	case ok:
+		payload["thinking"] = typed.Thinking
+		if strings.TrimSpace(typed.Signature) != "" {
+			payload["signature"] = typed.Signature
+		}
+		return
+	}
+	switch typed, ok := sdkprotocol.AsToolUseBlock(block); {
+	case ok:
+		payload["id"] = typed.ID
+		payload["name"] = typed.Name
+		payload["input"] = firstNonNilMap(typed.InputMap(), map[string]any{})
+		return
+	}
+	switch typed, ok := sdkprotocol.AsToolResultBlock(block); {
+	case ok:
+		payload["tool_use_id"] = typed.ToolUseID
+		if content := decodeRoomRawJSON(typed.Content); content != nil {
+			payload["content"] = content
+		}
+		payload["is_error"] = typed.IsError
+		if strings.TrimSpace(typed.MimeType) != "" {
+			payload["mime_type"] = typed.MimeType
+		}
+		return
+	}
+}
+
+func decodeRoomRawJSON(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var result any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return strings.TrimSpace(string(raw))
+	}
+	return result
 }

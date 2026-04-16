@@ -62,6 +62,13 @@ SELECT
     delivery_to,
     delivery_account_id,
     delivery_thread_id,
+    source_kind,
+    source_creator_agent_id,
+    source_context_type,
+    source_context_id,
+    source_context_label,
+    source_session_key,
+    source_session_label,
     enabled
 FROM automation_cron_jobs`
 	args := []any{}
@@ -110,6 +117,13 @@ SELECT
     delivery_to,
     delivery_account_id,
     delivery_thread_id,
+    source_kind,
+    source_creator_agent_id,
+    source_context_type,
+    source_context_id,
+    source_context_label,
+    source_session_key,
+    source_session_label,
     enabled
 FROM automation_cron_jobs
 WHERE job_id = ` + r.bind(1)
@@ -147,11 +161,18 @@ INSERT INTO automation_cron_jobs (
     delivery_to,
     delivery_account_id,
     delivery_thread_id,
+    source_kind,
+    source_creator_agent_id,
+    source_context_type,
+    source_context_id,
+    source_context_label,
+    source_session_key,
+    source_session_label,
     enabled,
     created_at,
     updated_at
 ) VALUES (
-    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 )
 ON CONFLICT(job_id) DO UPDATE SET
     name = EXCLUDED.name,
@@ -171,10 +192,18 @@ ON CONFLICT(job_id) DO UPDATE SET
     delivery_to = EXCLUDED.delivery_to,
     delivery_account_id = EXCLUDED.delivery_account_id,
     delivery_thread_id = EXCLUDED.delivery_thread_id,
+    source_kind = EXCLUDED.source_kind,
+    source_creator_agent_id = EXCLUDED.source_creator_agent_id,
+    source_context_type = EXCLUDED.source_context_type,
+    source_context_id = EXCLUDED.source_context_id,
+    source_context_label = EXCLUDED.source_context_label,
+    source_session_key = EXCLUDED.source_session_key,
+    source_session_label = EXCLUDED.source_session_label,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
-		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19),
+		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19), r.bind(20),
+		r.bind(21), r.bind(22), r.bind(23), r.bind(24), r.bind(25), r.bind(26),
 	)
 	_, err := r.db.ExecContext(
 		ctx,
@@ -197,6 +226,13 @@ ON CONFLICT(job_id) DO UPDATE SET
 		nullString(job.Delivery.To),
 		nullString(job.Delivery.AccountID),
 		nullString(job.Delivery.ThreadID),
+		job.Source.Kind,
+		nullString(job.Source.CreatorAgentID),
+		nullString(job.Source.ContextType),
+		nullString(job.Source.ContextID),
+		nullString(job.Source.ContextLabel),
+		nullString(job.Source.SessionKey),
+		nullString(job.Source.SessionLabel),
 		job.Enabled,
 	)
 	if err != nil {
@@ -484,16 +520,23 @@ func scanCronJob(scanner interface {
 	Scan(dest ...any) error
 }) (CronJob, error) {
 	var (
-		item              CronJob
-		runAt             sql.NullString
-		intervalSeconds   sql.NullInt64
-		cronExpression    sql.NullString
-		boundSessionKey   sql.NullString
-		namedSessionKey   sql.NullString
-		deliveryChannel   sql.NullString
-		deliveryTo        sql.NullString
-		deliveryAccountID sql.NullString
-		deliveryThreadID  sql.NullString
+		item               CronJob
+		runAt              sql.NullString
+		intervalSeconds    sql.NullInt64
+		cronExpression     sql.NullString
+		boundSessionKey    sql.NullString
+		namedSessionKey    sql.NullString
+		deliveryChannel    sql.NullString
+		deliveryTo         sql.NullString
+		deliveryAccountID  sql.NullString
+		deliveryThreadID   sql.NullString
+		sourceKind         sql.NullString
+		sourceCreatorID    sql.NullString
+		sourceContextType  sql.NullString
+		sourceContextID    sql.NullString
+		sourceContextLabel sql.NullString
+		sourceSessionKey   sql.NullString
+		sourceSessionLabel sql.NullString
 	)
 	err := scanner.Scan(
 		&item.JobID,
@@ -514,6 +557,13 @@ func scanCronJob(scanner interface {
 		&deliveryTo,
 		&deliveryAccountID,
 		&deliveryThreadID,
+		&sourceKind,
+		&sourceCreatorID,
+		&sourceContextType,
+		&sourceContextID,
+		&sourceContextLabel,
+		&sourceSessionKey,
+		&sourceSessionLabel,
 		&item.Enabled,
 	)
 	if err != nil {
@@ -528,6 +578,14 @@ func scanCronJob(scanner interface {
 	item.Delivery.To = nullStringValue(deliveryTo)
 	item.Delivery.AccountID = nullStringValue(deliveryAccountID)
 	item.Delivery.ThreadID = nullStringValue(deliveryThreadID)
+	item.Source.Kind = nullStringValue(sourceKind)
+	item.Source.CreatorAgentID = nullStringValue(sourceCreatorID)
+	item.Source.ContextType = nullStringValue(sourceContextType)
+	item.Source.ContextID = nullStringValue(sourceContextID)
+	item.Source.ContextLabel = nullStringValue(sourceContextLabel)
+	item.Source.SessionKey = nullStringValue(sourceSessionKey)
+	item.Source.SessionLabel = nullStringValue(sourceSessionLabel)
+	item.Source = item.Source.Normalized()
 	return item, nil
 }
 

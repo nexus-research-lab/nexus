@@ -12,17 +12,29 @@ import (
 	"errors"
 	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
 	"github.com/nexus-research-lab/nexus-core/internal/config"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var (
 	// ErrFileNotFound 表示 workspace 文件不存在。
 	ErrFileNotFound = errors.New("workspace file not found")
 )
+
+const maxUploadSize = 20 * 1024 * 1024
+
+var textExtensions = map[string]struct{}{
+	"txt": {}, "md": {}, "markdown": {}, "json": {}, "jsonl": {}, "yaml": {}, "yml": {}, "toml": {}, "xml": {},
+	"csv": {}, "ts": {}, "tsx": {}, "js": {}, "jsx": {}, "mjs": {}, "cjs": {}, "py": {}, "java": {}, "go": {},
+	"rs": {}, "rb": {}, "php": {}, "sh": {}, "bash": {}, "zsh": {}, "sql": {}, "html": {}, "css": {}, "scss": {},
+	"less": {}, "log": {}, "ini": {}, "conf": {}, "env": {}, "dockerfile": {}, "makefile": {}, "cmake": {},
+	"gradle": {}, "proto": {}, "graphql": {}, "svg": {}, "rst": {}, "adoc": {},
+}
 
 // FileEntry 表示 workspace 文件树条目。
 type FileEntry struct {
@@ -49,6 +61,13 @@ type EntryMutationResponse struct {
 type EntryRenameResponse struct {
 	Path    string `json:"path"`
 	NewPath string `json:"new_path"`
+}
+
+// UploadResult 表示上传文件结果。
+type UploadResult struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+	Size int64  `json:"size"`
 }
 
 // Service 提供 workspace 文件读写能力。
@@ -326,6 +345,76 @@ func (s *Service) DeleteEntry(ctx context.Context, agentID string, relativePath 
 	return &EntryMutationResponse{Path: normalizedPath}, nil
 }
 
+// UploadFile 上传单个文件到 workspace。
+func (s *Service) UploadFile(ctx context.Context, agentID string, filename string, destination string, reader io.Reader) (*UploadResult, error) {
+	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	safeName := normalizeUploadName(filename)
+	if safeName == "" {
+		safeName = "uploaded_file"
+	}
+	content, err := io.ReadAll(io.LimitReader(reader, maxUploadSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(content) > maxUploadSize {
+		return nil, errors.New("文件大小超过限制 (20MB)")
+	}
+
+	relativePath := buildUploadTargetPath(strings.TrimSpace(destination), safeName)
+	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	if err != nil {
+		return nil, err
+	}
+	if normalizedPath, targetPath, err = ensureUniqueWorkspaceFile(targetPath, normalizedPath); err != nil {
+		return nil, err
+	}
+	if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return nil, err
+	}
+	if s.live != nil {
+		s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)
+	}
+	if err = os.WriteFile(targetPath, content, 0o644); err != nil {
+		return nil, err
+	}
+	if s.live != nil {
+		if snapshot, ok := tryDecodeTextSnapshot(normalizedPath, content); ok {
+			s.live.EmitAPIWrite(agentValue.AgentID, normalizedPath, snapshot)
+		}
+	}
+	return &UploadResult{
+		Path: normalizedPath,
+		Name: filepath.Base(normalizedPath),
+		Size: int64(len(content)),
+	}, nil
+}
+
+// GetFileForDownload 返回下载所需的真实文件路径和文件名。
+func (s *Service) GetFileForDownload(ctx context.Context, agentID string, relativePath string) (string, string, error) {
+	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	if err != nil {
+		return "", "", err
+	}
+	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	if err != nil {
+		return "", "", err
+	}
+	info, err := os.Stat(targetPath)
+	if os.IsNotExist(err) {
+		return "", "", ErrFileNotFound
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if info.IsDir() {
+		return "", "", errors.New("不能下载目录")
+	}
+	return targetPath, filepath.Base(normalizedPath), nil
+}
+
 func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*agent2.Agent, error) {
 	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
@@ -377,4 +466,76 @@ func isProtectedWorkspacePath(relativePath string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeUploadName(filename string) string {
+	raw := strings.ReplaceAll(strings.TrimSpace(filename), "\\", "/")
+	parts := strings.Split(raw, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(parts[len(parts)-1])
+}
+
+func buildUploadTargetPath(destination string, filename string) string {
+	target := strings.TrimSpace(strings.ReplaceAll(destination, "\\", "/"))
+	target = strings.TrimPrefix(target, "/")
+	if target == "" {
+		return filename
+	}
+	if strings.HasSuffix(target, "/") {
+		return target + filename
+	}
+	lowerBase := strings.ToLower(filepath.Base(target))
+	if strings.Contains(lowerBase, ".") {
+		return target
+	}
+	return target + "/" + filename
+}
+
+func ensureUniqueWorkspaceFile(targetPath string, normalizedPath string) (string, string, error) {
+	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		return normalizedPath, targetPath, nil
+	} else if err != nil {
+		return "", "", err
+	}
+	extension := filepath.Ext(normalizedPath)
+	base := strings.TrimSuffix(filepath.Base(normalizedPath), extension)
+	parent := filepath.ToSlash(filepath.Dir(normalizedPath))
+	timestamp := time.Now().Format("20060102-150405")
+	nextName := base + "-" + timestamp + extension
+	if parent == "." || parent == "" {
+		return nextName, filepath.Join(filepath.Dir(targetPath), nextName), nil
+	}
+	nextPath := parent + "/" + nextName
+	return nextPath, filepath.Join(filepath.Dir(targetPath), nextName), nil
+}
+
+func tryDecodeTextSnapshot(path string, content []byte) (string, bool) {
+	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+	if _, ok := textExtensions[extension]; ok {
+		return string(content), true
+	}
+	if utf8Text(content) {
+		return string(content), true
+	}
+	return "", false
+}
+
+func utf8Text(content []byte) bool {
+	for len(content) > 0 {
+		if content[0] == 0 {
+			return false
+		}
+		if content[0] < 0x80 {
+			content = content[1:]
+			continue
+		}
+		_, size := utf8.DecodeRune(content)
+		if size == 1 {
+			return false
+		}
+		content = content[size:]
+	}
+	return true
 }

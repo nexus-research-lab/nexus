@@ -1,7 +1,7 @@
 /**
  * Workspace Live Store
  *
- * [INPUT]: 依赖 zustand，依赖 @/types/workspace-live
+ * [INPUT]: 依赖 zustand，依赖 @/types/app/workspace-live
  * [OUTPUT]: 对外提供 useWorkspaceLiveStore
  * [POS]: store 层的 workspace 实时状态，驱动文件树/编辑器动态反馈
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -9,7 +9,7 @@
 
 import { create } from 'zustand';
 
-import { WorkspaceActivityItem, WorkspaceLiveEvent, WorkspaceLiveFileState } from '@/types/workspace-live';
+import { WorkspaceActivityItem, WorkspaceLiveEvent, WorkspaceLiveFileState } from '@/types/app/workspace-live';
 
 interface WorkspaceLiveStoreState {
   recent_events: WorkspaceActivityItem[];
@@ -19,7 +19,7 @@ interface WorkspaceLiveStoreState {
   clear_agent: (agent_id: string) => void;
 }
 
-function buildKey(agent_id: string, path: string) {
+function build_key(agent_id: string, path: string) {
   return `${agent_id}:${path}`;
 }
 
@@ -28,7 +28,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   file_states: {},
 
   apply_event: (event) => {
-    const key = buildKey(event.agent_id, event.path);
+    const key = build_key(event.agent_id, event.path);
     const nextStatus: WorkspaceLiveFileState['status'] =
       event.type === 'file_write_end' ? 'updated' : 'writing';
     const nextUpdatedAt = Date.parse(event.timestamp) || Date.now();
@@ -56,7 +56,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
         };
       }
 
-      const nextLiveContent = resolveLiveContent(state.file_states[key]?.live_content, event);
+      const nextLiveContent = resolve_live_content(state.file_states[key]?.live_content, event);
 
       return {
         recent_events: [
@@ -92,7 +92,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   },
 
   mark_file_seen: (agent_id, path) => {
-    const key = buildKey(agent_id, path);
+    const key = build_key(agent_id, path);
 
     set((state) => {
       const next_file_states = { ...state.file_states };
@@ -117,7 +117,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   },
 }));
 
-function resolveLiveContent(
+function resolve_live_content(
   previous_content: string | null | undefined,
   event: WorkspaceLiveEvent,
 ): string | null | undefined {

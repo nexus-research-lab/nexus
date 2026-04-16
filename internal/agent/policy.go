@@ -99,6 +99,7 @@ func BuildCreateRecord(cfg config.Config, request CreateRequest, normalizedName 
 		ProfileMarkdown:     "",
 		RuntimeID:           buildStableID("runtime", agentID),
 		ProfileID:           buildStableID("profile", agentID),
+		Provider:            options.Provider,
 		Model:               options.Model,
 		PermissionMode:      options.PermissionMode,
 		AllowedToolsJSON:    mustJSONString(options.AllowedTools, "[]"),
@@ -170,6 +171,9 @@ func mergeOptions(base Options, incoming Options) Options {
 	result := base
 	if incoming.Model != "" {
 		result.Model = incoming.Model
+	}
+	if incoming.Provider != "" {
+		result.Provider = incoming.Provider
 	}
 	if incoming.PermissionMode != "" {
 		result.PermissionMode = incoming.PermissionMode

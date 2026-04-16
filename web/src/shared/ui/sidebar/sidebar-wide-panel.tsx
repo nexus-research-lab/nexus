@@ -8,28 +8,29 @@
  * 宽度从 store 读取，右边缘可拖拽调整（180–400px）。
  */
 
-import { ChevronRight, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/home-layout";
-import { cn } from "@/lib/utils";
+import { getDefaultAgentId, isMainAgent } from "@/config/options";
+import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
+import { HomePanelContent } from "@/features/home/home-sidebar-panel";
+import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
+import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
+import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
+import { cn, getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { LanguageSwitch } from "@/shared/ui/i18n/language-switch";
-import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
-import { ThemeSwitch } from "@/shared/ui/theme/theme-switch";
-import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/workspace-header-layout";
+import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
+import { useAgentStore } from "@/store/agent";
 import {
   derive_sidebar_item_id_from_path,
+  SIDEBAR_SYSTEM_ITEM_IDS,
   useSidebarStore,
 } from "@/store/sidebar";
-
-import { HomePanelContent } from "./sidebar-panel-content/home-panel";
-import { CapabilitiesPanelContent } from "./sidebar-panel-content/capabilities-panel";
 
 const CAPABILITY_SECTION_COUNT = 5;
 const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
@@ -39,14 +40,23 @@ export function SidebarWidePanel() {
   const { t } = useI18n();
   const { logout } = useAuth();
   const location = useLocation();
-  const [settings_open, set_settings_open] = useState(false);
+  const navigate = useNavigate();
+  const agents = useAgentStore((s) => s.agents);
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
+  const nexus_room_id = useSidebarStore((s) => s.nexus_room_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
   const root_ref = useRef<HTMLDivElement | null>(null);
-  const settings_popover_ref = useRef<HTMLDivElement | null>(null);
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
+  const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
+  const prefers_reduced_motion = usePrefersReducedMotion();
+  const default_agent_id = getDefaultAgentId();
+  const nexus_agent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
+  const nexus_avatar_src = getIconAvatarSrc(nexus_agent?.avatar);
+  const nexus_initials = getInitials(nexus_agent?.name, "NX", 2);
+  const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
+    || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -142,35 +152,18 @@ export function SidebarWidePanel() {
     set_active_panel_item(next_active_item_id);
   }, [active_panel_item_id, location.pathname, set_active_panel_item]);
 
-  /** 点击外部时关闭设置弹层。 */
-  useEffect(() => {
-    if (!settings_open) {
+  const handle_open_nexus = useCallback(() => {
+    if (!default_agent_id) {
       return;
     }
 
-    const handle_pointer_down = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) {
-        return;
-      }
-      if (settings_popover_ref.current?.contains(event.target)) {
-        return;
-      }
-      set_settings_open(false);
-    };
-
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        set_settings_open(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handle_pointer_down);
-    document.addEventListener("keydown", handle_key_down);
-    return () => {
-      document.removeEventListener("pointerdown", handle_pointer_down);
-      document.removeEventListener("keydown", handle_key_down);
-    };
-  }, [settings_open]);
+    set_active_panel_item(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
+    void resolve_direct_room_navigation_target(default_agent_id).then(({ route }) => {
+      navigate(route);
+    }).catch((error) => {
+      console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
+    });
+  }, [default_agent_id, navigate, set_active_panel_item]);
 
   return (
     <div
@@ -188,23 +181,92 @@ export function SidebarWidePanel() {
     >
       {/* 面板头部 */}
       <div className={cn("flex items-center gap-3 border-b divider-subtle px-4", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
-        <Link
-          className="shrink-0 transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
-          to={AppRouteBuilders.launcher()}
-          title={t("sidebar.back_to_launcher")}
+        <button
+          className="group/nexus relative flex h-12 w-[68px] shrink-0 items-center justify-center"
+          onClick={handle_open_nexus}
+          title="Nexus"
+          type="button"
         >
           <GlassMagnifierStatic
-            class_name="translate-y-[1px]"
-            height={34}
+            class_name={cn(
+              "relative z-10 transition-transform duration-(--motion-duration-normal)",
+              !prefers_reduced_motion && "group-hover/nexus:scale-[1.03]",
+              is_nexus_active && "drop-shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
+            )}
+            height={38}
+            underlay={is_nexus_active ? (
+              <>
+                {/* 中文注释：把圆形彩光作为玻璃组件的下层内容，保证折射和高光都基于真实下层，而不是页面层假叠加。 */}
+                <span
+                  className={cn(
+                    "absolute left-1/2 top-1/2 h-[36px] w-[36px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-88 blur-[0.5px]",
+                    !prefers_reduced_motion && "animate-[spin_5.2s_linear_infinite]",
+                  )}
+                  style={{
+                    background: "conic-gradient(from 180deg, transparent 0deg, transparent 24deg, rgba(96,165,250,0.98) 58deg, rgba(167,139,250,0.92) 104deg, transparent 146deg, transparent 206deg, rgba(52,211,153,0.9) 240deg, rgba(245,158,11,0.92) 280deg, rgba(244,114,182,0.94) 320deg, transparent 348deg, transparent 360deg)",
+                    WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 1px))",
+                    mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 1px))",
+                  }}
+                />
+                <span
+                  className={cn(
+                    "absolute left-1/2 top-1/2 h-[28px] w-[28px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-48 blur-[8px]",
+                    !prefers_reduced_motion && "animate-[spin_8.6s_linear_infinite_reverse]",
+                  )}
+                  style={{
+                    background: "conic-gradient(from 180deg, transparent 0deg, rgba(96,165,250,0.84) 66deg, transparent 136deg, transparent 214deg, rgba(244,114,182,0.82) 292deg, rgba(52,211,153,0.74) 336deg, transparent 360deg)",
+                  }}
+                />
+                <span className="absolute left-1/2 top-1/2 h-[24px] w-[24px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_34%_28%,rgba(255,255,255,0.34),transparent_42%),radial-gradient(circle_at_68%_72%,rgba(255,255,255,0.14),transparent_48%)] opacity-82 blur-[3px]" />
+              </>
+            ) : undefined}
             width={58}
           >
-            <span className="text-[24px] font-black tracking-[-0.08em] text-primary ">N</span>
+            <span className="relative flex h-8 w-8 items-center justify-center">
+              <span
+                className={cn(
+                  "relative z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+                  is_nexus_active && "shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_0_10px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+                )}
+              >
+                {is_nexus_active ? (
+                  <>
+                    {/* 中文注释：这一层只做很轻的玻璃反光，不再承担主动画；主动态来自下层彩光被玻璃折射。 */}
+                    <span className="pointer-events-none absolute inset-0 z-20 rounded-full bg-[radial-gradient(circle_at_28%_24%,rgba(255,255,255,0.24),transparent_38%),linear-gradient(132deg,rgba(255,255,255,0.18),transparent_42%,transparent_60%,rgba(255,255,255,0.08))] mix-blend-screen opacity-72" />
+                    <span className="pointer-events-none absolute inset-[1px] z-20 rounded-full border border-[rgba(255,255,255,0.22)] opacity-72" />
+                  </>
+                ) : null}
+                {nexus_avatar_src ? (
+                  <img
+                    alt="Nexus"
+                    className="relative z-10 h-full w-full object-cover"
+                    src={nexus_avatar_src}
+                  />
+                ) : (
+                  <span className="relative z-10 text-[11px] font-semibold tracking-[0.08em] text-primary">
+                    {nexus_initials}
+                  </span>
+                )}
+              </span>
+            </span>
           </GlassMagnifierStatic>
-        </Link>
+        </button>
         <div className="min-w-0">
-          <p className="text-[26px] font-semibold uppercase tracking-[0.24em] text-(--text-strong)">
-            NEXUS
-          </p>
+          <Link
+            className="block transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
+            title={t("sidebar.back_to_launcher")}
+            to={AppRouteBuilders.launcher()}
+          >
+            <p
+              className="text-[24px] uppercase tracking-[0.14em]"
+              style={{
+                fontFamily: "\"Panchang\", var(--font-sans)",
+                fontWeight: 200,
+              }}
+            >
+              NEXUS
+            </p>
+          </Link>
         </div>
       </div>
 
@@ -222,68 +284,29 @@ export function SidebarWidePanel() {
       </div>
 
       <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">
-        <div className="relative" ref={settings_popover_ref}>
-          <button
-            aria-expanded={settings_open}
-            aria-haspopup="dialog"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={() => set_settings_open((open) => !open)}
-            title={t("sidebar.settings")}
-            type="button"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-
-          {settings_open ? (
-            <div
-              className={cn(
-                DIALOG_POPOVER_CLASS_NAME,
-                "absolute bottom-[calc(100%+8px)] left-0 z-20 mb-2 w-[min(220px,calc(100vw-28px))] rounded-[18px] p-1.5",
-              )}
-            >
-              <Link
-                className="flex items-center justify-between rounded-xl px-2.5 py-2 text-[13px] font-medium text-(--text-default) transition duration-(--motion-duration-fast) ease-out hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                onClick={() => set_settings_open(false)}
-                to={AppRouteBuilders.settings()}
-              >
-                <span>{t("sidebar.settings")}</span>
-                <ChevronRight className="h-4 w-4 text-(--icon-default)" />
-              </Link>
-
-              <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
-                <div className="px-1">
-                  <p className="px-1.5 pb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-(--text-soft)">
-                    {t("theme.switch_title")}
-                  </p>
-                  <ThemeSwitch class_name="w-full" density="compact" stretch />
-                </div>
-
-                <div className="mt-1.5 px-1">
-                  <p className="px-1.5 pb-1 text-[11px] font-medium uppercase tracking-[0.16em] text-(--text-soft)">
-                    {t("language.switch_title")}
-                  </p>
-                  <LanguageSwitch class_name="w-full" density="compact" show_icon={false} stretch />
-                </div>
-
-                <div className="mt-1.5 border-t px-1 pt-1.5" style={{ borderColor: "var(--divider-subtle-color)" }}>
-                  <button
-                    className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-[13px] font-medium text-(--text-default) transition duration-(--motion-duration-fast) ease-out hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                    onClick={() => {
-                      set_settings_open(false);
-                      void logout();
-                    }}
-                    type="button"
-                  >
-                    <span>{t("sidebar.logout")}</span>
-                    <LogOut className="h-4 w-4 text-(--icon-default)" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
+        <Link
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+            is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+          )}
+          title={t("sidebar.settings")}
+          to={AppRouteBuilders.settings()}
+        >
+          <Settings className="h-4 w-4" />
+        </Link>
 
         <div className="min-w-0 flex-1" />
+
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+          onClick={() => {
+            void logout();
+          }}
+          title={t("sidebar.logout")}
+          type="button"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );

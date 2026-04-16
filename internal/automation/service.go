@@ -212,6 +212,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateJobInput) (*CronJo
 		Instruction:   normalized.Instruction,
 		SessionTarget: normalized.SessionTarget,
 		Delivery:      normalized.Delivery,
+		Source:        normalized.Source,
 		Enabled:       normalized.Enabled,
 	}
 	created, err := s.repository.UpsertCronJob(ctx, job)
@@ -255,6 +256,9 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input UpdateJobI
 	if input.Delivery != nil {
 		next.Delivery = input.Delivery.Normalized()
 	}
+	if input.Source != nil {
+		next.Source = input.Source.Normalized()
+	}
 	if input.Enabled != nil {
 		next.Enabled = *input.Enabled
 	}
@@ -266,6 +270,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input UpdateJobI
 		Instruction:   next.Instruction,
 		SessionTarget: next.SessionTarget,
 		Delivery:      next.Delivery,
+		Source:        next.Source,
 		Enabled:       next.Enabled,
 	}
 	if err = createLike.Validate(); err != nil {

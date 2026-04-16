@@ -1,17 +1,17 @@
 import { resolveAgentId } from '@/config/options';
-import { WebSocketMessage } from '@/types/websocket';
-import { isStructuredSessionKey } from '@/lib/session-key';
-import { generateUuid } from '@/lib/uuid';
+import { WebSocketMessage } from '@/types/system/websocket';
+import { is_structured_session_key } from '@/lib/conversation/session-key';
+import { generate_uuid } from '@/lib/uuid';
 import { Message } from '@/types';
-import { AgentConversationActionContext } from '@/types/agent-conversation';
-import { PermissionDecisionPayload } from '@/types/permission';
+import { AgentConversationActionContext } from '@/types/agent/agent-conversation';
+import { PermissionDecisionPayload } from '@/types/conversation/permission';
 
-import { upsertMessage } from './message-helpers';
+import { upsert_message } from './message-helpers';
 
 /**
  * 发送用户消息并建立当前轮次的本地状态。
  */
-export async function sendSessionMessage(
+export async function send_session_message(
   content: string,
   context: AgentConversationActionContext,
 ): Promise<string | null> {
@@ -39,7 +39,7 @@ export async function sendSessionMessage(
     set_error('请先选择或创建会话');
     return null;
   }
-  if (!isStructuredSessionKey(resolved_session_key)) {
+  if (!is_structured_session_key(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，请刷新后重试');
     return null;
   }
@@ -52,7 +52,7 @@ export async function sendSessionMessage(
     return null;
   }
 
-  const round_id = generateUuid();
+  const round_id = generate_uuid();
   active_session_key_ref.current = resolved_session_key;
   const userMessage: Message = {
     message_id: round_id,
@@ -65,7 +65,7 @@ export async function sendSessionMessage(
     ...(chat_type === 'group' ? { room_id: room_id ?? undefined, conversation_id: conversation_id ?? undefined } : {}),
   };
 
-  set_messages((prev) => upsertMessage(prev, userMessage));
+  set_messages((prev) => upsert_message(prev, userMessage));
   set_pending_permissions([]);
   set_error(null);
 
@@ -94,7 +94,7 @@ export async function sendSessionMessage(
  * @param context - 会话上下文
  * @param msg_id - 可选，指定只取消某个 Agent 气泡（Room 并发场景）
  */
-export function stopSessionGeneration(
+export function stop_session_generation(
   context: AgentConversationActionContext,
   msg_id?: string,
 ): void {
@@ -119,7 +119,7 @@ export function stopSessionGeneration(
   if (!resolved_session_key || ws_state !== 'connected') {
     return;
   }
-  if (!isStructuredSessionKey(resolved_session_key)) {
+  if (!is_structured_session_key(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，无法中断');
     return;
   }
@@ -142,7 +142,7 @@ export function stopSessionGeneration(
   // per-msg_id interrupt for Room multi-agent scenario
   if (msg_id) {
     payload.msg_id = msg_id;
-    // 中文注释：Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
+    // Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
     const target_message = messages.find((m) => m.message_id === msg_id);
     const target_slot = pending_agent_slots.find((slot) => slot.msg_id === msg_id);
     if (target_message?.agent_id || target_slot?.agent_id) {
@@ -161,7 +161,7 @@ export function stopSessionGeneration(
 /**
  * 提交权限决策。
  */
-export function sendSessionPermissionResponse(
+export function send_session_permission_response(
   payload: PermissionDecisionPayload,
   context: AgentConversationActionContext,
 ): boolean {
@@ -189,7 +189,7 @@ export function sendSessionPermissionResponse(
     set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
     return false;
   }
-  if (!isStructuredSessionKey(resolved_session_key)) {
+  if (!is_structured_session_key(resolved_session_key)) {
     set_error('当前会话的 session_key 非法，无法提交权限决策');
     return false;
   }

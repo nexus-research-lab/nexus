@@ -40,14 +40,27 @@ export const DIALOG_TAG_CLASS_NAME =
 
 export function getDialogActionClassName(
   tone: "default" | "primary" | "danger",
+  size_or_class_name?: "default" | "compact" | string,
   class_name?: string,
 ): string {
+  const size = size_or_class_name === "compact" || size_or_class_name === "default"
+    ? size_or_class_name
+    : "default";
+  const resolved_class_name =
+    typeof size_or_class_name === "string" &&
+      size_or_class_name !== "compact" &&
+      size_or_class_name !== "default"
+      ? size_or_class_name
+      : class_name;
+
   return cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-[12px] px-4 py-2.5 text-sm font-semibold transition duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    "inline-flex items-center justify-center gap-1.5 font-semibold transition duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    size === "default" && "rounded-[12px] px-4 py-2.5 text-sm",
+    size === "compact" && "rounded-[10px] px-3 py-1.5 text-[12px]",
     tone === "default" && "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     tone === "primary" && "border border-[color:color-mix(in_srgb,var(--primary)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
     tone === "danger" && "border border-[color:color-mix(in_srgb,var(--destructive)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_14%,transparent)]",
-    class_name,
+    resolved_class_name,
   );
 }
 

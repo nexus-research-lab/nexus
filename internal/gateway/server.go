@@ -22,6 +22,7 @@ import (
 	"github.com/nexus-research-lab/nexus-core/internal/logx"
 	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
 	"github.com/nexus-research-lab/nexus-core/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus-core/internal/providerconfig"
 	room2 "github.com/nexus-research-lab/nexus-core/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus-core/internal/session"
@@ -48,6 +49,7 @@ type Server struct {
 	router        chi.Router
 	agentService  *agent2.Service
 	auth          *authsvc.Service
+	providers     *providercfg.Service
 	roomService   *room2.Service
 	roomRealtime  *room2.RealtimeService
 	roomSubs      *roomSubscriptionRegistry
@@ -99,6 +101,7 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 	}
 	agentService := agent2.NewServiceWithDB(cfg, db)
 	authService := authsvc.NewServiceWithDB(cfg, db)
+	providerService := providercfg.NewServiceWithDB(cfg, db)
 	roomService := room2.NewServiceWithDB(cfg, db)
 	sessionService := sessionsvc.NewServiceWithDB(cfg, db, agentService)
 	workspaceService := workspacepkg.NewService(cfg, agentService)
@@ -110,12 +113,14 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 	channelRouter.SetLogger(logger.With("component", "channels"))
 	chatService := chatsvc.NewService(cfg, agentService, runtimeManager, permission)
 	chatService.SetLogger(logger.With("component", "chat"))
+	chatService.SetProviderResolver(providerService)
 	ingressService := channels3.NewIngressService(cfg, agentService, chatService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	channelRouter.SetIngress(ingressService)
 	launcherService := launcher.NewService(cfg, agentService, roomService)
 	roomRealtime := room2.NewRealtimeService(cfg, roomService, agentService, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
+	roomRealtime.SetProviderResolver(providerService)
 	roomSubs := newRoomSubscriptionRegistry(128)
 	roomRealtime.SetRoomBroadcaster(roomSubs)
 	workspaceSubs := newWorkspaceSubscriptionRegistry(workspaceService, func(agentID string) runtimeSnapshot {
@@ -142,6 +147,7 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 		router:        chi.NewRouter(),
 		agentService:  agentService,
 		auth:          authService,
+		providers:     providerService,
 		roomService:   roomService,
 		roomRealtime:  roomRealtime,
 		roomSubs:      roomSubs,
@@ -217,17 +223,26 @@ func (s *Server) mountRoutes() {
 	s.router.Post("/agent/v1/auth/login", s.handleAuthLogin)
 	s.router.Post("/agent/v1/auth/logout", s.handleAuthLogout)
 	s.router.Get("/agent/v1/runtime/options", s.handleRuntimeOptions)
+	s.router.Get("/agent/v1/settings/providers", s.handleListProviderConfigs)
+	s.router.Get("/agent/v1/settings/providers/options", s.handleListProviderOptions)
+	s.router.Post("/agent/v1/settings/providers", s.handleCreateProviderConfig)
+	s.router.Put("/agent/v1/settings/providers/{provider}", s.handleUpdateProviderConfig)
+	s.router.Delete("/agent/v1/settings/providers/{provider}", s.handleDeleteProviderConfig)
 	s.router.Get("/agent/v1/chat/ws", s.handleWebSocket)
 	s.router.Get("/agent/v1/agents", s.handleListAgents)
 	s.router.Get("/agent/v1/agents/runtime/statuses", s.handleAgentRuntimeStatuses)
 	s.router.Post("/agent/v1/agents", s.handleCreateAgent)
 	s.router.Get("/agent/v1/agents/validate/name", s.handleValidateAgentName)
 	s.router.Get("/agent/v1/agents/{agent_id}", s.handleGetAgent)
+	s.router.Patch("/agent/v1/agents/{agent_id}", s.handleUpdateAgent)
+	s.router.Delete("/agent/v1/agents/{agent_id}", s.handleDeleteAgent)
 	s.router.Get("/agent/v1/agents/{agent_id}/sessions", s.handleListAgentSessions)
 	s.router.Get("/agent/v1/agents/{agent_id}/cost/summary", s.handleAgentCostSummary)
 	s.router.Get("/agent/v1/agents/{agent_id}/workspace/files", s.handleWorkspaceFiles)
 	s.router.Get("/agent/v1/agents/{agent_id}/workspace/file", s.handleWorkspaceFile)
 	s.router.Put("/agent/v1/agents/{agent_id}/workspace/file", s.handleUpdateWorkspaceFile)
+	s.router.Post("/agent/v1/agents/{agent_id}/workspace/upload", s.handleUploadWorkspaceFile)
+	s.router.Get("/agent/v1/agents/{agent_id}/workspace/download", s.handleDownloadWorkspaceFile)
 	s.router.Post("/agent/v1/agents/{agent_id}/workspace/entry", s.handleCreateWorkspaceEntry)
 	s.router.Patch("/agent/v1/agents/{agent_id}/workspace/entry", s.handleRenameWorkspaceEntry)
 	s.router.Delete("/agent/v1/agents/{agent_id}/workspace/entry", s.handleDeleteWorkspaceEntry)
@@ -257,6 +272,12 @@ func (s *Server) mountRoutes() {
 	s.router.Get("/agent/v1/skills", s.handleListSkills)
 	s.router.Get("/agent/v1/skills/{skill_name}", s.handleGetSkillDetail)
 	s.router.Post("/agent/v1/skills/import/local", s.handleImportLocalSkill)
+	s.router.Post("/agent/v1/skills/import/git", s.handleImportGitSkill)
+	s.router.Get("/agent/v1/skills/search/external", s.handleSearchExternalSkills)
+	s.router.Get("/agent/v1/skills/external/preview", s.handlePreviewExternalSkill)
+	s.router.Post("/agent/v1/skills/import/skills-sh", s.handleImportSkillsShSkill)
+	s.router.Post("/agent/v1/skills/update-imported", s.handleUpdateImportedSkills)
+	s.router.Post("/agent/v1/skills/{skill_name}/update", s.handleUpdateSingleSkill)
 	s.router.Delete("/agent/v1/skills/{skill_name}", s.handleDeleteSkill)
 	s.router.Get("/agent/v1/connectors", s.handleListConnectors)
 	s.router.Get("/agent/v1/connectors/categories", s.handleConnectorCategories)
@@ -1024,14 +1045,17 @@ func (s *Server) handleUninstallAgentSkill(writer http.ResponseWriter, request *
 }
 
 func (s *Server) handleImportLocalSkill(writer http.ResponseWriter, request *http.Request) {
-	var payload struct {
-		LocalPath string `json:"local_path"`
-	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+	filePayload, filename, localPath, err := s.parseLocalSkillImportRequest(request)
+	if err != nil {
 		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
 		return
 	}
-	item, err := s.skills.ImportLocalPath(payload.LocalPath)
+	var item *skillsvc.Detail
+	if len(filePayload) > 0 {
+		item, err = s.skills.ImportUploadedArchive(filename, filePayload)
+	} else {
+		item, err = s.skills.ImportLocalPath(localPath)
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "SKILL.md") {
 			s.writeFailure(writer, http.StatusBadRequest, err.Error())
