@@ -1,4 +1,4 @@
-import { resolveAgentId } from "@/config/options";
+import { resolve_agent_id } from "@/config/options";
 
 const AGENT_SESSION_PREFIX = "agent";
 const ROOM_SESSION_PREFIX = "room";
@@ -42,7 +42,7 @@ export function build_session_key({
   agent_id,
   thread_id,
 }: BuildSessionKeyOptions): string {
-  const resolved_agent_id = resolveAgentId(agent_id);
+  const resolved_agent_id = resolve_agent_id(agent_id);
   const resolved_channel = channel.trim();
   const resolved_chat_type = chat_type.trim();
   const resolved_ref = ref.trim();
@@ -158,7 +158,7 @@ export function parse_session_key(session_key: string | null | undefined): Parse
     const parts = normalized_key.split(":");
     result.kind = "agent";
     result.is_structured = validation_error === null;
-    result.agent_id = resolveAgentId(parts[1]);
+    result.agent_id = resolve_agent_id(parts[1]);
     result.channel = parts[2] || null;
     result.chat_type = parts[3] || "dm";
 

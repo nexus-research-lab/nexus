@@ -16,9 +16,9 @@ import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { PermissionRiskLevel, PermissionUpdate } from "@/types/conversation/permission";
 
@@ -226,7 +226,7 @@ export function PermissionDialog(
             ) : null}
           </div>
 
-          <div className={getDialogNoteClassName("default")} style={getDialogNoteStyle("default")}>
+          <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
             <div className="text-[15px] leading-8 break-words text-(--text-default)">
               {summary || "确认后继续执行"}
             </div>
@@ -291,14 +291,14 @@ export function PermissionDialog(
 
         <div className="dialog-footer">
           <button
-            className={getDialogActionClassName("default")}
+            className={get_dialog_action_class_name("default")}
             onClick={() => on_deny()}
             type="button"
           >
             拒绝
           </button>
           <button
-            className={getDialogActionClassName("primary")}
+            className={get_dialog_action_class_name("primary")}
             ref={confirmButtonRef}
             onClick={() => {
               const selectedUpdate = selectedSuggestionIndex >= 0

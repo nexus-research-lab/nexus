@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
+  get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { ExternalSkillSearchItem } from "@/types/capability/skill";
 
@@ -107,7 +107,7 @@ export function ExternalSkillPreviewDialog({
           </a>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className={getDialogActionClassName("primary")}
+              className={get_dialog_action_class_name("primary")}
               disabled={busy || already_imported || name_conflict}
               onClick={on_import_only}
               type="button"

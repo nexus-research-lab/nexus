@@ -7,10 +7,10 @@
  * =====================================================
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 
-const AUTH_API_BASE_URL = getAgentApiBaseUrl();
+const AUTH_API_BASE_URL = get_agent_api_base_url();
 
 export interface AuthStatus {
   auth_required: boolean;

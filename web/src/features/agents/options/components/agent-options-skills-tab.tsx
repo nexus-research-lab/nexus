@@ -4,7 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import { Loader2, Lock, Search } from "lucide-react";
 
 import { get_agent_skills_api, install_skill_api, uninstall_skill_api } from "@/lib/api/skill-api";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { get_dialog_action_class_name } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
@@ -149,7 +149,7 @@ export function AgentOptionsSkillsTab({
           </span>
         ) : (
           <button
-            className={getDialogActionClassName(tone === "installed" ? "default" : "primary", "compact")}
+            className={get_dialog_action_class_name(tone === "installed" ? "default" : "primary", "compact")}
             disabled={isBusy}
             onClick={() => void handleToggle(skill)}
             type="button"

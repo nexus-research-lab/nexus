@@ -6,10 +6,10 @@
  */
 
 import { ConnectorDetail, ConnectorInfo } from '@/types/capability/connector';
-import { getAgentApiBaseUrl } from '@/config/options';
+import { get_agent_api_base_url } from '@/config/options';
 import { request_api } from '@/lib/api/http';
 
-const BASE = getAgentApiBaseUrl();
+const BASE = get_agent_api_base_url();
 
 /** 获取连接器列表 */
 export const get_connectors_api = async (params?: {

@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cable, Loader2, Plus, Star } from "lucide-react";
 
-import { setDefaultAgentProvider } from "@/config/options";
+import { set_default_agent_provider } from "@/config/options";
 import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
 import {
   create_provider_config_api,
@@ -161,7 +161,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   ) => {
     const ordered_items = order_provider_records(items, providers_ref.current);
     set_providers(ordered_items);
-    setDefaultAgentProvider(ordered_items.find((item) => item.is_default)?.provider);
+    set_default_agent_provider(ordered_items.find((item) => item.is_default)?.provider);
 
     if (ordered_items.length === 0) {
       set_mode("empty");

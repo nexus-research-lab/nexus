@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { isMainAgent } from "@/config/options";
+import { is_main_agent } from "@/config/options";
 import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-page-agent-dialog";
 import { list_rooms, subscribe_room_list_updates } from "@/lib/api/room-api";
 import { useConversationStore } from "@/store/conversation";
@@ -33,7 +33,7 @@ export function useLauncherPageController() {
   const [is_hydrated, set_is_hydrated] = useState(false);
   const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
   const regular_agents = useMemo(
-    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
+    () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
 

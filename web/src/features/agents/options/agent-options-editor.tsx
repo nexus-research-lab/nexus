@@ -20,10 +20,10 @@ import type {
 } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 import {
-  getDialogActionClassName,
+  get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { setDefaultAgentProvider } from "@/config/options";
+import { set_default_agent_provider } from "@/config/options";
 import {
   AgentOptionsNav,
   type TabKey,
@@ -171,7 +171,7 @@ export function AgentOptionsEditor({
         }
         setProviderOptions(payload.items);
         setDefaultProvider(normalize_agent_option_provider(payload.default_provider));
-        setDefaultAgentProvider(payload.default_provider);
+        set_default_agent_provider(payload.default_provider);
         setProviderOptionsError(null);
       } catch (error) {
         if (!cancelled) {
@@ -395,7 +395,7 @@ export function AgentOptionsEditor({
           variant="inline"
           trailing={(
             <button
-              className={getDialogActionClassName(canSave ? "primary" : "default", "compact")}
+              className={get_dialog_action_class_name(canSave ? "primary" : "default", "compact")}
               onClick={() => {
                 void handle_save();
               }}
@@ -427,7 +427,7 @@ export function AgentOptionsEditor({
           <div className="flex items-center justify-end border-t dialog-divider px-6 py-3">
             {canDelete ? (
               <button
-                className={cn(getDialogActionClassName("danger"), "mr-auto")}
+                className={cn(get_dialog_action_class_name("danger"), "mr-auto")}
                 onClick={() => {
                   if (!agent_id || !on_delete) {
                     return;
@@ -441,7 +441,7 @@ export function AgentOptionsEditor({
             ) : null}
             {show_cancel_button && on_cancel ? (
               <button
-                className={getDialogActionClassName("default")}
+                className={get_dialog_action_class_name("default")}
                 onClick={on_cancel}
                 type="button"
               >
@@ -470,7 +470,7 @@ export function AgentOptionsEditor({
       <div className="dialog-footer px-5 py-3.5">
         {canDelete ? (
           <button
-            className={cn(getDialogActionClassName("danger"), "mr-auto")}
+            className={cn(get_dialog_action_class_name("danger"), "mr-auto")}
             onClick={() => {
               if (!agent_id || !on_delete) {
                 return;
@@ -484,7 +484,7 @@ export function AgentOptionsEditor({
         ) : null}
         {show_cancel_button && on_cancel ? (
           <button
-            className={getDialogActionClassName("default")}
+            className={get_dialog_action_class_name("default")}
             onClick={on_cancel}
             type="button"
           >
@@ -492,7 +492,7 @@ export function AgentOptionsEditor({
           </button>
         ) : null}
         <button
-          className={getDialogActionClassName(canSave ? "primary" : "default")}
+          className={get_dialog_action_class_name(canSave ? "primary" : "default")}
           onClick={() => {
             void handle_save();
           }}

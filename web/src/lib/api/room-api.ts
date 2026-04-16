@@ -1,4 +1,4 @@
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import {
   CreateRoomConversationParams,
@@ -9,7 +9,7 @@ import {
   UpdateRoomParams,
 } from "@/types/conversation/room";
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 const ROOM_LIST_UPDATED_EVENT_NAME = "nexus:room-list-updated";
 
 export function notify_room_list_updated() {

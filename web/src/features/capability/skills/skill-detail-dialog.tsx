@@ -22,9 +22,9 @@ import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
-  getDialogActionClassName,
-  getDialogNoteClassName,
-  getDialogNoteStyle,
+  get_dialog_action_class_name,
+  get_dialog_note_class_name,
+  get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { SkillDetail } from "@/types/capability/skill";
 
@@ -191,7 +191,7 @@ export function SkillDetailDialog({
               ) : null}
 
               {error ? (
-                <div className={getDialogNoteClassName("danger", "mb-5")} style={getDialogNoteStyle("danger")}>
+                <div className={get_dialog_note_class_name("danger", "mb-5")} style={get_dialog_note_style("danger")}>
                   {error}
                 </div>
               ) : null}
@@ -212,7 +212,7 @@ export function SkillDetailDialog({
         <div className="dialog-footer flex-wrap gap-2">
           {skill?.locked ? (
           <button
-              className={cn(getDialogActionClassName("default"), "text-amber-700")}
+              className={cn(get_dialog_action_class_name("default"), "text-amber-700")}
               disabled
               type="button"
             >
@@ -222,7 +222,7 @@ export function SkillDetailDialog({
             <>
               {skill.source_type === "external" && skill.has_update ? (
                 <button
-                  className={getDialogActionClassName("primary")}
+                  className={get_dialog_action_class_name("primary")}
                   disabled={acting}
                   onClick={() => void handle_update()}
                   type="button"
@@ -241,7 +241,7 @@ export function SkillDetailDialog({
               )}
               {skill.deletable ? (
                 <button
-                  className={getDialogActionClassName("danger")}
+                  className={get_dialog_action_class_name("danger")}
                   disabled={acting}
                   onClick={() => void handle_delete()}
                   type="button"

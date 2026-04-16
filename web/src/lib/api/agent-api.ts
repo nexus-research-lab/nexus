@@ -15,11 +15,11 @@ import {
 import { ApiAgentSession as ApiAgentSessionRecord, AgentSession as AgentSessionRecord } from '@/types/agent/agent';
 import { Message as ChatMessage } from '@/types/conversation/message';
 import { ConversationCostSummary } from '@/types/system/cost';
-import { getAgentApiBaseUrl } from '@/config/options';
+import { get_agent_api_base_url } from '@/config/options';
 import { request_api } from '@/lib/api/http';
 import { assert_structured_session_key } from '@/lib/conversation/session-key';
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 
 // ==================== 类型转换 ====================
 

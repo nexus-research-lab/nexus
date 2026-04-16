@@ -180,7 +180,19 @@ export function ScheduledTaskRunHistoryDialog({
         </div>
 
         <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {is_loading ? (
+          {task.session_target.kind === "main" ? (
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-(--divider-subtle-color)">
+                <History className="h-6 w-6 text-(--icon-strong)" />
+              </div>
+              <h4 className="mt-5 text-lg font-bold tracking-[-0.03em] text-(--text-strong)">
+                主会话任务暂不提供独立运行历史
+              </h4>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-(--text-default)">
+                这类任务会排入主会话处理，当前列表只展示独立执行会话的运行记录。
+              </p>
+            </div>
+          ) : is_loading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, index) => (
                 <div

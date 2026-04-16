@@ -19,9 +19,9 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { getAgentWsUrl, isMainAgent } from "@/config/options";
+import { get_agent_ws_url, is_main_agent } from "@/config/options";
 import { get_dm_display_name } from "@/lib/conversation/dm-utils";
-import { getIconAvatarSrc, getRoomAvatarIconId } from "@/lib/utils";
+import { get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { create_room, delete_room, list_rooms, subscribe_room_list_updates } from "@/lib/api/room-api";
@@ -64,7 +64,7 @@ function get_room_timestamp(room: RoomAggregate): number {
 }
 
 function render_agent_avatar_icon(agent_name: string, avatar?: string | null) {
-  const avatar_src = getIconAvatarSrc(avatar);
+  const avatar_src = get_icon_avatar_src(avatar);
   if (avatar_src) {
     return (
       <img
@@ -101,7 +101,7 @@ function is_main_agent_dm_room(room: RoomAggregate): boolean {
     return false;
   }
   const agent_id = resolve_dm_agent_id(room);
-  return Boolean(agent_id && isMainAgent(agent_id));
+  return Boolean(agent_id && is_main_agent(agent_id));
 }
 
 // ==================== 主组件 ====================
@@ -109,7 +109,7 @@ function is_main_agent_dm_room(room: RoomAggregate): boolean {
 export const HomePanelContent = memo(function HomePanelContent() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const ws_url = getAgentWsUrl();
+  const ws_url = get_agent_ws_url();
   const agents = useAgentStore((s) => s.agents);
   const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
   const load_agents = useAgentStore((s) => s.load_agents_from_server);
@@ -150,7 +150,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
   const has_agents = agent_ids.length > 0;
   const agent_id_set = useMemo(() => new Set(agent_ids), [agent_ids]);
   const regular_agents = useMemo(
-    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
+    () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
 
@@ -321,12 +321,12 @@ export const HomePanelContent = memo(function HomePanelContent() {
             <SidebarListItem
               key={room.room.id}
               icon={(() => {
-                const room_avatar_id = getRoomAvatarIconId(
+                const room_avatar_id = get_room_avatar_icon_id(
                   room.room.id,
                   room.room.name,
                   room.room.avatar,
                 );
-                const room_avatar_src = getIconAvatarSrc(room_avatar_id);
+                const room_avatar_src = get_icon_avatar_src(room_avatar_id);
 
                 return room_avatar_src ? (
                   <img

@@ -18,7 +18,7 @@ import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { resolveAgentId } from "@/config/options";
+import { resolve_agent_id } from "@/config/options";
 import { get_connected_count_api } from "@/lib/api/connector-api";
 import { list_scheduled_tasks_api } from "@/lib/api/scheduled-task-api";
 import { get_available_skills_api } from "@/lib/api/skill-api";
@@ -34,7 +34,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   const navigate = useNavigate();
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-  const agent_id = resolveAgentId();
+  const agent_id = resolve_agent_id();
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [connector_count, set_connector_count] = useState(0);
   const [scheduled_task_enabled_count, set_scheduled_task_enabled_count] = useState(0);

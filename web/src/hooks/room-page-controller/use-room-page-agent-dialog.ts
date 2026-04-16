@@ -11,7 +11,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { getInitialAgentOptions } from "@/config/options";
+import { get_initial_agent_options } from "@/config/options";
 import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
 import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
 
@@ -69,7 +69,7 @@ export function useRoomPageAgentDialog({
 
   const dialog_initial_options = useMemo(() => {
     if (dialog_mode !== "edit" || !editing_agent) {
-      return getInitialAgentOptions();
+      return get_initial_agent_options();
     }
 
     return {

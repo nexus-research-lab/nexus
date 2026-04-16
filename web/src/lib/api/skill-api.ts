@@ -6,7 +6,7 @@
  * [POS]: lib 模块的 Skill API 层，被技能市场、Agent 配置与联系人页消费
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import type {
   AgentSkillEntry,
@@ -18,7 +18,7 @@ import type {
   UpdateInstalledSkillsResponse,
 } from "@/types/capability/skill";
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 
 interface SkillQueryParams {
   agent_id?: string;

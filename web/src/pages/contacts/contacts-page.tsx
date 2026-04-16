@@ -12,7 +12,7 @@ import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-f
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent/agent";
-import { getInitialAgentOptions, isMainAgent } from "@/config/options";
+import { get_initial_agent_options, is_main_agent } from "@/config/options";
 
 export function ContactsPage() {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ export function ContactsPage() {
   const [editing_agent_id, set_editing_agent_id] = useState<string | null>(null);
   const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
   const regular_agents = useMemo(
-    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
+    () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
 
@@ -44,7 +44,7 @@ export function ContactsPage() {
   );
   const dialog_initial_options = useMemo(() => {
     if (dialog_mode !== "edit" || !editing_agent) {
-      return getInitialAgentOptions();
+      return get_initial_agent_options();
     }
 
     return {
@@ -149,7 +149,7 @@ export function ContactsPage() {
 
   const handle_request_delete_agent = useCallback((agent_id: string) => {
     const target_agent = agents.find((agent) => agent.agent_id === agent_id);
-    if (!target_agent || isMainAgent(target_agent.agent_id)) {
+    if (!target_agent || is_main_agent(target_agent.agent_id)) {
       return;
     }
     set_is_dialog_open(false);

@@ -20,10 +20,10 @@ import {
     WorkspaceEntryRenameResponse,
 } from '@/types/agent/agent';
 import { AgentCostSummary } from '@/types/system/cost';
-import { getAgentApiBaseUrl } from '@/config/options';
+import { get_agent_api_base_url } from '@/config/options';
 import { request_api } from '@/lib/api/http';
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 
 // ==================== 类型转换 ====================
 

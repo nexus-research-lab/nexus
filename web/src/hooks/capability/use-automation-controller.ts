@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { resolveAgentId } from "@/config/options";
+import { resolve_agent_id } from "@/config/options";
 import { get_heartbeat_config_api, wake_heartbeat_api } from "@/lib/api/heartbeat-api";
 import {
   create_scheduled_task_api,
@@ -58,7 +58,7 @@ function upsert_task(items: ScheduledTaskItem[], next_task: ScheduledTaskItem): 
 export function useAutomationController(
   options: UseAutomationControllerOptions = {},
 ): AutomationController {
-  const agent_id = resolveAgentId(options.agent_id);
+  const agent_id = resolve_agent_id(options.agent_id);
   const include_all_tasks = Boolean(options.include_all_tasks);
   const [heartbeat, set_heartbeat] = useState<HeartbeatConfig | null>(null);
   const [scheduled_tasks, set_scheduled_tasks] = useState<ScheduledTaskItem[]>([]);

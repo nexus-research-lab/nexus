@@ -344,9 +344,9 @@ agent:<agent_id>:ws:dm:<agent_id>
 - `current_session_key`
   - 只表示前端全局会话 store 里当前选中的 DM/session_key
   - 仅用于 home/DM 状态层，不参与 Room 路由含义
-- `app_session_key`
-  - 只表示 Launcher App 面板持久化的 `session_key`
-  - 仅用于 launcher 内嵌 Nexus 会话面板，不参与 Room 路由含义
+- `legacy launcher-app session_key`
+  - 只表示历史遗留的 Launcher 内嵌 Nexus 会话键
+  - 只允许用于前端过滤旧数据，不允许再作为任何新会话的构建结果
 - `current_agent_sessions` / `current_session`
   - 只表示 home/DM controller 层基于 `current_session_key` 派生出的当前 Agent 会话列表和当前选中会话
   - 它们是 UI 派生结果，不是协议字段，也不是数据库字段
@@ -367,7 +367,7 @@ agent:<agent_id>:ws:dm:<agent_id>
 禁止：
 
 - 把 `session_key` 参数命名成 `conversation_id`
-- 把 `app_session_key` 命名成 `conversation_key`
+- 把历史 `launcher-app` session_key 继续当成正式会话键使用
 - 把按 `session_key` 工作的 hook 方法继续命名成 `*conversation*`
 - 把 `conversation_id` 传给 Session API / WebSocket 充当 `session_key`
 - 把 `current_session_key` 误当成 Room 页面里的 `conversation_id`
@@ -451,8 +451,8 @@ agent:<agent_id>:ws:dm:<agent_id>
 - 前端会话加载 Hook：`web/src/hooks/use-session-loader.ts`
 - Home / DM 会话状态收口：`web/src/hooks/use-home-agent-conversation-controller.ts`
 - Home / DM 会话 store：`web/src/store/conversation/index.ts`
-- Launcher App 会话状态：`web/src/hooks/use-launcher-page-controller.ts`
-- Launcher App 会话持久化：`web/src/store/app-conversation.ts`
+- 会话遗留过滤：`web/src/store/conversation/actions.ts`
+- Nexus DM 入口页：`web/src/pages/nexus-session/nexus-session-page.tsx`
 - Room 页面路由状态：`web/src/hooks/use-room-page-controller.ts`
 - Room 主聊天面板：`web/src/features/room-conversation/room-chat-panel.tsx`
 - DM 主聊天面板：`web/src/features/dm-conversation/dm-chat-panel.tsx`

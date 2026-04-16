@@ -1,5 +1,5 @@
 import { SetStateAction, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
-import { getAgentWsUrl } from '@/config/options';
+import { get_agent_ws_url } from '@/config/options';
 import { are_equivalent_session_keys } from '@/lib/conversation/session-key';
 import { get_browser_client_id } from '@/lib/uuid';
 import { useWebSocket } from '@/lib/websocket';
@@ -131,7 +131,7 @@ function get_terminal_message_status(status: RoundLifecycleStatus): AssistantMes
 }
 
 export function useAgentConversation(options: UseAgentConversationOptions = {}): UseAgentConversationReturn {
-  const ws_url = options.ws_url || getAgentWsUrl();
+  const ws_url = options.ws_url || get_agent_ws_url();
   const identity = options.identity ?? null;
   const agent_id = identity?.agent_id ?? null;
   const room_id = identity?.room_id ?? null;

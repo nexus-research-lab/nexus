@@ -338,11 +338,15 @@ DM 必须区分“实时态”和“归档态”。
 - 调用链默认隐藏
 - 主区只显示最终结果
 - 若没有 `result`，回退到最后一个 assistant turn
+- 后端返回历史快照前，必须先按 durable `round_status` 归一化 assistant 消息
+  - 已结束 round 内的 assistant 不得继续以 `streaming / 未完成` 形态返回
+  - 否则固定 session 在 reload 后会把旧消息重新点亮成“正在回复”
 
 ### 7.4 AskUserQuestion 展示规则
 
 - `AskUserQuestion` 是内嵌问答块，不是额外的权限确认条
 - 它仍然依赖后端 `permission_request` 提供 `request_id`
+- DM / 固定 Session / Room 都必须让该事件携带 `caused_by=round_id`
 - 但前端只允许通过问答块本身提交 `allow + user_answers`
 - 不能在消息底部再渲染一条通用 `允许 / 拒绝` 条
 - Room 主时间线若需要暴露入口，只能显示 `去回答`
@@ -353,6 +357,12 @@ DM 必须区分“实时态”和“归档态”。
   - `allow` 时必须回传完整答案数组
 - 同一问题若因超时被模型重试，前端只保留最新那一条挂起请求
 - `AskUserQuestion` 超时后应直接失败并结束当前交互，不应再自动补发下一条相同问题
+- `AskUserQuestion` 超时或权限通道不可用时，后端必须把对应 `tool_result`
+  标成结构化错误：
+  - `error_code=permission_request_timeout`
+  - 或 `error_code=permission_channel_unavailable`
+- 前端展示 `提问已超时 / 提问未完成`、过程区自动展开等逻辑只能读结构化 `error_code`
+  - 不能再直接匹配英文错误文案
 
 ## 8. 无 result 场景
 
@@ -364,6 +374,7 @@ DM 必须区分“实时态”和“归档态”。
 - 不影响实时 round 是否结束
 - 实时 round 的结束仍以后端 `round_status` 为唯一真值
 - 正常链路里，`round_status=finished` 应由后端在收到 `ResultMessage` 后推送
+- 若前端为了展示选择先渲染 `result` 内容，也不能因为 `result` 到达就提前收口运行态
 
 这类场景统一按以下规则回退：
 

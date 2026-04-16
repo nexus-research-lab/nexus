@@ -27,7 +27,7 @@ const TOKEN_SWATCHES = [
   { fill: "#E8945A", text: "#FFFFFF", ring: "#F0B186" },
 ];
 
-export function getInitials(name: string) {
+export function get_initials(name: string) {
   const parts = name
     .trim()
     .split(/\s+/)
@@ -64,7 +64,7 @@ export function build_decorative_tokens(
   const agent_tokens: SpotlightToken[] =
     agents.map((agent, index) => ({
       key: `agent-${agent.agent_id}`,
-      label: getInitials(agent.name),
+      label: get_initials(agent.name),
       agent_id: agent.agent_id,
       kind: "agent" as const,
       swatch: TOKEN_SWATCHES[index % TOKEN_SWATCHES.length],
@@ -73,7 +73,7 @@ export function build_decorative_tokens(
   const room_tokens: SpotlightToken[] =
     conversations_with_owners.slice(0, 8).map(({ conversation }, index) => ({
       key: `room-${conversation.session_key}`,
-      label: getInitials(conversation.title || "Room"),
+      label: get_initials(conversation.title || "Room"),
       agent_id: conversation.agent_id ?? null,
       kind: "room" as const,
       swatch: TOKEN_SWATCHES[(agent_tokens.length + index) % TOKEN_SWATCHES.length],

@@ -39,44 +39,44 @@ function resolve_runtime_url(rawUrl: string | undefined, fallbackPath: string, u
   return normalized_raw_url;
 }
 
-export function getAgentApiBaseUrl(): string {
+export function get_agent_api_base_url(): string {
   return resolve_runtime_url(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
 }
 
-export function getAgentWsUrl(): string {
+export function get_agent_ws_url(): string {
   return resolve_runtime_url(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
 }
 
-export function getDefaultAgentId(): string {
+export function get_default_agent_id(): string {
   return DEFAULT_AGENT_ID;
 }
 
-export function getDefaultAgentProvider(): AgentProvider {
+export function get_default_agent_provider(): AgentProvider {
   return DEFAULT_AGENT_PROVIDER;
 }
 
-export function setDefaultAgentProvider(provider?: string | null): void {
+export function set_default_agent_provider(provider?: string | null): void {
   const normalized_provider = provider?.trim();
   DEFAULT_AGENT_PROVIDER = normalized_provider || "";
 }
 
-export function getInitialAgentOptions(): Partial<AgentOptions> {
+export function get_initial_agent_options(): Partial<AgentOptions> {
   return {
     permission_mode: "default",
   };
 }
 
-export function isMainAgent(agent_id?: string | null): boolean {
+export function is_main_agent(agent_id?: string | null): boolean {
   return (agent_id ?? "").trim() === DEFAULT_AGENT_ID;
 }
 
-export function resolveAgentId(agent_id?: string | null): string {
+export function resolve_agent_id(agent_id?: string | null): string {
   return (agent_id ?? "").trim() || DEFAULT_AGENT_ID;
 }
 
-export async function hydrateRuntimeOptions(): Promise<void> {
+export async function hydrate_runtime_options(): Promise<void> {
   const payload = await request_api<{ default_agent_id: string; default_agent_provider?: string | null }>(
-    `${getAgentApiBaseUrl()}/runtime/options`,
+    `${get_agent_api_base_url()}/runtime/options`,
     {
       method: "GET",
       notify_on_401: false,
@@ -88,5 +88,5 @@ export async function hydrateRuntimeOptions(): Promise<void> {
   }
 
   DEFAULT_AGENT_ID = next_default_agent_id;
-  setDefaultAgentProvider(payload?.default_agent_provider);
+  set_default_agent_provider(payload?.default_agent_provider);
 }

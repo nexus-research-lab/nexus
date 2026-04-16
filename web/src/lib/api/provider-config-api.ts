@@ -9,7 +9,7 @@
  * # =====================================================
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import type {
   ProviderConfigPayload,
@@ -18,7 +18,7 @@ import type {
   UpdateProviderConfigPayload,
 } from "@/types/capability/provider";
 
-const PROVIDER_CONFIG_BASE_URL = `${getAgentApiBaseUrl()}/settings/providers`;
+const PROVIDER_CONFIG_BASE_URL = `${get_agent_api_base_url()}/settings/providers`;
 
 export async function list_provider_configs_api(): Promise<ProviderConfigRecord[]> {
   return request_api<ProviderConfigRecord[]>(PROVIDER_CONFIG_BASE_URL, {

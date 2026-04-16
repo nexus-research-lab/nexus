@@ -3,12 +3,12 @@
 import { type RefObject } from "react";
 
 import {
-  getDialogChoiceClassName,
-  getDialogChoiceStyle,
+  get_dialog_choice_class_name,
+  get_dialog_choice_style,
 } from "@/shared/ui/dialog/dialog-styles";
 
 type TargetType = "agent" | "room";
-type ExecutionMode = "existing" | "temporary" | "dedicated";
+type ExecutionMode = "main" | "existing" | "temporary" | "dedicated";
 type ReplyMode = "none" | "execution" | "selected";
 
 interface OptionItem {
@@ -49,12 +49,16 @@ interface TaskBasicsPanelProps {
   reply_mode: ReplyMode;
   set_reply_mode: (value: ReplyMode) => void;
   reply_mode_options: Array<{ key: ReplyMode; label: string }>;
+  disabled_reply_modes?: ReplyMode[];
   selected_reply_session_key: string;
   set_selected_reply_session_key: (value: string) => void;
   on_reset_context_error: () => void;
 }
 
 function get_execution_mode_help_text(mode: ExecutionMode): string {
+  if (mode === "main") {
+    return "交给目标智能体的主会话处理，适合把任务继续接在主线对话里。";
+  }
   if (mode === "existing") {
     return "复用当前已有的执行上下文。";
   }
@@ -69,7 +73,7 @@ function get_reply_mode_help_text(mode: ReplyMode): string {
     return "执行结果只保存在任务自己的执行会话里。";
   }
   if (mode === "execution") {
-    return "结果回到这次执行使用的会话；临时会话在 Agent 模式下默认不额外回传。";
+    return "结果回到这次执行关联的会话；Agent 的主会话和临时会话模式默认不额外回传。";
   }
   return "结果会额外推送到你指定的一个已有会话。";
 }
@@ -107,6 +111,7 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
     reply_mode,
     set_reply_mode,
     reply_mode_options,
+    disabled_reply_modes = [],
     selected_reply_session_key,
     set_selected_reply_session_key,
     on_reset_context_error,
@@ -134,13 +139,13 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <div className="flex flex-wrap gap-2">
           {target_type_options.map((opt) => (
             <button
-              className={getDialogChoiceClassName(target_type === opt.key)}
+              className={get_dialog_choice_class_name(target_type === opt.key)}
               key={opt.key}
               onClick={() => {
                 set_target_type(opt.key);
                 on_reset_context_error();
               }}
-              style={getDialogChoiceStyle(target_type === opt.key)}
+              style={get_dialog_choice_style(target_type === opt.key)}
               type="button"
             >
               {opt.label}
@@ -191,13 +196,13 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <div className="flex flex-wrap gap-2">
           {execution_mode_options.map((opt) => (
             <button
-              className={getDialogChoiceClassName(execution_mode === opt.key)}
+              className={get_dialog_choice_class_name(execution_mode === opt.key)}
               key={opt.key}
               onClick={() => {
                 set_execution_mode(opt.key);
                 on_reset_context_error();
               }}
-              style={getDialogChoiceStyle(execution_mode === opt.key)}
+              style={get_dialog_choice_style(execution_mode === opt.key)}
               type="button"
             >
               {opt.label}
@@ -257,13 +262,14 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <div className="flex flex-wrap gap-2">
           {reply_mode_options.map((opt) => (
             <button
-              className={getDialogChoiceClassName(reply_mode === opt.key)}
+              className={get_dialog_choice_class_name(reply_mode === opt.key)}
+              disabled={disabled_reply_modes.includes(opt.key)}
               key={opt.key}
               onClick={() => {
                 set_reply_mode(opt.key);
                 on_reset_context_error();
               }}
-              style={getDialogChoiceStyle(reply_mode === opt.key)}
+              style={get_dialog_choice_style(reply_mode === opt.key)}
               type="button"
             >
               {opt.label}

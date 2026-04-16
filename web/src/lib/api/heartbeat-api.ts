@@ -2,7 +2,7 @@
  * Heartbeat 自动化 API 封装
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import type {
   ApiHeartbeatStatus,
@@ -12,7 +12,7 @@ import type {
   WakeHeartbeatRequest,
 } from "@/types/capability/heartbeat";
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 const HEARTBEAT_API_BASE_URL = `${AGENT_API_BASE_URL}/automation/heartbeat`;
 
 function to_timestamp(value?: string | null): number | null {

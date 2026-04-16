@@ -4,7 +4,7 @@
  * 对齐 capability/scheduled/tasks 的结构化自动化任务接口。
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import type {
   ApiScheduledTask,
@@ -20,7 +20,7 @@ import type {
   UpdateScheduledTaskStatusParams,
 } from "@/types/capability/scheduled-task";
 
-const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const AGENT_API_BASE_URL = get_agent_api_base_url();
 const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/tasks`;
 
 function to_timestamp(value?: string | null): number | null {

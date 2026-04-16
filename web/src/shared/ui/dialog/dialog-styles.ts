@@ -38,7 +38,7 @@ export const DIALOG_EMPTY_CLASS_NAME =
 export const DIALOG_TAG_CLASS_NAME =
   "chip-default inline-flex items-center gap-1 rounded-full px-[0.7rem] py-[0.3rem] text-[11px] font-semibold text-(--text-muted)";
 
-export function getDialogActionClassName(
+export function get_dialog_action_class_name(
   tone: "default" | "primary" | "danger",
   size_or_class_name?: "default" | "compact" | string,
   class_name?: string,
@@ -64,7 +64,7 @@ export function getDialogActionClassName(
   );
 }
 
-export function getDialogNoteClassName(tone: "default" | "danger", class_name?: string): string {
+export function get_dialog_note_class_name(tone: "default" | "danger", class_name?: string): string {
   return cn(
     "rounded-[18px] px-4 py-[0.95rem] text-[13px] leading-[1.65]",
     tone === "default"
@@ -74,7 +74,7 @@ export function getDialogNoteClassName(tone: "default" | "danger", class_name?: 
   );
 }
 
-export function getDialogNoteStyle(tone: "default" | "danger"): CSSProperties | undefined {
+export function get_dialog_note_style(tone: "default" | "danger"): CSSProperties | undefined {
   if (tone !== "danger") {
     return undefined;
   }
@@ -86,7 +86,7 @@ export function getDialogNoteStyle(tone: "default" | "danger"): CSSProperties | 
   };
 }
 
-export function getDialogChoiceClassName(is_active: boolean, class_name?: string): string {
+export function get_dialog_choice_class_name(is_active: boolean, class_name?: string): string {
   return cn(
     "inline-flex items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-semibold transition-[background,color,border-color] duration-(--motion-duration-normal) ease-out",
     is_active
@@ -96,7 +96,7 @@ export function getDialogChoiceClassName(is_active: boolean, class_name?: string
   );
 }
 
-export function getDialogChoiceStyle(is_active: boolean): CSSProperties | undefined {
+export function get_dialog_choice_style(is_active: boolean): CSSProperties | undefined {
   if (!is_active) {
     return undefined;
   }

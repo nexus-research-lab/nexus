@@ -14,7 +14,7 @@ import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
-import { cn, getIconAvatarSrc } from "@/lib/utils";
+import { cn, get_icon_avatar_src } from "@/lib/utils";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";
@@ -83,7 +83,7 @@ export function MessageAvatar({
   size?: MessageAvatarSize;
   class_name?: string;
 }) {
-  const resolved_avatar_url = getIconAvatarSrc(avatar_url);
+  const resolved_avatar_url = get_icon_avatar_src(avatar_url);
   const avatar_shell_class_name = cn(
     "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
     "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",

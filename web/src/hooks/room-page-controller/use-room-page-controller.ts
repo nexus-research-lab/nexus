@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { isMainAgent } from "@/config/options";
+import { is_main_agent } from "@/config/options";
 import {
   add_room_member,
   create_room_conversation,
@@ -168,7 +168,7 @@ export function useRoomPageController({
     const joined_agent_ids = new Set(room_member_agents.map((agent) => agent.agent_id));
     return agents.filter((agent) => (
       !joined_agent_ids.has(agent.agent_id) &&
-      !isMainAgent(agent.agent_id)
+      !is_main_agent(agent.agent_id)
     ));
   }, [agents, room_member_agents]);
 
