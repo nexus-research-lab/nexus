@@ -10,8 +10,6 @@ package workspace
 import (
 	"context"
 	"errors"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,6 +17,9 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 var (

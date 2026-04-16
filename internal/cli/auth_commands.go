@@ -11,7 +11,8 @@ package cli
 
 import (
 	"context"
-	auth2 "github.com/nexus-research-lab/nexus-core/internal/auth"
+
+	auth2 "github.com/nexus-research-lab/nexus/internal/auth"
 
 	"github.com/spf13/cobra"
 )

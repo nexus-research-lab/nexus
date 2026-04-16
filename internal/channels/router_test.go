@@ -13,18 +13,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
-	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/session"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -91,7 +92,7 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	store := workspacestore.NewSessionFileStore(workspacePath)
 	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "chat-1", "")
 	now := time.Now().UTC()
-	if _, err := store.UpsertSession(workspacePath, sessiondomain.Session{
+	if _, err := store.UpsertSession(workspacePath, session.Session{
 		SessionKey:   sessionKey,
 		AgentID:      "agent-1",
 		ChannelType:  "websocket",
@@ -209,6 +210,35 @@ func TestTelegramChannelSendDeliveryText(t *testing.T) {
 	}
 	if !strings.HasSuffix(requests[0].URL.Path, "/bottoken-2/sendMessage") {
 		t.Fatalf("Telegram 路径不正确: %s", requests[0].URL.Path)
+	}
+}
+
+func TestNewRouterHonorsChannelEnabledFlags(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(
+		config.Config{
+			DatabaseDriver:   "sqlite",
+			DiscordEnabled:   false,
+			DiscordBotToken:  "discord-token",
+			TelegramEnabled:  false,
+			TelegramBotToken: "telegram-token",
+		},
+		db,
+		nil,
+		nil,
+	)
+
+	if router.Get(ChannelTypeDiscord) != nil {
+		t.Fatal("DISCORD_ENABLED=false 时不应注册 discord 通道")
+	}
+	if router.Get(ChannelTypeTelegram) != nil {
+		t.Fatal("TELEGRAM_ENABLED=false 时不应注册 telegram 通道")
+	}
+	if router.Get(ChannelTypeWebSocket) == nil {
+		t.Fatal("websocket 通道不应受开关影响")
+	}
+	if router.Get(ChannelTypeInternal) == nil {
+		t.Fatal("internal 通道不应受开关影响")
 	}
 }
 

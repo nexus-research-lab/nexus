@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cable, Loader2, Plus, Star } from "lucide-react";
 
 import { set_default_agent_provider } from "@/config/options";
-import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
+import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import {
   create_provider_config_api,
   delete_provider_config_api,
@@ -619,16 +619,15 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         </WorkspaceSurfaceScaffold>
       )}
 
-      {feedback ? (
-        <div className="pointer-events-none fixed right-6 top-24 z-40 flex flex-col gap-2">
-          <FeedbackBanner
-            message={feedback.message}
-            on_dismiss={() => set_feedback(null)}
-            title={feedback.title}
-            tone={feedback.tone}
-          />
-        </div>
-      ) : null}
+      <FeedbackBannerStack
+        items={feedback ? [{
+          key: "feedback",
+          message: feedback.message,
+          on_dismiss: () => set_feedback(null),
+          title: feedback.title,
+          tone: feedback.tone,
+        }] : []}
+      />
 
       <ConfirmDialog
         confirm_text={t("common.delete")}

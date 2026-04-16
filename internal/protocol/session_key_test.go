@@ -47,4 +47,3 @@ func TestRequireStructuredSessionKeyRejectsLegacyShape(t *testing.T) {
 		t.Fatal("非结构化 key 不应通过校验")
 	}
 }
-

@@ -10,9 +10,10 @@
 package gateway
 
 import (
-	authsvc "github.com/nexus-research-lab/nexus-core/internal/auth"
 	"net/http"
 	"strings"
+
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 )
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {

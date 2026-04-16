@@ -12,8 +12,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/nexus-research-lab/nexus-core/internal/agentdomain"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/agent"
 )
 
 // AgentRepository 提供 SQLite 的 Agent 仓储实现。
@@ -27,21 +28,20 @@ func NewAgentRepository(db *sql.DB) *AgentRepository {
 }
 
 // ListActiveAgents 返回所有活跃 Agent。
-func (r *AgentRepository) ListActiveAgents(ctx context.Context) ([]agentdomain.Agent, error) {
+func (r *AgentRepository) ListActiveAgents(ctx context.Context) ([]agent.Agent, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT
-    a.id,
-    a.name,
+	SELECT
+	    a.id,
+	    a.name,
     a.workspace_path,
     a.status,
     COALESCE(a.avatar, ''),
     COALESCE(a.description, ''),
-    COALESCE(a.vibe_tags, '[]'),
-    a.created_at,
-    COALESCE(rt.provider, ''),
-    COALESCE(rt.model, ''),
-    COALESCE(rt.permission_mode, ''),
-    COALESCE(rt.allowed_tools_json, '[]'),
+	    COALESCE(a.vibe_tags, '[]'),
+	    a.created_at,
+	    COALESCE(rt.provider, ''),
+	    COALESCE(rt.permission_mode, ''),
+	    COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
     rt.max_turns,
@@ -56,7 +56,7 @@ ORDER BY a.created_at ASC`)
 	}
 	defer rows.Close()
 
-	var result []agentdomain.Agent
+	var result []agent.Agent
 	for rows.Next() {
 		item, err := scanAgent(rows)
 		if err != nil {
@@ -68,21 +68,20 @@ ORDER BY a.created_at ASC`)
 }
 
 // GetAgent 返回指定 Agent。
-func (r *AgentRepository) GetAgent(ctx context.Context, agentID string) (*agentdomain.Agent, error) {
+func (r *AgentRepository) GetAgent(ctx context.Context, agentID string) (*agent.Agent, error) {
 	row := r.db.QueryRowContext(ctx, `
-SELECT
-    a.id,
-    a.name,
+	SELECT
+	    a.id,
+	    a.name,
     a.workspace_path,
     a.status,
     COALESCE(a.avatar, ''),
     COALESCE(a.description, ''),
-    COALESCE(a.vibe_tags, '[]'),
-    a.created_at,
-    COALESCE(rt.provider, ''),
-    COALESCE(rt.model, ''),
-    COALESCE(rt.permission_mode, ''),
-    COALESCE(rt.allowed_tools_json, '[]'),
+	    COALESCE(a.vibe_tags, '[]'),
+	    a.created_at,
+	    COALESCE(rt.provider, ''),
+	    COALESCE(rt.permission_mode, ''),
+	    COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
     rt.max_turns,
@@ -103,7 +102,7 @@ WHERE a.id = ?`, agentID)
 }
 
 // CreateAgent 创建 Agent、Profile 与 Runtime。
-func (r *AgentRepository) CreateAgent(ctx context.Context, record agentdomain.CreateRecord) (*agentdomain.Agent, error) {
+func (r *AgentRepository) CreateAgent(ctx context.Context, record agent.CreateRecord) (*agent.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -138,14 +137,13 @@ VALUES (?, ?, ?, NULL, ?, ?)`,
 	}
 
 	if _, err = tx.ExecContext(ctx, `
-INSERT INTO runtimes (
-    id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
-    mcp_servers_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	INSERT INTO runtimes (
+	    id, agent_id, provider, permission_mode, allowed_tools_json, disallowed_tools_json,
+	    mcp_servers_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.RuntimeID,
 		record.AgentID,
 		nullIfEmpty(record.Provider),
-		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
@@ -165,7 +163,7 @@ INSERT INTO runtimes (
 }
 
 // UpdateAgent 更新 Agent 配置。
-func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentdomain.UpdateRecord) (*agentdomain.Agent, error) {
+func (r *AgentRepository) UpdateAgent(ctx context.Context, record agent.UpdateRecord) (*agent.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -188,12 +186,11 @@ WHERE id = ?`,
 	}
 
 	if _, err = tx.ExecContext(ctx, `
-UPDATE runtimes
-SET provider = ?, model = ?, permission_mode = ?, allowed_tools_json = ?, disallowed_tools_json = ?,
-    mcp_servers_json = ?, max_turns = ?, max_thinking_tokens = ?, setting_sources_json = ?, updated_at = CURRENT_TIMESTAMP
-WHERE agent_id = ?`,
+	UPDATE runtimes
+	SET provider = ?, permission_mode = ?, allowed_tools_json = ?, disallowed_tools_json = ?,
+	    mcp_servers_json = ?, max_turns = ?, max_thinking_tokens = ?, setting_sources_json = ?, updated_at = CURRENT_TIMESTAMP
+	WHERE agent_id = ?`,
 		nullIfEmpty(record.Provider),
-		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
@@ -239,9 +236,9 @@ func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, name string
 
 func scanAgent(scanner interface {
 	Scan(dest ...any) error
-}) (agentdomain.Agent, error) {
+}) (agent.Agent, error) {
 	var (
-		item                agentdomain.Agent
+		item                agent.Agent
 		vibeTagsJSON        string
 		allowedToolsJSON    string
 		disallowedToolsJSON string
@@ -262,7 +259,6 @@ func scanAgent(scanner interface {
 		&vibeTagsJSON,
 		&createdAt,
 		&item.Options.Provider,
-		&item.Options.Model,
 		&item.Options.PermissionMode,
 		&allowedToolsJSON,
 		&disallowedToolsJSON,
@@ -272,15 +268,15 @@ func scanAgent(scanner interface {
 		&settingSourcesJSON,
 	)
 	if err != nil {
-		return agentdomain.Agent{}, err
+		return agent.Agent{}, err
 	}
 
 	item.CreatedAt = createdAt
 	item.VibeTags = decodeStringSlice(vibeTagsJSON)
-	item.Options.AllowedTools = agentdomain.ParseJSONStringSlice(allowedToolsJSON)
-	item.Options.DisallowedTools = agentdomain.ParseJSONStringSlice(disallowedToolsJSON)
-	item.Options.MCPServers = agentdomain.ParseJSONMap(mcpServersJSON)
-	item.Options.SettingSources = agentdomain.ParseJSONStringSlice(settingSourcesJSON)
+	item.Options.AllowedTools = agent.ParseJSONStringSlice(allowedToolsJSON)
+	item.Options.DisallowedTools = agent.ParseJSONStringSlice(disallowedToolsJSON)
+	item.Options.MCPServers = agent.ParseJSONMap(mcpServersJSON)
+	item.Options.SettingSources = agent.ParseJSONStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)
 		item.Options.MaxTurns = &value

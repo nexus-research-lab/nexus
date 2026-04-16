@@ -33,6 +33,7 @@
 - 一个 `assistant.message_id` 对应一个 turn
 - 一个 turn 内可能包含：
   - `thinking`
+  - `task_progress`
   - `tool_use`
   - `tool_result`
   - `text`
@@ -197,6 +198,7 @@ ResultMessage
 - `AssistantMessage` 负责 turn 级落盘
 - `ResultMessage` 负责最终结果
 - `round_status` 负责 round 级生命周期
+- `task_progress` 属于 assistant turn 内的内容块，不再单独落成 system durable message
 - 前端不能把一轮里的所有 assistant 内容粗暴合并成“一条回答”
 
 ## 4. 统一中间模型
@@ -341,6 +343,10 @@ DM 必须区分“实时态”和“归档态”。
 - 后端返回历史快照前，必须先按 durable `round_status` 归一化 assistant 消息
   - 已结束 round 内的 assistant 不得继续以 `streaming / 未完成` 形态返回
   - 否则固定 session 在 reload 后会把旧消息重新点亮成“正在回复”
+- 历史接口返回的是归一化后的 durable 视图，不是原始 JSONL 逐行回放
+- 若某个 round 没有 durable `result` 且已经不在活跃集合中
+  - 后端必须物化等价的 `result(interrupted)`
+  - 并把对应 assistant 历史统一修正成 `stream_status=cancelled`
 
 ### 7.4 AskUserQuestion 展示规则
 
@@ -416,6 +422,14 @@ DM 必须区分“实时态”和“归档态”。
   - `session_status` 必须携带当前仍在运行的 `running_round_ids`
   - 它只负责“当前还有哪些 round 正在跑”
   - 不替代 durable 的 `round_status`
+
+## 10.3 实时与 durable 的收口规则
+
+- `message_delta + stop_reason` 到达时，后端可以先补出 durable assistant 快照
+- `message_stop` 只表示流式段落结束，不代表 round 已结束
+- `result` 是正常终态的唯一真相源
+- `error / interrupted` 也必须落成 durable `result`
+- 实时看到的 `thinking / task_progress / text`，刷新后仍必须能从 durable 历史恢复出一致结果
 
 ### 10.2 Room 补流
 

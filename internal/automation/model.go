@@ -11,9 +11,10 @@ package automation
 
 import (
 	"errors"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const (

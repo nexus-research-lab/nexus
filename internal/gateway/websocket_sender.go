@@ -11,10 +11,11 @@ package gateway
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"

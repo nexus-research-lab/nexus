@@ -14,9 +14,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/roomdomain"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/room"
 )
 
 type roomQueryer interface {
@@ -35,7 +36,7 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 }
 
 // LoadAgentRuntimeRefs 读取建房所需的 Agent 运行时信息。
-func (r *RoomRepository) LoadAgentRuntimeRefs(ctx context.Context, agentIDs []string) ([]roomdomain.AgentRuntimeRef, error) {
+func (r *RoomRepository) LoadAgentRuntimeRefs(ctx context.Context, agentIDs []string) ([]room.AgentRuntimeRef, error) {
 	if len(agentIDs) == 0 {
 		return nil, nil
 	}
@@ -63,9 +64,9 @@ WHERE a.id IN (%s)`, joinPlaceholders("?", len(agentIDs)))
 	}
 	defer rows.Close()
 
-	result := make([]roomdomain.AgentRuntimeRef, 0, len(agentIDs))
+	result := make([]room.AgentRuntimeRef, 0, len(agentIDs))
 	for rows.Next() {
-		var item roomdomain.AgentRuntimeRef
+		var item room.AgentRuntimeRef
 		if err = rows.Scan(
 			&item.AgentID,
 			&item.Name,
@@ -81,14 +82,14 @@ WHERE a.id IN (%s)`, joinPlaceholders("?", len(agentIDs)))
 }
 
 // ListRecentRooms 列出最近房间。
-func (r *RoomRepository) ListRecentRooms(ctx context.Context, limit int) ([]roomdomain.RoomAggregate, error) {
+func (r *RoomRepository) ListRecentRooms(ctx context.Context, limit int) ([]room.RoomAggregate, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id FROM rooms ORDER BY created_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := make([]roomdomain.RoomAggregate, 0)
+	result := make([]room.RoomAggregate, 0)
 	for rows.Next() {
 		var roomID string
 		if err = rows.Scan(&roomID); err != nil {
@@ -106,7 +107,7 @@ func (r *RoomRepository) ListRecentRooms(ctx context.Context, limit int) ([]room
 }
 
 // GetRoom 读取单个房间。
-func (r *RoomRepository) GetRoom(ctx context.Context, roomID string) (*roomdomain.RoomAggregate, error) {
+func (r *RoomRepository) GetRoom(ctx context.Context, roomID string) (*room.RoomAggregate, error) {
 	roomValue, err := r.loadRoom(ctx, r.db, roomID)
 	if err != nil {
 		return nil, err
@@ -118,14 +119,14 @@ func (r *RoomRepository) GetRoom(ctx context.Context, roomID string) (*roomdomai
 	if err != nil {
 		return nil, err
 	}
-	return &roomdomain.RoomAggregate{
+	return &room.RoomAggregate{
 		Room:    *roomValue,
 		Members: members,
 	}, nil
 }
 
 // GetRoomContexts 读取房间上下文。
-func (r *RoomRepository) GetRoomContexts(ctx context.Context, roomID string) ([]roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) GetRoomContexts(ctx context.Context, roomID string) ([]room.ConversationContextAggregate, error) {
 	roomAggregate, err := r.GetRoom(ctx, roomID)
 	if err != nil || roomAggregate == nil {
 		return nil, err
@@ -136,13 +137,13 @@ func (r *RoomRepository) GetRoomContexts(ctx context.Context, roomID string) ([]
 		return nil, err
 	}
 
-	contexts := make([]roomdomain.ConversationContextAggregate, 0, len(conversations))
+	contexts := make([]room.ConversationContextAggregate, 0, len(conversations))
 	for _, conversation := range conversations {
 		sessions, sessionErr := r.listSessionsByConversation(ctx, r.db, conversation.ID)
 		if sessionErr != nil {
 			return nil, sessionErr
 		}
-		contexts = append(contexts, roomdomain.ConversationContextAggregate{
+		contexts = append(contexts, room.ConversationContextAggregate{
 			Room:         roomAggregate.Room,
 			Members:      roomAggregate.Members,
 			Conversation: conversation,
@@ -153,7 +154,7 @@ func (r *RoomRepository) GetRoomContexts(ctx context.Context, roomID string) ([]
 }
 
 // GetConversationContext 按 conversation_id 读取单条房间上下文。
-func (r *RoomRepository) GetConversationContext(ctx context.Context, conversationID string) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) GetConversationContext(ctx context.Context, conversationID string) (*room.ConversationContextAggregate, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT room_id FROM conversations WHERE id = ? LIMIT 1`, conversationID)
 	var roomID string
 	if err := row.Scan(&roomID); errors.Is(err, sql.ErrNoRows) {
@@ -165,7 +166,7 @@ func (r *RoomRepository) GetConversationContext(ctx context.Context, conversatio
 }
 
 // FindDMRoomContext 查找指定 Agent 的 DM 上下文。
-func (r *RoomRepository) FindDMRoomContext(ctx context.Context, agentID string) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) FindDMRoomContext(ctx context.Context, agentID string) (*room.ConversationContextAggregate, error) {
 	var roomID string
 	err := r.db.QueryRowContext(ctx, `
 SELECT r.id
@@ -188,7 +189,7 @@ LIMIT 1`, agentID).Scan(&roomID)
 		return nil, err
 	}
 	for _, contextValue := range contexts {
-		if contextValue.Conversation.ConversationType == roomdomain.ConversationTypeDM {
+		if contextValue.Conversation.ConversationType == room.ConversationTypeDM {
 			return &contextValue, nil
 		}
 	}
@@ -196,7 +197,7 @@ LIMIT 1`, agentID).Scan(&roomID)
 }
 
 // CreateRoom 创建房间、主对话和初始会话。
-func (r *RoomRepository) CreateRoom(ctx context.Context, bundle roomdomain.CreateRoomBundle) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) CreateRoom(ctx context.Context, bundle room.CreateRoomBundle) (*room.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -274,7 +275,7 @@ func (r *RoomRepository) UpdateRoom(
 	description *string,
 	title *string,
 	avatar *string,
-) (*roomdomain.ConversationContextAggregate, error) {
+) (*room.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -326,7 +327,7 @@ func (r *RoomRepository) UpdateRoom(
 }
 
 // AddRoomMember 向房间追加成员。
-func (r *RoomRepository) AddRoomMember(ctx context.Context, roomID string, agent roomdomain.AgentRuntimeRef) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) AddRoomMember(ctx context.Context, roomID string, agent room.AgentRuntimeRef) (*room.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -337,11 +338,11 @@ func (r *RoomRepository) AddRoomMember(ctx context.Context, roomID string, agent
 	if err != nil || roomAggregate == nil {
 		return nil, err
 	}
-	if roomAggregate.Room.RoomType != roomdomain.RoomTypeGroup {
+	if roomAggregate.Room.RoomType != room.RoomTypeGroup {
 		return nil, errors.New("DM room does not support adding members")
 	}
 	for _, member := range roomAggregate.Members {
-		if member.MemberType == roomdomain.MemberTypeAgent && member.MemberAgentID == agent.AgentID {
+		if member.MemberType == room.MemberTypeAgent && member.MemberAgentID == agent.AgentID {
 			return nil, errors.New("Agent already exists in room")
 		}
 	}
@@ -397,7 +398,7 @@ INSERT INTO sessions (
 }
 
 // RemoveRoomMember 从房间移除成员。
-func (r *RoomRepository) RemoveRoomMember(ctx context.Context, roomID string, agentID string) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) RemoveRoomMember(ctx context.Context, roomID string, agentID string) (*room.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -408,17 +409,17 @@ func (r *RoomRepository) RemoveRoomMember(ctx context.Context, roomID string, ag
 	if err != nil || roomAggregate == nil {
 		return nil, err
 	}
-	if roomAggregate.Room.RoomType != roomdomain.RoomTypeGroup {
+	if roomAggregate.Room.RoomType != room.RoomTypeGroup {
 		return nil, errors.New("DM room does not support removing members")
 	}
 
 	agentCount := 0
 	memberFound := false
 	for _, member := range roomAggregate.Members {
-		if member.MemberType == roomdomain.MemberTypeAgent && member.MemberAgentID != "" {
+		if member.MemberType == room.MemberTypeAgent && member.MemberAgentID != "" {
 			agentCount++
 		}
-		if member.MemberType == roomdomain.MemberTypeAgent && member.MemberAgentID == agentID {
+		if member.MemberType == room.MemberTypeAgent && member.MemberAgentID == agentID {
 			memberFound = true
 		}
 	}
@@ -477,7 +478,7 @@ func (r *RoomRepository) DeleteRoom(ctx context.Context, roomID string) (bool, e
 }
 
 // CreateConversation 创建房间话题。
-func (r *RoomRepository) CreateConversation(ctx context.Context, bundle roomdomain.CreateConversationBundle) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) CreateConversation(ctx context.Context, bundle room.CreateConversationBundle) (*room.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -522,7 +523,7 @@ INSERT INTO sessions (
 }
 
 // UpdateConversation 更新话题标题。
-func (r *RoomRepository) UpdateConversation(ctx context.Context, roomID string, conversationID string, title string) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) UpdateConversation(ctx context.Context, roomID string, conversationID string, title string) (*room.ConversationContextAggregate, error) {
 	result, err := r.db.ExecContext(ctx, `
 UPDATE conversations
 SET title = ?, updated_at = CURRENT_TIMESTAMP
@@ -544,8 +545,24 @@ WHERE id = ? AND room_id = ?`,
 	return r.getContextByConversation(ctx, roomID, conversationID)
 }
 
+// UpdateSessionSDKSessionID 更新房间会话记录上的 Claude session_id。
+func (r *RoomRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
+	result, err := r.db.ExecContext(ctx, `
+UPDATE sessions
+SET sdk_session_id = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?`,
+		nullIfEmpty(sdkSessionID),
+		sessionID,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = result.RowsAffected()
+	return err
+}
+
 // DeleteConversation 删除话题并返回回退上下文。
-func (r *RoomRepository) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*room.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -568,10 +585,10 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, roomID string, 
 	for _, conversation := range conversations {
 		if conversation.ID == conversationID {
 			targetFound = true
-			targetIsTopic = conversation.ConversationType == roomdomain.ConversationTypeTopic
+			targetIsTopic = conversation.ConversationType == room.ConversationTypeTopic
 			continue
 		}
-		if fallbackConversationID == "" && (conversation.ConversationType == roomdomain.ConversationTypeMain || conversation.ConversationType == roomdomain.ConversationTypeDM) {
+		if fallbackConversationID == "" && (conversation.ConversationType == room.ConversationTypeMain || conversation.ConversationType == room.ConversationTypeDM) {
 			fallbackConversationID = conversation.ID
 		}
 	}
@@ -611,7 +628,7 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, roomID string, 
 	return r.getContextByConversation(ctx, roomID, fallbackConversationID)
 }
 
-func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQueryer, roomID string) (*roomdomain.RoomAggregate, error) {
+func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQueryer, roomID string) (*room.RoomAggregate, error) {
 	roomValue, err := r.loadRoom(ctx, querier, roomID)
 	if err != nil || roomValue == nil {
 		return nil, err
@@ -620,13 +637,13 @@ func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQuery
 	if err != nil {
 		return nil, err
 	}
-	return &roomdomain.RoomAggregate{
+	return &room.RoomAggregate{
 		Room:    *roomValue,
 		Members: members,
 	}, nil
 }
 
-func (r *RoomRepository) loadRoom(ctx context.Context, querier roomQueryer, roomID string) (*roomdomain.RoomRecord, error) {
+func (r *RoomRepository) loadRoom(ctx context.Context, querier roomQueryer, roomID string) (*room.RoomRecord, error) {
 	row := querier.QueryRowContext(ctx, `
 SELECT id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
 FROM rooms
@@ -641,7 +658,7 @@ WHERE id = ?`, roomID)
 	return &roomValue, nil
 }
 
-func (r *RoomRepository) listMembers(ctx context.Context, querier roomQueryer, roomID string) ([]roomdomain.MemberRecord, error) {
+func (r *RoomRepository) listMembers(ctx context.Context, querier roomQueryer, roomID string) ([]room.MemberRecord, error) {
 	rows, err := querier.QueryContext(ctx, `
 SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), joined_at
 FROM members
@@ -652,7 +669,7 @@ ORDER BY joined_at ASC`, roomID)
 	}
 	defer rows.Close()
 
-	result := make([]roomdomain.MemberRecord, 0)
+	result := make([]room.MemberRecord, 0)
 	for rows.Next() {
 		item, scanErr := scanMemberRecord(rows)
 		if scanErr != nil {
@@ -663,7 +680,7 @@ ORDER BY joined_at ASC`, roomID)
 	return result, rows.Err()
 }
 
-func (r *RoomRepository) listConversations(ctx context.Context, querier roomQueryer, roomID string) ([]roomdomain.ConversationRecord, error) {
+func (r *RoomRepository) listConversations(ctx context.Context, querier roomQueryer, roomID string) ([]room.ConversationRecord, error) {
 	rows, err := querier.QueryContext(ctx, `
 SELECT id, room_id, conversation_type, COALESCE(title, ''), created_at, updated_at
 FROM conversations
@@ -674,7 +691,7 @@ ORDER BY created_at ASC`, roomID)
 	}
 	defer rows.Close()
 
-	result := make([]roomdomain.ConversationRecord, 0)
+	result := make([]room.ConversationRecord, 0)
 	for rows.Next() {
 		item, scanErr := scanConversationRecord(rows)
 		if scanErr != nil {
@@ -685,7 +702,7 @@ ORDER BY created_at ASC`, roomID)
 	return result, rows.Err()
 }
 
-func (r *RoomRepository) listSessionsByConversation(ctx context.Context, querier roomQueryer, conversationID string) ([]roomdomain.SessionRecord, error) {
+func (r *RoomRepository) listSessionsByConversation(ctx context.Context, querier roomQueryer, conversationID string) ([]room.SessionRecord, error) {
 	rows, err := querier.QueryContext(ctx, `
 SELECT
     id, conversation_id, agent_id, runtime_id, version_no, branch_key,
@@ -698,7 +715,7 @@ ORDER BY last_activity_at DESC`, conversationID)
 	}
 	defer rows.Close()
 
-	result := make([]roomdomain.SessionRecord, 0)
+	result := make([]room.SessionRecord, 0)
 	for rows.Next() {
 		item, scanErr := scanSessionRecord(rows)
 		if scanErr != nil {
@@ -709,7 +726,7 @@ ORDER BY last_activity_at DESC`, conversationID)
 	return result, rows.Err()
 }
 
-func (r *RoomRepository) pickMainConversation(ctx context.Context, querier roomQueryer, roomID string) (*roomdomain.ConversationRecord, error) {
+func (r *RoomRepository) pickMainConversation(ctx context.Context, querier roomQueryer, roomID string) (*room.ConversationRecord, error) {
 	conversations, err := r.listConversations(ctx, querier, roomID)
 	if err != nil || len(conversations) == 0 {
 		return nil, err
@@ -718,7 +735,7 @@ func (r *RoomRepository) pickMainConversation(ctx context.Context, querier roomQ
 	return item, nil
 }
 
-func (r *RoomRepository) getContextByConversation(ctx context.Context, roomID string, conversationID string) (*roomdomain.ConversationContextAggregate, error) {
+func (r *RoomRepository) getContextByConversation(ctx context.Context, roomID string, conversationID string) (*room.ConversationContextAggregate, error) {
 	contexts, err := r.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return nil, err
@@ -734,9 +751,9 @@ func (r *RoomRepository) getContextByConversation(ctx context.Context, roomID st
 	return &contexts[0], nil
 }
 
-func scanRoomRecord(scanner interface{ Scan(...any) error }) (roomdomain.RoomRecord, error) {
+func scanRoomRecord(scanner interface{ Scan(...any) error }) (room.RoomRecord, error) {
 	var (
-		item      roomdomain.RoomRecord
+		item      room.RoomRecord
 		createdAt time.Time
 		updatedAt time.Time
 	)
@@ -750,16 +767,16 @@ func scanRoomRecord(scanner interface{ Scan(...any) error }) (roomdomain.RoomRec
 		&updatedAt,
 	)
 	if err != nil {
-		return roomdomain.RoomRecord{}, err
+		return room.RoomRecord{}, err
 	}
 	item.CreatedAt = createdAt
 	item.UpdatedAt = updatedAt
 	return item, nil
 }
 
-func scanMemberRecord(scanner interface{ Scan(...any) error }) (roomdomain.MemberRecord, error) {
+func scanMemberRecord(scanner interface{ Scan(...any) error }) (room.MemberRecord, error) {
 	var (
-		item     roomdomain.MemberRecord
+		item     room.MemberRecord
 		joinedAt time.Time
 	)
 	err := scanner.Scan(
@@ -771,15 +788,15 @@ func scanMemberRecord(scanner interface{ Scan(...any) error }) (roomdomain.Membe
 		&joinedAt,
 	)
 	if err != nil {
-		return roomdomain.MemberRecord{}, err
+		return room.MemberRecord{}, err
 	}
 	item.JoinedAt = joinedAt
 	return item, nil
 }
 
-func scanConversationRecord(scanner interface{ Scan(...any) error }) (roomdomain.ConversationRecord, error) {
+func scanConversationRecord(scanner interface{ Scan(...any) error }) (room.ConversationRecord, error) {
 	var (
-		item      roomdomain.ConversationRecord
+		item      room.ConversationRecord
 		createdAt time.Time
 		updatedAt time.Time
 	)
@@ -792,16 +809,16 @@ func scanConversationRecord(scanner interface{ Scan(...any) error }) (roomdomain
 		&updatedAt,
 	)
 	if err != nil {
-		return roomdomain.ConversationRecord{}, err
+		return room.ConversationRecord{}, err
 	}
 	item.CreatedAt = createdAt
 	item.UpdatedAt = updatedAt
 	return item, nil
 }
 
-func scanSessionRecord(scanner interface{ Scan(...any) error }) (roomdomain.SessionRecord, error) {
+func scanSessionRecord(scanner interface{ Scan(...any) error }) (room.SessionRecord, error) {
 	var (
-		item           roomdomain.SessionRecord
+		item           room.SessionRecord
 		lastActivityAt time.Time
 		createdAt      time.Time
 		updatedAt      time.Time
@@ -821,7 +838,7 @@ func scanSessionRecord(scanner interface{ Scan(...any) error }) (roomdomain.Sess
 		&updatedAt,
 	)
 	if err != nil {
-		return roomdomain.SessionRecord{}, err
+		return room.SessionRecord{}, err
 	}
 	item.LastActivityAt = lastActivityAt
 	item.CreatedAt = createdAt
@@ -829,9 +846,9 @@ func scanSessionRecord(scanner interface{ Scan(...any) error }) (roomdomain.Sess
 	return item, nil
 }
 
-func pickMainConversation(conversations []roomdomain.ConversationRecord) *roomdomain.ConversationRecord {
+func pickMainConversation(conversations []room.ConversationRecord) *room.ConversationRecord {
 	for _, conversation := range conversations {
-		if conversation.ConversationType == roomdomain.ConversationTypeMain || conversation.ConversationType == roomdomain.ConversationTypeDM {
+		if conversation.ConversationType == room.ConversationTypeMain || conversation.ConversationType == room.ConversationTypeDM {
 			item := conversation
 			return &item
 		}

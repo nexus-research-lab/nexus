@@ -7,21 +7,34 @@
 // 2026/04/11 06:02:00   Create
 // =====================================================
 
-package room
+package room_test
 
 import (
 	"context"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
+	"database/sql"
 	"sync"
 	"testing"
 	"time"
 
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/session"
+	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+
+	_ "github.com/mattn/go-sqlite3"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
+
+type ChatRequest = roomsvc.ChatRequest
+type InterruptRequest = roomsvc.InterruptRequest
+
+var NewRealtimeServiceWithFactory = roomsvc.NewRealtimeServiceWithFactory
 
 type fakeRoomClient struct {
 	mu             sync.Mutex
@@ -121,11 +134,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := NewService(cfg)
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -176,7 +189,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
 	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
-	service := NewRealtimeServiceWithFactory(
+	service := roomsvc.NewRealtimeServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
@@ -184,12 +197,13 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		permission,
 		factory,
 	)
+	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-1")
 	permission.BindSession(sharedSessionKey, sender, "client-1", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         dmContext.Room.ID,
 		ConversationID: dmContext.Conversation.ID,
@@ -241,7 +255,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		}
 	}
 
-	sharedMessages, err := service.files.ReadRoomMessages(service.files.RoomConversationMessagePath(dmContext.Conversation.ID))
+	sharedMessages, err := files.ReadRoomMessages(files.RoomConversationMessagePath(dmContext.Conversation.ID))
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
@@ -253,7 +267,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	privateMessages, err := service.files.ReadSessionMessages([]string{memberAgent.WorkspacePath}, privateSessionKey)
+	privateMessages, err := files.ReadSessionMessages([]string{memberAgent.WorkspacePath}, privateSessionKey)
 	if err != nil {
 		t.Fatalf("读取私有 runtime 消息失败: %v", err)
 	}
@@ -264,7 +278,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("私有 runtime 消息顺序不正确: %+v", privateMessages)
 	}
 
-	costSummary, err := service.files.ReadSessionCostSummary([]string{memberAgent.WorkspacePath}, privateSessionKey, memberAgent.AgentID)
+	costSummary, err := files.ReadSessionCostSummary([]string{memberAgent.WorkspacePath}, privateSessionKey, memberAgent.AgentID)
 	if err != nil {
 		t.Fatalf("读取私有 runtime 成本失败: %v", err)
 	}
@@ -276,22 +290,247 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 }
 
-func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
+func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.T) {
 	cfg := newRoomTestConfig(t)
-	cfg.MainAgentModel = "glm-5.1"
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := NewService(cfg)
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
 
 	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "流式思考助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type": "message_start",
+						"message": map[string]any{
+							"id":    "assistant-room-think-1",
+							"model": "sonnet",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_start",
+						"index": 0,
+						"content_block": map[string]any{
+							"type":     "thinking",
+							"thinking": "先分析",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type":     "thinking_delta",
+							"thinking": " 再收口",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_start",
+						"index": 0,
+						"content_block": map[string]any{
+							"type": "text",
+							"text": "今天天气",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type": "text_delta",
+							"text": " 很不错",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-room-think-1",
+						Model: "sonnet",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.TextBlock{Text: "今天天气 很不错"},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-room-think-1",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:       "success",
+					DurationMS:    12,
+					DurationAPIMS: 10,
+					NumTurns:      1,
+					Result:        "done",
+				},
+			}
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-think-stream")
+	permission.BindSession(sharedSessionKey, sender, "room-client-think-stream", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         dmContext.Room.ID,
+		ConversationID: dmContext.Conversation.ID,
+		Content:        "今天天气怎么样呀",
+		RoundID:        "room-round-think-stream",
+		ReqID:          "room-round-think-stream",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	assertRoomStreamBlockIndex(t, events, "assistant-room-think-1", "thinking", 0)
+	assertRoomStreamBlockIndex(t, events, "assistant-room-think-1", "text", 1)
+
+	assistantPayload := findRoomAssistantMessagePayload(t, events, "assistant-room-think-1")
+	assistantBlocks := roomContentBlocksFromPayload(t, assistantPayload)
+	if len(assistantBlocks) != 2 {
+		t.Fatalf("Room durable assistant 内容块数量不正确: %+v", assistantPayload)
+	}
+	if assistantBlocks[0]["type"] != "thinking" || assistantBlocks[0]["thinking"] != "先分析 再收口" {
+		t.Fatalf("Room durable assistant 未保留完整 thinking: %+v", assistantBlocks)
+	}
+	if assistantBlocks[1]["type"] != "text" || assistantBlocks[1]["text"] != "今天天气 很不错" {
+		t.Fatalf("Room durable assistant 未保留 text: %+v", assistantBlocks)
+	}
+
+	sharedMessages, err := files.ReadRoomMessages(files.RoomConversationMessagePath(dmContext.Conversation.ID))
+	if err != nil {
+		t.Fatalf("读取共享 Room 消息失败: %v", err)
+	}
+	if len(sharedMessages) != 3 {
+		t.Fatalf("共享消息数量不正确: got=%d want=3", len(sharedMessages))
+	}
+	sharedBlocks := roomContentBlocksFromPayload(t, sharedMessages[1])
+	if len(sharedBlocks) != 2 || sharedBlocks[0]["type"] != "thinking" || sharedBlocks[1]["type"] != "text" {
+		t.Fatalf("共享历史 assistant 内容块不正确: %+v", sharedMessages[1])
+	}
+	if sharedMessages[1]["stream_status"] != "done" {
+		t.Fatalf("共享历史 assistant stream_status 未收口: %+v", sharedMessages[1])
+	}
+
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	privateMessages, err := files.ReadSessionMessages([]string{memberAgent.WorkspacePath}, privateSessionKey)
+	if err != nil {
+		t.Fatalf("读取私有 runtime 消息失败: %v", err)
+	}
+	if len(privateMessages) != 3 {
+		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=3", len(privateMessages))
+	}
+	privateBlocks := roomContentBlocksFromPayload(t, privateMessages[1])
+	if len(privateBlocks) != 2 || privateBlocks[0]["type"] != "thinking" || privateBlocks[1]["type"] != "text" {
+		t.Fatalf("私有历史 assistant 内容块不正确: %+v", privateMessages[1])
+	}
+	if privateMessages[1]["stream_status"] != "done" {
+		t.Fatalf("私有历史 assistant stream_status 未收口: %+v", privateMessages[1])
+	}
+}
+
+func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+	providerService, err := providercfg.NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 provider service 失败: %v", err)
+	}
+	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
+
+	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "透传测试助手")
+	maxThinkingTokens := 1024
+	maxTurns := 4
+	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, agentsvc.UpdateRequest{
+		Options: &agentsvc.Options{
+			MaxThinkingTokens: &maxThinkingTokens,
+			MaxTurns:          &maxTurns,
+			SettingSources:    []string{"user"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("更新 member agent 配置失败: %v", err)
+	}
 	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
 	if err != nil {
 		t.Fatalf("创建直聊 room 失败: %v", err)
@@ -326,6 +565,7 @@ func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
 		permission,
 		factory,
 	)
+	service.SetProviderResolver(providerService)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-model")
@@ -346,8 +586,30 @@ func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
 	})
 
-	if options := factory.LastOptions(); options.Model != "" {
-		t.Fatalf("room runtime 不应向 SDK 透传 model: %+v", options)
+	options := factory.LastOptions()
+	if options.Model != "" {
+		t.Fatalf("room runtime 不应向 SDK 透传 agent model: %+v", options)
+	}
+	if options.Env["ANTHROPIC_MODEL"] != "glm-5.1" {
+		t.Fatalf("room runtime 未注入 provider model: %+v", options.Env)
+	}
+	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
+		t.Fatalf("room runtime 未注入默认 sonnet model: %+v", options.Env)
+	}
+	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
+		t.Fatalf("room runtime 未注入 subagent model: %+v", options.Env)
+	}
+	if options.MaxThinkingTokens != maxThinkingTokens {
+		t.Fatalf("room runtime 未向 SDK 透传 max thinking tokens: %+v", options)
+	}
+	if options.MaxTurns != maxTurns {
+		t.Fatalf("room runtime 未向 SDK 透传 max turns: %+v", options)
+	}
+	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
+		t.Fatalf("room runtime 未向 SDK 透传 setting_sources: %+v", options)
+	}
+	if !options.IncludePartialMessages {
+		t.Fatalf("room runtime 未开启 partial messages: %+v", options)
 	}
 }
 
@@ -355,11 +617,11 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := NewService(cfg)
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -397,6 +659,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{clientA, clientB}},
 	)
+	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-2")
@@ -427,6 +690,9 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	if countEventType(events, protocol.EventTypeStreamCancelled) < 2 {
 		t.Fatalf("期望至少 2 个 stream_cancelled 事件: %+v", events)
 	}
+	if countRoomResultSubtype(events, "interrupted") < 2 {
+		t.Fatalf("期望每个 slot 都产出 interrupted result: %+v", events)
+	}
 
 	clientA.mu.Lock()
 	interruptA := clientA.interruptCalls
@@ -436,6 +702,143 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	clientB.mu.Unlock()
 	if interruptA == 0 || interruptB == 0 {
 		t.Fatalf("所有 slot 都应收到 interrupt: a=%d b=%d", interruptA, interruptB)
+	}
+
+	sharedMessages, err := files.ReadRoomMessages(files.RoomConversationMessagePath(roomContext.Conversation.ID))
+	if err != nil {
+		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
+	}
+	sharedInterrupted := 0
+	for _, message := range sharedMessages {
+		if message["role"] == "result" && message["subtype"] == "interrupted" {
+			sharedInterrupted++
+		}
+	}
+	if sharedInterrupted < 2 {
+		t.Fatalf("共享日志未完整落 interrupted result: %+v", sharedMessages)
+	}
+
+	for _, agentValue := range []*agentsvc.Agent{agentA, agentB} {
+		privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType)
+		privateMessages, readErr := files.ReadSessionMessages([]string{agentValue.WorkspacePath}, privateSessionKey)
+		if readErr != nil {
+			t.Fatalf("读取私有 session 失败: %v", readErr)
+		}
+		foundInterrupted := false
+		for _, message := range privateMessages {
+			if message["role"] == "result" && message["subtype"] == "interrupted" {
+				foundInterrupted = true
+				break
+			}
+		}
+		if !foundInterrupted {
+			t.Fatalf("私有日志未落 interrupted result: agent=%s messages=%+v", agentValue.AgentID, privateMessages)
+		}
+	}
+}
+
+func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "助手甲")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "Resume 房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	if len(roomContext.Sessions) != 1 {
+		t.Fatalf("期望只有一个 room session: %+v", roomContext.Sessions)
+	}
+
+	db, err = sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer db.Close()
+
+	resumeID := "room-resume-1"
+	if _, err = db.Exec(`UPDATE sessions SET sdk_session_id = ? WHERE id = ?`, resumeID, roomContext.Sessions[0].ID); err != nil {
+		t.Fatalf("预写入 room sdk_session_id 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.sessionID = "room-sdk-session-latest"
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "room-result-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	runtimeManager := runtimectx.NewManager()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		factory,
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-resume-sender")
+	permission.BindSession(sharedSessionKey, sender, "client-room-resume", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "测试 room resume",
+		RoundID:        "room-round-resume",
+		ReqID:          "room-round-resume",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Resume != resumeID {
+		t.Fatalf("room runtime 未将房间 sdk_session_id 作为 resume 透传: %+v", options)
+	}
+
+	updatedContext, err := roomService.GetConversationContext(ctx, roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取更新后的 room context 失败: %v", err)
+	}
+	if len(updatedContext.Sessions) != 1 {
+		t.Fatalf("更新后的 room session 数量不正确: %+v", updatedContext.Sessions)
+	}
+	if updatedContext.Sessions[0].SDKSessionID != client.sessionID {
+		t.Fatalf("room sdk_session_id 未回写数据库: %+v", updatedContext.Sessions[0])
 	}
 }
 
@@ -482,9 +885,80 @@ func countEventType(events []protocol.EventMessage, target protocol.EventType) i
 	return count
 }
 
+func countRoomResultSubtype(events []protocol.EventMessage, subtype string) int {
+	count := 0
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["role"] == "result" && event.Data["subtype"] == subtype {
+			count++
+		}
+	}
+	return count
+}
+
 func normalizePendingValue(value any) string {
 	if typed, ok := value.(string); ok {
 		return typed
 	}
 	return ""
+}
+
+func assertRoomStreamBlockIndex(t *testing.T, events []protocol.EventMessage, messageID string, blockType string, expectedIndex int) {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeStream || event.MessageID != messageID {
+			continue
+		}
+		contentBlock, ok := event.Data["content_block"].(map[string]any)
+		if !ok || contentBlock["type"] != blockType {
+			continue
+		}
+		if event.Data["index"] != expectedIndex {
+			t.Fatalf("Room %s stream index 不正确: got=%v want=%d event=%+v", blockType, event.Data["index"], expectedIndex, event)
+		}
+		return
+	}
+	t.Fatalf("未找到 Room block_type=%s message_id=%s 的 stream 事件: %+v", blockType, messageID, events)
+}
+
+func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) session.Message {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
+			continue
+		}
+		if event.Data["role"] != "assistant" {
+			continue
+		}
+		return session.Message(event.Data)
+	}
+	t.Fatalf("未找到 Room assistant message_id=%s 的 durable 消息: %+v", messageID, events)
+	return nil
+}
+
+func roomContentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string]any {
+	t.Helper()
+	rawBlocks, ok := payload["content"]
+	if !ok {
+		t.Fatalf("Room 消息缺少 content: %+v", payload)
+	}
+	switch typed := rawBlocks.(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		result := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			block, ok := item.(map[string]any)
+			if !ok {
+				t.Fatalf("Room content block 类型不正确: %+v", payload)
+			}
+			result = append(result, block)
+		}
+		return result
+	default:
+		t.Fatalf("Room content 类型不正确: %+v", payload)
+		return nil
+	}
 }

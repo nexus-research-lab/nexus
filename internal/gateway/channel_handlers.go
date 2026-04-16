@@ -12,9 +12,10 @@ package gateway
 import (
 	"encoding/json"
 	"errors"
-	"github.com/nexus-research-lab/nexus-core/internal/channels"
 	"net/http"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/channels"
 )
 
 func (s *Server) handleChannelIngress(writer http.ResponseWriter, request *http.Request) {

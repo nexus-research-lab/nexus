@@ -13,14 +13,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/logx"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"log/slog"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/logx"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // Router 负责管理通道生命周期与统一投递。
@@ -46,10 +47,10 @@ func NewRouter(
 	}
 	router.Register(newSessionDeliveryChannel(ChannelTypeWebSocket, agents, permission, cfg.WorkspacePath))
 	router.Register(newSessionDeliveryChannel(ChannelTypeInternal, agents, permission, cfg.WorkspacePath))
-	if strings.TrimSpace(cfg.DiscordBotToken) != "" {
+	if cfg.DiscordEnabled && strings.TrimSpace(cfg.DiscordBotToken) != "" {
 		router.Register(newDiscordChannel(cfg.DiscordBotToken, nil))
 	}
-	if strings.TrimSpace(cfg.TelegramBotToken) != "" {
+	if cfg.TelegramEnabled && strings.TrimSpace(cfg.TelegramBotToken) != "" {
 		router.Register(newTelegramChannel(cfg.TelegramBotToken, nil))
 	}
 	return router
@@ -242,6 +243,16 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 
 func (r *Router) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, r.logger)
+}
+
+// RegisteredChannelTypes 返回当前已注册的通道类型快照。
+func (r *Router) RegisteredChannelTypes() []string {
+	items := r.snapshotChannels()
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		result = append(result, item.ChannelType())
+	}
+	return result
 }
 
 func (r *Router) snapshotChannels() []DeliveryChannel {

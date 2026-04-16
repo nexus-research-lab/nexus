@@ -14,10 +14,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 var (

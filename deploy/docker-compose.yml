@@ -10,10 +10,14 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      cache_from:
+        - type=local,src=../.buildx-cache/nexus
+      cache_to:
+        - type=local,dest=../.buildx-cache/nexus,mode=max
       args:
         APT_MIRROR: ${APT_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian-security}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
@@ -23,10 +27,12 @@ services:
       TZ: ${TZ:-Asia/Shanghai}
       HOST: 0.0.0.0
       PORT: 8010
+      NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+      NEXUS_APT_ALLOWLIST: ${NEXUS_APT_ALLOWLIST:-ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip}
       DATABASE_DRIVER: ${DATABASE_DRIVER:-sqlite}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////home/agent/.nexus/data/nexus.db}
       CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/home/agent/.nexus/cache}
-      LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs}
+      LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs/logger.log}
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
     volumes:
       - ${HOST_DATA_DIR:-./data}/.nexus:/home/agent/.nexus
@@ -46,12 +52,15 @@ services:
     build:
       context: ..
       dockerfile: web/Dockerfile
+      cache_from:
+        - type=local,src=../.buildx-cache/nginx
+      cache_to:
+        - type=local,dest=../.buildx-cache/nginx,mode=max
       args:
         APK_MIRROR: ${APK_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/alpine}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         VITE_WS_URL: ${VITE_WS_URL:-}
         VITE_API_URL: ${VITE_API_URL:-}
-        VITE_DEFAULT_MODEL: ${VITE_DEFAULT_MODEL:-glm-5.1}
     image: ${IMAGE:-nexus}:web-${TAG:-latest}
     restart: unless-stopped
     environment:

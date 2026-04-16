@@ -11,8 +11,9 @@ package cli
 
 import (
 	"fmt"
-	memory2 "github.com/nexus-research-lab/nexus-core/internal/memory"
 	"strings"
+
+	memory2 "github.com/nexus-research-lab/nexus/internal/memory"
 
 	"github.com/spf13/cobra"
 )

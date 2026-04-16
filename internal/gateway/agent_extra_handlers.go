@@ -12,9 +12,10 @@ package gateway
 import (
 	"encoding/json"
 	"errors"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
 	"net/http"
 	"strings"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 
 	"github.com/go-chi/chi/v5"
 )

@@ -15,10 +15,11 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type deliveryMemory struct {

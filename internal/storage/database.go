@@ -10,11 +10,12 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
@@ -25,7 +26,7 @@ func OpenDB(cfg config.Config) (*sql.DB, error) {
 	driver := protocol.NormalizeSQLDriver(cfg.DatabaseDriver)
 	dsn := protocol.NormalizeDatabaseURL(cfg.DatabaseURL)
 
-	// 中文注释：SQLite 场景需要提前创建父目录，否则第一次启动会直接报错。
+	// SQLite 场景需要提前创建父目录，否则第一次启动会直接报错。
 	if driver == "sqlite3" {
 		if err := ensureParentDir(dsn); err != nil {
 			return nil, err

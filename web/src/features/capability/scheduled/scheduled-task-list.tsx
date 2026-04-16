@@ -14,18 +14,7 @@ import type {
   ScheduledTaskSource,
   ScheduledTaskSessionTarget,
 } from "@/types/capability/scheduled-task";
-
-function format_datetime(value: number | null): string {
-  if (!value) {
-    return "未安排";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
-}
+import { format_scheduled_datetime } from "./scheduled-formatters";
 
 function format_interval(seconds: number): string {
   if (seconds % 86400 === 0) {
@@ -47,7 +36,7 @@ function get_schedule_summary(schedule: ScheduledTaskSchedule): string {
   if (schedule.kind === "cron") {
     return `Cron · ${schedule.cron_expression}`;
   }
-  return `单次 · ${format_datetime(new Date(schedule.run_at).getTime())}`;
+  return `单次 · ${format_scheduled_datetime(new Date(schedule.run_at).getTime(), { empty_label: "未安排" })}`;
 }
 
 function get_session_target_summary(target: ScheduledTaskSessionTarget): string {
@@ -334,8 +323,8 @@ export function ScheduledTaskList({
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-(--text-default)">
-                        <span>下次运行 {format_datetime(task.next_run_at)}</span>
-                        <span>最近执行 {format_datetime(task.last_run_at)}</span>
+                        <span>下次运行 {format_scheduled_datetime(task.next_run_at, { empty_label: "未安排" })}</span>
+                        <span>最近执行 {format_scheduled_datetime(task.last_run_at, { empty_label: "未安排" })}</span>
                         <span>Agent {task.agent_id}</span>
                         <span>来源 {get_source_kind_label(task.source)}</span>
                       </div>

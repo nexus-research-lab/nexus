@@ -11,8 +11,12 @@ import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/r
 import {
   build_room_session_selections,
   format_session_label,
-  type TargetType,
-} from "./scheduled-task-dialog-constants";
+} from "./scheduled-task-dialog-time";
+import type {
+  ScheduledTaskDialogLabelOption,
+  ScheduledTaskDialogSessionOption,
+  TargetType,
+} from "./scheduled-task-dialog-types";
 
 export function useScheduledTaskDialogData({
   is_open,
@@ -157,17 +161,17 @@ export function useScheduledTaskDialogData({
     [agents],
   );
 
-  const agent_options = useMemo(
+  const agent_options = useMemo<ScheduledTaskDialogLabelOption[]>(
     () => agents.map((agent) => ({ value: agent.agent_id, label: agent.name || agent.agent_id })),
     [agents],
   );
 
-  const room_options = useMemo(
+  const room_options = useMemo<ScheduledTaskDialogLabelOption[]>(
     () => rooms.map((room) => ({ value: room.room.id, label: room.room.name?.trim() || room.room.id })),
     [rooms],
   );
 
-  const agent_session_options = useMemo(
+  const agent_session_options = useMemo<ScheduledTaskDialogSessionOption[]>(
     () => agent_sessions.map((session) => ({
       session_key: session.session_key,
       agent_id: session.agent_id,
@@ -176,7 +180,7 @@ export function useScheduledTaskDialogData({
     [agent_name_by_id, agent_sessions],
   );
 
-  const room_session_options = useMemo(() => {
+  const room_session_options = useMemo<ScheduledTaskDialogSessionOption[]>(() => {
     const options = build_room_session_selections(room_contexts, agent_name_by_id);
     return options.map((option) => ({
       session_key: option.session_key,

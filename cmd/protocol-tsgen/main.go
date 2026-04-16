@@ -9,9 +9,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"os"
 	"path/filepath"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func main() {

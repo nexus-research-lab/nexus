@@ -11,10 +11,11 @@ package automation
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type executionObservation struct {
@@ -68,7 +69,7 @@ func (s *executionSink) SendEvent(_ context.Context, event protocol.EventMessage
 	select {
 	case s.events <- event:
 	default:
-		// 中文注释：自动化观察器只需要终态与关键消息，缓冲打满时丢弃最旧实时事件，
+		// 自动化观察器只需要终态与关键消息，缓冲打满时丢弃最旧实时事件，
 		// 避免后台任务因为无人消费的中间 token 卡死。
 		select {
 		case <-s.events:

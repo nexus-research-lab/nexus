@@ -5,18 +5,7 @@ import { Activity, RefreshCw, TimerReset, Zap } from "lucide-react";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { HeartbeatConfig } from "@/types/capability/heartbeat";
-
-function format_datetime(value: number | null): string {
-  if (!value) {
-    return "未记录";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
-}
+import { format_scheduled_datetime } from "./scheduled-formatters";
 
 function format_interval(seconds: number): string {
   if (seconds % 86400 === 0) {
@@ -135,7 +124,7 @@ export function HeartbeatSettingsCard({
                   {format_interval(heartbeat.every_seconds)}
                 </p>
                 <p className="mt-1 text-xs text-(--text-default)">
-                  下一次 {format_datetime(heartbeat.next_run_at)}
+                  下一次 {format_scheduled_datetime(heartbeat.next_run_at)}
                 </p>
               </div>
 
@@ -156,19 +145,19 @@ export function HeartbeatSettingsCard({
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-(--text-default)">最近轮询</span>
                 <span className="font-medium text-(--text-strong)">
-                  {format_datetime(heartbeat.last_heartbeat_at)}
+                  {format_scheduled_datetime(heartbeat.last_heartbeat_at)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-(--text-default)">最近 ACK</span>
                 <span className="font-medium text-(--text-strong)">
-                  {format_datetime(heartbeat.last_ack_at)}
+                  {format_scheduled_datetime(heartbeat.last_ack_at)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-(--text-default)">下一次调度</span>
                 <span className="font-medium text-(--text-strong)">
-                  {format_datetime(heartbeat.next_run_at)}
+                  {format_scheduled_datetime(heartbeat.next_run_at)}
                 </span>
               </div>
             </div>

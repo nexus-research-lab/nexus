@@ -12,8 +12,9 @@ package gateway
 import (
 	"encoding/json"
 	"errors"
-	auth2 "github.com/nexus-research-lab/nexus-core/internal/auth"
 	"net/http"
+
+	auth2 "github.com/nexus-research-lab/nexus/internal/auth"
 )
 
 type authLoginPayload struct {

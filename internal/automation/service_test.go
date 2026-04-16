@@ -13,19 +13,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/channels"
-	chatsvc "github.com/nexus-research-lab/nexus-core/internal/chat"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
-	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
-	workspacepkg "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/channels"
+	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/session"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -317,7 +318,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	store := workspacestore.NewSessionFileStore(workspacePath)
 	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "delivery", "")
 	now := time.Now().UTC()
-	if _, err := store.UpsertSession(workspacePath, sessiondomain.Session{
+	if _, err := store.UpsertSession(workspacePath, session.Session{
 		SessionKey:   sessionKey,
 		AgentID:      "agent-1",
 		ChannelType:  "websocket",
@@ -406,7 +407,7 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 	store := workspacestore.NewSessionFileStore(workspacePath)
 	targetSessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "heartbeat", "")
 	now := time.Now().UTC()
-	if _, err := store.UpsertSession(workspacePath, sessiondomain.Session{
+	if _, err := store.UpsertSession(workspacePath, session.Session{
 		SessionKey:   targetSessionKey,
 		AgentID:      "agent-1",
 		ChannelType:  "websocket",
@@ -604,7 +605,7 @@ func (r *testAgentResolver) GetAgent(_ context.Context, agentID string) (*agents
 	}, nil
 }
 
-func stringFromMessage(message sessiondomain.Message, key string) string {
+func stringFromMessage(message session.Message, key string) string {
 	value, _ := message[key].(string)
 	return strings.TrimSpace(value)
 }

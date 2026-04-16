@@ -77,7 +77,6 @@ docker-compose*
 
 # 部署相关
 deploy/
-!deploy/init-db.sh
 scripts/
 
 # 缓存目录

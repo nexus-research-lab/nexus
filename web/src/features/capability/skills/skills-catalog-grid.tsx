@@ -3,9 +3,8 @@ import { Loader2, Puzzle } from "lucide-react";
 
 import type { SkillInfo } from "@/types/capability/skill";
 
-import type { SkillMarketplaceController } from "@/hooks/capability/use-skill-marketplace";
-
 import { SkillsCard } from "./skills-card";
+import type { SkillMarketplaceController } from "./skills-view-model";
 
 interface SkillsCatalogGridProps {
   ctrl: SkillMarketplaceController;

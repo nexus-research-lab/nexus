@@ -12,10 +12,11 @@ package gateway
 import (
 	"encoding/json"
 	"errors"
-	automationsvc "github.com/nexus-research-lab/nexus-core/internal/automation"
 	"io"
 	"net/http"
 	"strings"
+
+	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/go-chi/chi/v5"
 )

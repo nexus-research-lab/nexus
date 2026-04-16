@@ -3,7 +3,9 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { PICKER_POPOVER_CLASS_NAME } from "./picker-utils";
+import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
+
+import { PICKER_POPOVER_CLASS_NAME } from "./picker-styles";
 
 interface PickerPopoverProps {
   anchor_ref: RefObject<HTMLElement | null>;
@@ -29,17 +31,13 @@ export function PickerPopover({ anchor_ref, children, is_open, on_close }: Picke
       on_close();
     };
 
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        on_close();
-      }
-    };
+    const on_key_down = (event: KeyboardEvent) => close_on_escape(event, on_close);
 
     document.addEventListener("mousedown", handle_pointer_down, true);
-    document.addEventListener("keydown", handle_key_down, true);
+    document.addEventListener("keydown", on_key_down, true);
     return () => {
       document.removeEventListener("mousedown", handle_pointer_down, true);
-      document.removeEventListener("keydown", handle_key_down, true);
+      document.removeEventListener("keydown", on_key_down, true);
     };
   }, [anchor_ref, is_open, on_close]);
 

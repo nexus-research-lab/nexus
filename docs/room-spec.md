@@ -55,6 +55,7 @@
 - 它使用共享 `session_key`
 - 它聚合的是整个 Conversation 的公共消息历史
 - 它不是单个 Agent 的私有 Claude 上下文
+- 历史读取返回的是归一化后的 durable 视图，不是原始 JSONL 逐行回放
 
 ### 2.6 agent runtime session
 
@@ -71,6 +72,8 @@
 - `Thread` 是 Room UI 层的明细视图，不是后端独立实体
 - 它按“某一轮中的某个 Agent 子回复”过滤消息
 - 它不单独建表、不单独生成新的 conversation_id
+- Thread 内 assistant / result 继续使用真实 assistant `message_id`
+- slot `msg_id` 只服务于 `stream_start / stream_end / stream_cancelled` 生命周期
 
 ## 3. 设计目标
 
@@ -280,6 +283,9 @@ agent:<agent_id>:ws:<chat_type>:<conversation_id>
 - Room 主聊天面板展示的历史正文
 - Thread 回放时的正文内容
 - 共享流消息重建
+- 返回给前端前必须先做 round 归一化
+  - 已完成 round 的 assistant 必须收口到 terminal `stream_status`
+  - 未活跃但无 `result` 的 round 需要物化 `result(interrupted)`
 
 ### 7.3 运行时真相源
 
@@ -460,6 +466,9 @@ Room 当前核心事件包括：
 - `chat_ack` 不是 assistant 消息
 - 前端不能把 `chat_ack.msg_id` 写入共享消息流
 - `chat_ack.msg_id` 同时也是 Room 单 Agent 中断的后端句柄
+- `stream_start / stream_end / stream_cancelled` 继续绑定 slot `msg_id`
+- 真正的 assistant / stream / result 必须继续使用 SDK assistant `message_id`
+- `task_progress` 不再单独映射成 system durable message，而是并入 assistant 内容流
 - 因此 slot 不能在“assistant 已开始输出”时就被前端提前删掉
 - 只有用户主 round 收到 terminal `round_status` 后，相关 slot 才能统一清理
 - 前端整页刷新后，后端必须在 `subscribe_room` 后重新补发当前仍在执行的 slot
@@ -495,6 +504,7 @@ Room 中断必须以“共享流路由 + 子轮次状态机”收口。
 3. 中断后仍处于 `pending / streaming` 的槽位必须统一修复为 `cancelled`
 4. 对应 `rounds` 记录也必须同步标记为 `cancelled`
 5. 中断修复完成后，后端必须广播 terminal `round_status=interrupted`
+6. 每个被中断的 slot 都必须补出 durable `result(interrupted)`，保证共享历史与私有 session 历史可回放
 
 ## 12. 前端工作区规范
 

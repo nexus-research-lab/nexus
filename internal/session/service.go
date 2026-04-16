@@ -11,22 +11,19 @@ package session
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
-	"github.com/nexus-research-lab/nexus-core/internal/storage"
-	postgresrepo "github.com/nexus-research-lab/nexus-core/internal/storage/postgres"
-	sqliterepo "github.com/nexus-research-lab/nexus-core/internal/storage/sqlite"
-	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
@@ -35,18 +32,6 @@ var (
 	// ErrSessionMutationUnsupported 表示该 session 只能通过更高层语义操作。
 	ErrSessionMutationUnsupported = errors.New("session mutation is not supported")
 )
-
-// Session 暴露对外模型别名。
-type Session = sessiondomain.Session
-
-// Message 暴露消息模型别名。
-type Message = sessiondomain.Message
-
-// CostSummary 暴露 Session 成本汇总模型别名。
-type CostSummary = sessiondomain.CostSummary
-
-// AgentCostSummary 暴露 Agent 成本汇总模型别名。
-type AgentCostSummary = sessiondomain.AgentCostSummary
 
 // CreateRequest 表示创建会话请求。
 type CreateRequest struct {
@@ -66,27 +51,16 @@ type Service struct {
 	agentService *agent2.Service
 	repository   SQLRepository
 	files        *workspacestore.SessionFileStore
+	runtime      *runtimectx.Manager
 }
 
-// NewService 创建 Session 服务。
-func NewService(cfg config.Config) (*Service, error) {
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		return nil, err
-	}
-	agentService := agent2.NewServiceWithDB(cfg, db)
-	return NewServiceWithDB(cfg, db, agentService), nil
+// SetRuntimeManager 注入运行时管理器，用于历史读取时识别活跃轮次。
+func (s *Service) SetRuntimeManager(runtimeManager *runtimectx.Manager) {
+	s.runtime = runtimeManager
 }
 
-// NewServiceWithDB 使用共享 DB 创建 Session 服务。
-func NewServiceWithDB(cfg config.Config, db *sql.DB, agentService *agent2.Service) *Service {
-	var repository SQLRepository
-	switch strings.ToLower(cfg.DatabaseDriver) {
-	case "postgres", "postgresql", "pg":
-		repository = postgresrepo.NewSessionRepository(db)
-	default:
-		repository = sqliterepo.NewSessionRepository(db)
-	}
+// NewService 使用已注入的依赖创建 Session 服务。
+func NewService(cfg config.Config, agentService *agent2.Service, repository SQLRepository) *Service {
 	return &Service{
 		config:       cfg,
 		agentService: agentService,
@@ -271,14 +245,14 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 		if strings.TrimSpace(logPath) == "" {
 			logPath = s.files.RoomConversationMessagePath(parsed.ConversationID)
 		}
-		return s.files.ReadRoomMessages(logPath)
+		return s.files.ReadRoomMessagesWithActiveRounds(logPath, s.activeRoundIDs(sessionKey))
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ReadSessionMessages(workspacePaths, sessionKey)
+	return s.files.ReadSessionMessagesWithActiveRounds(workspacePaths, sessionKey, s.activeRoundIDs(sessionKey))
 }
 
 // GetSessionCostSummary 读取或回算 session 成本汇总。
@@ -288,7 +262,7 @@ func (s *Service) GetSessionCostSummary(ctx context.Context, rawSessionKey strin
 		return CostSummary{}, err
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		return sessiondomain.CostSummary{
+		return CostSummary{
 			AgentID:    s.config.DefaultAgentID,
 			SessionKey: sessionKey,
 			SessionID:  "",
@@ -457,13 +431,20 @@ func (s *Service) requireSessionKey(raw string) (string, protocol.SessionKey, er
 	return sessionKey, protocol.ParseSessionKey(sessionKey), nil
 }
 
+func (s *Service) activeRoundIDs(sessionKey string) []string {
+	if s.runtime == nil {
+		return nil
+	}
+	return s.runtime.GetRunningRoundIDs(sessionKey)
+}
+
 func mergeSessions(fileSessions []Session, roomSessions []Session) []Session {
 	merged := make(map[string]Session, len(fileSessions)+len(roomSessions))
 	for _, item := range fileSessions {
 		merged[item.SessionKey] = normalizeSession(item)
 	}
 	for _, item := range roomSessions {
-		// 中文注释：Room SQL 视图必须覆盖文件侧同 key 残留，避免前端渲染重复会话。
+		// Room SQL 视图必须覆盖文件侧同 key 残留，避免前端渲染重复会话。
 		merged[item.SessionKey] = normalizeSession(item)
 	}
 

@@ -12,12 +12,13 @@ package connectors
 import (
 	"context"
 	"database/sql"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
 	"net/url"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"

@@ -61,7 +61,7 @@ func scoreEntry(target *Entry, candidate *Entry) float64 {
 		return 0
 	}
 
-	// 中文注释：这里同时看词项重叠和编辑距离相似度，
+	// 这里同时看词项重叠和编辑距离相似度，
 	// 既避免中文短句只靠空格分词失真，也避免英文长句完全靠字符比较。
 	left := normalizeEntryText(target)
 	right := normalizeEntryText(candidate)

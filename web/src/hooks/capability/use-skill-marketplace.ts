@@ -12,14 +12,9 @@ import {
   update_single_skill_api,
 } from "@/lib/api/skill-api";
 import type { ExternalSkillSearchItem, SkillActionFailure, SkillInfo } from "@/types/capability/skill";
+import type { DiscoveryMode, SkillMarketplaceController } from "@/features/capability/skills/skills-view-model";
 
-export type DiscoveryMode = "catalog" | "external";
-
-export function format_installs(n: number) {
-  return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : `${n}`;
-}
-
-export function useSkillMarketplace() {
+export function useSkillMarketplace(): SkillMarketplaceController {
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [search_query, set_search_query] = useState("");
   const [debounced_search_query, set_debounced_search_query] = useState("");
@@ -315,5 +310,3 @@ export function useSkillMarketplace() {
     handle_import_external,
   };
 }
-
-export type SkillMarketplaceController = ReturnType<typeof useSkillMarketplace>;

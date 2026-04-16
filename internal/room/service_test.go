@@ -5,39 +5,62 @@
 // 2026/04/10 23:22:00   Create
 // =====================================================
 
-package room
+package room_test
 
 import (
 	"context"
 	"database/sql"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	"github.com/nexus-research-lab/nexus-core/internal/roomdomain"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
-	workspace2 "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	"github.com/nexus-research-lab/nexus/internal/session"
+	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 )
+
+type CreateRoomRequest = roomsvc.CreateRoomRequest
+type UpdateRoomRequest = roomsvc.UpdateRoomRequest
+type AddRoomMemberRequest = roomsvc.AddRoomMemberRequest
+type CreateConversationRequest = roomsvc.CreateConversationRequest
+
+const (
+	RoomTypeDM            = roomsvc.RoomTypeDM
+	RoomTypeGroup         = roomsvc.RoomTypeGroup
+	ConversationTypeMain  = roomsvc.ConversationTypeMain
+	ConversationTypeTopic = roomsvc.ConversationTypeTopic
+)
+
+func findConversationContext(
+	contexts []roomsvc.ConversationContextAggregate,
+	conversationID string,
+) (roomsvc.ConversationContextAggregate, bool) {
+	for _, item := range contexts {
+		if item.Conversation.ID == conversationID {
+			return item, true
+		}
+	}
+	return roomsvc.ConversationContextAggregate{}, false
+}
 
 func TestRoomServiceLifecycle(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agent2.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
@@ -53,10 +76,10 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
-	if mainContext.Room.RoomType != roomdomain.RoomTypeGroup {
+	if mainContext.Room.RoomType != RoomTypeGroup {
 		t.Fatalf("room_type 不正确: %s", mainContext.Room.RoomType)
 	}
-	if mainContext.Conversation.ConversationType != roomdomain.ConversationTypeMain {
+	if mainContext.Conversation.ConversationType != ConversationTypeMain {
 		t.Fatalf("主对话类型不正确: %s", mainContext.Conversation.ConversationType)
 	}
 	if len(mainContext.Members) != 3 {
@@ -95,7 +118,7 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 topic 失败: %v", err)
 	}
-	if topicContext.Conversation.ConversationType != roomdomain.ConversationTypeTopic {
+	if topicContext.Conversation.ConversationType != ConversationTypeTopic {
 		t.Fatalf("topic 类型不正确: %s", topicContext.Conversation.ConversationType)
 	}
 	if len(topicContext.Sessions) != 2 {
@@ -124,7 +147,7 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("删除 topic 失败: %v", err)
 	}
-	if fallbackContext.Conversation.ConversationType != roomdomain.ConversationTypeMain {
+	if fallbackContext.Conversation.ConversationType != ConversationTypeMain {
 		t.Fatalf("删除 topic 后未回退到主对话: %s", fallbackContext.Conversation.ConversationType)
 	}
 
@@ -132,7 +155,7 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建直聊失败: %v", err)
 	}
-	if dmContext.Room.RoomType != roomdomain.RoomTypeDM {
+	if dmContext.Room.RoomType != RoomTypeDM {
 		t.Fatalf("直聊类型不正确: %s", dmContext.Room.RoomType)
 	}
 	if len(dmContext.Sessions) != 1 {
@@ -140,15 +163,87 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 }
 
+func TestRoomServiceAllowsMainAgentDirectRoom(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	if err = agentService.EnsureReady(ctx); err != nil {
+		t.Fatalf("初始化主智能体失败: %v", err)
+	}
+
+	dmContext, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("主智能体直聊创建失败: %v", err)
+	}
+	if dmContext.Room.RoomType != RoomTypeDM {
+		t.Fatalf("主智能体直聊类型不正确: got=%s", dmContext.Room.RoomType)
+	}
+	if len(dmContext.Sessions) != 1 {
+		t.Fatalf("主智能体直聊 session 数量不正确: got=%d want=1", len(dmContext.Sessions))
+	}
+	if dmContext.Sessions[0].AgentID != cfg.DefaultAgentID {
+		t.Fatalf("主智能体直聊 session agent_id 不正确: got=%s want=%s", dmContext.Sessions[0].AgentID, cfg.DefaultAgentID)
+	}
+
+	reusedContext, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("复用主智能体直聊失败: %v", err)
+	}
+	if reusedContext.Room.ID != dmContext.Room.ID {
+		t.Fatalf("主智能体直聊未复用既有 room: got=%s want=%s", reusedContext.Room.ID, dmContext.Room.ID)
+	}
+	if reusedContext.Conversation.ID != dmContext.Conversation.ID {
+		t.Fatalf("主智能体直聊未复用既有对话: got=%s want=%s", reusedContext.Conversation.ID, dmContext.Conversation.ID)
+	}
+}
+
+func TestRoomServiceRejectsMainAgentAsGroupMember(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "分组测试助手A")
+
+	if _, err = roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{cfg.DefaultAgentID, agentA.AgentID},
+	}); err == nil {
+		t.Fatal("group room 不应允许主智能体作为成员")
+	}
+	if _, err = roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{cfg.DefaultAgentID},
+	}); err == nil {
+		t.Fatal("仅主智能体不应创建 group room")
+	}
+}
+
 func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agent2.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := NewService(cfg)
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -273,7 +368,7 @@ func seedRoomPrivateSession(
 
 	sessionKey := protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType)
 	now := time.Now().UTC()
-	if _, err := files.UpsertSession(workspacePath, sessiondomain.Session{
+	if _, err := files.UpsertSession(workspacePath, session.Session{
 		SessionKey:     sessionKey,
 		AgentID:        agentID,
 		ChannelType:    "websocket",
@@ -300,7 +395,7 @@ func seedRoomConversationLog(
 ) {
 	t.Helper()
 
-	if err := files.AppendRoomMessage(conversationID, sessiondomain.Message{
+	if err := files.AppendRoomMessage(conversationID, session.Message{
 		"message_id":      "seed_" + conversationID,
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
 		"room_id":         roomID,
@@ -312,6 +407,14 @@ func seedRoomConversationLog(
 	}); err != nil {
 		t.Fatalf("写入 room 共享日志失败: %v", err)
 	}
+}
+
+func stringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	copyValue := value
+	return &copyValue
 }
 
 func assertPathExists(t *testing.T, path string) {

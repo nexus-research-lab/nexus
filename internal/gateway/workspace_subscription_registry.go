@@ -11,10 +11,11 @@ package gateway
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	workspace2 "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"sync"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspace2 "github.com/nexus-research-lab/nexus/internal/workspace"
 )
 
 type runtimeSnapshot struct {

@@ -313,7 +313,8 @@ API 必须满足以下约束：
 - 保留 `/skills`
 - 保留 `/skills/{skill_name}`
 - 保留 `/agents/{agent_id}/skills`
-- 保留 `/agents/{agent_id}/skills` 的 install / uninstall / batch install / update-installed
+- 保留 `/agents/{agent_id}/skills` 的 install / uninstall
+- `batch install / update-installed / 单 skill update` 不属于当前 Go 主线现网流程，本轮不纳入实现，也不得在公开文档中宣称已支持
 - 保留 external import 与 update API
 - 移除 `/skills/{skill_name}/install`
 - 移除 `/skills/{skill_name}/global-enabled`

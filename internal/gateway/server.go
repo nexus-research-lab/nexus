@@ -11,24 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	authsvc "github.com/nexus-research-lab/nexus-core/internal/auth"
-	automationsvc "github.com/nexus-research-lab/nexus-core/internal/automation"
-	channels3 "github.com/nexus-research-lab/nexus-core/internal/channels"
-	chatsvc "github.com/nexus-research-lab/nexus-core/internal/chat"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	connectorsvc "github.com/nexus-research-lab/nexus-core/internal/connectors"
-	"github.com/nexus-research-lab/nexus-core/internal/launcher"
-	"github.com/nexus-research-lab/nexus-core/internal/logx"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus-core/internal/providerconfig"
-	room2 "github.com/nexus-research-lab/nexus-core/internal/room"
-	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
-	sessionsvc "github.com/nexus-research-lab/nexus-core/internal/session"
-	skillsvc "github.com/nexus-research-lab/nexus-core/internal/skills"
-	"github.com/nexus-research-lab/nexus-core/internal/storage"
-	workspacepkg "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"io"
 	"log/slog"
 	"net/http"
@@ -36,6 +18,26 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
+	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	channels3 "github.com/nexus-research-lab/nexus/internal/channels"
+	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/launcher"
+	"github.com/nexus-research-lab/nexus/internal/logx"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	room2 "github.com/nexus-research-lab/nexus/internal/room"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
+	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
+	"github.com/nexus-research-lab/nexus/internal/storage"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -99,11 +101,11 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 	if err != nil {
 		return nil, err
 	}
-	agentService := agent2.NewServiceWithDB(cfg, db)
+	agentService := bootstrap.NewAgentServiceWithDB(cfg, db)
 	authService := authsvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
-	roomService := room2.NewServiceWithDB(cfg, db)
-	sessionService := sessionsvc.NewServiceWithDB(cfg, db, agentService)
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	skillService := skillsvc.NewService(cfg, agentService, workspaceService)
 	connectorService := connectorsvc.NewService(cfg, db)
@@ -123,6 +125,7 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 	roomRealtime.SetProviderResolver(providerService)
 	roomSubs := newRoomSubscriptionRegistry(128)
 	roomRealtime.SetRoomBroadcaster(roomSubs)
+	sessionService.SetRuntimeManager(runtimeManager)
 	workspaceSubs := newWorkspaceSubscriptionRegistry(workspaceService, func(agentID string) runtimeSnapshot {
 		runningCount := runtimeManager.CountRunningRounds(agentID)
 		if roomRealtime != nil {
@@ -180,7 +183,13 @@ func (s *Server) Router() http.Handler {
 // ListenAndServe 启动 http 服务。
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.channels != nil {
-		s.baseLogger().Info("启动通道适配器")
+		s.baseLogger().Info("启动通道适配器",
+			"discord_enabled", s.config.DiscordEnabled,
+			"discord_configured", strings.TrimSpace(s.config.DiscordBotToken) != "",
+			"telegram_enabled", s.config.TelegramEnabled,
+			"telegram_configured", strings.TrimSpace(s.config.TelegramBotToken) != "",
+			"registered_channels", s.channels.RegisteredChannelTypes(),
+		)
 		if err := s.channels.Start(ctx); err != nil {
 			s.baseLogger().Error("启动通道适配器失败", "err", err)
 			return err
@@ -335,12 +344,18 @@ func (s *Server) handleRuntimeOptions(writer http.ResponseWriter, request *http.
 		s.writeFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	defaultProvider, err := s.providers.DefaultProvider(request.Context())
+	if err != nil {
+		s.writeFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.writeJSON(writer, http.StatusOK, map[string]any{
 		"code":    "0000",
 		"message": "success",
 		"success": true,
 		"data": map[string]any{
-			"default_agent_id": s.config.DefaultAgentID,
+			"default_agent_id":       s.config.DefaultAgentID,
+			"default_agent_provider": defaultProvider,
 		},
 	})
 }

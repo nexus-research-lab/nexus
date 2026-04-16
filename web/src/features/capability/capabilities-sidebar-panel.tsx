@@ -10,6 +10,7 @@
 import {
   Calendar,
   Link2,
+  type LucideIcon,
   Puzzle,
   Radio,
   Users2,
@@ -28,6 +29,14 @@ import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
 import { SkillInfo } from "@/types/capability/skill";
 
 const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
+
+interface CapabilitySidebarItem {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  meta: string;
+  path: string;
+}
 
 export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent() {
   const { t } = useI18n();
@@ -92,63 +101,69 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
 
   const channel_count = 0;
   const pairing_count = 0;
+  const capability_items = useMemo<CapabilitySidebarItem[]>(() => [
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.skills,
+      icon: Puzzle,
+      label: t("capability.skills"),
+      meta: String(skill_count),
+      path: AppRouteBuilders.skills(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.connectors,
+      icon: Link2,
+      label: t("capability.connectors"),
+      meta: String(connector_count),
+      path: AppRouteBuilders.connectors(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks,
+      icon: Calendar,
+      label: t("capability.scheduled"),
+      meta: String(scheduled_task_enabled_count),
+      path: AppRouteBuilders.scheduled_tasks(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.channels,
+      icon: Radio,
+      label: t("capability.channels"),
+      meta: String(channel_count),
+      path: AppRouteBuilders.channels(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.pairings,
+      icon: Users2,
+      label: t("capability.pairings"),
+      meta: String(pairing_count),
+      path: AppRouteBuilders.pairings(),
+    },
+  ], [
+    channel_count,
+    connector_count,
+    pairing_count,
+    scheduled_task_enabled_count,
+    skill_count,
+    t,
+  ]);
 
   return (
     <Fragment>
-      <SidebarListItem
-        icon={<Puzzle className="h-4 w-4" />}
-        is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.skills}
-        label={t("capability.skills")}
-        meta={String(skill_count)}
-        on_click={() => {
-          set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
-          navigate(AppRouteBuilders.skills());
-        }}
-      />
-
-      <SidebarListItem
-        icon={<Link2 className="h-4 w-4" />}
-        is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.connectors}
-        label={t("capability.connectors")}
-        meta={String(connector_count)}
-        on_click={() => {
-          set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.connectors);
-          navigate(AppRouteBuilders.connectors());
-        }}
-      />
-
-      <SidebarListItem
-        icon={<Calendar className="h-4 w-4" />}
-        is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks}
-        label={t("capability.scheduled")}
-        meta={String(scheduled_task_enabled_count)}
-        on_click={() => {
-          set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks);
-          navigate(AppRouteBuilders.scheduled_tasks());
-        }}
-      />
-
-      <SidebarListItem
-        icon={<Radio className="h-4 w-4" />}
-        is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.channels}
-        label={t("capability.channels")}
-        meta={String(channel_count)}
-        on_click={() => {
-          set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.channels);
-          navigate(AppRouteBuilders.channels());
-        }}
-      />
-
-      <SidebarListItem
-        icon={<Users2 className="h-4 w-4" />}
-        is_active={active_panel_item_id === SIDEBAR_CAPABILITY_ITEM_IDS.pairings}
-        label={t("capability.pairings")}
-        meta={String(pairing_count)}
-        on_click={() => {
-          set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.pairings);
-          navigate(AppRouteBuilders.pairings());
-        }}
-      />
+      {capability_items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <SidebarListItem
+            icon={<Icon className="h-4 w-4" />}
+            is_active={active_panel_item_id === item.id}
+            key={item.id}
+            label={item.label}
+            meta={item.meta}
+            on_click={() => {
+              set_active_panel_item(item.id);
+              navigate(item.path);
+            }}
+          />
+        );
+      })}
     </Fragment>
   );
 });

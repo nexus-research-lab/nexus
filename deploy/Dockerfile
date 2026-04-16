@@ -7,11 +7,11 @@ LABEL authors="leemysw"
 LABEL description="Nexus"
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    CGO_ENABLED=1 \
-    GOFLAGS=-mod=vendor
+    CGO_ENABLED=1
 
 ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG GOPROXY=https://goproxy.cn,direct
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
 
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -33,12 +33,17 @@ RUN --mount=type=cache,target=/var/cache/apt \
 WORKDIR /src
 
 COPY go.mod go.sum /src/
-COPY vendor /src/vendor
+
+ENV GOPROXY=${GOPROXY}
+
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go mod edit -dropreplace github.com/nexus-research-lab/nexus-agent-sdk-go || true && \
+    go mod download
+
 COPY cmd /src/cmd
 COPY internal /src/internal
 COPY db /src/db
-
-RUN go mod edit -dropreplace github.com/nexus-research-lab/nexus-agent-sdk-go || true
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
@@ -70,10 +75,13 @@ RUN --mount=type=cache,target=/var/cache/apt \
     bash \
     ca-certificates \
     curl \
-    git && \
+    git \
+    jq \
+    sudo && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm config set registry "${NPM_REGISTRY}" && \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm config set registry "${NPM_REGISTRY}" && \
     npm install -g @anthropic-ai/claude-code --registry "${NPM_REGISTRY}" && \
     npm cache clean --force
 
@@ -87,9 +95,18 @@ COPY --from=builder /out/nexus-server /usr/local/bin/nexus-server
 COPY --from=builder /out/nexus-migrate /usr/local/bin/nexus-migrate
 COPY db /opt/app/db
 COPY skills /opt/app/skills
-COPY deploy/init-db.sh /opt/app/deploy/init-db.sh
+COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
+COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
 
-RUN chmod +x /opt/app/deploy/init-db.sh && \
+RUN chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
+    chown root:root /usr/local/bin/nexus-apt-install && \
+    printf '%s\n' \
+    'Defaults:agent !requiretty' \
+    'Defaults:agent env_keep += "NEXUS_APT_ALLOWLIST"' \
+    'agent ALL=(root) NOPASSWD: /usr/local/bin/nexus-apt-install' \
+    > /etc/sudoers.d/nexus-agent && \
+    chmod 0440 /etc/sudoers.d/nexus-agent && \
+    visudo -cf /etc/sudoers.d/nexus-agent && \
     chown -R agent:agent /opt/app /home/agent
 
 USER agent
@@ -97,5 +114,5 @@ ENV HOME=/home/agent
 
 EXPOSE 8010
 
-ENTRYPOINT ["/opt/app/deploy/init-db.sh"]
+ENTRYPOINT ["/opt/app/deploy/entrypoint.sh"]
 CMD ["nexus-server"]

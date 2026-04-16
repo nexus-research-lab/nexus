@@ -11,9 +11,10 @@ package gateway
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"sort"
 	"sync"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type roomEventSender interface {

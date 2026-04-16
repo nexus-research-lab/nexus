@@ -38,7 +38,6 @@ type Config struct {
 	NpmRegistry                    string
 	SkillsAPIURL                   string
 	SkillsAPISearchLimit           int
-	MainAgentModel                 string
 	DatabaseDriver                 string
 	DatabaseURL                    string
 	AccessToken                    string
@@ -46,7 +45,9 @@ type Config struct {
 	AuthCookieSameSite             string
 	AuthCookieSecure               bool
 	AuthSessionTTLHours            int
+	DiscordEnabled                 bool
 	DiscordBotToken                string
+	TelegramEnabled                bool
 	TelegramBotToken               string
 	ConnectorOAuthRedirectURI      string
 	ConnectorGitHubClientID        string
@@ -70,9 +71,10 @@ func (c Config) Address() string {
 
 // Load 读取环境变量并构建配置。
 func Load() Config {
-	cacheDir := getenv("CACHE_FILE_DIR", "cache")
-	debug := mustBool(getenv("DEBUG", "false"))
-	logLevel := strings.TrimSpace(getenv("LOG_LEVEL", ""))
+	_ = LoadDotEnv()
+	cacheDir := getEnv("CACHE_FILE_DIR", "cache")
+	debug := mustBool(getEnv("DEBUG", "false"))
+	logLevel := strings.TrimSpace(getEnv("LOG_LEVEL", ""))
 	if logLevel == "" {
 		if debug {
 			logLevel = "debug"
@@ -80,64 +82,65 @@ func Load() Config {
 			logLevel = "info"
 		}
 	}
-	logFormat := strings.TrimSpace(getenv("LOG_FORMAT", ""))
+	logFormat := strings.TrimSpace(getEnv("LOG_FORMAT", ""))
 	if logFormat == "" {
 		if debug {
-			logFormat = "text"
+			logFormat = "pretty"
 		} else {
 			logFormat = "json"
 		}
 	}
 	return Config{
-		Host:                           getenv("HOST", "0.0.0.0"),
-		Port:                           mustInt(getenv("PORT", "8010")),
+		Host:                           getEnv("HOST", "0.0.0.0"),
+		Port:                           mustInt(getEnv("PORT", "8010")),
 		Debug:                          debug,
-		ProjectName:                    getenv("PROJECT_NAME", "nexus"),
+		ProjectName:                    getEnv("PROJECT_NAME", "nexus"),
 		LogLevel:                       logLevel,
 		LogFormat:                      logFormat,
-		LogPath:                        getenv("LOG_PATH", "~/.nexus/logs/logger.log"),
-		LogStdout:                      mustBool(getenv("LOG_STDOUT", "true")),
-		LogFileEnabled:                 mustBool(getenv("LOG_FILE_ENABLED", "true")),
-		LogRotateDaily:                 mustBool(getenv("LOG_ROTATE_DAILY", "true")),
-		LogMaxSizeMB:                   mustInt(getenv("LOG_MAX_SIZE_MB", "10")),
-		LogMaxAgeDays:                  mustInt(getenv("LOG_MAX_AGE_DAYS", "7")),
-		LogMaxBackups:                  mustInt(getenv("LOG_MAX_BACKUPS", "7")),
-		LogCompress:                    mustBool(getenv("LOG_COMPRESS", "true")),
-		APIPrefix:                      getenv("API_PREFIX", "/agent/v1"),
-		WebSocketPath:                  getenv("WEBSOCKET_PATH", "/agent/v1/chat/ws"),
-		DefaultAgentID:                 getenv("DEFAULT_AGENT_ID", "nexus"),
-		WorkspacePath:                  getenv("WORKSPACE_PATH", ""),
+		LogPath:                        getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
+		LogStdout:                      mustBool(getEnv("LOG_STDOUT", "true")),
+		LogFileEnabled:                 mustBool(getEnv("LOG_FILE_ENABLED", "true")),
+		LogRotateDaily:                 mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
+		LogMaxSizeMB:                   mustInt(getEnv("LOG_MAX_SIZE_MB", "10")),
+		LogMaxAgeDays:                  mustInt(getEnv("LOG_MAX_AGE_DAYS", "7")),
+		LogMaxBackups:                  mustInt(getEnv("LOG_MAX_BACKUPS", "7")),
+		LogCompress:                    mustBool(getEnv("LOG_COMPRESS", "true")),
+		APIPrefix:                      getEnv("API_PREFIX", "/agent/v1"),
+		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/agent/v1/chat/ws"),
+		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),
+		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
-		NpmRegistry:                    getenv("NPM_REGISTRY", ""),
-		SkillsAPIURL:                   getenv("SKILLS_API_URL", "https://skills.sh"),
-		SkillsAPISearchLimit:           mustInt(getenv("SKILLS_API_SEARCH_LIMIT", "20")),
-		MainAgentModel:                 getenv("MAIN_AGENT_MODEL", getenv("DEFAULT_MODEL", "")),
-		DatabaseDriver:                 getenv("DATABASE_DRIVER", "sqlite"),
-		DatabaseURL:                    getenv("DATABASE_URL", "~/.nexus/data/nexus.db"),
-		AccessToken:                    getenv("ACCESS_TOKEN", ""),
-		AuthSessionCookieName:          getenv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
-		AuthCookieSameSite:             getenv("AUTH_COOKIE_SAMESITE", "lax"),
-		AuthCookieSecure:               mustBool(getenv("AUTH_COOKIE_SECURE", "false")),
-		AuthSessionTTLHours:            mustInt(getenv("AUTH_SESSION_TTL_HOURS", "24")),
-		DiscordBotToken:                getenv("DISCORD_BOT_TOKEN", ""),
-		TelegramBotToken:               getenv("TELEGRAM_BOT_TOKEN", ""),
-		ConnectorOAuthRedirectURI:      getenv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors"),
-		ConnectorGitHubClientID:        getenv("CONNECTOR_GITHUB_CLIENT_ID", ""),
-		ConnectorGitHubClientSecret:    getenv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
-		ConnectorGoogleClientID:        getenv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
-		ConnectorGoogleClientSecret:    getenv("CONNECTOR_GOOGLE_CLIENT_SECRET", ""),
-		ConnectorLinkedInClientID:      getenv("CONNECTOR_LINKEDIN_CLIENT_ID", ""),
-		ConnectorLinkedInClientSecret:  getenv("CONNECTOR_LINKEDIN_CLIENT_SECRET", ""),
-		ConnectorTwitterClientID:       getenv("CONNECTOR_TWITTER_CLIENT_ID", ""),
-		ConnectorTwitterClientSecret:   getenv("CONNECTOR_TWITTER_CLIENT_SECRET", ""),
-		ConnectorInstagramClientID:     getenv("CONNECTOR_INSTAGRAM_CLIENT_ID", ""),
-		ConnectorInstagramClientSecret: getenv("CONNECTOR_INSTAGRAM_CLIENT_SECRET", ""),
-		ConnectorShopifyClientID:       getenv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
-		ConnectorShopifyClientSecret:   getenv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
+		NpmRegistry:                    getEnv("NPM_REGISTRY", ""),
+		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
+		SkillsAPISearchLimit:           mustInt(getEnv("SKILLS_API_SEARCH_LIMIT", "20")),
+		DatabaseDriver:                 getEnv("DATABASE_DRIVER", "sqlite"),
+		DatabaseURL:                    getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
+		AccessToken:                    getEnv("ACCESS_TOKEN", ""),
+		AuthSessionCookieName:          getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		AuthCookieSameSite:             getEnv("AUTH_COOKIE_SAMESITE", "lax"),
+		AuthCookieSecure:               mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
+		AuthSessionTTLHours:            mustInt(getEnv("AUTH_SESSION_TTL_HOURS", "24")),
+		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
+		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
+		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),
+		TelegramBotToken:               getEnv("TELEGRAM_BOT_TOKEN", ""),
+		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors"),
+		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
+		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
+		ConnectorGoogleClientID:        getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
+		ConnectorGoogleClientSecret:    getEnv("CONNECTOR_GOOGLE_CLIENT_SECRET", ""),
+		ConnectorLinkedInClientID:      getEnv("CONNECTOR_LINKEDIN_CLIENT_ID", ""),
+		ConnectorLinkedInClientSecret:  getEnv("CONNECTOR_LINKEDIN_CLIENT_SECRET", ""),
+		ConnectorTwitterClientID:       getEnv("CONNECTOR_TWITTER_CLIENT_ID", ""),
+		ConnectorTwitterClientSecret:   getEnv("CONNECTOR_TWITTER_CLIENT_SECRET", ""),
+		ConnectorInstagramClientID:     getEnv("CONNECTOR_INSTAGRAM_CLIENT_ID", ""),
+		ConnectorInstagramClientSecret: getEnv("CONNECTOR_INSTAGRAM_CLIENT_SECRET", ""),
+		ConnectorShopifyClientID:       getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
+		ConnectorShopifyClientSecret:   getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
 	}
 }
 
-func getenv(key string, fallback string) string {
+func getEnv(key string, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok && value != "" {
 		return value
 	}

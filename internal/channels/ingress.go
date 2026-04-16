@@ -12,14 +12,15 @@ package channels
 import (
 	"context"
 	"errors"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	chatsvc "github.com/nexus-research-lab/nexus-core/internal/chat"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/logx"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"log/slog"
 	"strings"
 	"unicode/utf8"
+
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/logx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -347,7 +348,7 @@ func (s *IngressService) buildPermissionHandler(
 		if toolName == "" {
 			return sdkprotocol.DenyPermission("permission tool_name is required", true), nil
 		}
-		// 中文注释：外部通道没有前端问答能力，AskUserQuestion 必须直接拒绝，
+		// 外部通道没有前端问答能力，AskUserQuestion 必须直接拒绝，
 		// 否则 SDK 会卡在等待人工输入，导致整个会话超时。
 		if toolName == "AskUserQuestion" {
 			return sdkprotocol.DenyPermission("当前通道不支持交互式问题确认", true), nil

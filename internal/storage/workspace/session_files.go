@@ -14,13 +14,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 )
 
 // SessionFileStore 负责 workspace 侧会话文件读写。
@@ -41,22 +42,22 @@ func (s *SessionFileStore) RoomConversationMessagePath(conversationID string) st
 }
 
 // AppendRoomMessage 追加一条 Room 共享消息。
-func (s *SessionFileStore) AppendRoomMessage(conversationID string, message sessiondomain.Message) error {
+func (s *SessionFileStore) AppendRoomMessage(conversationID string, message sessionmodel.Message) error {
 	return s.appendJSONL(s.paths.RoomConversationMessagePath(conversationID), message)
 }
 
 // ListSessions 读取某个 workspace 下的全部文件会话。
-func (s *SessionFileStore) ListSessions(workspacePath string) ([]sessiondomain.Session, error) {
+func (s *SessionFileStore) ListSessions(workspacePath string) ([]sessionmodel.Session, error) {
 	sessionRoot := filepath.Join(workspacePath, ".agents", "sessions")
 	entries, err := os.ReadDir(sessionRoot)
 	if errors.Is(err, os.ErrNotExist) {
-		return []sessiondomain.Session{}, nil
+		return []sessionmodel.Session{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]sessiondomain.Session, 0, len(entries))
+	result := make([]sessionmodel.Session, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -78,7 +79,7 @@ func (s *SessionFileStore) ListSessions(workspacePath string) ([]sessiondomain.S
 }
 
 // FindSession 在多个 workspace 中定位单个 session。
-func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey string) (*sessiondomain.Session, string, error) {
+func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey string) (*sessionmodel.Session, string, error) {
 	for _, workspacePath := range workspacePaths {
 		metaPath := s.paths.SessionMetaPath(workspacePath, sessionKey)
 		item, err := s.readSessionMeta(metaPath)
@@ -94,14 +95,14 @@ func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey strin
 }
 
 // UpsertSession 创建或更新 session meta。
-func (s *SessionFileStore) UpsertSession(workspacePath string, item sessiondomain.Session) (*sessiondomain.Session, error) {
+func (s *SessionFileStore) UpsertSession(workspacePath string, item sessionmodel.Session) (*sessionmodel.Session, error) {
 	metaPath := s.paths.SessionMetaPath(workspacePath, item.SessionKey)
 	messagePath := s.paths.SessionMessagePath(workspacePath, item.SessionKey)
 	if err := os.MkdirAll(filepath.Dir(metaPath), 0o755); err != nil {
 		return nil, err
 	}
 
-	// 中文注释：这里直接以 Go 模型作为 meta 真相源，避免再复制一套弱类型结构。
+	// 这里直接以 Go 模型作为 meta 真相源，避免再复制一套弱类型结构。
 	payload, err := json.MarshalIndent(item, "", "  ")
 	if err != nil {
 		return nil, err
@@ -149,7 +150,7 @@ func (s *SessionFileStore) DeleteRoomConversation(conversationID string) (bool, 
 }
 
 // AppendSessionMessage 追加一条完整消息到 messages.jsonl。
-func (s *SessionFileStore) AppendSessionMessage(workspacePath string, sessionKey string, message sessiondomain.Message) error {
+func (s *SessionFileStore) AppendSessionMessage(workspacePath string, sessionKey string, message sessionmodel.Message) error {
 	return s.appendJSONL(s.paths.SessionMessagePath(workspacePath, sessionKey), message)
 }
 
@@ -159,7 +160,12 @@ func (s *SessionFileStore) AppendSessionCost(workspacePath string, sessionKey st
 }
 
 // ReadSessionMessages 读取 workspace 会话消息。
-func (s *SessionFileStore) ReadSessionMessages(workspacePaths []string, sessionKey string) ([]sessiondomain.Message, error) {
+func (s *SessionFileStore) ReadSessionMessages(workspacePaths []string, sessionKey string) ([]sessionmodel.Message, error) {
+	return s.ReadSessionMessagesWithActiveRounds(workspacePaths, sessionKey, nil)
+}
+
+// ReadSessionMessagesWithActiveRounds 读取 workspace 会话消息，并按活跃 round 归一化历史。
+func (s *SessionFileStore) ReadSessionMessagesWithActiveRounds(workspacePaths []string, sessionKey string, activeRoundIDs []string) ([]sessionmodel.Message, error) {
 	for _, workspacePath := range workspacePaths {
 		rows, err := s.readMessagesFromPath(s.paths.SessionMessagePath(workspacePath, sessionKey))
 		if errors.Is(err, os.ErrNotExist) {
@@ -168,25 +174,42 @@ func (s *SessionFileStore) ReadSessionMessages(workspacePaths []string, sessionK
 		if err != nil {
 			return nil, err
 		}
-		return compactMessages(rows), nil
+		return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
 	}
-	return []sessiondomain.Message{}, nil
+	return []sessionmodel.Message{}, nil
 }
 
 // ReadRoomMessages 读取 Room 共享流历史。
-func (s *SessionFileStore) ReadRoomMessages(logPath string) ([]sessiondomain.Message, error) {
+func (s *SessionFileStore) ReadRoomMessages(logPath string) ([]sessionmodel.Message, error) {
+	return s.ReadRoomMessagesWithActiveRounds(logPath, nil)
+}
+
+// ReadRoomMessagesWithActiveRounds 读取 Room 共享流历史，并按活跃 round 归一化历史。
+func (s *SessionFileStore) ReadRoomMessagesWithActiveRounds(logPath string, activeRoundIDs []string) ([]sessionmodel.Message, error) {
 	rows, err := s.readMessagesFromPath(logPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return []sessiondomain.Message{}, nil
+		return []sessionmodel.Message{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return compactMessages(rows), nil
+	return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+}
+
+// RefreshSessionMeta 根据消息日志刷新 session meta。
+func (s *SessionFileStore) RefreshSessionMeta(workspacePath string, sessionKey string, current sessionmodel.Session) (*sessionmodel.Session, error) {
+	rows, err := s.readMessagesFromPath(s.paths.SessionMessagePath(workspacePath, sessionKey))
+	if errors.Is(err, os.ErrNotExist) {
+		return s.UpsertSession(workspacePath, current)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.UpsertSession(workspacePath, refreshSessionMetaFromMessages(current, rows))
 }
 
 // ReadSessionCostSummary 读取或回算 Session 成本汇总。
-func (s *SessionFileStore) ReadSessionCostSummary(workspacePaths []string, sessionKey string, fallbackAgentID string) (sessiondomain.CostSummary, error) {
+func (s *SessionFileStore) ReadSessionCostSummary(workspacePaths []string, sessionKey string, fallbackAgentID string) (sessionmodel.CostSummary, error) {
 	for _, workspacePath := range workspacePaths {
 		summaryPath := s.paths.SessionCostSummaryPath(workspacePath, sessionKey)
 		item, err := s.readCostSummaryFile(summaryPath)
@@ -196,7 +219,7 @@ func (s *SessionFileStore) ReadSessionCostSummary(workspacePaths []string, sessi
 				continue
 			}
 			if logErr != nil {
-				return sessiondomain.CostSummary{}, logErr
+				return sessionmodel.CostSummary{}, logErr
 			}
 			if len(logRows) == 0 {
 				continue
@@ -204,7 +227,7 @@ func (s *SessionFileStore) ReadSessionCostSummary(workspacePaths []string, sessi
 			return buildCostSummaryFromRows(sessionKey, fallbackAgentID, logRows), nil
 		}
 		if err != nil {
-			return sessiondomain.CostSummary{}, err
+			return sessionmodel.CostSummary{}, err
 		}
 		if strings.TrimSpace(item.AgentID) == "" {
 			item.AgentID = strings.TrimSpace(fallbackAgentID)
@@ -217,14 +240,14 @@ func (s *SessionFileStore) ReadSessionCostSummary(workspacePaths []string, sessi
 	return defaultCostSummary(sessionKey, fallbackAgentID), nil
 }
 
-func (s *SessionFileStore) readSessionMeta(metaPath string) (sessiondomain.Session, error) {
+func (s *SessionFileStore) readSessionMeta(metaPath string) (sessionmodel.Session, error) {
 	payload, err := os.ReadFile(metaPath)
 	if err != nil {
-		return sessiondomain.Session{}, err
+		return sessionmodel.Session{}, err
 	}
-	var item sessiondomain.Session
+	var item sessionmodel.Session
 	if err = json.Unmarshal(payload, &item); err != nil {
-		return sessiondomain.Session{}, err
+		return sessionmodel.Session{}, err
 	}
 	if item.Options == nil {
 		item.Options = map[string]any{}
@@ -253,14 +276,14 @@ func (s *SessionFileStore) readSessionMeta(metaPath string) (sessiondomain.Sessi
 	return item, nil
 }
 
-func (s *SessionFileStore) readMessagesFromPath(path string) ([]sessiondomain.Message, error) {
+func (s *SessionFileStore) readMessagesFromPath(path string) ([]sessionmodel.Message, error) {
 	rows, err := s.readJSONL(path)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]sessiondomain.Message, 0, len(rows))
+	result := make([]sessionmodel.Message, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, sessiondomain.Message(row))
+		result = append(result, sessionmodel.Message(row))
 	}
 	return result, nil
 }
@@ -311,14 +334,14 @@ func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
 	return rows, reader.Err()
 }
 
-func (s *SessionFileStore) readCostSummaryFile(path string) (sessiondomain.CostSummary, error) {
+func (s *SessionFileStore) readCostSummaryFile(path string) (sessionmodel.CostSummary, error) {
 	payload, err := os.ReadFile(path)
 	if err != nil {
-		return sessiondomain.CostSummary{}, err
+		return sessionmodel.CostSummary{}, err
 	}
-	var item sessiondomain.CostSummary
+	var item sessionmodel.CostSummary
 	if err = json.Unmarshal(payload, &item); err != nil {
-		return sessiondomain.CostSummary{}, err
+		return sessionmodel.CostSummary{}, err
 	}
 	if item.UpdatedAt.IsZero() {
 		item.UpdatedAt = time.Now().UTC()
@@ -326,21 +349,25 @@ func (s *SessionFileStore) readCostSummaryFile(path string) (sessiondomain.CostS
 	return item, nil
 }
 
-func compactMessages(rows []sessiondomain.Message) []sessiondomain.Message {
-	latestByID := make(map[string]sessiondomain.Message, len(rows))
+func compactMessages(rows []sessionmodel.Message) []sessionmodel.Message {
+	latestByID := make(map[string]sessionmodel.Message, len(rows))
 	order := make([]string, 0, len(rows))
 	for _, row := range rows {
 		messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
 		if messageID == "" {
 			continue
 		}
+		if current, exists := latestByID[messageID]; exists {
+			latestByID[messageID] = mergeCompactedMessage(current, cloneMessage(row))
+			continue
+		}
 		if _, exists := latestByID[messageID]; !exists {
 			order = append(order, messageID)
 		}
-		latestByID[messageID] = row
+		latestByID[messageID] = cloneMessage(row)
 	}
 
-	compacted := make([]sessiondomain.Message, 0, len(order))
+	compacted := make([]sessionmodel.Message, 0, len(order))
 	for _, messageID := range order {
 		compacted = append(compacted, latestByID[messageID])
 	}
@@ -350,8 +377,205 @@ func compactMessages(rows []sessiondomain.Message) []sessiondomain.Message {
 	return compacted
 }
 
-func defaultCostSummary(sessionKey string, agentID string) sessiondomain.CostSummary {
-	return sessiondomain.CostSummary{
+func mergeCompactedMessage(current sessionmodel.Message, next sessionmodel.Message) sessionmodel.Message {
+	if strings.TrimSpace(stringFromAny(current["role"])) != "assistant" || strings.TrimSpace(stringFromAny(next["role"])) != "assistant" {
+		return next
+	}
+	return mergeAssistantSnapshots(current, next)
+}
+
+func mergeAssistantSnapshots(current sessionmodel.Message, next sessionmodel.Message) sessionmodel.Message {
+	merged := cloneMessage(current)
+
+	// assistant 快照属于同一条消息的增量物化，身份字段一旦建立就不应被后续快照改写。
+	identityKeys := []string{
+		"message_id",
+		"session_key",
+		"room_id",
+		"conversation_id",
+		"agent_id",
+		"round_id",
+		"parent_id",
+		"session_id",
+		"role",
+	}
+	for _, key := range identityKeys {
+		if strings.TrimSpace(stringFromAny(merged[key])) == "" && strings.TrimSpace(stringFromAny(next[key])) != "" {
+			merged[key] = next[key]
+		}
+	}
+
+	if content, ok := mergeAssistantContentBlocks(merged["content"], next["content"]); ok {
+		merged["content"] = content
+	} else if next["content"] != nil {
+		merged["content"] = next["content"]
+	}
+	if value := strings.TrimSpace(stringFromAny(next["model"])); value != "" {
+		merged["model"] = value
+	}
+	if value := strings.TrimSpace(stringFromAny(next["stop_reason"])); value != "" {
+		merged["stop_reason"] = value
+	}
+	if usage := normalizeMapValue(next["usage"]); len(usage) > 0 {
+		merged["usage"] = usage
+	}
+	if boolFromAny(current["is_complete"]) || boolFromAny(next["is_complete"]) {
+		merged["is_complete"] = true
+	}
+	if status := strings.TrimSpace(stringFromAny(next["stream_status"])); status != "" {
+		merged["stream_status"] = status
+	}
+	if ts := messageTimestamp(next); ts >= messageTimestamp(current) {
+		merged["timestamp"] = next["timestamp"]
+	}
+
+	// 其它非身份字段以后者为准，避免成本、终止原因、补充元数据被旧快照覆盖。
+	for key, value := range next {
+		switch key {
+		case "content",
+			"message_id",
+			"session_key",
+			"room_id",
+			"conversation_id",
+			"agent_id",
+			"round_id",
+			"parent_id",
+			"session_id",
+			"role",
+			"model",
+			"stop_reason",
+			"usage",
+			"is_complete",
+			"stream_status",
+			"timestamp":
+			continue
+		default:
+			merged[key] = value
+		}
+	}
+	return merged
+}
+
+func mergeAssistantContentBlocks(current any, next any) ([]map[string]any, bool) {
+	result := normalizeMessageContentBlocks(current)
+	incoming := normalizeMessageContentBlocks(next)
+	if result == nil && incoming == nil {
+		return nil, false
+	}
+	if len(result) == 0 {
+		return incoming, true
+	}
+	if len(incoming) == 0 {
+		return result, true
+	}
+	for _, block := range incoming {
+		result = upsertAssistantContentBlock(result, block)
+	}
+	return result, true
+}
+
+func normalizeMessageContentBlocks(raw any) []map[string]any {
+	switch typed := raw.(type) {
+	case []map[string]any:
+		return cloneMessageContentBlocks(typed)
+	case []any:
+		result := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			payload, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			result = append(result, cloneMessageMap(payload))
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
+func cloneMessageContentBlocks(blocks []map[string]any) []map[string]any {
+	if len(blocks) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(blocks))
+	for _, block := range blocks {
+		result = append(result, cloneMessageMap(block))
+	}
+	return result
+}
+
+func cloneMessageMap(payload map[string]any) map[string]any {
+	if len(payload) == 0 {
+		return nil
+	}
+	result := make(map[string]any, len(payload))
+	for key, value := range payload {
+		result[key] = value
+	}
+	return result
+}
+
+func upsertAssistantContentBlock(blocks []map[string]any, incoming map[string]any) []map[string]any {
+	block := cloneMessageMap(incoming)
+	if len(block) == 0 {
+		return blocks
+	}
+	incomingType := strings.TrimSpace(stringFromAny(block["type"]))
+	for index, current := range blocks {
+		currentType := strings.TrimSpace(stringFromAny(current["type"]))
+		if currentType != incomingType {
+			continue
+		}
+		switch incomingType {
+		case "thinking":
+			blocks[index] = block
+			return blocks
+		case "text":
+			blocks[index] = block
+			return blocks
+		case "tool_use":
+			if strings.TrimSpace(stringFromAny(current["id"])) == strings.TrimSpace(stringFromAny(block["id"])) {
+				blocks[index] = block
+				return blocks
+			}
+		case "tool_result":
+			if strings.TrimSpace(stringFromAny(current["tool_use_id"])) == strings.TrimSpace(stringFromAny(block["tool_use_id"])) {
+				blocks[index] = block
+				return blocks
+			}
+		case "task_progress":
+			if strings.TrimSpace(stringFromAny(current["task_id"])) == strings.TrimSpace(stringFromAny(block["task_id"])) {
+				blocks[index] = block
+				return blocks
+			}
+		default:
+			blocks[index] = block
+			return blocks
+		}
+	}
+	return append(blocks, block)
+}
+
+func normalizeMapValue(value any) map[string]any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneMessageMap(typed)
+	default:
+		return nil
+	}
+}
+
+func boolFromAny(value any) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	default:
+		return false
+	}
+}
+
+func defaultCostSummary(sessionKey string, agentID string) sessionmodel.CostSummary {
+	return sessionmodel.CostSummary{
 		AgentID:    strings.TrimSpace(agentID),
 		SessionKey: sessionKey,
 		SessionID:  "",
@@ -359,7 +583,7 @@ func defaultCostSummary(sessionKey string, agentID string) sessiondomain.CostSum
 	}
 }
 
-func buildCostSummaryFromRows(sessionKey string, fallbackAgentID string, rows []map[string]any) sessiondomain.CostSummary {
+func buildCostSummaryFromRows(sessionKey string, fallbackAgentID string, rows []map[string]any) sessionmodel.CostSummary {
 	summary := defaultCostSummary(sessionKey, fallbackAgentID)
 	if len(rows) == 0 {
 		return summary
@@ -399,7 +623,7 @@ func buildCostSummaryFromRows(sessionKey string, fallbackAgentID string, rows []
 	return summary
 }
 
-func messageTimestamp(row sessiondomain.Message) int64 {
+func messageTimestamp(row sessionmodel.Message) int64 {
 	value := row["timestamp"]
 	switch typed := value.(type) {
 	case float64:

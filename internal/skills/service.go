@@ -11,15 +11,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	workspace2 "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	workspace2 "github.com/nexus-research-lab/nexus/internal/workspace"
 )
 
 const (

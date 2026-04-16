@@ -13,13 +13,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
-	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
 	"strings"
 	"time"
+
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/session"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 type agentWorkspaceResolver interface {
@@ -91,7 +92,7 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 
 	now := time.Now().UTC()
 	roundID := c.idFactory("delivery_round")
-	assistantMessage := sessiondomain.Message{
+	assistantMessage := session.Message{
 		"message_id":  c.idFactory("assistant"),
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
@@ -107,7 +108,7 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 		},
 		"is_complete": true,
 	}
-	resultMessage := sessiondomain.Message{
+	resultMessage := session.Message{
 		"message_id":      c.idFactory("result"),
 		"session_key":     sessionKey,
 		"agent_id":        parsed.AgentID,
@@ -141,15 +142,15 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 
 func (c *sessionDeliveryChannel) persistMessage(
 	workspacePath string,
-	sessionValue sessiondomain.Session,
-	message sessiondomain.Message,
-) (sessiondomain.Session, error) {
+	sessionValue session.Session,
+	message session.Message,
+) (session.Session, error) {
 	if err := c.files.AppendSessionMessage(workspacePath, sessionValue.SessionKey, message); err != nil {
-		return sessiondomain.Session{}, err
+		return session.Session{}, err
 	}
 	if strings.TrimSpace(stringValue(message["role"])) == "result" {
 		if err := c.files.AppendSessionCost(workspacePath, sessionValue.SessionKey, buildDeliveryCostRow(message)); err != nil {
-			return sessiondomain.Session{}, err
+			return session.Session{}, err
 		}
 	}
 
@@ -162,7 +163,7 @@ func (c *sessionDeliveryChannel) persistMessage(
 	sessionValue.Status = "active"
 	updated, err := c.files.UpsertSession(workspacePath, sessionValue)
 	if err != nil {
-		return sessiondomain.Session{}, err
+		return session.Session{}, err
 	}
 	if updated == nil {
 		return sessionValue, nil
@@ -174,7 +175,7 @@ func (c *sessionDeliveryChannel) broadcastMessage(
 	ctx context.Context,
 	sessionKey string,
 	agentID string,
-	message sessiondomain.Message,
+	message session.Message,
 ) {
 	if c.permission == nil {
 		return
@@ -187,7 +188,7 @@ func (c *sessionDeliveryChannel) broadcastMessage(
 	c.permission.BroadcastEvent(ctx, sessionKey, event)
 }
 
-func buildDeliveryCostRow(message sessiondomain.Message) map[string]any {
+func buildDeliveryCostRow(message session.Message) map[string]any {
 	usage, _ := message["usage"].(map[string]any)
 	return map[string]any{
 		"entry_id":                    "cost_" + stringValue(message["message_id"]),

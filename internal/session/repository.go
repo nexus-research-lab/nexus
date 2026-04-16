@@ -11,14 +11,14 @@ package session
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SQLRepository 定义 Room Session 视图所需的 SQL 读取能力。
 type SQLRepository interface {
-	ListRoomSessions(context.Context) ([]sessiondomain.Session, error)
-	ListRoomSessionsByAgent(context.Context, string) ([]sessiondomain.Session, error)
-	GetRoomSessionByKey(context.Context, protocol.SessionKey) (*sessiondomain.Session, error)
+	ListRoomSessions(context.Context) ([]Session, error)
+	ListRoomSessionsByAgent(context.Context, string) ([]Session, error)
+	GetRoomSessionByKey(context.Context, protocol.SessionKey) (*Session, error)
 	GetConversationLogPath(context.Context, string) (string, error)
 }

@@ -28,19 +28,10 @@ type Options struct {
 
 // New 创建结构化日志实例。
 func New(options Options) *slog.Logger {
-	output := resolveOutput(options)
-
 	handlerOptions := &slog.HandlerOptions{
 		Level: parseLevel(options.Level),
 	}
-
-	var handler slog.Handler
-	switch strings.ToLower(strings.TrimSpace(options.Format)) {
-	case "json":
-		handler = slog.NewJSONHandler(output, handlerOptions)
-	default:
-		handler = slog.NewTextHandler(output, handlerOptions)
-	}
+	handler := buildHandler(options, handlerOptions)
 
 	logger := slog.New(handler)
 	if service := strings.TrimSpace(options.Service); service != "" {
@@ -54,28 +45,56 @@ func NewDiscardLogger() *slog.Logger {
 	return New(Options{Output: io.Discard})
 }
 
-func resolveOutput(options Options) io.Writer {
-	outputs := make([]io.Writer, 0, 2)
+func buildHandler(options Options, handlerOptions *slog.HandlerOptions) slog.Handler {
+	handlers := make([]slog.Handler, 0, 3)
 	if options.Output != nil {
-		outputs = append(outputs, options.Output)
+		handlers = append(handlers, newHandlerForWriter(options.Output, options.Format, handlerOptions, false))
 	}
 	if options.Stdout {
-		outputs = append(outputs, os.Stdout)
+		handlers = append(handlers, newHandlerForWriter(os.Stdout, options.Format, handlerOptions, shouldColorize(os.Stdout)))
 	}
 	if fileWriter, err := newRollingFileWriter(options.File); err == nil && fileWriter != nil {
-		outputs = append(outputs, fileWriter)
+		handlers = append(handlers, newHandlerForWriter(fileWriter, options.Format, handlerOptions, false))
 	} else if err != nil {
 		_, _ = os.Stderr.WriteString("init log file writer failed: " + err.Error() + "\n")
 	}
 
-	switch len(outputs) {
+	switch len(handlers) {
 	case 0:
-		return io.Discard
+		return slog.NewTextHandler(io.Discard, handlerOptions)
 	case 1:
-		return outputs[0]
+		return handlers[0]
 	default:
-		return io.MultiWriter(outputs...)
+		return newMultiHandler(handlers...)
 	}
+}
+
+func newHandlerForWriter(
+	writer io.Writer,
+	format string,
+	handlerOptions *slog.HandlerOptions,
+	colorize bool,
+) slog.Handler {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json":
+		return slog.NewJSONHandler(writer, handlerOptions)
+	case "text", "pretty":
+		return newPrettyHandler(writer, handlerOptions, colorize)
+	default:
+		return newPrettyHandler(writer, handlerOptions, colorize)
+	}
+}
+
+func shouldColorize(writer io.Writer) bool {
+	file, ok := writer.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0 && strings.TrimSpace(os.Getenv("NO_COLOR")) == ""
 }
 
 func parseLevel(raw string) slog.Level {

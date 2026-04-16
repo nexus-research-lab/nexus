@@ -15,6 +15,7 @@ import {
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import { SkillInfo } from "@/types/capability/skill";
+import { SkillStatePill } from "./skill-state-pill";
 
 interface SkillsCardProps {
   skill: SkillInfo;
@@ -23,32 +24,6 @@ interface SkillsCardProps {
   on_select: () => void;
   on_update?: () => void;
   on_delete?: () => void;
-}
-
-function SkillStatePill({
-  children,
-  tone = "neutral",
-}: {
-  children: string;
-  tone?: "neutral" | "success" | "warning";
-}) {
-  const tone_class_name =
-    tone === "warning"
-      ? "border-amber-200/80 bg-amber-50/88 text-amber-700"
-      : tone === "success"
-        ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-700"
-        : "border-(--surface-panel-subtle-border) bg-(--surface-panel-subtle-background) text-(--text-soft)";
-
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium leading-none tracking-[0.01em]",
-        tone_class_name,
-      )}
-    >
-      {children}
-    </span>
-  );
 }
 
 /** Skill 卡片 — 清晰的三段式布局 */

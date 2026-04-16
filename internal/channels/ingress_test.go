@@ -12,13 +12,14 @@ package channels
 import (
 	"context"
 	"database/sql"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	chatsvc "github.com/nexus-research-lab/nexus-core/internal/chat"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -40,7 +41,7 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer db.Close()
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) 
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer db.Close()
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}

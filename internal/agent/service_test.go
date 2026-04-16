@@ -5,16 +5,19 @@
 // 2026/04/10 22:12:00   Create
 // =====================================================
 
-package agent
+package agent_test
 
 import (
 	"context"
 	"database/sql"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/config"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -24,7 +27,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, err := NewService(cfg)
+	service, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
@@ -41,6 +44,9 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].AgentID != cfg.DefaultAgentID {
 		t.Fatalf("主智能体 ID 不匹配: got=%s want=%s", items[0].AgentID, cfg.DefaultAgentID)
 	}
+	if items[0].Options.Provider != "" {
+		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
+	}
 
 	validation, err := service.ValidateName(ctx, "测试助手", "")
 	if err != nil {
@@ -50,7 +56,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 		t.Fatalf("名称应该可用: %+v", validation)
 	}
 
-	created, err := service.CreateAgent(ctx, CreateRequest{
+	created, err := service.CreateAgent(ctx, agentsvc.CreateRequest{
 		Name:        "测试助手",
 		Description: "首个集成测试 agent",
 	})
@@ -124,7 +130,12 @@ func migrateSQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+
+		}
+	}(db)
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

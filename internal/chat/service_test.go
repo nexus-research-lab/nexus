@@ -12,16 +12,20 @@ package chat
 import (
 	"context"
 	"database/sql"
-	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
 	"time"
+
+	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/session"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -126,7 +130,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -190,7 +194,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		protocol.EventTypeRoundStatus,
 		protocol.EventTypeSessionStatus,
 		protocol.EventTypeMessage,
-		protocol.EventTypeStreamEnd,
 		protocol.EventTypeMessage,
 		protocol.EventTypeRoundStatus,
 	})
@@ -207,19 +210,193 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService, _, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type": "message_start",
+						"message": map[string]any{
+							"id":    "assistant-think-1",
+							"model": "sonnet",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_start",
+						"index": 0,
+						"content_block": map[string]any{
+							"type":     "thinking",
+							"thinking": "先分析",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type":     "thinking_delta",
+							"thinking": " 再收口",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_start",
+						"index": 0,
+						"content_block": map[string]any{
+							"type": "text",
+							"text": "今天天气",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type": "text_delta",
+							"text": " 很不错",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-think-1",
+						Model: "sonnet",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.TextBlock{Text: "今天天气 很不错"},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-think-1",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:       "success",
+					DurationMS:    12,
+					DurationAPIMS: 10,
+					NumTurns:      1,
+					Result:        "done",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-think-stream")
+	sessionKey := "agent:nexus:ws:dm:think-stream"
+	permission.BindSession(sessionKey, sender, "client-think-stream", true)
+
+	if err = service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "今天天气怎么样呀",
+		RoundID:    "round-think-stream",
+		ReqID:      "round-think-stream",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	assertStreamBlockIndex(t, events, "thinking", 0)
+	assertStreamBlockIndex(t, events, "text", 1)
+
+	assistantPayload := findAssistantMessagePayload(t, events, "assistant-think-1")
+	assistantBlocks := contentBlocksFromPayload(t, assistantPayload)
+	if len(assistantBlocks) != 2 {
+		t.Fatalf("durable assistant 内容块数量不正确: %+v", assistantPayload)
+	}
+	if assistantBlocks[0]["type"] != "thinking" || assistantBlocks[0]["thinking"] != "先分析 再收口" {
+		t.Fatalf("durable assistant 未保留完整 thinking: %+v", assistantBlocks)
+	}
+	if assistantBlocks[1]["type"] != "text" || assistantBlocks[1]["text"] != "今天天气 很不错" {
+		t.Fatalf("durable assistant 未保留 text: %+v", assistantBlocks)
+	}
+
+	messages, err := service.files.ReadSessionMessages([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取会话消息失败: %v", err)
+	}
+	if len(messages) != 3 {
+		t.Fatalf("期望 3 条消息，实际 %d", len(messages))
+	}
+	historyBlocks := contentBlocksFromPayload(t, messages[1])
+	if len(historyBlocks) != 2 || historyBlocks[0]["type"] != "thinking" || historyBlocks[1]["type"] != "text" {
+		t.Fatalf("历史 assistant 内容块不正确: %+v", messages[1])
+	}
+	if messages[1]["stream_status"] != "done" {
+		t.Fatalf("历史 assistant stream_status 未收口: %+v", messages[1])
+	}
+}
+
 func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	maxThinkingTokens := 2048
 	maxTurns := 6
+	providerService, err := providercfg.NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 provider service 失败: %v", err)
+	}
+	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
 	updatedAgent, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, agentsvc.UpdateRequest{
 		Options: &agentsvc.Options{
-			Model:             "glm-5.1",
 			MaxThinkingTokens: &maxThinkingTokens,
 			MaxTurns:          &maxTurns,
 			SettingSources:    []string{"user"},
@@ -252,6 +429,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	factory := &fakeChatFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
 	sender := newChatTestSender("sender-no-model")
 	sessionKey := "agent:nexus:ws:dm:no-model"
 	permission.BindSession(sessionKey, sender, "client-no-model", true)
@@ -270,8 +448,17 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	})
 
 	options := factory.LastOptions()
-	if options.Model != "glm-5.1" {
-		t.Fatalf("runtime 未向 SDK 透传 model: %+v", options)
+	if options.Model != "" {
+		t.Fatalf("runtime 不应向 SDK 透传 agent model: %+v", options)
+	}
+	if options.Env["ANTHROPIC_MODEL"] != "glm-5.1" {
+		t.Fatalf("runtime 未注入 provider model: %+v", options.Env)
+	}
+	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
+		t.Fatalf("runtime 未注入默认 sonnet model: %+v", options.Env)
+	}
+	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
+		t.Fatalf("runtime 未注入 subagent model: %+v", options.Env)
 	}
 	if options.MaxThinkingTokens != maxThinkingTokens {
 		t.Fatalf("runtime 未向 SDK 透传 max thinking tokens: %+v", options)
@@ -282,13 +469,184 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
 		t.Fatalf("runtime 未向 SDK 透传 setting_sources: %+v", options)
 	}
+	if !options.IncludePartialMessages {
+		t.Fatalf("runtime 未开启 partial messages: %+v", options)
+	}
+}
+
+func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService, _, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	providerService, err := providercfg.NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 provider service 失败: %v", err)
+	}
+	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
+	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "kimi",
+		DisplayName: "Kimi",
+		AuthToken:   "kimi-token",
+		BaseURL:     "https://api.moonshot.cn/anthropic",
+		Model:       "kimi-k2.5",
+		Enabled:     true,
+		IsDefault:   false,
+	}); err != nil {
+		t.Fatalf("创建显式 provider 失败: %v", err)
+	}
+
+	created, err := agentService.CreateAgent(context.Background(), agentsvc.CreateRequest{
+		Name: "显式 Provider 助手",
+		Options: &agentsvc.Options{
+			Provider: "kimi",
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-explicit-provider",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	sessionKey := "agent:" + created.AgentID + ":ws:dm:explicit-provider"
+	sender := newChatTestSender("sender-explicit-provider")
+	permission.BindSession(sessionKey, sender, "client-explicit-provider", true)
+
+	if err = service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		AgentID:    created.AgentID,
+		Content:    "测试显式 provider",
+		RoundID:    "round-explicit-provider",
+		ReqID:      "round-explicit-provider",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2.5" {
+		t.Fatalf("显式 provider 未命中新 provider model: %+v", options.Env)
+	}
+	if options.Env["ANTHROPIC_BASE_URL"] != "https://api.moonshot.cn/anthropic" {
+		t.Fatalf("显式 provider 未命中新 provider base_url: %+v", options.Env)
+	}
+	if !options.IncludePartialMessages {
+		t.Fatalf("显式 provider runtime 未开启 partial messages: %+v", options)
+	}
+}
+
+func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService, _, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-resume")
+	sessionKey := "agent:nexus:ws:dm:resume-chat"
+	permission.BindSession(sessionKey, sender, "client-resume", true)
+
+	resumeID := "sdk-resume-chat-1"
+	now := time.Now().UTC()
+	if _, err = service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &resumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Resume Chat",
+		MessageCount: 0,
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("预写入会话 meta 失败: %v", err)
+	}
+
+	if err = service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 resume",
+		RoundID:    "round-resume",
+		ReqID:      "round-resume",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Resume != resumeID {
+		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
+	}
 }
 
 func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -323,6 +681,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
 	})
 	assertContainsRoundStatus(t, events, "interrupted")
+	assertContainsResultSubtype(t, events, "interrupted")
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
@@ -330,13 +689,24 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	if interruptCalls == 0 {
 		t.Fatal("期望 fake client 收到 interrupt")
 	}
+
+	messages, err := service.files.ReadSessionMessages([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取中断后的会话消息失败: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("中断后消息数量不正确: got=%d want=2 messages=%+v", len(messages), messages)
+	}
+	if messages[1]["role"] != "result" || messages[1]["subtype"] != "interrupted" {
+		t.Fatalf("中断后未落 interrupted result: %+v", messages)
+	}
 }
 
 func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agentsvc.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -388,6 +758,90 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 	if item.ChannelType != "telegram" || item.ChatType != "group" {
 		t.Fatalf("session 元数据不正确: %+v", *item)
 	}
+}
+
+func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService, _, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type": "message_start",
+						"message": map[string]any{
+							"id":    "assistant-premature",
+							"model": "sonnet",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_start",
+						"index": 0,
+						"content_block": map[string]any{
+							"type":     "thinking",
+							"thinking": "先分析",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type":     "thinking_delta",
+							"thinking": " 再收口",
+						},
+					},
+				},
+			}
+			close(client.messages)
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-premature")
+	sessionKey := "agent:nexus:ws:dm:premature-close"
+	permission.BindSession(sessionKey, sender, "client-premature", true)
+
+	if err = service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试提前结束",
+		RoundID:    "round-premature",
+		ReqID:      "round-premature",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "error"
+	})
+
+	assertContainsRoundStatus(t, events, "error")
+	assertContainsStreamEventType(t, events, "message_start")
+	assertContainsStreamEventType(t, events, "content_block_delta")
+	assertContainsResultSubtype(t, events, "error")
+	assertContainsErrorEventForMessage(t, events, "assistant-premature")
 }
 
 func newChatTestConfig(t *testing.T) config.Config {
@@ -486,4 +940,94 @@ func assertContainsRoundStatus(t *testing.T, events []protocol.EventMessage, sta
 		}
 	}
 	t.Fatalf("未找到 round_status=%s: %+v", status, events)
+}
+
+func assertContainsStreamEventType(t *testing.T, events []protocol.EventMessage, streamType string) {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeStream && event.Data["type"] == streamType {
+			return
+		}
+	}
+	t.Fatalf("未找到 stream.type=%s: %+v", streamType, events)
+}
+
+func assertContainsResultSubtype(t *testing.T, events []protocol.EventMessage, subtype string) {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeMessage &&
+			event.Data["role"] == "result" &&
+			event.Data["subtype"] == subtype {
+			return
+		}
+	}
+	t.Fatalf("未找到 result.subtype=%s: %+v", subtype, events)
+}
+
+func assertContainsErrorEventForMessage(t *testing.T, events []protocol.EventMessage, messageID string) {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeError && event.MessageID == messageID {
+			return
+		}
+	}
+	t.Fatalf("未找到绑定消息 %s 的 error 事件: %+v", messageID, events)
+}
+
+func assertStreamBlockIndex(t *testing.T, events []protocol.EventMessage, blockType string, expectedIndex int) {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeStream {
+			continue
+		}
+		contentBlock, ok := event.Data["content_block"].(map[string]any)
+		if !ok || contentBlock["type"] != blockType {
+			continue
+		}
+		if event.Data["index"] != expectedIndex {
+			t.Fatalf("%s stream index 不正确: got=%v want=%d event=%+v", blockType, event.Data["index"], expectedIndex, event)
+		}
+		return
+	}
+	t.Fatalf("未找到 block_type=%s 的 stream 事件: %+v", blockType, events)
+}
+
+func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) session.Message {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
+			continue
+		}
+		if event.Data["role"] != "assistant" {
+			continue
+		}
+		return session.Message(event.Data)
+	}
+	t.Fatalf("未找到 assistant message_id=%s 的 durable 消息: %+v", messageID, events)
+	return nil
+}
+
+func contentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string]any {
+	t.Helper()
+	rawBlocks, ok := payload["content"]
+	if !ok {
+		t.Fatalf("消息缺少 content: %+v", payload)
+	}
+	switch typed := rawBlocks.(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		result := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			block, ok := item.(map[string]any)
+			if !ok {
+				t.Fatalf("content block 类型不正确: %+v", payload)
+			}
+			result = append(result, block)
+		}
+		return result
+	default:
+		t.Fatalf("content 类型不正确: %+v", payload)
+		return nil
+	}
 }

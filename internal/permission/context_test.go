@@ -11,8 +11,9 @@ package permission
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type stubSender struct {

@@ -11,7 +11,6 @@ package workspace
 
 import (
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
 	"io"
 	"io/fs"
 	"os"
@@ -19,6 +18,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 var (

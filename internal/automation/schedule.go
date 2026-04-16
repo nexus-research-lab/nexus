@@ -64,7 +64,7 @@ func parseRunAt(raw string, timezoneName string) (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	// 中文注释：前端当前会提交 `YYYY-MM-DDTHH:mm` 本地时间，这里优先按本地时区解释，
+	// 前端当前会提交 `YYYY-MM-DDTHH:mm` 本地时间，这里优先按本地时区解释，
 	// 如果字符串自身已经带时区，则直接尊重调用方提供的偏移。
 	if parsed, parseErr := time.Parse(time.RFC3339, value); parseErr == nil {
 		return parsed.UTC(), nil

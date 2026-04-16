@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-: "${DATABASE_URL:=sqlite+aiosqlite:////home/agent/.nexus/data/nexus.db}"
+: "${DATABASE_DRIVER:=sqlite}"
+: "${DATABASE_URL:=sqlite:////home/agent/.nexus/data/nexus.db}"
+export DATABASE_DRIVER
 export DATABASE_URL
 
 print_environment_summary() {
@@ -68,27 +70,47 @@ prepare_claude_settings() {
     jq '. + {hasCompletedOnboarding: true}' "${HOME}/.claude.json" | write_json_file_in_place "${HOME}/.claude.json"
 }
 
-prepare_database_path() {
-    if [[ "${DATABASE_URL}" == sqlite+aiosqlite:///* ]]; then
-        DB_PATH="${DATABASE_URL#sqlite+aiosqlite:///}"
-        DB_PATH="${DB_PATH/#\~/${HOME}}"
-        mkdir -p "$(dirname "${DB_PATH}")"
-        return
+resolve_sqlite_database_path() {
+    local raw_path="$1"
+    local normalized_path="${raw_path}"
+
+    if [[ "${normalized_path}" == sqlite:///* ]]; then
+        normalized_path="${normalized_path#sqlite:///}"
     fi
 
-    if [[ "${DATABASE_URL}" == sqlite:///* ]]; then
-        DB_PATH="${DATABASE_URL#sqlite:///}"
-        DB_PATH="${DB_PATH/#\~/${HOME}}"
-        mkdir -p "$(dirname "${DB_PATH}")"
+    if [[ "${normalized_path}" == \~/* ]]; then
+        normalized_path="${HOME}/${normalized_path#\~/}"
     fi
+
+    if [[ "${normalized_path}" == /* ]]; then
+        printf '%s\n' "${normalized_path}"
+    fi
+}
+
+prepare_database_path() {
+    case "${DATABASE_DRIVER,,}" in
+        sqlite|sqlite3)
+            DB_PATH="$(resolve_sqlite_database_path "${DATABASE_URL}")"
+            if [[ -n "${DB_PATH}" ]]; then
+                # 中文注释：SQLite 文件型数据库需要先确保父目录存在，否则迁移命令会直接失败。
+                mkdir -p "$(dirname "${DB_PATH}")"
+            fi
+            ;;
+        *)
+            return
+            ;;
+    esac
+}
+
+run_database_migrations() {
+    echo "Applying database migrations..."
+    /usr/local/bin/nexus-migrate up
+    echo "Database migration completed."
 }
 
 print_environment_summary
 prepare_claude_settings
 prepare_database_path
-
-echo "Applying database migrations..."
-python -m alembic upgrade head
-echo "Database migration completed."
+run_database_migrations
 
 exec "$@"

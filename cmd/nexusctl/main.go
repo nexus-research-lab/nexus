@@ -8,9 +8,10 @@
 package main
 
 import (
-	"github.com/nexus-research-lab/nexus-core/internal/cli"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
 	"os"
+
+	"github.com/nexus-research-lab/nexus/internal/cli"
+	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 func main() {

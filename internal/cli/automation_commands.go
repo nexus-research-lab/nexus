@@ -11,7 +11,8 @@ package cli
 
 import (
 	"context"
-	automation2 "github.com/nexus-research-lab/nexus-core/internal/automation"
+
+	automation2 "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/spf13/cobra"
 )

@@ -13,19 +13,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	agent3 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/logx"
-	permission3 "github.com/nexus-research-lab/nexus-core/internal/permission"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus-core/internal/providerconfig"
-	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
-	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
-	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
 	"log/slog"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	agent3 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/logx"
+	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/session"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -71,7 +72,7 @@ type providerRuntimeResolver interface {
 type roundRunner struct {
 	service       *Service
 	workspacePath string
-	session       sessiondomain.Session
+	session       session.Session
 	agent         *agent3.Agent
 	sessionKey    string
 	roundID       string
@@ -79,6 +80,7 @@ type roundRunner struct {
 	content       string
 	client        runtimectx.Client
 	mapper        *messageMapper
+	terminalSeen  bool
 }
 
 // NewService 创建 DM 会话编排服务。
@@ -134,7 +136,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 
-	client, err := s.ensureClient(ctx, sessionKey, agentValue, request)
+	client, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		return err
 	}
@@ -220,7 +222,7 @@ func (s *Service) interruptSession(ctx context.Context, sessionKey string, resul
 
 func (s *Service) emitInterruptedRound(ctx context.Context, sessionKey string, roundID string, resultText string) {
 	parsed := protocol.ParseSessionKey(sessionKey)
-	resultMessage := sessiondomain.Message{
+	resultMessage := session.Message{
 		"message_id":      "result_" + roundID,
 		"session_key":     sessionKey,
 		"agent_id":        parsed.AgentID,
@@ -234,6 +236,24 @@ func (s *Service) emitInterruptedRound(ctx context.Context, sessionKey string, r
 		"result":          resultText,
 		"is_error":        false,
 	}
+
+	// 对齐 Python 行为，先修复本轮未完成的 assistant 片段，再写入 result。
+	if err := s.repairInterruptedRound(ctx, sessionKey, roundID, parsed.AgentID); err != nil {
+		s.loggerFor(ctx).Warn("DM interrupted round 修复失败",
+			"session_key", sessionKey,
+			"round_id", roundID,
+			"err", err,
+		)
+	}
+
+	if err := s.persistInterruptedRound(ctx, sessionKey, parsed, resultMessage); err != nil {
+		s.loggerFor(ctx).Error("DM interrupted 结果持久化失败",
+			"session_key", sessionKey,
+			"agent_id", parsed.AgentID,
+			"round_id", roundID,
+			"err", err,
+		)
+	}
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.EventMessage{
 		ProtocolVersion: 2,
 		DeliveryMode:    "durable",
@@ -245,10 +265,70 @@ func (s *Service) emitInterruptedRound(ctx context.Context, sessionKey string, r
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, roundID, "interrupted", "interrupted"))
 }
 
+func (s *Service) repairInterruptedRound(ctx context.Context, sessionKey string, roundID string, agentID string) error {
+	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	messages, err := s.files.ReadSessionMessages([]string{agentValue.WorkspacePath}, sessionKey)
+	if err != nil {
+		return err
+	}
+	for _, message := range messages {
+		if normalizeString(message["role"]) != "assistant" {
+			continue
+		}
+		if normalizeString(message["round_id"]) != roundID {
+			continue
+		}
+		if isComplete, ok := message["is_complete"].(bool); ok && isComplete {
+			continue
+		}
+		repaired := session.Message{}
+		for key, value := range message {
+			repaired[key] = value
+		}
+		repaired["is_complete"] = true
+		repaired["stream_status"] = "cancelled"
+		if err := s.files.AppendSessionMessage(agentValue.WorkspacePath, sessionKey, repaired); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) persistInterruptedRound(
+	ctx context.Context,
+	sessionKey string,
+	parsed protocol.SessionKey,
+	resultMessage session.Message,
+) error {
+	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
+	if err != nil {
+		return err
+	}
+	sessionValue, err := s.ensureSession(agentValue, parsed, sessionKey)
+	if err != nil {
+		return err
+	}
+	if sessionValue.SessionID != nil && strings.TrimSpace(*sessionValue.SessionID) != "" {
+		resultMessage["session_id"] = strings.TrimSpace(*sessionValue.SessionID)
+	}
+	if err := s.files.AppendSessionMessage(agentValue.WorkspacePath, sessionKey, resultMessage); err != nil {
+		return err
+	}
+	if err := s.files.AppendSessionCost(agentValue.WorkspacePath, sessionKey, buildCostRow(resultMessage)); err != nil {
+		return err
+	}
+	_, err = s.files.RefreshSessionMeta(agentValue.WorkspacePath, sessionKey, sessionValue)
+	return err
+}
+
 func (s *Service) ensureClient(
 	ctx context.Context,
 	sessionKey string,
 	agentValue *agent3.Agent,
+	sessionItem session.Session,
 	request Request,
 ) (runtimectx.Client, error) {
 	permissionMode := request.PermissionMode
@@ -264,23 +344,24 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
-	// 中文注释：当前 Go SDK 链路先与 Python 主线对齐，暂不透传 model，
-	// 避免向底层 CLI 传入尚未稳定支持的选项。
+	// Agent 级 runtime 已收口为 provider-only，
+	// 这里不再透传旧的 Agent model，而是统一从 Provider 解析运行时环境。
 	runtimeEnv, err := s.buildRuntimeEnv(ctx, agentValue)
 	if err != nil {
 		return nil, err
 	}
 	options := agentclient.Options{
-		CWD:               agentValue.WorkspacePath,
-		PermissionMode:    permissionMode,
-		AllowedTools:      append([]string(nil), agentValue.Options.AllowedTools...),
-		DisallowedTools:   append([]string(nil), agentValue.Options.DisallowedTools...),
-		SettingSources:    append([]string(nil), agentValue.Options.SettingSources...),
-		Env:               runtimeEnv,
-		PermissionHandler: permissionHandler,
+		CWD:                    agentValue.WorkspacePath,
+		PermissionMode:         permissionMode,
+		AllowedTools:           append([]string(nil), agentValue.Options.AllowedTools...),
+		DisallowedTools:        append([]string(nil), agentValue.Options.DisallowedTools...),
+		SettingSources:         append([]string(nil), agentValue.Options.SettingSources...),
+		IncludePartialMessages: true,
+		Env:                    runtimeEnv,
+		PermissionHandler:      permissionHandler,
 	}
-	if model := strings.TrimSpace(agentValue.Options.Model); model != "" {
-		options.Model = model
+	if sessionItem.SessionID != nil && strings.TrimSpace(*sessionItem.SessionID) != "" {
+		options.Resume = strings.TrimSpace(*sessionItem.SessionID)
 	}
 	if agentValue.Options.MaxThinkingTokens != nil && *agentValue.Options.MaxThinkingTokens > 0 {
 		options.MaxThinkingTokens = *agentValue.Options.MaxThinkingTokens
@@ -315,9 +396,13 @@ func (s *Service) buildRuntimeEnv(ctx context.Context, agentValue *agent3.Agent)
 		return nil, nil
 	}
 	env := map[string]string{
-		"ANTHROPIC_AUTH_TOKEN": runtimeConfig.AuthToken,
-		"ANTHROPIC_BASE_URL":   runtimeConfig.BaseURL,
-		"ANTHROPIC_MODEL":      runtimeConfig.Model,
+		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
+		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
+		"ANTHROPIC_MODEL":                runtimeConfig.Model,
+		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
+		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
+		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
 	}
 	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
 		env["ENABLE_TOOL_SEARCH"] = "false"
@@ -329,17 +414,17 @@ func (s *Service) ensureSession(
 	agentValue *agent3.Agent,
 	parsed protocol.SessionKey,
 	sessionKey string,
-) (sessiondomain.Session, error) {
+) (session.Session, error) {
 	item, _, err := s.files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
 	if err != nil {
-		return sessiondomain.Session{}, err
+		return session.Session{}, err
 	}
 	if item != nil {
 		return *item, nil
 	}
 
 	now := time.Now().UTC()
-	created, err := s.files.UpsertSession(agentValue.WorkspacePath, sessiondomain.Session{
+	created, err := s.files.UpsertSession(agentValue.WorkspacePath, session.Session{
 		SessionKey:   sessionKey,
 		AgentID:      agentValue.AgentID,
 		ChannelType:  protocol.NormalizeStoredChannelType(parsed.Channel),
@@ -352,10 +437,10 @@ func (s *Service) ensureSession(
 		IsActive:     true,
 	})
 	if err != nil {
-		return sessiondomain.Session{}, err
+		return session.Session{}, err
 	}
 	if created == nil {
-		return sessiondomain.Session{}, fmt.Errorf("创建 session 失败: %s", sessionKey)
+		return session.Session{}, fmt.Errorf("创建 session 失败: %s", sessionKey)
 	}
 	return *created, nil
 }
@@ -411,29 +496,34 @@ func (r *roundRunner) run(ctx context.Context) {
 			return
 		case incoming, ok := <-messageCh:
 			if !ok {
-				r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
-				r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-				logger.Info("DM round 消息流关闭")
+				if r.terminalSeen {
+					logger.Info("DM round 消息流关闭")
+					return
+				}
+				r.failRound(errors.New("DM 子任务在收到终态前提前结束"))
 				return
 			}
-			r.handleIncomingMessage(incoming)
+			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			if r.handleIncomingMessage(incoming) {
+				return
+			}
 		}
 	}
 }
 
-func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage) {
+func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage) bool {
 	events, terminalStatus, resultSubtype := r.mapper.Map(message)
-	if sid := strings.TrimSpace(firstNonEmpty(message.SessionID, r.client.SessionID())); sid != "" {
+	if sid := strings.TrimSpace(firstNonEmpty(r.mapper.SessionID(), message.SessionID, r.client.SessionID())); sid != "" {
 		r.session.SessionID = &sid
 	}
 
 	for _, event := range events {
 		if event.EventType == protocol.EventTypeMessage {
-			payload := sessiondomain.Message(event.Data)
+			payload := session.Message(event.Data)
 			if payload != nil {
 				if err := r.persistMessage(payload); err != nil {
 					r.failRound(err)
-					return
+					return true
 				}
 				if payload["role"] == "assistant" {
 					r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
@@ -449,6 +539,7 @@ func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage)
 	}
 
 	if terminalStatus != "" {
+		r.terminalSeen = true
 		r.service.loggerFor(context.Background()).Info("DM round 结束",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
@@ -463,7 +554,9 @@ func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage)
 			protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, terminalStatus, resultSubtype),
 		)
 		r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+		return true
 	}
+	return false
 }
 
 func (r *roundRunner) failRound(err error) {
@@ -473,8 +566,50 @@ func (r *roundRunner) failRound(err error) {
 		"round_id", r.roundID,
 		"err", err,
 	)
+	r.terminalSeen = true
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
-	r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, protocol.NewErrorEvent(r.sessionKey, err.Error()))
+	persistedSessionID := ""
+	if r.session.SessionID != nil {
+		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
+	}
+	resultMessage := session.Message{
+		"message_id":      "result_" + r.roundID,
+		"session_key":     r.sessionKey,
+		"agent_id":        r.agent.AgentID,
+		"round_id":        r.roundID,
+		"session_id":      firstNonEmpty(r.client.SessionID(), persistedSessionID),
+		"role":            "result",
+		"timestamp":       time.Now().UnixMilli(),
+		"subtype":         "error",
+		"duration_ms":     0,
+		"duration_api_ms": 0,
+		"num_turns":       0,
+		"usage":           map[string]any{},
+		"result":          err.Error(),
+		"is_error":        true,
+	}
+	if persistErr := r.persistMessage(resultMessage); persistErr != nil {
+		r.service.loggerFor(context.Background()).Error("DM 错误结果持久化失败",
+			"session_key", r.sessionKey,
+			"agent_id", r.agent.AgentID,
+			"round_id", r.roundID,
+			"err", persistErr,
+		)
+	} else {
+		event := protocol.NewEvent(protocol.EventTypeMessage, resultMessage)
+		event.SessionKey = r.sessionKey
+		event.AgentID = r.agent.AgentID
+		event.MessageID = normalizeString(resultMessage["message_id"])
+		event.DeliveryMode = "durable"
+		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+	}
+	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
+	errorEvent.AgentID = r.agent.AgentID
+	errorEvent.CausedBy = r.roundID
+	if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
+		errorEvent.MessageID = messageID
+	}
+	r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, errorEvent)
 	r.service.permission.BroadcastEvent(
 		context.Background(),
 		r.sessionKey,
@@ -483,8 +618,8 @@ func (r *roundRunner) failRound(err error) {
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 }
 
-func (r *roundRunner) buildUserMessage() sessiondomain.Message {
-	message := sessiondomain.Message{
+func (r *roundRunner) buildUserMessage() session.Message {
+	message := session.Message{
 		"message_id":  r.roundID,
 		"session_key": r.sessionKey,
 		"agent_id":    r.agent.AgentID,
@@ -499,7 +634,7 @@ func (r *roundRunner) buildUserMessage() sessiondomain.Message {
 	return message
 }
 
-func (r *roundRunner) persistMessage(message sessiondomain.Message) error {
+func (r *roundRunner) persistMessage(message session.Message) error {
 	if err := r.service.files.AppendSessionMessage(r.workspacePath, r.sessionKey, message); err != nil {
 		return err
 	}
@@ -508,13 +643,12 @@ func (r *roundRunner) persistMessage(message sessiondomain.Message) error {
 			return err
 		}
 	}
-	r.session.MessageCount++
-	r.session.LastActivity = time.Now().UTC()
 	r.session.SessionID = preferSessionID(r.session.SessionID, normalizeString(message["session_id"]))
 	if message["role"] == "result" {
 		r.session.Status = "active"
 	}
-	updated, err := r.service.files.UpsertSession(r.workspacePath, r.session)
+	r.session.LastActivity = time.Now().UTC()
+	updated, err := r.service.files.RefreshSessionMeta(r.workspacePath, r.sessionKey, r.session)
 	if err != nil {
 		return err
 	}
@@ -524,7 +658,7 @@ func (r *roundRunner) persistMessage(message sessiondomain.Message) error {
 	return nil
 }
 
-func buildCostRow(message sessiondomain.Message) map[string]any {
+func buildCostRow(message session.Message) map[string]any {
 	usage, _ := message["usage"].(map[string]any)
 	return map[string]any{
 		"entry_id":                    "cost_" + normalizeString(message["message_id"]),

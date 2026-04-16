@@ -26,9 +26,17 @@ go.work.sum
 .env
 
 # project
+cache
 .idea
 .vscode
 .DS_Store
+.claude
+.agents
+.venv
+
+# docs
+docs/system
+
 
 # log
 logs

@@ -12,13 +12,15 @@ package skills
 import (
 	"context"
 	"database/sql"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	workspacepkg "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -28,7 +30,7 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agent2.NewService(cfg)
+	agentService, _, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}

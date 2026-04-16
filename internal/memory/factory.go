@@ -124,7 +124,7 @@ func (Factory) applyRelatedContext(entry *Entry, relatedEntries []*Entry) {
 		entry.SetCount(maxCount + 1)
 	}
 
-	// 中文注释：纠正类学习重复出现时，把状态推进到待确认，
+	// 纠正类学习重复出现时，把状态推进到待确认，
 	// 避免系统未经确认直接把短期经验固化成长期规则。
 	if entry.Kind == "LRN" && entry.Count() >= 3 {
 		if _, ok := confirmationCategories[entry.Category]; ok && entry.Status() == "pending" {

@@ -304,7 +304,7 @@ export function AgentOptionsEditor({
     }
 
     const options: AgentConfigOptions = {
-      provider: provider.trim() || undefined,
+      provider: provider.trim(),
       permission_mode: permissionMode,
       allowed_tools: allowedTools,
       disallowed_tools: disallowedTools,

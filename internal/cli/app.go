@@ -11,22 +11,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	authsvc "github.com/nexus-research-lab/nexus-core/internal/auth"
-	automationsvc "github.com/nexus-research-lab/nexus-core/internal/automation"
-	"github.com/nexus-research-lab/nexus-core/internal/channels"
-	chatsvc "github.com/nexus-research-lab/nexus-core/internal/chat"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	connectorsvc "github.com/nexus-research-lab/nexus-core/internal/connectors"
-	"github.com/nexus-research-lab/nexus-core/internal/launcher"
-	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
-	roomsvc "github.com/nexus-research-lab/nexus-core/internal/room"
-	runtimectx "github.com/nexus-research-lab/nexus-core/internal/runtime"
-	sessionsvc "github.com/nexus-research-lab/nexus-core/internal/session"
-	skillsvc "github.com/nexus-research-lab/nexus-core/internal/skills"
-	"github.com/nexus-research-lab/nexus-core/internal/storage"
-	workspacepkg "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"os"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
+	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/channels"
+	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/launcher"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
+	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
+	"github.com/nexus-research-lab/nexus/internal/storage"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 
 	"github.com/spf13/cobra"
 )
@@ -37,10 +39,10 @@ func New(cfg config.Config) (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	agentService := agent2.NewServiceWithDB(cfg, db)
+	agentService := bootstrap.NewAgentServiceWithDB(cfg, db)
 	authService := authsvc.NewServiceWithDB(cfg, db)
-	roomService := roomsvc.NewServiceWithDB(cfg, db)
-	sessionService := sessionsvc.NewServiceWithDB(cfg, db, agentService)
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	skillService := skillsvc.NewService(cfg, agentService, workspaceService)
 	connectorService := connectorsvc.NewService(cfg, db)

@@ -11,10 +11,11 @@ package permission
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )

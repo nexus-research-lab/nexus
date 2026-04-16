@@ -3,12 +3,11 @@
 import { Fragment } from "react";
 import { Link2 } from "lucide-react";
 
-import type { ConnectorController } from "@/hooks/capability/use-connector-controller";
-
 import { ConnectorCard } from "./connector-card";
+import type { ConnectorDirectoryController } from "./connectors-view-model";
 
 interface ConnectorsGridProps {
-  ctrl: ConnectorController;
+  ctrl: ConnectorDirectoryController;
 }
 
 /** 连接器卡片网格 */

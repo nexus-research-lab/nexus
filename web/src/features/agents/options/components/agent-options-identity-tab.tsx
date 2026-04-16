@@ -1,7 +1,7 @@
 /**
  * AgentOptions Identity Tab
  *
- * 包含 Avatar、Name、Description、Vibe Tags、Model Provider
+ * 包含 Avatar、Name、Description、Vibe Tags、Provider
  * 从原 basic tab 拆分并增强
  */
 

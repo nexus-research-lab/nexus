@@ -8,13 +8,15 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
@@ -57,16 +59,19 @@ func buildGooseCommand(cfg config.Config, action string) *cobra.Command {
 				return err
 			}
 			defer db.Close()
+			if err = bootstrapLegacyMigrationVersion(cmd.Context(), db, cfg, dir); err != nil {
+				return err
+			}
 
 			switch action {
 			case "up":
-				return goose.Up(db, dir)
+				return goose.UpContext(cmd.Context(), db, dir)
 			case "down":
-				return goose.Down(db, dir)
+				return goose.DownContext(cmd.Context(), db, dir)
 			case "status":
-				return goose.Status(db, dir)
+				return goose.StatusContext(cmd.Context(), db, dir)
 			case "version":
-				version, err := goose.GetDBVersion(db)
+				version, err := goose.GetDBVersionContext(cmd.Context(), db)
 				if err != nil {
 					return err
 				}
@@ -118,6 +123,13 @@ func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
 		return nil, "", err
 	}
 
-	dir := filepath.Join("db", "migrations", protocol.MigrationDirName(cfg.DatabaseDriver))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, "", err
+	}
+
+	dir := resolveMigrationDir(cfg.DatabaseDriver)
 	return db, dir, nil
 }

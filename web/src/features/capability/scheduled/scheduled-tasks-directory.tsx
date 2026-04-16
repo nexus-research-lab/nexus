@@ -12,8 +12,8 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
-import { FeedbackBanner } from "../skills/feedback-banner";
-import { ScheduledTaskDialog } from "./scheduled-task-dialog";
+import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
 import { ScheduledTaskList } from "./scheduled-task-list";
 import { ScheduledTaskRunHistoryDialog } from "./scheduled-task-run-history-dialog";
 
@@ -67,6 +67,17 @@ export function ScheduledTasksDirectory() {
   const running_count = automation.scheduled_tasks.filter((task) => task.running).length;
   const enabled_count = automation.scheduled_tasks.filter((task) => task.enabled).length;
   const paused_count = automation.scheduled_tasks.length - enabled_count;
+  const feedback_items = feedback
+    ? [
+        {
+          key: "feedback",
+          message: feedback.message,
+          on_dismiss: () => set_feedback(null),
+          title: feedback.title,
+          tone: feedback.tone,
+        },
+      ]
+    : [];
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -326,16 +337,7 @@ export function ScheduledTasksDirectory() {
         task={history_task}
       />
 
-      {feedback ? (
-        <div className="pointer-events-none fixed right-6 top-24 z-40 flex flex-col gap-2">
-          <FeedbackBanner
-            message={feedback.message}
-            on_dismiss={() => set_feedback(null)}
-            title={feedback.title}
-            tone={feedback.tone}
-          />
-        </div>
-      ) : null}
+      <FeedbackBannerStack items={feedback_items} />
     </>
   );
 }

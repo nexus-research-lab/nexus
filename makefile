@@ -1,13 +1,23 @@
-TAG:=0.0.1
+ENV_FILE ?= .env
+
+ifneq (,$(wildcard $(ENV_FILE)))
+include $(ENV_FILE)
+export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
+endif
+
+TAG ?= 0.0.1
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
-COMPOSE_CMD ?= docker compose --env-file .env -f deploy/docker-compose.yml
+AGENT_UID ?= 1001
+AGENT_GID ?= 1001
+HOST_SUDO ?= sudo
+COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 
 # Default target
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web start stop restart logs clean status \
-	dev install db-init gen-protocol-types lint-web typecheck-web \
+	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	up down log reboot
 
@@ -15,7 +25,7 @@ COMPOSE_CMD ?= docker compose --env-file .env -f deploy/docker-compose.yml
 help: ## Show this help message
 	@echo "Nexus Core - Available commands:"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # Development commands
 run-web: ## Run frontend in development mode
@@ -23,7 +33,7 @@ run-web: ## Run frontend in development mode
 
 db-init: ## Run Goose migrations for local database
 	@if command -v go >/dev/null 2>&1; then \
-		DATABASE_DRIVER=$${DATABASE_DRIVER:-sqlite} DATABASE_URL="$${DATABASE_URL:-sqlite:////$$HOME/.nexus/data/nexus.db}" go run ./cmd/nexus-migrate up; \
+		go run ./cmd/nexus-migrate up; \
 	else \
 		echo "No usable Go runtime found"; \
 		exit 1; \
@@ -67,7 +77,7 @@ dev: ## Run both frontend and backend in development mode
 install: ## Install all dependencies
 	@echo "Installing Go dependencies..."
 	@if command -v go >/dev/null 2>&1; then \
-		go mod tidy; \
+		go mod download; \
 	else \
 		echo "No usable Go runtime found"; \
 		exit 1; \
@@ -99,14 +109,38 @@ test: check ## Alias of check
 build: ## Build Docker images
 	TAG=$(TAG) $(COMPOSE_CMD) build
 
+prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
+	@set -eu; \
+	host_data_dir="$(HOST_DATA_DIR)"; \
+	if [ -z "$$host_data_dir" ]; then \
+		host_data_dir="./data"; \
+	fi; \
+	case "$$host_data_dir" in \
+		/*) resolved_dir="$$host_data_dir" ;; \
+		~|~/*) resolved_dir="$${HOME}$${host_data_dir#\~}" ;; \
+		*) resolved_dir="$(CURDIR)/deploy/$${host_data_dir#./}" ;; \
+	esac; \
+	echo "Preparing host data directory: $$resolved_dir"; \
+	mkdir -p "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	if [ -d "$$resolved_dir/.claude.json" ]; then \
+		echo "Error: $$resolved_dir/.claude.json is a directory, expected a file."; \
+		exit 1; \
+	fi; \
+	touch "$$resolved_dir/.claude.json"; \
+	$(HOST_SUDO) chown -R $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.claude.json"; \
+	$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	$(HOST_SUDO) chmod 0644 "$$resolved_dir/.claude.json"; \
+	echo "Host data directory is ready: $$resolved_dir"
+
 build-backend: ## Build backend Docker image
 	docker build --progress=plain -f deploy/Dockerfile -t leemysw/nexus:app-$(TAG) .
 
 build-web: ## Build frontend + nginx gateway image
 	docker build --progress=plain -f web/Dockerfile -t leemysw/nexus:web-$(TAG) .
 
-start: ## Start all services with Docker
-	TAG=$(TAG) $(COMPOSE_CMD) up -d --build
+start: prepare-host-data ## Start all services with Docker
+	TAG=$(TAG) $(COMPOSE_CMD) up -d --build --force-recreate
 	@echo ""
 	@echo "✅ Nexus Core is running!"
 	@echo "🌐 Web UI: http://localhost"

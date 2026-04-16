@@ -10,8 +10,9 @@
 package automation
 
 import (
-	"github.com/nexus-research-lab/nexus-core/internal/channels"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/channels"
 )
 
 type heartbeatFilterResult struct {

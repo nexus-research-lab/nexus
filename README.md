@@ -55,12 +55,7 @@ VITE_WS_URL=/agent/v1/chat/ws
 VITE_API_URL=/agent/v1
 ```
 
-后端至少需要：
-
-```bash
-ANTHROPIC_AUTH_TOKEN=your_token
-ANTHROPIC_MODEL=your_model
-```
+Go 主线的运行时 Provider 只通过 Settings 页面维护，不再通过 `.env` 配置 `auth_token / base_url / model`。
 
 如果要把服务放到公网，建议启用浏览器登录：
 
@@ -114,7 +109,7 @@ make dev
 
 - `make db-init` 会执行 Goose 迁移
 - `make dev` / `make run-backend` 启动 Go 后端前会先执行迁移
-- Docker 部署会在容器启动时自动执行数据库初始化脚本
+- Docker 部署会在容器启动时通过 `deploy/entrypoint.sh` 自动执行 Goose 迁移
 
 如果你看到数据库 schema 不匹配，优先直接重建本地 SQLite 文件：
 
@@ -150,6 +145,7 @@ make dev
 make run-backend
 make run-web
 make build
+make prepare-host-data
 make start
 make logs
 make stop
@@ -157,28 +153,32 @@ make stop
 
 Docker 构建与启动命令默认使用当前用户执行。
 如果当前用户还没有 Docker 权限，请先完成服务器上的 Docker 用户权限配置，再重新登录终端。
+`Makefile` 会自动加载仓库根目录 `.env`，因此 `HOST_DATA_DIR`、`TAG`、`DATABASE_URL` 等变量既可以写进 `.env`，也可以临时通过命令行覆盖。
 
 生产部署默认使用单一宿主机根目录变量 `${HOST_DATA_DIR:-./data}`。
-其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`。
+其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`，`${HOST_DATA_DIR}/.claude.json` 挂载到容器内 `/home/agent/.claude.json`。
 如果要把数据统一放到宿主机目录 `/data`，启动前执行：
 
 ```bash
 export HOST_DATA_DIR=/data
-mkdir -p "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
-chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
+make prepare-host-data
+```
+
+`make prepare-host-data` 会直接在宿主机执行 `mkdir/chown/chmod`，确保 `.nexus`、`.claude` 和 `.claude.json` 都具备容器内 `agent(1001:1001)` 的读写权限。它已经是 `make start` 的前置依赖，所以常规部署直接执行 `make start` 即可。
+如果当前用户没有修改属主的权限，默认会通过 `sudo` 执行；如果已经是 root 或不需要 `sudo`，可以覆盖：
+
+```bash
+HOST_SUDO= make prepare-host-data
 ```
 
 ## 关键配置
 
 ### 后端
 
-- `ANTHROPIC_AUTH_TOKEN`
-- `ANTHROPIC_BASE_URL`
-- `ANTHROPIC_MODEL`
 - `DATABASE_DRIVER`
 - `DATABASE_URL`：默认开发值为 `sqlite:////$HOME/.nexus/data/nexus.db`
 - `LOG_LEVEL`
-- `LOG_FORMAT`
+- `LOG_FORMAT`：开发环境建议 `pretty`，生产环境建议 `json`
 - `LOG_STDOUT`
 - `LOG_FILE_ENABLED`
 - `LOG_PATH`
@@ -189,20 +189,26 @@ chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
 - `LOG_COMPRESS`
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`
+- `NEXUS_APT_ALLOWLIST`
 - `AUTH_SESSION_TTL_HOURS`
 - `AUTH_COOKIE_SECURE`
 - `ACCESS_TOKEN`
+- `DISCORD_ENABLED`
 - `DISCORD_BOT_TOKEN`
+- `TELEGRAM_ENABLED`
 - `TELEGRAM_BOT_TOKEN`
+
+Provider 运行时的 `auth_token / base_url / model` 由 Settings 页面写入数据库中的 Provider 配置表后生效，
+Agent 自身只保存 `provider` 选择，不再保存独立 `model`。
 
 日志默认会同时输出到标准输出和 `~/.nexus/logs/logger.log`。
 文件日志按天切主文件，并在单日内按大小继续滚动，默认保留 7 天 / 7 个备份并开启压缩。
+生产 Docker 默认会把 `LOG_PATH` 设为 `/home/agent/.nexus/logs/logger.log`，而不是目录路径。
 
 ### 前端
 
 - `VITE_API_URL`
 - `VITE_WS_URL`
-- `VITE_DEFAULT_MODEL`
 
 ## 存储
 

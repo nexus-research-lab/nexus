@@ -164,7 +164,7 @@ func ParseSessionKey(raw string) SessionKey {
 			result.ChatType = "dm"
 		}
 
-		// 中文注释：`:topic:` 是保留边界，ref 允许带冒号，但不能跨过这个边界。
+		// `:topic:` 是保留边界，ref 允许带冒号，但不能跨过这个边界。
 		topicIndex := findTopicIndex(parts)
 		if topicIndex >= 0 {
 			result.Ref = strings.TrimSpace(strings.Join(parts[4:topicIndex], ":"))

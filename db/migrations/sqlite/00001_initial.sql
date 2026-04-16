@@ -46,15 +46,16 @@ CREATE TABLE auth_sessions (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+CREATE UNIQUE INDEX uq_auth_sessions_token_hash ON auth_sessions (session_token_hash);
 CREATE INDEX idx_auth_sessions_expires_at ON auth_sessions (expires_at);
 CREATE INDEX idx_auth_sessions_username ON auth_sessions (username);
-CREATE UNIQUE INDEX uq_auth_sessions_token_hash ON auth_sessions (session_token_hash);
 
 CREATE TABLE rooms (
     id VARCHAR(64) NOT NULL PRIMARY KEY,
     room_type VARCHAR(32) NOT NULL,
     name VARCHAR(128),
     description TEXT NOT NULL,
+    avatar VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT ck_rooms_type CHECK (room_type IN ('dm', 'room'))
@@ -91,6 +92,13 @@ CREATE TABLE automation_cron_jobs (
     delivery_to VARCHAR(255),
     delivery_account_id VARCHAR(64),
     delivery_thread_id VARCHAR(255),
+    source_kind VARCHAR(32) NOT NULL DEFAULT 'system',
+    source_creator_agent_id VARCHAR(64),
+    source_context_type VARCHAR(32),
+    source_context_id VARCHAR(255),
+    source_context_label VARCHAR(255),
+    source_session_key VARCHAR(255),
+    source_session_label VARCHAR(255),
     enabled BOOLEAN NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -98,6 +106,8 @@ CREATE TABLE automation_cron_jobs (
     CONSTRAINT ck_automation_cron_jobs_session_target_kind CHECK (session_target_kind IN ('isolated', 'main', 'bound', 'named')),
     CONSTRAINT ck_automation_cron_jobs_wake_mode CHECK (wake_mode IN ('now', 'next-heartbeat')),
     CONSTRAINT ck_automation_cron_jobs_delivery_mode CHECK (delivery_mode IN ('none', 'last', 'explicit')),
+    CONSTRAINT ck_automation_cron_jobs_source_kind CHECK (source_kind IN ('user_page', 'agent', 'cli', 'system')),
+    CONSTRAINT ck_automation_cron_jobs_source_context_type CHECK (source_context_type IS NULL OR source_context_type IN ('agent', 'room')),
     FOREIGN KEY(agent_id) REFERENCES agents (id) ON DELETE CASCADE
 );
 CREATE INDEX idx_automation_cron_jobs_agent ON automation_cron_jobs (agent_id);
@@ -187,7 +197,7 @@ CREATE TABLE profiles (
 CREATE TABLE runtimes (
     id VARCHAR(64) NOT NULL PRIMARY KEY,
     agent_id VARCHAR(64) NOT NULL UNIQUE,
-    model VARCHAR(128),
+    provider VARCHAR(128),
     permission_mode VARCHAR(64),
     allowed_tools_json TEXT NOT NULL,
     disallowed_tools_json TEXT NOT NULL,
@@ -200,6 +210,20 @@ CREATE TABLE runtimes (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     FOREIGN KEY(agent_id) REFERENCES agents (id) ON DELETE CASCADE
 );
+
+CREATE TABLE provider (
+    id VARCHAR(64) NOT NULL PRIMARY KEY,
+    provider VARCHAR(128) NOT NULL,
+    display_name VARCHAR(128) NOT NULL,
+    auth_token TEXT NOT NULL,
+    base_url TEXT NOT NULL,
+    model VARCHAR(255) NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    is_default BOOLEAN NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE UNIQUE INDEX ix_provider_provider ON provider (provider);
 
 CREATE TABLE automation_cron_runs (
     run_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -287,6 +311,7 @@ DROP TABLE IF EXISTS rounds;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS automation_cron_runs;
+DROP TABLE IF EXISTS provider;
 DROP TABLE IF EXISTS runtimes;
 DROP TABLE IF EXISTS profiles;
 DROP TABLE IF EXISTS members;
@@ -298,5 +323,7 @@ DROP TABLE IF EXISTS automation_cron_jobs;
 DROP TABLE IF EXISTS connector_connections;
 DROP TABLE IF EXISTS rooms;
 DROP TABLE IF EXISTS auth_sessions;
+DROP TABLE IF EXISTS auth_password_credentials;
+DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS automation_system_events;
 DROP TABLE IF EXISTS agents;

@@ -11,7 +11,8 @@ package cli
 
 import (
 	"context"
-	"github.com/nexus-research-lab/nexus-core/internal/channels"
+
+	"github.com/nexus-research-lab/nexus/internal/channels"
 
 	"github.com/spf13/cobra"
 )

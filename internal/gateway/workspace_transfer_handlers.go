@@ -11,10 +11,11 @@ package gateway
 
 import (
 	"errors"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	workspacepkg "github.com/nexus-research-lab/nexus-core/internal/workspace"
 	"net/http"
 	"strings"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 
 	"github.com/go-chi/chi/v5"
 )

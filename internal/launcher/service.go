@@ -9,10 +9,11 @@ package launcher
 
 import (
 	"context"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	roomsvc "github.com/nexus-research-lab/nexus-core/internal/room"
 	"strings"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 )
 
 const (

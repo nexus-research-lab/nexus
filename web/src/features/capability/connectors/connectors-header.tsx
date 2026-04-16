@@ -3,7 +3,7 @@ import { Link2 } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 
-import type { ConnectorController } from "@/hooks/capability/use-connector-controller";
+import type { ConnectorDirectoryController } from "./connectors-view-model";
 
 const CONNECTOR_CATEGORIES = [
   { key: "all", label: "全部" },
@@ -17,7 +17,7 @@ const CONNECTOR_CATEGORIES = [
 ];
 
 interface ConnectorsHeaderProps {
-  ctrl: ConnectorController;
+  ctrl: ConnectorDirectoryController;
 }
 
 export function ConnectorsHeader({ ctrl }: ConnectorsHeaderProps) {

@@ -11,13 +11,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/gateway"
-	"github.com/nexus-research-lab/nexus-core/internal/logx"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/gateway"
+	"github.com/nexus-research-lab/nexus/internal/logx"
 )
 
 func main() {

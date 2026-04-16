@@ -2,11 +2,12 @@
 
 import { Link2 } from "lucide-react";
 
-import type { ConnectorController } from "@/hooks/capability/use-connector-controller";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 
+import type { ConnectorDirectoryController } from "./connectors-view-model";
+
 interface ConnectorsSearchBarProps {
-  ctrl: ConnectorController;
+  ctrl: ConnectorDirectoryController;
 }
 
 export function ConnectorsSearchBar({ ctrl }: ConnectorsSearchBarProps) {

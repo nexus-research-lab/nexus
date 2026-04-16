@@ -69,7 +69,7 @@ function get_thread_pending_permissions(
     if (get_room_base_round_id(permission.caused_by, permission.agent_id) !== round_id) {
       return false;
     }
-    // 中文注释：Room 的权限请求在很多场景下绑定的是占位槽位 msg_id，
+    // Room 的权限请求在很多场景下绑定的是占位槽位 msg_id，
     // 不是 assistant 真正的 message_id。Thread 已经按 round_id + agent_id 收口，
     // 这里不能再按 message_id 二次过滤，否则问答/权限会被错误吞掉。
     return true;

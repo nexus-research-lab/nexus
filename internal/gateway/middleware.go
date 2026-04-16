@@ -15,7 +15,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/logx"
 	"io"
 	"log/slog"
 	"net"
@@ -23,9 +22,11 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/logx"
 )
 
-// 中文注释：responseRecorder 负责在不破坏 websocket/hijack 能力的前提下记录状态码和字节数。
+// responseRecorder 负责在不破坏 websocket/hijack 能力的前提下记录状态码和字节数。
 type responseRecorder struct {
 	http.ResponseWriter
 	status       int
@@ -125,18 +126,18 @@ func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(startedAt)
 		fields := []any{
 			"method", request.Method,
-			"path", request.URL.Path,
+			//"path", request.URL.Path,
 			"status", recorder.status,
 			"duration_ms", duration.Milliseconds(),
-			"bytes", recorder.bytesWritten,
-			"remote_ip", clientIP(request),
+			//"bytes", recorder.bytesWritten,
+			//"remote_ip", clientIP(request),
 		}
-		if userAgent := strings.TrimSpace(request.UserAgent()); userAgent != "" {
-			fields = append(fields, "user_agent", userAgent)
-		}
-		if rawQuery := strings.TrimSpace(request.URL.RawQuery); rawQuery != "" {
-			fields = append(fields, "query", rawQuery)
-		}
+		//if userAgent := strings.TrimSpace(request.UserAgent()); userAgent != "" {
+		//	fields = append(fields, "user_agent", userAgent)
+		//}
+		//if rawQuery := strings.TrimSpace(request.URL.RawQuery); rawQuery != "" {
+		//	fields = append(fields, "query", rawQuery)
+		//}
 
 		switch {
 		case recorder.status >= http.StatusInternalServerError:

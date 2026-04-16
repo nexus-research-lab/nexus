@@ -7,21 +7,24 @@
 // 2026/04/11 00:26:00   Create
 // =====================================================
 
-package session
+package session_test
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
-	roomsvc "github.com/nexus-research-lab/nexus-core/internal/room"
-	workspace2 "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
+	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -31,18 +34,13 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agent2.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := roomsvc.NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
-	sessionService, err := NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 session service 失败: %v", err)
-	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService.SetRuntimeManager(runtimectx.NewManager())
 
 	ctx := context.Background()
 	agentA, err := agentService.CreateAgent(ctx, agent2.CreateRequest{Name: "测试会话助手"})
@@ -51,7 +49,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 
 	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "launcher-app-"+agentA.AgentID, "")
-	created, err := sessionService.CreateSession(ctx, CreateRequest{
+	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{
 		SessionKey: dmKey,
 		Title:      "Launcher App",
 	})
@@ -90,19 +88,31 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取普通 session 消息失败: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("消息压缩结果不正确: got=%d want=2", len(messages))
+	if len(messages) != 3 {
+		t.Fatalf("消息归一化结果不正确: got=%d want=3", len(messages))
 	}
 	if messages[1]["content"] != "最终回复" {
 		t.Fatalf("消息压缩未保留最新快照: %+v", messages[1])
+	}
+	if messages[1]["stream_status"] != "cancelled" {
+		t.Fatalf("未终止 round 的 assistant 应归一化为 cancelled: %+v", messages[1])
+	}
+	if messages[2]["role"] != "result" || messages[2]["subtype"] != "interrupted" {
+		t.Fatalf("未终止 round 未物化 interrupted result: %+v", messages)
 	}
 
 	roomMessages, err := sessionService.GetSessionMessages(ctx, protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID))
 	if err != nil {
 		t.Fatalf("读取 Room 共享流失败: %v", err)
 	}
-	if len(roomMessages) != 1 {
-		t.Fatalf("Room 共享消息数量不正确: got=%d want=1", len(roomMessages))
+	if len(roomMessages) != 2 {
+		t.Fatalf("Room 共享消息数量不正确: got=%d want=2", len(roomMessages))
+	}
+	if roomMessages[0]["stream_status"] != "cancelled" {
+		t.Fatalf("Room assistant 快照未归一化为 cancelled: %+v", roomMessages[0])
+	}
+	if roomMessages[1]["role"] != "result" || roomMessages[1]["subtype"] != "interrupted" {
+		t.Fatalf("Room 未终止 round 未物化 interrupted result: %+v", roomMessages)
 	}
 
 	cost, err := sessionService.GetSessionCostSummary(ctx, dmKey)
@@ -122,7 +132,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 
 	updatedTitle := "Launcher 重命名"
-	updated, err := sessionService.UpdateSession(ctx, dmKey, UpdateRequest{Title: &updatedTitle})
+	updated, err := sessionService.UpdateSession(ctx, dmKey, sessionsvc.UpdateRequest{Title: &updatedTitle})
 	if err != nil {
 		t.Fatalf("更新 session 失败: %v", err)
 	}
@@ -135,6 +145,43 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 	if _, err = sessionService.GetSession(ctx, dmKey); err == nil {
 		t.Fatal("删除后不应还能读取到 session")
+	}
+}
+
+func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+	runtimeManager := runtimectx.NewManager()
+	sessionService.SetRuntimeManager(runtimeManager)
+
+	ctx := context.Background()
+	agentA, err := agentService.CreateAgent(ctx, agent2.CreateRequest{Name: "活跃轮次助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "active-"+agentA.AgentID, "")
+	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey}); err != nil {
+		t.Fatalf("创建 session 失败: %v", err)
+	}
+	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey)
+	runtimeManager.StartRound(dmKey, "round_1", nil)
+	defer runtimeManager.MarkRoundFinished(dmKey, "round_1")
+
+	messages, err := sessionService.GetSessionMessages(ctx, dmKey)
+	if err != nil {
+		t.Fatalf("读取 session 消息失败: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("活跃 round 不应物化 interrupted result: got=%d want=2", len(messages))
+	}
+	if _, exists := messages[1]["stream_status"]; exists {
+		t.Fatalf("活跃 round 不应把 assistant 快照强制终止: %+v", messages[1])
 	}
 }
 

@@ -11,9 +11,10 @@ package gateway
 
 import (
 	"encoding/json"
-	providercfg "github.com/nexus-research-lab/nexus-core/internal/providerconfig"
 	"net/http"
 	"strings"
+
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 
 	"github.com/go-chi/chi/v5"
 )

@@ -4,21 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
 import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
+import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
-
-function format_datetime(value: number | null): string {
-  if (!value) {
-    return "未记录";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(value);
-}
+import { format_scheduled_datetime } from "./scheduled-formatters";
 
 function format_duration(started_at: number | null, finished_at: number | null): string {
   if (!started_at || !finished_at) {
@@ -101,15 +90,10 @@ export function ScheduledTaskRunHistoryDialog({
       set_is_loading(false);
       return;
     }
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        on_close();
-      }
-    };
-    window.addEventListener("keydown", handle_key_down);
+    const on_key_down = (event: KeyboardEvent) => close_on_escape(event, on_close);
+    window.addEventListener("keydown", on_key_down);
     return () => {
-      window.removeEventListener("keydown", handle_key_down);
+      window.removeEventListener("keydown", on_key_down);
     };
   }, [is_open, on_close]);
 
@@ -243,7 +227,7 @@ export function ScheduledTaskRunHistoryDialog({
                               调度时间
                             </p>
                             <p className="mt-1.5 font-medium text-(--text-strong)">
-                              {format_datetime(run.scheduled_for)}
+                              {format_scheduled_datetime(run.scheduled_for, { include_seconds: true })}
                             </p>
                           </div>
                           <div>
@@ -258,8 +242,8 @@ export function ScheduledTaskRunHistoryDialog({
                       </div>
 
                       <div className="shrink-0 text-right text-sm text-(--text-default)">
-                        <p>开始 {format_datetime(run.started_at)}</p>
-                        <p className="mt-1">结束 {format_datetime(run.finished_at)}</p>
+                        <p>开始 {format_scheduled_datetime(run.started_at, { include_seconds: true })}</p>
+                        <p className="mt-1">结束 {format_scheduled_datetime(run.finished_at, { include_seconds: true })}</p>
                         <p className="mt-1">尝试次数 {run.attempts}</p>
                       </div>
                     </div>

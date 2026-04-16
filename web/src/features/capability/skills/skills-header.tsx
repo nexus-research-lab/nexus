@@ -5,7 +5,7 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 
-import type { DiscoveryMode, SkillMarketplaceController } from "@/hooks/capability/use-skill-marketplace";
+import type { DiscoveryMode, SkillMarketplaceController } from "./skills-view-model";
 
 const DISCOVERY_OPTIONS: { key: DiscoveryMode; label: string }[] = [
   { key: "catalog", label: "库内技能" },

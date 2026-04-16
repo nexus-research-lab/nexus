@@ -5,7 +5,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { useConnectorController } from "@/hooks/capability/use-connector-controller";
 
-import { FeedbackBanner } from "@/features/capability/skills/feedback-banner";
+import {
+  FeedbackBannerStack,
+  type FeedbackBannerItem,
+} from "@/shared/ui/feedback/feedback-banner-stack";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ConnectorDetailDialog } from "./connector-detail-dialog";
@@ -136,6 +139,26 @@ export function ConnectorsDirectory() {
     });
   }, [handle_oauth_callback, location.pathname, location.search, navigate, set_error_message]);
 
+  const feedback_items: FeedbackBannerItem[] = [];
+  if (status_message) {
+    feedback_items.push({
+      key: "status",
+      message: status_message,
+      on_dismiss: () => set_status_message(null),
+      title: "操作完成",
+      tone: "success",
+    });
+  }
+  if (error_message) {
+    feedback_items.push({
+      key: "error",
+      message: error_message,
+      on_dismiss: () => set_error_message(null),
+      title: "操作失败",
+      tone: "error",
+    });
+  }
+
   return (
     <>
       <WorkspaceSurfaceScaffold
@@ -159,26 +182,7 @@ export function ConnectorsDirectory() {
       />
 
       {/* 操作反馈 */}
-      {(status_message || error_message) && (
-        <div className="pointer-events-none fixed right-6 top-24 z-40 flex flex-col gap-2">
-          {status_message && (
-            <FeedbackBanner
-              message={status_message}
-              on_dismiss={() => set_status_message(null)}
-              title="操作完成"
-              tone="success"
-            />
-          )}
-          {error_message && (
-            <FeedbackBanner
-              message={error_message}
-              on_dismiss={() => set_error_message(null)}
-              title="操作失败"
-              tone="error"
-            />
-          )}
-        </div>
-      )}
+      <FeedbackBannerStack items={feedback_items} />
     </>
   );
 }

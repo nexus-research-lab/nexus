@@ -13,11 +13,12 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"

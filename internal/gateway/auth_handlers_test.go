@@ -13,12 +13,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	authsvc "github.com/nexus-research-lab/nexus-core/internal/auth"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 
 	"github.com/coder/websocket"
 )

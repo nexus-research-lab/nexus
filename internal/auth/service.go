@@ -18,12 +18,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	"github.com/nexus-research-lab/nexus-core/internal/storage"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 var (

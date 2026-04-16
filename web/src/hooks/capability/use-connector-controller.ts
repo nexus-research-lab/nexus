@@ -15,35 +15,9 @@ import {
   get_connectors_api,
 } from "@/lib/api/connector-api";
 import { ConnectorDetail, ConnectorInfo } from "@/types/capability/connector";
+import type { ConnectorDirectoryController } from "@/features/capability/connectors/connectors-view-model";
 
-export interface ConnectorController {
-  connectors: ConnectorInfo[];
-  loading: boolean;
-  search_query: string;
-  set_search_query: (q: string) => void;
-  active_category: string;
-  set_active_category: (c: string) => void;
-  connected_count: number;
-  // 详情弹窗
-  selected_detail: ConnectorDetail | null;
-  detail_loading: boolean;
-  open_detail: (connector_id: string) => void;
-  close_detail: () => void;
-  // 连接 / 断开
-  handle_connect: (connector_id: string) => Promise<void>;
-  handle_disconnect: (connector_id: string) => Promise<void>;
-  handle_oauth_callback: (payload: { code: string; state: string; redirect_uri?: string }) => Promise<void>;
-  busy_id: string | null;
-  // 状态消息
-  status_message: string | null;
-  error_message: string | null;
-  set_status_message: (m: string | null) => void;
-  set_error_message: (m: string | null) => void;
-  // 刷新
-  refresh: () => void;
-}
-
-export function useConnectorController(): ConnectorController {
+export function useConnectorController(): ConnectorDirectoryController {
   const [all_connectors, set_all_connectors] = useState<ConnectorInfo[]>([]);
   const [loading, set_loading] = useState(true);
   const [search_query, set_search_query] = useState("");

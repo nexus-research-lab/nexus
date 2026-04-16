@@ -10,12 +10,14 @@ package launcher
 import (
 	"context"
 	"database/sql"
-	agent2 "github.com/nexus-research-lab/nexus-core/internal/agent"
-	"github.com/nexus-research-lab/nexus-core/internal/config"
-	roomsvc "github.com/nexus-research-lab/nexus-core/internal/room"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -25,14 +27,11 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	cfg := newLauncherTestConfig(t)
 	migrateLauncherSQLite(t, cfg.DatabaseURL)
 
-	agentService, err := agent2.NewService(cfg)
+	agentService, db, err := bootstrap.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService, err := roomsvc.NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
 	service := NewService(cfg, agentService, roomService)
 
 	ctx := context.Background()

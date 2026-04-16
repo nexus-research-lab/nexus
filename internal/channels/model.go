@@ -12,8 +12,9 @@ package channels
 import (
 	"context"
 	"errors"
-	"github.com/nexus-research-lab/nexus-core/internal/protocol"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const (

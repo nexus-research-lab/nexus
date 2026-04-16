@@ -13,10 +13,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/nexus-research-lab/nexus-core/internal/channels"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/channels"
 )
 
 type fakeChannelIngress struct {
