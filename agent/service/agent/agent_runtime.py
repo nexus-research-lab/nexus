@@ -52,7 +52,7 @@ class AgentRuntime:
         if force_fresh:
             await session_manager.close_session(session_key)
 
-        client = await session_manager.get_session(session_key)
+        client = await session_manager.get_reusable_session(session_key)
         if client:
             logger.debug(f"♻️ 复用现有 session: {session_key}")
             return client
@@ -101,12 +101,20 @@ class AgentRuntime:
         ) -> PermissionResult:
             return await permission_strategy.request_permission(session_key, name, data, context)
 
-        client = await session_manager.create_session(
-            session_key=session_key,
-            can_use_tool=can_use_tool,
-            session_id=session_id,
-            session_options=sdk_options,
-        )
+        if session_manager.needs_reconnect(session_key):
+            client = await session_manager.prepare_session_reconnect(
+                session_key=session_key,
+                can_use_tool=can_use_tool,
+                session_id=session_id,
+                session_options=sdk_options,
+            )
+        else:
+            client = await session_manager.create_session(
+                session_key=session_key,
+                can_use_tool=can_use_tool,
+                session_id=session_id,
+                session_options=sdk_options,
+            )
         try:
             await client.connect()
         except Exception as exc:

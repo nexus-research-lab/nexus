@@ -325,19 +325,31 @@ class ChatMessageProcessor:
         subtype: str,
     ) -> Message | None:
         """把可见的 SDK system 事件转换为统一消息。"""
-        if subtype != "api_retry":
-            return None
-
-        content = self._format_api_retry_message(payload)
         metadata = {
             "subtype": subtype,
-            "attempt": payload.get("attempt"),
-            "max_retries": payload.get("max_retries"),
-            "retry_delay_ms": payload.get("retry_delay_ms"),
-            "error_status": payload.get("error_status"),
-            "error": payload.get("error"),
             "uuid": payload.get("uuid"),
         }
+
+        if subtype == "api_retry":
+            content = self._format_api_retry_message(payload)
+            metadata.update({
+                "attempt": payload.get("attempt"),
+                "max_retries": payload.get("max_retries"),
+                "retry_delay_ms": payload.get("retry_delay_ms"),
+                "error_status": payload.get("error_status"),
+                "error": payload.get("error"),
+            })
+        elif subtype == "task_started":
+            content = self._format_task_started_message(payload)
+            data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+            metadata.update({
+                "task_id": data.get("task_id") or payload.get("task_id"),
+                "task_type": data.get("task_type") or payload.get("task_type"),
+                "tool_use_id": data.get("tool_use_id") or payload.get("tool_use_id"),
+            })
+        else:
+            return None
+
         return Message(
             message_id=str(uuid.uuid4()),
             session_key=self.session_key,
@@ -382,6 +394,21 @@ class ChatMessageProcessor:
 
         reason_text = f"（原因：{'，'.join(reason_parts)}）" if reason_parts else ""
         return f"接口调用失败，系统将在 {delay_text} 自动进行{retry_progress_text}{reason_text}。"
+
+    def _format_task_started_message(self, payload: dict) -> str:
+        """把 task_started 事件格式化为用户可读文本。"""
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        description = str(data.get("description") or payload.get("description") or "").strip()
+        task_type = str(data.get("task_type") or payload.get("task_type") or "").strip()
+
+        task_type_label = {
+            "local_agent": "子代理",
+            "local_bash": "本地任务",
+        }.get(task_type, "后台任务")
+
+        if description:
+            return f"已启动{task_type_label}：{description}"
+        return f"已启动{task_type_label}"
 
     def _handle_tool_result_message(self, response_msg: UserMessage) -> list[Message]:
         """将工具结果回填到当前 assistant 段。"""

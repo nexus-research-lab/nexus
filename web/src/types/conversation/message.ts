@@ -263,6 +263,13 @@ export function get_system_message_display_meta(
     };
   }
 
+  if (subtype === 'task_started') {
+    return {
+      label: '任务启动',
+      tone: 'neutral',
+    };
+  }
+
   return {
     label: '系统事件',
     tone: 'neutral',

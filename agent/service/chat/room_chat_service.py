@@ -699,7 +699,6 @@ class RoomChatService:
         room_session_key = task_key.removeprefix("room:")
         ws_chat_task_registry.unregister(room_session_key, task)
         chat_tasks.pop(task_key, None)
-        session_manager.schedule_stale_session_cleanup(room_session_key)
         if task.cancelled():
             logger.info(f"🛑 Room 任务被取消: {task_key}")
         elif task.exception():

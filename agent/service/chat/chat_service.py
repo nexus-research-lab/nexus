@@ -303,7 +303,6 @@ class ChatService:
         ws_chat_task_registry.unregister(session_key, task)
         ws_chat_task_registry.unregister_agent_task(session_key, task)
         chat_tasks.pop(session_key, None)
-        session_manager.schedule_stale_session_cleanup(session_key)
         if task.cancelled():
             logger.info(f"🛑 任务被取消: {session_key}")
         elif task.exception():

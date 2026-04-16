@@ -58,11 +58,8 @@ class AgentRunOrchestrator:
 
     async def run_turn(self, ctx: AutomationRunContext) -> AutomationRunResult:
         """执行一次 automation turn，并把消息落入现有会话存储。"""
-        try:
-            async with session_manager.get_lock(ctx.session_key):
-                return await self._run_locked(ctx)
-        finally:
-            session_manager.schedule_stale_session_cleanup(ctx.session_key)
+        async with session_manager.get_lock(ctx.session_key):
+            return await self._run_locked(ctx)
 
     async def _run_locked(self, ctx: AutomationRunContext) -> AutomationRunResult:
         metadata = self._build_result_metadata(ctx)
