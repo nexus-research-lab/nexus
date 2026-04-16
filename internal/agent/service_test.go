@@ -1,0 +1,145 @@
+// =====================================================
+// @File   ：service_test.go
+// @Date   ：2026/04/10 22:12:00
+// @Author ：leemysw
+// 2026/04/10 22:12:00   Create
+// =====================================================
+
+package agent
+
+import (
+	"context"
+	"database/sql"
+	"github.com/nexus-research-lab/nexus-core/internal/config"
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/pressly/goose/v3"
+)
+
+func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, err := NewService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+
+	items, err := service.ListAgents(ctx)
+	if err != nil {
+		t.Fatalf("列出主智能体失败: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("主智能体初始化数量不正确: got=%d", len(items))
+	}
+	if items[0].AgentID != cfg.DefaultAgentID {
+		t.Fatalf("主智能体 ID 不匹配: got=%s want=%s", items[0].AgentID, cfg.DefaultAgentID)
+	}
+
+	validation, err := service.ValidateName(ctx, "测试助手", "")
+	if err != nil {
+		t.Fatalf("校验名称失败: %v", err)
+	}
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("名称应该可用: %+v", validation)
+	}
+
+	created, err := service.CreateAgent(ctx, CreateRequest{
+		Name:        "测试助手",
+		Description: "首个集成测试 agent",
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if created.AgentID == "" {
+		t.Fatal("创建后的 agent_id 不能为空")
+	}
+	if _, err = os.Stat(created.WorkspacePath); err != nil {
+		t.Fatalf("workspace 目录未创建: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
+		t.Fatalf("创建测试 skill-a 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-b"), 0o755); err != nil {
+		t.Fatalf("创建测试 skill-b 失败: %v", err)
+	}
+
+	loaded, err := service.GetAgent(ctx, created.AgentID)
+	if err != nil {
+		t.Fatalf("读取 agent 失败: %v", err)
+	}
+	if loaded.SkillsCount != 2 {
+		t.Fatalf("skills_count 不正确: got=%d want=2", loaded.SkillsCount)
+	}
+
+	items, err = service.ListAgents(ctx)
+	if err != nil {
+		t.Fatalf("再次列出 agent 失败: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("agent 数量不正确: got=%d want=2", len(items))
+	}
+	for _, item := range items {
+		if item.AgentID == created.AgentID && item.SkillsCount != 2 {
+			t.Fatalf("list_agents skills_count 不正确: got=%d want=2", item.SkillsCount)
+		}
+	}
+
+	validation, err = service.ValidateName(ctx, "测试助手", "")
+	if err != nil {
+		t.Fatalf("重复名称校验失败: %v", err)
+	}
+	if validation.IsAvailable {
+		t.Fatalf("重复名称不应可用: %+v", validation)
+	}
+}
+
+func newTestConfig(t *testing.T) config.Config {
+	t.Helper()
+
+	root := t.TempDir()
+	return config.Config{
+		Host:           "127.0.0.1",
+		Port:           18010,
+		ProjectName:    "nexus-test",
+		APIPrefix:      "/agent/v1",
+		WebSocketPath:  "/agent/v1/chat/ws",
+		DefaultAgentID: "nexus",
+		WorkspacePath:  filepath.Join(root, "workspace"),
+		DatabaseDriver: "sqlite",
+		DatabaseURL:    filepath.Join(root, "nexus.db"),
+	}
+}
+
+func migrateSQLite(t *testing.T, databaseURL string) {
+	t.Helper()
+
+	db, err := sql.Open("sqlite3", databaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer db.Close()
+
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	if err = goose.Up(db, testMigrationDir(t)); err != nil {
+		t.Fatalf("执行 migration 失败: %v", err)
+	}
+}
+
+func testMigrationDir(t *testing.T) string {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("定位测试文件失败")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..", "db", "migrations", "sqlite")
+}

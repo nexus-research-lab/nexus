@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 -*-
+# =====================================================
+# @File   ：nexus-apt-install
+# @Date   ：2026/04/14 19:05
+# @Author ：leemysw
+# 2026/04/14 19:05   Create
+# =====================================================
+
+set -euo pipefail
+
+readonly DEFAULT_ALLOWLIST="ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip"
+readonly LOG_DIR="/home/agent/.nexus/logs"
+readonly LOG_FILE="${LOG_DIR}/system-package-install.log"
+readonly LOCK_FILE="/var/lock/nexus-apt-install.lock"
+
+print_help() {
+    cat <<'EOF'
+用法:
+  sudo /usr/local/bin/nexus-apt-install <package> [package...]
+  sudo /usr/local/bin/nexus-apt-install --list-allowed
+
+说明:
+  - 只允许安装白名单中的 Debian 包
+  - 白名单可通过 NEXUS_APT_ALLOWLIST 环境变量覆盖
+  - 安装日志会写入 /home/agent/.nexus/logs/system-package-install.log
+EOF
+}
+
+build_allowlist() {
+    local raw_allowlist="${NEXUS_APT_ALLOWLIST:-${DEFAULT_ALLOWLIST}}"
+    local normalized_allowlist
+    local package_name
+
+    ALLOWLIST_PACKAGES=()
+
+    # 中文注释：允许用户用空格、逗号或换行维护白名单，运行时统一归一化。
+    normalized_allowlist="$(printf '%s' "${raw_allowlist}" | tr ',\n\t' '   ')"
+    for package_name in ${normalized_allowlist}; do
+        validate_package_name "${package_name}"
+        if contains_package "${package_name}" "${ALLOWLIST_PACKAGES[@]:-}"; then
+            continue
+        fi
+        ALLOWLIST_PACKAGES+=("${package_name}")
+    done
+
+    if [[ ${#ALLOWLIST_PACKAGES[@]} -eq 0 ]]; then
+        echo "ERROR: NEXUS_APT_ALLOWLIST 不能为空" >&2
+        exit 1
+    fi
+}
+
+validate_package_name() {
+    local package_name="$1"
+    if [[ ! "${package_name}" =~ ^[a-z0-9][a-z0-9+.-]*$ ]]; then
+        echo "ERROR: 非法包名: ${package_name}" >&2
+        exit 1
+    fi
+}
+
+contains_package() {
+    local package_name="$1"
+    shift || true
+
+    local existing_name
+    for existing_name in "$@"; do
+        if [[ "${existing_name}" == "${package_name}" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+print_allowlist() {
+    build_allowlist
+    printf '%s\n' "${ALLOWLIST_PACKAGES[@]}" | sort
+}
+
+ensure_root() {
+    if [[ "${EUID}" -ne 0 ]]; then
+        echo "ERROR: 请通过 sudo 执行该命令" >&2
+        exit 1
+    fi
+}
+
+prepare_logging() {
+    mkdir -p "${LOG_DIR}"
+    touch "${LOG_FILE}"
+    chown agent:agent "${LOG_FILE}"
+    chmod 0644 "${LOG_FILE}"
+    exec > >(tee -a "${LOG_FILE}") 2>&1
+}
+
+acquire_install_lock() {
+    mkdir -p "$(dirname "${LOCK_FILE}")"
+    exec 9>"${LOCK_FILE}"
+    if ! flock -w 300 9; then
+        echo "ERROR: 获取 apt 安装锁超时，请稍后重试" >&2
+        exit 1
+    fi
+}
+
+normalize_requested_packages() {
+    local package_name
+    REQUESTED_PACKAGES=()
+    for package_name in "$@"; do
+        validate_package_name "${package_name}"
+        if contains_package "${package_name}" "${REQUESTED_PACKAGES[@]:-}"; then
+            continue
+        fi
+        REQUESTED_PACKAGES+=("${package_name}")
+    done
+}
+
+assert_allowed_packages() {
+    local package_name
+    for package_name in "${REQUESTED_PACKAGES[@]}"; do
+        if ! contains_package "${package_name}" "${ALLOWLIST_PACKAGES[@]:-}"; then
+            echo "ERROR: 包 ${package_name} 不在允许列表中" >&2
+            echo "允许列表如下:" >&2
+            print_allowlist >&2
+            exit 1
+        fi
+    done
+}
+
+install_packages() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 开始安装系统包: ${REQUESTED_PACKAGES[*]}"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends "${REQUESTED_PACKAGES[@]}"
+    rm -rf /var/lib/apt/lists/*
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 安装完成: ${REQUESTED_PACKAGES[*]}"
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        print_help
+        exit 1
+    fi
+
+    case "${1}" in
+        --help|-h)
+            print_help
+            exit 0
+            ;;
+        --list-allowed)
+            print_allowlist
+            exit 0
+            ;;
+    esac
+
+    ensure_root
+    build_allowlist
+    normalize_requested_packages "$@"
+
+    if [[ ${#REQUESTED_PACKAGES[@]} -eq 0 ]]; then
+        echo "ERROR: 至少需要提供一个包名" >&2
+        exit 1
+    fi
+
+    assert_allowed_packages
+    prepare_logging
+    acquire_install_lock
+    install_packages
+}
+
+main "$@"

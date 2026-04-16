@@ -1,0 +1,40 @@
+// # !/usr/bin/env go
+// -*- coding: utf-8 -*-
+// =====================================================
+// @File   ：context.go
+// @Date   ：2026/04/12 01:05:00
+// @Author ：leemysw
+// 2026/04/12 01:05:00   Create
+// =====================================================
+
+package auth
+
+import "context"
+
+type principalContextKey struct{}
+type stateContextKey struct{}
+
+// WithPrincipal 把认证后的主体写入请求上下文。
+func WithPrincipal(ctx context.Context, principal *Principal) context.Context {
+	if principal == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, principalContextKey{}, principal)
+}
+
+// PrincipalFromContext 读取请求上下文中的主体。
+func PrincipalFromContext(ctx context.Context) *Principal {
+	principal, _ := ctx.Value(principalContextKey{}).(*Principal)
+	return principal
+}
+
+// WithState 把认证系统状态写入请求上下文。
+func WithState(ctx context.Context, state State) context.Context {
+	return context.WithValue(ctx, stateContextKey{}, state)
+}
+
+// StateFromContext 读取请求上下文中的认证系统状态。
+func StateFromContext(ctx context.Context) (State, bool) {
+	state, ok := ctx.Value(stateContextKey{}).(State)
+	return state, ok
+}

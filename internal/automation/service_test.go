@@ -1,0 +1,610 @@
+// # !/usr/bin/env go
+// -*- coding: utf-8 -*-
+// =====================================================
+// @File   ：service_test.go
+// @Date   ：2026/04/11 16:02:00
+// @Author ：leemysw
+// 2026/04/11 16:02:00   Create
+// =====================================================
+
+package automation
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	agentsvc "github.com/nexus-research-lab/nexus-core/internal/agent"
+	"github.com/nexus-research-lab/nexus-core/internal/channels"
+	chatsvc "github.com/nexus-research-lab/nexus-core/internal/chat"
+	"github.com/nexus-research-lab/nexus-core/internal/config"
+	permissionctx "github.com/nexus-research-lab/nexus-core/internal/permission"
+	"github.com/nexus-research-lab/nexus-core/internal/protocol"
+	"github.com/nexus-research-lab/nexus-core/internal/sessiondomain"
+	workspacestore "github.com/nexus-research-lab/nexus-core/internal/storage/workspace"
+	workspacepkg "github.com/nexus-research-lab/nexus-core/internal/workspace"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+type fakeChatRunner struct {
+	permission    *permissionctx.Context
+	resultText    string
+	assistantText string
+
+	mu       sync.Mutex
+	requests []chatsvc.Request
+}
+
+func (f *fakeChatRunner) HandleChat(_ context.Context, request chatsvc.Request) error {
+	f.mu.Lock()
+	f.requests = append(f.requests, request)
+	f.mu.Unlock()
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		f.permission.BroadcastEvent(context.Background(), request.SessionKey, protocol.EventMessage{
+			ProtocolVersion: 2,
+			DeliveryMode:    "durable",
+			EventType:       protocol.EventTypeMessage,
+			SessionKey:      request.SessionKey,
+			Data: map[string]any{
+				"message_id": "assistant_" + request.RoundID,
+				"round_id":   request.RoundID,
+				"role":       "assistant",
+				"session_id": "sdk_" + request.RoundID,
+				"content": []map[string]any{
+					{
+						"type": "text",
+						"text": firstNonEmptyString(f.assistantText, f.resultText, "ok"),
+					},
+				},
+			},
+			Timestamp: time.Now().UnixMilli(),
+		})
+		f.permission.BroadcastEvent(context.Background(), request.SessionKey, protocol.EventMessage{
+			ProtocolVersion: 2,
+			DeliveryMode:    "durable",
+			EventType:       protocol.EventTypeMessage,
+			SessionKey:      request.SessionKey,
+			Data: map[string]any{
+				"message_id": "result_" + request.RoundID,
+				"round_id":   request.RoundID,
+				"role":       "result",
+				"subtype":    "success",
+				"result":     firstNonEmptyString(f.resultText, "ok"),
+				"session_id": "sdk_" + request.RoundID,
+			},
+			Timestamp: time.Now().UnixMilli(),
+		})
+		f.permission.BroadcastEvent(context.Background(), request.SessionKey, protocol.NewRoundStatusEvent(
+			request.SessionKey,
+			request.RoundID,
+			"finished",
+			"success",
+		))
+	}()
+	return nil
+}
+
+func (f *fakeChatRunner) Requests() []chatsvc.Request {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := make([]chatsvc.Request, len(f.requests))
+	copy(result, f.requests)
+	return result
+}
+
+type fakeWorkspaceReader struct {
+	files map[string]string
+}
+
+func (f *fakeWorkspaceReader) GetFile(_ context.Context, _ string, relativePath string) (*workspacepkg.FileContent, error) {
+	content, ok := f.files[relativePath]
+	if !ok {
+		return nil, workspacepkg.ErrFileNotFound
+	}
+	return &workspacepkg.FileContent{
+		Path:    relativePath,
+		Content: content,
+	}, nil
+}
+
+func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{permission: permission}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+
+	task, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "日报同步",
+		AgentID:     "agent-1",
+		Instruction: "整理今天的进展",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{
+			Kind:            SessionTargetBound,
+			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "manual", ""),
+		},
+		Delivery: DeliveryTarget{Mode: DeliveryModeNone},
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	result, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	if result.Status != RunStatusRunning {
+		t.Fatalf("期望立即返回 running，实际为 %s", result.Status)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		if listErr != nil || len(items) == 0 {
+			return false
+		}
+		return items[0].Status == RunStatusSucceeded
+	})
+
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("ListTaskRuns 失败: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("期望 1 条 run 记录，实际 %d", len(runs))
+	}
+	if runs[0].Status != RunStatusSucceeded {
+		t.Fatalf("期望 run 成功，实际 %s", runs[0].Status)
+	}
+
+	requests := chat.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("期望 chat runner 收到 1 次请求，实际 %d", len(requests))
+	}
+	if requests[0].Content != "整理今天的进展" {
+		t.Fatalf("下发指令不正确: %s", requests[0].Content)
+	}
+}
+
+func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{permission: permission}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{
+			files: map[string]string{
+				"HEARTBEAT.md": "检查今日待办并汇总异常。",
+			},
+		},
+		nil,
+	)
+
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 1800,
+		TargetMode:   HeartbeatTargetNone,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+
+	text := "请额外检查告警列表"
+	result, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
+		Mode: WakeModeNow,
+		Text: &text,
+	})
+	if err != nil {
+		t.Fatalf("WakeHeartbeat 失败: %v", err)
+	}
+	if !result.Scheduled {
+		t.Fatalf("期望立即唤醒返回 scheduled=true")
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		status, statusErr := service.GetHeartbeatStatus(context.Background(), "agent-1")
+		if statusErr != nil {
+			return false
+		}
+		return status.LastHeartbeatAt != nil && status.LastAckAt != nil
+	})
+
+	status, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if status.LastHeartbeatAt == nil || status.LastAckAt == nil {
+		t.Fatalf("heartbeat 状态没有正确更新: %+v", status)
+	}
+
+	requests := chat.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("期望主会话收到 1 次 heartbeat 请求，实际 %d", len(requests))
+	}
+	if requests[0].SessionKey != buildMainSessionKey("agent-1") {
+		t.Fatalf("heartbeat 主会话键错误: %s", requests[0].SessionKey)
+	}
+	if !strings.Contains(requests[0].Content, "检查今日待办并汇总异常") || !strings.Contains(requests[0].Content, text) {
+		t.Fatalf("heartbeat 指令没有正确拼装: %s", requests[0].Content)
+	}
+}
+
+func TestServiceStartRunsDueTask(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{permission: permission}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	service.nowFn = func() time.Time {
+		return time.Now().UTC()
+	}
+
+	_, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "定时巡检",
+		AgentID:     "agent-1",
+		Instruction: "执行自动巡检",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(1),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{
+			Kind:            SessionTargetBound,
+			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "scheduler", ""),
+		},
+		Delivery: DeliveryTarget{Mode: DeliveryModeNone},
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	if err = service.Start(context.Background()); err != nil {
+		t.Fatalf("Start 失败: %v", err)
+	}
+	defer service.Stop()
+
+	waitFor(t, 3*time.Second, func() bool {
+		return len(chat.Requests()) > 0
+	})
+}
+
+func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
+	workspacePath := t.TempDir()
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{
+		permission: permission,
+		resultText: "巡检完成：CPU 使用率正常",
+	}
+	router := channels.NewRouter(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		&testAgentResolver{workspacePath: workspacePath},
+		permission,
+	)
+	store := workspacestore.NewSessionFileStore(workspacePath)
+	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "delivery", "")
+	now := time.Now().UTC()
+	if _, err := store.UpsertSession(workspacePath, sessiondomain.Session{
+		SessionKey:   sessionKey,
+		AgentID:      "agent-1",
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Delivery",
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("准备目标会话失败: %v", err)
+	}
+	if err := router.RememberWebSocketRoute(context.Background(), sessionKey); err != nil {
+		t.Fatalf("RememberWebSocketRoute 失败: %v", err)
+	}
+
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		router,
+	)
+
+	task, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "主动巡检播报",
+		AgentID:     "agent-1",
+		Instruction: "执行巡检并输出结果",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{
+			Kind:            SessionTargetNamed,
+			NamedSessionKey: "ops-bot",
+		},
+		Delivery: DeliveryTarget{Mode: DeliveryModeLast},
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	if _, err = service.RunTaskNow(context.Background(), task.JobID); err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		if listErr != nil || len(items) == 0 {
+			return false
+		}
+		return items[0].Status == RunStatusSucceeded
+	})
+
+	messages, err := store.ReadSessionMessages([]string{workspacePath}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取投递目标消息失败: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("期望投递目标写入 2 条消息，实际 %d", len(messages))
+	}
+	if firstNonEmptyString(stringFromMessage(messages[1], "result")) != "巡检完成：CPU 使用率正常" {
+		t.Fatalf("投递文本不正确: %+v", messages[1])
+	}
+}
+
+func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
+	workspacePath := t.TempDir()
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{
+		permission: permission,
+		resultText: "HEARTBEAT_OK",
+	}
+	router := channels.NewRouter(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		&testAgentResolver{workspacePath: workspacePath},
+		permission,
+	)
+	store := workspacestore.NewSessionFileStore(workspacePath)
+	targetSessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "heartbeat", "")
+	now := time.Now().UTC()
+	if _, err := store.UpsertSession(workspacePath, sessiondomain.Session{
+		SessionKey:   targetSessionKey,
+		AgentID:      "agent-1",
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Heartbeat",
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("准备 heartbeat 目标会话失败: %v", err)
+	}
+	if err := router.RememberWebSocketRoute(context.Background(), targetSessionKey); err != nil {
+		t.Fatalf("RememberWebSocketRoute 失败: %v", err)
+	}
+
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{
+			files: map[string]string{
+				"HEARTBEAT.md": "仅在异常时提醒。",
+			},
+		},
+		router,
+	)
+
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 1800,
+		TargetMode:   HeartbeatTargetLast,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{Mode: WakeModeNow}); err != nil {
+		t.Fatalf("WakeHeartbeat 失败: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		status, statusErr := service.GetHeartbeatStatus(context.Background(), "agent-1")
+		return statusErr == nil && status.LastAckAt != nil
+	})
+
+	messages, err := store.ReadSessionMessages([]string{workspacePath}, targetSessionKey)
+	if err != nil {
+		t.Fatalf("读取 heartbeat 目标消息失败: %v", err)
+	}
+	if len(messages) != 0 {
+		t.Fatalf("HEARTBEAT_OK 不应外发，实际写入了 %d 条消息", len(messages))
+	}
+}
+
+func newAutomationTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_")))
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	schema := `
+CREATE TABLE agents (
+    id VARCHAR(64) NOT NULL PRIMARY KEY
+);
+CREATE TABLE automation_cron_jobs (
+    job_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    source_kind VARCHAR(32) NOT NULL DEFAULT 'manual',
+    source_creator_agent_id VARCHAR(64),
+    source_context_type VARCHAR(64),
+    source_context_id VARCHAR(64),
+    source_context_label VARCHAR(255),
+    source_session_key VARCHAR(255),
+    source_session_label VARCHAR(255),
+    schedule_kind VARCHAR(32) NOT NULL,
+    run_at VARCHAR(32),
+    interval_seconds INTEGER,
+    cron_expression VARCHAR(255),
+    timezone VARCHAR(64) NOT NULL,
+    instruction TEXT NOT NULL,
+    session_target_kind VARCHAR(32) NOT NULL,
+    bound_session_key VARCHAR(255),
+    named_session_key VARCHAR(255),
+    wake_mode VARCHAR(32) NOT NULL,
+    delivery_mode VARCHAR(32) NOT NULL,
+    delivery_channel VARCHAR(64),
+    delivery_to VARCHAR(255),
+    delivery_account_id VARCHAR(64),
+    delivery_thread_id VARCHAR(255),
+    enabled BOOLEAN NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE automation_cron_runs (
+    run_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    job_id VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    scheduled_for DATETIME,
+    started_at DATETIME,
+    finished_at DATETIME,
+    attempts INTEGER NOT NULL,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE automation_heartbeat_states (
+    state_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    agent_id VARCHAR(64) NOT NULL UNIQUE,
+    enabled BOOLEAN NOT NULL,
+    every_seconds INTEGER NOT NULL,
+    target_mode VARCHAR(32) NOT NULL,
+    ack_max_chars INTEGER NOT NULL,
+    last_heartbeat_at DATETIME,
+    last_ack_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE automation_delivery_routes (
+    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    agent_id VARCHAR(64) NOT NULL,
+    mode VARCHAR(32) NOT NULL,
+    channel VARCHAR(64),
+    "to" VARCHAR(255),
+    account_id VARCHAR(64),
+    thread_id VARCHAR(255),
+    enabled BOOLEAN NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE automation_system_events (
+    event_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    event_type VARCHAR(64) NOT NULL,
+    source_type VARCHAR(64),
+    source_id VARCHAR(64),
+    payload JSON NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    processed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+INSERT INTO agents(id) VALUES ('agent-1');`
+	if _, err = db.Exec(schema); err != nil {
+		t.Fatalf("初始化测试 schema 失败: %v", err)
+	}
+	return db
+}
+
+func waitFor(t *testing.T, timeout time.Duration, predicate func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if predicate() {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("等待条件达成超时: %s", timeout)
+}
+
+func intRef(value int) *int {
+	result := value
+	return &result
+}
+
+func stringRef(value string) *string {
+	result := value
+	return &result
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, item := range values {
+		if strings.TrimSpace(item) != "" {
+			return strings.TrimSpace(item)
+		}
+	}
+	return ""
+}
+
+type testAgentResolver struct {
+	workspacePath string
+}
+
+func (r *testAgentResolver) GetAgent(_ context.Context, agentID string) (*agentsvc.Agent, error) {
+	return &agentsvc.Agent{
+		AgentID:       agentID,
+		WorkspacePath: r.workspacePath,
+	}, nil
+}
+
+func stringFromMessage(message sessiondomain.Message, key string) string {
+	value, _ := message[key].(string)
+	return strings.TrimSpace(value)
+}

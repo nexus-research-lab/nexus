@@ -1,0 +1,240 @@
+# Nexus Core
+
+多 Agent 协作控制台。
+
+后端负责 Agent Runtime、会话、权限、Workspace、Memory、IM Channel；前端负责 Launcher、DM、Room、Contacts 等协作界面。
+
+## 核心能力
+
+- 多 Agent：独立配置、独立 workspace、独立会话资产
+- 实时会话：WebSocket 消息流、中断、权限审批
+- Workspace：文件树浏览、读写、创建、重命名、删除
+- Memory：`MEMORY.md` + `memory/*.md`
+- 多入口：Web / Discord / Telegram
+- 持久化：SQLite + 本地文件
+
+## 技术栈
+
+- 后端：Go 1.24+、chi、coder/websocket、Goose、Claude Agent SDK（Go）
+- 前端：React 19、Vite 7、React Router 7、TypeScript 5、Zustand、Tailwind CSS 4
+
+## 项目结构
+
+```text
+.
+├── cmd/                 # Go 服务入口（server / migrate / ctl / tsgen）
+├── internal/            # Go 后端分层实现
+├── db/                  # Goose migrations（sqlite / postgres）
+├── web/                 # React + Vite 前端
+├── docs/                # 技术文档
+├── deploy/              # Docker / nginx / compose
+├── skills/              # 内置 Skill 定义
+└── makefile             # 常用命令
+```
+
+## 快速开始
+
+### 1. 环境
+
+- Go 1.24+
+- Node.js 20+
+- npm
+
+### 2. 配置
+
+```bash
+cp env.example .env
+cp web/env.example web/.env.local
+```
+
+本地开发推荐：
+
+```bash
+# web/.env.local
+VITE_WS_URL=/agent/v1/chat/ws
+VITE_API_URL=/agent/v1
+```
+
+后端至少需要：
+
+```bash
+ANTHROPIC_AUTH_TOKEN=your_token
+ANTHROPIC_MODEL=your_model
+```
+
+如果要把服务放到公网，建议启用浏览器登录：
+
+```bash
+AUTH_SESSION_TTL_HOURS=168
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SAMESITE=lax
+```
+
+首个 owner 账户通过 CLI 初始化：
+
+```bash
+go run ./cmd/nexusctl auth init-owner --username admin --password change-this-password
+```
+
+认证说明：
+
+- 登录成功后后端会签发 `HttpOnly` 会话 Cookie，并在服务端保存会话记录
+- 退出登录会立即撤销当前会话，不再依赖前端单纯删除 Cookie
+- 反向代理生产环境优先使用前后端同源部署
+- `ACCESS_TOKEN` 仍可作为机器调用的 Bearer Token 兼容入口
+
+数据库默认使用本地 SQLite，通常不需要额外配置：
+
+```bash
+# .env
+DATABASE_DRIVER=sqlite
+DATABASE_URL=sqlite:////$HOME/.nexus/data/nexus.db
+```
+
+如果不在 `.env` 中显式填写 `DATABASE_URL`，默认会使用 `~/.nexus/data/nexus.db`。
+
+### 3. 安装
+
+```bash
+make install
+```
+
+### 4. 初始化数据库（首次启动）
+
+默认 Go 开发链路会把 SQLite 放在 `~/.nexus/data/nexus.db`。
+
+推荐首次启动顺序：
+
+```bash
+make db-init
+make dev
+```
+
+说明：
+
+- `make db-init` 会执行 Goose 迁移
+- `make dev` / `make run-backend` 启动 Go 后端前会先执行迁移
+- Docker 部署会在容器启动时自动执行数据库初始化脚本
+
+如果你看到数据库 schema 不匹配，优先直接重建本地 SQLite 文件：
+
+```bash
+rm -f ~/.nexus/data/nexus.db
+make db-init
+```
+
+### 5. 启动
+
+```bash
+make dev
+```
+
+访问地址：
+
+- 前端：`http://localhost:3000`
+- 后端：`http://localhost:8010`
+
+分开启动：
+
+```bash
+make run-backend
+make run-web
+```
+
+## 常用命令
+
+```bash
+make help
+make install
+make dev
+make run-backend
+make run-web
+make build
+make start
+make logs
+make stop
+```
+
+Docker 构建与启动命令默认使用当前用户执行。
+如果当前用户还没有 Docker 权限，请先完成服务器上的 Docker 用户权限配置，再重新登录终端。
+
+生产部署默认使用单一宿主机根目录变量 `${HOST_DATA_DIR:-./data}`。
+其中 `${HOST_DATA_DIR}/.nexus` 挂载到容器内 `/home/agent/.nexus`，`${HOST_DATA_DIR}/.claude` 挂载到容器内 `/home/agent/.claude`。
+如果要把数据统一放到宿主机目录 `/data`，启动前执行：
+
+```bash
+export HOST_DATA_DIR=/data
+mkdir -p "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
+chown -R 1001:1001 "$HOST_DATA_DIR/.nexus" "$HOST_DATA_DIR/.claude"
+```
+
+## 关键配置
+
+### 后端
+
+- `ANTHROPIC_AUTH_TOKEN`
+- `ANTHROPIC_BASE_URL`
+- `ANTHROPIC_MODEL`
+- `DATABASE_DRIVER`
+- `DATABASE_URL`：默认开发值为 `sqlite:////$HOME/.nexus/data/nexus.db`
+- `LOG_LEVEL`
+- `LOG_FORMAT`
+- `LOG_STDOUT`
+- `LOG_FILE_ENABLED`
+- `LOG_PATH`
+- `LOG_ROTATE_DAILY`
+- `LOG_MAX_SIZE_MB`
+- `LOG_MAX_AGE_DAYS`
+- `LOG_MAX_BACKUPS`
+- `LOG_COMPRESS`
+- `WORKSPACE_PATH`
+- `DEFAULT_AGENT_ID`
+- `AUTH_SESSION_TTL_HOURS`
+- `AUTH_COOKIE_SECURE`
+- `ACCESS_TOKEN`
+- `DISCORD_BOT_TOKEN`
+- `TELEGRAM_BOT_TOKEN`
+
+日志默认会同时输出到标准输出和 `~/.nexus/logs/logger.log`。
+文件日志按天切主文件，并在单日内按大小继续滚动，默认保留 7 天 / 7 个备份并开启压缩。
+
+### 前端
+
+- `VITE_API_URL`
+- `VITE_WS_URL`
+- `VITE_DEFAULT_MODEL`
+
+## 存储
+
+- SQLite：结构化元数据（Agent、Session、Room、Skill 等）
+- `~/.nexus/workspace/`：workspace 根目录
+- `<workspace>/.agents/`：Agent 运行态、Session、消息日志、成本账本
+
+每个 Agent 初始化时会创建：
+
+- `AGENTS.md`
+- `USER.md`
+- `MEMORY.md`
+- `RUNBOOK.md`
+- `memory/README.md`
+
+## 主要接口
+
+- `GET /agent/v1/agents`
+- `POST /agent/v1/agents`
+- `PATCH /agent/v1/agents/{agent_id}`
+- `GET /agent/v1/agents/{agent_id}/workspace/files`
+- `GET /agent/v1/sessions`
+- `POST /agent/v1/sessions`
+- `GET /agent/v1/sessions/{session_key}/messages`
+- `GET /agent/v1/sessions/{session_key}/cost/summary`
+- `GET /agent/v1/skills` — 技能市场列表
+- `POST /agent/v1/skills/{name}/install` — 安装技能
+- `POST /agent/v1/skills/{name}/uninstall` — 卸载技能
+- `WS /agent/v1/chat/ws`
+
+## 文档
+
+- 技术文档：`docs/nexus-technical-doc.md`
+- 前端说明：`web/README.md`
+- 变更记录：`CHANGELOG.md`

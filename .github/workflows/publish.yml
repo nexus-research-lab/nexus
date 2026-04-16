@@ -1,0 +1,140 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 Git tag，例如 v0.0.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout Tag
+        run: |
+          git checkout "${{ steps.tag.outputs.tag }}"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r agent/requirements.txt
+
+      - name: Install Web Dependencies
+        run: |
+          cd web
+          npm ci
+
+      - name: Validate
+        run: |
+          make check-backend
+          cd web
+          npm run lint
+          npx tsc --noEmit
+
+      - name: Build Web
+        run: |
+          cd web
+          npm run build
+
+      - name: Extract Release Notes
+        id: notes
+        run: |
+          VERSION="${{ steps.tag.outputs.version }}"
+
+          awk -v version="${VERSION}" '
+            $0 ~ "^## \\[" version "\\] - " {
+              capture = 1
+            }
+            capture && $0 ~ "^## " && $0 !~ "^## \\[" version "\\] - " {
+              exit
+            }
+            capture {
+              print
+            }
+          ' CHANGELOG.md > release_notes.md
+
+          if [ ! -s release_notes.md ]; then
+            echo "未在 CHANGELOG.md 中找到版本 ${VERSION} 的发布说明"
+            exit 1
+          fi
+
+      - name: Package Release Assets
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          STAGE_DIR="${RUNNER_TEMP}/nexus-release"
+          SOURCE_DIR="${STAGE_DIR}/nexus-${TAG}"
+          ARTIFACT_DIR="${RUNNER_TEMP}/artifacts"
+
+          rm -rf "${STAGE_DIR}" "${ARTIFACT_DIR}"
+          mkdir -p "${SOURCE_DIR}" "${ARTIFACT_DIR}"
+
+          git archive "${TAG}" | tar -x -C "${SOURCE_DIR}"
+          cp -R web/dist "${SOURCE_DIR}/web/dist"
+
+          tar -czf "${ARTIFACT_DIR}/nexus-${TAG}.tar.gz" -C "${STAGE_DIR}" "nexus-${TAG}"
+          tar -czf "${ARTIFACT_DIR}/nexus-web-dist-${TAG}.tar.gz" -C web dist
+
+          sha256sum "${ARTIFACT_DIR}/nexus-${TAG}.tar.gz" > "${ARTIFACT_DIR}/nexus-${TAG}.sha256"
+          sha256sum "${ARTIFACT_DIR}/nexus-web-dist-${TAG}.tar.gz" > "${ARTIFACT_DIR}/nexus-web-dist-${TAG}.sha256"
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-${{ steps.tag.outputs.tag }}
+          path: |
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.tar.gz
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.sha256
+            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.tar.gz
+            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body_path: release_notes.md
+          generate_release_notes: false
+          files: |
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.tar.gz
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.sha256
+            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.tar.gz
+            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.sha256

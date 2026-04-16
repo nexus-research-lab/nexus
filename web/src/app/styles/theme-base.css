@@ -1,0 +1,202 @@
+/**
+ * =====================================================
+ * @File   : theme-base.css
+ * @Date   : 2026-04-04 22:07
+ * @Author : leemysw
+ * 2026-04-04 22:07   Create
+ * =====================================================
+ */
+
+/* 中文注释：让核心颜色变量具备插值能力，主题切换时可以平滑过渡。 */
+@property --background {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e8e6e3;
+}
+
+@property --foreground {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1a1f28;
+}
+
+@property --primary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #6c63ef;
+}
+
+@property --secondary {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #eae8e5;
+}
+
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #c49a6c;
+}
+
+@property --muted {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e5e3e0;
+}
+
+@property --border {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(155, 158, 166, 0.26);
+}
+
+@property --input {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(253, 252, 250, 0.98);
+}
+
+@property --liquid-glass-distortion {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* 中文注释：这里只放元素基线和浏览器层的默认行为，不承载组件视觉。 */
+/* ── Theme overlay keyframes ─────────────────────────── */
+
+@keyframes nexus-fog-drift {
+  0% {
+    transform: translateX(-1.5%);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: translateX(1.5%);
+    opacity: 1;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    position: relative;
+    background-color: var(--background);
+    background-image: var(--surface-body-background);
+    background-attachment: fixed, fixed;
+    background-position: top left, center top;
+    background-repeat: repeat, no-repeat;
+    background-size: var(--ambient-page-pattern-size), 100% 100%;
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      background-color var(--motion-duration-normal) var(--motion-ease-standard),
+      color var(--motion-duration-normal) ease;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  .message-cjk-font {
+    font-family:
+      "KingHwa_OldSong",
+      "PingFang SC",
+      "Hiragino Sans GB",
+      "Source Han Serif SC",
+      "Songti SC",
+      serif;
+  }
+
+  .message-cjk-code-font {
+    font-family:
+      "KingHwa_OldSong",
+      var(--font-mono),
+      "PingFang SC",
+      "Hiragino Sans GB",
+      "Source Han Serif SC",
+      "Songti SC",
+      monospace;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+
+  :is(a, button, input, textarea, select, summary):focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--background) 88%, transparent),
+      0 0 0 4px var(--ring);
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    padding: 0.15rem 0.42rem;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    line-height: 1;
+    border-radius: 999px;
+    color: var(--text-kbd-color);
+    background: var(--surface-kbd-background);
+    box-shadow: var(--surface-kbd-shadow);
+    border: 1px solid var(--divider-kbd-border);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}
