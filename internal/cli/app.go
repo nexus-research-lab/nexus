@@ -14,17 +14,11 @@ import (
 	"os"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
-	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
-	"github.com/nexus-research-lab/nexus/internal/channels"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/launcher"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
@@ -34,24 +28,20 @@ import (
 
 // New 创建 CLI 应用。
 func New(cfg config.Config) (*cobra.Command, error) {
-	core, err := bootstrap.NewCoreServices(cfg)
+	appServices, err := bootstrap.NewAppServices(cfg, nil)
 	if err != nil {
 		return nil, err
 	}
-	agentService := core.Agent
-	roomService := core.Room
-	sessionService := core.Session
-	authService := authsvc.NewServiceWithDB(cfg, core.DB)
-	workspaceService := workspacepkg.NewService(cfg, agentService)
-	skillService := skillsvc.NewService(cfg, agentService, workspaceService)
-	connectorService := connectorsvc.NewService(cfg, core.DB)
-	launcherService := launcher.NewService(cfg, agentService, roomService)
-	permission := permissionctx.NewContext()
-	runtimeManager := runtimectx.NewManager()
-	channelRouter := channels.NewRouter(cfg, core.DB, agentService, permission)
-	chatService := chatsvc.NewService(cfg, agentService, runtimeManager, permission)
-	ingressService := channels.NewIngressService(cfg, agentService, chatService, channelRouter)
-	automationService := automationsvc.NewService(cfg, core.DB, agentService, chatService, nil, permission, workspaceService, channelRouter)
+	agentService := appServices.Core.Agent
+	roomService := appServices.Core.Room
+	sessionService := appServices.Core.Session
+	authService := appServices.Auth
+	workspaceService := appServices.Workspace
+	skillService := appServices.Skills
+	connectorService := appServices.Connectors
+	launcherService := appServices.Launcher
+	ingressService := appServices.Ingress
+	automationService := appServices.Automation
 
 	root := &cobra.Command{
 		Use:   "nexusctl",

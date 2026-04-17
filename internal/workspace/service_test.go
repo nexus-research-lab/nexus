@@ -19,8 +19,8 @@ import (
 	"time"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -30,10 +30,12 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
 	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
+		t.Fatalf("打开测试数据库失败: %v", err)
 	}
+	defer db.Close()
+	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	workspaceService := NewService(cfg, agentService)
 	ctx := context.Background()
 
@@ -93,10 +95,12 @@ func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
 	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
+		t.Fatalf("打开测试数据库失败: %v", err)
 	}
+	defer db.Close()
+	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	workspaceService := NewService(cfg, agentService)
 	ctx := context.Background()
 

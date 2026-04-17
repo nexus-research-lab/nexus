@@ -623,10 +623,10 @@ func firstNonEmpty(values ...string) string {
 func firstNonEmptySlice(candidates ...[]string) []string {
 	for _, item := range candidates {
 		if len(item) > 0 {
-			return append([]string{}, item...)
+			return append(make([]string, 0, len(item)), item...)
 		}
 	}
-	return nil
+	return []string{}
 }
 
 func projectRoot() string {

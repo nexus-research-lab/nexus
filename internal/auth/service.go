@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 var (
@@ -43,15 +42,6 @@ type Service struct {
 	now          func() time.Time
 	idFactory    func(string) string
 	tokenFactory func() (string, error)
-}
-
-// NewService 创建认证服务。
-func NewService(cfg config.Config) (*Service, error) {
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return NewServiceWithDB(cfg, db), nil
 }
 
 // NewServiceWithDB 使用共享 DB 创建认证服务。

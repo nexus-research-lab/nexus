@@ -31,6 +31,7 @@ func parseSkillFrontmatter(content string, fallbackName string) frontmatterData 
 		Name:           strings.TrimSpace(fallbackName),
 		Title:          strings.TrimSpace(fallbackName),
 		Scope:          "any",
+		Tags:           []string{},
 		ReadmeMarkdown: content,
 	}
 	lines := strings.Split(extractFrontmatter(content), "\n")
@@ -139,10 +140,10 @@ func toString(value any) string {
 func toStringSlice(value any) []string {
 	switch typed := value.(type) {
 	case []string:
-		return append([]string{}, typed...)
+		return append(make([]string, 0, len(typed)), typed...)
 	case string:
 		if typed == "" {
-			return nil
+			return []string{}
 		}
 		if strings.Contains(typed, ",") {
 			rawItems := strings.Split(typed, ",")
@@ -157,6 +158,6 @@ func toStringSlice(value any) []string {
 		}
 		return []string{strings.Trim(typed, "\"'[]")}
 	default:
-		return nil
+		return []string{}
 	}
 }

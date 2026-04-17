@@ -96,32 +96,25 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 			},
 		})
 	}
-	core, err := bootstrap.NewCoreServices(cfg)
+	appServices, err := bootstrap.NewAppServices(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
-	agentService := core.Agent
-	roomService := core.Room
-	sessionService := core.Session
-	authService := authsvc.NewServiceWithDB(cfg, core.DB)
-	providerService := providercfg.NewServiceWithDB(cfg, core.DB)
-	workspaceService := workspacepkg.NewService(cfg, agentService)
-	skillService := skillsvc.NewService(cfg, agentService, workspaceService)
-	connectorService := connectorsvc.NewService(cfg, core.DB)
-	permission := permissionctx.NewContext()
-	runtimeManager := runtimectx.NewManager()
-	channelRouter := channels3.NewRouter(cfg, core.DB, agentService, permission)
-	channelRouter.SetLogger(logger.With("component", "channels"))
-	chatService := chatsvc.NewService(cfg, agentService, runtimeManager, permission)
-	chatService.SetLogger(logger.With("component", "chat"))
-	chatService.SetProviderResolver(providerService)
-	ingressService := channels3.NewIngressService(cfg, agentService, chatService, channelRouter)
-	ingressService.SetLogger(logger.With("component", "channels.ingress"))
-	channelRouter.SetIngress(ingressService)
-	launcherService := launcher.NewService(cfg, agentService, roomService)
-	roomRealtime := room2.NewRealtimeService(cfg, roomService, agentService, runtimeManager, permission)
-	roomRealtime.SetLogger(logger.With("component", "room"))
-	roomRealtime.SetProviderResolver(providerService)
+	agentService := appServices.Core.Agent
+	roomService := appServices.Core.Room
+	sessionService := appServices.Core.Session
+	authService := appServices.Auth
+	providerService := appServices.Provider
+	workspaceService := appServices.Workspace
+	skillService := appServices.Skills
+	connectorService := appServices.Connectors
+	permission := appServices.Permission
+	runtimeManager := appServices.Runtime
+	channelRouter := appServices.Channels
+	chatService := appServices.Chat
+	ingressService := appServices.Ingress
+	launcherService := appServices.Launcher
+	roomRealtime := appServices.RoomRealtime
 	roomSubs := newRoomSubscriptionRegistry(128)
 	roomRealtime.SetRoomBroadcaster(roomSubs)
 	sessionService.SetRuntimeManager(runtimeManager)
@@ -140,8 +133,7 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 			Status:           status,
 		}
 	})
-	automationService := automationsvc.NewService(cfg, core.DB, agentService, chatService, roomRealtime, permission, workspaceService, channelRouter)
-	automationService.SetLogger(logger.With("component", "automation"))
+	automationService := appServices.Automation
 
 	server := &Server{
 		config:        cfg,

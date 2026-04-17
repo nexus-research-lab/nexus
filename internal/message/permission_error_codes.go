@@ -4,7 +4,7 @@
 // @Author ：leemysw
 // =====================================================
 
-package messageproc
+package message
 
 import "strings"
 

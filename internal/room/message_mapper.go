@@ -12,7 +12,7 @@ package room
 import (
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/messageproc"
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
 
@@ -26,7 +26,7 @@ type slotMessageMapper struct {
 	agentID        string
 	slotMessageID  string
 	agentRoundID   string
-	processor      *messageproc.Processor
+	processor      *message.Processor
 }
 
 func newSlotMessageMapper(
@@ -44,7 +44,7 @@ func newSlotMessageMapper(
 		agentID:        agentID,
 		slotMessageID:  slotMessageID,
 		agentRoundID:   agentRoundID,
-		processor: messageproc.NewProcessor(messageproc.MessageContext{
+		processor: message.NewProcessor(message.MessageContext{
 			SessionKey:     sessionKey,
 			RoomID:         roomID,
 			ConversationID: conversationID,

@@ -19,13 +19,13 @@ import (
 	"time"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
+	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -126,14 +126,35 @@ func (s *chatTestSender) SendEvent(_ context.Context, event protocol.EventMessag
 	return nil
 }
 
+func newChatAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
+	t.Helper()
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+	return agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+}
+
+func newChatProviderService(t *testing.T, cfg config.Config) *providercfg.Service {
+	t.Helper()
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开 provider 测试数据库失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+	return providercfg.NewServiceWithDB(cfg, db)
+}
+
 func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
 	client.onQuery = func(_ context.Context, _ string) {
@@ -177,7 +198,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	sessionKey := "agent:nexus:ws:dm:test-chat"
 	permission.BindSession(sessionKey, sender, "client-1", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "你好",
 		RoundID:    "round-1",
@@ -214,10 +235,7 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
 	client.onQuery = func(_ context.Context, _ string) {
@@ -326,7 +344,7 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 	sessionKey := "agent:nexus:ws:dm:think-stream"
 	permission.BindSession(sessionKey, sender, "client-think-stream", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "今天天气怎么样呀",
 		RoundID:    "round-think-stream",
@@ -374,17 +392,11 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	maxThinkingTokens := 2048
 	maxTurns := 6
-	providerService, err := providercfg.NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 provider service 失败: %v", err)
-	}
-	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+	providerService := newChatProviderService(t, cfg)
+	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
@@ -434,7 +446,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	sessionKey := "agent:nexus:ws:dm:no-model"
 	permission.BindSession(sessionKey, sender, "client-no-model", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "测试 model 透传",
 		RoundID:    "round-no-model",
@@ -478,15 +490,9 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
-	providerService, err := providercfg.NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 provider service 失败: %v", err)
-	}
-	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+	agentService := newChatAgentService(t, cfg)
+	providerService := newChatProviderService(t, cfg)
+	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
@@ -497,7 +503,7 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("创建默认 provider 失败: %v", err)
 	}
-	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "kimi",
 		DisplayName: "Kimi",
 		AuthToken:   "kimi-token",
@@ -545,7 +551,7 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 	sender := newChatTestSender("sender-explicit-provider")
 	permission.BindSession(sessionKey, sender, "client-explicit-provider", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		AgentID:    created.AgentID,
 		Content:    "测试显式 provider",
@@ -575,10 +581,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
 	client.onQuery = func(_ context.Context, _ string) {
@@ -606,7 +609,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 
 	resumeID := "sdk-resume-chat-1"
 	now := time.Now().UTC()
-	if _, err = service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
 		SessionKey:   sessionKey,
 		AgentID:      cfg.DefaultAgentID,
 		SessionID:    &resumeID,
@@ -623,7 +626,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 		t.Fatalf("预写入会话 meta 失败: %v", err)
 	}
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "测试 resume",
 		RoundID:    "round-resume",
@@ -646,10 +649,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
 	client.onQuery = func(ctx context.Context, _ string) {
@@ -663,7 +663,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	sessionKey := "agent:nexus:ws:dm:test-interrupt"
 	permission.BindSession(sessionKey, sender, "client-1", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "你好",
 		RoundID:    "round-2",
@@ -673,7 +673,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
 
-	if err = service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
 		t.Fatalf("HandleInterrupt 失败: %v", err)
 	}
 
@@ -706,10 +706,7 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
 	client.onQuery = func(_ context.Context, _ string) {
@@ -735,7 +732,7 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 	sessionKey := "agent:nexus:tg:group:-100123456:topic:12"
 	permission.BindSession(sessionKey, sender, "client-structured", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "结构化入口",
 		RoundID:    "round-structured",
@@ -764,10 +761,7 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
 
-	agentService, _, err := bootstrap.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
 	client.onQuery = func(_ context.Context, _ string) {
@@ -824,7 +818,7 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 	sessionKey := "agent:nexus:ws:dm:premature-close"
 	permission.BindSession(sessionKey, sender, "client-premature", true)
 
-	if err = service.HandleChat(context.Background(), Request{
+	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
 		Content:    "测试提前结束",
 		RoundID:    "round-premature",

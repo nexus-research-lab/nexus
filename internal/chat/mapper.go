@@ -12,7 +12,7 @@ package chat
 import (
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/messageproc"
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
 
@@ -23,7 +23,7 @@ type messageMapper struct {
 	sessionKey string
 	agentID    string
 	roundID    string
-	processor  *messageproc.Processor
+	processor  *message.Processor
 }
 
 func newMessageMapper(sessionKey string, agentID string, roundID string) *messageMapper {
@@ -31,7 +31,7 @@ func newMessageMapper(sessionKey string, agentID string, roundID string) *messag
 		sessionKey: sessionKey,
 		agentID:    agentID,
 		roundID:    roundID,
-		processor: messageproc.NewProcessor(messageproc.MessageContext{
+		processor: message.NewProcessor(message.MessageContext{
 			SessionKey: sessionKey,
 			AgentID:    agentID,
 			RoundID:    roundID,

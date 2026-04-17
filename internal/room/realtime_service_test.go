@@ -501,10 +501,7 @@ func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
-	providerService, err := providercfg.NewService(cfg)
-	if err != nil {
-		t.Fatalf("创建 provider service 失败: %v", err)
-	}
+	providerService := providercfg.NewServiceWithDB(cfg, db)
 	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",

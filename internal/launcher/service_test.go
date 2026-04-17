@@ -15,9 +15,9 @@ import (
 	"testing"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -27,11 +27,13 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	cfg := newLauncherTestConfig(t)
 	migrateLauncherSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
 	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
+		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	defer db.Close()
+	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	roomService := roomsvc.NewService(cfg, agentService, sqliterepo.NewRoomRepository(db))
 	service := NewService(cfg, agentService, roomService)
 
 	ctx := context.Background()

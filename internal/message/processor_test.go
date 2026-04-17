@@ -7,7 +7,7 @@
 // 2026/04/16 23:52:00   Create
 // =====================================================
 
-package messageproc
+package message
 
 import (
 	"encoding/json"

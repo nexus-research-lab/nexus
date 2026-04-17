@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 var providerPattern = regexp.MustCompile(`[^a-z0-9]+`)
@@ -29,15 +28,6 @@ type Service struct {
 	repository *repository
 	now        func() time.Time
 	idFactory  func(string) string
-}
-
-// NewService 创建 Provider 配置服务。
-func NewService(cfg config.Config) (*Service, error) {
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return NewServiceWithDB(cfg, db), nil
 }
 
 // NewServiceWithDB 使用共享 DB 创建 Provider 配置服务。
