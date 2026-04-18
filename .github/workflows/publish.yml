@@ -41,22 +41,12 @@ jobs:
         run: |
           git checkout "${{ steps.tag.outputs.tag }}"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: web/package-lock.json
-
-      - name: Install Backend Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r agent/requirements.txt
 
       - name: Install Web Dependencies
         run: |
