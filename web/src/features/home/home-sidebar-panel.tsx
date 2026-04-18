@@ -69,14 +69,14 @@ function render_agent_avatar_icon(agent_name: string, avatar?: string | null) {
     return (
       <img
         alt={agent_name}
-        className="h-4 w-4 rounded-full object-cover"
+        className="h-5 w-5 rounded-full object-cover"
         src={avatar_src}
       />
     );
   }
 
   return (
-    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
+    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[9px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
       {agent_name.trim().slice(0, 1).toUpperCase()}
     </span>
   );
@@ -354,7 +354,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
                 return room_avatar_src ? (
                   <img
                     alt={room.name?.trim() || untitled_room_label}
-                    className="h-4 w-4 rounded-[4px] object-cover"
+                    className="h-5 w-5 rounded-[5px] object-cover"
                     src={room_avatar_src}
                   />
                 ) : (

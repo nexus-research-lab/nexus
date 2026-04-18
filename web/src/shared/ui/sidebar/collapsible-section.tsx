@@ -18,6 +18,8 @@ const SIDEBAR_LIST_ITEM_CLASS_NAME =
   "flex min-w-0 flex-1 items-center gap-2.5 text-left text-[14px]";
 const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
   "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)";
+const SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME =
+  "flex h-6 w-6 shrink-0 items-center justify-center";
 const SIDEBAR_SECTION_ACTION_CLASS_NAME =
   "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)";
 const SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME =
@@ -218,11 +220,13 @@ export function CollapsibleSection({
           onClick={() => toggle(section_id)}
           type="button"
         >
-          {is_collapsed ? (
-            <ChevronRight className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
-          )}
+          <span className={SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME}>
+            {is_collapsed ? (
+              <ChevronRight className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </span>
           {icon ? <span className="flex items-center">{icon}</span> : null}
           <span>{title}</span>
           {typeof count === "number" ? (
