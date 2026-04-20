@@ -127,7 +127,12 @@ func (h *prettyHandler) format(
 	if scope == "" {
 		scope = "-"
 	}
-	builder.WriteString(h.paint(scope, ansiCyan))
+	const scopeWidth = 18
+	padded := scope
+	if len(padded) < scopeWidth {
+		padded = padded + strings.Repeat(" ", scopeWidth-len(padded))
+	}
+	builder.WriteString(h.paint(padded, ansiCyan))
 	builder.WriteString(h.paint(" - ", ansiWhite))
 
 	if access != nil {
