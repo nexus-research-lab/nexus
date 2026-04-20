@@ -2,7 +2,7 @@
  * Heartbeat 自动化类型定义
  */
 
-export type HeartbeatTargetMode = "none" | "last" | "explicit";
+export type HeartbeatTargetMode = "none" | "last";
 export type HeartbeatWakeMode = "now" | "next-heartbeat";
 
 export interface ApiHeartbeatStatus {

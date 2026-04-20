@@ -24,9 +24,6 @@ function get_target_mode_label(mode: HeartbeatConfig["target_mode"]): string {
   if (mode === "last") {
     return "回到最近会话";
   }
-  if (mode === "explicit") {
-    return "回到指定位置";
-  }
   return "不投递";
 }
 

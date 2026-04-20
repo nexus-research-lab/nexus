@@ -17,6 +17,9 @@
 /dist
 /out/
 
+# stray build artifacts (e.g. next dev 误跑产物)
+/.next/
+
 # production
 /build
 

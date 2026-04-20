@@ -26,6 +26,11 @@ type sqlRepository struct {
 	isPostgres bool
 }
 
+const (
+	automationWriteRetryAttempts = 4
+	automationWriteRetryDelay    = 50 * time.Millisecond
+)
+
 // NewRepository 创建自动化仓储。
 func NewRepository(cfg config.Config, db *sql.DB) *sqlRepository {
 	return &sqlRepository{
@@ -221,7 +226,7 @@ ON CONFLICT(job_id) DO UPDATE SET
 		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19), r.bind(20),
 		r.bind(21), r.bind(22), r.bind(23), r.bind(24), r.bind(25), r.bind(26),
 	)
-	_, err := r.db.ExecContext(
+	_, err := r.execWithRetry(
 		ctx,
 		query,
 		job.JobID,
@@ -259,7 +264,7 @@ ON CONFLICT(job_id) DO UPDATE SET
 
 // DeleteCronJob 删除任务。
 func (r *sqlRepository) DeleteCronJob(ctx context.Context, jobID string) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM automation_cron_jobs WHERE job_id = "+r.bind(1), strings.TrimSpace(jobID))
+	_, err := r.execWithRetry(ctx, "DELETE FROM automation_cron_jobs WHERE job_id = "+r.bind(1), strings.TrimSpace(jobID))
 	return err
 }
 
@@ -311,7 +316,7 @@ INSERT INTO automation_cron_runs (
 ) VALUES (%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5),
 	)
-	_, err := r.db.ExecContext(ctx, query, runID, jobID, RunStatusPending, scheduledFor, 0)
+	_, err := r.execWithRetry(ctx, query, runID, jobID, RunStatusPending, scheduledFor, 0)
 	return err
 }
 
@@ -326,7 +331,7 @@ SET status = %s,
 WHERE run_id = %s`,
 		r.bind(1), r.bind(2), r.bind(3),
 	)
-	_, err := r.db.ExecContext(ctx, query, RunStatusRunning, startedAt.UTC(), runID)
+	_, err := r.execWithRetry(ctx, query, RunStatusRunning, startedAt.UTC(), runID)
 	return err
 }
 
@@ -341,7 +346,7 @@ SET status = %s,
 WHERE run_id = %s`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4),
 	)
-	_, err := r.db.ExecContext(ctx, query, status, finishedAt.UTC(), nullableString(errorMessage), runID)
+	_, err := r.execWithRetry(ctx, query, status, finishedAt.UTC(), nullableString(errorMessage), runID)
 	return err
 }
 
@@ -441,7 +446,7 @@ ON CONFLICT(agent_id) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8),
 	)
-	_, err := r.db.ExecContext(
+	_, err := r.execWithRetry(
 		ctx,
 		query,
 		stateID,
@@ -475,7 +480,7 @@ INSERT INTO automation_system_events (
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, query, eventID, eventType, sourceType, sourceID, string(body), "new")
+	_, err = r.execWithRetry(ctx, query, eventID, eventType, sourceType, sourceID, string(body), "new")
 	return err
 }
 
@@ -491,9 +496,15 @@ SELECT
     status,
     created_at
 FROM automation_system_events
-WHERE source_id = ` + r.bind(1) + ` AND status = 'new'
+WHERE status = 'new'`
+	if r.isPostgres {
+		query += ` AND (source_id = ` + r.bind(1) + ` OR payload::jsonb->>'agent_id' = ` + r.bind(2) + `)`
+	} else {
+		query += ` AND (source_id = ` + r.bind(1) + ` OR json_extract(payload, '$.agent_id') = ` + r.bind(2) + `)`
+	}
+	query += `
 ORDER BY created_at ASC, event_id ASC`
-	rows, err := r.db.QueryContext(ctx, query, strings.TrimSpace(agentID))
+	rows, err := r.db.QueryContext(ctx, query, strings.TrimSpace(agentID), strings.TrimSpace(agentID))
 	if err != nil {
 		return nil, err
 	}
@@ -528,8 +539,41 @@ SET status = %s,
 WHERE event_id = %s`,
 		r.bind(1), r.bind(2), r.bind(3),
 	)
-	_, err := r.db.ExecContext(ctx, query, status, status, eventID)
+	_, err := r.execWithRetry(ctx, query, status, status, eventID)
 	return err
+}
+
+func (r *sqlRepository) execWithRetry(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	if r.isPostgres {
+		return r.db.ExecContext(ctx, query, args...)
+	}
+	var lastErr error
+	for attempt := 0; attempt < automationWriteRetryAttempts; attempt++ {
+		result, err := r.db.ExecContext(ctx, query, args...)
+		if err == nil {
+			return result, nil
+		}
+		if !isSQLiteLockedError(err) || attempt == automationWriteRetryAttempts-1 {
+			return nil, err
+		}
+		lastErr = err
+		delay := automationWriteRetryDelay * time.Duration(attempt+1)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return nil, lastErr
+}
+
+func isSQLiteLockedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "database is locked")
 }
 
 func scanCronJob(scanner interface {
