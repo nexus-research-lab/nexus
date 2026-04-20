@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 历史链继续收口：成员私有 session 不再双写完整 `messages.jsonl`，共享 room 历史也不再保存完整正文副本，统一改为 `inline overlay + transcript_ref` 共享索引层，真正正文按需从对应成员 transcript 投影恢复。
 - 运行时正式停用 legacy session 正文链路：DM、delivery 与 Session API 现在统一要求 `history_source=transcript`，未迁移会话会明确提示先执行 `nexusctl session migrate-history`，不再静默读写旧 `messages.jsonl`。
 - 历史真相源规则进一步收口：`assistant` 正文与 `usage` 只来自 `cc transcript`，`result` 只来自 Nexus overlay；运行时读取 transcript 时不再投影 `MessageTypeResult`，迁移器也不再把 legacy result 转成 `transcript_ref`。
+- GitHub Release 发布 workflow 正式切换到 Go 后端链路：移除旧 Python 依赖安装，改为 `actions/setup-go` + `go mod download`，避免发布流程仍停留在 Python 时代。
 - session / room 文件目录命名统一收口为可读语义路径：DM 使用 `dm-<channel>-<ref>`，Room 私有与共享使用 `room-<conversation_id>`；旧 base64 与短名+hash 目录的迁移职责统一收口到 `nexusctl session migrate-history`，运行时不再隐式兼容搬迁。
 - `nexusctl session migrate-history` 现在会在迁移过程中显式清洗无效历史行：无法落到 `round_marker / overlay / transcript_ref` 新结构的坏行会被直接剔除，并在迁移摘要里输出 `removed_invalid_rows` 统计；迁移结束后还会结合当前数据库里的 room / session 真相源清理孤儿目录，输出 `removed_orphan_paths` 统计。
 - workspace 文件存储根现在统一跟随 `NEXUS_CONFIG_DIR / CLAUDE_CONFIG_DIR`，Room 共享 overlay、transcript 与迁移命令不再偷偷回落到真实 `~/.nexus`。
