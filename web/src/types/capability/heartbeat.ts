@@ -25,6 +25,13 @@ export interface HeartbeatConfig extends Omit<ApiHeartbeatStatus, "next_run_at" 
   last_ack_at: number | null;
 }
 
+export interface HeartbeatUpdateInput {
+  enabled: boolean;
+  every_seconds: number;
+  target_mode: HeartbeatTargetMode;
+  ack_max_chars: number;
+}
+
 export interface WakeHeartbeatRequest {
   mode?: HeartbeatWakeMode;
   text?: string | null;

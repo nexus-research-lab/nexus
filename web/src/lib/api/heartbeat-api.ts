@@ -8,6 +8,7 @@ import type {
   ApiHeartbeatStatus,
   ApiHeartbeatWakeResult,
   HeartbeatConfig,
+  HeartbeatUpdateInput,
   HeartbeatWakeResult,
   WakeHeartbeatRequest,
 } from "@/types/capability/heartbeat";
@@ -40,6 +41,22 @@ export async function get_heartbeat_config_api(
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
+    },
+  );
+
+  return transform_heartbeat_config(result);
+}
+
+export async function update_heartbeat_api(
+  agent_id: string,
+  payload: HeartbeatUpdateInput,
+): Promise<HeartbeatConfig> {
+  const result = await request_api<ApiHeartbeatStatus>(
+    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     },
   );
 
