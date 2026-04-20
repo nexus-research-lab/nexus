@@ -30,6 +30,14 @@ def create_app():
 
 app = create_app()
 
+
+@app.get('/health')
+async def root_health():
+    from agent.infra.server.common import resp
+
+    return resp.ok(response=resp.Resp(data={"status": "ok"}))
+
+
 if __name__ == '__main__':
     utils.print_info(settings, logger)
 

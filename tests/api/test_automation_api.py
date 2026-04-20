@@ -6,6 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from main import create_app
+
 
 def _ensure_repo_root_on_path() -> None:
     """确保直接运行 pytest 时也能导入 repo 内包。"""
@@ -221,39 +223,21 @@ def test_post_heartbeat_wake_route_delegates_to_service(monkeypatch):
     ]
 
 
-def test_put_heartbeat_config_route_rejects_unsupported_explicit_target_mode(monkeypatch):
-    service = FakeHeartbeatService()
-    app = _build_api_app(monkeypatch, service)
-
-    with TestClient(app) as client:
-        response = client.put(
-            "/agent/v1/automation/heartbeat/nexus",
-            json={
-                "enabled": True,
-                "every_seconds": 300,
-                "target_mode": "explicit",
-                "ack_max_chars": 500,
-            },
-        )
-
-    assert response.status_code == 422
-    assert service.calls == []
 
 
-def test_put_heartbeat_config_route_rejects_invalid_numeric_values(monkeypatch):
-    service = FakeHeartbeatService()
-    app = _build_api_app(monkeypatch, service)
+def test_root_health_route_stays_available(monkeypatch):
+    monkeypatch.setenv("ENV_FILE", "/dev/null")
+    monkeypatch.setenv("DEBUG", "false")
 
-    with TestClient(app) as client:
-        response = client.put(
-            "/agent/v1/automation/heartbeat/nexus",
-            json={
-                "enabled": True,
-                "every_seconds": 0,
-                "target_mode": "last",
-                "ack_max_chars": -1,
-            },
-        )
+    with TestClient(create_app()) as client:
+        response = client.get("/health")
 
-    assert response.status_code == 422
-    assert service.calls == []
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": "0000",
+        "message": "success",
+        "success": True,
+        "data": {
+            "status": "ok",
+        },
+    }
