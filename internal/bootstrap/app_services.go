@@ -76,6 +76,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	chatService := chatsvc.NewService(cfg, core.Agent, runtimeManager, permission)
 	chatService.SetLogger(logger.With("component", "chat"))
 	chatService.SetProviderResolver(providerService)
+	chatService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	ingressService := channels.NewIngressService(cfg, core.Agent, chatService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	channelRouter.SetIngress(ingressService)

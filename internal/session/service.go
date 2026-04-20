@@ -59,6 +59,8 @@ type Service struct {
 	agentService *agent2.Service
 	repository   SQLRepository
 	files        *workspacestore.SessionFileStore
+	history      *workspacestore.AgentHistoryStore
+	roomHistory  *workspacestore.RoomHistoryStore
 	runtime      *runtimectx.Manager
 }
 
@@ -74,6 +76,8 @@ func NewService(cfg config.Config, agentService *agent2.Service, repository SQLR
 		agentService: agentService,
 		repository:   repository,
 		files:        workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		history:      workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		roomHistory:  workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 	}
 }
 
@@ -188,8 +192,10 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*Se
 		LastActivity: now,
 		Title:        firstNonEmpty(strings.TrimSpace(request.Title), "New Chat"),
 		MessageCount: 0,
-		Options:      map[string]any{},
-		IsActive:     true,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
 	}))
 	if err != nil {
 		return nil, err
@@ -246,21 +252,21 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 		return nil, err
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		logPath, err := s.repository.GetConversationLogPath(ctx, parsed.ConversationID)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(logPath) == "" {
-			logPath = s.files.RoomConversationMessagePath(parsed.ConversationID)
-		}
-		return s.files.ReadRoomMessagesWithActiveRounds(logPath, s.activeRoundIDs(sessionKey))
+		return s.roomHistory.ReadMessages(parsed.ConversationID, s.activeRoundIDs(sessionKey))
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ReadSessionMessagesWithActiveRounds(workspacePaths, sessionKey, s.activeRoundIDs(sessionKey))
+	sessionValue, workspacePath, err := s.loadHistorySession(ctx, workspacePaths, parsed, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if sessionValue == nil {
+		return nil, ErrSessionNotFound
+	}
+	return s.history.ReadMessages(workspacePath, *sessionValue, s.activeRoundIDs(sessionKey))
 }
 
 // GetSessionMessagesPage 分页读取 session 历史消息。
@@ -274,15 +280,8 @@ func (s *Service) GetSessionMessagesPage(
 		return nil, err
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		logPath, err := s.repository.GetConversationLogPath(ctx, parsed.ConversationID)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(logPath) == "" {
-			logPath = s.files.RoomConversationMessagePath(parsed.ConversationID)
-		}
-		page, err := s.files.ReadRoomMessagesPageWithActiveRounds(
-			logPath,
+		page, err := s.roomHistory.ReadMessagesPage(
+			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
 			request.Limit,
 			request.BeforeRoundID,
@@ -298,9 +297,16 @@ func (s *Service) GetSessionMessagesPage(
 	if err != nil {
 		return nil, err
 	}
-	page, err := s.files.ReadSessionMessagesPageWithActiveRounds(
-		workspacePaths,
-		sessionKey,
+	sessionValue, workspacePath, err := s.loadHistorySession(ctx, workspacePaths, parsed, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if sessionValue == nil {
+		return nil, ErrSessionNotFound
+	}
+	page, err := s.history.ReadMessagesPage(
+		workspacePath,
+		*sessionValue,
 		s.activeRoundIDs(sessionKey),
 		request.Limit,
 		request.BeforeRoundID,
@@ -310,6 +316,95 @@ func (s *Service) GetSessionMessagesPage(
 		return nil, err
 	}
 	return &page, nil
+}
+
+func (s *Service) loadHistorySession(
+	ctx context.Context,
+	workspacePaths []string,
+	parsed protocol.SessionKey,
+	sessionKey string,
+) (*Session, string, error) {
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, parsed)
+	if err != nil {
+		return nil, "", err
+	}
+	if roomSession != nil {
+		workspacePath := resolveHistoryWorkspacePath(workspacePaths, parsed)
+		hydrated, hydrateErr := s.hydrateRoomHistorySession(ctx, workspacePath, sessionKey, *roomSession)
+		if hydrateErr != nil {
+			return nil, "", hydrateErr
+		}
+		return hydrated, workspacePath, nil
+	}
+
+	item, workspacePath, err := s.files.FindSession(workspacePaths, sessionKey)
+	if err != nil {
+		return nil, "", err
+	}
+	return item, workspacePath, nil
+}
+
+func resolveHistoryWorkspacePath(workspacePaths []string, parsed protocol.SessionKey) string {
+	for _, workspacePath := range workspacePaths {
+		if filepath.Base(workspacePath) == parsed.AgentID {
+			return workspacePath
+		}
+	}
+	if len(workspacePaths) > 0 {
+		return workspacePaths[0]
+	}
+	return ""
+}
+
+func (s *Service) hydrateRoomHistorySession(
+	ctx context.Context,
+	workspacePath string,
+	sessionKey string,
+	roomSession Session,
+) (*Session, error) {
+	if workspacePath == "" {
+		return &roomSession, nil
+	}
+
+	fileSession, _, err := s.files.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if fileSession == nil {
+		return &roomSession, nil
+	}
+
+	merged := roomSession
+	if merged.SessionID == nil && fileSession.SessionID != nil {
+		merged.SessionID = fileSession.SessionID
+		if merged.RoomSessionID != nil && strings.TrimSpace(*merged.RoomSessionID) != "" {
+			if updateErr := s.repository.UpdateRoomSessionSDKSessionID(
+				ctx,
+				strings.TrimSpace(*merged.RoomSessionID),
+				strings.TrimSpace(*fileSession.SessionID),
+			); updateErr != nil {
+				return nil, updateErr
+			}
+		}
+	}
+	if merged.RoomSessionID == nil && fileSession.RoomSessionID != nil {
+		merged.RoomSessionID = fileSession.RoomSessionID
+	}
+	if merged.RoomID == nil && fileSession.RoomID != nil {
+		merged.RoomID = fileSession.RoomID
+	}
+	if merged.ConversationID == nil && fileSession.ConversationID != nil {
+		merged.ConversationID = fileSession.ConversationID
+	}
+	if merged.Options == nil {
+		merged.Options = map[string]any{}
+	}
+	for key, value := range fileSession.Options {
+		if _, exists := merged.Options[key]; !exists {
+			merged.Options[key] = value
+		}
+	}
+	return &merged, nil
 }
 
 func (s *Service) loadMutableWorkspaceSession(ctx context.Context, rawSessionKey string) (*Session, string, protocol.SessionKey, error) {

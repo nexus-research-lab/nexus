@@ -19,45 +19,20 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 )
 
-const maxCompactedHistoryCacheEntries = 12
-
-type compactedHistoryCacheEntry struct {
-	FileSize      int64
-	ModifiedUnix  int64
-	LastAccessUTC int64
-	Messages      []sessionmodel.Message
-}
-
 // SessionFileStore 负责 workspace 侧会话文件读写。
 type SessionFileStore struct {
 	paths *Store
-
-	cacheMu               sync.RWMutex
-	compactedHistoryCache map[string]compactedHistoryCacheEntry
 }
 
 // NewSessionFileStore 创建文件存储门面。
 func NewSessionFileStore(root string) *SessionFileStore {
 	return &SessionFileStore{
-		paths:                 New(root),
-		compactedHistoryCache: make(map[string]compactedHistoryCacheEntry),
+		paths: New(root),
 	}
-}
-
-// RoomConversationMessagePath 返回 Room 对话共享日志路径。
-func (s *SessionFileStore) RoomConversationMessagePath(conversationID string) string {
-	return s.paths.RoomConversationMessagePath(conversationID)
-}
-
-// AppendRoomMessage 追加一条 Room 共享消息。
-func (s *SessionFileStore) AppendRoomMessage(conversationID string, message sessionmodel.Message) error {
-	return s.appendJSONL(s.paths.RoomConversationMessagePath(conversationID), message)
 }
 
 // ListSessions 读取某个 workspace 下的全部文件会话。
@@ -111,7 +86,6 @@ func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey strin
 // UpsertSession 创建或更新 session meta。
 func (s *SessionFileStore) UpsertSession(workspacePath string, item sessionmodel.Session) (*sessionmodel.Session, error) {
 	metaPath := s.paths.SessionMetaPath(workspacePath, item.SessionKey)
-	messagePath := s.paths.SessionMessagePath(workspacePath, item.SessionKey)
 	if err := os.MkdirAll(filepath.Dir(metaPath), 0o755); err != nil {
 		return nil, err
 	}
@@ -124,13 +98,6 @@ func (s *SessionFileStore) UpsertSession(workspacePath string, item sessionmodel
 	if err = os.WriteFile(metaPath, payload, 0o644); err != nil {
 		return nil, err
 	}
-	if _, err = os.Stat(messagePath); errors.Is(err, os.ErrNotExist) {
-		if err = os.WriteFile(messagePath, []byte(""), 0o644); err != nil {
-			return nil, err
-		}
-	} else if err != nil {
-		return nil, err
-	}
 	created, _, err := s.FindSession([]string{workspacePath}, item.SessionKey)
 	return created, err
 }
@@ -138,7 +105,6 @@ func (s *SessionFileStore) UpsertSession(workspacePath string, item sessionmodel
 // DeleteSession 删除整个 session 目录。
 func (s *SessionFileStore) DeleteSession(workspacePath string, sessionKey string) (bool, error) {
 	sessionDir := s.paths.SessionDir(workspacePath, sessionKey)
-	messagePath := s.paths.SessionMessagePath(workspacePath, sessionKey)
 	if _, err := os.Stat(sessionDir); errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
@@ -147,14 +113,12 @@ func (s *SessionFileStore) DeleteSession(workspacePath string, sessionKey string
 	if err := os.RemoveAll(sessionDir); err != nil {
 		return false, err
 	}
-	s.invalidateCompactedHistoryCache(messagePath)
 	return true, nil
 }
 
 // DeleteRoomConversation 删除 Room 对话共享目录。
 func (s *SessionFileStore) DeleteRoomConversation(conversationID string) (bool, error) {
 	conversationDir := s.paths.RoomConversationDir(conversationID)
-	messagePath := s.paths.RoomConversationMessagePath(conversationID)
 	if _, err := os.Stat(conversationDir); errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
@@ -163,122 +127,7 @@ func (s *SessionFileStore) DeleteRoomConversation(conversationID string) (bool, 
 	if err := os.RemoveAll(conversationDir); err != nil {
 		return false, err
 	}
-	s.invalidateCompactedHistoryCache(messagePath)
 	return true, nil
-}
-
-// AppendSessionMessage 追加一条完整消息到 messages.jsonl。
-func (s *SessionFileStore) AppendSessionMessage(workspacePath string, sessionKey string, message sessionmodel.Message) error {
-	return s.appendJSONL(s.paths.SessionMessagePath(workspacePath, sessionKey), message)
-}
-
-// ReadSessionMessages 读取 workspace 会话消息。
-func (s *SessionFileStore) ReadSessionMessages(workspacePaths []string, sessionKey string) ([]sessionmodel.Message, error) {
-	return s.ReadSessionMessagesWithActiveRounds(workspacePaths, sessionKey, nil)
-}
-
-// ReadSessionMessagesWithActiveRounds 读取 workspace 会话消息，并按活跃 round 归一化历史。
-func (s *SessionFileStore) ReadSessionMessagesWithActiveRounds(workspacePaths []string, sessionKey string, activeRoundIDs []string) ([]sessionmodel.Message, error) {
-	for _, workspacePath := range workspacePaths {
-		compactedRows, err := s.readCompactedMessagesFromPath(s.paths.SessionMessagePath(workspacePath, sessionKey))
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		return normalizeCompactedHistoryRows(compactedRows, normalizeActiveRoundIDs(activeRoundIDs)), nil
-	}
-	return []sessionmodel.Message{}, nil
-}
-
-// ReadSessionMessagesPageWithActiveRounds 读取 workspace 会话消息分页，并按活跃 round 归一化历史。
-func (s *SessionFileStore) ReadSessionMessagesPageWithActiveRounds(
-	workspacePaths []string,
-	sessionKey string,
-	activeRoundIDs []string,
-	limit int,
-	beforeMessageID string,
-	beforeTimestamp int64,
-) (sessionmodel.MessagePage, error) {
-	for _, workspacePath := range workspacePaths {
-		compactedRows, err := s.readCompactedMessagesFromPath(s.paths.SessionMessagePath(workspacePath, sessionKey))
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return sessionmodel.MessagePage{}, err
-		}
-		normalizedRows := normalizeCompactedHistoryRows(compactedRows, normalizeActiveRoundIDs(activeRoundIDs))
-		return paginateNormalizedHistoryRows(
-			normalizedRows,
-			limit,
-			beforeMessageID,
-			beforeTimestamp,
-			false,
-		), nil
-	}
-	return sessionmodel.MessagePage{
-		Items:   []sessionmodel.Message{},
-		HasMore: false,
-	}, nil
-}
-
-// ReadRoomMessages 读取 Room 共享流历史。
-func (s *SessionFileStore) ReadRoomMessages(logPath string) ([]sessionmodel.Message, error) {
-	return s.ReadRoomMessagesWithActiveRounds(logPath, nil)
-}
-
-// ReadRoomMessagesWithActiveRounds 读取 Room 共享流历史，并按活跃 round 归一化历史。
-func (s *SessionFileStore) ReadRoomMessagesWithActiveRounds(logPath string, activeRoundIDs []string) ([]sessionmodel.Message, error) {
-	compactedRows, err := s.readCompactedMessagesFromPath(logPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return []sessionmodel.Message{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return normalizeCompactedHistoryRows(compactedRows, normalizeActiveRoundIDs(activeRoundIDs)), nil
-}
-
-// ReadRoomMessagesPageWithActiveRounds 读取 Room 共享流分页，并按活跃 round 归一化历史。
-func (s *SessionFileStore) ReadRoomMessagesPageWithActiveRounds(
-	logPath string,
-	activeRoundIDs []string,
-	limit int,
-	beforeMessageID string,
-	beforeTimestamp int64,
-) (sessionmodel.MessagePage, error) {
-	compactedRows, err := s.readCompactedMessagesFromPath(logPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return sessionmodel.MessagePage{
-			Items:   []sessionmodel.Message{},
-			HasMore: false,
-		}, nil
-	}
-	if err != nil {
-		return sessionmodel.MessagePage{}, err
-	}
-	normalizedRows := normalizeCompactedHistoryRows(compactedRows, normalizeActiveRoundIDs(activeRoundIDs))
-	return paginateNormalizedHistoryRows(
-		normalizedRows,
-		limit,
-		beforeMessageID,
-		beforeTimestamp,
-		true,
-	), nil
-}
-
-// RefreshSessionMeta 根据消息日志刷新 session meta。
-func (s *SessionFileStore) RefreshSessionMeta(workspacePath string, sessionKey string, current sessionmodel.Session) (*sessionmodel.Session, error) {
-	rows, err := s.readMessagesFromPath(s.paths.SessionMessagePath(workspacePath, sessionKey))
-	if errors.Is(err, os.ErrNotExist) {
-		return s.UpsertSession(workspacePath, current)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return s.UpsertSession(workspacePath, refreshSessionMetaFromMessages(current, rows))
 }
 
 func (s *SessionFileStore) readSessionMeta(metaPath string) (sessionmodel.Session, error) {
@@ -329,94 +178,6 @@ func (s *SessionFileStore) readMessagesFromPath(path string) ([]sessionmodel.Mes
 	return result, nil
 }
 
-func (s *SessionFileStore) readCompactedMessagesFromPath(path string) ([]sessionmodel.Message, error) {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if cachedMessages, ok := s.readCompactedHistoryCache(path, fileInfo); ok {
-		return cachedMessages, nil
-	}
-
-	rows, err := s.readMessagesFromPath(path)
-	if err != nil {
-		return nil, err
-	}
-	compactedRows := compactMessages(rows)
-	s.writeCompactedHistoryCache(path, fileInfo, compactedRows)
-	return compactedRows, nil
-}
-
-func (s *SessionFileStore) readCompactedHistoryCache(path string, fileInfo os.FileInfo) ([]sessionmodel.Message, bool) {
-	s.cacheMu.RLock()
-	entry, exists := s.compactedHistoryCache[path]
-	s.cacheMu.RUnlock()
-	if !exists {
-		return nil, false
-	}
-	if entry.FileSize != fileInfo.Size() || entry.ModifiedUnix != fileInfo.ModTime().UnixNano() {
-		return nil, false
-	}
-
-	s.cacheMu.Lock()
-	refreshedEntry := s.compactedHistoryCache[path]
-	refreshedEntry.LastAccessUTC = time.Now().UTC().UnixNano()
-	s.compactedHistoryCache[path] = refreshedEntry
-	s.cacheMu.Unlock()
-	return entry.Messages, true
-}
-
-func (s *SessionFileStore) writeCompactedHistoryCache(
-	path string,
-	fileInfo os.FileInfo,
-	rows []sessionmodel.Message,
-) {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-
-	s.compactedHistoryCache[path] = compactedHistoryCacheEntry{
-		FileSize:      fileInfo.Size(),
-		ModifiedUnix:  fileInfo.ModTime().UnixNano(),
-		LastAccessUTC: time.Now().UTC().UnixNano(),
-		Messages:      rows,
-	}
-	s.pruneCompactedHistoryCacheLocked()
-}
-
-func (s *SessionFileStore) invalidateCompactedHistoryCache(path string) {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	delete(s.compactedHistoryCache, path)
-}
-
-func (s *SessionFileStore) pruneCompactedHistoryCacheLocked() {
-	if len(s.compactedHistoryCache) <= maxCompactedHistoryCacheEntries {
-		return
-	}
-
-	type cacheCandidate struct {
-		Path          string
-		LastAccessUTC int64
-	}
-
-	candidates := make([]cacheCandidate, 0, len(s.compactedHistoryCache))
-	for path, entry := range s.compactedHistoryCache {
-		candidates = append(candidates, cacheCandidate{
-			Path:          path,
-			LastAccessUTC: entry.LastAccessUTC,
-		})
-	}
-	sort.Slice(candidates, func(i int, j int) bool {
-		return candidates[i].LastAccessUTC < candidates[j].LastAccessUTC
-	})
-
-	for len(candidates) > maxCompactedHistoryCacheEntries {
-		delete(s.compactedHistoryCache, candidates[0].Path)
-		candidates = candidates[1:]
-	}
-}
-
 func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -435,7 +196,46 @@ func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 	if _, err = fmt.Fprintf(file, "%s\n", payload); err != nil {
 		return err
 	}
-	s.invalidateCompactedHistoryCache(path)
+	return nil
+}
+
+func (s *SessionFileStore) replaceJSONL(path string, rows []map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tempFile, err := os.CreateTemp(filepath.Dir(path), ".jsonl-*")
+	if err != nil {
+		return err
+	}
+	tempPath := tempFile.Name()
+	cleanupTemp := true
+	defer func() {
+		_ = tempFile.Close()
+		if cleanupTemp {
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	writer := bufio.NewWriter(tempFile)
+	for _, row := range rows {
+		payload, marshalErr := json.Marshal(row)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		if _, err = fmt.Fprintf(writer, "%s\n", payload); err != nil {
+			return err
+		}
+	}
+	if err = writer.Flush(); err != nil {
+		return err
+	}
+	if err = tempFile.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(tempPath, path); err != nil {
+		return err
+	}
+	cleanupTemp = false
 	return nil
 }
 
@@ -459,7 +259,11 @@ func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
 		if err := json.Unmarshal([]byte(line), &item); err != nil {
 			continue
 		}
-		rows = append(rows, item)
+		normalized, ok := normalizeDecodedJSONValue(item).(map[string]any)
+		if !ok {
+			continue
+		}
+		rows = append(rows, normalized)
 	}
 	return rows, reader.Err()
 }
@@ -486,9 +290,7 @@ func compactMessages(rows []sessionmodel.Message) []sessionmodel.Message {
 	for _, messageID := range order {
 		compacted = append(compacted, latestByID[messageID])
 	}
-	sort.Slice(compacted, func(i int, j int) bool {
-		return messageTimestamp(compacted[i]) < messageTimestamp(compacted[j])
-	})
+	sortHistoryRows(compacted)
 	return compacted
 }
 
@@ -750,6 +552,30 @@ func floatFromAny(value any) float64 {
 		return parsed
 	default:
 		return 0
+	}
+}
+
+func normalizeDecodedJSONValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[key] = normalizeDecodedJSONValue(item)
+		}
+		return result
+	case []any:
+		result := make([]any, 0, len(typed))
+		for _, item := range typed {
+			result = append(result, normalizeDecodedJSONValue(item))
+		}
+		return result
+	case float64:
+		if typed == float64(int64(typed)) {
+			return int64(typed)
+		}
+		return typed
+	default:
+		return value
 	}
 }
 

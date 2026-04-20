@@ -22,6 +22,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/channels"
 	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -327,8 +328,10 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "Delivery",
-		Options:      map[string]any{},
-		IsActive:     true,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
 	}); err != nil {
 		t.Fatalf("准备目标会话失败: %v", err)
 	}
@@ -378,7 +381,15 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		return items[0].Status == RunStatusSucceeded
 	})
 
-	messages, err := store.ReadSessionMessages([]string{workspacePath}, sessionKey)
+	sessionValue, _, err := store.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取投递目标 session 失败: %v", err)
+	}
+	if sessionValue == nil {
+		t.Fatalf("投递目标 session 不存在")
+	}
+	history := workspacestore.NewAgentHistoryStore(workspacePath)
+	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {
 		t.Fatalf("读取投递目标消息失败: %v", err)
 	}
@@ -416,8 +427,10 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "Heartbeat",
-		Options:      map[string]any{},
-		IsActive:     true,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
 	}); err != nil {
 		t.Fatalf("准备 heartbeat 目标会话失败: %v", err)
 	}
@@ -456,7 +469,15 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 		return statusErr == nil && status.LastAckAt != nil
 	})
 
-	messages, err := store.ReadSessionMessages([]string{workspacePath}, targetSessionKey)
+	sessionValue, _, err := store.FindSession([]string{workspacePath}, targetSessionKey)
+	if err != nil {
+		t.Fatalf("读取 heartbeat session 失败: %v", err)
+	}
+	if sessionValue == nil {
+		t.Fatalf("heartbeat session 不存在")
+	}
+	history := workspacestore.NewAgentHistoryStore(workspacePath)
+	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {
 		t.Fatalf("读取 heartbeat 目标消息失败: %v", err)
 	}

@@ -104,21 +104,28 @@ export function useMessageItemState({
   }, [first_assistant]);
 
   const stats = useMemo<MessageStatsData | null>(() => {
-    if (!result_message) {
+    const usage = result_message?.usage;
+    const duration = result_message
+      ? (result_message.duration_ms > 0
+        ? `${(result_message.duration_ms / 1000).toFixed(1)}s`
+        : "0s")
+      : null;
+    const cost = result_message?.total_cost_usd !== undefined
+      ? `$${result_message.total_cost_usd.toFixed(4)}`
+      : null;
+    const cache_hit = usage?.cache_read_input_tokens;
+    const tokens = usage
+      ? `${format_compact_count(usage.input_tokens)}↑ ${format_compact_count(usage.output_tokens)}↓`
+      : null;
+
+    if (!duration && !tokens && !cost && !cache_hit) {
       return null;
     }
 
-    const cache_hit = result_message.usage?.cache_read_input_tokens;
     return {
-      duration: result_message.duration_ms > 0
-        ? `${(result_message.duration_ms / 1000).toFixed(1)}s`
-        : "0s",
-      tokens: result_message.usage
-        ? `${format_compact_count(result_message.usage.input_tokens)}↑ ${format_compact_count(result_message.usage.output_tokens)}↓`
-        : null,
-      cost: result_message.total_cost_usd !== undefined
-        ? `$${result_message.total_cost_usd.toFixed(4)}`
-        : null,
+      duration,
+      tokens,
+      cost,
       cache_hit: cache_hit && cache_hit > 0 ? `缓存 ${format_compact_count(cache_hit)}` : null,
     };
   }, [result_message]);

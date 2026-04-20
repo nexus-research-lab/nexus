@@ -15,13 +15,18 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
 	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -60,7 +65,8 @@ func TestSessionServiceLifecycle(t *testing.T) {
 		t.Fatalf("session 标题不正确: got=%s", created.Title)
 	}
 
-	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey)
+	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, created)
+	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey, dmSessionID)
 
 	dmContext, err := roomService.EnsureDirectRoom(ctx, agentA.AgentID)
 	if err != nil {
@@ -91,7 +97,20 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if len(messages) != 3 {
 		t.Fatalf("消息归一化结果不正确: got=%d want=3", len(messages))
 	}
-	if messages[1]["content"] != "最终回复" {
+	contentBlocks, ok := messages[1]["content"].([]map[string]any)
+	if !ok && messages[1]["content"] != nil {
+		rawBlocks, okAny := messages[1]["content"].([]any)
+		if okAny {
+			contentBlocks = make([]map[string]any, 0, len(rawBlocks))
+			for _, item := range rawBlocks {
+				if payload, okMap := item.(map[string]any); okMap {
+					contentBlocks = append(contentBlocks, payload)
+				}
+			}
+			ok = true
+		}
+	}
+	if !ok || len(contentBlocks) != 1 || contentBlocks[0]["type"] != "text" || contentBlocks[0]["text"] != "最终回复" {
 		t.Fatalf("消息压缩未保留最新快照: %+v", messages[1])
 	}
 	if messages[1]["stream_status"] != "cancelled" {
@@ -110,7 +129,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if len(messagePage.Items) != 3 || messagePage.HasMore {
 		t.Fatalf("普通 session 最新页结果不正确: %+v", messagePage)
 	}
-	if messagePage.Items[0]["message_id"] != "msg_user_1" {
+	if messagePage.Items[0]["message_id"] != "round_1" {
 		t.Fatalf("普通 session 最新页起点不正确: %+v", messagePage.Items)
 	}
 	if messagePage.Items[2]["message_id"] != "result_round_1" {
@@ -181,10 +200,12 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 		t.Fatalf("创建 agent 失败: %v", err)
 	}
 	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "active-"+agentA.AgentID, "")
-	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey}); err != nil {
+	sessionValue, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey})
+	if err != nil {
 		t.Fatalf("创建 session 失败: %v", err)
 	}
-	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey)
+	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, sessionValue)
+	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey, dmSessionID)
 	runtimeManager.StartRound(dmKey, "round_1", nil)
 	defer runtimeManager.MarkRoundFinished(dmKey, "round_1")
 
@@ -200,87 +221,288 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 	}
 }
 
-func seedWorkspaceSessionArtifacts(t *testing.T, cfg config.Config, agentID string, workspacePath string, sessionKey string) {
+func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	agentA, err := agentService.CreateAgent(ctx, agent2.CreateRequest{Name: "Transcript 助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "transcript-"+agentA.AgentID, "")
+	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey})
+	if err != nil {
+		t.Fatalf("创建 transcript session 失败: %v", err)
+	}
+
+	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+	created.SessionID = &sessionID
+	store := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	if _, err := store.UpsertSession(agentA.WorkspacePath, *created); err != nil {
+		t.Fatalf("回写 session_id 失败: %v", err)
+	}
+
+	history := workspace2.NewAgentHistoryStore(cfg.WorkspacePath)
+	if err := history.AppendRoundMarker(agentA.WorkspacePath, dmKey, "round_transcript_1", "请总结这个仓库", time.Now().Add(-2*time.Second).UnixMilli()); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+	writeSessionTranscriptFixture(t, agentA.WorkspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-1",
+			"sessionId": sessionID,
+			"timestamp": time.Now().Add(-2 * time.Second).UTC().Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "请总结这个仓库",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-1",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-1",
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "text", "text": "这是一个 Go + React 的 Nexus 项目。"},
+				},
+			},
+		},
+		{
+			"type":            "result",
+			"uuid":            "transcript-result-1",
+			"session_id":      sessionID,
+			"parentUuid":      "transcript-assistant-1",
+			"subtype":         "success",
+			"duration_ms":     12,
+			"duration_api_ms": 8,
+			"num_turns":       1,
+			"result":          "done",
+			"is_error":        false,
+		},
+	})
+
+	messages, err := sessionService.GetSessionMessages(ctx, dmKey)
+	if err != nil {
+		t.Fatalf("读取 transcript 历史失败: %v", err)
+	}
+	if len(messages) != 3 {
+		t.Fatalf("transcript 历史数量不正确: got=%d want=3", len(messages))
+	}
+	if got := strings.TrimSpace(stringValue(messages[0]["round_id"])); got != "round_transcript_1" {
+		t.Fatalf("round marker 未覆盖 transcript round_id: got=%s want=round_transcript_1", got)
+	}
+	if got := strings.TrimSpace(stringValue(messages[1]["round_id"])); got != "round_transcript_1" {
+		t.Fatalf("assistant round_id 未继承 round marker: got=%s want=round_transcript_1", got)
+	}
+	if got := strings.TrimSpace(stringValue(messages[2]["round_id"])); got != "round_transcript_1" {
+		t.Fatalf("result round_id 未继承 round marker: got=%s want=round_transcript_1", got)
+	}
+}
+
+func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	agentA, err := agentService.CreateAgent(ctx, agent2.CreateRequest{Name: "Room Topic Transcript 助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	dmContext, err := roomService.EnsureDirectRoom(ctx, agentA.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+	topicContext, err := roomService.CreateConversation(ctx, dmContext.Room.ID, roomsvc.CreateConversationRequest{
+		Title: "Topic Transcript",
+	})
+	if err != nil {
+		t.Fatalf("创建话题失败: %v", err)
+	}
+	if len(topicContext.Sessions) == 0 {
+		t.Fatal("话题上下文缺少成员 session")
+	}
+
+	sessionKey := protocol.BuildRoomAgentSessionKey(
+		topicContext.Conversation.ID,
+		agentA.AgentID,
+		topicContext.Room.RoomType,
+	)
+	sessionID := "2944aa53-db7c-4b9f-a3e6-74401402abc5"
+	now := time.Now().UTC()
+	store := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	if _, err := store.UpsertSession(agentA.WorkspacePath, sessionsvc.Session{
+		SessionKey:     sessionKey,
+		AgentID:        agentA.AgentID,
+		SessionID:      &sessionID,
+		RoomSessionID:  stringPointer(topicContext.Sessions[0].ID),
+		RoomID:         stringPointer(topicContext.Room.ID),
+		ConversationID: stringPointer(topicContext.Conversation.ID),
+		ChannelType:    "ws",
+		ChatType:       "dm",
+		Status:         "active",
+		CreatedAt:      now,
+		LastActivity:   now,
+		Title:          topicContext.Conversation.Title,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("回写 room topic session meta 失败: %v", err)
+	}
+
+	history := workspace2.NewAgentHistoryStore(cfg.WorkspacePath)
+	if err := history.AppendRoundMarker(agentA.WorkspacePath, sessionKey, "round_room_topic_1", "啥意思", now.Add(-2*time.Second).UnixMilli()); err != nil {
+		t.Fatalf("写入 room topic round marker 失败: %v", err)
+	}
+	writeSessionTranscriptFixture(t, agentA.WorkspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "room-topic-user-1",
+			"sessionId": sessionID,
+			"timestamp": now.Add(-2 * time.Second).UTC().Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "啥意思",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "room-topic-assistant-1",
+			"sessionId":  sessionID,
+			"parentUuid": "room-topic-user-1",
+			"timestamp":  now.Add(-time.Second).UTC().Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "你好！你能具体说说你想问什么吗？"},
+				},
+			},
+		},
+	})
+
+	messages, err := sessionService.GetSessionMessages(ctx, sessionKey)
+	if err != nil {
+		t.Fatalf("读取 room topic transcript 历史失败: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("room topic transcript 历史数量不正确: got=%d want=2 messages=%+v", len(messages), messages)
+	}
+	if messages[0]["role"] != "user" || messages[1]["role"] != "assistant" {
+		t.Fatalf("room topic transcript 历史角色不正确: %+v", messages)
+	}
+	if messages[1]["stream_status"] != "done" {
+		t.Fatalf("room topic assistant 应归一化为 done: %+v", messages[1])
+	}
+
+	updatedSession, err := sessionService.GetSession(ctx, sessionKey)
+	if err != nil {
+		t.Fatalf("读取更新后的 room topic session 失败: %v", err)
+	}
+	if updatedSession.SessionID == nil || strings.TrimSpace(*updatedSession.SessionID) != sessionID {
+		t.Fatalf("room topic sdk_session_id 未从 workspace meta 回写数据库: %+v", updatedSession)
+	}
+}
+
+func seedWorkspaceSessionArtifacts(
+	t *testing.T,
+	cfg config.Config,
+	agentID string,
+	workspacePath string,
+	sessionKey string,
+	sessionID string,
+) {
 	t.Helper()
 
-	messagePath := workspace2.New(cfg.WorkspacePath).SessionMessagePath(workspacePath, sessionKey)
-
-	rows := []map[string]any{
-		{
-			"message_id":  "msg_user_1",
-			"session_key": sessionKey,
-			"agent_id":    agentID,
-			"round_id":    "round_1",
-			"role":        "user",
-			"content":     "你好",
-			"timestamp":   1000,
-		},
-		{
-			"message_id":  "msg_assistant_1",
-			"session_key": sessionKey,
-			"agent_id":    agentID,
-			"round_id":    "round_1",
-			"role":        "assistant",
-			"content":     "草稿回复",
-			"timestamp":   2000,
-		},
-		{
-			"message_id":  "msg_assistant_1",
-			"session_key": sessionKey,
-			"agent_id":    agentID,
-			"round_id":    "round_1",
-			"role":        "assistant",
-			"content":     "最终回复",
-			"timestamp":   3000,
-		},
+	history := workspace2.NewAgentHistoryStore(cfg.WorkspacePath)
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round_1", "你好", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
 	}
-	writeJSONL(t, messagePath, rows)
+	writeSessionTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-1",
+			"sessionId": sessionID,
+			"timestamp": "2026-04-19T10:00:00Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "你好",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "msg_assistant_1",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-1",
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "text", "text": "最终回复"},
+				},
+			},
+		},
+	})
 }
 
 func seedRoomConversationMessages(t *testing.T, cfg config.Config, conversationID string) {
 	t.Helper()
 
-	store := workspace2.New(cfg.WorkspacePath)
-	messagePath := store.RoomConversationMessagePath(conversationID)
-	rows := []map[string]any{
-		{
-			"message_id":      "room_msg_1",
-			"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
-			"conversation_id": conversationID,
-			"agent_id":        "agent_room",
-			"round_id":        "room_round_1",
-			"role":            "assistant",
-			"content":         "Room 共享消息",
-			"timestamp":       100,
-		},
+	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	if err := roomHistory.AppendInlineMessage(conversationID, map[string]any{
+		"message_id":      "room_msg_1",
+		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
+		"conversation_id": conversationID,
+		"agent_id":        "agent_room",
+		"round_id":        "room_round_1",
+		"role":            "assistant",
+		"content":         "Room 共享消息",
+		"timestamp":       100,
+	}); err != nil {
+		t.Fatalf("写入 room 共享历史失败: %v", err)
 	}
-	writeJSONL(t, messagePath, rows)
 }
 
-func writeJSONL(t *testing.T, path string, rows []map[string]any) {
+func bindTranscriptSessionID(
+	t *testing.T,
+	cfg config.Config,
+	workspacePath string,
+	item *sessionsvc.Session,
+) string {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("创建目录失败: %v", err)
-	}
 
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("创建文件失败: %v", err)
+	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+	item.SessionID = &sessionID
+	store := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	if _, err := store.UpsertSession(workspacePath, *item); err != nil {
+		t.Fatalf("回写 session_id 失败: %v", err)
 	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	for _, row := range rows {
-		if err = encoder.Encode(row); err != nil {
-			t.Fatalf("写入 jsonl 失败: %v", err)
-		}
-	}
+	return sessionID
 }
 
 func newSessionTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18012,
@@ -292,6 +514,90 @@ func newSessionTestConfig(t *testing.T) config.Config {
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
+}
+
+var sessionTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {
+	t.Helper()
+	projectDir := filepath.Join(
+		os.Getenv("NEXUS_CONFIG_DIR"),
+		"projects",
+		sanitizeSessionTranscriptPath(canonicalizeSessionTranscriptPath(workspacePath)),
+	)
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("创建 transcript 目录失败: %v", err)
+	}
+	file, err := os.Create(filepath.Join(projectDir, sessionID+".jsonl"))
+	if err != nil {
+		t.Fatalf("创建 transcript fixture 失败: %v", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	for _, row := range rows {
+		if err := encoder.Encode(row); err != nil {
+			t.Fatalf("写入 transcript fixture 失败: %v", err)
+		}
+	}
+}
+
+func canonicalizeSessionTranscriptPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	if absolutePath, err := filepath.Abs(path); err == nil {
+		path = absolutePath
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	return path
+}
+
+func sanitizeSessionTranscriptPath(path string) string {
+	const maxLength = 200
+	sanitized := sessionTranscriptSanitizePattern.ReplaceAllString(path, "-")
+	if len(sanitized) <= maxLength {
+		return sanitized
+	}
+	return sanitized[:maxLength] + "-" + sessionTranscriptHash(path)
+}
+
+func sessionTranscriptHash(value string) string {
+	var hash int32
+	for _, character := range value {
+		hash = hash*31 + int32(character)
+	}
+
+	number := int64(hash)
+	if number < 0 {
+		number = -number
+	}
+	if number == 0 {
+		return "0"
+	}
+
+	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+	result := make([]byte, 0, 8)
+	for number > 0 {
+		result = append(result, digits[number%36])
+		number /= 36
+	}
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return string(result)
+}
+
+func stringValue(value any) string {
+	typed, _ := value.(string)
+	return typed
+}
+
+func stringPointer(value string) *string {
+	copyValue := value
+	return &copyValue
 }
 
 func migrateSessionSQLite(t *testing.T, databaseURL string) {

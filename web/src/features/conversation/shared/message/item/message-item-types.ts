@@ -48,7 +48,7 @@ export interface MessageItemProps {
 }
 
 export interface MessageStatsData {
-  duration: string;
+  duration: string | null;
   tokens: string | null;
   cost: string | null;
   cache_hit: string | null;

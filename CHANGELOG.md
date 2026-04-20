@@ -38,8 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 支持 `AskUserQuestion` 自定义回答选项。
 - 新增 `room conversation` CRUD API，并接通 room 页面真实的新建/删除对话、重命名 room、增删成员与删除 room 管理能力。
 - 新增同一 session 的“多观察者、单控制者”运行时语义：多窗口可同时实时观察同一会话，消息流与 round 状态 fan-out，同一时刻仅一个控制端可发送消息、停止生成或确认权限。
+- 新增 `nexusctl session migrate-history`：可把历史私有 session 与 Room 共享历史从旧版 `messages.jsonl` 一次性迁移到 `cc transcript + overlay / transcript_ref` 新机制，并在迁移成功后移除旧正文副本。
 
 ### Changed
+- DM 会话历史切换为 `cc transcript + Nexus overlay` 双层结构：新建 DM session 默认使用 transcript 作为历史真相源，Nexus 只补 `round marker` 与 synthetic overlay，Session API 不再回退旧 `messages.jsonl`。
+- Room 历史链继续收口：成员私有 session 不再双写完整 `messages.jsonl`，共享 room 历史也不再保存完整正文副本，统一改为 `inline overlay + transcript_ref` 共享索引层，真正正文按需从对应成员 transcript 投影恢复。
+- 运行时正式停用 legacy session 正文链路：DM、delivery 与 Session API 现在统一要求 `history_source=transcript`，未迁移会话会明确提示先执行 `nexusctl session migrate-history`，不再静默读写旧 `messages.jsonl`。
+- 历史真相源规则进一步收口：`assistant` 正文与 `usage` 只来自 `cc transcript`，`result` 只来自 Nexus overlay；运行时读取 transcript 时不再投影 `MessageTypeResult`，迁移器也不再把 legacy result 转成 `transcript_ref`。
+- session / room 文件目录命名统一收口为可读语义路径：DM 使用 `dm-<channel>-<ref>`，Room 私有与共享使用 `room-<conversation_id>`；旧 base64 与短名+hash 目录的迁移职责统一收口到 `nexusctl session migrate-history`，运行时不再隐式兼容搬迁。
+- `nexusctl session migrate-history` 现在会在迁移过程中显式清洗无效历史行：无法落到 `round_marker / overlay / transcript_ref` 新结构的坏行会被直接剔除，并在迁移摘要里输出 `removed_invalid_rows` 统计；迁移结束后还会结合当前数据库里的 room / session 真相源清理孤儿目录，输出 `removed_orphan_paths` 统计。
+- workspace 文件存储根现在统一跟随 `NEXUS_CONFIG_DIR / CLAUDE_CONFIG_DIR`，Room 共享 overlay、transcript 与迁移命令不再偷偷回落到真实 `~/.nexus`。
 - Go 后端 `list_agents` / `get_agent` 现在补齐 `skills_count`，并与 Python 主线对齐；DM session 复用 SDK client 时会自动执行 `Reconfigure`，`model / max_thinking_tokens / max_turns / setting_sources` 等配置会在下一轮尽可能热更新，涉及工作区、工具白名单和运行时环境的变更则自动带 `resume` 重连。
 - Goose 迁移历史收口为 `00001` Python 最终基线 + `00002` Go 适配迁移，`cmd/nexus-migrate` 会在启动前识别当前数据库属于 Python 最终结构还是 Go 当前结构，并把 Goose 版本对齐到正确阶段，避免运行期继续撞旧认证域结构。
 - 前端默认 Agent 模型 fallback 与部署默认值统一切换为 `glm-5.1`。
@@ -113,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 删除 `use-home-agent-conversation-controller`、`use-initialize-conversations`、`store/conversation/utils`。
 
 ### Docs
+- 精简并重写 `session-key / permission-runtime / main-agent / message-processing / skill / room / frontend-design` 七份 spec，统一到当前 Go 后端、`transcript + overlay` 历史真相源与 round 分页实现，移除过时的 Python/legacy 叙事。
 - 更新根目录 `README.md`，同步当前 React + Vite 前端、混合持久化、Memory、Room/DM 页面结构与配置说明。
 - 更新 `web/README.md`，修正前端技术栈、目录结构、路由与 `VITE_*` 环境变量说明。
 - 更新 `env.example` 与部署说明，补充公网部署场景的 `AUTH_LOGIN_*` / Cookie / `BACKEND_CORS_ORIGINS` 配置项。

@@ -1,498 +1,188 @@
-# 消息处理统一规范
-
-## 1. 文档目的
-
-本文档定义 Nexus 中消息处理的统一语义、展示边界和收敛方向。
-
-这里要解决的核心问题不是“某个气泡怎么排版”，而是下面几件事：
-
-- Claude Agent SDK 的流式事件到底表示什么
-- `AssistantMessage` 和 `ResultMessage` 分别承担什么职责
-- DM 与 Room 为什么不能共用一套展示逻辑
-- 历史态与实时态为什么要允许不同的显示形态
-
-后续所有消息展示改动，都必须以本文档为准推进。若当前实现与本文档不一致，以本文档定义的目标态为准收敛。
-
-## 2. 几类概念先分开
-
-### 2.1 StreamEvent
-
-- 表示 Claude Agent SDK 的实时流事件
-- 包括：
-  - `message_start`
-  - `content_block_start`
-  - `content_block_delta`
-  - `content_block_stop`
-  - `message_delta`
-  - `message_stop`
-- 它负责“实时过程”，不是最终落盘消息
-
-### 2.2 assistant turn
-
-- 表示一次完整的 assistant 发言轮次
-- 一个 `assistant.message_id` 对应一个 turn
-- 一个 turn 内可能包含：
-  - `thinking`
-  - `task_progress`
-  - `tool_use`
-  - `tool_result`
-  - `text`
-
-### 2.3 AssistantMessage
-
-- 表示某个 assistant turn 的完整结果
-- 它不是整条代理执行链的最终答案
-- 一轮里可能有多个 `AssistantMessage`
-
-### 2.4 ResultMessage
-
-- 表示整条代理执行链的最终结果
-- 它承担：
-  - 最终正文 `result`
-  - 统计信息
-  - 执行终态
-
-### 2.5 round
-
-- 表示一次用户输入触发的一轮业务对话
-- 一轮里可能包含：
-  - 1 条用户消息
-  - 多个 assistant turn
-  - 0 或 1 条 `ResultMessage`
-- round 的实时生命周期必须由后端 `round_status` 事件定义
-- 正常结束链路中：
-  - Claude SDK 先产出 `ResultMessage`
-  - 后端再据此推送 `round_status=finished`
-- 前端禁止根据以下信号自行结束 round：
-  - `AssistantMessage.stop_reason`
-  - `assistant.stream_status=done`
-  - `tool_result`
-  - `permission_response`
-
-#### 2.5.1 实时数据流
-
-正常 DM / 固定 Session / Room 主 round 都必须遵循同一条实时链路：
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as 用户
-    participant FE as 前端 useAgentConversation
-    participant RM as RuntimeMachine
-    participant WS as WebSocket
-    participant BE as 后端 ChatService/RoomChatService
-    participant SDK as Claude SDK
-    participant UI as 消息区
-
-    U->>FE: 发送消息
-    FE->>WS: chat(session_key, round_id, content)
-    FE->>RM: queue_round(round_id)
-    RM-->>UI: phase=queued / is_loading=true
-
-    WS->>BE: 上行 chat
-    BE->>WS: round_status(running)
-    WS->>FE: round_status(running)
-    FE->>RM: track_round_status(running)
-    RM-->>UI: phase=running
-
-    BE->>SDK: query()
-    SDK-->>BE: StreamEvent / AssistantMessage / Permission / Tool
-
-    BE->>WS: stream
-    WS->>FE: stream
-    FE->>UI: applyStreamMessage(增量文本)
-
-    BE->>WS: message(assistant/result)
-    WS->>FE: message
-    FE->>UI: upsertMessage(完整消息)
-
-    BE->>WS: permission_request
-    WS->>FE: permission_request
-    FE->>RM: pending_permission_count +1
-    RM-->>UI: phase=awaiting_permission
-
-    U->>FE: allow/deny 或填写 AskUserQuestion
-    FE->>WS: permission_response
-    WS->>BE: permission_response
-    FE->>RM: pending_permission_count -1
-    RM-->>UI: 回到 running
-
-    Note over BE,SDK: 正常结束时 SDK 先产出 ResultMessage
-    SDK-->>BE: ResultMessage
-    BE->>WS: message(result)
-    BE->>WS: round_status(finished)
-
-    WS->>FE: round_status(finished)
-    FE->>RM: track_round_status(finished)
-    FE->>UI: 清理 pending permission / slot / running state
-    RM-->>UI: phase=idle / is_loading=false
-```
-
-约束：
-
-- `message(result)` 负责最终结果内容
-- terminal `round_status` 负责 round 级结束语义
-- 输入框是否解锁、执行态是否收口，只能由 terminal `round_status` 驱动
-- `session_status` 只负责同步当前运行态与控制端归属
-  - 必须包含 `running_round_ids`
-  - 必须包含 `controller_client_id`
-  - 必须包含 `observer_count`
-
-#### 2.5.2 前端运行态状态机
-
-前端只允许维护“当前处于什么阶段”的派生状态机，不允许维护第二套 round 生命周期真相源。
-
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> queued: send_message + queue_round
-    queued --> running: round_status(running)
-    running --> awaiting_permission: permission_request
-    awaiting_permission --> running: permission_response
-    running --> idle: round_status(finished)
-    running --> idle: round_status(error)
-    running --> idle: round_status(interrupted)
-    awaiting_permission --> idle: round_status(error/interrupted/finished)
-```
-
-### 2.6 thread
-
-- 表示单个 Agent 在某一轮中的执行细节视图
-- Thread 看的是执行链，不是主时间线结果
-
-## 3. Claude SDK 的事实模型
-
-Claude Agent SDK 的消息语义不是“一条 assistant 一直流到结束”，而是：
-
-```text
-StreamEvent ...
-AssistantMessage（turn 1）
-... tool executes ...
-StreamEvent ...
-AssistantMessage（turn 2）
-...
-ResultMessage
-```
-
-一个典型顺序是：
-
-```text
-StreamEvent (message_start)
-StreamEvent (content_block_start) - text block
-StreamEvent (content_block_delta) - text chunks...
-StreamEvent (content_block_stop)
-StreamEvent (content_block_start) - tool_use block
-StreamEvent (content_block_delta) - tool input chunks...
-StreamEvent (content_block_stop)
-StreamEvent (message_delta)
-StreamEvent (message_stop)
-AssistantMessage
-... tool executes ...
-... more streaming events for next turn ...
-ResultMessage
-```
-
-结论：
-
-- `StreamEvent` 负责实时过程
-- `AssistantMessage` 负责 turn 级落盘
-- `ResultMessage` 负责最终结果
-- `round_status` 负责 round 级生命周期
-- `task_progress` 属于 assistant turn 内的内容块，不再单独落成 system durable message
-- 前端不能把一轮里的所有 assistant 内容粗暴合并成“一条回答”
-
-## 4. 统一中间模型
-
-前端必须先按 turn 理解消息，再决定怎么展示。
-
-推荐的中间模型如下：
-
-```text
-RoundView
-  - user_message
-  - assistant_turns[]
-    - turn_id
-    - blocks[]
-    - stop_reason
-    - status
-  - result_message
-```
-
-关键规则：
-
-- 一个 `assistant.message_id` 对应一个 turn
-- 一个 turn 内的块顺序必须保持原样
-- `result.parent_id` 只用于关联最终结果，不用于重排历史 turn
-
-## 5. 展示目标
-
-消息展示必须满足以下目标：
-
-1. 实时对话时，用户始终能看到最新输出
-2. 历史消息里，中间过程要能收起来
-3. Room 主时间线只看结果，不看执行链
-4. Thread 才负责展示完整执行过程
-5. 没有 `result` 的场景也必须有稳定回退
-
-## 6. Room 展示规范
-
-Room 分成两块：
-
-### 6.1 Room 主时间线
-
-- 主时间线只显示最终结果
-- 不显示完整执行链
-- 某个 Agent 完成后，主时间线显示：
-  - `result.result`
-  - 对应 stats
-
-若没有 `result`：
-
-- 主时间线回退显示最后一个 assistant turn 的输出
-
-### 6.2 Room Thread
-
-- Thread 实时按顺序显示所有 assistant turn 内容
-- 展示内容包括：
-  - `thinking`
-  - `tool_use`
-  - `tool_result`
-  - `assistant text`
-- Thread 不显示 `ResultMessage`
-- Thread 的消息源必须与 DM 实时态一致：
-  - 只消费真实的 `AssistantMessage`
-  - 不消费 Room 占位槽位
-- Room 的权限确认默认应在 Thread 中展示
-- 若 Thread 未打开，主时间线里的 pending card 也必须明确显示“等待权限确认”
-- Room 前端不能把权限卡完全藏在 Thread 里，否则用户会误以为前端没收到请求
-
-### 6.3 Room 占位规则
-
-- Room 仍然允许 `chat_ack`
-- 但 `chat_ack` 只表示“前端 pending slot”
-- `chat_ack` 不是 assistant 消息
-- 前端不能把 `chat_ack.msg_id` 写进 `messages`
-- `chat_ack.msg_id` 也是 Room 单 Agent 停止所依赖的后端句柄
-- 因此刷新恢复时，后端必须重新下发当前仍在执行的 slot
-- 恢复下发的 slot 必须携带真实：
-  - `round_id`
-  - `status`
-  - `timestamp`
-- 后端输出的 assistant turn 必须与 DM 保持一致，继续使用 SDK 自己的 `message_id`
-- `permission_request` 应优先按事件元信息匹配：
-  - `agent_id`
-  - `caused_by`
-  - `message_id`
-- 不能只靠工具名或命令文本猜测归属
-- 主绑定链必须先按 `permission.message_id` 限定到同一条 assistant message
-- 若同一条 assistant message 内有多个 `tool_use`
-  - 再按 `tool_name + tool_input` 精确定位
-- 禁止回退到跨 message 的签名队列匹配
-- Room Thread 在 `AskUserQuestion` / 权限恢复场景下，不能再强依赖
-  `permission.message_id === assistant.message_id`
-  - 因为 Room 权限事件常绑定的是占位槽位 `msg_id`
-  - Thread 归属应优先依赖 `agent_id + caused_by(round_id)`
-
-### 6.4 Room 规则总结
-
-- 主时间线 = 结果视图
-- Thread = 执行视图
-- 两者不混用
-- 占位 = 前端状态，不是消息
-
-## 7. DM 展示规范
-
-DM 必须区分“实时态”和“归档态”。
-
-### 7.1 DM 实时态
-
-当前 round 仍在生成时：
-
-- 不拆“最终输出区”和“调用链区”
-- 所有 assistant 内容按真实顺序直接显示
-- 包括：
-  - `thinking`
-  - `tool_use`
-  - `tool_result`
-  - `assistant text`
-
-目的：
-
-- 避免正文被塞进折叠区
-- 让用户始终能看到流式输出
-
-### 7.2 DM 归档态
-
-当一个 round 结束后：
-
-- 中间过程放进调用链
-- 调用链默认折叠
-- 调用链不包含最后一个 assistant turn
-- 主区只显示：
-  - `result.result`
-  - 若无 `result`，则显示最后一个 assistant turn
-
-### 7.3 DM 刷新 / 历史恢复
-
-历史消息一律按归档态展示：
-
-- 中间过程进调用链
-- 调用链默认隐藏
-- 主区只显示最终结果
-- 若没有 `result`，回退到最后一个 assistant turn
-- 后端返回历史快照前，必须先按 durable `round_status` 归一化 assistant 消息
-  - 已结束 round 内的 assistant 不得继续以 `streaming / 未完成` 形态返回
-  - 否则固定 session 在 reload 后会把旧消息重新点亮成“正在回复”
-- 历史接口返回的是归一化后的 durable 视图，不是原始 JSONL 逐行回放
-- 若某个 round 没有 durable `result` 且已经不在活跃集合中
-  - 后端必须物化等价的 `result(interrupted)`
-  - 并把对应 assistant 历史统一修正成 `stream_status=cancelled`
-
-### 7.4 AskUserQuestion 展示规则
-
-- `AskUserQuestion` 是内嵌问答块，不是额外的权限确认条
-- 它仍然依赖后端 `permission_request` 提供 `request_id`
-- DM / 固定 Session / Room 都必须让该事件携带 `caused_by=round_id`
-- 但前端只允许通过问答块本身提交 `allow + user_answers`
-- 不能在消息底部再渲染一条通用 `允许 / 拒绝` 条
-- Room 主时间线若需要暴露入口，只能显示 `去回答`
-  - 该动作只负责打开 Thread
-  - 不能直接发送通用 `allow`
-- 问题若声明多选，前端必须支持多选提交
-  - 字段兼容 `multi_select / multiSelect`
-  - `allow` 时必须回传完整答案数组
-- 同一问题若因超时被模型重试，前端只保留最新那一条挂起请求
-- `AskUserQuestion` 超时后应直接失败并结束当前交互，不应再自动补发下一条相同问题
-- `AskUserQuestion` 超时或权限通道不可用时，后端必须把对应 `tool_result`
-  标成结构化错误：
-  - `error_code=permission_request_timeout`
-  - 或 `error_code=permission_channel_unavailable`
-- 前端展示 `提问已超时 / 提问未完成`、过程区自动展开等逻辑只能读结构化 `error_code`
-  - 不能再直接匹配英文错误文案
-
-## 8. 无 result 场景
-
-有些终端类或特殊执行链不会产出 `ResultMessage`。
-
-必须先明确：
-
-- “无 `ResultMessage` 回退”只影响展示
-- 不影响实时 round 是否结束
-- 实时 round 的结束仍以后端 `round_status` 为唯一真值
-- 正常链路里，`round_status=finished` 应由后端在收到 `ResultMessage` 后推送
-- 若前端为了展示选择先渲染 `result` 内容，也不能因为 `result` 到达就提前收口运行态
-
-这类场景统一按以下规则回退：
-
-- Room 主时间线：显示最后一个 assistant turn
-- DM 归档态：主区显示最后一个 assistant turn
-- Thread：仍按完整 assistant turn 顺序显示
-
-补充：
-
-- 若 assistant 已明确收口为 `stream_status=done`
-- 即使没有 `ResultMessage`
-- 也必须视为该 Agent 子轮次已完成，不能误判成 `cancelled`
+# 消息处理规范
+
+## 1. 文档目标
+
+本文档定义当前消息链路的三件事：
+
+- 实时消息怎么流动
+- 历史消息怎么落盘和读取
+- 前端为什么按 round 展示和分页
+
+## 2. 核心对象
+
+### 2.1 stream event
+
+- 运行时实时增量
+- 负责过程态，不是历史真相源
+
+### 2.2 assistant message
+
+- 某个 assistant turn 的 durable 消息
+- 可能包含 thinking、tool、text 等内容
+- assistant 正文真相源只来自 `cc transcript`
+
+### 2.3 result message
+
+- 一轮执行的终态结果
+- 包含结果文本、执行终态与 runtime 摘要
+- result 真相源只来自 Nexus overlay
+
+### 2.4 round
+
+- 一次用户输入触发的一轮业务对话
+- 当前历史分页、状态收口都按 round 处理
+
+## 3. 实时链路
+
+### 3.1 入口
+
+- 前端通过 WebSocket `chat` 发起一轮执行
+- 后端创建 / 复用 runtime client
+- runtime 返回 stream / durable message / round status
+
+### 3.2 前端展示
+
+前端只做两类处理：
+
+- stream：增量展示过程
+- durable message：写入最终消息列表
+
+round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
+
+## 4. 当前历史真相源
+
+### 4.1 DM / 私有 session
+
+当前真相源是：
+
+- `cc transcript`
+- `overlay.jsonl`
+
+其中：
+
+- transcript 保存 agent 私有正文历史
+- overlay 只保存 Nexus 自己补的语义
+- transcript 与 overlay 的职责必须严格分开，禁止混用
+
+### 4.2 overlay 里保存什么
+
+DM / 私有 session 主要保存：
+
+- `round_marker`
+- `result`
+- transcript 本身没有的补充消息
+
+硬规则：
+
+- `assistant` 只能来自 transcript
+- `result` 只能来自 overlay
+- transcript 里的 `MessageTypeResult` 不参与历史投影
+
+### 4.3 cc transcript 的终态规则
+
+对 transcript assistant 来说，终态只认 `message.stop_reason`：
+
+- `message.stop_reason` 有值
+  - 这条 assistant 快照就是终态 assistant
+  - 不要求再存在独立 `result` 消息
+- `message.stop_reason` 为空
+  - 这条 assistant 仍然视为未完成快照
 
 也就是说：
 
-- `result` 是最终输出的高优先级来源
-- `最后一个 assistant turn` 是统一回退来源
+- `result` 不是 assistant 完成的必要条件
+- 历史读取不能因为“没有 result”就把 transcript assistant 直接判成 interrupted
+- synthetic interrupted 只允许出现在真正缺少终态且 round 已结束的场景
 
-## 9. 展示策略矩阵
+补充约束：
 
-| 场景 | 主区显示 | 调用链 / 过程区 | 是否显示完整执行链 |
-| --- | --- | --- | --- |
-| Room 主时间线 | `result`，无则最后一个 assistant | 不显示 | 否 |
+- assistant 的 `usage` 允许直接来自 transcript
+- `duration_ms / duration_api_ms / num_turns / total_cost_usd / result / subtype / is_error` 只允许来自 overlay result
+- 不允许从 transcript assistant 反推一个“差不多的 result”
 
-## 10. WebSocket 重连补流
+### 4.4 Room shared 历史
 
-### 10.1 DM / 单会话补流
+Room shared 不再保存完整正文副本，而是：
 
-- DM 断线重连后，后台任务不应停止
-- 非 Room 会话的实时 envelope 需要带 `session_seq`
-- 前端重连时通过 `bind_session + last_seen_session_seq` 申请补发
-- 后端若缓冲区仍覆盖该游标，按序回放：
-  - `message`
-  - `stream`
-  - `round_status`
-- 若缓冲区已经不够，后端发送 `session_resync_required`
-- 前端收到 `session_resync_required` 后，必须回源重拉当前会话
-- `bind_session` 完成后，后端还需要额外推送一次当前 `session_status`
-  - `session_status` 必须携带当前仍在运行的 `running_round_ids`
-  - 它只负责“当前还有哪些 round 正在跑”
-  - 不替代 durable 的 `round_status`
+- inline overlay
+- transcript_ref
 
-## 10.3 实时与 durable 的收口规则
+也就是：
 
-- `message_delta + stop_reason` 到达时，后端可以先补出 durable assistant 快照
-- `message_stop` 只表示流式段落结束，不代表 round 已结束
-- `result` 是正常终态的唯一真相源
-- `error / interrupted` 也必须落成 durable `result`
-- 实时看到的 `thinking / task_progress / text`，刷新后仍必须能从 durable 历史恢复出一致结果
+- 共享层只保存用户消息、result/synthetic 消息和对 transcript assistant 的引用
+- 真正正文按需从成员 transcript 投影恢复
+- `transcript_ref` 只允许引用 assistant，不允许引用 result
 
-### 10.2 Room 补流
+## 5. 分页机制
 
-- Room 继续使用现有 `room_seq`
-- Room 的实时回放与重拉规则不变
-- `session_seq` 不替代 `room_seq`
+当前历史分页已经统一按 round，不按消息条数。
 
-## 11. 明确禁止的做法
+### 5.1 首屏
 
-以下做法应明确禁止：
+- 默认加载最近一页 round
 
-### 11.1 把整轮 assistant 内容直接合并成单条最终回答
+### 5.2 向上翻页
 
-- 这会丢失 turn 边界
-- 会让 DM 和 Room 相互打架
+- 上滚到顶部时再请求更早 round
+- 保持视口位置不跳
 
-### 11.2 把所有 assistant text 都直接当成最终输出
+### 5.3 重同步
 
-- 中间 assistant text 应该进入过程区
-- 只有最后一个 assistant turn 才有资格成为最终输出候选
+- 只刷新最近一页
+- 不再整段全量重拉
 
-### 11.3 让 Room 主时间线承担 Thread 职责
+## 6. 规范化规则
 
-- 主时间线是结果视图
-- Thread 才是执行视图
+历史读取时会统一做：
 
-### 11.4 强制让实时态与归档态长得完全一样
+1. transcript / overlay 合并
+2. transcript user 与 round marker 尾部对齐
+3. snapshot 压缩
+4. 未完成 round 物化
+5. round 归一化
+6. round 分页
 
-- 实时态首先保证“看得到最新输出”
-- 归档态首先保证“历史足够干净”
-- 两者目标不同，允许不同展示
+这意味着：
 
-### 11.5 让前端自己推导 round 是否已经结束
+- API 返回的是“可展示历史”
+- 不是原始文件逐行回放
 
-- 前端不能靠 assistant 收口、权限提交、tool_result 或 slot 消失来结束 round
-- 输入框解锁、执行态收口、slot 清理都必须以后端 terminal `round_status` 为准
+同一 round 的稳定顺序必须是：
 
-## 12. 推荐实现边界
+1. user
+2. assistant / system / task_progress
+3. result
 
-推荐把前端消息层收敛成 4 种显示模式：
+## 7. API 约束
 
-- `dm_live`
-- `dm_archived`
-- `room_thread`
-- `room_result`
+Room / DM 历史读取统一走 room conversation 语义：
 
-每种模式只负责一件事：
+```text
+GET /agent/v1/rooms/{room_id}/conversations/{conversation_id}/messages
+```
 
-- `dm_live`
-  - 直接顺序显示当前 round 全部 assistant 内容
-- `dm_archived`
-  - 中间过程进调用链，最终输出留主区
-- `room_thread`
-  - 直接顺序显示 assistant turn，不显示 result
-- `room_result`
-  - 只显示 result，无 result 时回退最后一个 assistant
+旧的 `/agent/v1/sessions/{session_key}/messages` 已移除。
 
-## 13. 规范结论
+## 8. 已删除的旧链路
 
-消息展示的根问题不是“块怎么拼”，而是先回答这三个问题：
+以下链路已经不再是运行时主链：
 
-1. 这是 DM 还是 Room
-2. 这是实时态还是归档态
-3. 这是结果视图还是执行视图
+- 私有 `messages.jsonl` 完整正文副本
+- room shared 完整正文副本
+- `cost/summary` 旧 HTTP 链
+- `telemetry_cost.jsonl` / `telemetry_cost_summary.json`
 
-只有先把这三个问题拆清楚，消息顺序、流式显示和历史归档才会稳定。
+## 9. 当前前端展示规则
+
+- 历史时间线按 round 组织
+- 中间过程默认折叠
+- 工具 / thinking / AskUserQuestion 都是 block
+- 用户消息和结果消息都走 Markdown 渲染链
+
+## 10. 一句话总结
+
+当前消息系统是：
+
+- 实时态：WebSocket 增量
+- 历史态：transcript / overlay 归一化结果
+- 分页单位：round

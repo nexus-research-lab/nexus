@@ -19,6 +19,7 @@ import (
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -292,8 +293,8 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	topicAgentBSession := seedRoomPrivateSession(t, files, agentB.WorkspacePath, topicContextAfterAdd.Room.RoomType, topicContextAfterAdd.Conversation.ID, agentB.AgentID)
 	mainAgentCSession := seedRoomPrivateSession(t, files, agentC.WorkspacePath, mainContextAfterAdd.Room.RoomType, mainContextAfterAdd.Conversation.ID, agentC.AgentID)
 	topicAgentCSession := seedRoomPrivateSession(t, files, agentC.WorkspacePath, topicContextAfterAdd.Room.RoomType, topicContextAfterAdd.Conversation.ID, agentC.AgentID)
-	seedRoomConversationLog(t, files, mainContextAfterAdd.Conversation.ID, mainContextAfterAdd.Room.ID)
-	seedRoomConversationLog(t, files, topicContextAfterAdd.Conversation.ID, topicContextAfterAdd.Room.ID)
+	seedRoomConversationLog(t, cfg.WorkspacePath, mainContextAfterAdd.Conversation.ID, mainContextAfterAdd.Room.ID)
+	seedRoomConversationLog(t, cfg.WorkspacePath, topicContextAfterAdd.Conversation.ID, topicContextAfterAdd.Room.ID)
 
 	if _, err = roomService.RemoveRoomMember(ctx, mainContext.Room.ID, agentC.AgentID); err != nil {
 		t.Fatalf("移除成员失败: %v", err)
@@ -343,6 +344,7 @@ func newRoomTestConfig(t *testing.T) config.Config {
 
 	root := t.TempDir()
 	t.Setenv("HOME", root)
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18011,
@@ -369,16 +371,18 @@ func seedRoomPrivateSession(
 	sessionKey := protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType)
 	now := time.Now().UTC()
 	if _, err := files.UpsertSession(workspacePath, session.Session{
-		SessionKey:     sessionKey,
-		AgentID:        agentID,
-		ChannelType:    "websocket",
-		ChatType:       "group",
-		Status:         "active",
-		CreatedAt:      now,
-		LastActivity:   now,
-		Title:          "Room Chat",
-		MessageCount:   0,
-		Options:        map[string]any{},
+		SessionKey:   sessionKey,
+		AgentID:      agentID,
+		ChannelType:  "websocket",
+		ChatType:     "group",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Room Chat",
+		MessageCount: 0,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
 		IsActive:       true,
 		ConversationID: stringPointer(conversationID),
 	}); err != nil {
@@ -389,13 +393,14 @@ func seedRoomPrivateSession(
 
 func seedRoomConversationLog(
 	t *testing.T,
-	files *workspace2.SessionFileStore,
+	root string,
 	conversationID string,
 	roomID string,
 ) {
 	t.Helper()
 
-	if err := files.AppendRoomMessage(conversationID, session.Message{
+	roomHistory := workspace2.NewRoomHistoryStore(root)
+	if err := roomHistory.AppendInlineMessage(conversationID, session.Message{
 		"message_id":      "seed_" + conversationID,
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
 		"room_id":         roomID,

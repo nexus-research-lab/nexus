@@ -20,5 +20,5 @@ type SQLRepository interface {
 	ListRoomSessions(context.Context) ([]Session, error)
 	ListRoomSessionsByAgent(context.Context, string) ([]Session, error)
 	GetRoomSessionByKey(context.Context, protocol.SessionKey) (*Session, error)
-	GetConversationLogPath(context.Context, string) (string, error)
+	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
 }

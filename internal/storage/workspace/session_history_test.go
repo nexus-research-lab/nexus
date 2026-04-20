@@ -227,6 +227,45 @@ func TestPaginateNormalizedHistoryRowsCollapsesRoomAgentSubRounds(t *testing.T) 
 	}
 }
 
+func TestNormalizeHistoryRowsTreatsCompletedAssistantWithoutResultAsSuccess(t *testing.T) {
+	rows := []sessionmodel.Message{
+		{
+			"message_id":  "user-finished-1",
+			"session_key": "agent:nexus:ws:dm:test-finished",
+			"agent_id":    "nexus",
+			"round_id":    "round-finished-1",
+			"role":        "user",
+			"content":     "解释一下这个错误",
+			"timestamp":   1000,
+		},
+		{
+			"message_id":  "assistant-finished-1",
+			"session_key": "agent:nexus:ws:dm:test-finished",
+			"agent_id":    "nexus",
+			"round_id":    "round-finished-1",
+			"parent_id":   "round-finished-1",
+			"role":        "assistant",
+			"content": []map[string]any{
+				{"type": "text", "text": "这个错误表示参数为空。"},
+			},
+			"stop_reason": "end_turn",
+			"is_complete": true,
+			"timestamp":   2000,
+		},
+	}
+
+	normalized := normalizeHistoryRows(rows, nil)
+	if len(normalized) != 2 {
+		t.Fatalf("completed assistant round 不应物化 interrupted result: got=%d want=2", len(normalized))
+	}
+	if normalized[1]["role"] != "assistant" {
+		t.Fatalf("第二条消息应为 assistant: %+v", normalized[1])
+	}
+	if normalized[1]["stream_status"] != "done" {
+		t.Fatalf("completed assistant 应归一化为 done: %+v", normalized[1])
+	}
+}
+
 func derefString(value *string) string {
 	if value == nil {
 		return ""

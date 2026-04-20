@@ -21,6 +21,7 @@ import (
 	agent3 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/logx"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
@@ -60,13 +61,20 @@ type Service struct {
 	agents     *agent3.Service
 	runtime    *runtimectx.Manager
 	permission *permission3.Context
+	roomStore  roomSessionStore
 	providers  providerRuntimeResolver
 	files      *workspacestore.SessionFileStore
+	history    *workspacestore.AgentHistoryStore
 	logger     *slog.Logger
 }
 
 type providerRuntimeResolver interface {
 	ResolveRuntimeConfig(context.Context, string) (*providercfg.RuntimeConfig, error)
+}
+
+type roomSessionStore interface {
+	GetRoomSessionByKey(context.Context, protocol.SessionKey) (*session.Session, error)
+	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
 }
 
 type roundRunner struct {
@@ -96,6 +104,7 @@ func NewService(
 		runtime:    runtimeManager,
 		permission: permission,
 		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		logger:     logx.NewDiscardLogger(),
 	}
 }
@@ -114,6 +123,11 @@ func (s *Service) SetProviderResolver(resolver providerRuntimeResolver) {
 	s.providers = resolver
 }
 
+// SetRoomSessionStore 注入 room 成员会话索引读写能力。
+func (s *Service) SetRoomSessionStore(store roomSessionStore) {
+	s.roomStore = store
+}
+
 // HandleChat 处理一条 DM chat 写请求。
 func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	sessionKey, parsed, err := s.validateRequest(request)
@@ -127,7 +141,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 
-	sessionItem, err := s.ensureSession(agentValue, parsed, sessionKey)
+	sessionItem, err := s.ensureSession(ctx, agentValue, parsed, sessionKey)
 	if err != nil {
 		return err
 	}
@@ -139,6 +153,11 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	client, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		return err
+	}
+	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID()); syncErr != nil {
+		return syncErr
+	} else {
+		sessionItem = updatedSession
 	}
 
 	roundCtx, cancel := context.WithCancel(context.Background())
@@ -170,16 +189,30 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"content_chars", utf8.RuneCountInString(runner.content),
 	)
 
-	if err = runner.persistMessage(runner.buildUserMessage()); err != nil {
+	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content); err != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
-		s.permission.CancelRequestsForSession(sessionKey, "消息持久化失败")
-		s.loggerFor(ctx).Error("DM 用户消息持久化失败",
+		s.permission.CancelRequestsForSession(sessionKey, "轮次标记持久化失败")
+		s.loggerFor(ctx).Error("DM 轮次标记持久化失败",
 			"session_key", sessionKey,
 			"agent_id", agentID,
 			"round_id", request.RoundID,
 			"err", err,
 		)
 		return err
+	}
+
+	if updatedSession, syncErr := s.refreshSessionMetaAfterRoundMarker(runner.workspacePath, runner.session); syncErr != nil {
+		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
+		s.permission.CancelRequestsForSession(sessionKey, "会话元数据持久化失败")
+		s.loggerFor(ctx).Error("DM 轮次元数据持久化失败",
+			"session_key", sessionKey,
+			"agent_id", agentID,
+			"round_id", request.RoundID,
+			"err", syncErr,
+		)
+		return syncErr
+	} else if updatedSession != nil {
+		runner.session = *updatedSession
 	}
 
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
@@ -270,30 +303,12 @@ func (s *Service) repairInterruptedRound(ctx context.Context, sessionKey string,
 	if err != nil {
 		return err
 	}
-	messages, err := s.files.ReadSessionMessages([]string{agentValue.WorkspacePath}, sessionKey)
+	_, err = s.ensureSession(ctx, agentValue, protocol.ParseSessionKey(sessionKey), sessionKey)
 	if err != nil {
 		return err
 	}
-	for _, message := range messages {
-		if normalizeString(message["role"]) != "assistant" {
-			continue
-		}
-		if normalizeString(message["round_id"]) != roundID {
-			continue
-		}
-		if isComplete, ok := message["is_complete"].(bool); ok && isComplete {
-			continue
-		}
-		repaired := session.Message{}
-		for key, value := range message {
-			repaired[key] = value
-		}
-		repaired["is_complete"] = true
-		repaired["stream_status"] = "cancelled"
-		if err := s.files.AppendSessionMessage(agentValue.WorkspacePath, sessionKey, repaired); err != nil {
-			return err
-		}
-	}
+	// transcript 已经成为唯一正文真相源，这里不再扫描旧 messages.jsonl 修补半截 assistant。
+	_ = roundID
 	return nil
 }
 
@@ -307,17 +322,17 @@ func (s *Service) persistInterruptedRound(
 	if err != nil {
 		return err
 	}
-	sessionValue, err := s.ensureSession(agentValue, parsed, sessionKey)
+	sessionValue, err := s.ensureSession(ctx, agentValue, parsed, sessionKey)
 	if err != nil {
 		return err
 	}
 	if sessionValue.SessionID != nil && strings.TrimSpace(*sessionValue.SessionID) != "" {
 		resultMessage["session_id"] = strings.TrimSpace(*sessionValue.SessionID)
 	}
-	if err := s.files.AppendSessionMessage(agentValue.WorkspacePath, sessionKey, resultMessage); err != nil {
+	if err := s.appendSyntheticHistoryMessage(agentValue.WorkspacePath, sessionValue, resultMessage); err != nil {
 		return err
 	}
-	_, err = s.files.RefreshSessionMeta(agentValue.WorkspacePath, sessionKey, sessionValue)
+	_, err = s.refreshSessionMetaAfterMessage(agentValue.WorkspacePath, sessionValue, resultMessage)
 	return err
 }
 
@@ -408,6 +423,7 @@ func (s *Service) buildRuntimeEnv(ctx context.Context, agentValue *agent3.Agent)
 }
 
 func (s *Service) ensureSession(
+	ctx context.Context,
 	agentValue *agent3.Agent,
 	parsed protocol.SessionKey,
 	sessionKey string,
@@ -416,8 +432,44 @@ func (s *Service) ensureSession(
 	if err != nil {
 		return session.Session{}, err
 	}
+	roomSession, err := s.lookupRoomSession(ctx, parsed)
+	if err != nil {
+		return session.Session{}, err
+	}
+
 	if item != nil {
+		if roomSession != nil {
+			merged := mergeRoomBackedSession(*item, *roomSession)
+			if !sessionItemsEqual(*item, merged) {
+				updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, merged)
+				if updateErr != nil {
+					return session.Session{}, updateErr
+				}
+				if updated != nil {
+					item = updated
+				} else {
+					item = &merged
+				}
+			}
+		}
+		if err := sessionmodel.EnsureTranscriptHistory(item.Options, sessionKey); err != nil {
+			return session.Session{}, err
+		}
 		return *item, nil
+	}
+
+	if roomSession != nil {
+		updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, *roomSession)
+		if updateErr != nil {
+			return session.Session{}, updateErr
+		}
+		if updated == nil {
+			return session.Session{}, fmt.Errorf("创建 room 成员会话失败: %s", sessionKey)
+		}
+		if err := sessionmodel.EnsureTranscriptHistory(updated.Options, sessionKey); err != nil {
+			return session.Session{}, err
+		}
+		return *updated, nil
 	}
 
 	now := time.Now().UTC()
@@ -430,8 +482,10 @@ func (s *Service) ensureSession(
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "New Chat",
-		Options:      map[string]any{},
-		IsActive:     true,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
 	})
 	if err != nil {
 		return session.Session{}, err
@@ -440,6 +494,16 @@ func (s *Service) ensureSession(
 		return session.Session{}, fmt.Errorf("创建 session 失败: %s", sessionKey)
 	}
 	return *created, nil
+}
+
+func (s *Service) lookupRoomSession(
+	ctx context.Context,
+	parsed protocol.SessionKey,
+) (*session.Session, error) {
+	if s.roomStore == nil {
+		return nil, nil
+	}
+	return s.roomStore.GetRoomSessionByKey(ctx, parsed)
 }
 
 func (s *Service) validateRequest(request Request) (string, protocol.SessionKey, error) {
@@ -585,7 +649,7 @@ func (r *roundRunner) failRound(err error) {
 		"result":          err.Error(),
 		"is_error":        true,
 	}
-	if persistErr := r.persistMessage(resultMessage); persistErr != nil {
+	if persistErr := r.service.appendSyntheticHistoryMessage(r.workspacePath, r.session, resultMessage); persistErr != nil {
 		r.service.loggerFor(context.Background()).Error("DM 错误结果持久化失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
@@ -593,6 +657,16 @@ func (r *roundRunner) failRound(err error) {
 			"err", persistErr,
 		)
 	} else {
+		if updated, updateErr := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, resultMessage); updateErr != nil {
+			r.service.loggerFor(context.Background()).Error("DM 错误结果刷新 session meta 失败",
+				"session_key", r.sessionKey,
+				"agent_id", r.agent.AgentID,
+				"round_id", r.roundID,
+				"err", updateErr,
+			)
+		} else if updated != nil {
+			r.session = *updated
+		}
 		event := protocol.NewEvent(protocol.EventTypeMessage, resultMessage)
 		event.SessionKey = r.sessionKey
 		event.AgentID = r.agent.AgentID
@@ -615,32 +689,11 @@ func (r *roundRunner) failRound(err error) {
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 }
 
-func (r *roundRunner) buildUserMessage() session.Message {
-	message := session.Message{
-		"message_id":  r.roundID,
-		"session_key": r.sessionKey,
-		"agent_id":    r.agent.AgentID,
-		"round_id":    r.roundID,
-		"role":        "user",
-		"content":     r.content,
-		"timestamp":   time.Now().UnixMilli(),
-	}
-	if r.session.SessionID != nil {
-		message["session_id"] = *r.session.SessionID
-	}
-	return message
-}
-
 func (r *roundRunner) persistMessage(message session.Message) error {
-	if err := r.service.files.AppendSessionMessage(r.workspacePath, r.sessionKey, message); err != nil {
+	if err := r.service.appendRuntimeHistoryMessage(r.workspacePath, r.session, message); err != nil {
 		return err
 	}
-	r.session.SessionID = preferSessionID(r.session.SessionID, normalizeString(message["session_id"]))
-	if message["role"] == "result" {
-		r.session.Status = "active"
-	}
-	r.session.LastActivity = time.Now().UTC()
-	updated, err := r.service.files.RefreshSessionMeta(r.workspacePath, r.sessionKey, r.session)
+	updated, err := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, message)
 	if err != nil {
 		return err
 	}
@@ -648,6 +701,157 @@ func (r *roundRunner) persistMessage(message session.Message) error {
 		r.session = *updated
 	}
 	return nil
+}
+
+func (s *Service) appendRuntimeHistoryMessage(
+	workspacePath string,
+	sessionValue session.Session,
+	message session.Message,
+) error {
+	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
+		return err
+	}
+	if sessionmodel.IsTranscriptNativeMessage(sessionmodel.Message(message)) {
+		return nil
+	}
+	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
+}
+
+func (s *Service) appendSyntheticHistoryMessage(
+	workspacePath string,
+	sessionValue session.Session,
+	message session.Message,
+) error {
+	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
+		return err
+	}
+	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
+}
+
+func (s *Service) refreshSessionMetaAfterRoundMarker(
+	workspacePath string,
+	current session.Session,
+) (*session.Session, error) {
+	current.LastActivity = time.Now().UTC()
+	current.MessageCount++
+	if err := sessionmodel.EnsureTranscriptHistory(current.Options, current.SessionKey); err != nil {
+		return nil, err
+	}
+	return s.files.UpsertSession(workspacePath, current)
+}
+
+func (s *Service) refreshSessionMetaAfterMessage(
+	workspacePath string,
+	current session.Session,
+	message session.Message,
+) (*session.Session, error) {
+	current.SessionID = preferSessionID(current.SessionID, normalizeString(message["session_id"]))
+	if normalizeString(message["role"]) == "result" {
+		current.Status = "active"
+	}
+	current.LastActivity = time.Now().UTC()
+	current.MessageCount++
+	if err := sessionmodel.EnsureTranscriptHistory(current.Options, current.SessionKey); err != nil {
+		return nil, err
+	}
+	return s.files.UpsertSession(workspacePath, current)
+}
+
+func (s *Service) recordRoundMarker(
+	workspacePath string,
+	sessionValue session.Session,
+	roundID string,
+	content string,
+) error {
+	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
+		return err
+	}
+	return s.history.AppendRoundMarker(
+		workspacePath,
+		sessionValue.SessionKey,
+		roundID,
+		content,
+		time.Now().UnixMilli(),
+	)
+}
+
+func (s *Service) syncSDKSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current session.Session,
+	sessionID string,
+) (session.Session, error) {
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" || stringPointerValue(current.SessionID) == trimmedSessionID {
+		return current, nil
+	}
+	current.SessionID = &trimmedSessionID
+	updated, err := s.files.UpsertSession(workspacePath, current)
+	if err != nil {
+		return session.Session{}, err
+	}
+	if updated == nil {
+		return current, nil
+	}
+	if s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
+		if err := s.roomStore.UpdateRoomSessionSDKSessionID(ctx, strings.TrimSpace(*updated.RoomSessionID), trimmedSessionID); err != nil {
+			return session.Session{}, err
+		}
+	}
+	return *updated, nil
+}
+
+func mergeRoomBackedSession(current session.Session, roomSession session.Session) session.Session {
+	merged := current
+	merged.SessionKey = firstNonEmpty(merged.SessionKey, roomSession.SessionKey)
+	merged.AgentID = firstNonEmpty(merged.AgentID, roomSession.AgentID)
+	merged.ChannelType = firstNonEmpty(merged.ChannelType, roomSession.ChannelType)
+	merged.ChatType = firstNonEmpty(merged.ChatType, roomSession.ChatType)
+	merged.Status = firstNonEmpty(merged.Status, roomSession.Status)
+	merged.Title = firstNonEmpty(merged.Title, roomSession.Title)
+	if merged.RoomSessionID == nil && roomSession.RoomSessionID != nil {
+		merged.RoomSessionID = roomSession.RoomSessionID
+	}
+	if merged.RoomID == nil && roomSession.RoomID != nil {
+		merged.RoomID = roomSession.RoomID
+	}
+	if merged.ConversationID == nil && roomSession.ConversationID != nil {
+		merged.ConversationID = roomSession.ConversationID
+	}
+	if merged.SessionID == nil && roomSession.SessionID != nil {
+		merged.SessionID = roomSession.SessionID
+	}
+	if merged.Options == nil {
+		merged.Options = map[string]any{}
+	}
+	if roomSession.Options != nil {
+		for key, value := range roomSession.Options {
+			if _, exists := merged.Options[key]; !exists {
+				merged.Options[key] = value
+			}
+		}
+	}
+	return merged
+}
+
+func sessionItemsEqual(left session.Session, right session.Session) bool {
+	return left.SessionKey == right.SessionKey &&
+		left.AgentID == right.AgentID &&
+		stringPointerValue(left.SessionID) == stringPointerValue(right.SessionID) &&
+		stringPointerValue(left.RoomSessionID) == stringPointerValue(right.RoomSessionID) &&
+		stringPointerValue(left.RoomID) == stringPointerValue(right.RoomID) &&
+		stringPointerValue(left.ConversationID) == stringPointerValue(right.ConversationID) &&
+		left.ChannelType == right.ChannelType &&
+		left.ChatType == right.ChatType &&
+		left.Status == right.Status &&
+		left.Title == right.Title
+}
+
+func stringPointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func preferSessionID(current *string, next string) *string {

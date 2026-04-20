@@ -2,7 +2,7 @@ import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MessageStatsData {
-  duration: string;
+  duration: string | null;
   tokens: string | null;
   cost: string | null;
   cache_hit: string | null;

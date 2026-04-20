@@ -72,22 +72,20 @@ LIMIT 1`, key.AgentID, key.Ref)
 	return &item, nil
 }
 
-// GetConversationLogPath 返回 Room 对话的 JSONL 路径。
-func (r *SessionRepository) GetConversationLogPath(ctx context.Context, conversationID string) (string, error) {
-	var logPath sql.NullString
-	err := r.db.QueryRowContext(ctx, `
-SELECT jsonl_path
-FROM messages
-WHERE conversation_id = $1 AND jsonl_path IS NOT NULL AND jsonl_path != ''
-ORDER BY created_at DESC
-LIMIT 1`, conversationID).Scan(&logPath)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return logPath.String, nil
+// UpdateRoomSessionSDKSessionID 回写 Room 成员会话的 sdk_session_id。
+func (r *SessionRepository) UpdateRoomSessionSDKSessionID(
+	ctx context.Context,
+	roomSessionID string,
+	sdkSessionID string,
+) error {
+	_, err := r.db.ExecContext(ctx, `
+UPDATE sessions
+SET sdk_session_id = $1, updated_at = now()
+WHERE id = $2`,
+		nullableStringValue(sdkSessionID),
+		roomSessionID,
+	)
+	return err
 }
 
 const postgresRoomSessionSelect = `
@@ -179,8 +177,10 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (session.Session, 
 		LastActivity:   lastActivity.UTC(),
 		Title:          resolvedTitle,
 		MessageCount:   messageCount,
-		Options:        map[string]any{},
-		IsActive:       status == "active",
+		Options: map[string]any{
+			session.OptionHistorySource: session.HistorySourceTranscript,
+		},
+		IsActive: status == "active",
 	}, nil
 }
 
@@ -197,4 +197,11 @@ func nullableStringPointer(value string) *string {
 	}
 	copyValue := value
 	return &copyValue
+}
+
+func nullableStringValue(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }

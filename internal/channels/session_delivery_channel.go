@@ -17,6 +17,7 @@ import (
 	"time"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -32,6 +33,7 @@ type sessionDeliveryChannel struct {
 	agents      agentWorkspaceResolver
 	permission  *permissionctx.Context
 	files       *workspacestore.SessionFileStore
+	history     *workspacestore.AgentHistoryStore
 	idFactory   func(string) string
 }
 
@@ -46,6 +48,7 @@ func newSessionDeliveryChannel(
 		agents:      agents,
 		permission:  permission,
 		files:       workspacestore.NewSessionFileStore(workspaceRoot),
+		history:     workspacestore.NewAgentHistoryStore(workspaceRoot),
 		idFactory:   newDeliveryID,
 	}
 }
@@ -145,7 +148,7 @@ func (c *sessionDeliveryChannel) persistMessage(
 	sessionValue session.Session,
 	message session.Message,
 ) (session.Session, error) {
-	if err := c.files.AppendSessionMessage(workspacePath, sessionValue.SessionKey, message); err != nil {
+	if err := c.appendHistoryMessage(workspacePath, sessionValue, message); err != nil {
 		return session.Session{}, err
 	}
 
@@ -164,6 +167,17 @@ func (c *sessionDeliveryChannel) persistMessage(
 		return sessionValue, nil
 	}
 	return *updated, nil
+}
+
+func (c *sessionDeliveryChannel) appendHistoryMessage(
+	workspacePath string,
+	sessionValue session.Session,
+	message session.Message,
+) error {
+	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
+		return err
+	}
+	return c.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
 }
 
 func (c *sessionDeliveryChannel) broadcastMessage(

@@ -12,12 +12,18 @@ package room_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
@@ -197,7 +203,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		permission,
 		factory,
 	)
-	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-1")
@@ -255,7 +261,35 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		}
 	}
 
-	sharedMessages, err := files.ReadRoomMessages(files.RoomConversationMessagePath(dmContext.Conversation.ID))
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	assertPathRemoved(t, workspace2.New(cfg.WorkspacePath).SessionMessagePath(memberAgent.WorkspacePath, privateSessionKey))
+	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
+	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "room-user-1",
+			"sessionId": client.sessionID,
+			"timestamp": roomTranscriptBaseTime.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "dispatch prompt",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-sdk-1",
+			"sessionId":  client.sessionID,
+			"parentUuid": "room-user-1",
+			"timestamp":  roomTranscriptBaseTime.Add(200 * time.Millisecond).Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "text", "text": "已收到，正在处理。"},
+				},
+			},
+		},
+	})
+	sharedMessages, err := roomHistory.ReadMessages(dmContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
@@ -265,17 +299,25 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	if sharedMessages[1]["message_id"] != "assistant-sdk-1" {
 		t.Fatalf("共享 assistant message_id 不正确: %+v", sharedMessages[1])
 	}
-
-	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	privateMessages, err := files.ReadSessionMessages([]string{memberAgent.WorkspacePath}, privateSessionKey)
-	if err != nil {
-		t.Fatalf("读取私有 runtime 消息失败: %v", err)
+	if sharedMessages[2]["role"] != "result" || sharedMessages[2]["result"] != "done" {
+		t.Fatalf("共享 result 应来自 overlay: %+v", sharedMessages)
 	}
+	privateMessages := readRoomPrivateHistory(
+		t,
+		cfg.WorkspacePath,
+		memberAgent.WorkspacePath,
+		privateSessionKey,
+		memberAgent.AgentID,
+		client.sessionID,
+	)
 	if len(privateMessages) != 3 {
 		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=3", len(privateMessages))
 	}
 	if privateMessages[0]["role"] != "user" || privateMessages[1]["role"] != "assistant" || privateMessages[2]["role"] != "result" {
 		t.Fatalf("私有 runtime 消息顺序不正确: %+v", privateMessages)
+	}
+	if anyToInt(privateMessages[2]["duration_ms"]) != 15 || privateMessages[2]["result"] != "done" {
+		t.Fatalf("私有 result 应保留 runtime 摘要: %+v", privateMessages[2])
 	}
 }
 
@@ -410,7 +452,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
 	)
-	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-think-stream")
@@ -446,7 +488,36 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 		t.Fatalf("Room durable assistant 未保留 text: %+v", assistantBlocks)
 	}
 
-	sharedMessages, err := files.ReadRoomMessages(files.RoomConversationMessagePath(dmContext.Conversation.ID))
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	assertPathRemoved(t, workspace2.New(cfg.WorkspacePath).SessionMessagePath(memberAgent.WorkspacePath, privateSessionKey))
+	roomThinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
+	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "room-think-user-1",
+			"sessionId": client.sessionID,
+			"timestamp": roomThinkingTranscriptBaseTime.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "dispatch prompt",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-room-think-1",
+			"sessionId":  client.sessionID,
+			"parentUuid": "room-think-user-1",
+			"timestamp":  roomThinkingTranscriptBaseTime.Add(200 * time.Millisecond).Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "先分析 再收口"},
+					{"type": "text", "text": "今天天气 很不错"},
+				},
+			},
+		},
+	})
+	sharedMessages, err := roomHistory.ReadMessages(dmContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
@@ -460,12 +531,14 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	if sharedMessages[1]["stream_status"] != "done" {
 		t.Fatalf("共享历史 assistant stream_status 未收口: %+v", sharedMessages[1])
 	}
-
-	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	privateMessages, err := files.ReadSessionMessages([]string{memberAgent.WorkspacePath}, privateSessionKey)
-	if err != nil {
-		t.Fatalf("读取私有 runtime 消息失败: %v", err)
-	}
+	privateMessages := readRoomPrivateHistory(
+		t,
+		cfg.WorkspacePath,
+		memberAgent.WorkspacePath,
+		privateSessionKey,
+		memberAgent.AgentID,
+		client.sessionID,
+	)
 	if len(privateMessages) != 3 {
 		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=3", len(privateMessages))
 	}
@@ -645,7 +718,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{clientA, clientB}},
 	)
-	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-2")
@@ -690,7 +763,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		t.Fatalf("所有 slot 都应收到 interrupt: a=%d b=%d", interruptA, interruptB)
 	}
 
-	sharedMessages, err := files.ReadRoomMessages(files.RoomConversationMessagePath(roomContext.Conversation.ID))
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
 	}
@@ -706,10 +779,27 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 
 	for _, agentValue := range []*agentsvc.Agent{agentA, agentB} {
 		privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType)
-		privateMessages, readErr := files.ReadSessionMessages([]string{agentValue.WorkspacePath}, privateSessionKey)
-		if readErr != nil {
-			t.Fatalf("读取私有 session 失败: %v", readErr)
-		}
+		assertPathRemoved(t, workspace2.New(cfg.WorkspacePath).SessionMessagePath(agentValue.WorkspacePath, privateSessionKey))
+		writeRoomTranscriptFixture(t, agentValue.WorkspacePath, "room-sdk-session", []map[string]any{
+			{
+				"type":      "user",
+				"uuid":      "interrupt-user-" + agentValue.AgentID,
+				"sessionId": "room-sdk-session",
+				"timestamp": "2026-04-19T18:20:00Z",
+				"message": map[string]any{
+					"role":    "user",
+					"content": "dispatch prompt",
+				},
+			},
+		})
+		privateMessages := readRoomPrivateHistory(
+			t,
+			cfg.WorkspacePath,
+			agentValue.WorkspacePath,
+			privateSessionKey,
+			agentValue.AgentID,
+			"room-sdk-session",
+		)
 		foundInterrupted := false
 		for _, message := range privateMessages {
 			if message["role"] == "result" && message["subtype"] == "interrupted" {
@@ -846,6 +936,128 @@ func collectRoomEventsUntil(
 		case <-timeout:
 			t.Fatalf("等待 Room 事件超时，当前事件: %+v", result)
 		}
+	}
+}
+
+var roomTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+func readRoomPrivateHistory(
+	t *testing.T,
+	root string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	sessionID string,
+) []session.Message {
+	t.Helper()
+	historyStore := workspace2.NewAgentHistoryStore(root)
+	rows, err := historyStore.ReadMessages(workspacePath, session.Session{
+		SessionKey: sessionKey,
+		AgentID:    agentID,
+		SessionID:  stringPointer(sessionID),
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取 room transcript 历史失败: %v", err)
+	}
+	return rows
+}
+
+func writeRoomTranscriptFixture(
+	t *testing.T,
+	workspacePath string,
+	sessionID string,
+	rows []map[string]any,
+) {
+	t.Helper()
+	if strings.TrimSpace(sessionID) == "" {
+		t.Fatal("session_id 为空，无法写入 room transcript fixture")
+	}
+	projectDir := filepath.Join(
+		os.Getenv("NEXUS_CONFIG_DIR"),
+		"projects",
+		sanitizeRoomTranscriptPath(canonicalizeRoomTranscriptPath(workspacePath)),
+	)
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("创建 room transcript 目录失败: %v", err)
+	}
+	file, err := os.Create(filepath.Join(projectDir, sessionID+".jsonl"))
+	if err != nil {
+		t.Fatalf("创建 room transcript fixture 失败: %v", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	for _, row := range rows {
+		if err := encoder.Encode(row); err != nil {
+			t.Fatalf("写入 room transcript fixture 失败: %v", err)
+		}
+	}
+}
+
+func canonicalizeRoomTranscriptPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	absolutePath, err := filepath.Abs(path)
+	if err == nil {
+		path = absolutePath
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	return path
+}
+
+func sanitizeRoomTranscriptPath(path string) string {
+	const maxLength = 200
+	sanitized := roomTranscriptSanitizePattern.ReplaceAllString(path, "-")
+	if len(sanitized) <= maxLength {
+		return sanitized
+	}
+	return sanitized[:maxLength] + "-" + roomTranscriptHash(path)
+}
+
+func roomTranscriptHash(value string) string {
+	var hash int32
+	for _, character := range value {
+		hash = hash*31 + int32(character)
+	}
+
+	number := int64(hash)
+	if number < 0 {
+		number = -number
+	}
+	if number == 0 {
+		return "0"
+	}
+
+	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+	result := make([]byte, 0, 8)
+	for number > 0 {
+		result = append(result, digits[number%36])
+		number /= 36
+	}
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return string(result)
+}
+
+func anyToInt(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case float32:
+		return int(typed)
+	default:
+		return 0
 	}
 }
 

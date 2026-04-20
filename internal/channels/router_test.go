@@ -22,6 +22,7 @@ import (
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -101,8 +102,10 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "Test",
-		Options:      map[string]any{},
-		IsActive:     true,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
 	}); err != nil {
 		t.Fatalf("创建测试 session 失败: %v", err)
 	}
@@ -127,7 +130,15 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 		t.Fatalf("解析后的投递目标不正确: %+v", target)
 	}
 
-	messages, err := store.ReadSessionMessages([]string{workspacePath}, sessionKey)
+	sessionValue, _, err := store.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取测试 session 失败: %v", err)
+	}
+	if sessionValue == nil {
+		t.Fatalf("测试 session 不存在")
+	}
+	history := workspacestore.NewAgentHistoryStore(workspacePath)
+	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {
 		t.Fatalf("读取消息失败: %v", err)
 	}

@@ -12,20 +12,27 @@ package chat
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
+	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -219,15 +226,47 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		protocol.EventTypeRoundStatus,
 	})
 
-	messages, err := service.files.ReadSessionMessages([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
-	if err != nil {
-		t.Fatalf("读取会话消息失败: %v", err)
-	}
+	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
+	transcriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
+	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-1",
+			"sessionId": stringPointer(t, sessionValue.SessionID),
+			"timestamp": transcriptBaseTime.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "你好",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-1",
+			"sessionId":  stringPointer(t, sessionValue.SessionID),
+			"parentUuid": "transcript-user-1",
+			"timestamp":  transcriptBaseTime.Add(200 * time.Millisecond).Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "text", "text": "你好，世界"},
+				},
+			},
+		},
+	})
+	messages := readChatSessionHistory(t, cfg, service, sessionKey)
 	if len(messages) != 3 {
 		t.Fatalf("期望 3 条消息，实际 %d", len(messages))
 	}
 	if messages[0]["role"] != "user" || messages[1]["role"] != "assistant" || messages[2]["role"] != "result" {
 		t.Fatalf("消息角色顺序不正确: %+v", messages)
+	}
+	if messages[2]["result"] != "done" || anyToInt(messages[2]["duration_ms"]) != 12 {
+		t.Fatalf("result 摘要应来自 overlay: %+v", messages[2])
+	}
+	usage, _ := messages[2]["usage"].(map[string]any)
+	outputTokens := anyToInt(usage["output_tokens"])
+	if outputTokens != 5 {
+		t.Fatalf("result usage 应保留: %+v", messages[2])
 	}
 }
 
@@ -372,10 +411,35 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 		t.Fatalf("durable assistant 未保留 text: %+v", assistantBlocks)
 	}
 
-	messages, err := service.files.ReadSessionMessages([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
-	if err != nil {
-		t.Fatalf("读取会话消息失败: %v", err)
-	}
+	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
+	thinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
+	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-think-user-1",
+			"sessionId": stringPointer(t, sessionValue.SessionID),
+			"timestamp": thinkingTranscriptBaseTime.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "今天天气怎么样呀",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-think-1",
+			"sessionId":  stringPointer(t, sessionValue.SessionID),
+			"parentUuid": "transcript-think-user-1",
+			"timestamp":  thinkingTranscriptBaseTime.Add(200 * time.Millisecond).Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "先分析 再收口"},
+					{"type": "text", "text": "今天天气 很不错"},
+				},
+			},
+		},
+	})
+	messages := readChatSessionHistory(t, cfg, service, sessionKey)
 	if len(messages) != 3 {
 		t.Fatalf("期望 3 条消息，实际 %d", len(messages))
 	}
@@ -620,8 +684,10 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 		LastActivity: now,
 		Title:        "Resume Chat",
 		MessageCount: 0,
-		Options:      map[string]any{},
-		IsActive:     true,
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
 	}); err != nil {
 		t.Fatalf("预写入会话 meta 失败: %v", err)
 	}
@@ -642,6 +708,44 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	options := factory.LastOptions()
 	if options.Resume != resumeID {
 		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
+	}
+}
+
+func TestServiceHandleChatRejectsLegacySessionHistory(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeChatFactory{client: newFakeChatClient()})
+	service := NewService(cfg, agentService, runtimeManager, permission)
+
+	sessionKey := "agent:nexus:ws:dm:legacy-chat"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Legacy Chat",
+		MessageCount: 0,
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("预写入 legacy 会话失败: %v", err)
+	}
+
+	err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 legacy",
+		RoundID:    "round-legacy",
+		ReqID:      "round-legacy",
+	})
+	if !errors.Is(err, sessionmodel.ErrLegacyHistoryUnsupported) {
+		t.Fatalf("期望 legacy 会话被拒绝，实际错误: %v", err)
 	}
 }
 
@@ -690,10 +794,20 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 		t.Fatal("期望 fake client 收到 interrupt")
 	}
 
-	messages, err := service.files.ReadSessionMessages([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
-	if err != nil {
-		t.Fatalf("读取中断后的会话消息失败: %v", err)
-	}
+	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
+	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "interrupt-user-1",
+			"sessionId": stringPointer(t, sessionValue.SessionID),
+			"timestamp": time.Now().Add(-time.Second).UTC().Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "你好",
+			},
+		},
+	})
+	messages := readChatSessionHistory(t, cfg, service, sessionKey)
 	if len(messages) != 2 {
 		t.Fatalf("中断后消息数量不正确: got=%d want=2 messages=%+v", len(messages), messages)
 	}
@@ -841,6 +955,7 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 func newChatTestConfig(t *testing.T) config.Config {
 	t.Helper()
 	root := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18032,
@@ -852,6 +967,146 @@ func newChatTestConfig(t *testing.T) config.Config {
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
+}
+
+var chatTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+func mustFindChatSession(
+	t *testing.T,
+	service *Service,
+	cfg config.Config,
+	sessionKey string,
+) (session.Session, string) {
+	t.Helper()
+	item, workspacePath, err := service.files.FindSession([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取 session 元数据失败: %v", err)
+	}
+	if item == nil {
+		t.Fatalf("session 元数据不存在: %s", sessionKey)
+	}
+	return *item, workspacePath
+}
+
+func readChatSessionHistory(
+	t *testing.T,
+	cfg config.Config,
+	service *Service,
+	sessionKey string,
+) []session.Message {
+	t.Helper()
+	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
+	historyStore := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
+	rows, err := historyStore.ReadMessages(workspacePath, sessionValue, nil)
+	if err != nil {
+		t.Fatalf("读取 transcript 历史失败: %v", err)
+	}
+	return rows
+}
+
+func writeTranscriptFixture(
+	t *testing.T,
+	cfg config.Config,
+	workspacePath string,
+	sessionID string,
+	rows []map[string]any,
+) {
+	t.Helper()
+	if strings.TrimSpace(sessionID) == "" {
+		t.Fatal("session_id 为空，无法写入 transcript fixture")
+	}
+	projectDir := filepath.Join(
+		os.Getenv("NEXUS_CONFIG_DIR"),
+		"projects",
+		sanitizeChatTranscriptPath(canonicalizeChatTranscriptPath(workspacePath)),
+	)
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("创建 transcript 目录失败: %v", err)
+	}
+	file, err := os.Create(filepath.Join(projectDir, sessionID+".jsonl"))
+	if err != nil {
+		t.Fatalf("创建 transcript fixture 失败: %v", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	for _, row := range rows {
+		if err := encoder.Encode(row); err != nil {
+			t.Fatalf("写入 transcript fixture 失败: %v", err)
+		}
+	}
+}
+
+func canonicalizeChatTranscriptPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	absolutePath, err := filepath.Abs(path)
+	if err == nil {
+		path = absolutePath
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	return path
+}
+
+func sanitizeChatTranscriptPath(path string) string {
+	const maxLength = 200
+	sanitized := chatTranscriptSanitizePattern.ReplaceAllString(path, "-")
+	if len(sanitized) <= maxLength {
+		return sanitized
+	}
+	return sanitized[:maxLength] + "-" + chatTranscriptHash(path)
+}
+
+func chatTranscriptHash(value string) string {
+	var hash int32
+	for _, character := range value {
+		hash = hash*31 + int32(character)
+	}
+
+	number := int64(hash)
+	if number < 0 {
+		number = -number
+	}
+	if number == 0 {
+		return "0"
+	}
+
+	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+	result := make([]byte, 0, 8)
+	for number > 0 {
+		result = append(result, digits[number%36])
+		number /= 36
+	}
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return string(result)
+}
+
+func anyToInt(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case float32:
+		return int(typed)
+	default:
+		return 0
+	}
+}
+
+func stringPointer(t *testing.T, value *string) string {
+	t.Helper()
+	if value == nil || strings.TrimSpace(*value) == "" {
+		t.Fatal("session_id 未持久化")
+	}
+	return strings.TrimSpace(*value)
 }
 
 func migrateChatSQLite(t *testing.T, databaseURL string) {

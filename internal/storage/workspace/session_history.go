@@ -242,10 +242,16 @@ func buildRoundStatus(rows []sessionmodel.Message) map[string]roundTerminalStatu
 		if _, exists := statusMap[roundID]; !exists {
 			statusMap[roundID] = roundStatusRunning
 		}
-		if strings.TrimSpace(stringFromAny(row["role"])) != "result" {
+		if strings.TrimSpace(stringFromAny(row["role"])) == "result" {
+			statusMap[roundID] = normalizeRoundStatusValue(row["subtype"])
 			continue
 		}
-		statusMap[roundID] = normalizeRoundStatusValue(row["subtype"])
+		if statusMap[roundID] != roundStatusRunning {
+			continue
+		}
+		if terminalStatus := assistantTerminalStatus(row); terminalStatus != roundStatusRunning {
+			statusMap[roundID] = terminalStatus
+		}
 	}
 	return statusMap
 }
@@ -286,6 +292,7 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 		ParentID        string
 		LastTimestampMS int64
 		HasResult       bool
+		TerminalStatus  roundTerminalStatus
 	}
 
 	rounds := make(map[string]*roundSnapshot)
@@ -296,7 +303,10 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 		}
 		snapshot := rounds[roundID]
 		if snapshot == nil {
-			snapshot = &roundSnapshot{RoundID: roundID}
+			snapshot = &roundSnapshot{
+				RoundID:        roundID,
+				TerminalStatus: roundStatusRunning,
+			}
 			rounds[roundID] = snapshot
 		}
 		snapshot.SessionKey = firstNonEmpty(snapshot.SessionKey, stringFromAny(row["session_key"]))
@@ -310,6 +320,11 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 		}
 		if strings.TrimSpace(stringFromAny(row["role"])) == "result" {
 			snapshot.HasResult = true
+			snapshot.TerminalStatus = normalizeRoundStatusValue(row["subtype"])
+			continue
+		}
+		if terminalStatus := assistantTerminalStatus(row); terminalStatus != roundStatusRunning {
+			snapshot.TerminalStatus = terminalStatus
 		}
 	}
 
@@ -320,6 +335,9 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 			continue
 		}
 		if _, isActive := activeRoundIDs[roundID]; isActive {
+			continue
+		}
+		if snapshot.TerminalStatus != roundStatusRunning {
 			continue
 		}
 		timestamp := snapshot.LastTimestampMS + 1
@@ -350,47 +368,8 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 		result = append(result, payload)
 	}
 
-	sort.Slice(result, func(i int, j int) bool {
-		return messageTimestamp(result[i]) < messageTimestamp(result[j])
-	})
+	sortHistoryRows(result)
 	return result
-}
-
-func refreshSessionMetaFromMessages(base sessionmodel.Session, rows []sessionmodel.Message) sessionmodel.Session {
-	meta := base
-	compacted := compactMessages(rows)
-	meta.MessageCount = len(compacted)
-	meta.LastActivity = meta.CreatedAt
-
-	var latest sessionmodel.Message
-	for _, row := range compacted {
-		if latest == nil || messageTimestamp(row) >= messageTimestamp(latest) {
-			latest = row
-		}
-		if sessionID := strings.TrimSpace(stringFromAny(row["session_id"])); sessionID != "" {
-			meta.SessionID = stringPointer(sessionID)
-		}
-	}
-	if latest != nil {
-		meta.AgentID = firstNonEmpty(meta.AgentID, stringFromAny(latest["agent_id"]))
-		if ts := messageTimestamp(latest); ts > 0 {
-			meta.LastActivity = time.UnixMilli(ts).UTC()
-		}
-		if meta.Options == nil {
-			meta.Options = map[string]any{}
-		}
-		if roundID := strings.TrimSpace(stringFromAny(latest["round_id"])); roundID != "" {
-			meta.Options["latest_round_id"] = roundID
-		}
-		if role := strings.TrimSpace(stringFromAny(latest["role"])); role == "result" {
-			meta.Options["latest_result_subtype"] = firstNonEmpty(stringFromAny(latest["subtype"]), "success")
-		}
-	}
-	meta.IsActive = meta.Status == "" || meta.Status == "active"
-	if meta.Status == "" {
-		meta.Status = "active"
-	}
-	return meta
 }
 
 func normalizeActiveRoundIDs(values []string) map[string]struct{} {
@@ -423,6 +402,35 @@ func normalizeRoundStatusValue(value any) roundTerminalStatus {
 	}
 }
 
+func assistantTerminalStatus(row sessionmodel.Message) roundTerminalStatus {
+	if strings.TrimSpace(stringFromAny(row["role"])) != "assistant" {
+		return roundStatusRunning
+	}
+	if !boolFromAny(row["is_complete"]) {
+		return roundStatusRunning
+	}
+
+	switch normalizedStatus := strings.ToLower(strings.TrimSpace(stringFromAny(row["stream_status"]))); normalizedStatus {
+	case "cancelled", "interrupted":
+		return roundStatusInterrupted
+	case "error", "failed":
+		return roundStatusError
+	case "done", "success", "finished":
+		return roundStatusSuccess
+	}
+
+	switch normalizedStopReason := strings.ToLower(strings.TrimSpace(stringFromAny(row["stop_reason"]))); normalizedStopReason {
+	case "cancelled", "interrupted":
+		return roundStatusInterrupted
+	case "error":
+		return roundStatusError
+	case "end_turn", "stop_sequence", "tool_use", "max_tokens":
+		return roundStatusSuccess
+	}
+
+	return roundStatusSuccess
+}
+
 func resolveAssistantStatus(status roundTerminalStatus) string {
 	switch status {
 	case roundStatusInterrupted:
@@ -433,6 +441,56 @@ func resolveAssistantStatus(status roundTerminalStatus) string {
 		return "done"
 	default:
 		return ""
+	}
+}
+
+func sortHistoryRows(rows []sessionmodel.Message) {
+	sort.SliceStable(rows, func(i int, j int) bool {
+		return compareHistoryRowOrder(rows[i], rows[j]) < 0
+	})
+}
+
+func compareHistoryRowOrder(left sessionmodel.Message, right sessionmodel.Message) int {
+	leftTimestamp := messageTimestamp(left)
+	rightTimestamp := messageTimestamp(right)
+	if leftTimestamp != rightTimestamp {
+		if leftTimestamp < rightTimestamp {
+			return -1
+		}
+		return 1
+	}
+
+	leftRoundID := strings.TrimSpace(stringFromAny(left["round_id"]))
+	rightRoundID := strings.TrimSpace(stringFromAny(right["round_id"]))
+	if leftRoundID != "" && leftRoundID == rightRoundID {
+		leftOrder := historyRoleOrder(left)
+		rightOrder := historyRoleOrder(right)
+		if leftOrder != rightOrder {
+			if leftOrder < rightOrder {
+				return -1
+			}
+			return 1
+		}
+	}
+
+	leftMessageID := strings.TrimSpace(stringFromAny(left["message_id"]))
+	rightMessageID := strings.TrimSpace(stringFromAny(right["message_id"]))
+	if leftMessageID != rightMessageID {
+		return strings.Compare(leftMessageID, rightMessageID)
+	}
+	return 0
+}
+
+func historyRoleOrder(row sessionmodel.Message) int {
+	switch strings.TrimSpace(stringFromAny(row["role"])) {
+	case "user":
+		return 0
+	case "assistant", "system", "task_progress":
+		return 1
+	case "result":
+		return 2
+	default:
+		return 3
 	}
 }
 

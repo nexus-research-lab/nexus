@@ -9,8 +9,26 @@
 
 package session
 
+import "strings"
+
 // Message 表示历史消息行。
 type Message map[string]any
+
+// MessageRole 返回消息角色。
+func MessageRole(message Message) string {
+	if len(message) == 0 {
+		return ""
+	}
+	value, _ := message["role"].(string)
+	return strings.TrimSpace(value)
+}
+
+// IsTranscriptNativeMessage 表示该 durable message 是否属于 cc transcript 原生真相。
+// 当前只有 assistant 正文快照属于 transcript 原生消息；
+// result / system / task_progress 等都需要由 Nexus overlay 补齐。
+func IsTranscriptNativeMessage(message Message) bool {
+	return MessageRole(message) == "assistant"
+}
 
 // MessagePage 表示按 round 分页的消息历史结果。
 type MessagePage struct {
