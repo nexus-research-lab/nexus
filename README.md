@@ -90,6 +90,34 @@ DATABASE_URL=sqlite:////$HOME/.nexus/data/nexus.db
 
 ### 3. 安装
 
+#### Private Go SDK dependency
+
+当前后端依赖私有模块 `github.com/nexus-research-lab/nexus-agent-sdk-go`。
+在干净环境执行 `make install` 前，至少需要先满足下面三个前提：
+
+1. `go.mod` 里不能保留开发机本地绝对路径的 `replace github.com/nexus-research-lab/nexus-agent-sdk-go => /...`
+2. Go 需要把该组织下模块视为私有模块：
+   ```bash
+   go env -w GOPRIVATE=github.com/nexus-research-lab/*
+   go env -w GONOSUMDB=github.com/nexus-research-lab/*
+   ```
+3. Git 需要具备对 `github.com/nexus-research-lab/*` 的非交互访问能力（PAT 或 SSH 任选其一）
+
+PAT 示例：
+
+```bash
+git config --global url."https://<github-token>@github.com/".insteadOf https://github.com/
+```
+
+SSH 示例：
+
+```bash
+git config --global url."git@github.com:".insteadOf https://github.com/
+ssh -T git@github.com
+```
+
+如果上述前提未满足，`make install` 会在执行 `go mod download` 之前直接失败，并给出明确提示，而不是在更深层的位置报模糊的 GitHub 认证错误。
+
 ```bash
 make install
 ```
