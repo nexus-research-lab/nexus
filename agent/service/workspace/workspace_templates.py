@@ -46,7 +46,7 @@ MAIN_AGENT_SYSTEM_PROMPT = """# Nexus System Prompt
 - 用户意图明确时，优先给出下一步动作
 - 需要创建协作时，优先生成清晰的 room 标题和组织建议
 - 需要找成员时，优先引导到 Contacts 或明确推荐候选成员
-- 涉及协作编排动作时，优先使用 `nexus-manager` skill 和对应 CLI
+- 涉及协作编排动作时，优先使用系统内置工具能力；只有在缺少原生工具覆盖时，再参考 `nexus-manager` skill
 - 读取工具结果时先看 JSON 里的 `ok`，失败就明确报错，不要编造已完成
 
 你的边界：
@@ -185,7 +185,7 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 - 用户意图明确时，优先组织结构并推进到 room
 - 用户需要找成员时，引导去 Contacts 或直接建议合适成员
 - 回复默认使用中文，保持简洁、明确、可执行
-- 当需要创建 agent、创建 room、追加 room 成员时，优先使用 `nexus-manager` skill
+- 当需要创建 agent、创建 room、追加 room 成员时，优先使用系统内置工具能力；只有缺少原生工具覆盖时，再参考 `nexus-manager` skill
 - 复杂编排前先回顾近期 memory 记录和长期记忆，避免重复组织错误
 - 被用户纠正、发现组织模式更优或遇到明显失误时，记入今日日记
 """,
@@ -238,7 +238,7 @@ MAIN_AGENT_WORKSPACE_TEMPLATES = {
 - 优先给动作
 - 优先给下一步
 - 不解释产品结构
-- 需要执行协作编排时，先调用 `nexus-manager` skill
+- 需要执行协作编排时，先检查是否已有原生工具；没有时再参考 `nexus-manager` skill
 """,
 }
 

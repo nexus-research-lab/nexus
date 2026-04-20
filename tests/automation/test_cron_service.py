@@ -117,6 +117,29 @@ class FakeTimer:
         return dict(self.runtime.get(job_id, {}))
 
 
+class FakeSessionStore:
+    def __init__(self, sessions: list[SimpleNamespace] | None = None) -> None:
+        self.sessions = list(sessions or [])
+        self.deleted: list[tuple[str, str | None]] = []
+
+    async def get_all_sessions(self):
+        return list(self.sessions)
+
+    async def delete_session(self, session_key: str, agent_id: str | None = None):
+        self.deleted.append((session_key, agent_id))
+        self.sessions = [session for session in self.sessions if session.session_key != session_key]
+        return True
+
+
+class FakeSessionManager:
+    def __init__(self) -> None:
+        self.closed: list[str] = []
+
+    async def close_session(self, session_key: str):
+        self.closed.append(session_key)
+        return True
+
+
 class FakeSystemEventQueue:
     """记录 main session 入队事件。"""
 
@@ -259,6 +282,61 @@ def test_cron_service_create_pause_resume_list_and_delete_jobs():
         assert timer.sync_calls == ["job-1", "job-1", "job-1"]
         assert timer.remove_calls == ["job-1"]
         assert store.deleted_job_ids == ["job-1"]
+
+    asyncio.run(scenario())
+
+
+def test_cron_service_delete_isolated_job_cleans_up_automation_sessions():
+    async def scenario():
+        from agent.service.automation.cron.cron_runner import CronRunner
+        from agent.service.automation.cron.cron_service import CronService
+
+        store = FakeCronStore()
+        timer = FakeTimer()
+        session_store = FakeSessionStore(
+            sessions=[
+                SimpleNamespace(session_key="agent:nexus:automation:dm:cron:job-1:run-a"),
+                SimpleNamespace(session_key="agent:nexus:automation:dm:cron:job-1:run-b"),
+                SimpleNamespace(session_key="agent:nexus:ws:dm:launcher-app-nexus"),
+            ]
+        )
+        session_manager = FakeSessionManager()
+        runner = CronRunner(
+            store=store,
+            system_event_queue=FakeSystemEventQueue(),
+            heartbeat_service=FakeHeartbeatService(),
+            agent_run_orchestrator=FakeOrchestrator(),
+            now_fn=lambda: datetime(2026, 4, 10, 1, 20, tzinfo=timezone.utc),
+        )
+        service = CronService(
+            store=store,
+            runner=runner,
+            timer=timer,
+            id_factory=lambda: "job-1",
+            now_fn=lambda: datetime(2026, 4, 10, 1, 20, tzinfo=timezone.utc),
+            session_store=session_store,
+            session_manager=session_manager,
+        )
+
+        await service.create_job(
+            AutomationCronJobCreate(
+                name="Isolated",
+                agent_id="nexus",
+                schedule=AutomationCronSchedule(kind="every", interval_seconds=300),
+                instruction="summarize updates",
+            )
+        )
+
+        await service.delete_job("job-1")
+
+        assert session_manager.closed == [
+            "agent:nexus:automation:dm:cron:job-1:run-a",
+            "agent:nexus:automation:dm:cron:job-1:run-b",
+        ]
+        assert session_store.deleted == [
+            ("agent:nexus:automation:dm:cron:job-1:run-a", "nexus"),
+            ("agent:nexus:automation:dm:cron:job-1:run-b", "nexus"),
+        ]
 
     asyncio.run(scenario())
 

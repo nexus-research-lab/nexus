@@ -67,10 +67,10 @@ class RecordingSender:
     """记录 outbound 调用的测试替身。"""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[object, str]] = []
+        self.calls: list[tuple[object, str, str | None]] = []
 
-    async def send_text(self, target, text: str) -> None:
-        self.calls.append((target, text))
+    async def send_text(self, target, text: str, lead_text: str | None = None) -> None:
+        self.calls.append((target, text, lead_text))
 
 
 class StaticMemory:
@@ -270,10 +270,11 @@ def test_delivery_router_routes_explicit_target():
         assert target.channel == "telegram"
         assert target.to == "10001"
         assert len(sender.calls) == 1
-        sent_target, sent_text = sender.calls[0]
+        sent_target, sent_text, sent_lead_text = sender.calls[0]
         assert sent_target.channel == "telegram"
         assert sent_target.to == "10001"
         assert sent_text == "hello automation"
+        assert sent_lead_text is None
 
     asyncio.run(scenario())
 
@@ -355,10 +356,11 @@ def test_delivery_router_routes_to_last_route(async_session_factory):
         assert target.channel == "discord"
         assert target.to == "9001"
         assert len(sender.calls) == 1
-        sent_target, sent_text = sender.calls[0]
+        sent_target, sent_text, sent_lead_text = sender.calls[0]
         assert sent_target.channel == "discord"
         assert sent_target.to == "9001"
         assert sent_text == "heartbeat"
+        assert sent_lead_text is None
 
     asyncio.run(scenario())
 
@@ -430,7 +432,7 @@ def test_websocket_delivery_persists_history_and_pushes_message(tmp_path, monkey
         monkeypatch.setattr(
             permission_runtime_context,
             "resolve_session_senders",
-            lambda key: (active_sender,) if key == session_key else (),
+            lambda key: [active_sender] if key == session_key else [],
         )
         ws_session_replay_registry._session_sequences.clear()
         ws_session_replay_registry._session_replay_buffers.clear()
@@ -512,7 +514,7 @@ def test_websocket_delivery_buffers_later_events_after_first_live_push_failure(t
         monkeypatch.setattr(
             permission_runtime_context,
             "resolve_session_senders",
-            lambda key: (active_sender,) if key == session_key else (),
+            lambda key: [active_sender] if key == session_key else [],
         )
         ws_session_replay_registry._session_sequences.clear()
         ws_session_replay_registry._session_replay_buffers.clear()
@@ -528,6 +530,78 @@ def test_websocket_delivery_buffers_later_events_after_first_live_push_failure(t
         assert replay_buffer[0].data["role"] == "assistant"
         assert replay_buffer[1].data["role"] == "result"
         assert [event.session_seq for event in active_sender.events] == [1, 2]
+        assert fallback_sender.events == []
+
+    asyncio.run(scenario())
+
+
+def test_websocket_delivery_can_prefix_user_message(tmp_path, monkeypatch):
+    async def scenario():
+        from agent.service.channels.ws.ws_session_routing_sender import WsSessionRoutingSender
+        from agent.service.channels.ws.ws_session_replay_registry import (
+            ws_session_replay_registry,
+        )
+        from agent.service.permission.permission_runtime_context import (
+            permission_runtime_context,
+        )
+        from agent.service.session.session_router import build_session_key
+        from agent.service.session.session_store import session_store
+        from agent.service.session.session_repository import session_repository
+
+        workspace_path = tmp_path / "ws-agent-prefix-user"
+        workspace_path.mkdir(parents=True, exist_ok=True)
+
+        async def resolve_workspace_path(_agent_id: str) -> Path:
+            return workspace_path
+
+        monkeypatch.setattr(
+            session_repository,
+            "_resolve_workspace_path",
+            resolve_workspace_path,
+        )
+        monkeypatch.setattr(
+            session_repository,
+            "_iter_known_workspace_paths",
+            lambda: [workspace_path],
+        )
+
+        session_key = build_session_key(
+            channel="ws",
+            chat_type="dm",
+            ref="delivery-prefix-user",
+            agent_id="nexus",
+        )
+        created = await session_store.create_session_by_key(
+            session_key=session_key,
+            channel_type="websocket",
+            chat_type="dm",
+        )
+        assert created is not None
+
+        active_sender = ActiveMessageRecorder()
+        fallback_sender = FallbackEventRecorder()
+        monkeypatch.setattr(
+            permission_runtime_context,
+            "resolve_session_senders",
+            lambda key: [active_sender] if key == session_key else [],
+        )
+        ws_session_replay_registry._session_sequences.clear()
+        ws_session_replay_registry._session_replay_buffers.clear()
+
+        sender = WsSessionRoutingSender(fallback_sender)
+        await sender.send_text(
+            session_key=session_key,
+            text="durable websocket delivery",
+            lead_text="[cron:test|auto]\ntask: say hello",
+        )
+
+        messages = await session_store.get_session_messages(session_key)
+
+        assert [message.role for message in messages] == ["user", "assistant", "result"]
+        assert messages[0].content == "[cron:test|auto]\ntask: say hello"
+        assert messages[1].content[0].text == "durable websocket delivery"
+        assert messages[2].result == "durable websocket delivery"
+        assert [event.data["role"] for event in active_sender.events] == ["user", "assistant", "result"]
         assert fallback_sender.events == []
 
     asyncio.run(scenario())

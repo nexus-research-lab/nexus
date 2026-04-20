@@ -57,10 +57,10 @@ interface TaskBasicsPanelProps {
 
 function get_execution_mode_help_text(mode: ExecutionMode): string {
   if (mode === "main") {
-    return "交给目标智能体的主会话处理，适合把任务继续接在主线对话里。";
+    return "交给系统主线处理，不等于当前聊天；更适合后台持续处理的任务。";
   }
   if (mode === "existing") {
-    return "复用当前已有的执行上下文。";
+    return "复用你明确选中的那条已有会话；如果想继续当前聊天，用这个。";
   }
   if (mode === "temporary") {
     return "每次执行都会新开一个临时会话，不延续旧上下文。";

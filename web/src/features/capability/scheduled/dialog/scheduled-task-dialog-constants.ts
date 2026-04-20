@@ -35,7 +35,7 @@ export const EVERY_UNIT_OPTIONS: ChoiceDef<EveryUnit>[] = [
 ];
 
 export const EXECUTION_MODE_OPTIONS: ChoiceDef<ExecutionMode>[] = [
-  { key: "main", label: "使用主会话" },
+  { key: "main", label: "交给系统主线处理" },
   { key: "existing", label: "使用现有会话" },
   { key: "temporary", label: "每次新建临时会话" },
   { key: "dedicated", label: "使用专用长期会话" },
@@ -57,10 +57,7 @@ export const TIMEZONE_OPTIONS = [
 ];
 
 export function get_default_timezone(): string {
-  if (typeof Intl === "undefined") {
-    return "Asia/Shanghai";
-  }
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+  return "Asia/Shanghai";
 }
 
 function formatZonedParts(date: Date, timezone: string): {

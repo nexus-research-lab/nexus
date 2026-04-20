@@ -49,6 +49,7 @@ class DeliveryRouter:
         agent_id: str,
         text: str,
         target: DeliveryTarget | Mapping[str, object] | None,
+        lead_text: str | None = None,
     ) -> DeliveryTarget:
         """解析目标并完成一次文本投递。"""
         resolved_target = resolve_delivery_target(target)
@@ -61,7 +62,7 @@ class DeliveryRouter:
             final_target = resolved_target
 
         sender = self._resolve_sender(final_target.channel)
-        await sender.send_text(final_target, text)
+        await sender.send_text(final_target, text, lead_text=lead_text)
         return final_target
 
     async def _resolve_last_target(self, agent_id: str) -> DeliveryTarget:

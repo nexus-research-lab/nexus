@@ -103,11 +103,12 @@ class FakeDeliveryRouter:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
 
-    async def send_text(self, *, agent_id: str, text: str, target):
+    async def send_text(self, *, agent_id: str, text: str, target, lead_text: str | None = None):
         self.calls.append(
             {
                 "agent_id": agent_id,
                 "text": text,
+                "lead_text": lead_text,
                 "target": dict(target or {}),
             }
         )
@@ -157,6 +158,18 @@ def _build_result_message(*, session_key: str, round_id: str, result: str) -> Me
         role="result",
         subtype="success",
         result=result,
+    )
+
+
+def _build_user_message(*, session_key: str, round_id: str, text: str) -> Message:
+    return Message(
+        message_id=f"user-{round_id}",
+        session_key=session_key,
+        agent_id="research",
+        round_id=round_id,
+        session_id="session-1",
+        role="user",
+        content=text,
     )
 
 
@@ -342,6 +355,11 @@ def test_cron_runner_non_main_target_delivers_result_text_when_delivery_is_confi
         message_store = FakeMessageStore(
             {
                 "agent:research:automation:dm:morning-brief": [
+                    _build_user_message(
+                        session_key="agent:research:automation:dm:morning-brief",
+                        round_id="round-1",
+                        text="[cron:morning brief|08:02]\ntask: summarize updates",
+                    ),
                     _build_result_message(
                         session_key="agent:research:automation:dm:morning-brief",
                         round_id="round-1",
@@ -379,6 +397,7 @@ def test_cron_runner_non_main_target_delivers_result_text_when_delivery_is_confi
             {
                 "agent_id": "research",
                 "text": "daily summary",
+                "lead_text": "[cron:morning brief|08:02]\ntask: summarize updates",
                     "target": {
                         "mode": "explicit",
                         "channel": "websocket",
@@ -388,5 +407,53 @@ def test_cron_runner_non_main_target_delivers_result_text_when_delivery_is_confi
                     },
                 }
             ]
+
+    asyncio.run(scenario())
+
+
+def test_cron_runner_skips_duplicate_delivery_when_execution_session_matches_reply_target():
+    async def scenario():
+        from agent.service.automation.cron.cron_runner import CronRunner
+
+        store = FakeCronStore()
+        delivery_router = FakeDeliveryRouter()
+        session_key = "agent:research:ws:dm:existing-room"
+        message_store = FakeMessageStore(
+            {
+                session_key: [
+                    _build_result_message(
+                        session_key=session_key,
+                        round_id="round-1",
+                        result="hello",
+                    )
+                ]
+            }
+        )
+        runner = CronRunner(
+            store=store,
+            system_event_queue=FakeSystemEventQueue(),
+            heartbeat_service=FakeHeartbeatService(),
+            agent_run_orchestrator=FakeOrchestrator(),
+            delivery_router=delivery_router,
+            message_store=message_store,
+            now_fn=lambda: datetime(2026, 4, 13, 8, 0, tzinfo=timezone.utc),
+        )
+        job = _build_job(
+            kind="bound",
+            bound_session_key=session_key,
+        )
+        job.delivery_mode = "explicit"
+        job.delivery_channel = "websocket"
+        job.delivery_to = session_key
+
+        result = await runner.run_job(
+            job,
+            run_id="run-bound-1",
+            trigger_kind="cron",
+            scheduled_for=datetime(2026, 4, 13, 8, 2, tzinfo=timezone.utc),
+        )
+
+        assert result.status == "succeeded"
+        assert delivery_router.calls == []
 
     asyncio.run(scenario())

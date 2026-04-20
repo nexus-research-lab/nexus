@@ -32,6 +32,7 @@ from agent.service.automation.cron.cron_normalizer import (
 )
 from agent.service.automation.cron.cron_runner import CronExecutionResult, CronRunner
 from agent.service.automation.cron.cron_schedule import compute_next_run_datetime
+from agent.service.session.session_router import is_automation_session_key
 from agent.utils.utils import random_uuid
 
 
@@ -76,6 +77,8 @@ class CronService:
         timer=None,
         id_factory=None,
         now_fn=None,
+        session_store=None,
+        session_manager=None,
     ) -> None:
         if store is None:
             from agent.service.automation.cron.cron_store_service import CronStoreService
@@ -89,7 +92,17 @@ class CronService:
             from agent.service.automation.cron.cron_timer import CronTimer
 
             timer = CronTimer(dispatcher=self._run_due_job, now_fn=self._now_fn)
+        if session_store is None:
+            from agent.service.session.session_store import session_store as default_session_store
+
+            session_store = default_session_store
+        if session_manager is None:
+            from agent.service.session.session_manager import session_manager as default_session_manager
+
+            session_manager = default_session_manager
         self._timer = timer
+        self._session_store = session_store
+        self._session_manager = session_manager
 
     async def start(self) -> None:
         rows = await self._store.list_jobs()
@@ -149,8 +162,10 @@ class CronService:
         return await self.update_job(job_id, enabled=enabled)
 
     async def delete_job(self, job_id: str) -> None:
+        row = await self._require_job(job_id)
         await self._store.delete_job(job_id)
         await self._timer.remove_job(job_id)
+        await self._cleanup_automation_sessions(row)
 
     async def run_now(self, job_id: str) -> CronExecutionResult:
         row = await self._require_job(job_id)
@@ -198,6 +213,22 @@ class CronService:
         if row is None:
             raise ValueError(f"cron job not found: {job_id}")
         return row
+
+    async def _cleanup_automation_sessions(self, row) -> None:
+        if str(getattr(row, "session_target_kind", "")) != "isolated":
+            return
+        agent_id = str(getattr(row, "agent_id", "")).strip()
+        job_id = str(getattr(row, "job_id", "")).strip()
+        prefix = f"agent:{agent_id}:automation:dm:cron:{job_id}:"
+        sessions = await self._session_store.get_all_sessions()
+        for session in sessions:
+            session_key = str(getattr(session, "session_key", "") or "")
+            if not session_key.startswith(prefix):
+                continue
+            if not is_automation_session_key(session_key):
+                continue
+            await self._session_manager.close_session(session_key)
+            await self._session_store.delete_session(session_key, agent_id=agent_id)
 
 _cron_service: CronService | None = None
 

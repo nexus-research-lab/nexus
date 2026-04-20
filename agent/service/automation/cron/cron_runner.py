@@ -225,12 +225,23 @@ class CronRunner:
     async def _deliver_result_text(self, job, *, session_key: str, round_id: str | None) -> None:
         if str(getattr(job, "delivery_mode", "none")) == "none":
             return
+        if (
+            str(getattr(job, "delivery_mode", "none")) == "explicit"
+            and str(getattr(job, "delivery_channel", "") or "") == "websocket"
+            and str(getattr(job, "delivery_to", "") or "") == session_key
+        ):
+            # 中文注释：如果任务本身就在目标 websocket 会话里执行，
+            # 结果消息已经由 orchestrator 直接写回该会话，
+            # 这里再走一次 delivery 会造成重复消息。
+            return
+        lead_text = await self._extract_user_text(session_key, round_id)
         text = await self._extract_result_text(session_key, round_id)
         if not text.strip():
             return
         await self._delivery_router.send_text(
             agent_id=str(getattr(job, "agent_id", "")),
             text=text,
+            lead_text=lead_text,
             target={
                 "mode": getattr(job, "delivery_mode", "none"),
                 "channel": getattr(job, "delivery_channel", None),
@@ -253,4 +264,20 @@ class CronRunner:
             text_parts = [getattr(block, "text", "") for block in content if getattr(block, "type", "") == "text"]
             if text_parts:
                 return "\n".join(part for part in text_parts if part)
+        return ""
+
+    async def _extract_user_text(self, session_key: str, round_id: str | None) -> str:
+        messages = await self._message_store.get_session_messages(session_key)
+        for message in messages:
+            if round_id and getattr(message, "round_id", None) != round_id:
+                continue
+            if getattr(message, "role", None) != "user":
+                continue
+            content = getattr(message, "content", None)
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                text_parts = [getattr(block, "text", "") for block in content if getattr(block, "type", "") == "text"]
+                if text_parts:
+                    return "\n".join(part for part in text_parts if part)
         return ""

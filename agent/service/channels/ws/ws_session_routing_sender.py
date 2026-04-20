@@ -48,7 +48,7 @@ class WsSessionRoutingSender(MessageSender):
         """发送事件消息。"""
         await self._forward_event(event)
 
-    async def send_text(self, session_key: str, text: str) -> None:
+    async def send_text(self, session_key: str, text: str, lead_text: str | None = None) -> None:
         """向指定 session 推送自动化文本。"""
         from agent.service.session.session_store import session_store
         from agent.service.session.session_repository import session_repository
@@ -58,12 +58,24 @@ class WsSessionRoutingSender(MessageSender):
             raise LookupError(f"websocket delivery target session is not available: {session_key}")
 
         round_id = str(uuid.uuid4())
+        user_message = None
+        if lead_text and lead_text.strip():
+            user_message = Message(
+                message_id=str(uuid.uuid4()),
+                session_key=session_key,
+                agent_id=session_info.agent_id,
+                round_id=round_id,
+                session_id=session_info.session_id,
+                role="user",
+                content=lead_text.strip(),
+            )
         assistant_message = Message(
             message_id=str(uuid.uuid4()),
             session_key=session_key,
             agent_id=session_info.agent_id,
             round_id=round_id,
             session_id=session_info.session_id,
+            parent_id=user_message.message_id if user_message is not None else None,
             role="assistant",
             content=[TextContent(text=text)],
         )
@@ -85,12 +97,17 @@ class WsSessionRoutingSender(MessageSender):
             is_error=False,
         )
 
+        persisted_user = True
+        if user_message is not None:
+            persisted_user = await session_repository.create_message(user_message)
         persisted_assistant = await session_repository.create_message(assistant_message)
         persisted_result = await session_repository.create_message(result_message)
-        if not persisted_assistant or not persisted_result:
+        if not persisted_user or not persisted_assistant or not persisted_result:
             raise LookupError(f"websocket delivery target session is not available: {session_key}")
 
-        for message in (assistant_message, result_message):
+        messages = [user_message] if user_message is not None else []
+        messages.extend([assistant_message, result_message])
+        for message in messages:
             try:
                 await self.send_message(message)
             except Exception as exc:

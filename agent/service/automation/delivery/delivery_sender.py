@@ -37,7 +37,7 @@ class AutomationOutboundSender(ABC):
     """自动化统一 outbound 协议。"""
 
     @abstractmethod
-    async def send_text(self, target: DeliveryTarget, text: str) -> None:
+    async def send_text(self, target: DeliveryTarget, text: str, lead_text: str | None = None) -> None:
         """发送文本到目标。"""
         ...
 
@@ -48,8 +48,9 @@ class ChannelAutomationOutboundSender(AutomationOutboundSender):
     def __init__(self, channel: SupportsChannelDelivery) -> None:
         self._channel = require_channel_delivery_support(channel)
 
-    async def send_text(self, target: DeliveryTarget, text: str) -> None:
+    async def send_text(self, target: DeliveryTarget, text: str, lead_text: str | None = None) -> None:
         """转发到 IM 通道的统一文本投递入口。"""
+        del lead_text
         if not target.to:
             raise ValueError("channel delivery target requires to")
         await self._channel.send_delivery_text(
@@ -66,12 +67,12 @@ class WebsocketAutomationOutboundSender(AutomationOutboundSender):
     def __init__(self, sender: WsSessionRoutingSender) -> None:
         self._sender = sender
 
-    async def send_text(self, target: DeliveryTarget, text: str) -> None:
+    async def send_text(self, target: DeliveryTarget, text: str, lead_text: str | None = None) -> None:
         """按 session_key 投递自动化文本。"""
         session_key = target.session_key or target.to
         if not session_key:
             raise ValueError("websocket delivery target requires session_key")
-        await self._sender.send_text(session_key=session_key, text=text)
+        await self._sender.send_text(session_key=session_key, text=text, lead_text=lead_text)
 
 
 def require_channel_delivery_support(channel: object) -> SupportsChannelDelivery:

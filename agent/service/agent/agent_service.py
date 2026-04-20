@@ -18,6 +18,7 @@ from agent.schema.model_session import ASession
 from agent.service.agent.agent_manager import agent_manager
 from agent.service.agent.main_agent_profile import MainAgentProfile
 from agent.service.session.session_manager import session_manager
+from agent.service.session.session_router import is_automation_session_key
 from agent.service.session.session_store import session_store
 
 
@@ -108,7 +109,10 @@ class AgentService:
         """获取 Agent 下的所有会话。"""
         await self.get_agent(agent_id)
         all_sessions = await session_store.get_all_sessions()
-        return [session for session in all_sessions if session.agent_id == agent_id]
+        return [
+            session for session in all_sessions
+            if session.agent_id == agent_id and not is_automation_session_key(session.session_key)
+        ]
 
     async def get_agent_runtime_statuses(self) -> List[dict[str, Any]]:
         """获取全部成员的运行态快照。"""

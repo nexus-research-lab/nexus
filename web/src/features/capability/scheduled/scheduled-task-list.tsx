@@ -52,7 +52,7 @@ function get_schedule_summary(schedule: ScheduledTaskSchedule): string {
 
 function get_session_target_summary(target: ScheduledTaskSessionTarget): string {
   if (target.kind === "main") {
-    return "主会话";
+    return "系统主线";
   }
   if (target.kind === "bound") {
     return "使用现有会话";
@@ -139,7 +139,7 @@ function get_behavior_summary(task: ScheduledTaskItem): string {
     return "固定使用一条专用长期会话执行，便于持续积累上下文。";
   }
   if (task.session_target.kind === "main") {
-    return "交给主会话处理，适合把任务继续接在主线对话里。";
+    return "交给系统主线处理，不会自动等于你当前正在看的聊天。";
   }
   return "每次执行都会新开一条临时会话，不会复用旧上下文。";
 }

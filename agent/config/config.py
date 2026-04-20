@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     # =====================================================
     WEBSOCKET_ENABLED: bool = True
     DEFAULT_AGENT_ID: str = "nexus"
-    PERMISSION_REQUEST_TIMEOUT_SECONDS: int = 20
+    PERMISSION_REQUEST_TIMEOUT_SECONDS: int = 90
 
     DISCORD_ENABLED: bool = False
     DISCORD_BOT_TOKEN: str = ""

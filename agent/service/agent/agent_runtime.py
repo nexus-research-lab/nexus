@@ -17,6 +17,10 @@ from claude_agent_sdk import ClaudeSDKClient, PermissionResult, ToolPermissionCo
 from agent.service.session.session_manager import session_manager
 from agent.service.permission.strategy.permission_strategy import PermissionStrategy
 from agent.service.agent.agent_manager import agent_manager
+from agent.service.agent.main_agent_scheduled_task_sdk_server import (
+    SERVER_NAME as BUILTIN_AUTOMATION_SERVER_NAME,
+    create_main_agent_scheduled_task_sdk_server,
+)
 from agent.service.session.session_store import session_store
 from agent.utils.logger import logger
 
@@ -77,6 +81,14 @@ class AgentRuntime:
 
         if session_id:
             sdk_options["resume"] = session_id
+
+        mcp_servers = dict(sdk_options.get("mcp_servers") or {})
+        mcp_servers[BUILTIN_AUTOMATION_SERVER_NAME] = create_main_agent_scheduled_task_sdk_server(
+            current_session_key=session_key,
+            current_session_label=getattr(existing_session, "title", None),
+            current_agent_id=real_agent_id,
+        )
+        sdk_options["mcp_servers"] = mcp_servers
 
         stderr_lines: list[str] = []
 
