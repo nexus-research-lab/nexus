@@ -117,7 +117,7 @@ func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any 
 		if len(payload) == 0 {
 			payload = map[string]any{}
 		}
-		payload["type"] = normalizeBlockType(string(block.Type()))
+		payload["type"] = normalizeBlockType(block.Type)
 		mergeNormalizedBlockPayload(payload, block)
 		result = append(result, payload)
 	}
@@ -125,16 +125,42 @@ func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any 
 }
 
 func cloneBlockPayload(block sdkprotocol.ContentBlock) map[string]any {
-	if block == nil {
-		return nil
+	result := map[string]any{}
+	if value := strings.TrimSpace(block.Text); value != "" {
+		result["text"] = value
 	}
-	payload := block.RawPayload()
-	if len(payload) == 0 {
-		return nil
+	if value := strings.TrimSpace(block.Thinking); value != "" {
+		result["thinking"] = value
 	}
-	result := make(map[string]any, len(payload))
-	for key, value := range payload {
+	if value := strings.TrimSpace(block.Signature); value != "" {
+		result["signature"] = value
+	}
+	if value := strings.TrimSpace(block.ID); value != "" {
+		result["id"] = value
+	}
+	if value := strings.TrimSpace(block.Name); value != "" {
+		result["name"] = value
+	}
+	if len(block.Input) > 0 {
+		result["input"] = cloneMap(block.Input)
+	}
+	if block.Content != nil {
+		result["content"] = block.Content
+	}
+	if value := strings.TrimSpace(block.ToolUseID); value != "" {
+		result["tool_use_id"] = value
+	}
+	if block.IsError {
+		result["is_error"] = true
+	}
+	if value := strings.TrimSpace(block.MimeType); value != "" {
+		result["mime_type"] = value
+	}
+	for key, value := range block.Additional {
 		result[key] = value
+	}
+	if len(result) == 0 {
+		return nil
 	}
 	return result
 }
@@ -166,30 +192,20 @@ func normalizeBlockType(blockType string) string {
 }
 
 func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.ContentBlock) {
-	switch typed, ok := sdkprotocol.AsTextBlock(block); {
-	case ok:
-		payload["text"] = typed.Text
-		return
-	}
-	switch typed, ok := sdkprotocol.AsThinkingBlock(block); {
-	case ok:
-		payload["thinking"] = typed.Thinking
-		payload["signature"] = emptyToNil(typed.Signature)
-		return
-	}
-	switch typed, ok := sdkprotocol.AsToolUseBlock(block); {
-	case ok:
-		payload["id"] = typed.ID
-		payload["name"] = typed.Name
-		payload["input"] = firstNonNilMap(typed.InputMap(), map[string]any{})
-		return
-	}
-	switch typed, ok := sdkprotocol.AsToolResultBlock(block); {
-	case ok:
-		payload["tool_use_id"] = typed.ToolUseID
-		payload["content"] = decodeRawJSON(typed.Content)
-		payload["is_error"] = typed.IsError
-		payload["mime_type"] = emptyToNil(typed.MimeType)
-		return
+	switch normalizeBlockType(block.Type) {
+	case "text":
+		payload["text"] = block.Text
+	case "thinking":
+		payload["thinking"] = block.Thinking
+		payload["signature"] = emptyToNil(block.Signature)
+	case "tool_use":
+		payload["id"] = block.ID
+		payload["name"] = block.Name
+		payload["input"] = firstNonNilMap(cloneMap(block.Input), map[string]any{})
+	case "tool_result":
+		payload["tool_use_id"] = block.ToolUseID
+		payload["content"] = block.Content
+		payload["is_error"] = block.IsError
+		payload["mime_type"] = emptyToNil(block.MimeType)
 	}
 }

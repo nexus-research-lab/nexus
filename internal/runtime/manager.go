@@ -38,8 +38,41 @@ type Factory interface {
 
 type defaultFactory struct{}
 
+type sdkClientAdapter struct {
+	*agentclient.Client
+}
+
+func WrapSDKClient(client *agentclient.Client) Client {
+	if client == nil {
+		return nil
+	}
+	return &sdkClientAdapter{Client: client}
+}
+
+func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.Options) error {
+	if c == nil || c.Client == nil {
+		return nil
+	}
+	if options.PermissionMode != "" {
+		if err := c.SetPermissionMode(ctx, options.PermissionMode); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(options.Model) != "" {
+		if err := c.SetModel(ctx, options.Model); err != nil {
+			return err
+		}
+	}
+	if options.MaxThinkingTokens > 0 {
+		if err := c.SetMaxThinkingTokens(ctx, options.MaxThinkingTokens); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f defaultFactory) New(options agentclient.Options) Client {
-	return agentclient.New(options)
+	return WrapSDKClient(agentclient.New(options))
 }
 
 type sessionState struct {
