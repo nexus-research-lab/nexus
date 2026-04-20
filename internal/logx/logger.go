@@ -14,6 +14,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/lmittmann/tint"
 )
 
 // Options 描述日志构造参数。
@@ -78,11 +80,20 @@ func newHandlerForWriter(
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
 		return slog.NewJSONHandler(writer, handlerOptions)
-	case "text", "pretty":
-		return newPrettyHandler(writer, handlerOptions, colorize)
 	default:
 		return newPrettyHandler(writer, handlerOptions, colorize)
 	}
+}
+
+// newPrettyHandler 基于 lmittmann/tint 构建终端友好的 slog handler，
+// 外层再包一层 accessCollapseHandler 做 HTTP access log 折叠与 request_id 缩短。
+func newPrettyHandler(writer io.Writer, handlerOptions *slog.HandlerOptions, colorize bool) slog.Handler {
+	base := tint.NewHandler(writer, &tint.Options{
+		Level:      handlerOptions.Level,
+		TimeFormat: "15:04:05",
+		NoColor:    !colorize,
+	})
+	return &accessCollapseHandler{inner: base}
 }
 
 func shouldColorize(writer io.Writer) bool {

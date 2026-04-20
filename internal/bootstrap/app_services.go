@@ -10,6 +10,7 @@
 package bootstrap
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 
@@ -101,6 +102,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	chatService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
 
+	warnIfProviderMissing(providerService, logger)
+
 	return &AppServices{
 		DB:           db,
 		Core:         core,
@@ -117,5 +120,24 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Ingress:      ingressService,
 		RoomRealtime: roomRealtime,
 		Automation:   automationService,
+	}
+}
+
+// warnIfProviderMissing 在启动期上报 Provider 配置缺口；不阻塞启动，避免空数据库下无法跑迁移/初始化。
+func warnIfProviderMissing(svc *providercfg.Service, logger *slog.Logger) {
+	state, err := svc.Availability(context.Background())
+	if err != nil {
+		logger.Warn("无法读取 Provider 配置，跳过启动检查", "err", err)
+		return
+	}
+	switch {
+	case state.Total == 0:
+		logger.Warn("尚未配置任何 LLM Provider，请前往 Web Settings 或使用 nexusctl 添加；未配置前 Agent 调用会失败")
+	case len(state.EnabledList) == 0:
+		logger.Warn("已有 Provider 配置但全部处于禁用状态，请到 Settings 启用至少一个 Provider", "total", state.Total)
+	case !state.HasDefault:
+		logger.Warn("已启用 Provider 但未指定默认项，未显式声明 provider 的 Agent 将报错", "enabled", state.EnabledList)
+	default:
+		logger.Info("Provider 配置就绪", "enabled", state.EnabledList)
 	}
 }
