@@ -49,7 +49,7 @@ type RoomBroadcaster interface {
 type defaultRoomClientFactory struct{}
 
 func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Client {
-	return agentclient.New(options)
+	return runtimectx.WrapSDKClient(agentclient.New(options))
 }
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。
