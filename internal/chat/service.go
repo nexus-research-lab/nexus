@@ -55,17 +55,22 @@ type InterruptRequest struct {
 	RoundID    string
 }
 
+// MCPServerBuilder 由 bootstrap 注入，按当前会话上下文构造一组进程内 MCP server。
+// 用 string 形参避免 chat 包反向依赖 automation 子包，防止 import cycle。
+type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer
+
 // Service 负责编排 DM 实时链路。
 type Service struct {
-	config     config.Config
-	agents     *agent3.Service
-	runtime    *runtimectx.Manager
-	permission *permission3.Context
-	roomStore  roomSessionStore
-	providers  providerRuntimeResolver
-	files      *workspacestore.SessionFileStore
-	history    *workspacestore.AgentHistoryStore
-	logger     *slog.Logger
+	config       config.Config
+	agents       *agent3.Service
+	runtime      *runtimectx.Manager
+	permission   *permission3.Context
+	roomStore    roomSessionStore
+	providers    providerRuntimeResolver
+	files        *workspacestore.SessionFileStore
+	history      *workspacestore.AgentHistoryStore
+	logger       *slog.Logger
+	mcpServers   MCPServerBuilder
 }
 
 type providerRuntimeResolver interface {
@@ -116,6 +121,12 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 		return
 	}
 	s.logger = logger
+}
+
+// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+// 由 bootstrap 在构造定时任务服务后注入，避免 chat 包反向依赖 automation 子包。
+func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
+	s.mcpServers = builder
 }
 
 // SetProviderResolver 注入 Provider 运行时解析器。
@@ -371,6 +382,11 @@ func (s *Service) ensureClient(
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
 		PermissionHandler:      permissionHandler,
+	}
+	if s.mcpServers != nil {
+		if servers := s.mcpServers(agentValue.AgentID, sessionKey, "agent"); len(servers) > 0 {
+			options.SDKMCPServers = servers
+		}
 	}
 	if sessionItem.SessionID != nil && strings.TrimSpace(*sessionItem.SessionID) != "" {
 		options.Resume = strings.TrimSpace(*sessionItem.SessionID)

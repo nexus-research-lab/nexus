@@ -1,0 +1,34 @@
+// Package contract 定义 nexus_automation MCP 子包之间共享的契约：
+// Service 接口、ServerContext 上下文、ServerName 常量。
+// 放在独立叶子包里避免 tool / internal 子包反向依赖 mcp 顶层。
+package contract
+
+import (
+	"context"
+
+	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
+)
+
+// ServerName 是 MCP server 的注册名。
+const ServerName = "nexus_automation"
+
+// ServerContext 承载当前会话与智能体的运行时上下文。
+type ServerContext struct {
+	CurrentAgentID      string
+	CurrentAgentName    string
+	CurrentSessionKey   string
+	CurrentSessionLabel string
+	// SourceContextType 取值 "agent" 或 "room"，影响 reply_mode=execution 的解析。
+	SourceContextType string
+}
+
+// Service 是 MCP server 依赖的 automation 服务子集。
+type Service interface {
+	ListTasks(ctx context.Context, agentID string) ([]automationsvc.CronJob, error)
+	CreateTask(ctx context.Context, input automationsvc.CreateJobInput) (*automationsvc.CronJob, error)
+	UpdateTask(ctx context.Context, jobID string, input automationsvc.UpdateJobInput) (*automationsvc.CronJob, error)
+	UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*automationsvc.CronJob, error)
+	DeleteTask(ctx context.Context, jobID string) error
+	RunTaskNow(ctx context.Context, jobID string) (*automationsvc.ExecutionResult, error)
+	ListTaskRuns(ctx context.Context, jobID string) ([]automationsvc.CronRun, error)
+}
