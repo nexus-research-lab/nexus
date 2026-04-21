@@ -23,6 +23,8 @@ type ServerContext struct {
 	// IsMainAgent 标识当前调用方是否为主智能体。主智能体豁免 agent_id scope 限制，
 	// 可以查看/管理任意智能体的定时任务；普通 Agent 只能 CRUD 自己的任务。
 	IsMainAgent bool
+	// DefaultTimezone 是用户未显式指定 schedule.timezone 时使用的回退时区（IANA）。
+	DefaultTimezone string
 }
 
 // Service 是 MCP server 依赖的 automation 服务子集。

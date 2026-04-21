@@ -24,6 +24,9 @@ func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 		Description: updateDescription,
 		InputSchema: updateSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+			if args == nil {
+				args = map[string]any{}
+			}
 			jobID := argx.String(args, "job_id")
 			if jobID == "" {
 				return render.Error(errors.New("job_id is required")), nil
@@ -31,6 +34,8 @@ func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
 				return render.Error(err), nil
 			}
+			semantic.ReassembleFlatSchedule(args)
+			semantic.ApplyDefaultTimezone(args, sctx)
 			input, err := buildUpdateInput(args, sctx)
 			if err != nil {
 				return render.Error(err), nil
@@ -61,7 +66,7 @@ func buildUpdateInput(args map[string]any, sctx contract.ServerContext) (automat
 		input.Enabled = &b
 	}
 	if raw, ok := args["schedule"]; ok {
-		schedule, err := builder.Schedule(raw)
+		schedule, err := builder.Schedule(raw, sctx.DefaultTimezone)
 		if err != nil {
 			return automationsvc.UpdateJobInput{}, err
 		}

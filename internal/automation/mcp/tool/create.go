@@ -13,11 +13,13 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 )
 
-const createDescription = "创建定时任务。本工具 == UI「新建任务」对话框的命令版本，字段一对一映射：" +
-	"name / instruction / schedule(kind=single|daily|interval) / execution_mode / reply_mode / " +
-	"selected_session_key(existing) / named_session_key(dedicated) / selected_reply_session_key(selected)。" +
-	"若用户没有明确 execution_mode / reply_mode / schedule.timezone，必须先用 AskUserQuestion 与用户确认，" +
-	"禁止默认套值。只有短文本、一次一条的提醒/播报类任务才允许默认按 temporary + none 创建。"
+const createDescription = "创建定时任务（== UI「新建任务」对话框的命令版本）。" +
+	"必填：name / instruction / schedule。schedule.kind 支持 single|daily|interval|cron 四种：" +
+	"single+run_at / daily+daily_time(+weekdays) / interval+interval_value+interval_unit / cron+expr(标准 5 段 cron 表达式)。" +
+	"schedule.timezone 缺省按服务器默认时区（通常 Asia/Shanghai）。" +
+	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected)，缺省走 temporary+none——" +
+	"短文本提醒类任务直接发即可；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
+	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
 
 func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
 	return agentclient.MCPTool{
@@ -25,6 +27,11 @@ func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 		Description: createDescription,
 		InputSchema: createSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+			if args == nil {
+				args = map[string]any{}
+			}
+			semantic.ReassembleFlatSchedule(args)
+			semantic.ApplyDefaultTimezone(args, sctx)
 			normalized := semantic.ApplySimpleDefaults(args)
 			if err := semantic.RequireExplicitCreateFields(normalized); err != nil {
 				return render.Error(err), nil
@@ -45,7 +52,7 @@ func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 // buildCreateInput 把工具入参翻译成底层 CreateJobInput。
 // 只接受 UI 对齐字段，不再允许直接传 session_target / delivery / source。
 func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automationsvc.CreateJobInput, error) {
-	schedule, err := builder.Schedule(args["schedule"])
+	schedule, err := builder.Schedule(args["schedule"], sctx.DefaultTimezone)
 	if err != nil {
 		return automationsvc.CreateJobInput{}, err
 	}

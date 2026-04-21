@@ -284,8 +284,9 @@ var defaultWorkspaceTemplates = map[string]string{
 
 - **nexus_automation（create_scheduled_task 等）= 产品级定时任务**
   用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
-  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 三种 kind）。
+  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
   你只能 CRUD **自己 agent_id 名下**的任务，list 也只会看到自己的任务，越权操作会被后端拒绝。
+  短文本提醒类任务可以只填 name+instruction+schedule，工具会默认按 temporary+none 创建；想让结果回当前会话才需要显式 existing+execution。
 
 - **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
   仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。
