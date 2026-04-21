@@ -151,6 +151,52 @@ func TestAuthBearerCompatAndWebSocketHandshake(t *testing.T) {
 	_ = authorizedConn.Close(websocket.StatusNormalClosure, "test done")
 }
 
+func TestAuthDisablesBearerCompatAfterOwnerInit(t *testing.T) {
+	cfg := newGatewayTestConfig(t)
+	cfg.AccessToken = "compat-token"
+	migrateGatewaySQLite(t, cfg.DatabaseURL)
+
+	server, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("创建 gateway 失败: %v", err)
+	}
+	if _, err = server.auth.InitOwner(context.Background(), authsvc.InitOwnerInput{
+		Username: "admin",
+		Password: "password123",
+	}); err != nil {
+		t.Fatalf("初始化 owner 失败: %v", err)
+	}
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	request, _ := http.NewRequest(http.MethodGet, httpServer.URL+"/agent/v1/agents", nil)
+	request.Header.Set("Authorization", "Bearer compat-token")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("owner 初始化后 bearer 请求失败: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("owner 初始化后 bearer compat 应返回 401，实际: %d", response.StatusCode)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/agent/v1/chat/ws?access_token=compat-token"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, handshake, err := websocket.Dial(ctx, wsURL, nil)
+	if conn != nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "unexpected")
+	}
+	if err == nil {
+		t.Fatal("owner 初始化后携带 access_token 的 WebSocket 握手应失败")
+	}
+	if handshake == nil || handshake.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("owner 初始化后 WebSocket 握手状态码不正确: %+v", handshake)
+	}
+}
+
 type authStatusResponse struct {
 	AuthRequired         bool    `json:"auth_required"`
 	PasswordLoginEnabled bool    `json:"password_login_enabled"`

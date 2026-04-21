@@ -26,6 +26,7 @@ import (
 
 type agentWorkspaceResolver interface {
 	GetAgent(context.Context, string) (*agentsvc.Agent, error)
+	GetDefaultAgent(context.Context) (*agentsvc.Agent, error)
 }
 
 type sessionDeliveryChannel struct {

@@ -136,7 +136,7 @@ func (s *Service) Suggestions(ctx context.Context) (SuggestionsResponse, error) 
 
 	agentItems := make([]Suggestion, 0, len(agents))
 	for _, agentValue := range agents {
-		if agentValue.AgentID == s.config.DefaultAgentID {
+		if agentValue.IsMain {
 			continue
 		}
 		agentItems = append(agentItems, Suggestion{
@@ -193,7 +193,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 
 	agentItems := make([]BootstrapAgent, 0, len(agents))
 	for _, agentValue := range agents {
-		if agentValue.AgentID == s.config.DefaultAgentID {
+		if agentValue.IsMain {
 			continue
 		}
 		agentItems = append(agentItems, BootstrapAgent{
@@ -304,7 +304,7 @@ func (s *Service) findAgentByKeyword(ctx context.Context, keyword string) (*agen
 	}
 
 	for _, agentValue := range agents {
-		if agentValue.AgentID == s.config.DefaultAgentID {
+		if agentValue.IsMain {
 			continue
 		}
 		if strings.ToLower(agentValue.Name) == normalizedKeyword {
@@ -313,7 +313,7 @@ func (s *Service) findAgentByKeyword(ctx context.Context, keyword string) (*agen
 		}
 	}
 	for _, agentValue := range agents {
-		if agentValue.AgentID == s.config.DefaultAgentID {
+		if agentValue.IsMain {
 			continue
 		}
 		if strings.Contains(strings.ToLower(agentValue.Name), normalizedKeyword) {

@@ -334,7 +334,7 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 		if err != nil {
 			return nil, nil, false, err
 		}
-		isMainAgent = agentValue.AgentID == s.config.DefaultAgentID
+		isMainAgent = agentValue.IsMain
 		names, err := workspace2.ListDeployedSkills(agentValue.WorkspacePath)
 		if err != nil {
 			return nil, nil, false, err
@@ -351,7 +351,13 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*agent2.Agen
 	if err != nil {
 		return nil, err
 	}
-	if err = workspace2.EnsureInitialized(s.config, agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt); err != nil {
+	if err = workspace2.EnsureInitialized(
+		agentValue.AgentID,
+		agentValue.Name,
+		agentValue.WorkspacePath,
+		agentValue.IsMain,
+		agentValue.CreatedAt,
+	); err != nil {
 		return nil, err
 	}
 	return agentValue, nil

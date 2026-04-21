@@ -13,13 +13,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -81,13 +81,20 @@ func NewService(cfg config.Config, agentService *agent2.Service, repository SQLR
 	}
 }
 
+func ownerUserIDFromContext(ctx context.Context) string {
+	if userID, ok := authsvc.CurrentUserID(ctx); ok {
+		return userID
+	}
+	return authsvc.SystemUserID
+}
+
 // ListSessions 列出全部会话视图。
 func (s *Service) ListSessions(ctx context.Context) ([]Session, error) {
 	fileSessions, err := s.listWorkspaceSessions(ctx, "")
 	if err != nil {
 		return nil, err
 	}
-	roomSessions, err := s.repository.ListRoomSessions(ctx)
+	roomSessions, err := s.repository.ListRoomSessions(ctx, ownerUserIDFromContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +140,7 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*Sessio
 		return nil, ErrSessionNotFound
 	}
 
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +341,7 @@ func (s *Service) loadHistorySession(
 	parsed protocol.SessionKey,
 	sessionKey string,
 ) (*Session, string, error) {
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
 	if err != nil {
 		return nil, "", err
 	}
@@ -411,7 +418,7 @@ func (s *Service) loadMutableWorkspaceSession(ctx context.Context, rawSessionKey
 		return nil, "", parsed, fmt.Errorf("%w: 共享 room session 不支持通过 Session API 修改", ErrSessionMutationUnsupported)
 	}
 
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
 	if err != nil {
 		return nil, "", parsed, err
 	}
@@ -486,32 +493,13 @@ func (s *Service) resolveWorkspacePaths(ctx context.Context, agentID string) ([]
 	for _, agentValue := range agents {
 		workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
 		if workspacePath == "" {
-			workspacePath = filepath.Join(agent2.WorkspaceBasePath(s.config), agentValue.AgentID)
+			workspacePath = agent2.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name)
 		}
 		if _, exists := seen[workspacePath]; exists {
 			continue
 		}
 		seen[workspacePath] = struct{}{}
 		result = append(result, workspacePath)
-	}
-	if strings.TrimSpace(agentID) == "" {
-		workspaceBase := agent2.WorkspaceBasePath(s.config)
-		entries, readErr := os.ReadDir(workspaceBase)
-		if readErr == nil {
-			for _, entry := range entries {
-				if !entry.IsDir() {
-					continue
-				}
-				workspacePath := filepath.Join(workspaceBase, entry.Name())
-				if _, exists := seen[workspacePath]; exists {
-					continue
-				}
-				seen[workspacePath] = struct{}{}
-				result = append(result, workspacePath)
-			}
-		} else if !errors.Is(readErr, os.ErrNotExist) {
-			return nil, readErr
-		}
 	}
 	return result, nil
 }

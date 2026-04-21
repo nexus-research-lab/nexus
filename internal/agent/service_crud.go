@@ -19,7 +19,8 @@ func (s *Service) ListAgents(ctx context.Context) ([]Agent, error) {
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
 	}
-	agents, err := s.repository.ListActiveAgents(ctx)
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	agents, err := s.repository.ListActiveAgents(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,27 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*Agent, error) 
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
 	}
-	agent, err := s.repository.GetAgent(ctx, agentID)
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	agent, err := s.repository.GetAgent(ctx, agentID, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	if agent == nil || agent.Status != "active" {
+		return nil, ErrAgentNotFound
+	}
+	if err = enrichAgentWithSkillsCount(agent); err != nil {
+		return nil, err
+	}
+	return agent, nil
+}
+
+// GetDefaultAgent 返回当前作用域下的主智能体。
+func (s *Service) GetDefaultAgent(ctx context.Context) (*Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	ownerUserID := effectiveOwnerUserID(ctx)
+	agent, err := s.repository.GetMainAgent(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +75,7 @@ func (s *Service) ValidateName(ctx context.Context, name string, excludeAgentID 
 	}
 
 	normalized := NormalizeName(name)
+	ownerUserID := effectiveOwnerUserID(ctx)
 	response := ValidateNameResponse{
 		Name:           name,
 		NormalizedName: normalized,
@@ -64,11 +86,11 @@ func (s *Service) ValidateName(ctx context.Context, name string, excludeAgentID 
 		return response, nil
 	}
 
-	workspacePath := ResolveWorkspacePath(s.config, normalized)
+	workspacePath := ResolveWorkspacePath(s.config, ownerUserID, normalized)
 	response.WorkspacePath = workspacePath
 	response.IsValid = true
 
-	exists, err := s.repository.ExistsActiveAgentName(ctx, normalized, excludeAgentID)
+	exists, err := s.repository.ExistsActiveAgentName(ctx, ownerUserID, normalized, excludeAgentID)
 	if err != nil {
 		return response, err
 	}
@@ -103,7 +125,16 @@ func (s *Service) CreateAgent(ctx context.Context, request CreateRequest) (*Agen
 	}
 
 	agentID := NewAgentID()
-	record := BuildCreateRecord(s.config, request, validation.NormalizedName, agentID, validation.WorkspacePath, "active")
+	record := BuildCreateRecord(
+		s.config,
+		request,
+		effectiveOwnerUserID(ctx),
+		validation.NormalizedName,
+		agentID,
+		validation.WorkspacePath,
+		"active",
+		false,
+	)
 	if err = os.MkdirAll(validation.WorkspacePath, 0o755); err != nil {
 		return nil, err
 	}
@@ -116,12 +147,17 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request Updat
 		return nil, err
 	}
 
-	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), ownerUserID)
 	if err != nil {
 		return nil, err
 	}
 	if existing == nil || existing.Status != "active" {
 		return nil, ErrAgentNotFound
+	}
+	updateOwnerUserID := existing.OwnerUserID
+	if ownerUserID != "" {
+		updateOwnerUserID = ownerUserID
 	}
 
 	normalizedName := existing.Name
@@ -129,7 +165,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request Updat
 	if request.Name != nil {
 		candidate := NormalizeName(*request.Name)
 		if candidate != existing.Name {
-			if existing.AgentID == s.config.DefaultAgentID {
+			if existing.IsMain {
 				return nil, errors.New("主智能体名称不可修改")
 			}
 			validation, validateErr := s.ValidateName(ctx, candidate, existing.AgentID)
@@ -168,6 +204,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request Updat
 
 	updated, err := s.repository.UpdateAgent(ctx, UpdateRecord{
 		AgentID:             existing.AgentID,
+		OwnerUserID:         updateOwnerUserID,
 		Slug:                BuildWorkspaceDirName(normalizedName),
 		Name:                normalizedName,
 		WorkspacePath:       workspacePath,
@@ -204,14 +241,15 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 		return err
 	}
 
-	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), ownerUserID)
 	if err != nil {
 		return err
 	}
 	if existing == nil || existing.Status != "active" {
 		return ErrAgentNotFound
 	}
-	if existing.AgentID == s.config.DefaultAgentID {
+	if existing.IsMain {
 		return errors.New("主智能体不可删除")
 	}
 	if s.history != nil {
@@ -222,5 +260,9 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if err = os.RemoveAll(existing.WorkspacePath); err != nil {
 		return err
 	}
-	return s.repository.ArchiveAgent(ctx, existing.AgentID)
+	archiveOwnerUserID := existing.OwnerUserID
+	if ownerUserID != "" {
+		archiveOwnerUserID = ownerUserID
+	}
+	return s.repository.ArchiveAgent(ctx, existing.AgentID, archiveOwnerUserID)
 }

@@ -43,6 +43,20 @@ func (r *stubAgentResolver) GetAgent(_ context.Context, agentID string) (*agents
 	return item, nil
 }
 
+func (r *stubAgentResolver) GetDefaultAgent(_ context.Context) (*agentsvc.Agent, error) {
+	for _, item := range r.agentByID {
+		if item != nil && item.IsMain {
+			return item, nil
+		}
+	}
+	for _, item := range r.agentByID {
+		if item != nil {
+			return item, nil
+		}
+	}
+	return nil, nil
+}
+
 type stubPermissionSender struct {
 	key    string
 	mu     sync.Mutex

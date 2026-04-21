@@ -22,7 +22,8 @@ func (s *Server) handleHealth(writer http.ResponseWriter, request *http.Request)
 }
 
 func (s *Server) handleRuntimeOptions(writer http.ResponseWriter, request *http.Request) {
-	if err := s.agentService.EnsureReady(request.Context()); err != nil {
+	defaultAgent, err := s.agentService.GetDefaultAgent(request.Context())
+	if err != nil {
 		s.writeFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -36,7 +37,7 @@ func (s *Server) handleRuntimeOptions(writer http.ResponseWriter, request *http.
 		"message": "success",
 		"success": true,
 		"data": map[string]any{
-			"default_agent_id":       s.config.DefaultAgentID,
+			"default_agent_id":       defaultAgent.AgentID,
 			"default_agent_provider": defaultProvider,
 		},
 	})

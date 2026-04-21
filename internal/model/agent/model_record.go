@@ -12,10 +12,12 @@ package agent
 // CreateRecord 表示落库前的完整创建记录。
 type CreateRecord struct {
 	AgentID             string
+	OwnerUserID         string
 	Slug                string
 	Name                string
 	WorkspacePath       string
 	Status              string
+	IsMain              bool
 	Avatar              string
 	Description         string
 	VibeTagsJSON        string
@@ -38,6 +40,7 @@ type CreateRecord struct {
 // UpdateRecord 表示落库前的 Agent 更新记录。
 type UpdateRecord struct {
 	AgentID             string
+	OwnerUserID         string
 	Slug                string
 	Name                string
 	WorkspacePath       string

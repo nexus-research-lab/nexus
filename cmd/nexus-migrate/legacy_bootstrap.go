@@ -68,9 +68,25 @@ func bootstrapLegacyMigrationVersion(
 	if err != nil {
 		return err
 	}
-	targetVersion, targetErr := detectSchemaVersion(ctx, tx, driver, baselineVersion, latestVersion)
-	if targetErr != nil {
-		return targetErr
+	currentGo, err := isCurrentGoSchema(ctx, tx, driver)
+	if err != nil {
+		return err
+	}
+	var targetVersion int64
+	if currentGo {
+		targetVersion = latestVersion
+	} else {
+		pythonFinal, pythonErr := isPythonFinalSchema(ctx, tx, driver)
+		if pythonErr != nil {
+			return pythonErr
+		}
+		if !pythonFinal {
+			return fmt.Errorf("无法识别当前数据库结构，无法自动推断 Goose 版本")
+		}
+		if err = repairPythonFinalSchema(ctx, tx, driver); err != nil {
+			return err
+		}
+		targetVersion = baselineVersion
 	}
 	expectedVersions := filterAppliedVersions(appliedVersions, targetVersion)
 
@@ -94,6 +110,91 @@ func bootstrapLegacyMigrationVersion(
 	}
 
 	return tx.Commit()
+}
+
+func repairPythonFinalSchema(ctx context.Context, executor sqlExecutor, driver string) error {
+	agentColumns := []struct {
+		name string
+		sql  string
+	}{
+		{name: "slug", sql: "ALTER TABLE agents ADD COLUMN slug VARCHAR(128) NOT NULL DEFAULT ''"},
+		{name: "name", sql: "ALTER TABLE agents ADD COLUMN name VARCHAR(128) NOT NULL DEFAULT ''"},
+		{name: "description", sql: "ALTER TABLE agents ADD COLUMN description TEXT NOT NULL DEFAULT ''"},
+		{name: "definition", sql: "ALTER TABLE agents ADD COLUMN definition TEXT NOT NULL DEFAULT ''"},
+		{name: "status", sql: "ALTER TABLE agents ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active'"},
+		{name: "workspace_path", sql: "ALTER TABLE agents ADD COLUMN workspace_path VARCHAR(512) NOT NULL DEFAULT ''"},
+		{name: "avatar", sql: "ALTER TABLE agents ADD COLUMN avatar VARCHAR(255)"},
+		{name: "vibe_tags", sql: "ALTER TABLE agents ADD COLUMN vibe_tags JSON"},
+		{name: "created_at", sql: alterTableAddTimestampSQL(driver, "agents", "created_at")},
+		{name: "updated_at", sql: alterTableAddTimestampSQL(driver, "agents", "updated_at")},
+	}
+	for _, item := range agentColumns {
+		if err := ensureColumn(ctx, executor, driver, "agents", item.name, item.sql); err != nil {
+			return err
+		}
+	}
+	if _, err := executor.ExecContext(ctx, `
+UPDATE agents
+SET slug = CASE WHEN COALESCE(slug, '') = '' THEN id ELSE slug END,
+    name = CASE WHEN COALESCE(name, '') = '' THEN id ELSE name END,
+    description = COALESCE(description, ''),
+    definition = COALESCE(definition, ''),
+    status = CASE WHEN COALESCE(status, '') = '' THEN 'active' ELSE status END,
+    workspace_path = CASE WHEN COALESCE(workspace_path, '') = '' THEN id ELSE workspace_path END`); err != nil {
+		return err
+	}
+
+	roomColumns := []struct {
+		name string
+		sql  string
+	}{
+		{name: "room_type", sql: "ALTER TABLE rooms ADD COLUMN room_type VARCHAR(32) NOT NULL DEFAULT 'room'"},
+		{name: "name", sql: "ALTER TABLE rooms ADD COLUMN name VARCHAR(128)"},
+		{name: "description", sql: "ALTER TABLE rooms ADD COLUMN description TEXT NOT NULL DEFAULT ''"},
+		{name: "created_at", sql: alterTableAddTimestampSQL(driver, "rooms", "created_at")},
+		{name: "updated_at", sql: alterTableAddTimestampSQL(driver, "rooms", "updated_at")},
+	}
+	for _, item := range roomColumns {
+		if err := ensureColumn(ctx, executor, driver, "rooms", item.name, item.sql); err != nil {
+			return err
+		}
+	}
+	if _, err := executor.ExecContext(ctx, `
+UPDATE rooms
+SET room_type = CASE WHEN COALESCE(room_type, '') = '' THEN 'room' ELSE room_type END,
+    description = COALESCE(description, '')`); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ensureColumn(ctx context.Context, executor sqlExecutor, driver string, tableName string, columnName string, statement string) error {
+	exists, err := columnExists(ctx, executor, driver, tableName, columnName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	_, err = executor.ExecContext(ctx, statement)
+	return err
+}
+
+func alterTableAddTimestampSQL(driver string, tableName string, columnName string) string {
+	switch driver {
+	case "pgx":
+		return fmt.Sprintf(
+			"ALTER TABLE %s ADD COLUMN %s TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL",
+			tableName,
+			columnName,
+		)
+	default:
+		return fmt.Sprintf(
+			"ALTER TABLE %s ADD COLUMN %s DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL",
+			tableName,
+			columnName,
+		)
+	}
 }
 
 func detectSchemaVersion(

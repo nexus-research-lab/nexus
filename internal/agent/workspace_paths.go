@@ -27,9 +27,17 @@ func WorkspaceBasePath(cfg config.Config) string {
 	return filepath.Join(home, ".nexus", "workspace")
 }
 
+// UserWorkspaceBasePath 返回指定用户的 Agent workspace 根目录。
+func UserWorkspaceBasePath(cfg config.Config, ownerUserID string) string {
+	if strings.TrimSpace(ownerUserID) == systemOwnerUserID {
+		return WorkspaceBasePath(cfg)
+	}
+	return filepath.Join(WorkspaceBasePath(cfg), "users", BuildWorkspaceDirName(ownerUserID), "agents")
+}
+
 // ResolveWorkspacePath 计算 Agent workspace 路径。
-func ResolveWorkspacePath(cfg config.Config, agentName string) string {
-	return filepath.Join(WorkspaceBasePath(cfg), BuildWorkspaceDirName(agentName))
+func ResolveWorkspacePath(cfg config.Config, ownerUserID string, agentName string) string {
+	return filepath.Join(UserWorkspaceBasePath(cfg, ownerUserID), BuildWorkspaceDirName(agentName))
 }
 
 func expandHome(path string) string {

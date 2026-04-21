@@ -127,7 +127,7 @@ func (s *IngressService) SetLogger(logger *slog.Logger) {
 
 // Accept 受理一条外部通道消息。
 func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*IngressResult, error) {
-	normalized, err := s.normalizeRequest(request)
+	normalized, err := s.normalizeRequest(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -193,13 +193,13 @@ func (s *IngressService) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
 }
 
-func (s *IngressService) normalizeRequest(request IngressRequest) (normalizedIngressRequest, error) {
+func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRequest) (normalizedIngressRequest, error) {
 	content := strings.TrimSpace(request.Content)
 	if content == "" {
 		return normalizedIngressRequest{}, errors.New("content is required")
 	}
 
-	sessionKey, parsed, agentID, err := s.resolveSession(request)
+	sessionKey, parsed, agentID, err := s.resolveSession(ctx, request)
 	if err != nil {
 		return normalizedIngressRequest{}, err
 	}
@@ -226,7 +226,7 @@ func (s *IngressService) normalizeRequest(request IngressRequest) (normalizedIng
 	}, nil
 }
 
-func (s *IngressService) resolveSession(request IngressRequest) (string, protocol.SessionKey, string, error) {
+func (s *IngressService) resolveSession(ctx context.Context, request IngressRequest) (string, protocol.SessionKey, string, error) {
 	if strings.TrimSpace(request.SessionKey) != "" {
 		sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
 		if err != nil {
@@ -254,7 +254,17 @@ func (s *IngressService) resolveSession(request IngressRequest) (string, protoco
 		return "", protocol.SessionKey{}, "", ErrIngressRefRequired
 	}
 
-	agentID := firstNonEmptyIngress(request.AgentID, s.config.DefaultAgentID)
+	agentID := strings.TrimSpace(request.AgentID)
+	if agentID == "" {
+		if s.agents == nil {
+			return "", protocol.SessionKey{}, "", errors.New("channel ingress 缺少默认 agent 解析器")
+		}
+		defaultAgent, err := s.agents.GetDefaultAgent(ctx)
+		if err != nil {
+			return "", protocol.SessionKey{}, "", err
+		}
+		agentID = defaultAgent.AgentID
+	}
 	sessionKey := protocol.BuildAgentSessionKey(
 		agentID,
 		channel,

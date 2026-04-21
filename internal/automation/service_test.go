@@ -1356,6 +1356,14 @@ func (r *testAgentResolver) GetAgent(_ context.Context, agentID string) (*agents
 	}, nil
 }
 
+func (r *testAgentResolver) GetDefaultAgent(_ context.Context) (*agentsvc.Agent, error) {
+	return &agentsvc.Agent{
+		AgentID:       "nexus",
+		WorkspacePath: r.workspacePath,
+		IsMain:        true,
+	}, nil
+}
+
 func stringFromMessage(message sessionmodel.Message, key string) string {
 	if value, ok := message[key].(string); ok {
 		return strings.TrimSpace(value)

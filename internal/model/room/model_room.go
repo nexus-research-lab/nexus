@@ -45,6 +45,7 @@ type MemberRecord struct {
 // RoomRecord 表示房间记录。
 type RoomRecord struct {
 	ID          string    `json:"id"`
+	OwnerUserID string    `json:"-"`
 	RoomType    string    `json:"room_type"`
 	Name        string    `json:"name,omitempty"`
 	Description string    `json:"description"`

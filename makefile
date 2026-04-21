@@ -80,8 +80,8 @@ install: ## Install all dependencies
 	@if command -v go >/dev/null 2>&1; then \
 		if grep -q "^replace $(PRIVATE_SDK_MODULE) => /" go.mod; then \
 			echo "Error: go.mod still contains a local replace for $(PRIVATE_SDK_MODULE)."; \
-			echo "The current main branch expects access to a private SDK repository and cannot be installed from a clean environment until that replace is removed or the dependency strategy is updated."; \
-			echo "See README.md -> Private Go SDK dependency for the required GitHub / GOPRIVATE setup and current limitations."; \
+			echo "The current main branch expects direct access to the private SDK repository."; \
+			echo "Remove the local replace first, then follow README.md -> Private Go SDK dependency."; \
 			exit 1; \
 		fi; \
 		go env GOPRIVATE | tr ',' '\n' | grep -Fxq "github.com/nexus-research-lab/*" || { \
@@ -92,13 +92,24 @@ install: ## Install all dependencies
 			echo "See README.md -> Private Go SDK dependency for details."; \
 			exit 1; \
 		}; \
-		git config --get-regexp '^url\..*github\.com[:/]nexus-research-lab/' >/dev/null 2>&1 || { \
-			echo "Error: git is not configured with non-interactive credentials for github.com/nexus-research-lab/."; \
-			echo "Configure a PAT or SSH access before running make install."; \
-			echo "See README.md -> Private Go SDK dependency for examples."; \
+		if ! GIT_TERMINAL_PROMPT=0 go mod tidy; then \
+			echo ""; \
+			echo "Error: go mod tidy failed while resolving private module $(PRIVATE_SDK_MODULE)."; \
+			echo "Most failures here mean git still cannot access github.com/nexus-research-lab/ non-interactively."; \
+			echo ""; \
+			echo "Recommended GitHub setup:"; \
+			echo "  go env -w GOPRIVATE=github.com/nexus-research-lab/*"; \
+			echo "  go env -w GONOSUMDB=github.com/nexus-research-lab/*"; \
+			echo "  git config --global url.\"git@github.com:\".insteadOf https://github.com/"; \
+			echo "  ssh -T git@github.com"; \
+			echo ""; \
+			echo "If you already ran with a wrong HTTPS config, clear the cached VCS checkout and retry:"; \
+			echo "  go clean -modcache"; \
+			echo "  go mod tidy"; \
+			echo ""; \
+			echo "See README.md -> Private Go SDK dependency for PAT/SSH examples."; \
 			exit 1; \
-		}; \
-		go mod download; \
+		fi; \
 	else \
 		echo "No usable Go runtime found"; \
 		exit 1; \

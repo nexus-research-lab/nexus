@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	agent3 "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/logx"
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
@@ -75,7 +76,7 @@ type Service struct {
 }
 
 type roomSessionStore interface {
-	GetRoomSessionByKey(context.Context, protocol.SessionKey) (*session.Session, error)
+	GetRoomSessionByKey(context.Context, string, protocol.SessionKey) (*session.Session, error)
 	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
 }
 
@@ -174,7 +175,14 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
-	agentID := firstNonEmpty(parsed.AgentID, request.AgentID, s.config.DefaultAgentID)
+	agentID := firstNonEmpty(parsed.AgentID, request.AgentID)
+	if agentID == "" {
+		defaultAgent, defaultErr := s.agents.GetDefaultAgent(ctx)
+		if defaultErr != nil {
+			return defaultErr
+		}
+		agentID = defaultAgent.AgentID
+	}
 
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
 	if err != nil {
@@ -526,7 +534,14 @@ func (s *Service) lookupRoomSession(
 	if s.roomStore == nil {
 		return nil, nil
 	}
-	return s.roomStore.GetRoomSessionByKey(ctx, parsed)
+	return s.roomStore.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
+}
+
+func ownerUserIDFromContext(ctx context.Context) string {
+	if userID, ok := authsvc.CurrentUserID(ctx); ok {
+		return userID
+	}
+	return authsvc.SystemUserID
 }
 
 func (s *Service) validateRequest(request Request) (string, protocol.SessionKey, error) {

@@ -18,8 +18,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 var (
@@ -37,7 +35,13 @@ var (
 )
 
 // EnsureInitialized 保证 workspace 模板与系统技能已经落地。
-func EnsureInitialized(cfg config.Config, agentID string, agentName string, workspacePath string, createdAt time.Time) error {
+func EnsureInitialized(
+	agentID string,
+	agentName string,
+	workspacePath string,
+	isMainAgent bool,
+	createdAt time.Time,
+) error {
 	root := strings.TrimSpace(workspacePath)
 	if root == "" {
 		return fmt.Errorf("workspace_path 不能为空")
@@ -59,7 +63,7 @@ func EnsureInitialized(cfg config.Config, agentID string, agentName string, work
 		} else if err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		content := renderTemplate(workspaceTemplate(key, agentID == cfg.DefaultAgentID), context)
+		content := renderTemplate(workspaceTemplate(key, isMainAgent), context)
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
@@ -77,7 +81,7 @@ func EnsureInitialized(cfg config.Config, agentID string, agentName string, work
 		return err
 	}
 
-	for _, skillName := range managedSkillNames(cfg, agentID) {
+	for _, skillName := range managedSkillNames(isMainAgent) {
 		if err := deployManagedSkill(skillName, root, context); err != nil {
 			return err
 		}
@@ -132,9 +136,9 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 	return result, nil
 }
 
-func managedSkillNames(cfg config.Config, agentID string) []string {
+func managedSkillNames(isMainAgent bool) []string {
 	items := append([]string{}, baseSkillNames...)
-	if strings.TrimSpace(agentID) == strings.TrimSpace(cfg.DefaultAgentID) {
+	if isMainAgent {
 		items = append(items, mainAgentSkillNames...)
 	}
 	return items

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- 多用户模式改为真正的 `user_id` 级隔离：`agent / room / session / workspace` 全链路按当前登录用户收口，主智能体改为按用户作用域初始化；共享 `ACCESS_TOKEN` 兼容入口只在系统尚未初始化用户时可用，避免绕过多用户隔离。
 - 重构 `nexus_automation` MCP 工具入参体系，全面对齐 UI「新建任务」对话框并放宽创建门槛：
   - **结构化字段替代原始 cron**：`schedule.kind` 提供 `single / daily / interval` 三种 UI 对齐形态（`daily_time + weekdays`、`interval_value + interval_unit`），同时新增 `cron` kind 让熟悉标准 5 段表达式的 agent/用户可以直接传 `expr`（别名 `cron` / `cron_expression`）。
   - **UI 语义收口**：移除工具层对底层 `session_target / delivery / source` 对象的直通入口，统一通过 `execution_mode(main|existing|temporary|dedicated)` + `reply_mode(none|execution|selected)` 表达；`execution_mode=main` 仅主智能体可用，普通 Agent 调用会被拒绝。

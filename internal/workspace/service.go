@@ -421,7 +421,13 @@ func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*ag
 	if err != nil {
 		return nil, err
 	}
-	if err = EnsureInitialized(s.config, agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt); err != nil {
+	if err = EnsureInitialized(
+		agentValue.AgentID,
+		agentValue.Name,
+		agentValue.WorkspacePath,
+		agentValue.IsMain,
+		agentValue.CreatedAt,
+	); err != nil {
 		return nil, err
 	}
 	return agentValue, nil

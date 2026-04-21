@@ -33,6 +33,8 @@ var (
 	ErrInvalidCredentials = errors.New("用户名或密码错误")
 	// ErrOwnerAlreadyInitialized 表示 owner 已经创建，不能重复初始化。
 	ErrOwnerAlreadyInitialized = errors.New("owner 用户已初始化")
+	// ErrUsernameAlreadyExists 表示用户名已被占用。
+	ErrUsernameAlreadyExists = errors.New("用户名已存在")
 )
 
 // Service 提供统一认证能力。
@@ -66,7 +68,7 @@ func (s *Service) InspectRequest(ctx context.Context, request *http.Request) (*P
 	if err != nil {
 		return nil, State{}, err
 	}
-	principal, err := s.resolveRequestPrincipal(ctx, request)
+	principal, err := s.resolveRequestPrincipal(ctx, request, state)
 	if err != nil {
 		return nil, state, err
 	}
@@ -215,6 +217,60 @@ func (s *Service) InitOwner(ctx context.Context, input InitOwnerInput) (*User, e
 	return s.repository.getUserByID(ctx, user.UserID)
 }
 
+// CreateUser 创建新的认证用户。
+func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*User, error) {
+	username, err := normalizeUsername(input.Username)
+	if err != nil {
+		return nil, err
+	}
+	displayName := strings.TrimSpace(input.DisplayName)
+	if displayName == "" {
+		displayName = username
+	}
+	if err = validatePassword(input.Password); err != nil {
+		return nil, err
+	}
+	role, err := normalizeUserRole(input.Role)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repository.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, ErrUsernameAlreadyExists
+	}
+
+	passwordHash, err := HashPassword(input.Password)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	user := User{
+		UserID:      s.idFactory("user"),
+		Username:    username,
+		DisplayName: displayName,
+		Role:        role,
+		Status:      UserStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	credential := passwordCredential{
+		CredentialID:      s.idFactory("cred"),
+		UserID:            user.UserID,
+		PasswordHash:      passwordHash,
+		PasswordAlgo:      passwordAlgorithmArgon2ID,
+		PasswordUpdatedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err = s.repository.createUserWithPassword(ctx, user, credential); err != nil {
+		return nil, err
+	}
+	return s.repository.getUserByID(ctx, user.UserID)
+}
+
 // ListUsers 列出当前全部用户。
 func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
 	return s.repository.listUsers(ctx)
@@ -328,7 +384,7 @@ func (s *Service) buildStatusPayload(state State, principal *Principal) StatusPa
 	return result
 }
 
-func (s *Service) resolveRequestPrincipal(ctx context.Context, request *http.Request) (*Principal, error) {
+func (s *Service) resolveRequestPrincipal(ctx context.Context, request *http.Request, state State) (*Principal, error) {
 	if request == nil {
 		return nil, nil
 	}
@@ -341,6 +397,9 @@ func (s *Service) resolveRequestPrincipal(ctx context.Context, request *http.Req
 		if principal != nil {
 			return principal, nil
 		}
+	}
+	if !state.AccessTokenEnabled {
+		return nil, nil
 	}
 	return s.resolveBearerPrincipal(request), nil
 }
@@ -395,6 +454,19 @@ func (s *Service) resolveBearerPrincipal(request *http.Request) *Principal {
 
 func (s *Service) accessTokenEnabled() bool {
 	return strings.TrimSpace(s.config.AccessToken) != ""
+}
+
+func normalizeUserRole(role string) (string, error) {
+	switch strings.TrimSpace(role) {
+	case "", RoleMember:
+		return RoleMember, nil
+	case RoleAdmin:
+		return RoleAdmin, nil
+	case RoleOwner:
+		return RoleOwner, nil
+	default:
+		return "", errors.New("role 仅支持 owner、admin、member")
+	}
 }
 
 func (s *Service) sessionTTL() time.Duration {

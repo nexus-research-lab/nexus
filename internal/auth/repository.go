@@ -46,9 +46,7 @@ func (r *repository) bind(index int) string {
 }
 
 func (r *repository) loadState(ctx context.Context, accessTokenEnabled bool) (State, error) {
-	state := State{
-		AccessTokenEnabled: accessTokenEnabled,
-	}
+	state := State{}
 	userCount, err := r.scalarCount(ctx, "SELECT COUNT(*) FROM users WHERE status = "+r.bind(1), UserStatusActive)
 	if err != nil {
 		return state, err
@@ -68,7 +66,8 @@ WHERE u.status = `+r.bind(1),
 	state.PasswordUserCount = passwordUserCount
 	state.SetupRequired = userCount == 0
 	state.PasswordLoginEnabled = passwordUserCount > 0
-	state.AuthRequired = userCount > 0 || accessTokenEnabled
+	state.AccessTokenEnabled = accessTokenEnabled && userCount == 0
+	state.AuthRequired = userCount > 0 || state.AccessTokenEnabled
 	return state, nil
 }
 

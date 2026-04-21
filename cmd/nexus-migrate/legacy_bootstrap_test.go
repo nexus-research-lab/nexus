@@ -40,7 +40,7 @@ func TestBootstrapLegacyMigrationVersionStampsBaselineForCurrentSchema(t *testin
 		t.Fatalf("bootstrap baseline version 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 2)
+	assertCurrentVersion(t, db, "sqlite", 3)
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) {
@@ -70,12 +70,15 @@ func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) 
 	if err := goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("执行 Go 适配迁移失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 2)
+	assertCurrentVersion(t, db, "sqlite", 3)
 	assertSQLiteTableExists(t, db, "provider")
 	assertSQLiteTableExists(t, db, "users")
 	assertSQLiteTableExists(t, db, "auth_password_credentials")
 	assertSQLiteColumnExists(t, db, "auth_sessions", "session_id")
 	assertSQLiteColumnExists(t, db, "auth_sessions", "user_id")
+	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
+	assertSQLiteColumnExists(t, db, "agents", "is_main")
+	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsZeroVersionTable(t *testing.T) {
@@ -97,7 +100,7 @@ func TestBootstrapLegacyMigrationVersionRepairsZeroVersionTable(t *testing.T) {
 		t.Fatalf("bootstrap baseline version after zero row 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 2)
+	assertCurrentVersion(t, db, "sqlite", 3)
 }
 
 func TestBootstrapLegacyMigrationVersionNormalizesCollapsedVersions(t *testing.T) {
@@ -119,7 +122,7 @@ func TestBootstrapLegacyMigrationVersionNormalizesCollapsedVersions(t *testing.T
 		t.Fatalf("bootstrap baseline version after collapsed versions 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 2)
+	assertCurrentVersion(t, db, "sqlite", 3)
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing.T) {
@@ -131,7 +134,7 @@ func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing
 	if err := seedCurrentSQLiteBaselineSchema(t, db); err != nil {
 		t.Fatalf("准备最新 sqlite schema 失败: %v", err)
 	}
-	if err := seedGooseVersions(context.Background(), db, "sqlite", 2); err != nil {
+	if err := seedGooseVersions(context.Background(), db, "sqlite", 3); err != nil {
 		t.Fatalf("准备 goose 单版本历史失败: %v", err)
 	}
 
@@ -141,8 +144,8 @@ func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing
 		t.Fatalf("bootstrap singleton latest version 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 2)
-	assertAppliedVersions(t, db, "sqlite", []int64{1, 2})
+	assertCurrentVersion(t, db, "sqlite", 3)
+	assertAppliedVersions(t, db, "sqlite", []int64{1, 2, 3})
 }
 
 func openSQLiteTestDB(t *testing.T, fileName string) *sql.DB {
@@ -161,7 +164,9 @@ func seedCurrentSQLiteBaselineSchema(t *testing.T, db *sql.DB) error {
 
 	schema := `
 CREATE TABLE agents (
-    id VARCHAR(64) NOT NULL PRIMARY KEY
+    id VARCHAR(64) NOT NULL PRIMARY KEY,
+    owner_user_id VARCHAR(64) NOT NULL,
+    is_main BOOLEAN NOT NULL DEFAULT 0
 );
 CREATE TABLE users (
     user_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -197,6 +202,7 @@ CREATE TABLE auth_sessions (
 );
 CREATE TABLE rooms (
     id VARCHAR(64) NOT NULL PRIMARY KEY,
+    owner_user_id VARCHAR(64) NOT NULL,
     avatar VARCHAR(255)
 );
 CREATE TABLE runtimes (

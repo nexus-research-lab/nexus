@@ -1,13 +1,4 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：session_key_test.go
-// @Date   ：2026/04/11 00:31:00
-// @Author ：leemysw
-// 2026/04/11 00:31:00   Create
-// =====================================================
-
-package protocol
+package session
 
 import "testing"
 

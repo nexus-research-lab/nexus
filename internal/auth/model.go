@@ -12,6 +12,9 @@ package auth
 import "time"
 
 const (
+	// SystemUserID 表示未启用认证时的本地单用户保底主体。
+	SystemUserID = "__system__"
+
 	// RoleOwner 表示单租户默认 owner。
 	RoleOwner = "owner"
 	// RoleAdmin 表示管理员角色。
@@ -95,6 +98,14 @@ type InitOwnerInput struct {
 	Username    string
 	DisplayName string
 	Password    string
+}
+
+// CreateUserInput 表示创建普通用户的输入。
+type CreateUserInput struct {
+	Username    string
+	DisplayName string
+	Password    string
+	Role        string
 }
 
 // ResetPasswordInput 表示重置密码请求。

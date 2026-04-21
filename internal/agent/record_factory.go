@@ -9,16 +9,24 @@ package agent
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 // BuildCreateRecord 构建落库记录。
-func BuildCreateRecord(cfg config.Config, request CreateRequest, normalizedName string, agentID string, workspacePath string, status string) CreateRecord {
+func BuildCreateRecord(
+	cfg config.Config,
+	request CreateRequest,
+	ownerUserID string,
+	normalizedName string,
+	agentID string,
+	workspacePath string,
+	status string,
+	isMain bool,
+) CreateRecord {
 	options := Options{}
-	if agentID == cfg.DefaultAgentID {
+	if isMain {
 		options = defaultMainAgentOptions()
 	}
 	if request.Options != nil {
@@ -27,10 +35,12 @@ func BuildCreateRecord(cfg config.Config, request CreateRequest, normalizedName 
 
 	return CreateRecord{
 		AgentID:             agentID,
+		OwnerUserID:         ownerUserID,
 		Slug:                BuildWorkspaceDirName(normalizedName),
 		Name:                normalizedName,
 		WorkspacePath:       workspacePath,
 		Status:              status,
+		IsMain:              isMain,
 		Avatar:              request.Avatar,
 		Description:         request.Description,
 		VibeTagsJSON:        mustJSONString(request.VibeTags, "[]"),
@@ -52,15 +62,21 @@ func BuildCreateRecord(cfg config.Config, request CreateRequest, normalizedName 
 }
 
 // BuildDefaultMainAgentRecord 构建主智能体默认记录。
-func BuildDefaultMainAgentRecord(cfg config.Config) CreateRecord {
+func BuildDefaultMainAgentRecord(cfg config.Config, ownerUserID string) CreateRecord {
 	name := cfg.DefaultAgentID
+	agentID := cfg.DefaultAgentID
+	if strings.TrimSpace(ownerUserID) != systemOwnerUserID {
+		agentID = buildStableID("main_agent", ownerUserID)
+	}
 	return BuildCreateRecord(
 		cfg,
 		CreateRequest{Name: name, Options: pointer(defaultMainAgentOptions())},
+		ownerUserID,
 		name,
-		cfg.DefaultAgentID,
-		filepath.Join(WorkspaceBasePath(cfg), cfg.DefaultAgentID),
+		agentID,
+		ResolveWorkspacePath(cfg, ownerUserID, name),
 		"active",
+		true,
 	)
 }
 

@@ -30,10 +30,10 @@ func NewSessionRepository(db *sql.DB) *SessionRepository {
 }
 
 // ListRoomSessions 列出全部 Room 成员会话视图。
-func (r *SessionRepository) ListRoomSessions(ctx context.Context) ([]session.Session, error) {
+func (r *SessionRepository) ListRoomSessions(ctx context.Context, ownerUserID string) ([]session.Session, error) {
 	rows, err := r.db.QueryContext(ctx, postgresRoomSessionSelect+`
-WHERE s.is_primary = TRUE
-ORDER BY s.last_activity_at DESC`)
+WHERE s.is_primary = TRUE AND r.owner_user_id = $1
+ORDER BY s.last_activity_at DESC`, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,14 +54,14 @@ ORDER BY s.last_activity_at DESC`, agentID)
 }
 
 // GetRoomSessionByKey 按结构化 key 查找 Room 成员会话。
-func (r *SessionRepository) GetRoomSessionByKey(ctx context.Context, key protocol.SessionKey) (*session.Session, error) {
+func (r *SessionRepository) GetRoomSessionByKey(ctx context.Context, ownerUserID string, key protocol.SessionKey) (*session.Session, error) {
 	if key.Kind != protocol.SessionKeyKindAgent || key.AgentID == "" || key.Ref == "" {
 		return nil, nil
 	}
 
 	row := r.db.QueryRowContext(ctx, postgresRoomSessionSelect+`
-WHERE s.is_primary = TRUE AND s.agent_id = $1 AND c.id = $2
-LIMIT 1`, key.AgentID, key.Ref)
+WHERE s.is_primary = TRUE AND r.owner_user_id = $1 AND s.agent_id = $2 AND c.id = $3
+LIMIT 1`, ownerUserID, key.AgentID, key.Ref)
 	item, err := scanRoomSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

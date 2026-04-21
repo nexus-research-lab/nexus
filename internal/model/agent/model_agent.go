@@ -28,6 +28,7 @@ type Agent struct {
 	AgentID         string    `json:"agent_id"`
 	Name            string    `json:"name"`
 	WorkspacePath   string    `json:"workspace_path"`
+	IsMain          bool      `json:"is_main,omitempty"`
 	DisplayName     string    `json:"display_name,omitempty"`
 	Headline        string    `json:"headline,omitempty"`
 	ProfileMarkdown string    `json:"profile_markdown,omitempty"`
@@ -38,6 +39,7 @@ type Agent struct {
 	Description     string    `json:"description,omitempty"`
 	VibeTags        []string  `json:"vibe_tags,omitempty"`
 	SkillsCount     int       `json:"skills_count"`
+	OwnerUserID     string    `json:"-"`
 }
 
 // CreateRequest 表示创建 Agent 请求。

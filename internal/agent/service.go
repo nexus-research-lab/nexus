@@ -26,8 +26,7 @@ type Service struct {
 	repository Repository
 	history    *workspacestore.AgentHistoryStore
 	prompts    *promptBuilder
-	once       sync.Once
-	readyErr   error
+	readyMu    sync.Mutex
 }
 
 // NewService 创建 Agent 服务。

@@ -85,7 +85,7 @@ func (b *promptBuilder) Build(agentValue *Agent) (string, error) {
 	}
 
 	sections := make([]string, 0, 10)
-	staticPrompt := strings.TrimSpace(b.loadStaticPrompt(agentValue.AgentID))
+	staticPrompt := strings.TrimSpace(b.loadStaticPrompt(agentValue))
 	if staticPrompt != "" {
 		sections = append(sections, staticPrompt)
 	}
@@ -122,8 +122,8 @@ func (b *promptBuilder) Build(agentValue *Agent) (string, error) {
 	return strings.Join(sections, "\n\n---\n\n"), nil
 }
 
-func (b *promptBuilder) loadStaticPrompt(agentID string) string {
-	if strings.TrimSpace(agentID) == strings.TrimSpace(b.config.DefaultAgentID) {
+func (b *promptBuilder) loadStaticPrompt(agentValue *Agent) string {
+	if agentValue != nil && (agentValue.IsMain || strings.TrimSpace(agentValue.AgentID) == strings.TrimSpace(b.config.DefaultAgentID)) {
 		return firstNonEmptyPrompt(b.config.MainAgentSystemPrompt, defaultMainAgentSystemPrompt)
 	}
 	return firstNonEmptyPrompt(b.config.BaseSystemPrompt, defaultBaseSystemPrompt)

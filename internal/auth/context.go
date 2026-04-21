@@ -9,7 +9,10 @@
 
 package auth
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 type principalContextKey struct{}
 type stateContextKey struct{}
@@ -26,6 +29,19 @@ func WithPrincipal(ctx context.Context, principal *Principal) context.Context {
 func PrincipalFromContext(ctx context.Context) *Principal {
 	principal, _ := ctx.Value(principalContextKey{}).(*Principal)
 	return principal
+}
+
+// CurrentUserID 从上下文读取当前用户标识。
+func CurrentUserID(ctx context.Context) (string, bool) {
+	principal := PrincipalFromContext(ctx)
+	if principal == nil {
+		return "", false
+	}
+	userID := strings.TrimSpace(principal.UserID)
+	if userID == "" {
+		return "", false
+	}
+	return userID, true
 }
 
 // WithState 把认证系统状态写入请求上下文。

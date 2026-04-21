@@ -159,6 +159,37 @@ func TestServiceAccessTokenCompat(t *testing.T) {
 	}
 }
 
+func TestServiceDisablesAccessTokenAfterOwnerInit(t *testing.T) {
+	cfg, db := newAuthTestDB(t)
+	cfg.AccessToken = "compat-token"
+	service := NewServiceWithDB(cfg, db)
+	ctx := context.Background()
+
+	if _, err := service.InitOwner(ctx, InitOwnerInput{
+		Username: "admin",
+		Password: "password123",
+	}); err != nil {
+		t.Fatalf("初始化 owner 失败: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/agent/v1/auth/status", nil)
+	request.Header.Set("Authorization", "Bearer compat-token")
+
+	principal, state, err := service.InspectRequest(ctx, request)
+	if err != nil {
+		t.Fatalf("owner 初始化后解析 ACCESS_TOKEN 请求失败: %v", err)
+	}
+	if principal != nil {
+		t.Fatalf("owner 初始化后不应再接受 ACCESS_TOKEN: %+v", principal)
+	}
+	if state.AccessTokenEnabled {
+		t.Fatalf("owner 初始化后 access token 应关闭: %+v", state)
+	}
+	if !state.AuthRequired {
+		t.Fatalf("owner 初始化后仍应要求认证: %+v", state)
+	}
+}
+
 func newAuthTestDB(t *testing.T) (config.Config, *sql.DB) {
 	t.Helper()
 

@@ -98,6 +98,42 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 
 	command.AddCommand(func() *cobra.Command {
 		var (
+			username    string
+			displayName string
+			password    string
+			role        string
+		)
+		createUser := &cobra.Command{
+			Use:   "create",
+			Short: "创建认证用户",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				item, err := service.CreateUser(context.Background(), auth2.CreateUserInput{
+					Username:    username,
+					DisplayName: displayName,
+					Password:    password,
+					Role:        role,
+				})
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "user",
+					"action": "create",
+					"item":   item,
+				})
+			},
+		}
+		createUser.Flags().StringVar(&username, "username", "", "target username")
+		createUser.Flags().StringVar(&displayName, "display-name", "", "target display name")
+		createUser.Flags().StringVar(&password, "password", "", "initial password")
+		createUser.Flags().StringVar(&role, "role", auth2.RoleMember, "user role")
+		_ = createUser.MarkFlagRequired("username")
+		_ = createUser.MarkFlagRequired("password")
+		return createUser
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var (
 			userID   string
 			username string
 			password string

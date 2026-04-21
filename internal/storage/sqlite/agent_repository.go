@@ -28,15 +28,17 @@ func NewAgentRepository(db *sql.DB) *AgentRepository {
 }
 
 // ListActiveAgents 返回所有活跃 Agent。
-func (r *AgentRepository) ListActiveAgents(ctx context.Context) ([]agentmodel.Agent, error) {
-	rows, err := r.db.QueryContext(ctx, `
+func (r *AgentRepository) ListActiveAgents(ctx context.Context, ownerUserID string) ([]agentmodel.Agent, error) {
+	query := `
 	SELECT
 	    a.id,
 	    a.name,
-    a.workspace_path,
-    a.status,
-    COALESCE(a.avatar, ''),
-    COALESCE(a.description, ''),
+	    a.owner_user_id,
+	    a.workspace_path,
+	    a.status,
+	    a.is_main,
+	    COALESCE(a.avatar, ''),
+	    COALESCE(a.description, ''),
 	    COALESCE(a.vibe_tags, '[]'),
 	    COALESCE(p.display_name, ''),
 	    COALESCE(p.headline, ''),
@@ -53,8 +55,15 @@ func (r *AgentRepository) ListActiveAgents(ctx context.Context) ([]agentmodel.Ag
 FROM agents a
 LEFT JOIN profiles p ON p.agent_id = a.id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id
-WHERE a.status = 'active'
-ORDER BY a.created_at ASC`)
+WHERE a.status = 'active'`
+	args := []any{}
+	if ownerUserID != "" {
+		query += ` AND a.owner_user_id = ?`
+		args = append(args, ownerUserID)
+	}
+	query += `
+ORDER BY a.is_main DESC, a.created_at ASC`
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,15 +81,17 @@ ORDER BY a.created_at ASC`)
 }
 
 // GetAgent 返回指定 Agent。
-func (r *AgentRepository) GetAgent(ctx context.Context, agentID string) (*agentmodel.Agent, error) {
-	row := r.db.QueryRowContext(ctx, `
+func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUserID string) (*agentmodel.Agent, error) {
+	query := `
 	SELECT
 	    a.id,
 	    a.name,
-    a.workspace_path,
-    a.status,
-    COALESCE(a.avatar, ''),
-    COALESCE(a.description, ''),
+	    a.owner_user_id,
+	    a.workspace_path,
+	    a.status,
+	    a.is_main,
+	    COALESCE(a.avatar, ''),
+	    COALESCE(a.description, ''),
 	    COALESCE(a.vibe_tags, '[]'),
 	    COALESCE(p.display_name, ''),
 	    COALESCE(p.headline, ''),
@@ -97,7 +108,57 @@ func (r *AgentRepository) GetAgent(ctx context.Context, agentID string) (*agentm
 FROM agents a
 LEFT JOIN profiles p ON p.agent_id = a.id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id
-WHERE a.id = ?`, agentID)
+WHERE a.id = ?`
+	args := []any{agentID}
+	if ownerUserID != "" {
+		query += ` AND a.owner_user_id = ?`
+		args = append(args, ownerUserID)
+	}
+	row := r.db.QueryRowContext(ctx, query, args...)
+
+	item, err := scanAgent(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// GetMainAgent 返回指定用户的主智能体。
+func (r *AgentRepository) GetMainAgent(ctx context.Context, ownerUserID string) (*agentmodel.Agent, error) {
+	if ownerUserID == "" {
+		return nil, nil
+	}
+	row := r.db.QueryRowContext(ctx, `
+SELECT
+    a.id,
+    a.name,
+    a.owner_user_id,
+    a.workspace_path,
+    a.status,
+    a.is_main,
+    COALESCE(a.avatar, ''),
+    COALESCE(a.description, ''),
+    COALESCE(a.vibe_tags, '[]'),
+    COALESCE(p.display_name, ''),
+    COALESCE(p.headline, ''),
+    COALESCE(p.profile_markdown, ''),
+    a.created_at,
+    COALESCE(rt.provider, ''),
+    COALESCE(rt.permission_mode, ''),
+    COALESCE(rt.allowed_tools_json, '[]'),
+    COALESCE(rt.disallowed_tools_json, '[]'),
+    COALESCE(rt.mcp_servers_json, '{}'),
+    rt.max_turns,
+    rt.max_thinking_tokens,
+    COALESCE(rt.setting_sources_json, '[]')
+FROM agents a
+LEFT JOIN profiles p ON p.agent_id = a.id
+LEFT JOIN runtimes rt ON rt.agent_id = a.id
+WHERE a.owner_user_id = ? AND a.status = 'active' AND a.is_main = 1
+LIMIT 1`, ownerUserID)
 
 	item, err := scanAgent(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -118,14 +179,17 @@ func (r *AgentRepository) CreateAgent(ctx context.Context, record agentmodel.Cre
 	defer tx.Rollback()
 
 	if _, err = tx.ExecContext(ctx, `
-INSERT INTO agents (id, slug, name, description, definition, status, workspace_path, avatar, vibe_tags)
-VALUES (?, ?, ?, ?, '', ?, ?, ?, json(?))`,
+INSERT INTO agents (
+    id, owner_user_id, slug, name, description, definition, status, workspace_path, is_main, avatar, vibe_tags
+) VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, json(?))`,
 		record.AgentID,
+		record.OwnerUserID,
 		record.Slug,
 		record.Name,
 		record.Description,
 		record.Status,
 		record.WorkspacePath,
+		record.IsMain,
 		nullIfEmpty(record.Avatar),
 		record.VibeTagsJSON,
 	); err != nil {
@@ -167,7 +231,7 @@ VALUES (?, ?, ?, NULL, ?, ?)`,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return r.GetAgent(ctx, record.AgentID)
+	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
 }
 
 // UpdateAgent 更新 Agent 配置。
@@ -181,7 +245,7 @@ func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentmodel.Upd
 	if _, err = tx.ExecContext(ctx, `
 UPDATE agents
 SET slug = ?, name = ?, workspace_path = ?, avatar = ?, description = ?, vibe_tags = json(?), updated_at = CURRENT_TIMESTAMP
-WHERE id = ?`,
+WHERE id = ? AND owner_user_id = ?`,
 		record.Slug,
 		record.Name,
 		record.WorkspacePath,
@@ -189,6 +253,7 @@ WHERE id = ?`,
 		record.Description,
 		record.VibeTagsJSON,
 		record.AgentID,
+		record.OwnerUserID,
 	); err != nil {
 		return nil, err
 	}
@@ -224,22 +289,28 @@ WHERE agent_id = ?`,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return r.GetAgent(ctx, record.AgentID)
+	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
 }
 
 // ArchiveAgent 软删除 Agent。
-func (r *AgentRepository) ArchiveAgent(ctx context.Context, agentID string) error {
-	_, err := r.db.ExecContext(ctx, `
+func (r *AgentRepository) ArchiveAgent(ctx context.Context, agentID string, ownerUserID string) error {
+	query := `
 UPDATE agents
 SET status = 'archived', updated_at = CURRENT_TIMESTAMP
-WHERE id = ?`, agentID)
+WHERE id = ?`
+	args := []any{agentID}
+	if ownerUserID != "" {
+		query += ` AND owner_user_id = ?`
+		args = append(args, ownerUserID)
+	}
+	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 // ExistsActiveAgentName 检查活跃名称是否已占用。
-func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, name string, excludeAgentID string) (bool, error) {
-	query := `SELECT COUNT(1) FROM agents WHERE status = 'active' AND LOWER(name) = LOWER(?)`
-	args := []any{name}
+func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, ownerUserID string, name string, excludeAgentID string) (bool, error) {
+	query := `SELECT COUNT(1) FROM agents WHERE status = 'active' AND owner_user_id = ? AND LOWER(name) = LOWER(?)`
+	args := []any{ownerUserID, name}
 	if excludeAgentID != "" {
 		query += ` AND id <> ?`
 		args = append(args, excludeAgentID)
@@ -250,6 +321,32 @@ func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, name string
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// PromoteMainAgent 把指定 Agent 提升为主智能体。
+func (r *AgentRepository) PromoteMainAgent(ctx context.Context, agentID string, ownerUserID string) (*agentmodel.Agent, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if _, err = tx.ExecContext(ctx, `
+UPDATE agents
+SET is_main = 0, updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = ?`, ownerUserID); err != nil {
+		return nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `
+UPDATE agents
+SET is_main = 1, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND owner_user_id = ?`, agentID, ownerUserID); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetAgent(ctx, agentID, ownerUserID)
 }
 
 func scanAgent(scanner interface {
@@ -270,8 +367,10 @@ func scanAgent(scanner interface {
 	err := scanner.Scan(
 		&item.AgentID,
 		&item.Name,
+		&item.OwnerUserID,
 		&item.WorkspacePath,
 		&item.Status,
+		&item.IsMain,
 		&item.Avatar,
 		&item.Description,
 		&vibeTagsJSON,

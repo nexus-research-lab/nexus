@@ -116,7 +116,24 @@ git config --global url."git@github.com:".insteadOf https://github.com/
 ssh -T git@github.com
 ```
 
-如果上述前提未满足，`make install` 会在执行 `go mod download` 之前直接失败，并给出明确提示，而不是在更深层的位置报模糊的 GitHub 认证错误。
+如果你之前已经在错误配置下跑过 `go mod tidy` / `go mod download`，Go 可能已经在
+`$GOMODCACHE/pkg/mod/cache/vcs` 里缓存了一份指向 `https://github.com/...` 的旧远端。
+这时即使后面补了 SSH 或 PAT，仍然会继续报：
+
+```text
+fatal: could not read Username for 'https://github.com': terminal prompts disabled
+```
+
+这种情况先清缓存，再重新执行 `go mod tidy`：
+
+```bash
+go clean -modcache
+go mod tidy
+```
+
+如果你不想清整个 module cache，也可以只删除对应的 VCS 缓存目录后再重试。
+
+如果上述前提未满足，`make install` 会在执行 `go mod tidy` 之前直接失败，并给出明确提示，而不是在更深层的位置报模糊的 GitHub 认证错误。
 
 ```bash
 make install
