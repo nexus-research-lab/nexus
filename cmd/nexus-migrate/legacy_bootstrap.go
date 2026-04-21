@@ -68,25 +68,18 @@ func bootstrapLegacyMigrationVersion(
 	if err != nil {
 		return err
 	}
-	currentGo, err := isCurrentGoSchema(ctx, tx, driver)
+	targetVersion, err := detectSchemaVersion(ctx, tx, driver, baselineVersion, latestVersion)
 	if err != nil {
 		return err
 	}
-	var targetVersion int64
-	if currentGo {
-		targetVersion = latestVersion
-	} else {
-		pythonFinal, pythonErr := isPythonFinalSchema(ctx, tx, driver)
-		if pythonErr != nil {
-			return pythonErr
-		}
-		if !pythonFinal {
-			return fmt.Errorf("无法识别当前数据库结构，无法自动推断 Goose 版本")
-		}
+	pythonFinal, err := isPythonFinalSchema(ctx, tx, driver)
+	if err != nil {
+		return err
+	}
+	if pythonFinal {
 		if err = repairPythonFinalSchema(ctx, tx, driver); err != nil {
 			return err
 		}
-		targetVersion = baselineVersion
 	}
 	expectedVersions := filterAppliedVersions(appliedVersions, targetVersion)
 
@@ -209,7 +202,20 @@ func detectSchemaVersion(
 		return 0, err
 	}
 	if currentGo {
-		return latestVersion, nil
+		latestGo, latestErr := isLatestGoSchema(ctx, executor, driver)
+		if latestErr != nil {
+			return 0, latestErr
+		}
+		if latestGo {
+			return latestVersion, nil
+		}
+		// 中文注释：当前库已经进入 Go 时代主线，但还缺最新一次增量迁移；
+		// 这里要回退到“上一版真实 schema”，让 Goose 正常执行剩余迁移，
+		// 不能再把版本表直接写成 latest，否则会跳过待执行的 migration。
+		if latestVersion > baselineVersion {
+			return latestVersion - 1, nil
+		}
+		return baselineVersion, nil
 	}
 
 	pythonFinal, err := isPythonFinalSchema(ctx, executor, driver)
@@ -236,6 +242,27 @@ func isCurrentGoSchema(ctx context.Context, executor sqlExecutor, driver string)
 		return false, err
 	}
 	return authSessionsHasNewShape(ctx, executor, driver)
+}
+
+func isLatestGoSchema(ctx context.Context, executor sqlExecutor, driver string) (bool, error) {
+	requiredColumns := []struct {
+		tableName  string
+		columnName string
+	}{
+		{tableName: "agents", columnName: "owner_user_id"},
+		{tableName: "agents", columnName: "is_main"},
+		{tableName: "rooms", columnName: "owner_user_id"},
+	}
+	for _, item := range requiredColumns {
+		hasColumn, err := columnExists(ctx, executor, driver, item.tableName, item.columnName)
+		if err != nil {
+			return false, err
+		}
+		if !hasColumn {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func isPythonFinalSchema(ctx context.Context, executor sqlExecutor, driver string) (bool, error) {

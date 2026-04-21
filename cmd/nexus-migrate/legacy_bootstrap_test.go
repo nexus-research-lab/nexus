@@ -148,6 +148,67 @@ func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing
 	assertAppliedVersions(t, db, "sqlite", []int64{1, 2, 3})
 }
 
+func TestBootstrapLegacyMigrationVersionKeepsPendingGoMigrationVersion(t *testing.T) {
+	t.Helper()
+
+	db := openSQLiteTestDB(t, "baseline-go-v2.db")
+	defer db.Close()
+
+	cfg := config.Config{DatabaseDriver: "sqlite"}
+	migrationDir := filepath.Join("..", "..", migrationDirFromDriver("sqlite"))
+	setGooseSQLiteDialect(t)
+	if err := goose.UpTo(db, migrationDir, 2); err != nil {
+		t.Fatalf("准备 Go v2 schema 失败: %v", err)
+	}
+
+	if err := bootstrapLegacyMigrationVersion(context.Background(), db, cfg, migrationDir); err != nil {
+		t.Fatalf("bootstrap Go v2 schema 失败: %v", err)
+	}
+
+	assertCurrentVersion(t, db, "sqlite", 2)
+	assertAppliedVersions(t, db, "sqlite", []int64{1, 2})
+
+	if err := goose.Up(db, migrationDir); err != nil {
+		t.Fatalf("执行 00003 migration 失败: %v", err)
+	}
+	assertCurrentVersion(t, db, "sqlite", 3)
+	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
+	assertSQLiteColumnExists(t, db, "agents", "is_main")
+	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
+}
+
+func TestBootstrapLegacyMigrationVersionRepairsPrematureLatestVersion(t *testing.T) {
+	t.Helper()
+
+	db := openSQLiteTestDB(t, "baseline-go-v2-premature-latest.db")
+	defer db.Close()
+
+	cfg := config.Config{DatabaseDriver: "sqlite"}
+	migrationDir := filepath.Join("..", "..", migrationDirFromDriver("sqlite"))
+	setGooseSQLiteDialect(t)
+	if err := goose.UpTo(db, migrationDir, 2); err != nil {
+		t.Fatalf("准备 Go v2 schema 失败: %v", err)
+	}
+	if err := insertGooseVersion(context.Background(), db, "sqlite", 3); err != nil {
+		t.Fatalf("伪造过早 latest 版本失败: %v", err)
+	}
+
+	if err := bootstrapLegacyMigrationVersion(context.Background(), db, cfg, migrationDir); err != nil {
+		t.Fatalf("bootstrap 过早 latest 版本失败: %v", err)
+	}
+
+	assertCurrentVersion(t, db, "sqlite", 2)
+	assertAppliedVersions(t, db, "sqlite", []int64{1, 2})
+
+	if err := goose.Up(db, migrationDir); err != nil {
+		t.Fatalf("执行 00003 migration 失败: %v", err)
+	}
+	assertCurrentVersion(t, db, "sqlite", 3)
+	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
+	assertSQLiteColumnExists(t, db, "agents", "is_main")
+	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
+}
+
 func openSQLiteTestDB(t *testing.T, fileName string) *sql.DB {
 	t.Helper()
 
@@ -310,6 +371,33 @@ func seedGooseVersions(ctx context.Context, db *sql.DB, databaseDriver string, v
 		}
 	}
 	return tx.Commit()
+}
+
+func insertGooseVersion(ctx context.Context, db *sql.DB, databaseDriver string, version int64) error {
+	store, err := goosedb.NewStore(gooseDialect(databaseDriver), "goose_db_version")
+	if err != nil {
+		return err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	if err = store.Insert(ctx, tx, goosedb.InsertRequest{Version: version}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func setGooseSQLiteDialect(t *testing.T) {
+	t.Helper()
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
 }
 
 func assertCurrentVersion(t *testing.T, db *sql.DB, databaseDriver string, expected int64) {
