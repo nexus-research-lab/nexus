@@ -38,6 +38,7 @@ type Config struct {
 	APIPrefix                      string
 	WebSocketPath                  string
 	DefaultAgentID                 string
+	DefaultTimezone                string
 	WorkspacePath                  string
 	CacheFileDir                   string
 	NpmRegistry                    string
@@ -115,6 +116,7 @@ func Load() Config {
 		APIPrefix:                      getEnv("API_PREFIX", "/agent/v1"),
 		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/agent/v1/chat/ws"),
 		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),
+		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
 		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
 		NpmRegistry:                    getEnv("NPM_REGISTRY", ""),

@@ -26,7 +26,7 @@ func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMo
 	case "existing":
 		bound := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
 		if bound == "" {
-			return automationsvc.SessionTarget{}, errors.New("execution_mode=existing requires selected_session_key. Use AskUserQuestion to confirm which existing session should execute the task")
+			return automationsvc.SessionTarget{}, errors.New("execution_mode=existing requires selected_session_key (or an active current session). Pick a session via AskUserQuestion if unsure")
 		}
 		target := automationsvc.SessionTarget{Kind: automationsvc.SessionTargetBound, BoundSessionKey: bound}.Normalized()
 		if err := target.Validate(); err != nil {

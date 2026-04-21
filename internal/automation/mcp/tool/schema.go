@@ -1,21 +1,23 @@
 package tool
 
-// scheduleSchema 对齐前端「新建任务」对话框里的调度面板：
+// scheduleSchema 对齐前端「新建任务」对话框里的调度面板，并兼容 raw cron 表达式：
 //   - kind=single   : 对应 UI「单次」
 //   - kind=daily    : 对应 UI「每天」(时间 + 星期几)
 //   - kind=interval : 对应 UI「间隔」(数值 + 单位)
+//   - kind=cron     : 直接传标准 5 段 cron 表达式（对齐 OpenClaw 的易用写法）
 var scheduleSchema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
-		"kind":           map[string]any{"type": "string", "enum": []string{"single", "daily", "interval"}},
+		"kind":           map[string]any{"type": "string", "enum": []string{"single", "daily", "interval", "cron"}},
 		"run_at":         map[string]any{"type": "string", "description": "single 模式使用，ISO8601 或 YYYY-MM-DDTHH:mm 本地时间"},
 		"daily_time":     map[string]any{"type": "string", "description": "daily 模式使用，HH:MM（24 小时）"},
 		"weekdays":       map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}}, "description": "daily 模式使用，缺省=每天"},
 		"interval_value": map[string]any{"type": "integer", "description": "interval 模式使用，正整数"},
 		"interval_unit":  map[string]any{"type": "string", "enum": []string{"seconds", "minutes", "hours"}, "description": "interval 模式使用"},
-		"timezone":       map[string]any{"type": "string", "description": "IANA 时区，如 Asia/Shanghai，必填"},
+		"expr":           map[string]any{"type": "string", "description": "cron 模式使用，标准 5 段表达式，如 \"0 9 * * 1-5\"。也接受别名 cron / cron_expression"},
+		"timezone":       map[string]any{"type": "string", "description": "IANA 时区（如 Asia/Shanghai）。缺省按服务器默认时区"},
 	},
-	"required": []string{"kind", "timezone"},
+	"required": []string{"kind"},
 }
 
 // executionModeSchema 对齐 UI「执行会话」四个按钮。

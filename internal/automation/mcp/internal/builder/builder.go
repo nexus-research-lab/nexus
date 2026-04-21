@@ -19,9 +19,10 @@ var weekdayCronValue = map[string]int{
 
 var allWeekdayKeys = []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
 
-// Schedule 把 UI 对齐的 schedule 对象（kind=single/daily/interval）翻译成底层 Schedule。
-// kind 必须是新枚举之一；旧的 every/cron/at 入参不再被工具层接受。
-func Schedule(raw any) (automationsvc.Schedule, error) {
+// Schedule 把 UI 对齐的 schedule 对象翻译成底层 Schedule。
+// 支持 kind=single/daily/interval/cron，其中 cron 允许直接传 raw cron 表达式（对齐 OpenClaw 的易用写法）。
+// 入参里若 timezone 为空，使用 defaultTimezone 回退（通常来自 cfg.DefaultTimezone=Asia/Shanghai）。
+func Schedule(raw any, defaultTimezone string) (automationsvc.Schedule, error) {
 	m, ok := raw.(map[string]any)
 	if !ok {
 		return automationsvc.Schedule{}, errors.New("schedule must be an object")
@@ -29,7 +30,16 @@ func Schedule(raw any) (automationsvc.Schedule, error) {
 	kind := strings.TrimSpace(argx.String(m, "kind"))
 	timezone := strings.TrimSpace(argx.String(m, "timezone"))
 	if timezone == "" {
-		return automationsvc.Schedule{}, errors.New("schedule.timezone is required")
+		timezone = strings.TrimSpace(defaultTimezone)
+	}
+	if timezone == "" {
+		timezone = "Asia/Shanghai"
+	}
+
+	// 允许用户直接传 cron 字符串到 schedule.expr / schedule.cron，自动推导 kind=cron。
+	exprAlias := strings.TrimSpace(argx.FirstNonEmpty(argx.String(m, "expr"), argx.String(m, "cron"), argx.String(m, "cron_expression")))
+	if kind == "" && exprAlias != "" {
+		kind = "cron"
 	}
 
 	switch kind {
@@ -64,10 +74,16 @@ func Schedule(raw any) (automationsvc.Schedule, error) {
 		}
 		schedule := automationsvc.Schedule{Kind: automationsvc.ScheduleKindEvery, IntervalSeconds: &seconds, Timezone: timezone}
 		return validateAndNormalize(schedule)
+	case "cron":
+		if exprAlias == "" {
+			return automationsvc.Schedule{}, errors.New("schedule.expr is required when kind=cron (standard 5-field cron expression, e.g. \"0 9 * * 1-5\")")
+		}
+		schedule := automationsvc.Schedule{Kind: automationsvc.ScheduleKindCron, CronExpression: &exprAlias, Timezone: timezone}
+		return validateAndNormalize(schedule)
 	case "":
-		return automationsvc.Schedule{}, errors.New("schedule.kind is required (single / daily / interval)")
+		return automationsvc.Schedule{}, errors.New("schedule.kind is required (single / daily / interval / cron)")
 	default:
-		return automationsvc.Schedule{}, fmt.Errorf("schedule.kind must be one of single, daily, interval (got %q)", kind)
+		return automationsvc.Schedule{}, fmt.Errorf("schedule.kind must be one of single, daily, interval, cron (got %q)", kind)
 	}
 }
 

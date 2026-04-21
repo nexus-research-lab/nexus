@@ -1,12 +1,74 @@
 package semantic
 
 import (
-	"errors"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/automation/mcp/contract"
 	"github.com/nexus-research-lab/nexus/internal/automation/mcp/internal/argx"
 )
+
+// flatScheduleKeys 列出可能被 LLM 平铺到顶层的 schedule 字段。
+// 部分模型（典型如 Grok / 国产模型）不喜欢嵌套对象，会把这些键直接放到 args 顶层。
+// 这里参考 OpenClaw 的 flat-params recovery 思路（cron-tool.ts:293-344），
+// 当 args.schedule 缺失或为空时，自动把这些字段重新组装成嵌套 schedule 对象。
+var flatScheduleKeys = []string{
+	"kind", "timezone",
+	"run_at", "at",
+	"daily_time", "weekdays",
+	"interval_value", "interval_unit",
+	"expr", "cron", "cron_expression",
+}
+
+// ReassembleFlatSchedule 检测顶层平铺的 schedule 字段，缺失时回补成 schedule 对象。
+// 已经显式传 args["schedule"] 的请求不动。
+func ReassembleFlatSchedule(args map[string]any) {
+	if args == nil {
+		return
+	}
+	if existing, ok := args["schedule"].(map[string]any); ok && len(existing) > 0 {
+		return
+	}
+	synthetic := map[string]any{}
+	hasSignal := false
+	for _, key := range flatScheduleKeys {
+		value, exists := args[key]
+		if !exists || value == nil {
+			continue
+		}
+		switch key {
+		case "at":
+			synthetic["run_at"] = value
+		case "cron", "cron_expression":
+			synthetic["expr"] = value
+		default:
+			synthetic[key] = value
+		}
+		if key != "kind" && key != "timezone" {
+			hasSignal = true
+		}
+	}
+	if !hasSignal {
+		return
+	}
+	args["schedule"] = synthetic
+}
+
+// ApplyDefaultTimezone 如果 schedule.timezone 缺失，写入 sctx.DefaultTimezone（兜底 Asia/Shanghai）。
+func ApplyDefaultTimezone(args map[string]any, sctx contract.ServerContext) {
+	schedule, ok := args["schedule"].(map[string]any)
+	if !ok {
+		return
+	}
+	if strings.TrimSpace(argx.String(schedule, "timezone")) != "" {
+		return
+	}
+	tz := strings.TrimSpace(sctx.DefaultTimezone)
+	if tz == "" {
+		tz = "Asia/Shanghai"
+	}
+	schedule["timezone"] = tz
+}
 
 // contextHeavyKeywords 命中后强制要求显式确认 execution/reply 字段，禁止套默认值。
 var contextHeavyKeywords = []string{
@@ -43,6 +105,10 @@ func CanDefaultToTemporaryNone(args map[string]any) bool {
 		if strings.TrimSpace(argx.String(schedule, "run_at")) == "" {
 			return false
 		}
+	case "cron":
+		if strings.TrimSpace(argx.FirstNonEmpty(argx.String(schedule, "expr"), argx.String(schedule, "cron"))) == "" {
+			return false
+		}
 	default:
 		return false
 	}
@@ -50,6 +116,10 @@ func CanDefaultToTemporaryNone(args map[string]any) bool {
 }
 
 // ApplySimpleDefaults 在允许的前提下补齐 execution_mode / reply_mode 默认值。
+// 默认走 temporary + none：
+//   - reply_mode=execution 在 agent 上下文下会被 executionReply 强制改写为 none，
+//     与其让 agent 误以为"会回到我这"，不如直接默认 none，语义诚实。
+//   - 想让结果回到当前会话，agent 必须显式 execution_mode=existing + reply_mode=execution。
 func ApplySimpleDefaults(args map[string]any) map[string]any {
 	if !CanDefaultToTemporaryNone(args) {
 		return args
@@ -63,28 +133,37 @@ func ApplySimpleDefaults(args map[string]any) map[string]any {
 	return args
 }
 
-// RequireExplicitCreateFields 在不允许默认时强制要求 schedule.timezone 与 execution_mode / reply_mode 字段齐全。
+// RequireExplicitCreateFields 在不允许默认时强制要求 execution_mode / reply_mode 字段齐全。
+// 注意：schedule.timezone 现在由 ApplyDefaultTimezone 自动补齐，这里不再强求。
 func RequireExplicitCreateFields(args map[string]any) error {
-	schedule, ok := args["schedule"].(map[string]any)
-	if !ok {
-		return errors.New("schedule is required")
+	if _, ok := args["schedule"].(map[string]any); !ok {
+		return missingFieldsError([]string{"schedule"})
+	}
+	if CanDefaultToTemporaryNone(args) {
+		return nil
 	}
 	missing := []string{}
-	allowSimple := CanDefaultToTemporaryNone(args)
-	if !allowSimple {
-		if argx.String(args, "execution_mode") == "" {
-			missing = append(missing, "execution_mode")
-		}
-		if argx.String(args, "reply_mode") == "" {
-			missing = append(missing, "reply_mode")
-		}
+	if argx.String(args, "execution_mode") == "" {
+		missing = append(missing, "execution_mode")
 	}
-	if strings.TrimSpace(argx.String(schedule, "timezone")) == "" {
-		missing = append(missing, "schedule.timezone")
+	if argx.String(args, "reply_mode") == "" {
+		missing = append(missing, "reply_mode")
 	}
 	if len(missing) > 0 {
-		return errors.New("missing required scheduling fields: " + strings.Join(missing, ", ") +
-			". Do not assume defaults; use AskUserQuestion to confirm them with the user first")
+		return missingFieldsError(missing)
 	}
 	return nil
+}
+
+func missingFieldsError(missing []string) error {
+	return &requiredFieldError{Missing: missing}
+}
+
+type requiredFieldError struct {
+	Missing []string
+}
+
+func (e *requiredFieldError) Error() string {
+	return "missing required scheduling fields: " + strings.Join(e.Missing, ", ") +
+		". Use AskUserQuestion to confirm them with the user, or shorten the instruction (≤24 字) to qualify for the default temporary+none mode."
 }
