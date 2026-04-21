@@ -14,10 +14,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
+
+const interruptForceCancelDelay = 150 * time.Millisecond
 
 // Client 抽象出运行时需要的最小 SDK 能力，便于测试替身接入。
 type Client interface {
@@ -219,12 +222,16 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 
 	roundIDs := make([]string, 0, len(state.RunningRounds))
 	doneSignals := make([]chan struct{}, 0, len(state.RoundDone))
+	cancels := make([]context.CancelFunc, 0, len(state.RoundCancels))
 	for roundID := range state.RunningRounds {
 		roundIDs = append(roundIDs, roundID)
 	}
 	for _, roundID := range roundIDs {
 		if done, ok := state.RoundDone[roundID]; ok && done != nil {
 			doneSignals = append(doneSignals, done)
+		}
+		if cancel, ok := state.RoundCancels[roundID]; ok && cancel != nil {
+			cancels = append(cancels, cancel)
 		}
 	}
 	client := state.Client
@@ -246,17 +253,23 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 	m.mu.Unlock()
 
 	if client == nil {
+		for _, cancel := range cancels {
+			cancel()
+		}
+		if err := waitRoundDoneSignals(ctx, doneSignals, nil); err != nil {
+			return roundIDs, err
+		}
 		return roundIDs, nil
 	}
 	if err := client.Interrupt(ctx); err != nil {
 		return roundIDs, err
 	}
-	for _, done := range doneSignals {
-		select {
-		case <-done:
-		case <-ctx.Done():
-			return roundIDs, ctx.Err()
+	if err := waitRoundDoneSignals(ctx, doneSignals, func() {
+		for _, cancel := range cancels {
+			cancel()
 		}
+	}); err != nil {
+		return roundIDs, err
 	}
 	return roundIDs, nil
 }
@@ -310,4 +323,42 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 
 func sessionBelongsToAgent(sessionKey string, agentID string) bool {
 	return strings.HasPrefix(sessionKey, "agent:"+agentID+":")
+}
+
+func waitRoundDoneSignals(
+	ctx context.Context,
+	doneSignals []chan struct{},
+	forceCancel func(),
+) error {
+	if len(doneSignals) == 0 {
+		return nil
+	}
+
+	timer := time.NewTimer(interruptForceCancelDelay)
+	defer timer.Stop()
+	forceCancelled := forceCancel == nil
+	for _, done := range doneSignals {
+		for {
+			if forceCancelled {
+				select {
+				case <-done:
+					goto nextDone
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+
+			select {
+			case <-done:
+				goto nextDone
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-timer.C:
+				forceCancel()
+				forceCancelled = true
+			}
+		}
+	nextDone:
+	}
+	return nil
 }

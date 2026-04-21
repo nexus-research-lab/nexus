@@ -95,8 +95,8 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取普通 session 消息失败: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("消息归一化结果不正确: got=%d want=2", len(messages))
+	if len(messages) != 3 {
+		t.Fatalf("消息归一化结果不正确: got=%d want=3 messages=%+v", len(messages), messages)
 	}
 	contentBlocks, ok := messages[1]["content"].([]map[string]any)
 	if !ok && messages[1]["content"] != nil {
@@ -117,9 +117,15 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if _, exists := messages[1]["stream_status"]; exists {
 		t.Fatalf("未终止 round 的 assistant 不应补写 stream_status: %+v", messages[1])
 	}
-	summary, ok := messages[1]["result_summary"].(map[string]any)
+	if messages[2]["role"] != "assistant" {
+		t.Fatalf("未终止 round 应追加 synthetic assistant: %+v", messages)
+	}
+	if strings.TrimSpace(stringValue(messages[2]["stop_reason"])) != "cancelled" {
+		t.Fatalf("synthetic assistant stop_reason 不正确: %+v", messages[2])
+	}
+	summary, ok := messages[2]["result_summary"].(map[string]any)
 	if !ok || strings.TrimSpace(stringValue(summary["subtype"])) != "interrupted" {
-		t.Fatalf("未终止 round 应把 interrupted 摘要挂到 assistant 上: %+v", messages[1])
+		t.Fatalf("未终止 round 应把 interrupted 摘要挂到 synthetic assistant 上: %+v", messages[2])
 	}
 
 	messagePage, err := sessionService.GetSessionMessagesPage(ctx, dmKey, sessionsvc.MessagePageRequest{
@@ -128,7 +134,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("分页读取普通 session 消息失败: %v", err)
 	}
-	if len(messagePage.Items) != 2 || messagePage.HasMore {
+	if len(messagePage.Items) != 3 || messagePage.HasMore {
 		t.Fatalf("普通 session 最新页结果不正确: %+v", messagePage)
 	}
 	if messagePage.Items[0]["message_id"] != "round_1" {
@@ -137,20 +143,23 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if messagePage.Items[1]["message_id"] != "msg_assistant_1" {
 		t.Fatalf("普通 session 最新页终点不正确: %+v", messagePage.Items)
 	}
+	if messagePage.Items[2]["message_id"] != "assistant_interrupt_round_1" {
+		t.Fatalf("普通 session synthetic assistant 不正确: %+v", messagePage.Items)
+	}
 
 	roomMessages, err := sessionService.GetSessionMessages(ctx, protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID))
 	if err != nil {
 		t.Fatalf("读取 Room 共享流失败: %v", err)
 	}
-	if len(roomMessages) != 1 {
-		t.Fatalf("Room 共享消息数量不正确: got=%d want=1", len(roomMessages))
+	if len(roomMessages) != 2 {
+		t.Fatalf("Room 共享消息数量不正确: got=%d want=2 messages=%+v", len(roomMessages), roomMessages)
 	}
 	if _, exists := roomMessages[0]["stream_status"]; exists {
 		t.Fatalf("Room assistant 历史回放不应补写 stream_status: %+v", roomMessages[0])
 	}
-	roomSummary, ok := roomMessages[0]["result_summary"].(map[string]any)
+	roomSummary, ok := roomMessages[1]["result_summary"].(map[string]any)
 	if !ok || strings.TrimSpace(stringValue(roomSummary["subtype"])) != "interrupted" {
-		t.Fatalf("Room 未终止 round 应把 interrupted 摘要挂到 assistant 上: %+v", roomMessages[0])
+		t.Fatalf("Room 未终止 round 应把 interrupted 摘要挂到 synthetic assistant 上: %+v", roomMessages)
 	}
 
 	roomMessagePage, err := sessionService.GetSessionMessagesPage(
@@ -161,11 +170,14 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("分页读取 Room 共享流失败: %v", err)
 	}
-	if len(roomMessagePage.Items) != 1 || roomMessagePage.HasMore {
+	if len(roomMessagePage.Items) != 2 || roomMessagePage.HasMore {
 		t.Fatalf("Room 最新页结果不正确: %+v", roomMessagePage)
 	}
 	if roomMessagePage.Items[0]["role"] != "assistant" {
 		t.Fatalf("Room 最新页应返回 assistant 聚合结果: %+v", roomMessagePage.Items)
+	}
+	if roomMessagePage.Items[1]["role"] != "assistant" {
+		t.Fatalf("Room synthetic assistant 应保留在同一轮分页结果里: %+v", roomMessagePage.Items)
 	}
 
 	updatedTitle := "Launcher 重命名"
