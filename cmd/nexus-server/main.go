@@ -1,10 +1,3 @@
-// =====================================================
-// @File   ：main.go
-// @Date   ：2026/04/10 21:22:41
-// @Author ：leemysw
-// 2026/04/10 21:22:41   Create
-// =====================================================
-
 package main
 
 import (
@@ -28,6 +21,7 @@ func main() {
 		Level:   cfg.LogLevel,
 		Format:  cfg.LogFormat,
 		Stdout:  cfg.LogStdout,
+		NoColor: cfg.LogNoColor,
 		File: logx.FileOptions{
 			Enabled:     cfg.LogFileEnabled,
 			Path:        cfg.LogPath,

@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -70,8 +69,7 @@ func (s *Server) handleInstallAgentSkill(writer http.ResponseWriter, request *ht
 	var payload struct {
 		SkillName string `json:"skill_name"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.skills.InstallSkill(request.Context(), chi.URLParam(request, "agent_id"), payload.SkillName)

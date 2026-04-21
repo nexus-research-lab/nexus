@@ -12,6 +12,7 @@ package gateway
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,14 +51,91 @@ func (s *Server) writeSuccess(writer http.ResponseWriter, data any) {
 }
 
 func (s *Server) writeFailure(writer http.ResponseWriter, status int, detail string) {
+	clientDetail := strings.TrimSpace(detail)
+	if clientDetail != "" {
+		s.baseLogger().Warn("网关请求失败", "status", status, "detail", clientDetail)
+	}
+	clientDetail = gatewayClientErrorDetail(status, clientDetail)
 	s.writeJSON(writer, status, map[string]any{
 		"code":    fmtStatusCode(status),
 		"message": "failed",
 		"success": false,
 		"data": map[string]any{
-			"detail": detail,
+			"detail": clientDetail,
 		},
 	})
+}
+
+func gatewayClientErrorDetail(status int, detail string) string {
+	switch status {
+	case http.StatusBadRequest:
+		if isClientMessageText(detail) {
+			return detail
+		}
+		return "请求参数错误"
+	case http.StatusUnauthorized:
+		return "未授权"
+	case http.StatusForbidden:
+		return "禁止访问"
+	case http.StatusNotFound:
+		return "资源不存在"
+	case http.StatusConflict:
+		return "请求冲突"
+	case http.StatusUnprocessableEntity:
+		if isClientMessageText(detail) {
+			return detail
+		}
+		return "请求无效"
+	default:
+		if status >= http.StatusInternalServerError {
+			return "服务内部错误"
+		}
+		if isClientMessageText(detail) {
+			return detail
+		}
+		return "请求失败"
+	}
+}
+
+func (s *Server) bindJSON(writer http.ResponseWriter, request *http.Request, target any) bool {
+	return s.bindJSONWithOptions(writer, request, target, false)
+}
+
+func (s *Server) bindJSONAllowEmpty(writer http.ResponseWriter, request *http.Request, target any) bool {
+	return s.bindJSONWithOptions(writer, request, target, true)
+}
+
+func (s *Server) bindJSONWithOptions(
+	writer http.ResponseWriter,
+	request *http.Request,
+	target any,
+	allowEmpty bool,
+) bool {
+	if err := decodeJSONBody(request.Body, target, allowEmpty); err != nil {
+		if allowEmpty && errors.Is(err, io.EOF) {
+			return true
+		}
+		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+		return false
+	}
+	return true
+}
+
+func decodeJSONBody(body io.Reader, target any, allowEmpty bool) error {
+	decoder := json.NewDecoder(body)
+	if err := decoder.Decode(target); err != nil {
+		if allowEmpty && errors.Is(err, io.EOF) {
+			return io.EOF
+		}
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+	}
+	return errors.New("json body must contain a single top-level value")
 }
 
 func fmtStatusCode(status int) string {
@@ -75,7 +153,10 @@ func isClientMessageError(err error) bool {
 	if err == nil {
 		return false
 	}
-	message := err.Error()
+	return isClientMessageText(err.Error())
+}
+
+func isClientMessageText(message string) bool {
 	return strings.Contains(message, "不能为空") ||
 		strings.Contains(message, "不一致") ||
 		strings.Contains(message, "已存在") ||

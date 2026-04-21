@@ -79,6 +79,7 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 			Level:   cfg.LogLevel,
 			Format:  cfg.LogFormat,
 			Stdout:  cfg.LogStdout,
+			NoColor: cfg.LogNoColor,
 			File: logx.FileOptions{
 				Enabled:     cfg.LogFileEnabled,
 				Path:        cfg.LogPath,
@@ -193,6 +194,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		Addr:              s.config.Address(),
 		Handler:           s.router,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

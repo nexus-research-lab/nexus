@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -42,8 +41,7 @@ func (s *Server) handleAuthLogin(writer http.ResponseWriter, request *http.Reque
 	}
 
 	var payload authLoginPayload
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 

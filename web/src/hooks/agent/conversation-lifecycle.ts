@@ -1,6 +1,6 @@
 import { get_message_history_round_page_size } from "@/config/options";
 import { get_room_conversation_messages } from '@/lib/api/room-api';
-import { build_room_shared_session_key, build_ws_dm_session_key } from '@/lib/conversation/session-key';
+import { build_room_shared_session_key, build_session_key } from '@/lib/conversation/session-key';
 import { generate_uuid } from '@/lib/uuid';
 import { AgentConversationLifecycleContext } from '@/types/agent/agent-conversation';
 
@@ -30,7 +30,12 @@ export function start_agent_session(context: AgentConversationLifecycleContext):
   const new_session_key = (
     chat_type === 'group' && conversation_id
       ? build_room_shared_session_key(conversation_id)
-      : build_ws_dm_session_key(generate_uuid(), agent_id)
+      : build_session_key({
+        channel: 'ws',
+        chat_type: 'dm',
+        ref: generate_uuid(),
+        agent_id,
+      })
   );
   context.load_request_id_ref.current += 1;
   context.active_session_key_ref.current = new_session_key;

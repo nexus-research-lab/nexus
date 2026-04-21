@@ -10,8 +10,8 @@
 package message
 
 import (
-	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -606,25 +606,14 @@ func assistantMessagesEqual(previous sessionmodel.Message, current sessionmodel.
 	if len(previous) == 0 || len(current) == 0 {
 		return false
 	}
-	previousPayload, previousErr := json.Marshal(assistantMessageComparablePayload(previous))
-	currentPayload, currentErr := json.Marshal(assistantMessageComparablePayload(current))
-	if previousErr != nil || currentErr != nil {
-		return false
-	}
-	return string(previousPayload) == string(currentPayload)
-}
-
-func assistantMessageComparablePayload(message sessionmodel.Message) map[string]any {
-	return map[string]any{
-		"message_id":  message["message_id"],
-		"parent_id":   message["parent_id"],
-		"content":     message["content"],
-		"model":       message["model"],
-		"stop_reason": message["stop_reason"],
-		"is_complete": message["is_complete"],
-		"session_id":  message["session_id"],
-		"round_id":    message["round_id"],
-	}
+	return stringValue(previous["message_id"]) == stringValue(current["message_id"]) &&
+		stringValue(previous["parent_id"]) == stringValue(current["parent_id"]) &&
+		stringValue(previous["model"]) == stringValue(current["model"]) &&
+		stringValue(previous["stop_reason"]) == stringValue(current["stop_reason"]) &&
+		stringValue(previous["session_id"]) == stringValue(current["session_id"]) &&
+		stringValue(previous["round_id"]) == stringValue(current["round_id"]) &&
+		boolValue(previous["is_complete"]) == boolValue(current["is_complete"]) &&
+		reflect.DeepEqual(previous["content"], current["content"])
 }
 
 func stringValue(value any) string {

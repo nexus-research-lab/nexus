@@ -549,7 +549,9 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
-	_ = s.permission.BroadcastSessionStatus(ctx, sessionKey, s.runtime.GetRunningRoundIDs(sessionKey))
+	if errs := s.permission.BroadcastSessionStatus(ctx, sessionKey, s.runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
+		s.loggerFor(ctx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
+	}
 }
 
 func (s *Service) loggerFor(ctx context.Context) *slog.Logger {

@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -23,6 +24,12 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
+const (
+	websocketReadLimit   = 4 << 20
+	websocketReadTimeout = 90 * time.Second
+	websocketPingEvery   = 30 * time.Second
+)
+
 func (s *Server) handleWebSocket(writer http.ResponseWriter, request *http.Request) {
 	connection, err := websocket.Accept(writer, request, &websocket.AcceptOptions{
 		OriginPatterns: []string{"*"},
@@ -30,6 +37,7 @@ func (s *Server) handleWebSocket(writer http.ResponseWriter, request *http.Reque
 	if err != nil {
 		return
 	}
+	connection.SetReadLimit(websocketReadLimit)
 	sender := newWebSocketSender(connection)
 	defer func() {
 		sender.MarkClosed()
@@ -44,12 +52,43 @@ func (s *Server) handleWebSocket(writer http.ResponseWriter, request *http.Reque
 	}()
 
 	ctx := request.Context()
+	go s.keepWebSocketAlive(ctx, connection, sender)
 	for {
 		var inbound map[string]any
-		if err := wsjson.Read(ctx, connection, &inbound); err != nil {
+		readCtx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
+		err := wsjson.Read(readCtx, connection, &inbound)
+		cancel()
+		if err != nil {
 			return
 		}
 		s.dispatchWebSocketMessage(ctx, sender, inbound)
+	}
+}
+
+func (s *Server) keepWebSocketAlive(
+	ctx context.Context,
+	connection *websocket.Conn,
+	sender *websocketSender,
+) {
+	ticker := time.NewTicker(websocketPingEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if sender.IsClosed() {
+				return
+			}
+			pingCtx, cancel := context.WithTimeout(ctx, websocketWriteTimeout)
+			err := connection.Ping(pingCtx)
+			cancel()
+			if err != nil {
+				sender.MarkClosed()
+				_ = connection.Close(websocket.StatusPolicyViolation, "ping timeout")
+				return
+			}
+		}
 	}
 }
 
@@ -95,16 +134,11 @@ func (s *Server) handleSubscribeRoom(ctx context.Context, sender *websocketSende
 	roomID := stringValue(inbound["room_id"])
 	conversationID := stringValue(inbound["conversation_id"])
 	if err := s.validateRoomSubscription(ctx, roomID, conversationID); err != nil {
-		_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
-			"",
-			"invalid_room_subscription",
-			err.Error(),
-			map[string]any{
-				"type":            stringValue(inbound["type"]),
-				"room_id":         roomID,
-				"conversation_id": conversationID,
-			},
-		))
+		s.sendGatewayError(ctx, sender, "", "invalid_room_subscription", err, map[string]any{
+			"type":            stringValue(inbound["type"]),
+			"room_id":         roomID,
+			"conversation_id": conversationID,
+		})
 		return
 	}
 	var latestRoomSeq int64
@@ -121,16 +155,11 @@ func (s *Server) handleSubscribeRoom(ctx context.Context, sender *websocketSende
 			lastSeenPtr = &latestRoomSeq
 		}
 		if err := s.roomSubs.SubscribeRoom(ctx, sender, roomID, conversationID, lastSeenPtr); err != nil {
-			_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
-				"",
-				"room_subscription_error",
-				err.Error(),
-				map[string]any{
-					"type":            stringValue(inbound["type"]),
-					"room_id":         roomID,
-					"conversation_id": conversationID,
-				},
-			))
+			s.sendGatewayError(ctx, sender, "", "room_subscription_error", err, map[string]any{
+				"type":            stringValue(inbound["type"]),
+				"room_id":         roomID,
+				"conversation_id": conversationID,
+			})
 			return
 		}
 	}
@@ -257,12 +286,7 @@ func (s *Server) handleControlMessage(ctx context.Context, sender *websocketSend
 			if roundID != "" {
 				details["round_id"] = roundID
 			}
-			_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
-				sessionKey,
-				errorType,
-				err.Error(),
-				details,
-			))
+			s.sendGatewayError(ctx, sender, sessionKey, errorType, err, details)
 			if roundID != "" {
 				_ = sender.SendEvent(ctx, protocol.NewRoundStatusEvent(sessionKey, roundID, "error", "error"))
 			}
@@ -281,12 +305,7 @@ func (s *Server) handleControlMessage(ctx context.Context, sender *websocketSend
 			})
 		}
 		if err != nil {
-			_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
-				sessionKey,
-				"interrupt_error",
-				err.Error(),
-				map[string]any{"type": msgType},
-			))
+			s.sendGatewayError(ctx, sender, sessionKey, "interrupt_error", err, map[string]any{"type": msgType})
 		}
 	case "permission_response":
 		if !s.permission.HandlePermissionResponse(inbound) {
@@ -353,15 +372,47 @@ func (s *Server) validateSessionKey(ctx context.Context, sender *websocketSender
 		if err.Error() == "session_key is required" {
 			errorType = "validation_error"
 		}
-		_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
-			sessionKey,
-			errorType,
-			err.Error(),
-			map[string]any{"type": stringValue(inbound["type"])},
-		))
+		s.sendGatewayError(ctx, sender, sessionKey, errorType, err, map[string]any{"type": stringValue(inbound["type"])})
 		return "", protocol.SessionKey{}, false
 	}
 	return normalized, protocol.ParseSessionKey(normalized), true
+}
+
+func (s *Server) sendGatewayError(
+	ctx context.Context,
+	sender *websocketSender,
+	sessionKey string,
+	errorType string,
+	err error,
+	details map[string]any,
+) {
+	message := s.gatewayErrorDetail(errorType, err)
+	_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(sessionKey, errorType, message, details))
+}
+
+func (s *Server) gatewayErrorDetail(errorType string, err error) string {
+	if err == nil {
+		return "请求失败"
+	}
+	message := strings.TrimSpace(err.Error())
+	switch errorType {
+	case "validation_error", "invalid_room_subscription", "invalid_workspace_subscription":
+		if isClientMessageText(message) {
+			return message
+		}
+		return "请求参数错误"
+	case "invalid_session_key":
+		return "session_key 不合法"
+	case "permission_request_not_found":
+		return "未找到待确认的权限请求"
+	case "session_control_denied":
+		return message
+	default:
+		if isClientMessageError(err) || isStructuredSessionKeyError(err) {
+			return message
+		}
+		return "服务内部错误"
+	}
 }
 
 func (s *Server) newGatewayErrorEvent(sessionKey string, errorType string, message string, details map[string]any) protocol.EventMessage {

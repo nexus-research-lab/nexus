@@ -11,35 +11,33 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"strings"
 )
 
 func (s *Server) handleSubscribeWorkspace(ctx context.Context, sender *websocketSender, inbound map[string]any) {
 	agentID := strings.TrimSpace(stringValue(inbound["agent_id"]))
 	if agentID == "" {
-		_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
+		s.sendGatewayError(
+			ctx,
+			sender,
 			"",
 			"invalid_workspace_subscription",
-			"agent_id is required",
+			errors.New("agent_id is required"),
 			map[string]any{
 				"type": "subscribe_workspace",
 			},
-		))
+		)
 		return
 	}
 	if s.workspaceSubs == nil {
 		return
 	}
 	if err := s.workspaceSubs.Subscribe(ctx, sender, agentID); err != nil {
-		_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
-			"",
-			"workspace_subscription_error",
-			err.Error(),
-			map[string]any{
-				"type":     "subscribe_workspace",
-				"agent_id": agentID,
-			},
-		))
+		s.sendGatewayError(ctx, sender, "", "workspace_subscription_error", err, map[string]any{
+			"type":     "subscribe_workspace",
+			"agent_id": agentID,
+		})
 	}
 }
 

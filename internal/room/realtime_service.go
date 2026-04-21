@@ -36,7 +36,10 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
-const interruptForceCancelDelay = 150 * time.Millisecond
+const (
+	interruptForceCancelDelay = 150 * time.Millisecond
+	roomBroadcastTimeout      = 5 * time.Second
+)
 
 type roomClientFactory interface {
 	New(agentclient.Options) runtimectx.Client
@@ -389,7 +392,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
-	s.permission.BroadcastSessionStatus(ctx, sessionKey, s.runtime.GetRunningRoundIDs(sessionKey))
+	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go s.runRound(roundCtx, activeRound, history, request.Content, agentNameByID, agentByID)
 	return nil
@@ -443,6 +446,36 @@ func (s *RealtimeService) CountRunningTasks(agentID string) int {
 
 func (s *RealtimeService) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
+}
+
+func (s *RealtimeService) withBroadcastTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, roomBroadcastTimeout)
+}
+
+func (s *RealtimeService) broadcastSharedEventWithTimeout(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	event protocol.EventMessage,
+) {
+	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
+	defer cancel()
+	s.broadcastSharedEvent(broadcastCtx, sessionKey, roomID, event)
+}
+
+func (s *RealtimeService) broadcastSessionStatus(ctx context.Context, sessionKey string) {
+	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
+	defer cancel()
+	if errs := s.permission.BroadcastSessionStatus(
+		broadcastCtx,
+		sessionKey,
+		s.runtime.GetRunningRoundIDs(sessionKey),
+	); len(errs) > 0 {
+		s.loggerFor(broadcastCtx).Warn("广播 room session 状态失败", "session_key", sessionKey, "error_count", len(errs))
+	}
 }
 
 // InterruptConversation 中断指定 conversation 的全部活跃轮次。
@@ -567,7 +600,7 @@ func (s *RealtimeService) runRound(
 		finalStatus = "interrupted"
 	}
 	logger.Info("Room round 结束", "status", finalStatus)
-	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomRoundStatusEvent(
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, wrapRoomRoundStatusEvent(
 		roundValue.SessionKey,
 		roundValue.RoomID,
 		roundValue.ConversationID,
@@ -575,7 +608,7 @@ func (s *RealtimeService) runRound(
 		finalStatus,
 		mapTerminalSubtype(finalStatus),
 	))
-	s.permission.BroadcastSessionStatus(context.Background(), roundValue.SessionKey, s.runtime.GetRunningRoundIDs(roundValue.SessionKey))
+	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 }
 
 func (s *RealtimeService) runSlot(
@@ -616,7 +649,7 @@ func (s *RealtimeService) runSlot(
 	defer s.finishSlot(slot)
 
 	if err := s.recordPrivateRoundMarker(slot, latestUserMessage); err != nil {
-		s.handleSlotFailure(roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 
@@ -631,7 +664,7 @@ func (s *RealtimeService) runSlot(
 
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(agentValue)
 	if err != nil {
-		s.handleSlotFailure(roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 	mcpServers := map[string]agentclient.SDKMCPServer(nil)
@@ -655,7 +688,7 @@ func (s *RealtimeService) runSlot(
 		MCPServers:         mcpServers,
 	})
 	if err != nil {
-		s.handleSlotFailure(roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 	client := s.factory.New(options)
@@ -663,16 +696,16 @@ func (s *RealtimeService) runSlot(
 	defer s.permission.UnbindSessionRoute(slot.RuntimeSessionKey)
 
 	if err := client.Connect(slotCtx); err != nil {
-		s.handleSlotFailure(roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 	defer client.Disconnect(context.Background())
 	if err := s.syncSlotSDKSessionID(slotCtx, slot, client.SessionID()); err != nil {
-		s.handleSlotFailure(roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 
-	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
+	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
 		protocol.EventTypeStreamStart,
 		roundValue.SessionKey,
 		roundValue.RoomID,
@@ -688,7 +721,9 @@ func (s *RealtimeService) runSlot(
 		Client: client,
 		Mapper: roomRoundMapperAdapter{mapper: mapper},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			if logger.Enabled(slotCtx, slog.LevelDebug) {
+				logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			}
 		},
 		SyncSessionID: func(sessionID string) error {
 			return s.syncSlotSDKSessionID(slotCtx, slot, sessionID)
@@ -708,23 +743,23 @@ func (s *RealtimeService) runSlot(
 			return nil
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
-			s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, event)
+			s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, event)
 			return nil
 		},
 	})
 	if err != nil {
 		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
-			s.handleSlotCancelled(roundValue, slot, mapper)
+			s.handleSlotCancelled(slotCtx, roundValue, slot, mapper)
 			return
 		}
-		s.handleSlotFailure(roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 
 	if slot.Status == "running" {
 		slot.Status = resultStatus(result.ResultSubtype)
 	}
-	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
+	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
 		protocol.EventTypeStreamEnd,
 		roundValue.SessionKey,
 		roundValue.RoomID,
@@ -748,8 +783,8 @@ func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *active
 	return s.rooms.UpdateSessionSDKSessionID(ctx, slot.RoomSessionID, sessionID)
 }
 
-func (s *RealtimeService) handleSlotFailure(roundValue *activeRoomRound, slot *activeRoomSlot, mapper *slotMessageMapper, err error) {
-	s.loggerFor(context.Background()).Error("Room slot 执行失败",
+func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *slotMessageMapper, err error) {
+	s.loggerFor(ctx).Error("Room slot 执行失败",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
@@ -782,8 +817,8 @@ func (s *RealtimeService) handleSlotFailure(roundValue *activeRoomRound, slot *a
 	if mapper != nil {
 		projectedMessage = mapper.ProjectResultMessage(resultMessage)
 	}
-	s.broadcastSharedEvent(
-		context.Background(),
+	s.broadcastSharedEventWithTimeout(
+		ctx,
 		roundValue.SessionKey,
 		roundValue.RoomID,
 		wrapRoomMessageEvent(
@@ -793,8 +828,8 @@ func (s *RealtimeService) handleSlotFailure(roundValue *activeRoomRound, slot *a
 			slot.AgentRoundID,
 		),
 	)
-	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, s.newRoomErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), slot.AgentRoundID))
-	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, s.newRoomErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), slot.AgentRoundID))
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
 		protocol.EventTypeStreamEnd,
 		roundValue.SessionKey,
 		roundValue.RoomID,
@@ -805,11 +840,11 @@ func (s *RealtimeService) handleSlotFailure(roundValue *activeRoomRound, slot *a
 	))
 }
 
-func (s *RealtimeService) handleSlotCancelled(roundValue *activeRoomRound, slot *activeRoomSlot, mapper *slotMessageMapper) {
+func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *slotMessageMapper) {
 	if !s.markSlotCancelled(slot) {
 		return
 	}
-	s.loggerFor(context.Background()).Warn("Room slot 已取消",
+	s.loggerFor(ctx).Warn("Room slot 已取消",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
@@ -818,7 +853,7 @@ func (s *RealtimeService) handleSlotCancelled(roundValue *activeRoomRound, slot 
 		"msg_id", slot.MsgID,
 	)
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
-	s.broadcastSlotCancelled(roundValue, slot)
+	s.broadcastSlotCancelled(ctx, roundValue, slot)
 }
 
 func (s *RealtimeService) markSlotCancelled(slot *activeRoomSlot) bool {
@@ -829,8 +864,8 @@ func (s *RealtimeService) markSlotCancelled(slot *activeRoomSlot) bool {
 	return true
 }
 
-func (s *RealtimeService) broadcastSlotCancelled(roundValue *activeRoomRound, slot *activeRoomSlot) {
-	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
+func (s *RealtimeService) broadcastSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot) {
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
 		protocol.EventTypeStreamCancelled,
 		roundValue.SessionKey,
 		roundValue.RoomID,
@@ -1187,7 +1222,7 @@ func (s *RealtimeService) interruptRound(
 				return ctx.Err()
 			}
 		}
-		s.permission.BroadcastSessionStatus(context.Background(), sessionKey, s.runtime.GetRunningRoundIDs(sessionKey))
+		s.broadcastSessionStatus(ctx, sessionKey)
 		return nil
 	}
 
@@ -1220,7 +1255,7 @@ func (s *RealtimeService) interruptRound(
 			return ctx.Err()
 		}
 	}
-	s.permission.BroadcastSessionStatus(context.Background(), sessionKey, s.runtime.GetRunningRoundIDs(sessionKey))
+	s.broadcastSessionStatus(ctx, sessionKey)
 	return nil
 }
 

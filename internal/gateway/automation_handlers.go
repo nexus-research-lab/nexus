@@ -10,9 +10,7 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 
@@ -69,8 +67,7 @@ func (s *Server) handleListScheduledTasks(writer http.ResponseWriter, request *h
 
 func (s *Server) handleCreateScheduledTask(writer http.ResponseWriter, request *http.Request) {
 	var payload scheduledTaskCreatePayload
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	sessionTarget := automationsvc.SessionTarget{}
@@ -113,8 +110,7 @@ func (s *Server) handleCreateScheduledTask(writer http.ResponseWriter, request *
 
 func (s *Server) handleUpdateScheduledTask(writer http.ResponseWriter, request *http.Request) {
 	var payload scheduledTaskUpdatePayload
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.automation.UpdateTask(request.Context(), chi.URLParam(request, "job_id"), automationsvc.UpdateJobInput{
@@ -172,8 +168,7 @@ func (s *Server) handleRunScheduledTask(writer http.ResponseWriter, request *htt
 
 func (s *Server) handleUpdateScheduledTaskStatus(writer http.ResponseWriter, request *http.Request) {
 	var payload scheduledTaskStatusPayload
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.automation.UpdateTaskStatus(request.Context(), chi.URLParam(request, "job_id"), payload.Enabled)
@@ -220,8 +215,7 @@ func (s *Server) handleGetHeartbeat(writer http.ResponseWriter, request *http.Re
 
 func (s *Server) handleUpdateHeartbeat(writer http.ResponseWriter, request *http.Request) {
 	var payload heartbeatUpdatePayload
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.automation.UpdateHeartbeat(request.Context(), chi.URLParam(request, "agent_id"), automationsvc.HeartbeatUpdateInput{
@@ -247,8 +241,7 @@ func (s *Server) handleUpdateHeartbeat(writer http.ResponseWriter, request *http
 
 func (s *Server) handleWakeHeartbeat(writer http.ResponseWriter, request *http.Request) {
 	var payload heartbeatWakePayload
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil && !errors.Is(err, io.EOF) {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSONAllowEmpty(writer, request, &payload) {
 		return
 	}
 	item, err := s.automation.WakeHeartbeat(request.Context(), chi.URLParam(request, "agent_id"), automationsvc.HeartbeatWakeRequest{

@@ -53,20 +53,6 @@ export function build_session_key({
   return key;
 }
 
-export function build_ws_dm_session_key(ref: string, agent_id?: string | null): string {
-  return build_session_key({
-    channel: "ws",
-    chat_type: "dm",
-    ref,
-    agent_id,
-  });
-}
-
-export function is_legacy_launcher_app_session_key(session_key: string | null | undefined): boolean {
-  const parsed = parse_session_key(session_key);
-  return parsed.kind === "agent" && Boolean(parsed.ref?.startsWith("launcher-app-"));
-}
-
 export function build_room_shared_session_key(conversation_id: string): string {
   return `${ROOM_SHARED_SESSION_PREFIX}${conversation_id}`;
 }

@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -134,8 +133,7 @@ func (s *Server) handleConversationMessages(writer http.ResponseWriter, request 
 
 func (s *Server) handleCreateRoom(writer http.ResponseWriter, request *http.Request) {
 	var payload room2.CreateRoomRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.roomService.CreateRoom(request.Context(), payload)
@@ -168,8 +166,7 @@ func findPrimaryConversationSession(sessions []room2.SessionRecord) *room2.Sessi
 
 func (s *Server) handleUpdateRoom(writer http.ResponseWriter, request *http.Request) {
 	var payload room2.UpdateRoomRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.roomService.UpdateRoom(request.Context(), chi.URLParam(request, "room_id"), payload)
@@ -231,8 +228,7 @@ func (s *Server) handleEnsureDirectRoom(writer http.ResponseWriter, request *htt
 
 func (s *Server) handleAddRoomMember(writer http.ResponseWriter, request *http.Request) {
 	var payload room2.AddRoomMemberRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.roomService.AddRoomMember(request.Context(), chi.URLParam(request, "room_id"), payload)
@@ -283,8 +279,7 @@ func (s *Server) handleRemoveRoomMember(writer http.ResponseWriter, request *htt
 
 func (s *Server) handleCreateConversation(writer http.ResponseWriter, request *http.Request) {
 	var payload room2.CreateConversationRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.roomService.CreateConversation(request.Context(), chi.URLParam(request, "room_id"), payload)
@@ -306,8 +301,7 @@ func (s *Server) handleCreateConversation(writer http.ResponseWriter, request *h
 
 func (s *Server) handleUpdateConversation(writer http.ResponseWriter, request *http.Request) {
 	var payload room2.UpdateConversationRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.roomService.UpdateConversation(
@@ -361,8 +355,7 @@ func (s *Server) handleDeleteConversation(writer http.ResponseWriter, request *h
 
 func (s *Server) handleLauncherQuery(writer http.ResponseWriter, request *http.Request) {
 	var payload launcher.QueryRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.launcher.Query(request.Context(), payload.Query)
