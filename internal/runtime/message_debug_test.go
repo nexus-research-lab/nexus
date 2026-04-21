@@ -41,8 +41,8 @@ func TestBuildSDKMessageLogSummaryForAssistantSnapshot(t *testing.T) {
 			Message: sdkprotocol.ConversationEnvelope{
 				ID: "msg-assistant",
 				Content: []sdkprotocol.ContentBlock{
-					{Type: "thinking", Thinking: "先分析"},
-					{Type: "text", Text: "再回答"},
+					sdkprotocol.ThinkingBlock{Thinking: "先分析"},
+					sdkprotocol.TextBlock{Text: "再回答"},
 				},
 			},
 		},

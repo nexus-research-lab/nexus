@@ -813,7 +813,7 @@ func isTranscriptToolResult(message sdkprotocol.ReceivedMessage) bool {
 		return true
 	}
 	for _, block := range message.User.Message.Content {
-		blockType := strings.TrimSpace(block.Type)
+		blockType := strings.TrimSpace(string(block.Type()))
 		if blockType == "tool_result" || blockType == "server_tool_result" {
 			return true
 		}

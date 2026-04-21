@@ -10,6 +10,7 @@
 package message
 
 import (
+	"encoding/json"
 	"testing"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -149,10 +150,7 @@ func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 				ID:    "assistant-merge-1",
 				Model: "glm-5-turbo",
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type: "thinking",
-						Thinking: "先想一下",
-					},
+					sdkprotocol.ThinkingBlock{Thinking: "先想一下"},
 				},
 			},
 		},
@@ -172,10 +170,7 @@ func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 				Model:      "glm-5-turbo",
 				StopReason: "end_turn",
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type: "text",
-						Text: "最终回答",
-					},
+					sdkprotocol.TextBlock{Text: "最终回答"},
 				},
 			},
 		},
@@ -269,10 +264,7 @@ func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 				Model:      "glm-5-turbo",
 				StopReason: "end_turn",
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type: "thinking",
-						Thinking: "先分析",
-					},
+					sdkprotocol.ThinkingBlock{Thinking: "先分析"},
 				},
 			},
 		},
@@ -308,14 +300,8 @@ func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 				Model:      "glm-5-turbo",
 				StopReason: "end_turn",
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type: "thinking",
-						Thinking: "先分析",
-					},
-					sdkprotocol.ContentBlock{
-						Type: "text",
-						Text: "最终回答",
-					},
+					sdkprotocol.ThinkingBlock{Thinking: "先分析"},
+					sdkprotocol.TextBlock{Text: "最终回答"},
 				},
 			},
 		},
@@ -359,14 +345,8 @@ func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 				Model:      "glm-5-turbo",
 				StopReason: "end_turn",
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type: "thinking",
-						Thinking: "先分析",
-					},
-					sdkprotocol.ContentBlock{
-						Type: "text",
-						Text: "最终回答",
-					},
+					sdkprotocol.ThinkingBlock{Thinking: "先分析"},
+					sdkprotocol.TextBlock{Text: "最终回答"},
 				},
 			},
 		},
@@ -450,11 +430,7 @@ func TestProcessorHandlesToolResultMessage(t *testing.T) {
 			Message: sdkprotocol.ConversationEnvelope{
 				ID: "assistant-tool-result-1",
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type: "tool_use",
-						ID:   "tool-123",
-						Name: "AskUserQuestion",
-					},
+					sdkprotocol.ToolUseBlock{ID: "tool-123", Name: "AskUserQuestion"},
 				},
 			},
 		},
@@ -465,10 +441,9 @@ func TestProcessorHandlesToolResultMessage(t *testing.T) {
 		User: &sdkprotocol.UserMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type:      "tool_result",
+					sdkprotocol.ToolResultBlock{
 						ToolUseID: "tool-123",
-						Content:   "Permission request timeout",
+						Content:   json.RawMessage(`"Permission request timeout"`),
 						IsError:   true,
 					},
 				},
@@ -509,7 +484,7 @@ func TestProcessorEnrichesPermissionErrorCode(t *testing.T) {
 		Assistant: &sdkprotocol.AssistantMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{Type: "tool_use", ID: "tool-456", Name: "AskUserQuestion"},
+					sdkprotocol.ToolUseBlock{ID: "tool-456", Name: "AskUserQuestion"},
 				},
 			},
 		},
@@ -520,10 +495,9 @@ func TestProcessorEnrichesPermissionErrorCode(t *testing.T) {
 		User: &sdkprotocol.UserMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type:      "tool_result",
+					sdkprotocol.ToolResultBlock{
 						ToolUseID: "tool-456",
-						Content:   "Permission channel unavailable",
+						Content:   json.RawMessage(`"Permission channel unavailable"`),
 						IsError:   true,
 					},
 				},
@@ -550,11 +524,10 @@ func TestProcessorNormalizesServerToolAliases(t *testing.T) {
 		Assistant: &sdkprotocol.AssistantMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ContentBlock{
-						Type:  "tool_use",
+					sdkprotocol.ToolUseBlock{
 						ID:    "tool-alias-1",
 						Name:  "SearchWeb",
-						Input: map[string]any{"query": "test"},
+						Input: json.RawMessage(`{"query":"test"}`),
 					},
 				},
 			},

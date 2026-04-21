@@ -391,12 +391,6 @@ func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
 }
 
-func (s *Service) isAutomationLoopRunning() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.started
-}
-
 // ListTaskRuns 返回任务运行历史。
 func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]CronRun, error) {
 	if err := s.ensureReady(ctx); err != nil {
@@ -430,7 +424,7 @@ func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*Hear
 		EverySeconds:    state.Config.EverySeconds,
 		TargetMode:      state.Config.TargetMode,
 		AckMaxChars:     state.Config.AckMaxChars,
-		Running:         s.isAutomationLoopRunning(),
+		Running:         state.Running,
 		PendingWake:     state.PendingWake,
 		NextRunAt:       cloneTimePointer(state.NextRunAt),
 		LastHeartbeatAt: cloneTimePointer(state.LastHeartbeatAt),
@@ -527,6 +521,7 @@ func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request Hea
 	switch mode {
 	case WakeModeNow:
 		if state.Running {
+			state.PendingWake = true
 			s.mu.Unlock()
 			return &HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: true}, nil
 		}
@@ -596,7 +591,14 @@ func (s *Service) runDueOnce() {
 		if state == nil || state.Running {
 			continue
 		}
-		if !state.Config.Enabled || state.NextRunAt == nil || state.NextRunAt.After(now) {
+		if !state.Config.Enabled {
+			continue
+		}
+		if s.hasImmediateWakeRequestLocked(agentID) {
+			dueHeartbeats = append(dueHeartbeats, agentID)
+			continue
+		}
+		if state.NextRunAt == nil || state.NextRunAt.After(now) {
 			continue
 		}
 		dueHeartbeats = append(dueHeartbeats, agentID)
@@ -800,9 +802,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		state = runtime
 	}
 	s.mu.Unlock()
-	immediateWakeRequests := s.drainNowWakeRequests(agentID)
-	deferredWakeRequests := s.listNextHeartbeatWakeRequests(agentID)
-	defer s.clearWakeRequestsBySession(sessionKey)
+	immediateWakeRequests, deferredWakeRequests := s.takeWakeRequests(agentID, sessionKey)
 
 	events, err := s.claimSystemEvents(ctx, agentID)
 	if err != nil {
@@ -1320,57 +1320,44 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 		WakeMode:   strings.TrimSpace(wakeMode),
 		Text:       strings.TrimSpace(anyStringPointer(text)),
 	}
-	items := append([]heartbeatWakeRequest(nil), s.wakeRequests[sessionKey]...)
-	for index, item := range items {
-		if item.WakeMode == request.WakeMode {
-			items[index] = request
-			s.wakeRequests[sessionKey] = items
-			return
-		}
+	s.wakeRequests[sessionKey] = append(s.wakeRequests[sessionKey], request)
+	if state := s.heartbeatState[request.AgentID]; state != nil {
+		state.PendingWake = true
 	}
-	s.wakeRequests[sessionKey] = append(items, request)
 }
 
-func (s *Service) drainNowWakeRequests(agentID string) []heartbeatWakeRequest {
+func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
+	sessionKey := buildMainSessionKey(agentID)
+	for _, item := range s.wakeRequests[sessionKey] {
+		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == WakeModeNow {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]heartbeatWakeRequest, []heartbeatWakeRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	result := make([]heartbeatWakeRequest, 0)
-	for sessionKey, items := range s.wakeRequests {
-		kept := make([]heartbeatWakeRequest, 0, len(items))
-		for _, item := range items {
-			if item.AgentID == strings.TrimSpace(agentID) && item.WakeMode == WakeModeNow {
-				result = append(result, item)
-				continue
-			}
-			kept = append(kept, item)
-		}
-		if len(kept) == 0 {
-			delete(s.wakeRequests, sessionKey)
+
+	sessionKey = strings.TrimSpace(sessionKey)
+	items := append([]heartbeatWakeRequest(nil), s.wakeRequests[sessionKey]...)
+	delete(s.wakeRequests, sessionKey)
+
+	immediate := make([]heartbeatWakeRequest, 0, len(items))
+	deferred := make([]heartbeatWakeRequest, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.AgentID) != strings.TrimSpace(agentID) {
 			continue
 		}
-		s.wakeRequests[sessionKey] = kept
-	}
-	return result
-}
-
-func (s *Service) listNextHeartbeatWakeRequests(agentID string) []heartbeatWakeRequest {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	result := make([]heartbeatWakeRequest, 0)
-	for _, items := range s.wakeRequests {
-		for _, item := range items {
-			if item.AgentID == strings.TrimSpace(agentID) && item.WakeMode == WakeModeNextHeartbeat {
-				result = append(result, item)
-			}
+		switch item.WakeMode {
+		case WakeModeNow:
+			immediate = append(immediate, item)
+		case WakeModeNextHeartbeat:
+			deferred = append(deferred, item)
 		}
 	}
-	return result
-}
-
-func (s *Service) clearWakeRequestsBySession(sessionKey string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.wakeRequests, strings.TrimSpace(sessionKey))
+	return immediate, deferred
 }
 
 func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job CronJob) error {

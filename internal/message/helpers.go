@@ -117,7 +117,7 @@ func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any 
 		if len(payload) == 0 {
 			payload = map[string]any{}
 		}
-		payload["type"] = normalizeBlockType(block.Type)
+		payload["type"] = normalizeBlockType(string(block.Type()))
 		mergeNormalizedBlockPayload(payload, block)
 		result = append(result, payload)
 	}
@@ -125,39 +125,47 @@ func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any 
 }
 
 func cloneBlockPayload(block sdkprotocol.ContentBlock) map[string]any {
-	result := map[string]any{}
-	if value := strings.TrimSpace(block.Text); value != "" {
-		result["text"] = value
+	result := cloneMap(block.RawPayload())
+	if result == nil {
+		result = map[string]any{}
 	}
-	if value := strings.TrimSpace(block.Thinking); value != "" {
-		result["thinking"] = value
+	if value, ok := sdkprotocol.AsTextBlock(block); ok {
+		if text := strings.TrimSpace(value.Text); text != "" {
+			result["text"] = text
+		}
 	}
-	if value := strings.TrimSpace(block.Signature); value != "" {
-		result["signature"] = value
+	if value, ok := sdkprotocol.AsThinkingBlock(block); ok {
+		if thinking := strings.TrimSpace(value.Thinking); thinking != "" {
+			result["thinking"] = thinking
+		}
+		if signature := strings.TrimSpace(value.Signature); signature != "" {
+			result["signature"] = signature
+		}
 	}
-	if value := strings.TrimSpace(block.ID); value != "" {
-		result["id"] = value
+	if value, ok := sdkprotocol.AsToolUseBlock(block); ok {
+		if id := strings.TrimSpace(value.ID); id != "" {
+			result["id"] = id
+		}
+		if name := strings.TrimSpace(value.Name); name != "" {
+			result["name"] = name
+		}
+		if input := decodeRawJSON(value.Input); input != nil {
+			result["input"] = input
+		}
 	}
-	if value := strings.TrimSpace(block.Name); value != "" {
-		result["name"] = value
-	}
-	if len(block.Input) > 0 {
-		result["input"] = cloneMap(block.Input)
-	}
-	if block.Content != nil {
-		result["content"] = block.Content
-	}
-	if value := strings.TrimSpace(block.ToolUseID); value != "" {
-		result["tool_use_id"] = value
-	}
-	if block.IsError {
-		result["is_error"] = true
-	}
-	if value := strings.TrimSpace(block.MimeType); value != "" {
-		result["mime_type"] = value
-	}
-	for key, value := range block.Additional {
-		result[key] = value
+	if value, ok := sdkprotocol.AsToolResultBlock(block); ok {
+		if toolUseID := strings.TrimSpace(value.ToolUseID); toolUseID != "" {
+			result["tool_use_id"] = toolUseID
+		}
+		if content := decodeRawJSON(value.Content); content != nil {
+			result["content"] = content
+		}
+		if value.IsError {
+			result["is_error"] = true
+		}
+		if mimeType := strings.TrimSpace(value.MimeType); mimeType != "" {
+			result["mime_type"] = mimeType
+		}
 	}
 	if len(result) == 0 {
 		return nil
@@ -192,20 +200,28 @@ func normalizeBlockType(blockType string) string {
 }
 
 func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.ContentBlock) {
-	switch normalizeBlockType(block.Type) {
+	switch normalizeBlockType(string(block.Type())) {
 	case "text":
-		payload["text"] = block.Text
+		if value, ok := sdkprotocol.AsTextBlock(block); ok {
+			payload["text"] = value.Text
+		}
 	case "thinking":
-		payload["thinking"] = block.Thinking
-		payload["signature"] = emptyToNil(block.Signature)
+		if value, ok := sdkprotocol.AsThinkingBlock(block); ok {
+			payload["thinking"] = value.Thinking
+			payload["signature"] = emptyToNil(value.Signature)
+		}
 	case "tool_use":
-		payload["id"] = block.ID
-		payload["name"] = block.Name
-		payload["input"] = firstNonNilMap(cloneMap(block.Input), map[string]any{})
+		if value, ok := sdkprotocol.AsToolUseBlock(block); ok {
+			payload["id"] = value.ID
+			payload["name"] = value.Name
+			payload["input"] = firstNonNilMap(mapValue(decodeRawJSON(value.Input)), map[string]any{})
+		}
 	case "tool_result":
-		payload["tool_use_id"] = block.ToolUseID
-		payload["content"] = block.Content
-		payload["is_error"] = block.IsError
-		payload["mime_type"] = emptyToNil(block.MimeType)
+		if value, ok := sdkprotocol.AsToolResultBlock(block); ok {
+			payload["tool_use_id"] = value.ToolUseID
+			payload["content"] = decodeRawJSON(value.Content)
+			payload["is_error"] = value.IsError
+			payload["mime_type"] = emptyToNil(value.MimeType)
+		}
 	}
 }
