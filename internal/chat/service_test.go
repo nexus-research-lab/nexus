@@ -211,7 +211,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 						ID:    "assistant-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							{Type: "text", Text: "你好，世界"},
+							sdkprotocol.TextBlock{Text: "你好，世界"},
 						},
 					},
 				},
@@ -462,7 +462,7 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 						ID:    "assistant-think-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							{Type: "text", Text: "今天天气 很不错"},
+							sdkprotocol.TextBlock{Text: "今天天气 很不错"},
 						},
 					},
 				},

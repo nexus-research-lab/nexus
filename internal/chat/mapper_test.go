@@ -277,7 +277,7 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 		Assistant: &sdkprotocol.AssistantMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					{Type: "tool_use", ID: "tool-mapper-1", Name: "WebSearch"},
+					sdkprotocol.ToolUseBlock{ID: "tool-mapper-1", Name: "WebSearch"},
 				},
 			},
 		},
@@ -290,8 +290,7 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 		User: &sdkprotocol.UserMessage{
 			Message: sdkprotocol.ConversationEnvelope{
 				Content: []sdkprotocol.ContentBlock{
-					{
-						Type:      "tool_result",
+					sdkprotocol.ToolResultBlock{
 						ToolUseID: "tool-mapper-1",
 						Content:   json.RawMessage(`"搜索结果"`),
 						IsError:   false,
