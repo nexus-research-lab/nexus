@@ -23,7 +23,6 @@ export async function get_capability_summary_api(): Promise<CapabilitySummary> {
     `${AGENT_API_BASE_URL}/capability/summary`,
     {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
     },
   );
 }

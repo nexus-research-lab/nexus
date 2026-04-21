@@ -4,11 +4,19 @@
  * 在 React 组件中使用 WebSocket。
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { WebSocketClient } from './socket-client';
-import { WebSocketConfig, WebSocketState, WebSocketMessage, WebSocketSendResult } from '@/types/system/websocket';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { WebSocketClient } from "./socket-client";
+import {
+  WebSocketConfig,
+  WebSocketState,
+  WebSocketMessage,
+  WebSocketSendResult,
+} from "@/types/system/websocket";
 
-export interface UseWebSocketOptions extends Omit<WebSocketConfig, 'protocols'> {
+export interface UseWebSocketOptions extends Omit<
+  WebSocketConfig,
+  "protocols"
+> {
   on_message?: (message: any) => void;
   on_error?: (error: Event) => void;
   on_state_change?: (state: WebSocketState) => void;
@@ -27,7 +35,7 @@ interface SharedWebSocketSubscriber {
 class SharedWebSocketChannel {
   private readonly client: WebSocketClient;
   private readonly subscribers = new Map<number, SharedWebSocketSubscriber>();
-  private state: WebSocketState = 'disconnected';
+  private state: WebSocketState = "disconnected";
   private error: Event | null = null;
 
   constructor(config: WebSocketConfig) {
@@ -46,12 +54,12 @@ class SharedWebSocketChannel {
       },
       on_state_change: (state) => {
         this.state = state;
-        if (state === 'connected') {
+        if (state === "connected") {
           this.error = null;
         }
         for (const subscriber of this.subscribers.values()) {
           subscriber.set_state(state);
-          if (state === 'connected') {
+          if (state === "connected") {
             subscriber.set_error(null);
           }
           subscriber.on_state_change?.(state);
@@ -103,7 +111,9 @@ const shared_channel_cleanup_timers = new Map<string, number>();
 let next_subscriber_id = 1;
 const SHARED_SOCKET_RELEASE_DELAY_MS = 300;
 
-function build_shared_channel_config(options: UseWebSocketOptions): WebSocketConfig {
+function build_shared_channel_config(
+  options: UseWebSocketOptions,
+): WebSocketConfig {
   return {
     url: options.url,
     reconnect: options.reconnect ?? true,
@@ -115,24 +125,29 @@ function build_shared_channel_config(options: UseWebSocketOptions): WebSocketCon
   };
 }
 
-function get_or_create_shared_channel(options: UseWebSocketOptions): SharedWebSocketChannel {
+function get_or_create_shared_channel(
+  options: UseWebSocketOptions,
+): SharedWebSocketChannel {
   const existing_channel = shared_channels.get(options.url);
   if (existing_channel) {
     return existing_channel;
   }
 
-  const next_channel = new SharedWebSocketChannel(build_shared_channel_config(options));
+  const next_channel = new SharedWebSocketChannel(
+    build_shared_channel_config(options),
+  );
   shared_channels.set(options.url, next_channel);
   return next_channel;
 }
 
 export function useWebSocket(options: UseWebSocketOptions) {
-  const [state, setState] = useState<WebSocketState>(() => (
-    shared_channels.get(options.url)?.get_snapshot().state ?? 'disconnected'
-  ));
-  const [error, setError] = useState<Event | null>(() => (
-    shared_channels.get(options.url)?.get_snapshot().error ?? null
-  ));
+  const [state, setState] = useState<WebSocketState>(
+    () =>
+      shared_channels.get(options.url)?.get_snapshot().state ?? "disconnected",
+  );
+  const [error, setError] = useState<Event | null>(
+    () => shared_channels.get(options.url)?.get_snapshot().error ?? null,
+  );
   const channel_ref = useRef<SharedWebSocketChannel | null>(null);
   const on_message_ref = useRef(options.on_message);
   const on_error_ref = useRef(options.on_error);
@@ -140,15 +155,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
   useEffect(() => {
     on_message_ref.current = options.on_message;
-  }, [options.on_message]);
-
-  useEffect(() => {
     on_error_ref.current = options.on_error;
-  }, [options.on_error]);
-
-  useEffect(() => {
     on_state_change_ref.current = options.on_state_change;
-  }, [options.on_state_change]);
+  }, [options.on_error, options.on_message, options.on_state_change]);
 
   // 使用useCallback稳定化回调函数
   const on_message_callback = useCallback((msg: any) => {
@@ -196,7 +205,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
           if (channel.has_subscribers()) {
             return;
           }
-          console.debug('[useWebSocket] Cleaning up shared WebSocket client');
+          console.debug("[useWebSocket] Cleaning up shared WebSocket client");
           channel.disconnect();
           if (shared_channels.get(options.url) === channel) {
             shared_channels.delete(options.url);
@@ -209,12 +218,12 @@ export function useWebSocket(options: UseWebSocketOptions) {
         channel_ref.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 维度创建，配置由首个订阅者固定。
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 维度创建，配置由首个订阅者固定。
   }, [options.url]);
 
   const send = useCallback((data: WebSocketMessage): WebSocketSendResult => {
     if (!channel_ref.current) {
-      return { disposition: 'dropped' };
+      return { disposition: "dropped" };
     }
     return channel_ref.current.send(data);
   }, []);
