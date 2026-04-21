@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Agent scope**：普通 Agent 只能 CRUD 自己 `agent_id` 名下的任务，`list_scheduled_tasks` 默认只返回自己的任务；主智能体（`config.DefaultAgentID`）豁免。
   - **Lenient 默认**：短文本（≤24 字、无"总结/汇总/报告/summary/report/analyze"等中英文重业务关键词）提醒类任务可省略 `execution_mode` / `reply_mode`，工具会默认按 `temporary + none` 创建；`schedule.timezone` 缺省回退 `config.DefaultTimezone`（默认 `Asia/Shanghai`）。
   - **扁平字段兼容**：顶层平铺的 schedule 字段（`kind` / `run_at` / `daily_time` / `expr` 等）会自动重组为嵌套 `schedule` 对象，兼容不喜欢嵌套的模型。
+  - **cron 回翻成 UI 可编辑形态**：agent 经 `kind=cron` 提交的任务，工具层会把表达式翻译回 `daily_time + weekdays` 语义（要求 minute/hour 为单整数、dom/month=`*`）；无法翻译的表达式直接拒绝，避免产生 UI 无法编辑的「幽灵任务」。
   - Skill `scheduled-task-manager` 与默认/主智能体 AGENTS 模板同步更新，明确「ScheduleWakeup 仅用于会话内自我提醒，所有用户可见的定时需求都走 `create_scheduled_task`」的分流规则与自管原则。
 
 ### Added

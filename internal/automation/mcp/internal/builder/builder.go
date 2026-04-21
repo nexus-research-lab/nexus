@@ -78,8 +78,13 @@ func Schedule(raw any, defaultTimezone string) (automationsvc.Schedule, error) {
 		if exprAlias == "" {
 			return automationsvc.Schedule{}, errors.New("schedule.expr is required when kind=cron (standard 5-field cron expression, e.g. \"0 9 * * 1-5\")")
 		}
-		schedule := automationsvc.Schedule{Kind: automationsvc.ScheduleKindCron, CronExpression: &exprAlias, Timezone: timezone}
-		return validateAndNormalize(schedule)
+		// 尝试把 cron 翻译回 UI 能表达的 daily 形态，让 agent 创建的任务也能在「新建任务」对话框里编辑。
+		// 翻译不出来直接拒绝，避免产生 UI 无法编辑的"幽灵任务"。
+		normalized, err := normalizeCronToDaily(exprAlias, timezone)
+		if err != nil {
+			return automationsvc.Schedule{}, err
+		}
+		return normalized, nil
 	case "":
 		return automationsvc.Schedule{}, errors.New("schedule.kind is required (single / daily / interval / cron)")
 	default:
@@ -183,6 +188,141 @@ func intervalSeconds(value int, unit string) (int, error) {
 	default:
 		return 0, fmt.Errorf("schedule.interval_unit must be one of seconds, minutes, hours (got %q)", unit)
 	}
+}
+
+// normalizeCronToDaily 把 raw cron 表达式翻译成 daily 形态（minute hour * * dow），
+// 让 agent 经 kind=cron 创建的任务也能在 UI「新建任务」对话框里编辑。
+//
+// 接受形态（dom/month 必须是 *）：
+//   - "M H * * *"          → 每天 HH:MM
+//   - "M H * * dow"        → 每周指定几天 HH:MM（dow 支持 *、单数字、逗号列表、a-b 区间）
+//
+// 翻译不出来直接拒绝并返回引导信息——避免产生 UI 无法编辑的「幽灵任务」。
+func normalizeCronToDaily(expr, timezone string) (automationsvc.Schedule, error) {
+	fields := strings.Fields(strings.TrimSpace(expr))
+	if len(fields) != 5 {
+		return automationsvc.Schedule{}, cronUnsupportedError(expr, "expected standard 5-field cron expression (minute hour day-of-month month day-of-week)")
+	}
+	minute, hour, dom, month, dow := fields[0], fields[1], fields[2], fields[3], fields[4]
+	if dom != "*" || month != "*" {
+		return automationsvc.Schedule{}, cronUnsupportedError(expr, "day-of-month and month must both be '*' (Nexus UI only edits daily/weekly schedules; for monthly cadence use kind=interval or split into multiple daily tasks)")
+	}
+	min, err := parseCronSingleInt(minute, 0, 59)
+	if err != nil {
+		return automationsvc.Schedule{}, cronUnsupportedError(expr, "minute field must be a single integer 0-59 (ranges/lists/steps not supported by UI)")
+	}
+	hr, err := parseCronSingleInt(hour, 0, 23)
+	if err != nil {
+		return automationsvc.Schedule{}, cronUnsupportedError(expr, "hour field must be a single integer 0-23 (ranges/lists/steps not supported by UI)")
+	}
+	weekdays, err := parseCronDayOfWeek(dow)
+	if err != nil {
+		return automationsvc.Schedule{}, cronUnsupportedError(expr, err.Error())
+	}
+	cronExpr, err := buildDailyCron(fmt.Sprintf("%02d:%02d", hr, min), weekdays)
+	if err != nil {
+		return automationsvc.Schedule{}, cronUnsupportedError(expr, err.Error())
+	}
+	schedule := automationsvc.Schedule{Kind: automationsvc.ScheduleKindCron, CronExpression: &cronExpr, Timezone: timezone}
+	return validateAndNormalize(schedule)
+}
+
+func cronUnsupportedError(expr, reason string) error {
+	return fmt.Errorf("cron expression %q cannot be normalized to a UI-editable schedule: %s. Use kind=daily / kind=interval instead so the task remains editable in the UI", expr, reason)
+}
+
+func parseCronSingleInt(field string, min, max int) (int, error) {
+	field = strings.TrimSpace(field)
+	if field == "" || strings.ContainsAny(field, "*,/-") {
+		return 0, fmt.Errorf("expected single integer in [%d,%d], got %q", min, max, field)
+	}
+	var n int
+	if _, err := fmt.Sscanf(field, "%d", &n); err != nil {
+		return 0, err
+	}
+	if n < min || n > max {
+		return 0, fmt.Errorf("value %d out of range [%d,%d]", n, min, max)
+	}
+	return n, nil
+}
+
+// cronWeekdayName 把 cron dow 数字（0=Sun..6=Sat）映射回 UI 三字母简写。
+var cronWeekdayName = map[int]string{0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat"}
+
+// parseCronDayOfWeek 解析 cron 的 day-of-week 字段，返回 UI 三字母 weekday 列表。
+//   - "*"          → nil（每天）
+//   - "1"          → ["mon"]
+//   - "1,3,5"      → ["mon","wed","fri"]
+//   - "1-5"        → ["mon","tue","wed","thu","fri"]
+//   - "0,6"        → ["sun","sat"]
+//
+// 不支持步长（"*/2"）和 7 这种别名（cron 里 0 和 7 都是周日，UI 只用 0=sun）。
+func parseCronDayOfWeek(field string) ([]string, error) {
+	field = strings.TrimSpace(field)
+	if field == "" || field == "*" {
+		return nil, nil
+	}
+	if strings.Contains(field, "/") {
+		return nil, fmt.Errorf("day-of-week step (%q) not supported", field)
+	}
+	values := map[int]struct{}{}
+	for _, segment := range strings.Split(field, ",") {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			return nil, fmt.Errorf("day-of-week %q has empty segment", field)
+		}
+		if strings.Contains(segment, "-") {
+			parts := strings.SplitN(segment, "-", 2)
+			start, err := parseCronWeekdayInt(parts[0])
+			if err != nil {
+				return nil, err
+			}
+			end, err := parseCronWeekdayInt(parts[1])
+			if err != nil {
+				return nil, err
+			}
+			if end < start {
+				return nil, fmt.Errorf("day-of-week range %q is descending", segment)
+			}
+			for v := start; v <= end; v++ {
+				values[v] = struct{}{}
+			}
+			continue
+		}
+		v, err := parseCronWeekdayInt(segment)
+		if err != nil {
+			return nil, err
+		}
+		values[v] = struct{}{}
+	}
+	if len(values) == 0 || len(values) == 7 {
+		return nil, nil
+	}
+	keys := make([]int, 0, len(values))
+	for v := range values {
+		keys = append(keys, v)
+	}
+	sort.Ints(keys)
+	out := make([]string, 0, len(keys))
+	for _, v := range keys {
+		out = append(out, cronWeekdayName[v])
+	}
+	return out, nil
+}
+
+func parseCronWeekdayInt(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	var n int
+	if _, err := fmt.Sscanf(s, "%d", &n); err != nil {
+		return 0, fmt.Errorf("day-of-week segment %q is not an integer", s)
+	}
+	if n == 7 {
+		n = 0 // cron 兼容：7 也是周日
+	}
+	if n < 0 || n > 6 {
+		return 0, fmt.Errorf("day-of-week value %d out of range [0,6]", n)
+	}
+	return n, nil
 }
 
 // SessionTarget 把 session_target 对象翻译成底层 SessionTarget。

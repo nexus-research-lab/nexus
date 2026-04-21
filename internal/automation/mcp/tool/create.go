@@ -15,7 +15,7 @@ import (
 
 const createDescription = "创建定时任务（== UI「新建任务」对话框的命令版本）。" +
 	"必填：name / instruction / schedule。schedule.kind 支持 single|daily|interval|cron 四种：" +
-	"single+run_at / daily+daily_time(+weekdays) / interval+interval_value+interval_unit / cron+expr(标准 5 段 cron 表达式)。" +
+	"single+run_at / daily+daily_time(+weekdays) / interval+interval_value+interval_unit / cron+expr(标准 5 段 cron 表达式，会被翻译回 daily 形态以保证 UI 可编辑；只支持 minute/hour 为单整数 + dom/month=* 的表达式)。" +
 	"schedule.timezone 缺省按服务器默认时区（通常 Asia/Shanghai）。" +
 	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected)，缺省走 temporary+none——" +
 	"短文本提醒类任务直接发即可；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
