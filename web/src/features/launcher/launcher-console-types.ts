@@ -1,12 +1,3 @@
-/**
- * =====================================================
- * @File   ：launcher-console-types.ts
- * @Date   ：2026-04-16 16:22
- * @Author ：leemysw
- * 2026-04-16 16:22   Create
- * =====================================================
- */
-
 import { MentionTargetItem } from "@/features/conversation/shared/mention-popover";
 import {
   LauncherAgentSummary,

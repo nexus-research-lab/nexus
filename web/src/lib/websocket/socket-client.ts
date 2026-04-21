@@ -8,14 +8,14 @@ import {
   WebSocketMessage,
   WebSocketSendResult,
   WebSocketState,
-} from '@/types/system/websocket';
-import { notify_auth_required } from '@/lib/api/http';
+} from "@/types/system/websocket";
+import { notify_auth_required } from "@/lib/api/http";
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private config: Required<WebSocketConfig>;
   private callbacks: WebSocketClientCallbacks;
-  private state: WebSocketState = 'disconnected';
+  private state: WebSocketState = "disconnected";
   private isIntentionalDisconnect = false;
   private reconnectAttempts = 0;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -25,7 +25,7 @@ export class WebSocketClient {
   private lastServerActivityTime = 0;
 
   private readonly DEFAULT_CONFIG: Required<WebSocketConfig> = {
-    url: '',
+    url: "",
     protocols: [],
     reconnect: true,
     max_reconnect_attempts: 5,
@@ -35,8 +35,11 @@ export class WebSocketClient {
     heartbeat_timeout: 10000,
   };
 
-  constructor(config: WebSocketConfig, callbacks: WebSocketClientCallbacks = {}) {
-    this.config = {...this.DEFAULT_CONFIG, ...config};
+  constructor(
+    config: WebSocketConfig,
+    callbacks: WebSocketClientCallbacks = {},
+  ) {
+    this.config = { ...this.DEFAULT_CONFIG, ...config };
     this.callbacks = callbacks;
   }
 
@@ -44,14 +47,15 @@ export class WebSocketClient {
    * 连接WebSocket
    */
   public connect(): void {
-    if (this.state === 'connecting' || this.state === 'connected') {
-      console.warn('[WebSocketClient] Already connecting or connected');
+    if (this.state === "connecting" || this.state === "connected") {
+      console.warn("[WebSocketClient] Already connecting or connected");
       return;
     }
 
     // 重连或重新连接前，清空主动断开标记，避免误伤真实错误。
     this.isIntentionalDisconnect = false;
-    this.setState('connecting');
+    this.clearReconnectTimer();
+    this.setState("connecting");
     this.createConnection();
   }
 
@@ -64,10 +68,10 @@ export class WebSocketClient {
     this.config.reconnect = false; // 禁止自动重连
     this.cleanup();
     if (this.ws) {
-      this.ws.close(1000, 'Client disconnect');
+      this.ws.close(1000, "Client disconnect");
       this.ws = null;
     }
-    this.setState('disconnected');
+    this.setState("disconnected");
   }
 
   /**
@@ -75,33 +79,39 @@ export class WebSocketClient {
    */
   public send(data: WebSocketMessage): WebSocketSendResult {
     if (!this.should_queue_message(data) && this.isTransportStale()) {
-      console.warn('[WebSocketClient] Transport stale, reconnect before sending business message', data.type);
-      this.forceReconnect('Transport stale');
-      return { disposition: 'dropped' };
+      console.warn(
+        "[WebSocketClient] Transport stale, reconnect before sending business message",
+        data.type,
+      );
+      this.forceReconnect("Transport stale");
+      return { disposition: "dropped" };
     }
 
-    if (this.state === 'connected' && this.ws?.readyState === WebSocket.OPEN) {
+    if (this.state === "connected" && this.ws?.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify(data));
-        return { disposition: 'sent' };
+        return { disposition: "sent" };
       } catch (error) {
-        console.error('[WebSocketClient] Send error:', error);
+        console.error("[WebSocketClient] Send error:", error);
         if (this.should_queue_message(data)) {
           this.messageQueue.push(data);
-          return { disposition: 'queued' };
+          return { disposition: "queued" };
         }
-        return { disposition: 'dropped' };
+        return { disposition: "dropped" };
       }
     }
 
     if (this.should_queue_message(data)) {
       this.messageQueue.push(data);
-      console.warn('[WebSocketClient] Message queued, not connected');
-      return { disposition: 'queued' };
+      console.warn("[WebSocketClient] Message queued, not connected");
+      return { disposition: "queued" };
     }
 
-    console.warn('[WebSocketClient] Message dropped, transport unavailable', data.type);
-    return { disposition: 'dropped' };
+    console.warn(
+      "[WebSocketClient] Message dropped, transport unavailable",
+      data.type,
+    );
+    return { disposition: "dropped" };
   }
 
   /**
@@ -114,12 +124,12 @@ export class WebSocketClient {
   /**
    * 强制重建连接，避免继续复用僵尸连接。
    */
-  public forceReconnect(reason: string = 'Force reconnect'): void {
+  public forceReconnect(reason: string = "Force reconnect"): void {
     const previousSocket = this.ws;
     this.cleanup();
     this.isIntentionalDisconnect = false;
     this.ws = null;
-    this.setState('reconnecting');
+    this.setState("reconnecting");
 
     if (previousSocket) {
       previousSocket.onopen = null;
@@ -129,13 +139,15 @@ export class WebSocketClient {
       try {
         previousSocket.close(4001, reason);
       } catch (error) {
-        console.debug('[WebSocketClient] Ignore close error during forceReconnect', error);
+        console.debug(
+          "[WebSocketClient] Ignore close error during forceReconnect",
+          error,
+        );
       }
     }
 
     this.createConnection();
   }
-
 
   /**
    * 创建WebSocket连接
@@ -149,7 +161,7 @@ export class WebSocketClient {
       this.ws.onerror = (event) => this.handleError(event);
       this.ws.onclose = (event) => this.handleClose(event);
     } catch (error) {
-      console.error('[WebSocketClient] Connection error:', error);
+      console.error("[WebSocketClient] Connection error:", error);
       this.handleConnectionFailure();
     }
   }
@@ -158,10 +170,10 @@ export class WebSocketClient {
    * 处理连接打开
    */
   private handleOpen(event: Event): void {
-    console.debug('[WebSocketClient] Connected');
+    console.debug("[WebSocketClient] Connected");
     this.isIntentionalDisconnect = false;
     this.lastServerActivityTime = Date.now();
-    this.setState('connected');
+    this.setState("connected");
     this.reconnectAttempts = 0;
 
     // 启动心跳
@@ -186,14 +198,14 @@ export class WebSocketClient {
       this.lastServerActivityTime = Date.now();
 
       // 处理pong响应
-      if (data.event_type === 'pong') {
+      if (data.event_type === "pong") {
         this.resetHeartbeatTimeout();
         return;
       }
 
       this.callbacks.on_message?.(data);
     } catch (error) {
-      console.error('[WebSocketClient] Message parse error:', error);
+      console.error("[WebSocketClient] Message parse error:", error);
     }
   }
 
@@ -202,11 +214,13 @@ export class WebSocketClient {
    */
   private handleError(event: Event): void {
     if (this.isIntentionalDisconnect) {
-      console.debug('[WebSocketClient] Ignored WebSocket error during intentional disconnect');
+      console.debug(
+        "[WebSocketClient] Ignored WebSocket error during intentional disconnect",
+      );
       return;
     }
 
-    console.error('[WebSocketClient] WebSocket error:', event);
+    console.error("[WebSocketClient] WebSocket error:", event);
     this.callbacks.on_error?.(event);
   }
 
@@ -214,20 +228,20 @@ export class WebSocketClient {
    * 处理连接关闭
    */
   private handleClose(event: CloseEvent): void {
-    console.debug('[WebSocketClient] Disconnected:', event.code, event.reason);
+    console.debug("[WebSocketClient] Disconnected:", event.code, event.reason);
 
     this.cleanup();
     this.callbacks.on_close?.(event);
 
     if (this.isIntentionalDisconnect) {
       this.ws = null;
-      this.setState('disconnected');
+      this.setState("disconnected");
       return;
     }
 
     if (event.code === 4401) {
       this.ws = null;
-      this.setState('failed');
+      this.setState("failed");
       notify_auth_required();
       return;
     }
@@ -237,35 +251,38 @@ export class WebSocketClient {
       this.attemptReconnect();
     } else {
       this.ws = null;
-      this.setState('disconnected');
+      this.setState("disconnected");
     }
   }
-
 
   /**
    * 尝试重连
    */
   private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.config.max_reconnect_attempts) {
-      console.error('[WebSocketClient] Max reconnect attempts reached');
-      this.setState('failed');
+      console.error("[WebSocketClient] Max reconnect attempts reached");
+      this.setState("failed");
       this.callbacks.on_max_retries_reached?.();
       return;
     }
 
     this.reconnectAttempts++;
-    this.setState('reconnecting');
+    this.setState("reconnecting");
     this.callbacks.on_reconnecting?.(this.reconnectAttempts);
 
     // 指数退避
     const delay = Math.min(
       this.config.reconnect_delay * Math.pow(2, this.reconnectAttempts - 1),
-      this.config.max_reconnect_delay
+      this.config.max_reconnect_delay,
     );
 
-    console.debug(`[WebSocketClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.max_reconnect_attempts})`);
+    console.debug(
+      `[WebSocketClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.max_reconnect_attempts})`,
+    );
 
+    this.clearReconnectTimer();
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       this.createConnection();
     }, delay);
   }
@@ -277,7 +294,7 @@ export class WebSocketClient {
     if (this.config.reconnect) {
       this.attemptReconnect();
     } else {
-      this.setState('failed');
+      this.setState("failed");
     }
   }
 
@@ -293,13 +310,13 @@ export class WebSocketClient {
     }
 
     this.heartbeatTimer = setInterval(() => {
-      if (this.state === 'connected') {
-        this.send({type: 'ping'});
+      if (this.state === "connected") {
+        this.send({ type: "ping" });
 
         // 启动心跳超时检测
         this.heartbeatTimeoutTimer = setTimeout(() => {
-          console.warn('[WebSocketClient] Heartbeat timeout, reconnecting...');
-          this.ws?.close(4000, 'Heartbeat timeout');
+          console.warn("[WebSocketClient] Heartbeat timeout, reconnecting...");
+          this.ws?.close(4000, "Heartbeat timeout");
         }, this.config.heartbeat_timeout);
       }
     }, this.config.heartbeat_interval);
@@ -345,11 +362,15 @@ export class WebSocketClient {
    * 清理资源
    */
   private cleanup(): void {
+    this.clearReconnectTimer();
+    this.stopHeartbeat();
+  }
+
+  private clearReconnectTimer(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.stopHeartbeat();
   }
 
   /**
@@ -358,13 +379,13 @@ export class WebSocketClient {
    */
   private should_queue_message(data: WebSocketMessage): boolean {
     switch (data.type) {
-      case 'ping':
-      case 'bind_session':
-      case 'unbind_session':
-      case 'subscribe_room':
-      case 'unsubscribe_room':
-      case 'subscribe_workspace':
-      case 'unsubscribe_workspace':
+      case "ping":
+      case "bind_session":
+      case "unbind_session":
+      case "subscribe_room":
+      case "unsubscribe_room":
+      case "subscribe_workspace":
+      case "unsubscribe_workspace":
         return true;
       default:
         return false;
@@ -375,14 +396,15 @@ export class WebSocketClient {
    * OPEN 但长时间收不到任何服务端活动时，视为僵尸连接。
    */
   private isTransportStale(): boolean {
-    if (this.state !== 'connected' || this.ws?.readyState !== WebSocket.OPEN) {
+    if (this.state !== "connected" || this.ws?.readyState !== WebSocket.OPEN) {
       return false;
     }
     if (this.lastServerActivityTime <= 0) {
       return false;
     }
 
-    const maxSilenceMs = this.config.heartbeat_interval + this.config.heartbeat_timeout;
+    const maxSilenceMs =
+      this.config.heartbeat_interval + this.config.heartbeat_timeout;
     return Date.now() - this.lastServerActivityTime > maxSilenceMs;
   }
 

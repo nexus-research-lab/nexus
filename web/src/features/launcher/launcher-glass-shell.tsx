@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：launcher-glass-shell.tsx
-# @Date   ：2026-04-12 19:43
-# @Author ：leemysw
-# 2026-04-12 19:43   Create
-# =====================================================
-*/
-
 "use client";
 
 import { ReactNode, useId } from "react";
@@ -42,7 +31,12 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
   const tint_gradient_id = useId();
 
   return (
-    <div className={cn("relative w-full max-w-[404px] sm:max-w-[980px]", class_name)}>
+    <div
+      className={cn(
+        "relative w-full max-w-[404px] sm:max-w-[980px]",
+        class_name,
+      )}
+    >
       <div
         className="absolute inset-[-18%] z-0 translate-y-4 pointer-events-none blur-[28px] sm:translate-y-5"
         style={{ background: "var(--launcher-hero-aura)" }}
@@ -63,15 +57,36 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
               y1="92"
               y2="640"
             >
-              <stop offset="0%" style={{ stopColor: "var(--launcher-hero-stop-1)" }} />
-              <stop offset="44%" style={{ stopColor: "var(--launcher-hero-stop-2)" }} />
-              <stop offset="100%" style={{ stopColor: "var(--launcher-hero-stop-3)" }} />
+              <stop
+                offset="0%"
+                style={{ stopColor: "var(--launcher-hero-stop-1)" }}
+              />
+              <stop
+                offset="44%"
+                style={{ stopColor: "var(--launcher-hero-stop-2)" }}
+              />
+              <stop
+                offset="100%"
+                style={{ stopColor: "var(--launcher-hero-stop-3)" }}
+              />
             </linearGradient>
             <radialGradient id={tint_gradient_id} cx="20%" cy="18%" r="88%">
-              <stop offset="0%" style={{ stopColor: "var(--launcher-hero-tint-1)" }} />
-              <stop offset="42%" style={{ stopColor: "var(--launcher-hero-tint-2)" }} />
-              <stop offset="74%" style={{ stopColor: "var(--launcher-hero-tint-3)" }} />
-              <stop offset="100%" style={{ stopColor: "var(--launcher-hero-tint-4)" }} />
+              <stop
+                offset="0%"
+                style={{ stopColor: "var(--launcher-hero-tint-1)" }}
+              />
+              <stop
+                offset="42%"
+                style={{ stopColor: "var(--launcher-hero-tint-2)" }}
+              />
+              <stop
+                offset="74%"
+                style={{ stopColor: "var(--launcher-hero-tint-3)" }}
+              />
+              <stop
+                offset="100%"
+                style={{ stopColor: "var(--launcher-hero-tint-4)" }}
+              />
             </radialGradient>
             <linearGradient
               id={outer_edge_glow_gradient_id}
@@ -86,7 +101,13 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
               <stop offset="74%" stopColor="rgba(211,224,248,0.18)" />
               <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
             </linearGradient>
-            <filter id={outer_edge_glow_id} x="-20%" y="-80%" width="140%" height="260%">
+            <filter
+              id={outer_edge_glow_id}
+              x="-20%"
+              y="-80%"
+              width="140%"
+              height="260%"
+            >
               <feGaussianBlur stdDeviation="5.2" />
             </filter>
           </defs>
@@ -103,7 +124,7 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
             d={OUTER_INNER_PATH_1}
             fill="none"
             filter={`url(#${outer_edge_glow_id})`}
-            opacity={0.60}
+            opacity={0.6}
             stroke="rgba(255,255,255,0.18)"
             strokeWidth="12"
           />

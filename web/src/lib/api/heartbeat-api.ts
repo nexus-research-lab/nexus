@@ -4,6 +4,7 @@
 
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
+import { to_timestamp_or_null } from "@/lib/api/timestamp-utils";
 import type {
   ApiHeartbeatStatus,
   ApiHeartbeatWakeResult,
@@ -16,20 +17,14 @@ import type {
 const AGENT_API_BASE_URL = get_agent_api_base_url();
 const HEARTBEAT_API_BASE_URL = `${AGENT_API_BASE_URL}/automation/heartbeat`;
 
-function to_timestamp(value?: string | null): number | null {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function transform_heartbeat_config(api_config: ApiHeartbeatStatus): HeartbeatConfig {
+function transform_heartbeat_config(
+  api_config: ApiHeartbeatStatus,
+): HeartbeatConfig {
   return {
     ...api_config,
-    next_run_at: to_timestamp(api_config.next_run_at),
-    last_heartbeat_at: to_timestamp(api_config.last_heartbeat_at),
-    last_ack_at: to_timestamp(api_config.last_ack_at),
+    next_run_at: to_timestamp_or_null(api_config.next_run_at),
+    last_heartbeat_at: to_timestamp_or_null(api_config.last_heartbeat_at),
+    last_ack_at: to_timestamp_or_null(api_config.last_ack_at),
   };
 }
 
@@ -40,7 +35,6 @@ export async function get_heartbeat_config_api(
     `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}`,
     {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
     },
   );
 
@@ -55,7 +49,6 @@ export async function update_heartbeat_api(
     `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}`,
     {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     },
   );
@@ -71,7 +64,6 @@ export async function wake_heartbeat_api(
     `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}/wake`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: params.mode ?? "now",
         text: params.text,

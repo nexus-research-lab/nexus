@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：launcher-page.tsx
-# @Date   ：2026-04-15 18:16
-# @Author ：leemysw
-# 2026-04-15 18:16   Create
-# =====================================================
-*/
-
 "use client";
 
 import { useCallback, useState } from "react";

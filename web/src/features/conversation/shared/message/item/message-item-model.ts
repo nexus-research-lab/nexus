@@ -33,7 +33,11 @@ import {
   match_pending_permissions_to_tool_uses,
 } from "@/types/conversation/permission";
 
-import type { MessageItemProps, MessageItemState, MessageStatsData } from "./message-item-types";
+import type {
+  MessageItemProps,
+  MessageItemState,
+  MessageStatsData,
+} from "./message-item-types";
 import {
   extract_text_from_content_blocks,
   find_latest_streaming_block,
@@ -117,34 +121,48 @@ export function useMessageItemState({
       return [];
     }
 
-    return messages.filter((message): message is SystemMessage => (
-      message.role === "system"
-      && typeof message.content === "string"
-      && Boolean(message.content.trim())
-    ));
+    return messages.filter(
+      (message): message is SystemMessage =>
+        message.role === "system" &&
+        typeof message.content === "string" &&
+        Boolean(message.content.trim()),
+    );
   }, [is_last_round, is_loading, messages]);
-  const system_event_blocks = useMemo<SystemEventContent[]>(() => (
-    system_messages.map((message) => {
-      const display_meta = get_system_message_display_meta(message);
-      return {
-        type: "system_event",
-        content: message.content,
-        label: display_meta.label,
-        tone: display_meta.tone,
-        icon: display_meta.icon,
-        source_message_id: message.message_id,
-        timestamp: message.timestamp,
-        subtype: message.metadata?.subtype,
-        tool_use_id: typeof message.metadata?.tool_use_id === "string"
-          ? message.metadata.tool_use_id
-          : null,
-      };
-    })
-  ), [system_messages]);
+  const system_event_blocks = useMemo<SystemEventContent[]>(
+    () =>
+      system_messages.map((message) => {
+        const display_meta = get_system_message_display_meta(message);
+        return {
+          type: "system_event",
+          content: message.content,
+          label: display_meta.label,
+          tone: display_meta.tone,
+          icon: display_meta.icon,
+          source_message_id: message.message_id,
+          timestamp: message.timestamp,
+          subtype: message.metadata?.subtype,
+          tool_use_id:
+            typeof message.metadata?.tool_use_id === "string"
+              ? message.metadata.tool_use_id
+              : null,
+        };
+      }),
+    [system_messages],
+  );
+  const source_message_order_by_id = useMemo(() => {
+    const next_order = new Map<string, number>();
+    messages.forEach((message, index) => {
+      next_order.set(message.message_id, index);
+    });
+    return next_order;
+  }, [messages]);
 
   const first_assistant = assistant_messages[0] as AssistantMessage | undefined;
   const model = first_assistant?.model;
-  const timestamp = first_assistant?.timestamp || system_event_blocks[0]?.timestamp || result_summary?.timestamp;
+  const timestamp =
+    first_assistant?.timestamp ||
+    system_event_blocks[0]?.timestamp ||
+    result_summary?.timestamp;
 
   const stream_status = useMemo(() => {
     return first_assistant?.stream_status ?? null;
@@ -153,13 +171,14 @@ export function useMessageItemState({
   const stats = useMemo<MessageStatsData | null>(() => {
     const usage = result_summary?.usage;
     const duration = result_summary
-      ? (result_summary.duration_ms > 0
+      ? result_summary.duration_ms > 0
         ? `${(result_summary.duration_ms / 1000).toFixed(1)}s`
-        : "0s")
+        : "0s"
       : null;
-    const cost = result_summary?.total_cost_usd !== undefined
-      ? `$${result_summary.total_cost_usd.toFixed(4)}`
-      : null;
+    const cost =
+      result_summary?.total_cost_usd !== undefined
+        ? `$${result_summary.total_cost_usd.toFixed(4)}`
+        : null;
     const cache_hit = usage?.cache_read_input_tokens;
     const tokens = usage
       ? `${format_compact_count(usage.input_tokens)}↑ ${format_compact_count(usage.output_tokens)}↓`
@@ -173,7 +192,10 @@ export function useMessageItemState({
       duration,
       tokens,
       cost,
-      cache_hit: cache_hit && cache_hit > 0 ? `缓存 ${format_compact_count(cache_hit)}` : null,
+      cache_hit:
+        cache_hit && cache_hit > 0
+          ? `缓存 ${format_compact_count(cache_hit)}`
+          : null,
     };
   }, [result_summary]);
 
@@ -195,7 +217,8 @@ export function useMessageItemState({
       };
     }
 
-    const unresolved_tool_use_candidates = collect_unresolved_tool_use_candidates(messages);
+    const unresolved_tool_use_candidates =
+      collect_unresolved_tool_use_candidates(messages);
     const permission_match_result = match_pending_permissions_to_tool_uses(
       pending_permissions,
       unresolved_tool_use_candidates,
@@ -204,51 +227,61 @@ export function useMessageItemState({
       permission_match_result.matched_permissions_by_tool_use_id,
     );
 
-    const unmatched_question_permissions = permission_match_result.unmatched_permissions.filter(
-      (permission) => (
-        permission.interaction_mode === "question"
-        || permission.tool_name === "AskUserQuestion"
-      ),
-    );
-    const unresolved_question_candidates = unresolved_tool_use_candidates.filter(
-      (candidate) => (
-        candidate.tool_name === "AskUserQuestion"
-        && !matched_permissions_by_tool_use_id.has(candidate.tool_use_id)
-      ),
-    );
+    const unmatched_question_permissions =
+      permission_match_result.unmatched_permissions.filter(
+        (permission) =>
+          permission.interaction_mode === "question" ||
+          permission.tool_name === "AskUserQuestion",
+      );
+    const unresolved_question_candidates =
+      unresolved_tool_use_candidates.filter(
+        (candidate) =>
+          candidate.tool_name === "AskUserQuestion" &&
+          !matched_permissions_by_tool_use_id.has(candidate.tool_use_id),
+      );
 
     // Room 场景下 AskUserQuestion 的 permission_request 会先绑定占位槽位，
     // 这里按 round_id 和单候选规则做一次安全补配，避免问答块丢失交互能力。
     for (const permission of unmatched_question_permissions) {
       const candidates_by_round = unresolved_question_candidates.filter(
-        (candidate) => !matched_permissions_by_tool_use_id.has(candidate.tool_use_id)
-          && (
-            !permission.caused_by
-            || candidate.round_id === permission.caused_by
-          ),
+        (candidate) =>
+          !matched_permissions_by_tool_use_id.has(candidate.tool_use_id) &&
+          (!permission.caused_by ||
+            candidate.round_id === permission.caused_by),
       );
 
       if (candidates_by_round.length === 1) {
-        matched_permissions_by_tool_use_id.set(candidates_by_round[0].tool_use_id, permission);
+        matched_permissions_by_tool_use_id.set(
+          candidates_by_round[0].tool_use_id,
+          permission,
+        );
         continue;
       }
 
       const remaining_candidates = unresolved_question_candidates.filter(
-        (candidate) => !matched_permissions_by_tool_use_id.has(candidate.tool_use_id),
+        (candidate) =>
+          !matched_permissions_by_tool_use_id.has(candidate.tool_use_id),
       );
-      if (remaining_candidates.length === 1 && unmatched_question_permissions.length === 1) {
-        matched_permissions_by_tool_use_id.set(remaining_candidates[0].tool_use_id, permission);
+      if (
+        remaining_candidates.length === 1 &&
+        unmatched_question_permissions.length === 1
+      ) {
+        matched_permissions_by_tool_use_id.set(
+          remaining_candidates[0].tool_use_id,
+          permission,
+        );
       }
     }
 
     return {
-      matched_pending_permissions_by_tool_use_id: matched_permissions_by_tool_use_id,
-      unmatched_pending_permissions: permission_match_result.unmatched_permissions.filter(
-        (permission) => (
-          permission.interaction_mode !== "question"
-          && permission.tool_name !== "AskUserQuestion"
+      matched_pending_permissions_by_tool_use_id:
+        matched_permissions_by_tool_use_id,
+      unmatched_pending_permissions:
+        permission_match_result.unmatched_permissions.filter(
+          (permission) =>
+            permission.interaction_mode !== "question" &&
+            permission.tool_name !== "AskUserQuestion",
         ),
-      ),
     };
   }, [messages, pending_permissions]);
 
@@ -262,16 +295,26 @@ export function useMessageItemState({
     return next_ids;
   }, [hidden_tool_names, merged_content]);
 
-  const visible_ordered_assistant_entries = useMemo<OrderedAssistantEntry[]>(() => {
+  const visible_ordered_assistant_entries = useMemo<
+    OrderedAssistantEntry[]
+  >(() => {
     const assistant_entries: OrderedAssistantEntry[] = [];
+    const resolve_source_order = (source_message_id: string) =>
+      source_message_order_by_id.get(source_message_id) ??
+      Number.MAX_SAFE_INTEGER;
 
     merged_content.forEach((block, merged_index) => {
+      const source_message_id =
+        merged_content_source_message_ids[merged_index] || "";
+      const source_order = resolve_source_order(source_message_id);
+
       if (block.type === "text") {
         if (block.text.trim()) {
           assistant_entries.push({
             block,
             merged_index,
-            source_message_id: merged_content_source_message_ids[merged_index] || "",
+            source_message_id,
+            source_order,
           });
         }
         return;
@@ -282,7 +325,8 @@ export function useMessageItemState({
           assistant_entries.push({
             block,
             merged_index,
-            source_message_id: merged_content_source_message_ids[merged_index] || "",
+            source_message_id,
+            source_order,
           });
         }
         return;
@@ -293,7 +337,8 @@ export function useMessageItemState({
           assistant_entries.push({
             block,
             merged_index,
-            source_message_id: merged_content_source_message_ids[merged_index] || "",
+            source_message_id,
+            source_order,
           });
         }
         return;
@@ -304,7 +349,8 @@ export function useMessageItemState({
           assistant_entries.push({
             block,
             merged_index,
-            source_message_id: merged_content_source_message_ids[merged_index] || "",
+            source_message_id,
+            source_order,
           });
         }
         return;
@@ -314,18 +360,23 @@ export function useMessageItemState({
         assistant_entries.push({
           block,
           merged_index,
-          source_message_id: merged_content_source_message_ids[merged_index] || "",
+          source_message_id,
+          source_order,
         });
       }
     });
 
     const ordered_entries: OrderedAssistantEntry[] = [];
-    const system_blocks_by_tool_use_id = new Map<string, SystemEventContent[]>();
+    const system_blocks_by_tool_use_id = new Map<
+      string,
+      SystemEventContent[]
+    >();
     const unmatched_system_blocks: SystemEventContent[] = [];
 
     system_event_blocks.forEach((block) => {
       if (block.tool_use_id) {
-        const existing_blocks = system_blocks_by_tool_use_id.get(block.tool_use_id) ?? [];
+        const existing_blocks =
+          system_blocks_by_tool_use_id.get(block.tool_use_id) ?? [];
         existing_blocks.push(block);
         system_blocks_by_tool_use_id.set(block.tool_use_id, existing_blocks);
         return;
@@ -339,7 +390,9 @@ export function useMessageItemState({
         return;
       }
 
-      const matched_system_blocks = system_blocks_by_tool_use_id.get(entry.block.id);
+      const matched_system_blocks = system_blocks_by_tool_use_id.get(
+        entry.block.id,
+      );
       if (!matched_system_blocks?.length) {
         return;
       }
@@ -349,6 +402,7 @@ export function useMessageItemState({
           block,
           merged_index: -1,
           source_message_id: block.source_message_id,
+          source_order: resolve_source_order(block.source_message_id),
         });
       });
       system_blocks_by_tool_use_id.delete(entry.block.id);
@@ -357,22 +411,53 @@ export function useMessageItemState({
     system_blocks_by_tool_use_id.forEach((blocks) => {
       unmatched_system_blocks.push(...blocks);
     });
-    unmatched_system_blocks
-      .sort((left, right) => left.timestamp - right.timestamp)
-      .forEach((block) => {
-        ordered_entries.push({
-          block,
-          merged_index: -1,
-          source_message_id: block.source_message_id,
-        });
+    const unmatched_ordered_entries = unmatched_system_blocks
+      .map((block) => ({
+        block,
+        merged_index: -1,
+        source_message_id: block.source_message_id,
+        source_order: resolve_source_order(block.source_message_id),
+      }))
+      .sort((left, right) => {
+        if (left.source_order !== right.source_order) {
+          return left.source_order - right.source_order;
+        }
+        const left_timestamp =
+          left.block.type === "system_event" ? left.block.timestamp : 0;
+        const right_timestamp =
+          right.block.type === "system_event" ? right.block.timestamp : 0;
+        return left_timestamp - right_timestamp;
       });
 
-    return ordered_entries;
+    if (unmatched_ordered_entries.length === 0) {
+      return ordered_entries;
+    }
+
+    const merged_entries: OrderedAssistantEntry[] = [];
+    let system_index = 0;
+    ordered_entries.forEach((entry) => {
+      while (
+        system_index < unmatched_ordered_entries.length &&
+        unmatched_ordered_entries[system_index].source_order <
+          entry.source_order
+      ) {
+        merged_entries.push(unmatched_ordered_entries[system_index]);
+        system_index += 1;
+      }
+      merged_entries.push(entry);
+    });
+    while (system_index < unmatched_ordered_entries.length) {
+      merged_entries.push(unmatched_ordered_entries[system_index]);
+      system_index += 1;
+    }
+
+    return merged_entries;
   }, [
     hidden_tool_use_ids,
     hidden_tool_names,
     merged_content,
     merged_content_source_message_ids,
+    source_message_order_by_id,
     system_event_blocks,
   ]);
 
@@ -427,13 +512,22 @@ export function useMessageItemState({
 
     return assistant_messages
       .map((message) => turn_map.get(message.message_id))
-      .filter((turn): turn is AssistantTurnEntry => Boolean(turn && turn.content.length > 0));
-  }, [assistant_messages, streaming_block_indexes, visible_ordered_assistant_entries]);
+      .filter((turn): turn is AssistantTurnEntry =>
+        Boolean(turn && turn.content.length > 0),
+      );
+  }, [
+    assistant_messages,
+    streaming_block_indexes,
+    visible_ordered_assistant_entries,
+  ]);
 
-  const ordered_projection = useMemo<ContentProjection>(() => ({
-    content: visible_ordered_assistant_content,
-    streaming_indexes: ordered_assistant_streaming_indexes,
-  }), [ordered_assistant_streaming_indexes, visible_ordered_assistant_content]);
+  const ordered_projection = useMemo<ContentProjection>(
+    () => ({
+      content: visible_ordered_assistant_content,
+      streaming_indexes: ordered_assistant_streaming_indexes,
+    }),
+    [ordered_assistant_streaming_indexes, visible_ordered_assistant_content],
+  );
 
   const last_assistant_turn = useMemo(
     () => visible_assistant_turns.at(-1) ?? null,
@@ -444,11 +538,20 @@ export function useMessageItemState({
     for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
       const message = assistant_messages[index] as AssistantMessage;
       if (!message.parent_id || message.parent_id === round_id) {
-        return visible_assistant_turns.find((turn) => turn.message_id === message.message_id) ?? null;
+        return (
+          visible_assistant_turns.find(
+            (turn) => turn.message_id === message.message_id,
+          ) ?? null
+        );
       }
     }
     return last_assistant_turn;
-  }, [assistant_messages, last_assistant_turn, round_id, visible_assistant_turns]);
+  }, [
+    assistant_messages,
+    last_assistant_turn,
+    round_id,
+    visible_assistant_turns,
+  ]);
 
   const final_tail_entries = useMemo<OrderedAssistantEntry[]>(() => {
     if (!final_assistant_turn) {
@@ -456,7 +559,11 @@ export function useMessageItemState({
     }
 
     const tail_entries: OrderedAssistantEntry[] = [];
-    for (let index = visible_ordered_assistant_entries.length - 1; index >= 0; index -= 1) {
+    for (
+      let index = visible_ordered_assistant_entries.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
       const entry = visible_ordered_assistant_entries[index];
       if (entry.source_message_id !== final_assistant_turn.message_id) {
         break;
@@ -472,14 +579,20 @@ export function useMessageItemState({
   const final_tail_text = useMemo(() => {
     return final_tail_entries
       .map((entry) => entry.block)
-      .filter((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text")
+      .filter(
+        (block): block is Extract<ContentBlock, { type: "text" }> =>
+          block.type === "text",
+      )
       .map((block) => block.text)
       .join("\n\n")
       .trim();
   }, [final_tail_entries]);
 
   const final_assistant_text_merged_indexes = useMemo(() => {
-    if (!final_assistant_turn || final_assistant_turn.text_content.length === 0) {
+    if (
+      !final_assistant_turn ||
+      final_assistant_turn.text_content.length === 0
+    ) {
       return new Set<number>();
     }
 
@@ -498,37 +611,47 @@ export function useMessageItemState({
 
   const archived_process_projection = useMemo<ContentProjection>(() => {
     const result_text = result_summary?.result?.trim();
-    const should_strip_tail = final_tail_entries.length > 0
-      && (
-        !result_text
-        || final_tail_text === result_text
-        || final_tail_entries
+    const should_strip_tail =
+      final_tail_entries.length > 0 &&
+      (!result_text ||
+        final_tail_text === result_text ||
+        final_tail_entries
           .map((entry) => entry.block)
-          .filter((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text")
+          .filter(
+            (block): block is Extract<ContentBlock, { type: "text" }> =>
+              block.type === "text",
+          )
           .map((block) => block.text)
           .join("")
-          .trim() === result_text
-      );
+          .trim() === result_text);
 
     if (should_strip_tail) {
-      const tail_indexes = new Set(final_tail_entries.map((entry) => entry.merged_index));
+      const tail_indexes = new Set(
+        final_tail_entries.map((entry) => entry.merged_index),
+      );
       return projection_from_ordered_entries(
-        visible_ordered_assistant_entries.filter((entry) => !tail_indexes.has(entry.merged_index)),
+        visible_ordered_assistant_entries.filter(
+          (entry) => !tail_indexes.has(entry.merged_index),
+        ),
         streaming_block_indexes,
       );
     }
 
     if (!result_text && final_assistant_turn) {
       return projection_from_ordered_entries(
-        visible_ordered_assistant_entries.filter((entry) => (
-          entry.source_message_id !== final_assistant_turn.message_id
-          || !final_assistant_text_merged_indexes.has(entry.merged_index)
-        )),
+        visible_ordered_assistant_entries.filter(
+          (entry) =>
+            entry.source_message_id !== final_assistant_turn.message_id ||
+            !final_assistant_text_merged_indexes.has(entry.merged_index),
+        ),
         streaming_block_indexes,
       );
     }
 
-    return projection_from_ordered_entries(visible_ordered_assistant_entries, streaming_block_indexes);
+    return projection_from_ordered_entries(
+      visible_ordered_assistant_entries,
+      streaming_block_indexes,
+    );
   }, [
     final_assistant_text_merged_indexes,
     final_assistant_turn,
@@ -575,7 +698,10 @@ export function useMessageItemState({
   }, [final_assistant_turn, final_tail_entries, streaming_block_indexes]);
 
   const direct_ordered_projection = useMemo<ContentProjection>(() => {
-    if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
+    if (
+      assistant_content_mode === "dm_live" ||
+      assistant_content_mode === "room_thread"
+    ) {
       return ordered_projection;
     }
     return { content: [], streaming_indexes: new Set<number>() };
@@ -588,8 +714,13 @@ export function useMessageItemState({
     return { content: [], streaming_indexes: new Set<number>() };
   }, [archived_process_projection, assistant_content_mode]);
 
-  const final_assistant_content = useMemo<string | ContentBlock[] | null>(() => {
-    if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
+  const final_assistant_content = useMemo<
+    string | ContentBlock[] | null
+  >(() => {
+    if (
+      assistant_content_mode === "dm_live" ||
+      assistant_content_mode === "room_thread"
+    ) {
       return null;
     }
 
@@ -618,14 +749,21 @@ export function useMessageItemState({
   ]);
 
   const final_assistant_streaming_indexes = useMemo(() => {
-    if (assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread") {
+    if (
+      assistant_content_mode === "dm_live" ||
+      assistant_content_mode === "room_thread"
+    ) {
       return new Set<number>();
     }
     if (typeof final_assistant_content === "string") {
       return new Set<number>();
     }
     return fallback_final_assistant_streaming_indexes;
-  }, [assistant_content_mode, fallback_final_assistant_streaming_indexes, final_assistant_content]);
+  }, [
+    assistant_content_mode,
+    fallback_final_assistant_streaming_indexes,
+    final_assistant_content,
+  ]);
 
   const final_assistant_text = useMemo(() => {
     if (typeof final_assistant_content === "string") {
@@ -634,9 +772,13 @@ export function useMessageItemState({
     return extract_text_from_content_blocks(final_assistant_content);
   }, [final_assistant_content]);
 
-  const should_render_direct_assistant_content = direct_ordered_projection.content.length > 0;
-  const has_visible_process = process_projection.content.length > 0 || unmatched_pending_permissions.length > 0;
-  const should_render_process_callchain = assistant_content_mode === "dm_archived" && has_visible_process;
+  const should_render_direct_assistant_content =
+    direct_ordered_projection.content.length > 0;
+  const has_visible_process =
+    process_projection.content.length > 0 ||
+    unmatched_pending_permissions.length > 0;
+  const should_render_process_callchain =
+    assistant_content_mode === "dm_archived" && has_visible_process;
 
   const has_timed_out_question_in_process = useMemo(
     () => has_timed_out_ask_user_question(process_projection.content),
@@ -694,14 +836,17 @@ export function useMessageItemState({
     }
 
     if (pending_permissions.length > 0) {
-      return pending_permissions.some((permission) => (
-        permission.interaction_mode === "question" || permission.tool_name === "AskUserQuestion"
-      ))
+      return pending_permissions.some(
+        (permission) =>
+          permission.interaction_mode === "question" ||
+          permission.tool_name === "AskUserQuestion",
+      )
         ? "waiting_input"
         : "waiting_permission";
     }
 
-    const runtime_activity_state = map_runtime_phase_to_activity_state(runtime_phase);
+    const runtime_activity_state =
+      map_runtime_phase_to_activity_state(runtime_phase);
     if (runtime_activity_state === "sending") {
       return "sending";
     }
@@ -717,9 +862,9 @@ export function useMessageItemState({
       return "replying";
     }
 
-    const has_visible_reply_text = merged_content.some((block) => (
-      block.type === "text" && Boolean(block.text.trim())
-    ));
+    const has_visible_reply_text = merged_content.some(
+      (block) => block.type === "text" && Boolean(block.text.trim()),
+    );
     if (has_visible_reply_text && stream_status === "streaming") {
       return "replying";
     }
@@ -747,10 +892,10 @@ export function useMessageItemState({
       return false;
     }
     if (
-      stream_status === "pending"
-      || stream_status === "streaming"
-      || stream_status === "cancelled"
-      || stream_status === "error"
+      stream_status === "pending" ||
+      stream_status === "streaming" ||
+      stream_status === "cancelled" ||
+      stream_status === "error"
     ) {
       return false;
     }
@@ -784,10 +929,10 @@ export function useMessageItemState({
   );
 
   const should_render_standalone_activity_status = Boolean(
-    live_activity_state
-    && !should_render_direct_assistant_content
-    && !should_render_process_callchain
-    && !should_render_assistant_text
+    live_activity_state &&
+    !should_render_direct_assistant_content &&
+    !should_render_process_callchain &&
+    !should_render_assistant_text,
   );
 
   useEffect(() => {
@@ -829,30 +974,30 @@ export function useMessageItemState({
   }, [final_assistant_text]);
 
   const show_cursor = Boolean(
-    is_last_round
-    && is_loading
-    && (
-      streaming_block_indexes.size > 0
-      || assistant_messages.length > 0
-      || pending_permissions.length > 0
-      || stream_status === "pending"
-      || stream_status === "streaming"
-    ),
+    is_last_round &&
+    is_loading &&
+    (streaming_block_indexes.size > 0 ||
+      assistant_messages.length > 0 ||
+      pending_permissions.length > 0 ||
+      stream_status === "pending" ||
+      stream_status === "streaming"),
   );
 
   const final_assistant_is_streaming = Boolean(
-    show_cursor
-    && typeof final_assistant_content !== "string"
-    && final_assistant_streaming_indexes.size > 0,
+    show_cursor &&
+    typeof final_assistant_content !== "string" &&
+    final_assistant_streaming_indexes.size > 0,
   );
 
   const can_copy_assistant = Boolean(final_assistant_text.trim());
-  const should_show_assistant_footer = (
-    assistant_content_mode === "dm_archived" || assistant_content_mode === "room_result"
-  ) && (Boolean(stats) || (!is_loading && can_copy_assistant));
+  const should_show_assistant_footer =
+    (assistant_content_mode === "dm_archived" ||
+      assistant_content_mode === "room_result") &&
+    (Boolean(stats) || (!is_loading && can_copy_assistant));
 
   const can_stop_message = Boolean(
-    on_stop_message && (stream_status === "pending" || stream_status === "streaming"),
+    on_stop_message &&
+    (stream_status === "pending" || stream_status === "streaming"),
   );
   const handle_stop_message = useCallback(() => {
     if (!on_stop_message || !first_assistant) {
@@ -863,12 +1008,16 @@ export function useMessageItemState({
 
   const content_area_ref = useRef<HTMLDivElement>(null);
   const streaming_min_height = useRef(60);
-  const layout_throttle_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const layout_throttle_ref = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useEffect(() => {
-    const layout_text = assistant_content_mode === "dm_live" || assistant_content_mode === "room_thread"
-      ? extract_text_from_content_blocks(direct_ordered_projection.content)
-      : final_assistant_text;
+    const layout_text =
+      assistant_content_mode === "dm_live" ||
+      assistant_content_mode === "room_thread"
+        ? extract_text_from_content_blocks(direct_ordered_projection.content)
+        : final_assistant_text;
 
     if (!show_cursor || !layout_text) {
       return;
@@ -885,14 +1034,25 @@ export function useMessageItemState({
       }
       try {
         const width = element.offsetWidth || 640;
-        const prepared = prepare(layout_text, "400 14px ui-sans-serif, system-ui, sans-serif");
+        const prepared = prepare(
+          layout_text,
+          "400 14px ui-sans-serif, system-ui, sans-serif",
+        );
         const result = layout(prepared, width, 28);
-        streaming_min_height.current = Math.max(streaming_min_height.current, result.height);
+        streaming_min_height.current = Math.max(
+          streaming_min_height.current,
+          result.height,
+        );
       } catch {
         // 这里只保留上一次可用高度，避免流式阶段因为排版测量失败产生闪动。
       }
     }, 150);
-  }, [assistant_content_mode, direct_ordered_projection.content, final_assistant_text, show_cursor]);
+  }, [
+    assistant_content_mode,
+    direct_ordered_projection.content,
+    final_assistant_text,
+    show_cursor,
+  ]);
 
   useEffect(() => {
     if (!show_cursor) {

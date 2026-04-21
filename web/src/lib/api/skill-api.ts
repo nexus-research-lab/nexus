@@ -59,25 +59,29 @@ function normalize_skill_query(
   };
 }
 
-async function request_skill_api<T>(path: string, init?: RequestInit): Promise<T> {
+async function request_skill_api<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   try {
     return await request_api<T>(`${AGENT_API_BASE_URL}${path}`, init);
   } catch (error) {
     const error_payload = error as ApiErrorPayload | null;
     throw new Error(
       error_payload?.detail ||
-      error_payload?.message ||
-      (error instanceof Error ? error.message : "请求失败"),
+        error_payload?.message ||
+        (error instanceof Error ? error.message : "请求失败"),
     );
   }
 }
 
 /** 获取所有可用 Skill 清单 */
-export const get_available_skills_api = async (params?: SkillQueryParams): Promise<SkillInfo[]> => {
+export const get_available_skills_api = async (
+  params?: SkillQueryParams,
+): Promise<SkillInfo[]> => {
   const query = build_query(normalize_skill_query(params));
   return request_skill_api<SkillInfo[]>(`/skills${query}`, {
     method: "GET",
-    headers: { "Content-Type": "application/json" },
   });
 };
 
@@ -87,14 +91,18 @@ export const get_skill_detail_api = async (
   params?: { agent_id?: string },
 ): Promise<SkillDetail> => {
   const query = build_query(params);
-  return request_skill_api<SkillDetail>(`/skills/${encodeURIComponent(skill_name)}${query}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+  return request_skill_api<SkillDetail>(
+    `/skills/${encodeURIComponent(skill_name)}${query}`,
+    {
+      method: "GET",
+    },
+  );
 };
 
 /** 导入本地 Skill，支持文件上传或本地路径 */
-export const import_local_skill_api = async (file_or_path: File | string): Promise<SkillDetail> => {
+export const import_local_skill_api = async (
+  file_or_path: File | string,
+): Promise<SkillDetail> => {
   const form_data = new FormData();
 
   if (typeof file_or_path === "string") {
@@ -110,10 +118,12 @@ export const import_local_skill_api = async (file_or_path: File | string): Promi
 };
 
 /** 通过 Git 仓库导入 Skill */
-export const import_git_skill_api = async (url: string, branch?: string): Promise<SkillDetail> => {
+export const import_git_skill_api = async (
+  url: string,
+  branch?: string,
+): Promise<SkillDetail> => {
   return request_skill_api<SkillDetail>("/skills/import/git", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, branch }),
   });
 };
@@ -127,10 +137,12 @@ export const search_external_skills_api = async (
     q,
     include_readme: include_readme ? "true" : undefined,
   });
-  const result = await request_skill_api<SearchExternalSkillsResponse>(`/skills/search/external${query}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+  const result = await request_skill_api<SearchExternalSkillsResponse>(
+    `/skills/search/external${query}`,
+    {
+      method: "GET",
+    },
+  );
   return result.results;
 };
 
@@ -139,10 +151,12 @@ export const get_external_skill_preview_api = async (
   detail_url: string,
 ): Promise<ExternalSkillPreviewResponse> => {
   const query = build_query({ detail_url });
-  return request_skill_api<ExternalSkillPreviewResponse>(`/skills/external/preview${query}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+  return request_skill_api<ExternalSkillPreviewResponse>(
+    `/skills/external/preview${query}`,
+    {
+      method: "GET",
+    },
+  );
 };
 
 /** 从 skills.sh 导入指定 Skill */
@@ -152,41 +166,53 @@ export const import_skills_sh_skill_api = async (
 ): Promise<SkillDetail> => {
   return request_skill_api<SkillDetail>("/skills/import/skills-sh", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ package_spec, skill_slug }),
   });
 };
 
 /** 更新全局已导入 Skill */
-export const update_imported_skills_api = async (): Promise<UpdateInstalledSkillsResponse> => {
-  return request_skill_api<UpdateInstalledSkillsResponse>("/skills/update-imported", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
-};
+export const update_imported_skills_api =
+  async (): Promise<UpdateInstalledSkillsResponse> => {
+    return request_skill_api<UpdateInstalledSkillsResponse>(
+      "/skills/update-imported",
+      {
+        method: "POST",
+      },
+    );
+  };
 
 /** 更新单个全局 Skill */
-export const update_single_skill_api = async (skill_name: string): Promise<SkillDetail> => {
-  return request_skill_api<SkillDetail>(`/skills/${encodeURIComponent(skill_name)}/update`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
+export const update_single_skill_api = async (
+  skill_name: string,
+): Promise<SkillDetail> => {
+  return request_skill_api<SkillDetail>(
+    `/skills/${encodeURIComponent(skill_name)}/update`,
+    {
+      method: "POST",
+    },
+  );
 };
 
 /** 从技能库删除外部 Skill */
 export const delete_skill_api = async (skill_name: string): Promise<void> => {
-  await request_skill_api<{ success: boolean }>(`/skills/${encodeURIComponent(skill_name)}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-  });
+  await request_skill_api<{ success: boolean }>(
+    `/skills/${encodeURIComponent(skill_name)}`,
+    {
+      method: "DELETE",
+    },
+  );
 };
 
 /** 获取 Agent 的 Skill 列表（含安装状态） */
-export const get_agent_skills_api = async (agent_id: string): Promise<AgentSkillEntry[]> => {
-  return request_skill_api<AgentSkillEntry[]>(`/agents/${encodeURIComponent(agent_id)}/skills`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+export const get_agent_skills_api = async (
+  agent_id: string,
+): Promise<AgentSkillEntry[]> => {
+  return request_skill_api<AgentSkillEntry[]>(
+    `/agents/${encodeURIComponent(agent_id)}/skills`,
+    {
+      method: "GET",
+    },
+  );
 };
 
 /** 为 Agent 安装 Skill */
@@ -194,20 +220,24 @@ export const install_skill_api = async (
   agent_id: string,
   skill_name: string,
 ): Promise<AgentSkillEntry> => {
-  return request_skill_api<AgentSkillEntry>(`/agents/${encodeURIComponent(agent_id)}/skills`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ skill_name }),
-  });
+  return request_skill_api<AgentSkillEntry>(
+    `/agents/${encodeURIComponent(agent_id)}/skills`,
+    {
+      method: "POST",
+      body: JSON.stringify({ skill_name }),
+    },
+  );
 };
 
 /** 从 Agent 卸载 Skill */
-export const uninstall_skill_api = async (agent_id: string, skill_name: string): Promise<void> => {
+export const uninstall_skill_api = async (
+  agent_id: string,
+  skill_name: string,
+): Promise<void> => {
   await request_skill_api<{ success: boolean }>(
     `/agents/${encodeURIComponent(agent_id)}/skills/${encodeURIComponent(skill_name)}`,
     {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
     },
   );
 };

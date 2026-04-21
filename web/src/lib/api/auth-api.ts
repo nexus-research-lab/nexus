@@ -35,9 +35,6 @@ export async function login_api(params: LoginParams): Promise<AuthStatus> {
   return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/login`, {
     method: "POST",
     notify_on_401: false,
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(params),
   });
 }
