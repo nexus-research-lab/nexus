@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：service.go
-// @Date   ：2026/04/11 02:35:00
-// @Author ：leemysw
-// 2026/04/11 02:35:00   Create
-// =====================================================
-
 package chat
 
 import (
@@ -28,7 +19,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"github.com/nexus-research-lab/nexus/internal/titlegen"
+	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"

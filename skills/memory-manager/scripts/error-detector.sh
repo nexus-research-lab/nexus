@@ -1,12 +1,3 @@
-# !/usr/bin/env bash
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：error-detector.sh
-# @Date   ：2026/04/04 12:45
-# @Author ：leemysw
-# 2026/04/04 12:45   Create
-# =====================================================
-
 set -e
 
 OUTPUT="${CLAUDE_TOOL_OUTPUT:-}"

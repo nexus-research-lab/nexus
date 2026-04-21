@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：direct-room-navigation.ts
-# @Date   ：2026-04-15 22:23
-# @Author ：leemysw
-# 2026-04-15 22:23   Create
-# =====================================================
-*/
-
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ensure_direct_room } from "@/lib/api/room-api";
 import type { RoomContextAggregate } from "@/types/conversation/room";

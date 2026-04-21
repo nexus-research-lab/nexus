@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：liquid-glass-panel.tsx
-# @Date   ：2026-04-11 11:34
-# @Author ：leemysw
-# 2026-04-11 11:34   Create
-# =====================================================
-*/
-
 "use client";
 
 import { ComponentPropsWithoutRef, CSSProperties, ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";

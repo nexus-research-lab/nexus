@@ -1,11 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：heartbeat_tasks_summary.go
-// @Date   ：2026/04/20
-// @Author ：Codex
-// =====================================================
-
 package automation
 
 import (

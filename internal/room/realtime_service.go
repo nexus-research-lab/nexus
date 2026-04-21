@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：realtime_service.go
-// @Date   ：2026/04/11 04:10:00
-// @Author ：leemysw
-// 2026/04/11 04:10:00   Create
-// =====================================================
-
 package room
 
 import (
@@ -30,7 +21,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"github.com/nexus-research-lab/nexus/internal/titlegen"
+	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"

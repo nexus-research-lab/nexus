@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：stage-glow.ts
-# @Date   ：2026-04-05 18:32
-# @Author ：leemysw
-# 2026-04-05 18:32   Create
-# =====================================================
-*/
-
 import type { CSSProperties } from "react";
 
 export type StageGlowTone = "green" | "lilac" | "mist" | "peach";

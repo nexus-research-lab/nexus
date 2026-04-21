@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：legacy_bootstrap_test.go
-// @Date   ：2026/04/16 13:01
-// @Author ：leemysw
-// 2026/04/16 13:01   Create
-// =====================================================
-
 package main
 
 import (
@@ -474,19 +465,7 @@ func assertSQLiteTableExists(t *testing.T, db *sql.DB, tableName string) {
 	if err != nil {
 		t.Fatalf("检查表存在失败: table=%s err=%v", tableName, err)
 	}
-	if !exists {
-		t.Fatalf("期望表存在: %s", tableName)
-	}
-}
-
-func assertSQLiteTableNotExists(t *testing.T, db *sql.DB, tableName string) {
-	t.Helper()
-
-	exists, err := tableExists(context.Background(), db, "sqlite", tableName)
-	if err != nil {
-		t.Fatalf("检查表不存在失败: table=%s err=%v", tableName, err)
-	}
 	if exists {
-		t.Fatalf("期望表不存在: %s", tableName)
+		t.Fatalf("期望表不存在: table=%s", tableName)
 	}
 }

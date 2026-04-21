@@ -1,14 +1,3 @@
-/*
-# !/usr/bin/env tsx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：conversation-resize-handle.tsx
-# @Date   ：2026-04-18 22:40:00
-# @Author ：leemysw
-# 2026-04-18 22:40:00   Create
-# =====================================================
-*/
-
 "use client";
 
 import { MouseEventHandler } from "react";

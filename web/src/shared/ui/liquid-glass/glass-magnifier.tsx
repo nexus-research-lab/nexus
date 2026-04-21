@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：glass-magnifier.tsx
-# @Date   ：2026-04-13 11:45
-# @Author ：leemysw
-# 2026-04-13 11:45   Create
-# =====================================================
-*/
-
 import {
   type CSSProperties,
   type ReactNode,

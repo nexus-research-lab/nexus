@@ -1,20 +1,11 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：result_summary_test.go
-// @Date   ：2026-04-21 17:55
-// @Author ：leemysw
-// 2026-04-21 17:55   Create
-// =====================================================
-
 package session
 
 import "testing"
 
 func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) {
 	testCases := []struct {
-		name             string
-		subtype          string
+		name               string
+		subtype            string
 		expectedStopReason string
 	}{
 		{

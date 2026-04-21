@@ -1,14 +1,3 @@
-<!--
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：README.md
-# @Date   ：2026-04-12 23:44
-# @Author ：leemysw
-# 2026-04-12 23:44   Create
-# =====================================================
--->
-
 # Liquid Glass 资产说明
 
 这个目录里的 `glass-switch`、`liquid-glass-panel` 和 `liquid-glass-engine` 共享同一套液态玻璃思路：

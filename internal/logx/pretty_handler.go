@@ -1,16 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：pretty_handler.go
-// @Date   ：2026/04/20 19:00:00
-// @Author ：leemysw
-// 2026/04/20 19:00:00   Create
-//
-// 终端日志格式参考 python-main 分支配色：
-//   [ 18:16:47 ] INFO    | gateway - GET 200 0ms 119B /agent/v1/runtime/options  rid=34197658
-//      灰        紫       青        method/status 各自染色          暗淡 k=v
-// =====================================================
-
 package logx
 
 import (
@@ -25,7 +12,7 @@ import (
 	"time"
 )
 
-// ANSI 配色：与 python-main 一致，并补 uvicorn 风格的 method/status 配色。
+// ANSI 配色
 const (
 	ansiReset       = "\033[0m"
 	ansiBold        = "\033[1m"

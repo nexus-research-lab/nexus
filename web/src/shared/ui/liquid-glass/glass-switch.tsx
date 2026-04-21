@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：glass-switch.tsx
-# @Date   ：2026-04-12 21:28
-# @Author ：leemysw
-# 2026-04-12 21:28   Create
-# =====================================================
-*/
-
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";

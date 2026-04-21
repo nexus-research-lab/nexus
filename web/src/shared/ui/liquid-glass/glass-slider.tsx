@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：glass-slider.tsx
-# @Date   ：2026-04-12 21:27
-# @Author ：leemysw
-# 2026-04-12 21:27   Create
-# =====================================================
-*/
-
 "use client";
 
 import { cn } from "@/lib/utils";

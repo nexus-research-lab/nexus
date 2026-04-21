@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：result_summary.go
-// @Date   ：2026/04/20 15:34:00
-// @Author ：leemysw
-// 2026/04/20 15:34:00   Create
-// =====================================================
-
 package session
 
 import "strings"

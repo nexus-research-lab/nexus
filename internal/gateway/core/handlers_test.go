@@ -1,0 +1,62 @@
+package core_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/gateway"
+	"github.com/nexus-research-lab/nexus/internal/gateway/gatewaytest"
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+)
+
+func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
+	cfg := gatewaytest.NewConfig(t)
+	gatewaytest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	db := gatewaytest.OpenSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	providers := providercfg.NewServiceWithDB(cfg, db)
+	if _, err := providers.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
+
+	server, err := gateway.NewServer(cfg)
+	if err != nil {
+		t.Fatalf("创建网关失败: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/agent/v1/runtime/options", nil)
+	recorder := httptest.NewRecorder()
+	server.Router().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: got=%d", recorder.Code)
+	}
+
+	var payload struct {
+		Data struct {
+			DefaultAgentID       string  `json:"default_agent_id"`
+			DefaultAgentProvider *string `json:"default_agent_provider"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if payload.Data.DefaultAgentID != cfg.DefaultAgentID {
+		t.Fatalf("default_agent_id 不正确: got=%s want=%s", payload.Data.DefaultAgentID, cfg.DefaultAgentID)
+	}
+	if payload.Data.DefaultAgentProvider == nil || *payload.Data.DefaultAgentProvider != "glm" {
+		t.Fatalf("default_agent_provider 不正确: got=%v", payload.Data.DefaultAgentProvider)
+	}
+}

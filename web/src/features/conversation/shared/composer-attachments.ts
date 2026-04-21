@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：composer-attachments.ts
-# @Date   ：2026-04-12 17:46
-# @Author ：leemysw
-# 2026-04-12 17:46   Create
-# =====================================================
-*/
-
 import { create_workspace_entry_api } from "@/lib/api/agent-manage-api";
 
 export interface PreparedComposerAttachment {

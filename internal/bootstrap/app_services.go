@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：app_services.go
-// @Date   ：2026/04/16 23:35:27
-// @Author ：leemysw
-// 2026/04/16 23:35:27   Create
-// =====================================================
-
 package bootstrap
 
 import (
@@ -20,6 +11,7 @@ import (
 	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/launcher"
 	"github.com/nexus-research-lab/nexus/internal/logx"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
@@ -27,7 +19,6 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
-	"github.com/nexus-research-lab/nexus/internal/titlegen"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 )
 

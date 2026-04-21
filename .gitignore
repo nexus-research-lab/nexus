@@ -40,7 +40,6 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 dist/
-agent/
 tests/
 alembic/
 
