@@ -115,13 +115,17 @@ export function LauncherConsole({
           }
           break;
         }
+        case "open_app": {
+          on_open_main_agent_dm(action.initial_message ?? trimmed);
+          break;
+        }
       }
     } catch (error) {
       console.error("Launcher query failed:", error);
     } finally {
       setIsQueryLoading(false);
     }
-  }, [query, isQueryLoading, navigate, set_active_panel_item]);
+  }, [query, isQueryLoading, navigate, on_open_main_agent_dm, set_active_panel_item]);
 
   const handle_enter_home = useCallback(() => {
     navigate(AppRouteBuilders.home());

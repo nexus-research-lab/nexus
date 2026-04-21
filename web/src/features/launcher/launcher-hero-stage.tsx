@@ -215,7 +215,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                     if (is_composing_ref.current || event.nativeEvent.isComposing) {
                       return;
                     }
-                    if (mention_match && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
+                    if (mention_match && visible_mention_targets.length > 0 && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
                       return;
                     }
                     if (event.key === "Enter") {
