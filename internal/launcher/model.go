@@ -52,8 +52,20 @@ type BootstrapRoom struct {
 	UpdatedAt       string `json:"updated_at,omitempty"`
 }
 
+// BootstrapConversation 表示 Launcher 推荐区使用的会话摘要。
+type BootstrapConversation struct {
+	SessionKey     string `json:"session_key"`
+	AgentID        string `json:"agent_id,omitempty"`
+	RoomID         string `json:"room_id,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
+	RoomType       string `json:"room_type"`
+	Title          string `json:"title"`
+	LastActivity   string `json:"last_activity"`
+}
+
 // BootstrapResponse 表示 Launcher 首屏数据。
 type BootstrapResponse struct {
-	Agents []BootstrapAgent `json:"agents"`
-	Rooms  []BootstrapRoom  `json:"rooms"`
+	Agents        []BootstrapAgent        `json:"agents"`
+	Rooms         []BootstrapRoom         `json:"rooms"`
+	Conversations []BootstrapConversation `json:"conversations"`
 }

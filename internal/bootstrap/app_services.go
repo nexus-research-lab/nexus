@@ -69,7 +69,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
 	connectorService := connectorsvc.NewService(cfg, db)
-	launcherService := launcher.NewService(cfg, core.Agent, core.Room)
+	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)

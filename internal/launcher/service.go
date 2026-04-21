@@ -14,6 +14,7 @@ import (
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
 )
 
 const (
@@ -27,14 +28,21 @@ type Service struct {
 	config       config.Config
 	agentService *agent2.Service
 	roomService  *roomsvc.Service
+	session      *sessionsvc.Service
 }
 
 // NewService 创建 Launcher 服务。
-func NewService(cfg config.Config, agentService *agent2.Service, roomService *roomsvc.Service) *Service {
+func NewService(
+	cfg config.Config,
+	agentService *agent2.Service,
+	roomService *roomsvc.Service,
+	sessionService *sessionsvc.Service,
+) *Service {
 	return &Service{
 		config:       cfg,
 		agentService: agentService,
 		roomService:  roomService,
+		session:      sessionService,
 	}
 }
 
@@ -196,7 +204,9 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	}
 
 	roomItems := make([]BootstrapRoom, 0, len(rooms))
+	roomTypeByID := make(map[string]string, len(rooms))
 	for _, roomValue := range rooms {
+		roomTypeByID[roomValue.Room.ID] = roomValue.Room.RoomType
 		roomItems = append(roomItems, BootstrapRoom{
 			ID:              roomValue.Room.ID,
 			RoomType:        roomValue.Room.RoomType,
@@ -208,10 +218,78 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		})
 	}
 
+	conversationItems := make([]BootstrapConversation, 0)
+	if s.session != nil {
+		sessions, listErr := s.session.ListSessions(ctx)
+		if listErr != nil {
+			return BootstrapResponse{}, listErr
+		}
+		conversationItems = buildBootstrapConversations(sessions, roomTypeByID)
+	}
+
 	return BootstrapResponse{
-		Agents: agentItems,
-		Rooms:  roomItems,
+		Agents:        agentItems,
+		Rooms:         roomItems,
+		Conversations: conversationItems,
 	}, nil
+}
+
+func buildBootstrapConversations(
+	sessions []sessionsvc.Session,
+	roomTypeByID map[string]string,
+) []BootstrapConversation {
+	items := make([]BootstrapConversation, 0, len(sessions))
+	for _, item := range sessions {
+		roomID := strings.TrimSpace(stringPointerValue(item.RoomID))
+		conversationID := strings.TrimSpace(stringPointerValue(item.ConversationID))
+		agentID := strings.TrimSpace(item.AgentID)
+		roomType := normalizeBootstrapConversationRoomType(item.ChatType, roomTypeByID[roomID])
+
+		// Launcher 推荐项必须能稳定打开到具体会话；无法定位的旧残留会话不参与推荐。
+		if roomID == "" && conversationID == "" && agentID == "" {
+			continue
+		}
+		lastActivity := item.LastActivity
+		if lastActivity.IsZero() {
+			lastActivity = item.CreatedAt
+		}
+		items = append(items, BootstrapConversation{
+			SessionKey:     item.SessionKey,
+			AgentID:        agentID,
+			RoomID:         roomID,
+			ConversationID: conversationID,
+			RoomType:       roomType,
+			Title:          normalizeBootstrapConversationTitle(item.Title, roomType),
+			LastActivity:   isoString(lastActivity),
+		})
+	}
+	return items
+}
+
+func normalizeBootstrapConversationRoomType(chatType string, roomType string) string {
+	normalizedRoomType := strings.TrimSpace(roomType)
+	if normalizedRoomType == "dm" || normalizedRoomType == "room" {
+		return normalizedRoomType
+	}
+	if strings.TrimSpace(chatType) == "dm" {
+		return "dm"
+	}
+	return "room"
+}
+
+func defaultLauncherConversationTitle(roomType string) string {
+	if roomType == "dm" {
+		return "未命名会话"
+	}
+	return "未命名话题"
+}
+
+func normalizeBootstrapConversationTitle(title string, roomType string) string {
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle != "" {
+		return trimmedTitle
+	}
+	return defaultLauncherConversationTitle(roomType)
 }
 
 func (s *Service) findAgentByKeyword(ctx context.Context, keyword string) (*agent2.Agent, error) {
@@ -317,4 +395,11 @@ func isoString(value interface {
 		return ""
 	}
 	return value.Format("2006-01-02T15:04:05Z07:00")
+}
+
+func stringPointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }

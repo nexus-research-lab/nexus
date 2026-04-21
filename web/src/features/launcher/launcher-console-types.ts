@@ -10,6 +10,7 @@
 import { MentionTargetItem } from "@/features/conversation/shared/mention-popover";
 import {
   LauncherAgentSummary,
+  LauncherConversationSummary,
   LauncherRoomSummary,
   SpotlightToken,
 } from "@/types/app/launcher";
@@ -17,6 +18,7 @@ import {
 export interface LauncherConsoleProps {
   agents: LauncherAgentSummary[];
   rooms: LauncherRoomSummary[];
+  conversations: LauncherConversationSummary[];
   current_agent_id: string | null;
   on_open_main_agent_dm: (initial_prompt?: string) => void;
   on_select_agent: (agent_id: string) => void;
