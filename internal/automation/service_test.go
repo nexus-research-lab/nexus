@@ -12,6 +12,7 @@ package automation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -113,6 +114,51 @@ func (f *fakeWorkspaceReader) GetFile(_ context.Context, _ string, relativePath 
 		Path:    relativePath,
 		Content: content,
 	}, nil
+}
+
+type fakeDeliveryRouter struct {
+	mu    sync.Mutex
+	calls []channels.DeliveryTarget
+}
+
+func (f *fakeDeliveryRouter) DeliverText(
+	_ context.Context,
+	_ string,
+	_ string,
+	target channels.DeliveryTarget,
+) (channels.DeliveryTarget, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, target)
+	return target, nil
+}
+
+func (f *fakeDeliveryRouter) Calls() []channels.DeliveryTarget {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := make([]channels.DeliveryTarget, len(f.calls))
+	copy(result, f.calls)
+	return result
+}
+
+type fakeRuntimeSessionCloser struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (f *fakeRuntimeSessionCloser) CloseSession(_ context.Context, sessionKey string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, sessionKey)
+	return nil
+}
+
+func (f *fakeRuntimeSessionCloser) Calls() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := make([]string, len(f.calls))
+	copy(result, f.calls)
+	return result
 }
 
 func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
@@ -490,6 +536,640 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 	}
 	if len(messages) != 0 {
 		t.Fatalf("HEARTBEAT_OK 不应外发，实际写入了 %d 条消息", len(messages))
+	}
+}
+
+func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{
+			files: map[string]string{
+				"HEARTBEAT.md": "tasks:\n- name: inbox\n  interval: 30m\n  prompt: check inbox\n",
+			},
+		},
+		nil,
+	)
+	payload, err := json.Marshal(map[string]any{"text": "urgent ping"})
+	if err != nil {
+		t.Fatalf("构造事件 payload 失败: %v", err)
+	}
+	instruction, err := service.buildHeartbeatInstruction(
+		context.Background(),
+		"agent-1",
+		[]SystemEvent{
+			{
+				EventID:    "evt-1",
+				EventType:  "heartbeat.wake",
+				SourceType: "heartbeat",
+				SourceID:   "agent-1",
+				Payload:    string(payload),
+			},
+		},
+		[]heartbeatWakeRequest{
+			{
+				AgentID:    "agent-1",
+				SessionKey: buildMainSessionKey("agent-1"),
+				WakeMode:   WakeModeNow,
+				Text:       "urgent ping",
+			},
+		},
+		[]heartbeatWakeRequest{
+			{
+				AgentID:    "agent-1",
+				SessionKey: buildMainSessionKey("agent-1"),
+				WakeMode:   WakeModeNextHeartbeat,
+				Text:       "follow up soon",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("buildHeartbeatInstruction 失败: %v", err)
+	}
+	if !strings.Contains(instruction, "Heartbeat tasks:") || !strings.Contains(instruction, "check inbox") {
+		t.Fatalf("tasks 指令未正确拼装: %s", instruction)
+	}
+	if strings.Count(instruction, "urgent ping") != 1 {
+		t.Fatalf("wake/event 文本未去重: %s", instruction)
+	}
+	if !strings.Contains(instruction, "follow up soon") {
+		t.Fatalf("缺少 next-heartbeat 文本: %s", instruction)
+	}
+}
+
+func TestBuildHeartbeatInstructionFallsBackToEventTypeWhenTextMissing(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	runtimeCloser := &fakeRuntimeSessionCloser{}
+	service.SetRuntimeSessionCloser(runtimeCloser)
+	payload, err := json.Marshal(map[string]any{"instruction": "do not read this"})
+	if err != nil {
+		t.Fatalf("构造事件 payload 失败: %v", err)
+	}
+
+	instruction, err := service.buildHeartbeatInstruction(
+		context.Background(),
+		"agent-1",
+		[]SystemEvent{
+			{
+				EventID:    "evt-1",
+				EventType:  "cron.trigger",
+				SourceType: "cron",
+				SourceID:   "agent-1",
+				Payload:    string(payload),
+			},
+		},
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildHeartbeatInstruction 失败: %v", err)
+	}
+	if strings.Contains(instruction, "do not read this") {
+		t.Fatalf("不应读取 instruction 字段: %s", instruction)
+	}
+	if !strings.Contains(instruction, "cron.trigger") {
+		t.Fatalf("缺少 event_type 回退: %s", instruction)
+	}
+}
+
+func TestGetHeartbeatStatusDegradesPersistedExplicitTargetMode(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	err := service.repository.UpsertHeartbeatState(
+		context.Background(),
+		"hb_1",
+		HeartbeatConfig{
+			AgentID:      "agent-1",
+			Enabled:      true,
+			EverySeconds: 120,
+			TargetMode:   HeartbeatTargetExplicit,
+			AckMaxChars:  80,
+		},
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("预置 heartbeat 状态失败: %v", err)
+	}
+
+	status, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if status.TargetMode != HeartbeatTargetNone {
+		t.Fatalf("explicit 应降级为 none，实际 %s", status.TargetMode)
+	}
+	if status.DeliveryError == nil || *status.DeliveryError != heartbeatExplicitTargetUnsupportedMessage {
+		t.Fatalf("delivery_error 不正确: %+v", status.DeliveryError)
+	}
+}
+
+func TestWakeHeartbeatNextHeartbeatDoesNotDispatchBeforeDueTime(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{permission: permission}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{
+			files: map[string]string{
+				"HEARTBEAT.md": "tasks:\n- name: check\n  interval: 30m\n  prompt: check status\n",
+			},
+		},
+		nil,
+	)
+	service.nowFn = func() time.Time {
+		return time.Now().UTC()
+	}
+	if err := service.Start(context.Background()); err != nil {
+		t.Fatalf("Start 失败: %v", err)
+	}
+	defer service.Stop()
+
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 120,
+		TargetMode:   HeartbeatTargetNone,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
+		Mode: WakeModeNextHeartbeat,
+		Text: stringRef("follow up later"),
+	}); err != nil {
+		t.Fatalf("WakeHeartbeat 失败: %v", err)
+	}
+
+	time.Sleep(1200 * time.Millisecond)
+	if len(chat.Requests()) != 0 {
+		t.Fatalf("next-heartbeat 不应提前触发，实际请求数 %d", len(chat.Requests()))
+	}
+	status, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if !status.PendingWake {
+		t.Fatalf("next-heartbeat 在到期前应保持 pending_wake=true")
+	}
+}
+
+func TestWakeHeartbeatNowWhileRunningDoesNotSetPendingWake(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 60,
+		TargetMode:   HeartbeatTargetNone,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+
+	service.mu.Lock()
+	state := service.heartbeatState["agent-1"]
+	if state == nil {
+		service.mu.Unlock()
+		t.Fatalf("heartbeat state 不存在")
+	}
+	state.Running = true
+	state.PendingWake = false
+	service.mu.Unlock()
+
+	result, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
+		Mode: WakeModeNow,
+	})
+	if err != nil {
+		t.Fatalf("WakeHeartbeat 失败: %v", err)
+	}
+	if !result.Scheduled {
+		t.Fatalf("wake-now 应返回 scheduled=true")
+	}
+
+	status, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if status.PendingWake {
+		t.Fatalf("running 状态下 wake-now 不应残留 pending_wake=true")
+	}
+}
+
+func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{permission: permission}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 3600,
+		TargetMode:   HeartbeatTargetNone,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+
+	task, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "Main payload",
+		AgentID:     "agent-1",
+		Instruction: "follow up in main session",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(60),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{
+			Kind:     SessionTargetMain,
+			WakeMode: WakeModeNow,
+		},
+		Delivery: DeliveryTarget{Mode: DeliveryModeNone},
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+	if _, err = service.RunTaskNow(context.Background(), task.JobID); err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+
+	var rawPayload string
+	row := db.QueryRow(`SELECT payload FROM automation_system_events WHERE event_type='cron.trigger' ORDER BY created_at DESC, event_id DESC LIMIT 1`)
+	if err = row.Scan(&rawPayload); err != nil {
+		t.Fatalf("读取 cron.trigger payload 失败: %v", err)
+	}
+	payload := map[string]any{}
+	if err = json.Unmarshal([]byte(rawPayload), &payload); err != nil {
+		t.Fatalf("解析 cron.trigger payload 失败: %v", err)
+	}
+	if strings.TrimSpace(anyString(payload["text"])) != "follow up in main session" {
+		t.Fatalf("cron.trigger payload.text 不正确: %v", payload)
+	}
+	if _, exists := payload["instruction"]; exists {
+		t.Fatalf("cron.trigger 不应写 instruction 字段: %v", payload)
+	}
+}
+
+func TestHeartbeatStatusRunningReflectsAutomationLoopState(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		&fakeChatRunner{permission: permission},
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 60,
+		TargetMode:   HeartbeatTargetNone,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+
+	statusBeforeStart, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if statusBeforeStart.Running {
+		t.Fatalf("Start 前 running 应为 false")
+	}
+
+	if err := service.Start(context.Background()); err != nil {
+		t.Fatalf("Start 失败: %v", err)
+	}
+	defer service.Stop()
+
+	statusAfterStart, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if !statusAfterStart.Running {
+		t.Fatalf("Start 后 running 应为 true")
+	}
+}
+
+func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
+	workspacePath := t.TempDir()
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		nil,
+		&fakeChatRunner{permission: permission},
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	runtimeCloser := &fakeRuntimeSessionCloser{}
+	service.SetRuntimeSessionCloser(runtimeCloser)
+	task, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "cleanup-target",
+		AgentID:     "agent-1",
+		Instruction: "cleanup",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(60),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{Kind: SessionTargetIsolated},
+		Delivery:      DeliveryTarget{Mode: DeliveryModeNone},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	store := workspacestore.NewSessionFileStore(workspacePath)
+	now := time.Now().UTC()
+	matchingA := protocol.BuildAgentSessionKey("agent-1", "automation", "dm", "cron:"+task.JobID+":run-a", "")
+	matchingB := protocol.BuildAgentSessionKey("agent-1", "automation", "dm", "cron:"+task.JobID+":run-b", "")
+	unrelated := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "keep", "")
+	for _, sessionKey := range []string{matchingA, matchingB, unrelated} {
+		if _, upsertErr := store.UpsertSession(workspacePath, session.Session{
+			SessionKey:   sessionKey,
+			AgentID:      "agent-1",
+			ChannelType:  "automation",
+			ChatType:     "dm",
+			Status:       "active",
+			CreatedAt:    now,
+			LastActivity: now,
+			Title:        "session",
+			Options: map[string]any{
+				sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+			},
+			IsActive: true,
+		}); upsertErr != nil {
+			t.Fatalf("准备测试会话失败: %v", upsertErr)
+		}
+	}
+
+	if err = service.DeleteTask(context.Background(), task.JobID); err != nil {
+		t.Fatalf("DeleteTask 失败: %v", err)
+	}
+
+	paths := []string{workspacePath}
+	for _, removedKey := range []string{matchingA, matchingB} {
+		item, _, findErr := store.FindSession(paths, removedKey)
+		if findErr != nil {
+			t.Fatalf("查询会话失败: %v", findErr)
+		}
+		if item != nil {
+			t.Fatalf("期望会话被清理: %s", removedKey)
+		}
+	}
+	closed := runtimeCloser.Calls()
+	if len(closed) != 2 {
+		t.Fatalf("期望关闭 2 个 isolated 会话，实际 %d", len(closed))
+	}
+	item, _, findErr := store.FindSession(paths, unrelated)
+	if findErr != nil {
+		t.Fatalf("查询保留会话失败: %v", findErr)
+	}
+	if item == nil {
+		t.Fatalf("不应删除非 automation 会话")
+	}
+}
+
+func TestRunTaskNowMarksMainEventFailedWhenWakeValidationFails(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		&fakeChatRunner{permission: permission},
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	task, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "main-wake-fail",
+		AgentID:     "agent-1",
+		Instruction: "wake failed",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(60),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{Kind: SessionTargetMain, WakeMode: WakeModeNow},
+		Delivery:      DeliveryTarget{Mode: DeliveryModeNone},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+	if _, execErr := db.Exec(`UPDATE automation_cron_jobs SET wake_mode='bad-mode' WHERE job_id=?`, task.JobID); execErr != nil {
+		t.Fatalf("写入坏 wake_mode 失败: %v", execErr)
+	}
+
+	if _, err = service.RunTaskNow(context.Background(), task.JobID); err == nil {
+		t.Fatalf("期望 RunTaskNow 失败")
+	}
+
+	var status string
+	row := db.QueryRow(
+		`SELECT status FROM automation_system_events WHERE event_type='cron.trigger' ORDER BY created_at DESC, event_id DESC LIMIT 1`,
+	)
+	if scanErr := row.Scan(&status); scanErr != nil {
+		t.Fatalf("读取 system event 状态失败: %v", scanErr)
+	}
+	if strings.TrimSpace(status) != "failed" {
+		t.Fatalf("wake 失败后 event 应标记 failed，实际 %s", status)
+	}
+}
+
+func TestRunTaskNowSkipsDuplicateExplicitDeliveryWhenTargetMatchesExecutionSession(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	delivery := &fakeDeliveryRouter{}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		&fakeChatRunner{permission: permission, resultText: "done"},
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		delivery,
+	)
+	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "existing-room", "")
+	task, err := service.CreateTask(context.Background(), CreateJobInput{
+		Name:        "dup-delivery",
+		AgentID:     "agent-1",
+		Instruction: "run once",
+		Schedule: Schedule{
+			Kind:            ScheduleKindEvery,
+			IntervalSeconds: intRef(60),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: SessionTarget{
+			Kind:            SessionTargetBound,
+			BoundSessionKey: sessionKey,
+		},
+		Delivery: DeliveryTarget{
+			Mode:    DeliveryModeExplicit,
+			Channel: "websocket",
+			To:      sessionKey,
+		},
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	if _, err = service.RunTaskNow(context.Background(), task.JobID); err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		return listErr == nil && len(items) > 0 && items[0].Status == RunStatusSucceeded
+	})
+
+	if len(delivery.Calls()) != 0 {
+		t.Fatalf("execution 会话与显式回传目标一致时不应重复投递")
+	}
+}
+
+func TestWakeRequestBookkeepingDeduplicatesBySessionAndMode(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	sessionKey := buildMainSessionKey("agent-1")
+	first := "first"
+	second := "second"
+	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &first)
+	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &second)
+	service.recordWakeRequest("agent-1", sessionKey, WakeModeNextHeartbeat, nil)
+
+	items := service.wakeRequests[sessionKey]
+	if len(items) != 2 {
+		t.Fatalf("同 session 应按 wake_mode 去重，实际条目 %d", len(items))
+	}
+	nowText := ""
+	for _, item := range items {
+		if item.WakeMode == WakeModeNow {
+			nowText = item.Text
+		}
+	}
+	if nowText != "second" {
+		t.Fatalf("同 mode 应保留最后一次请求，实际 %q", nowText)
+	}
+}
+
+func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	chat := &fakeChatRunner{permission: permission}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		chat,
+		nil,
+		permission,
+		&fakeWorkspaceReader{
+			files: map[string]string{
+				"HEARTBEAT.md": "tasks:\n- name: check\n  interval: 30m\n  prompt: keep alive\n",
+			},
+		},
+		nil,
+	)
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+		Enabled:      true,
+		EverySeconds: 60,
+		TargetMode:   HeartbeatTargetNone,
+		AckMaxChars:  300,
+	}); err != nil {
+		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	}
+	if err := service.repository.InsertSystemEvent(
+		context.Background(),
+		"evt_payload_agent",
+		"cron.trigger",
+		"cron",
+		"job-unknown",
+		map[string]any{
+			"agent_id": "agent-1",
+			"text":     "payload owned event",
+		},
+	); err != nil {
+		t.Fatalf("预置 system event 失败: %v", err)
+	}
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
+		Mode: WakeModeNow,
+	}); err != nil {
+		t.Fatalf("WakeHeartbeat 失败: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		return len(chat.Requests()) > 0
+	})
+	requests := chat.Requests()
+	if len(requests) == 0 {
+		t.Fatalf("未触发 heartbeat 下发")
+	}
+	if !strings.Contains(requests[0].Content, "payload owned event") {
+		t.Fatalf("未消费 payload.agent_id 归属事件: %s", requests[0].Content)
 	}
 }
 

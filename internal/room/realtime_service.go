@@ -48,7 +48,7 @@ type RoomBroadcaster interface {
 type defaultRoomClientFactory struct{}
 
 func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Client {
-	return agentclient.New(options)
+	return runtimectx.WrapSDKClient(agentclient.New(options))
 }
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。
@@ -97,6 +97,10 @@ type activeRoomRound struct {
 }
 
 // RealtimeService 负责 Room 的共享流实时编排。
+// MCPServerBuilder 由 bootstrap 注入，按当前会话上下文构造一组进程内 MCP server。
+// 用 string 形参避免 room 包反向依赖 automation 子包，防止 import cycle。
+type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer
+
 type RealtimeService struct {
 	config      config.Config
 	rooms       *Service
@@ -109,6 +113,7 @@ type RealtimeService struct {
 	factory     roomClientFactory
 	broadcaster RoomBroadcaster
 	logger      *slog.Logger
+	mcpServers  MCPServerBuilder
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
@@ -172,6 +177,11 @@ func (s *RealtimeService) SetLogger(logger *slog.Logger) {
 // SetProviderResolver 注入 Provider 运行时解析器。
 func (s *RealtimeService) SetProviderResolver(resolver roomProviderResolver) {
 	s.providers = resolver
+}
+
+// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+func (s *RealtimeService) SetMCPServerBuilder(builder MCPServerBuilder) {
+	s.mcpServers = builder
 }
 
 // HandleChat 处理 Room 主对话消息。
@@ -603,6 +613,11 @@ func (s *RealtimeService) runSlot(
 	}
 	if agentValue.Options.MaxTurns != nil && *agentValue.Options.MaxTurns > 0 {
 		options.MaxTurns = *agentValue.Options.MaxTurns
+	}
+	if s.mcpServers != nil {
+		if servers := s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room"); len(servers) > 0 {
+			options.SDKMCPServers = servers
+		}
 	}
 	client := s.factory.New(options)
 	slot.Client = client

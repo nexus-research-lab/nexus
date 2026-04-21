@@ -347,7 +347,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 		}
 		setCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")
 		setCommand.Flags().IntVar(&everySeconds, "every-seconds", 1800, "every seconds")
-		setCommand.Flags().StringVar(&targetMode, "target-mode", automation2.HeartbeatTargetNone, "none|last|explicit")
+		setCommand.Flags().StringVar(&targetMode, "target-mode", automation2.HeartbeatTargetNone, "none|last")
 		setCommand.Flags().IntVar(&ackMaxChars, "ack-max-chars", 300, "ack max chars")
 		return setCommand
 	}())

@@ -85,6 +85,7 @@ func (s *Server) handleCreateScheduledTask(writer http.ResponseWriter, request *
 	if payload.Source != nil {
 		source = *payload.Source
 	}
+	source.Kind = automationsvc.SourceKindUserPage
 	enabled := true
 	if payload.Enabled != nil {
 		enabled = *payload.Enabled

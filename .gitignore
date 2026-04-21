@@ -34,8 +34,19 @@ cache
 .agents
 .venv
 
+# python residue (legacy migration artifacts)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+agent/
+tests/
+alembic/
+
 # docs
 docs/system
+docs/plans
 
 
 # log

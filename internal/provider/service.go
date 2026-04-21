@@ -97,6 +97,32 @@ func (s *Service) DefaultProvider(ctx context.Context) (*string, error) {
 	return nil, nil
 }
 
+// AvailabilityState 描述当前 Provider 配置的就绪程度，便于启动期或健康检查上报。
+type AvailabilityState struct {
+	Total       int
+	EnabledList []string
+	HasDefault  bool
+}
+
+// Availability 汇总 Provider 现状：是否有可用条目、是否已选默认。
+func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
+	items, err := s.listAndNormalize(ctx)
+	if err != nil {
+		return AvailabilityState{}, err
+	}
+	state := AvailabilityState{Total: len(items)}
+	for _, item := range items {
+		if !item.Enabled {
+			continue
+		}
+		state.EnabledList = append(state.EnabledList, item.Provider)
+		if item.IsDefault {
+			state.HasDefault = true
+		}
+	}
+	return state, nil
+}
+
 // Create 新增 Provider 配置。
 func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error) {
 	normalized, err := normalizeCreateInput(input)

@@ -78,8 +78,6 @@ func newHandlerForWriter(
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
 		return slog.NewJSONHandler(writer, handlerOptions)
-	case "text", "pretty":
-		return newPrettyHandler(writer, handlerOptions, colorize)
 	default:
 		return newPrettyHandler(writer, handlerOptions, colorize)
 	}

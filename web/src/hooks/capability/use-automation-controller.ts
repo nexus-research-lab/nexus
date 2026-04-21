@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolve_agent_id } from "@/config/options";
-import { get_heartbeat_config_api, wake_heartbeat_api } from "@/lib/api/heartbeat-api";
+import {
+  get_heartbeat_config_api,
+  update_heartbeat_api,
+  wake_heartbeat_api,
+} from "@/lib/api/heartbeat-api";
 import {
   create_scheduled_task_api,
   delete_scheduled_task_api,
@@ -12,7 +16,12 @@ import {
   update_scheduled_task_api,
   update_scheduled_task_status_api,
 } from "@/lib/api/scheduled-task-api";
-import type { HeartbeatConfig, HeartbeatWakeResult, WakeHeartbeatRequest } from "@/types/capability/heartbeat";
+import type {
+  HeartbeatConfig,
+  HeartbeatUpdateInput,
+  HeartbeatWakeResult,
+  WakeHeartbeatRequest,
+} from "@/types/capability/heartbeat";
 import type {
   CreateScheduledTaskParams,
   DeleteScheduledTaskResponse,
@@ -39,6 +48,7 @@ export interface AutomationController {
   refresh_tasks: (options?: { silent?: boolean }) => Promise<void>;
   refresh_all: () => Promise<void>;
   wake_heartbeat: (params?: WakeHeartbeatRequest) => Promise<HeartbeatWakeResult>;
+  update_heartbeat: (payload: HeartbeatUpdateInput) => Promise<HeartbeatConfig>;
   create_task: (params: CreateScheduledTaskParams) => Promise<ScheduledTaskItem>;
   update_task: (job_id: string, params: UpdateScheduledTaskParams) => Promise<ScheduledTaskItem>;
   delete_task: (job_id: string) => Promise<DeleteScheduledTaskResponse>;
@@ -177,6 +187,18 @@ export function useAutomationController(
     return result;
   }, [agent_id, refresh_heartbeat]);
 
+  const update_heartbeat = useCallback(async (payload: HeartbeatUpdateInput) => {
+    const request_agent_id = agent_id;
+    const next_config = await update_heartbeat_api(request_agent_id, payload);
+    // PUT 直接返回最新状态，落到当前 agent 的视图里；旧 agent 响应不能串写。
+    if (active_agent_id_ref.current === request_agent_id) {
+      heartbeat_request_token_ref.current += 1;
+      set_heartbeat(next_config);
+      set_heartbeat_error(null);
+    }
+    return next_config;
+  }, [agent_id]);
+
   const create_task = useCallback(async (params: CreateScheduledTaskParams) => {
     const request_agent_id = agent_id;
     const created_task = await create_scheduled_task_api(params);
@@ -260,6 +282,7 @@ export function useAutomationController(
     refresh_tasks,
     refresh_all,
     wake_heartbeat,
+    update_heartbeat,
     create_task,
     update_task,
     delete_task,

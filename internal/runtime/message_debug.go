@@ -359,34 +359,42 @@ func summarizeContentBlocks(blocks []sdkprotocol.ContentBlock) ([]string, string
 	blockTypes := make([]string, 0, len(blocks))
 	previewParts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		switch typed := block.(type) {
-		case sdkprotocol.TextBlock:
-			blockTypes = append(blockTypes, "text")
-			if text := truncateForLog(typed.Text); text != "" {
+		blockType := normalizeSDKBlockType(block.Type)
+		if blockType == "" {
+			blockType = "unknown"
+		}
+		blockTypes = append(blockTypes, blockType)
+		switch blockType {
+		case "text":
+			if text := truncateForLog(block.Text); text != "" {
 				previewParts = append(previewParts, text)
 			}
-		case sdkprotocol.ThinkingBlock:
-			blockTypes = append(blockTypes, "thinking")
-			if thinking := truncateForLog(typed.Thinking); thinking != "" {
+		case "thinking":
+			if thinking := truncateForLog(block.Thinking); thinking != "" {
 				previewParts = append(previewParts, "thinking:"+thinking)
 			}
-		case sdkprotocol.ToolUseBlock:
-			blockTypes = append(blockTypes, "tool_use")
-			previewParts = append(previewParts, "tool_use:"+firstNonEmpty(typed.Name, typed.ID))
-		case sdkprotocol.ToolResultBlock:
-			blockTypes = append(blockTypes, "tool_result")
-			payload := truncateForLog(rawJSONPayload(typed.Content))
+		case "tool_use":
+			previewParts = append(previewParts, "tool_use:"+firstNonEmpty(block.Name, block.ID))
+		case "tool_result":
+			payload := truncateForLog(rawJSON(block.Content))
 			if payload == "" {
-				payload = typed.ToolUseID
+				payload = block.ToolUseID
 			}
 			previewParts = append(previewParts, "tool_result:"+payload)
-		case sdkprotocol.UnknownBlock:
-			blockTypes = append(blockTypes, firstNonEmpty(string(typed.BlockType), "unknown"))
-		default:
-			blockTypes = append(blockTypes, "unknown")
 		}
 	}
 	return blockTypes, truncateForLog(strings.Join(previewParts, " | "))
+}
+
+func normalizeSDKBlockType(blockType string) string {
+	switch strings.TrimSpace(blockType) {
+	case "server_tool_use":
+		return "tool_use"
+	case "server_tool_result":
+		return "tool_result"
+	default:
+		return strings.TrimSpace(blockType)
+	}
 }
 
 func rawJSON(value any) string {
@@ -398,13 +406,6 @@ func rawJSON(value any) string {
 		return ""
 	}
 	return string(payload)
-}
-
-func rawJSONPayload(value []byte) string {
-	if len(value) == 0 {
-		return ""
-	}
-	return string(value)
 }
 
 func rawMap(value any) map[string]any {

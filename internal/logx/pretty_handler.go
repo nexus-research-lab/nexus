@@ -2,9 +2,13 @@
 // -*- coding: utf-8 -*-
 // =====================================================
 // @File   ：pretty_handler.go
-// @Date   ：2026/04/16 20:06:00
+// @Date   ：2026/04/20 19:00:00
 // @Author ：leemysw
-// 2026/04/16 20:06:00   Create
+// 2026/04/20 19:00:00   Create
+//
+// 终端日志格式参考 python-main 分支配色：
+//   [ 18:16:47 ] INFO    | gateway - GET 200 0ms 119B /agent/v1/runtime/options  rid=34197658
+//      灰        紫       青        method/status 各自染色          暗淡 k=v
 // =====================================================
 
 package logx
@@ -14,13 +18,28 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-// prettyHandler 提供适合本地调试的紧凑日志视图。
+// ANSI 配色：与 python-main 一致，并补 uvicorn 风格的 method/status 配色。
+const (
+	ansiReset       = "\033[0m"
+	ansiBold        = "\033[1m"
+	ansiDim         = "\033[2m"
+	ansiRed         = "\033[31m"
+	ansiGreen       = "\033[32m"
+	ansiYellow      = "\033[33m"
+	ansiBlue        = "\033[34m"
+	ansiMagenta     = "\033[35m"
+	ansiCyan        = "\033[36m"
+	ansiWhite       = "\033[97m"
+	ansiBrightBlack = "\033[90m"
+)
+
 type prettyHandler struct {
 	writer   io.Writer
 	level    slog.Leveler
@@ -28,11 +47,6 @@ type prettyHandler struct {
 	groups   []string
 	mutex    *sync.Mutex
 	colorize bool
-}
-
-type logField struct {
-	Key   string
-	Value string
 }
 
 func newPrettyHandler(writer io.Writer, options *slog.HandlerOptions, colorize bool) slog.Handler {
@@ -48,37 +62,16 @@ func newPrettyHandler(writer io.Writer, options *slog.HandlerOptions, colorize b
 	}
 }
 
-// Enabled 判断当前级别是否应输出。
 func (h *prettyHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level.Level()
 }
 
-// Handle 输出单条日志。
-func (h *prettyHandler) Handle(_ context.Context, record slog.Record) error {
-	fields := make([]logField, 0, record.NumAttrs()+len(h.attrs))
-	fields = appendResolvedAttrs(fields, h.attrs, h.groups)
-	record.Attrs(func(attr slog.Attr) bool {
-		fields = appendResolvedAttr(fields, attr, h.groups)
-		return true
-	})
-
-	service, component, summary, sdkType, filtered := extractSpecialFields(fields)
-	line := formatPrettyLine(record.Time, record.Level, service, component, record.Message, summary, sdkType, filtered, h.colorize)
-
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-	_, err := io.WriteString(h.writer, line)
-	return err
-}
-
-// WithAttrs 追加结构化字段。
 func (h *prettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	cloned := *h
 	cloned.attrs = append(append([]slog.Attr{}, h.attrs...), attrs...)
 	return &cloned
 }
 
-// WithGroup 追加字段分组。
 func (h *prettyHandler) WithGroup(name string) slog.Handler {
 	if strings.TrimSpace(name) == "" {
 		return h
@@ -88,168 +81,250 @@ func (h *prettyHandler) WithGroup(name string) slog.Handler {
 	return &cloned
 }
 
-func appendResolvedAttrs(fields []logField, attrs []slog.Attr, groups []string) []logField {
-	for _, attr := range attrs {
-		fields = appendResolvedAttr(fields, attr, groups)
-	}
-	return fields
+func (h *prettyHandler) Handle(_ context.Context, record slog.Record) error {
+	fields := make([]field, 0, record.NumAttrs()+len(h.attrs))
+	fields = appendAttrs(fields, h.attrs, h.groups)
+	record.Attrs(func(attr slog.Attr) bool {
+		fields = appendAttr(fields, attr, h.groups)
+		return true
+	})
+
+	scope, fields := pickScope(fields)
+	access, fields := pickAccess(fields)
+	requestID, fields := pickRequestID(fields)
+
+	line := h.format(record.Time, record.Level, scope, record.Message, access, requestID, fields)
+
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	_, err := io.WriteString(h.writer, line)
+	return err
 }
 
-func appendResolvedAttr(fields []logField, attr slog.Attr, groups []string) []logField {
-	if attr.Equal(slog.Attr{}) {
-		return fields
-	}
-	attr.Value = attr.Value.Resolve()
-	if attr.Value.Kind() == slog.KindGroup {
-		nextGroups := groups
-		if key := strings.TrimSpace(attr.Key); key != "" {
-			nextGroups = append(append([]string{}, groups...), key)
-		}
-		for _, nested := range attr.Value.Group() {
-			fields = appendResolvedAttr(fields, nested, nextGroups)
-		}
-		return fields
-	}
-
-	key := formatAttrKey(groups, attr.Key)
-	value := stringifyAttrValue(attr.Value)
-	if key == "" || value == "" {
-		return fields
-	}
-	return append(fields, logField{Key: key, Value: value})
-}
-
-func extractSpecialFields(fields []logField) (string, string, string, string, []logField) {
-	service := ""
-	component := ""
-	summary := ""
-	sdkType := ""
-	filtered := make([]logField, 0, len(fields))
-
-	for _, field := range fields {
-		switch field.Key {
-		case "service":
-			service = field.Value
-		case "component":
-			component = field.Value
-		case "sdk_summary":
-			summary = field.Value
-		case "sdk_message_type":
-			sdkType = field.Value
-		case "sdk_message_subtype", "stream_preview", "assistant_preview", "result_preview",
-			"stream_event_type", "stream_delta_type", "assistant_block_types", "result_subtype":
-			continue
-		default:
-			filtered = append(filtered, field)
-		}
-	}
-	return service, component, summary, sdkType, filtered
-}
-
-func formatPrettyLine(
+func (h *prettyHandler) format(
 	logTime time.Time,
 	level slog.Level,
-	service string,
-	component string,
+	scope string,
 	message string,
-	summary string,
-	sdkType string,
-	fields []logField,
-	colorize bool,
+	access *accessLog,
+	requestID string,
+	fields []field,
 ) string {
 	builder := &strings.Builder{}
-	if !logTime.IsZero() {
-		builder.WriteString(logTime.Format("2006-01-02 15:04:05.000"))
-		builder.WriteByte(' ')
-	}
-	builder.WriteString(colorizeIfNeeded(formatLevel(level), colorForLevel(level), colorize))
+
+	// [ TIME ]
+	builder.WriteString(h.paint("[ ", ansiWhite))
+	builder.WriteString(h.paint(logTime.Format("15:04:05"), ansiBrightBlack))
+	builder.WriteString(h.paint(" ]", ansiWhite))
 	builder.WriteByte(' ')
-	if scope := buildScope(service, component); scope != "" {
-		builder.WriteByte('[')
-		builder.WriteString(colorizeIfNeeded(scope, ansiBrightBlack, colorize))
-		builder.WriteString("] ")
-	}
-	if strings.TrimSpace(sdkType) != "" {
-		builder.WriteString(colorizeIfNeeded("[AGENT] ", colorForSDKType(sdkType), colorize))
-	}
 
-	builder.WriteString(strings.TrimSpace(message))
-	if summary = strings.TrimSpace(summary); summary != "" {
-		builder.WriteString(" · ")
-		builder.WriteString(colorizeIfNeeded(summary, colorForSDKType(sdkType), colorize))
-	}
+	// LEVEL（紫色，跟 python-main 保持一致；按级别区分时再覆盖）
+	builder.WriteString(h.paint(formatLevel(level), colorForLevel(level)))
+	builder.WriteByte(' ')
 
-	for _, field := range fields {
+	// | scope -
+	builder.WriteString(h.paint("| ", ansiWhite))
+	if scope == "" {
+		scope = "-"
+	}
+	const scopeWidth = 18
+	padded := scope
+	if len(padded) < scopeWidth {
+		padded = padded + strings.Repeat(" ", scopeWidth-len(padded))
+	}
+	builder.WriteString(h.paint(padded, ansiCyan))
+	builder.WriteString(h.paint(" - ", ansiWhite))
+
+	if access != nil {
+		// HTTP access log: METHOD STATUS DURATION BYTES PATH
+		builder.WriteString(h.paint(fmt.Sprintf("%-6s", strings.ToUpper(access.method)), colorForMethod(access.method)))
 		builder.WriteByte(' ')
-		builder.WriteString(field.Key)
-		builder.WriteByte('=')
-		if padded, ok := formatAlignedField(field.Key, field.Value); ok {
-			builder.WriteString(padded)
-		} else {
-			builder.WriteString(quoteIfNeeded(field.Value))
-		}
+		builder.WriteString(h.paint(fmt.Sprintf("%3d", access.status), colorForStatus(access.status)))
+		builder.WriteByte(' ')
+		builder.WriteString(h.paint(fmt.Sprintf("%5s", access.duration), ansiBrightBlack))
+		builder.WriteByte(' ')
+		builder.WriteString(h.paint(fmt.Sprintf("%6s", access.bytes), ansiBrightBlack))
+		builder.WriteByte(' ')
+		builder.WriteString(h.paint(access.path, ansiWhite))
+	} else {
+		builder.WriteString(h.paint(strings.TrimSpace(message), colorForMessage(level)))
 	}
+
+	if requestID != "" {
+		builder.WriteString("  ")
+		builder.WriteString(h.paint("rid=", ansiBrightBlack))
+		builder.WriteString(h.paint(requestID, ansiBrightBlack))
+	}
+
+	for _, f := range fields {
+		builder.WriteByte(' ')
+		builder.WriteString(h.paint(f.key+"=", ansiBrightBlack))
+		valueColor := ""
+		if f.key == "err" || f.key == "error" {
+			valueColor = ansiRed
+		}
+		builder.WriteString(h.paint(quoteIfNeeded(f.value), valueColor))
+	}
+
 	builder.WriteByte('\n')
 	return builder.String()
 }
 
-// formatAlignedField 对特定字段做定宽格式化，保证多行日志对齐。
-// 数值类右对齐，字符串类左对齐。
-func formatAlignedField(key, value string) (string, bool) {
-	switch key {
-	case "method":
-		return fmt.Sprintf("%-5s", value), true
-	case "duration_ms":
-		return fmt.Sprintf("%-6s", value), true
-	case "bytes":
-		return fmt.Sprintf("%-7s", value), true
-	case "remote_ip":
-		return fmt.Sprintf("%-15s", value), true
+func (h *prettyHandler) paint(text, color string) string {
+	if !h.colorize || color == "" || text == "" {
+		return text
 	}
-	return "", false
+	return color + text + ansiReset
 }
 
-func buildScope(service string, component string) string {
-	service = strings.TrimSpace(service)
-	component = strings.TrimSpace(component)
+// ----- field 抽取与归类 -----
+
+type field struct {
+	key   string
+	value string
+}
+
+type accessLog struct {
+	method   string
+	status   int
+	duration string
+	bytes    string
+	path     string
+}
+
+func pickScope(fields []field) (string, []field) {
+	service, component := "", ""
+	rest := make([]field, 0, len(fields))
+	for _, f := range fields {
+		switch f.key {
+		case "service":
+			service = f.value
+		case "component":
+			component = f.value
+		default:
+			rest = append(rest, f)
+		}
+	}
 	switch {
 	case service != "" && component != "":
-		return service + "/" + component
+		return service + "/" + component, rest
 	case service != "":
-		return service
+		return service, rest
 	default:
-		return component
+		return component, rest
 	}
 }
+
+// pickAccess 识别 method/status/path 都齐的 HTTP access log，折叠成 accessLog。
+func pickAccess(fields []field) (*accessLog, []field) {
+	var method, path, durationMs, bytesWritten, remoteIP string
+	var status int
+	hasMethod, hasStatus, hasPath := false, false, false
+	rest := make([]field, 0, len(fields))
+	for _, f := range fields {
+		switch f.key {
+		case "method":
+			method = f.value
+			hasMethod = true
+		case "status":
+			if value, err := strconv.Atoi(f.value); err == nil {
+				status = value
+				hasStatus = true
+			} else {
+				rest = append(rest, f)
+			}
+		case "path":
+			path = f.value
+			hasPath = true
+		case "duration_ms":
+			durationMs = f.value
+		case "bytes":
+			bytesWritten = f.value
+		case "remote_ip":
+			remoteIP = f.value
+		default:
+			rest = append(rest, f)
+		}
+	}
+	if !(hasMethod && hasStatus && hasPath) {
+		// 不是 access log，把抽出来的字段补回去。
+		if method != "" {
+			rest = append(rest, field{key: "method", value: method})
+		}
+		if path != "" {
+			rest = append(rest, field{key: "path", value: path})
+		}
+		if durationMs != "" {
+			rest = append(rest, field{key: "duration_ms", value: durationMs})
+		}
+		if bytesWritten != "" {
+			rest = append(rest, field{key: "bytes", value: bytesWritten})
+		}
+		if remoteIP != "" {
+			rest = append(rest, field{key: "remote_ip", value: remoteIP})
+		}
+		return nil, rest
+	}
+	if remoteIP != "" && remoteIP != "127.0.0.1" && remoteIP != "::1" {
+		rest = append(rest, field{key: "ip", value: remoteIP})
+	}
+	return &accessLog{
+		method:   method,
+		status:   status,
+		duration: durationMs + "ms",
+		bytes:    formatBytes(bytesWritten),
+		path:     path,
+	}, rest
+}
+
+func pickRequestID(fields []field) (string, []field) {
+	rest := make([]field, 0, len(fields))
+	requestID := ""
+	for _, f := range fields {
+		if f.key == "request_id" {
+			requestID = f.value
+			continue
+		}
+		rest = append(rest, f)
+	}
+	if len(requestID) > 8 {
+		requestID = requestID[:8]
+	}
+	return requestID, rest
+}
+
+// ----- 颜色策略 -----
 
 func formatLevel(level slog.Level) string {
 	switch {
 	case level <= slog.LevelDebug:
-		return "DBG"
+		return "DEBUG  "
 	case level < slog.LevelWarn:
-		return "INF"
+		return "INFO   "
 	case level < slog.LevelError:
-		return "WRN"
+		return "WARNING"
 	default:
-		return "ERR"
+		return "ERROR  "
 	}
 }
-
-const (
-	ansiReset       = "\033[0m"
-	ansiBlue        = "\033[34m"
-	ansiCyan        = "\033[36m"
-	ansiGreen       = "\033[32m"
-	ansiYellow      = "\033[33m"
-	ansiRed         = "\033[31m"
-	ansiMagenta     = "\033[35m"
-	ansiBrightBlack = "\033[90m"
-)
 
 func colorForLevel(level slog.Level) string {
 	switch {
 	case level <= slog.LevelDebug:
 		return ansiCyan
+	case level < slog.LevelWarn:
+		return ansiMagenta
+	case level < slog.LevelError:
+		return ansiYellow
+	default:
+		return ansiRed + ansiBold
+	}
+}
+
+func colorForMessage(level slog.Level) string {
+	switch {
+	case level <= slog.LevelDebug:
+		return ansiBrightBlack
 	case level < slog.LevelWarn:
 		return ansiGreen
 	case level < slog.LevelError:
@@ -259,46 +334,95 @@ func colorForLevel(level slog.Level) string {
 	}
 }
 
-func colorForSDKType(sdkType string) string {
-	switch strings.TrimSpace(sdkType) {
-	case "stream_event":
-		return ansiCyan
-	case "assistant":
+func colorForMethod(method string) string {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodGet:
 		return ansiGreen
-	case "result":
+	case http.MethodPost:
 		return ansiBlue
-	case "system":
-		return ansiMagenta
-	case "tool_progress":
+	case http.MethodPut, http.MethodPatch:
 		return ansiYellow
+	case http.MethodDelete:
+		return ansiRed
+	default:
+		return ansiMagenta
+	}
+}
+
+func colorForStatus(status int) string {
+	switch {
+	case status >= 500:
+		return ansiRed + ansiBold
+	case status >= 400:
+		return ansiYellow
+	case status >= 300:
+		return ansiCyan
+	case status >= 200:
+		return ansiGreen
 	default:
 		return ansiBrightBlack
 	}
 }
 
-func colorizeIfNeeded(value string, color string, enabled bool) string {
-	if !enabled || strings.TrimSpace(color) == "" || strings.TrimSpace(value) == "" {
-		return value
+// ----- 字节展示 -----
+
+func formatBytes(raw string) string {
+	if raw == "" {
+		return "0B"
 	}
-	return color + value + ansiReset
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return raw
+	}
+	switch {
+	case value >= 1<<20:
+		return fmt.Sprintf("%.1fM", float64(value)/float64(1<<20))
+	case value >= 1<<10:
+		return fmt.Sprintf("%.1fK", float64(value)/float64(1<<10))
+	default:
+		return fmt.Sprintf("%dB", value)
+	}
 }
 
-func formatAttrKey(groups []string, key string) string {
-	key = strings.TrimSpace(key)
+// ----- attr 展开 -----
+
+func appendAttrs(target []field, attrs []slog.Attr, groups []string) []field {
+	for _, attr := range attrs {
+		target = appendAttr(target, attr, groups)
+	}
+	return target
+}
+
+func appendAttr(target []field, attr slog.Attr, groups []string) []field {
+	if attr.Equal(slog.Attr{}) {
+		return target
+	}
+	attr.Value = attr.Value.Resolve()
+	if attr.Value.Kind() == slog.KindGroup {
+		nextGroups := groups
+		if key := strings.TrimSpace(attr.Key); key != "" {
+			nextGroups = append(append([]string{}, groups...), key)
+		}
+		for _, nested := range attr.Value.Group() {
+			target = appendAttr(target, nested, nextGroups)
+		}
+		return target
+	}
+	key := attr.Key
+	if len(groups) > 0 {
+		key = strings.Join(append(append([]string{}, groups...), key), ".")
+	}
+	value := stringifyValue(attr.Value)
 	if key == "" {
-		return ""
+		return target
 	}
-	if len(groups) == 0 {
-		return key
-	}
-	all := append(append([]string{}, groups...), key)
-	return strings.Join(all, ".")
+	return append(target, field{key: key, value: value})
 }
 
-func stringifyAttrValue(value slog.Value) string {
+func stringifyValue(value slog.Value) string {
 	switch value.Kind() {
 	case slog.KindString:
-		return strings.TrimSpace(value.String())
+		return value.String()
 	case slog.KindBool:
 		return strconv.FormatBool(value.Bool())
 	case slog.KindInt64:
@@ -311,10 +435,8 @@ func stringifyAttrValue(value slog.Value) string {
 		return value.Duration().String()
 	case slog.KindTime:
 		return value.Time().Format(time.RFC3339Nano)
-	case slog.KindAny:
-		return strings.TrimSpace(fmt.Sprint(value.Any()))
 	default:
-		return strings.TrimSpace(value.String())
+		return fmt.Sprint(value.Any())
 	}
 }
 
