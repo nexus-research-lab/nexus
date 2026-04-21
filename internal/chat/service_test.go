@@ -42,12 +42,17 @@ import (
 )
 
 type fakeChatClient struct {
-	mu             sync.Mutex
-	sessionID      string
-	messages       chan sdkprotocol.ReceivedMessage
-	interruptCalls int
-	reconfigureOps []agentclient.Options
-	onQuery        func(context.Context, string)
+	mu              sync.Mutex
+	sessionID       string
+	messages        chan sdkprotocol.ReceivedMessage
+	interruptCalls  int
+	disconnectCalls int
+	connectErrors   []error
+	permissionErrs  []error
+	reconfigureOps  []agentclient.Options
+	permissionOps   []sdkprotocol.PermissionMode
+	onQuery         func(context.Context, string)
+	onInterrupt     func(context.Context)
 }
 
 func newFakeChatClient() *fakeChatClient {
@@ -57,7 +62,16 @@ func newFakeChatClient() *fakeChatClient {
 	}
 }
 
-func (c *fakeChatClient) Connect(context.Context) error { return nil }
+func (c *fakeChatClient) Connect(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.connectErrors) == 0 {
+		return nil
+	}
+	err := c.connectErrors[0]
+	c.connectErrors = c.connectErrors[1:]
+	return err
+}
 
 func (c *fakeChatClient) Query(ctx context.Context, prompt string) error {
 	if c.onQuery != nil {
@@ -70,14 +84,23 @@ func (c *fakeChatClient) ReceiveMessages(context.Context) <-chan sdkprotocol.Rec
 	return c.messages
 }
 
-func (c *fakeChatClient) Interrupt(context.Context) error {
+func (c *fakeChatClient) Interrupt(ctx context.Context) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.interruptCalls++
+	callback := c.onInterrupt
+	c.mu.Unlock()
+	if callback != nil {
+		callback(ctx)
+	}
 	return nil
 }
 
-func (c *fakeChatClient) Disconnect(context.Context) error { return nil }
+func (c *fakeChatClient) Disconnect(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.disconnectCalls++
+	return nil
+}
 
 func (c *fakeChatClient) Reconfigure(_ context.Context, options agentclient.Options) error {
 	c.mu.Lock()
@@ -86,8 +109,16 @@ func (c *fakeChatClient) Reconfigure(_ context.Context, options agentclient.Opti
 	return nil
 }
 
-func (c *fakeChatClient) SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error {
-	return nil
+func (c *fakeChatClient) SetPermissionMode(_ context.Context, mode sdkprotocol.PermissionMode) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.permissionOps = append(c.permissionOps, mode)
+	if len(c.permissionErrs) == 0 {
+		return nil
+	}
+	err := c.permissionErrs[0]
+	c.permissionErrs = c.permissionErrs[1:]
+	return err
 }
 
 func (c *fakeChatClient) SessionID() string { return c.sessionID }
@@ -95,6 +126,7 @@ func (c *fakeChatClient) SessionID() string { return c.sessionID }
 type fakeChatFactory struct {
 	mu      sync.Mutex
 	client  *fakeChatClient
+	clients []*fakeChatClient
 	options []agentclient.Options
 }
 
@@ -102,6 +134,11 @@ func (f *fakeChatFactory) New(options agentclient.Options) runtimectx.Client {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.options = append(f.options, options)
+	if len(f.clients) > 0 {
+		client := f.clients[0]
+		f.clients = f.clients[1:]
+		return client
+	}
 	return f.client
 }
 
@@ -112,6 +149,15 @@ func (f *fakeChatFactory) LastOptions() agentclient.Options {
 		return agentclient.Options{}
 	}
 	return f.options[len(f.options)-1]
+}
+
+func (f *fakeChatFactory) OptionAt(index int) agentclient.Options {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if index < 0 || index >= len(f.options) {
+		return agentclient.Options{}
+	}
+	return f.options[index]
 }
 
 type chatTestSender struct {
@@ -254,19 +300,88 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		},
 	})
 	messages := readChatSessionHistory(t, cfg, service, sessionKey)
-	if len(messages) != 3 {
-		t.Fatalf("期望 3 条消息，实际 %d", len(messages))
+	if len(messages) != 2 {
+		t.Fatalf("期望 2 条消息，实际 %d", len(messages))
 	}
-	if messages[0]["role"] != "user" || messages[1]["role"] != "assistant" || messages[2]["role"] != "result" {
+	if messages[0]["role"] != "user" || messages[1]["role"] != "assistant" {
 		t.Fatalf("消息角色顺序不正确: %+v", messages)
 	}
-	if messages[2]["result"] != "done" || anyToInt(messages[2]["duration_ms"]) != 12 {
-		t.Fatalf("result 摘要应来自 overlay: %+v", messages[2])
+	summary, ok := messages[1]["result_summary"].(map[string]any)
+	if !ok || anyToString(summary["result"]) != "done" || anyToInt(summary["duration_ms"]) != 12 {
+		t.Fatalf("result 摘要应挂在 assistant 上: %+v", messages[1])
 	}
-	usage, _ := messages[2]["usage"].(map[string]any)
+	usage, _ := summary["usage"].(map[string]any)
 	outputTokens := anyToInt(usage["output_tokens"])
 	if outputTokens != 5 {
-		t.Fatalf("result usage 应保留: %+v", messages[2])
+		t.Fatalf("result usage 应保留: %+v", messages[1])
+	}
+}
+
+func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	created, err := agentService.CreateAgent(context.Background(), agentsvc.CreateRequest{Name: "提示词助手"})
+	if err != nil {
+		t.Fatalf("创建测试 agent 失败: %v", err)
+	}
+	if err = os.WriteFile(
+		filepath.Join(created.WorkspacePath, "AGENTS.md"),
+		[]byte("# AGENTS.md\n\n执行规则：必须先加载工作区规则。\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("写入 AGENTS.md 失败: %v", err)
+	}
+
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+	if _, err = db.Exec(`UPDATE profiles SET headline = ?, profile_markdown = ? WHERE agent_id = ?`,
+		"擅长规则执行",
+		"## 详细档案\n- 运行前先汇总 workspace 规则。",
+		created.AgentID,
+	); err != nil {
+		t.Fatalf("更新 profile 失败: %v", err)
+	}
+
+	agentValue, err := agentService.GetAgent(context.Background(), created.AgentID)
+	if err != nil {
+		t.Fatalf("读取测试 agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+
+	sessionKey := protocol.BuildAgentSessionKey(created.AgentID, protocol.SessionChannelWebSocketSegment, "dm", "prompt-ref", "")
+	parsed := protocol.ParseSessionKey(sessionKey)
+	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
+	if err != nil {
+		t.Fatalf("初始化 session 失败: %v", err)
+	}
+	if _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+		SessionKey:     sessionKey,
+		PermissionMode: sdkprotocol.PermissionModeDefault,
+	}); err != nil {
+		t.Fatalf("构建 runtime client 失败: %v", err)
+	}
+
+	appendSystemPrompt := factory.LastOptions().AppendSystemPrompt
+	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
+		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
+	}
+	if !strings.Contains(appendSystemPrompt, "擅长规则执行") {
+		t.Fatalf("runtime prompt 未注入 Agent headline: %s", appendSystemPrompt)
+	}
+	if !strings.Contains(appendSystemPrompt, "运行前先汇总 workspace 规则") {
+		t.Fatalf("runtime prompt 未注入 Agent profile_markdown: %s", appendSystemPrompt)
 	}
 }
 
@@ -440,15 +555,18 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 		},
 	})
 	messages := readChatSessionHistory(t, cfg, service, sessionKey)
-	if len(messages) != 3 {
-		t.Fatalf("期望 3 条消息，实际 %d", len(messages))
+	if len(messages) != 2 {
+		t.Fatalf("期望 2 条消息，实际 %d", len(messages))
 	}
 	historyBlocks := contentBlocksFromPayload(t, messages[1])
 	if len(historyBlocks) != 2 || historyBlocks[0]["type"] != "thinking" || historyBlocks[1]["type"] != "text" {
 		t.Fatalf("历史 assistant 内容块不正确: %+v", messages[1])
 	}
-	if messages[1]["stream_status"] != "done" {
-		t.Fatalf("历史 assistant stream_status 未收口: %+v", messages[1])
+	if _, exists := messages[1]["stream_status"]; exists {
+		t.Fatalf("历史 assistant 不应携带 stream_status: %+v", messages[1])
+	}
+	if _, ok := messages[1]["result_summary"].(map[string]any); !ok {
+		t.Fatalf("历史 assistant 应挂载 result 摘要: %+v", messages[1])
 	}
 }
 
@@ -711,6 +829,95 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatRebuildsBrokenRuntimeClient(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	firstClient := newFakeChatClient()
+	firstClient.sessionID = "sdk-resume-broken"
+	firstClient.permissionErrs = []error{
+		errors.New("client: send control request failed: process: write payload failed: write |1: file already closed"),
+	}
+	secondClient := newFakeChatClient()
+	secondClient.sessionID = "sdk-resume-broken"
+	secondClient.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			secondClient.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: secondClient.sessionID,
+				UUID:      "result-recreated",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{clients: []*fakeChatClient{firstClient, secondClient}}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-runtime-rebuild")
+	sessionKey := "agent:nexus:ws:dm:broken-runtime"
+	permission.BindSession(sessionKey, sender, "client-runtime-rebuild", true)
+
+	resumeID := "sdk-resume-broken"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &resumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Broken Runtime",
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试坏 runtime 重建",
+		RoundID:    "round-runtime-rebuild",
+		ReqID:      "round-runtime-rebuild",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	if len(factory.options) != 2 {
+		t.Fatalf("坏 runtime client 应重建一次: got=%d want=2", len(factory.options))
+	}
+	if factory.OptionAt(0).Resume != resumeID || factory.OptionAt(1).Resume != resumeID {
+		t.Fatalf("重建 runtime client 时应继续使用相同 resume: first=%+v second=%+v", factory.OptionAt(0), factory.OptionAt(1))
+	}
+	firstClient.mu.Lock()
+	disconnectCalls := firstClient.disconnectCalls
+	firstClient.mu.Unlock()
+	if disconnectCalls != 1 {
+		t.Fatalf("坏 runtime client 应被回收一次: got=%d want=1", disconnectCalls)
+	}
+	secondClient.mu.Lock()
+	permissionOps := append([]sdkprotocol.PermissionMode(nil), secondClient.permissionOps...)
+	secondClient.mu.Unlock()
+	if len(permissionOps) == 0 {
+		t.Fatal("重建后的 runtime client 应重新设置权限模式")
+	}
+}
+
 func TestServiceHandleChatRejectsLegacySessionHistory(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
@@ -756,8 +963,20 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	agentService := newChatAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeChatClient()
-	client.onQuery = func(ctx context.Context, _ string) {
-		<-ctx.Done()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-interrupted",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
 	}
 
 	factory := &fakeChatFactory{client: client}
@@ -811,8 +1030,200 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	if len(messages) != 2 {
 		t.Fatalf("中断后消息数量不正确: got=%d want=2 messages=%+v", len(messages), messages)
 	}
-	if messages[1]["role"] != "result" || messages[1]["subtype"] != "interrupted" {
-		t.Fatalf("中断后未落 interrupted result: %+v", messages)
+	if messages[1]["role"] != "assistant" {
+		t.Fatalf("中断后应返回合成 assistant: %+v", messages)
+	}
+	summary, ok := messages[1]["result_summary"].(map[string]any)
+	if !ok || summary["subtype"] != "interrupted" {
+		t.Fatalf("中断后未挂载 interrupted result_summary: %+v", messages)
+	}
+}
+
+func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-error-after-interrupt",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:       "error",
+					DurationMS:    8,
+					DurationAPIMS: 123,
+					NumTurns:      2,
+					Result:        "",
+					IsError:       true,
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-interrupt-error")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-error"
+	permission.BindSession(sessionKey, sender, "client-interrupt-error", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "停止测试",
+		RoundID:    "round-interrupt-error",
+		ReqID:      "round-interrupt-error",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("HandleInterrupt 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
+	})
+	assertContainsRoundStatus(t, events, "interrupted")
+	assertContainsResultSubtype(t, events, "interrupted")
+
+	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
+	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "interrupt-error-user-1",
+			"sessionId": stringPointer(t, sessionValue.SessionID),
+			"timestamp": time.Now().Add(-time.Second).UTC().Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "停止测试",
+			},
+		},
+	})
+	messages := readChatSessionHistory(t, cfg, service, sessionKey)
+	if len(messages) != 2 {
+		t.Fatalf("中断错误收口后消息数量不正确: got=%d want=2 messages=%+v", len(messages), messages)
+	}
+	summary, ok := messages[1]["result_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("中断错误未挂载 result_summary: %+v", messages)
+	}
+	if summary["subtype"] != "interrupted" {
+		t.Fatalf("中断错误应收口为 interrupted: %+v", summary)
+	}
+	if _, exists := summary["result"]; exists {
+		t.Fatalf("中断错误不应再补默认文案: %+v", summary)
+	}
+}
+
+func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+
+	client := newFakeChatClient()
+	client.sessionID = "sdk-interrupt-old"
+	queryCount := 0
+	client.onQuery = func(_ context.Context, _ string) {
+		queryCount++
+		if queryCount != 2 {
+			return
+		}
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-after-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-after-interrupt",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-reconnect")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-reconnect"
+	permission.BindSession(sessionKey, sender, "client-reconnect", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "第一轮",
+		RoundID:    "round-interrupt-1",
+		ReqID:      "round-interrupt-1",
+	}); err != nil {
+		t.Fatalf("第一轮 HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("HandleInterrupt 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
+	})
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "第二轮",
+		RoundID:    "round-interrupt-2",
+		ReqID:      "round-interrupt-2",
+	}); err != nil {
+		t.Fatalf("第二轮 HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["status"] == "finished" &&
+			event.Data["round_id"] == "round-interrupt-2"
+	})
+
+	if len(factory.options) != 1 {
+		t.Fatalf("只应创建一次 runtime client，第二轮应复用现有 client: got=%d want=1", len(factory.options))
+	}
+	if len(client.reconfigureOps) == 0 {
+		t.Fatalf("第二轮应复用 client 并执行 reconfigure")
+	}
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["round_id"] != "round-interrupt-2" {
+			continue
+		}
+		summary, ok := event.Data["result_summary"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if summary["subtype"] == "interrupted" {
+			t.Fatalf("第二轮不应消费上一轮残留结果: %+v", events)
+		}
 	}
 }
 
@@ -993,7 +1404,7 @@ func readChatSessionHistory(
 	cfg config.Config,
 	service *Service,
 	sessionKey string,
-) []session.Message {
+) []sessionmodel.Message {
 	t.Helper()
 	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
 	historyStore := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
@@ -1204,10 +1615,17 @@ func assertContainsStreamEventType(t *testing.T, events []protocol.EventMessage,
 func assertContainsResultSubtype(t *testing.T, events []protocol.EventMessage, subtype string) {
 	t.Helper()
 	for _, event := range events {
-		if event.EventType == protocol.EventTypeMessage &&
-			event.Data["role"] == "result" &&
-			event.Data["subtype"] == subtype {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["role"] == "result" && event.Data["subtype"] == subtype {
 			return
+		}
+		if event.Data["role"] == "assistant" {
+			summary, ok := event.Data["result_summary"].(map[string]any)
+			if ok && summary["subtype"] == subtype {
+				return
+			}
 		}
 	}
 	t.Fatalf("未找到 result.subtype=%s: %+v", subtype, events)
@@ -1241,7 +1659,7 @@ func assertStreamBlockIndex(t *testing.T, events []protocol.EventMessage, blockT
 	t.Fatalf("未找到 block_type=%s 的 stream 事件: %+v", blockType, events)
 }
 
-func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) session.Message {
+func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) sessionmodel.Message {
 	t.Helper()
 	for _, event := range events {
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
@@ -1250,7 +1668,7 @@ func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, m
 		if event.Data["role"] != "assistant" {
 			continue
 		}
-		return session.Message(event.Data)
+		return sessionmodel.Message(event.Data)
 	}
 	t.Fatalf("未找到 assistant message_id=%s 的 durable 消息: %+v", messageID, events)
 	return nil
@@ -1279,4 +1697,11 @@ func contentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string
 		t.Fatalf("content 类型不正确: %+v", payload)
 		return nil
 	}
+}
+
+func anyToString(value any) string {
+	if typed, ok := value.(string); ok {
+		return typed
+	}
+	return ""
 }

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/session"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
@@ -24,6 +24,8 @@ type messageMapper struct {
 	agentID    string
 	roundID    string
 	processor  *message.Processor
+
+	lastAssistantMessage sessionmodel.Message
 }
 
 func newMessageMapper(sessionKey string, agentID string, roundID string) *messageMapper {
@@ -40,9 +42,14 @@ func newMessageMapper(sessionKey string, agentID string, roundID string) *messag
 	}
 }
 
-func (m *messageMapper) Map(message sdkprotocol.ReceivedMessage) ([]protocol.EventMessage, string, string) {
-	output := m.processor.Process(message)
-	events := make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+2)
+func (m *messageMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason ...string) ([]protocol.EventMessage, []sessionmodel.Message, string, string, error) {
+	output := m.processor.Process(incoming)
+	if output.Err != nil {
+		return nil, nil, "", "", output.Err
+	}
+	message.NormalizeInterruptedOutput(&output, firstNonEmpty(interruptReason...))
+	events := make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+len(output.EphemeralMessages)+2)
+	durableMessages := make([]sessionmodel.Message, 0, len(output.DurableMessages))
 	if output.StreamStarted {
 		events = append(events, m.wrapEvent(protocol.EventTypeStreamStart, map[string]any{
 			"msg_id":   m.processor.CurrentMessageID(),
@@ -53,7 +60,10 @@ func (m *messageMapper) Map(message sdkprotocol.ReceivedMessage) ([]protocol.Eve
 		events = append(events, m.wrapEvent(protocol.EventTypeStream, streamEvent.Data, streamEvent.MessageID))
 	}
 	for _, messageValue := range output.DurableMessages {
-		events = append(events, m.wrapDurableMessage(messageValue))
+		copyValue := sessionmodel.Clone(messageValue)
+		durableMessages = append(durableMessages, copyValue)
+		projectedValue := m.projectDurableMessage(copyValue)
+		events = append(events, m.wrapDurableMessage(projectedValue))
 		if messageValue["role"] == "assistant" && messageValue["is_complete"] == true {
 			events = append(events, m.wrapEvent(protocol.EventTypeStreamEnd, map[string]any{
 				"msg_id":   messageValue["message_id"],
@@ -61,7 +71,10 @@ func (m *messageMapper) Map(message sdkprotocol.ReceivedMessage) ([]protocol.Eve
 			}, mapperString(messageValue["message_id"])))
 		}
 	}
-	return events, output.TerminalStatus, output.ResultSubtype
+	for _, messageValue := range output.EphemeralMessages {
+		events = append(events, m.wrapEphemeralMessage(sessionmodel.Clone(messageValue)))
+	}
+	return events, durableMessages, output.TerminalStatus, output.ResultSubtype, nil
 }
 
 func (m *messageMapper) CurrentMessageID() string {
@@ -72,10 +85,27 @@ func (m *messageMapper) SessionID() string {
 	return m.processor.SessionID()
 }
 
-func (m *messageMapper) wrapDurableMessage(payload session.Message) protocol.EventMessage {
+func (m *messageMapper) LastAssistantMessage() sessionmodel.Message {
+	if len(m.lastAssistantMessage) == 0 {
+		return nil
+	}
+	return sessionmodel.Clone(m.lastAssistantMessage)
+}
+
+func (m *messageMapper) ProjectResultMessage(message sessionmodel.Message) sessionmodel.Message {
+	projected := sessionmodel.ProjectResultMessage(m.lastAssistantMessage, message)
+	m.lastAssistantMessage = sessionmodel.Clone(projected)
+	return projected
+}
+
+func (m *messageMapper) wrapDurableMessage(payload sessionmodel.Message) protocol.EventMessage {
 	event := m.wrapEvent(protocol.EventTypeMessage, payload, mapperString(payload["message_id"]))
 	event.DeliveryMode = "durable"
 	return event
+}
+
+func (m *messageMapper) wrapEphemeralMessage(payload sessionmodel.Message) protocol.EventMessage {
+	return m.wrapEvent(protocol.EventTypeMessage, payload, mapperString(payload["message_id"]))
 }
 
 func (m *messageMapper) wrapEvent(eventType protocol.EventType, data map[string]any, messageID string) protocol.EventMessage {
@@ -90,6 +120,17 @@ func (m *messageMapper) wrapEvent(eventType protocol.EventType, data map[string]
 		event.Timestamp = time.Now().UnixMilli()
 	}
 	return event
+}
+
+func (m *messageMapper) projectDurableMessage(message sessionmodel.Message) sessionmodel.Message {
+	if message["role"] == "assistant" {
+		m.lastAssistantMessage = sessionmodel.Clone(message)
+		return message
+	}
+	if message["role"] != "result" {
+		return message
+	}
+	return m.ProjectResultMessage(message)
 }
 
 func mapperString(value any) string {

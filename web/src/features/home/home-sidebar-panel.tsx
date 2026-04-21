@@ -24,7 +24,7 @@ import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
-import { create_room, delete_room, subscribe_room_list_updates } from "@/lib/api/room-api";
+import { create_room, delete_room, subscribe_room_directory_updates } from "@/lib/api/room-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
@@ -154,7 +154,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
     void refresh_directory();
   }, [refresh_directory]);
 
-  useEffect(() => subscribe_room_list_updates(() => {
+  useEffect(() => subscribe_room_directory_updates(() => {
     void refresh_directory();
   }), [refresh_directory]);
 

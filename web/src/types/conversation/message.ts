@@ -5,7 +5,7 @@
  */
 import { SessionId, ToolInput } from '../system/sdk';
 
-export type MessageRole = 'user' | 'assistant' | 'system' | 'result' | 'agent';
+export type MessageRole = 'user' | 'assistant' | 'system' | 'agent';
 
 export interface TextContent {
   type: 'text';
@@ -42,12 +42,28 @@ export interface TaskProgressContent {
   usage?: Record<string, any>;
 }
 
+export type SystemEventTone = 'neutral' | 'warning';
+export type SystemEventIcon = 'retry' | 'progress' | 'status';
+
+export interface SystemEventContent {
+  type: 'system_event';
+  content: string;
+  label: string;
+  tone: SystemEventTone;
+  icon: SystemEventIcon;
+  source_message_id: string;
+  timestamp: number;
+  subtype?: string;
+  tool_use_id?: string | null;
+}
+
 export type ContentBlock =
   | TextContent
   | ToolUseContent
   | ToolResultContent
   | ThinkingContent
-  | TaskProgressContent;
+  | TaskProgressContent
+  | SystemEventContent;
 
 export interface BaseMessage {
   message_id: string;
@@ -60,6 +76,8 @@ export interface BaseMessage {
   parent_id?: string;
   role: MessageRole;
   timestamp: number;
+  /** 运行态投影字段；用于区分 durable / ephemeral，不来自历史回放。 */
+  delivery_mode?: 'durable' | 'ephemeral';
 }
 
 export interface UserMessage extends BaseMessage {
@@ -85,6 +103,19 @@ export interface Usage {
   [key: string]: any;
 }
 
+export interface ResultSummary {
+  message_id?: string;
+  timestamp?: number;
+  subtype: 'success' | 'error' | 'interrupted';
+  duration_ms: number;
+  duration_api_ms: number;
+  num_turns: number;
+  total_cost_usd?: number;
+  usage?: Usage;
+  result?: string;
+  is_error: boolean;
+}
+
 /** Status for assistant messages in Room multi-agent scenarios. */
 export type AssistantMessageStatus = 'pending' | 'streaming' | 'done' | 'cancelled' | 'error';
 
@@ -95,7 +126,8 @@ export interface AssistantMessage extends BaseMessage {
   stop_reason?: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use';
   model?: string;
   usage?: Usage;
-  /** Room 并发场景下气泡的生命周期状态 */
+  result_summary?: ResultSummary;
+  /** UI-only；不是后端协议字段。 */
   stream_status?: AssistantMessageStatus;
 }
 
@@ -114,19 +146,7 @@ export interface SystemMessage extends BaseMessage {
   metadata?: SystemMessageMetadata;
 }
 
-export interface ResultMessage extends BaseMessage {
-  role: 'result';
-  subtype: 'success' | 'error' | 'interrupted';
-  duration_ms: number;
-  duration_api_ms: number;
-  num_turns: number;
-  total_cost_usd?: number;
-  usage?: Usage;
-  result?: string;
-  is_error: boolean;
-}
-
-export type Message = UserMessage | AssistantMessage | SystemMessage | ResultMessage;
+export type Message = UserMessage | AssistantMessage | SystemMessage;
 
 export type RoundLifecycleStatus = 'running' | 'finished' | 'interrupted' | 'error';
 
@@ -134,7 +154,7 @@ export interface RoundStatusEventPayload {
   round_id: string;
   status: RoundLifecycleStatus;
   is_terminal: boolean;
-  result_subtype?: ResultMessage['subtype'] | null;
+  result_subtype?: ResultSummary['subtype'] | null;
 }
 
 export interface SessionStatusEventPayload {
@@ -186,8 +206,6 @@ export interface EventMessage {
   | 'pong'
   | 'error'
   | 'room_collaboration'
-  | 'agent_thinking'
-  | 'agent_done'
   | 'room_member_added'
   | 'room_member_removed'
   | 'room_deleted'
@@ -231,6 +249,7 @@ export interface ChatAckData {
   req_id: string;
   round_id: string;
   pending: PendingAgentSlot[];
+  ack_timeout_ms?: number;
 }
 
 export type RoomCollaborationEventType = 'agent_message' | 'room_broadcast';
@@ -250,6 +269,7 @@ export interface RoomCollaborationEvent {
 export interface SystemMessageDisplayMeta {
   label: string;
   tone: 'neutral' | 'warning';
+  icon: 'retry' | 'progress' | 'status';
 }
 
 export function get_system_message_display_meta(
@@ -260,11 +280,29 @@ export function get_system_message_display_meta(
     return {
       label: '自动重试',
       tone: 'warning',
+      icon: 'retry',
+    };
+  }
+
+  if (subtype === 'task_started' || subtype === 'task_progress') {
+    return {
+      label: '执行状态',
+      tone: 'neutral',
+      icon: 'progress',
+    };
+  }
+
+  if (subtype === 'task_notification' || subtype === 'status') {
+    return {
+      label: '状态更新',
+      tone: 'neutral',
+      icon: 'status',
     };
   }
 
   return {
     label: '系统事件',
     tone: 'neutral',
+    icon: 'status',
   };
 }
