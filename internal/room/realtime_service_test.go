@@ -172,7 +172,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 						ID:    "assistant-sdk-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							sdkprotocol.TextBlock{Text: "已收到，正在处理。"},
+							{Type: "text", Text: "已收到，正在处理。"},
 						},
 					},
 				},
@@ -428,7 +428,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 						ID:    "assistant-room-think-1",
 						Model: "sonnet",
 						Content: []sdkprotocol.ContentBlock{
-							sdkprotocol.TextBlock{Text: "今天天气 很不错"},
+							{Type: "text", Text: "今天天气 很不错"},
 						},
 					},
 				},
