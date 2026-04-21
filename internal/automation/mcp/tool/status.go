@@ -11,10 +11,10 @@ import (
 )
 
 // status 同时生成 enable / disable 两个工具，仅 enabled 取值不同。
-func status(svc contract.Service, name string, enabled bool) agentclient.MCPTool {
-	description := "启用定时任务。"
+func status(svc contract.Service, sctx contract.ServerContext, name string, enabled bool) agentclient.MCPTool {
+	description := "启用定时任务。普通 agent 只能操作自己名下的任务。"
 	if !enabled {
-		description = "停用定时任务。停用后不会触发，但保留配置。"
+		description = "停用定时任务。停用后不会触发，但保留配置。普通 agent 只能操作自己名下的任务。"
 	}
 	return agentclient.MCPTool{
 		Name:        name,
@@ -24,6 +24,9 @@ func status(svc contract.Service, name string, enabled bool) agentclient.MCPTool
 			jobID := argx.String(args, "job_id")
 			if jobID == "" {
 				return render.Error(errors.New("job_id is required")), nil
+			}
+			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
+				return render.Error(err), nil
 			}
 			job, err := svc.UpdateTaskStatus(ctx, jobID, enabled)
 			if err != nil {

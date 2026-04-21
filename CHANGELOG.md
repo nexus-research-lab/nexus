@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 重构 `nexus_automation` MCP 工具入参体系，全面对齐 UI「新建任务」对话框并放宽创建门槛：
+  - **结构化字段替代原始 cron**：`schedule.kind` 提供 `single / daily / interval` 三种 UI 对齐形态（`daily_time + weekdays`、`interval_value + interval_unit`），同时新增 `cron` kind 让熟悉标准 5 段表达式的 agent/用户可以直接传 `expr`（别名 `cron` / `cron_expression`）。
+  - **UI 语义收口**：移除工具层对底层 `session_target / delivery / source` 对象的直通入口，统一通过 `execution_mode(main|existing|temporary|dedicated)` + `reply_mode(none|execution|selected)` 表达；`execution_mode=main` 仅主智能体可用，普通 Agent 调用会被拒绝。
+  - **Agent scope**：普通 Agent 只能 CRUD 自己 `agent_id` 名下的任务，`list_scheduled_tasks` 默认只返回自己的任务；主智能体（`config.DefaultAgentID`）豁免。
+  - **Lenient 默认**：短文本（≤24 字、无"总结/汇总/报告/summary/report/analyze"等中英文重业务关键词）提醒类任务可省略 `execution_mode` / `reply_mode`，工具会默认按 `temporary + none` 创建；`schedule.timezone` 缺省回退 `config.DefaultTimezone`（默认 `Asia/Shanghai`）。
+  - **扁平字段兼容**：顶层平铺的 schedule 字段（`kind` / `run_at` / `daily_time` / `expr` 等）会自动重组为嵌套 `schedule` 对象，兼容不喜欢嵌套的模型。
+  - **cron 回翻成 UI 可编辑形态**：agent 经 `kind=cron` 提交的任务，工具层会把表达式翻译回 `daily_time + weekdays` 语义（要求 minute/hour 为单整数、dom/month=`*`）；无法翻译的表达式直接拒绝，避免产生 UI 无法编辑的「幽灵任务」。
+  - Skill `scheduled-task-manager` 与默认/主智能体 AGENTS 模板同步更新，明确「ScheduleWakeup 仅用于会话内自我提醒，所有用户可见的定时需求都走 `create_scheduled_task`」的分流规则与自管原则。
+
 ### Added
 - 新增 workspace live 订阅链路：`subscribe_workspace / unsubscribe_workspace` 现已接通 Go 端文件事件与 `agent_runtime_event` 实时广播，前端可直接消费 `workspace_event` 与运行态快照。
 - 新增 Discord / Telegram 真入口适配器：Go 后端启动后可直接接收外部通道消息并统一路由到现有 `session_key + EventMessage` 聊天主链。

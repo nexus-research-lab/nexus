@@ -257,6 +257,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                     }
                     if (
                       mention_match &&
+                      visible_mention_targets.length > 0 &&
                       [
                         "ArrowDown",
                         "ArrowUp",

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
+import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
@@ -15,7 +16,9 @@ import { TodoItem } from "@/types/conversation/todo";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
+import { ConversationErrorBubble, is_provider_error } from "@/features/conversation/shared/conversation-error-bubble";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import {
   group_messages_by_round,
@@ -104,6 +107,8 @@ export function DmChatPanel({
   });
 
   const todos = useExtractTodos(messages, session_key);
+  const { has_available_provider, is_ready: provider_ready } = useProviderAvailability();
+  const show_provider_warning = provider_ready && !has_available_provider;
   const last_snapshot_key_ref = useRef<string | null>(null);
   const consumed_initial_draft_ref = useRef<string | null>(null);
   const can_control_session = session_control_state !== "observer";
@@ -273,35 +278,6 @@ export function DmChatPanel({
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-      {error && error.includes("服务器") ? (
-        <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2">
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/8 p-3">
-            <div className="flex items-start gap-3">
-              <svg
-                className="mt-0.5 h-5 w-5 shrink-0 text-destructive"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                />
-              </svg>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-destructive">
-                  无法连接到后端服务
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  请确保后端服务正在运行 (端口 8010)
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       <div
         ref={scroll_ref}
@@ -340,6 +316,16 @@ export function DmChatPanel({
           permission_read_only_reason={observer_read_only_reason}
           round_ids={round_ids}
         />
+        {error && !is_provider_error(error) ? (
+          <div className={is_mobile_layout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
+            <ConversationErrorBubble
+              error={error}
+              compact={is_mobile_layout}
+              current_agent_name={current_agent_name ?? null}
+              current_agent_avatar={current_agent_avatar ?? null}
+            />
+          </div>
+        ) : null}
       </div>
 
       {show_scroll_to_bottom ? (
@@ -348,6 +334,10 @@ export function DmChatPanel({
           is_mobile_layout={is_mobile_layout}
           on_click={() => scroll_to_bottom("smooth")}
         />
+      ) : null}
+
+      {show_provider_warning ? (
+        <ProviderUnavailableBanner compact={is_mobile_layout} />
       ) : null}
 
       <ComposerPanel
