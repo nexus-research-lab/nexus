@@ -224,7 +224,7 @@ export function DmChatPanel({
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
 
-      {error && error.includes("服务器") ? (
+      {error ? (
         <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2">
           <div className="rounded-2xl border border-destructive/20 bg-destructive/8 p-3">
             <div className="flex items-start gap-3">
@@ -237,10 +237,26 @@ export function DmChatPanel({
                 />
               </svg>
               <div className="flex-1">
-                <p className="text-sm font-medium text-destructive">无法连接到后端服务</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  请确保后端服务正在运行 (端口 8010)
-                </p>
+                {error.toLowerCase().includes("provider") ? (
+                  <>
+                    <p className="text-sm font-medium text-destructive">未配置可用的 LLM Provider</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      请前往 Settings → Providers 添加并启用一个供应商后再试
+                    </p>
+                  </>
+                ) : error.includes("服务器") ? (
+                  <>
+                    <p className="text-sm font-medium text-destructive">无法连接到后端服务</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      请确保后端服务正在运行 (端口 8010)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-destructive">对话出错</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+                  </>
+                )}
               </div>
             </div>
           </div>
