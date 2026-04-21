@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -23,8 +22,7 @@ func (s *Server) handleImportGitSkill(writer http.ResponseWriter, request *http.
 		URL    string `json:"url"`
 		Branch string `json:"branch"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.skills.ImportGit(request.Context(), payload.URL, payload.Branch)
@@ -62,8 +60,7 @@ func (s *Server) handleImportSkillsShSkill(writer http.ResponseWriter, request *
 		PackageSpec string `json:"package_spec"`
 		SkillSlug   string `json:"skill_slug"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.skills.ImportSkillsSh(request.Context(), payload.PackageSpec, payload.SkillSlug)
@@ -111,7 +108,7 @@ func (s *Server) parseLocalSkillImportRequest(request *http.Request) ([]byte, st
 	var payload struct {
 		LocalPath string `json:"local_path"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+	if err := decodeJSONBody(request.Body, &payload, false); err != nil {
 		return nil, "", "", err
 	}
 	return nil, "", payload.LocalPath, nil

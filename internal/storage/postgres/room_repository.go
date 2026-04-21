@@ -90,21 +90,40 @@ func (r *RoomRepository) ListRecentRooms(ctx context.Context, limit int) ([]room
 	}
 	defer rows.Close()
 
-	result := make([]room.RoomAggregate, 0)
+	roomIDs := make([]string, 0)
 	for rows.Next() {
 		var roomID string
 		if err = rows.Scan(&roomID); err != nil {
 			return nil, err
 		}
-		item, getErr := r.GetRoom(ctx, roomID)
-		if getErr != nil {
-			return nil, getErr
-		}
-		if item != nil {
-			result = append(result, *item)
-		}
+		roomIDs = append(roomIDs, roomID)
 	}
-	return result, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(roomIDs) == 0 {
+		return nil, nil
+	}
+	roomByID, err := r.loadRoomsByIDs(ctx, r.db, roomIDs)
+	if err != nil {
+		return nil, err
+	}
+	membersByRoomID, err := r.listMembersByRoomIDs(ctx, r.db, roomIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]room.RoomAggregate, 0, len(roomIDs))
+	for _, roomID := range roomIDs {
+		roomValue, ok := roomByID[roomID]
+		if !ok {
+			continue
+		}
+		result = append(result, room.RoomAggregate{
+			Room:    roomValue,
+			Members: membersByRoomID[roomID],
+		})
+	}
+	return result, nil
 }
 
 // GetRoom 读取单个房间。
@@ -680,6 +699,81 @@ ORDER BY joined_at ASC`, roomID)
 		result = append(result, item)
 	}
 	return result, rows.Err()
+}
+
+func (r *RoomRepository) loadRoomsByIDs(
+	ctx context.Context,
+	querier roomQueryer,
+	roomIDs []string,
+) (map[string]room.RoomRecord, error) {
+	if len(roomIDs) == 0 {
+		return map[string]room.RoomRecord{}, nil
+	}
+	query := fmt.Sprintf(`
+SELECT id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
+FROM rooms
+WHERE id IN (%s)`, joinPostgresPlaceholders(1, len(roomIDs)))
+	args := make([]any, 0, len(roomIDs))
+	for _, roomID := range roomIDs {
+		args = append(args, roomID)
+	}
+	rows, err := querier.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]room.RoomRecord, len(roomIDs))
+	for rows.Next() {
+		item, scanErr := scanRoomRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[item.ID] = item
+	}
+	return result, rows.Err()
+}
+
+func (r *RoomRepository) listMembersByRoomIDs(
+	ctx context.Context,
+	querier roomQueryer,
+	roomIDs []string,
+) (map[string][]room.MemberRecord, error) {
+	if len(roomIDs) == 0 {
+		return map[string][]room.MemberRecord{}, nil
+	}
+	query := fmt.Sprintf(`
+SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), joined_at
+FROM members
+WHERE room_id IN (%s)
+ORDER BY joined_at ASC`, joinPostgresPlaceholders(1, len(roomIDs)))
+	args := make([]any, 0, len(roomIDs))
+	for _, roomID := range roomIDs {
+		args = append(args, roomID)
+	}
+	rows, err := querier.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]room.MemberRecord, len(roomIDs))
+	for rows.Next() {
+		item, scanErr := scanMemberRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[item.RoomID] = append(result[item.RoomID], item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, roomID := range roomIDs {
+		if _, exists := result[roomID]; !exists {
+			result[roomID] = []room.MemberRecord{}
+		}
+	}
+	return result, nil
 }
 
 func (r *RoomRepository) listMemberAgents(

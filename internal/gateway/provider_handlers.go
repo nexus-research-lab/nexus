@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -39,8 +38,7 @@ func (s *Server) handleListProviderOptions(writer http.ResponseWriter, request *
 
 func (s *Server) handleCreateProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.CreateInput
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.providers.Create(request.Context(), payload)
@@ -53,8 +51,7 @@ func (s *Server) handleCreateProviderConfig(writer http.ResponseWriter, request 
 
 func (s *Server) handleUpdateProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.UpdateInput
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.providers.Update(request.Context(), chi.URLParam(request, "provider"), payload)

@@ -9,7 +9,6 @@
 
 import { Conversation, ConversationStoreState } from '@/types/conversation/conversation';
 import { get_conversations } from "@/lib/api/agent-api";
-import { is_legacy_launcher_app_session_key } from "@/lib/conversation/session-key";
 
 type ConversationStoreSetter = (
   update:
@@ -22,9 +21,6 @@ function dedupe_conversations_by_session_key(
 ): Conversation[] {
   const unique_conversations = new Map<string, Conversation>();
   for (const conversation of conversations) {
-    if (is_legacy_launcher_app_session_key(conversation.session_key)) {
-      continue;
-    }
     const existing_conversation = unique_conversations.get(conversation.session_key);
     if (!existing_conversation) {
       unique_conversations.set(conversation.session_key, conversation);

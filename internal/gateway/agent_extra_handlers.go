@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -22,8 +21,7 @@ import (
 
 func (s *Server) handleUpdateAgent(writer http.ResponseWriter, request *http.Request) {
 	var payload agent2.UpdateRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.agentService.UpdateAgent(request.Context(), chi.URLParam(request, "agent_id"), payload)

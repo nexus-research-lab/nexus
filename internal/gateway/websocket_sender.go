@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -22,6 +23,8 @@ import (
 )
 
 var websocketSenderSeq atomic.Uint64
+
+const websocketWriteTimeout = 10 * time.Second
 
 type websocketSender struct {
 	key    string
@@ -55,5 +58,7 @@ func (s *websocketSender) SendEvent(ctx context.Context, event protocol.EventMes
 	if s.closed.Load() {
 		return context.Canceled
 	}
-	return wsjson.Write(ctx, s.conn, event)
+	writeCtx, cancel := context.WithTimeout(ctx, websocketWriteTimeout)
+	defer cancel()
+	return wsjson.Write(writeCtx, s.conn, event)
 }

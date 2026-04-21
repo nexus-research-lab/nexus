@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：workspace_subscription_registry.go
-// @Date   ：2026/04/12 11:46:00
-// @Author ：leemysw
-// 2026/04/12 11:46:00   Create
-// =====================================================
-
 package gateway
 
 import (

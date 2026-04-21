@@ -24,6 +24,7 @@ type Options struct {
 	Output  io.Writer
 	Stdout  bool
 	File    FileOptions
+	NoColor bool
 }
 
 // New 创建结构化日志实例。
@@ -51,7 +52,7 @@ func buildHandler(options Options, handlerOptions *slog.HandlerOptions) slog.Han
 		handlers = append(handlers, newHandlerForWriter(options.Output, options.Format, handlerOptions, false))
 	}
 	if options.Stdout {
-		handlers = append(handlers, newHandlerForWriter(os.Stdout, options.Format, handlerOptions, shouldColorize(os.Stdout)))
+		handlers = append(handlers, newHandlerForWriter(os.Stdout, options.Format, handlerOptions, shouldColorize(os.Stdout, options.NoColor)))
 	}
 	if fileWriter, err := newRollingFileWriter(options.File); err == nil && fileWriter != nil {
 		handlers = append(handlers, newHandlerForWriter(fileWriter, options.Format, handlerOptions, false))
@@ -83,7 +84,7 @@ func newHandlerForWriter(
 	}
 }
 
-func shouldColorize(writer io.Writer) bool {
+func shouldColorize(writer io.Writer, noColor bool) bool {
 	file, ok := writer.(*os.File)
 	if !ok {
 		return false
@@ -92,7 +93,7 @@ func shouldColorize(writer io.Writer) bool {
 	if err != nil {
 		return false
 	}
-	return info.Mode()&os.ModeCharDevice != 0 && strings.TrimSpace(os.Getenv("NO_COLOR")) == ""
+	return info.Mode()&os.ModeCharDevice != 0 && !noColor
 }
 
 func parseLevel(raw string) slog.Level {

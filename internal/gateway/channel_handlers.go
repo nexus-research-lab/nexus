@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -45,8 +44,7 @@ func (s *Server) handleChannelIngressByName(
 	}
 
 	var payload channels.IngressRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	if strings.TrimSpace(channelName) != "" {

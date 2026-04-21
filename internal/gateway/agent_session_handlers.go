@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -82,8 +81,7 @@ func (s *Server) handleValidateAgentName(writer http.ResponseWriter, request *ht
 
 func (s *Server) handleCreateAgent(writer http.ResponseWriter, request *http.Request) {
 	var payload agent2.CreateRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 
@@ -123,8 +121,7 @@ func (s *Server) handleListSessions(writer http.ResponseWriter, request *http.Re
 
 func (s *Server) handleCreateSession(writer http.ResponseWriter, request *http.Request) {
 	var payload sessionsvc.CreateRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.session.CreateSession(request.Context(), payload)
@@ -149,8 +146,7 @@ func (s *Server) handleCreateSession(writer http.ResponseWriter, request *http.R
 
 func (s *Server) handleUpdateSession(writer http.ResponseWriter, request *http.Request) {
 	var payload sessionsvc.UpdateRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.session.UpdateSession(request.Context(), chi.URLParam(request, "session_key"), payload)

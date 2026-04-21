@@ -10,7 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -56,8 +55,7 @@ func (s *Server) handleUpdateWorkspaceFile(writer http.ResponseWriter, request *
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.workspace.UpdateFile(request.Context(), chi.URLParam(request, "agent_id"), payload.Path, payload.Content)
@@ -82,8 +80,7 @@ func (s *Server) handleCreateWorkspaceEntry(writer http.ResponseWriter, request 
 		EntryType string `json:"entry_type"`
 		Content   string `json:"content"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.workspace.CreateEntry(request.Context(), chi.URLParam(request, "agent_id"), payload.Path, payload.EntryType, payload.Content)
@@ -107,8 +104,7 @@ func (s *Server) handleRenameWorkspaceEntry(writer http.ResponseWriter, request 
 		Path    string `json:"path"`
 		NewPath string `json:"new_path"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.workspace.RenameEntry(request.Context(), chi.URLParam(request, "agent_id"), payload.Path, payload.NewPath)

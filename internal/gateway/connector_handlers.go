@@ -10,9 +10,6 @@
 package gateway
 
 import (
-	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"strings"
 
@@ -76,8 +73,7 @@ func (s *Server) handleConnectorAuthURL(writer http.ResponseWriter, request *htt
 
 func (s *Server) handleConnectorOAuthCallback(writer http.ResponseWriter, request *http.Request) {
 	var payload connectorsvc.OAuthCallbackRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSON(writer, request, &payload) {
 		return
 	}
 	item, err := s.connectors.CompleteOAuthCallback(request.Context(), payload)
@@ -90,8 +86,7 @@ func (s *Server) handleConnectorOAuthCallback(writer http.ResponseWriter, reques
 
 func (s *Server) handleConnectConnector(writer http.ResponseWriter, request *http.Request) {
 	var payload map[string]string
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil && !errors.Is(err, io.EOF) {
-		s.writeFailure(writer, http.StatusBadRequest, "请求参数错误")
+	if !s.bindJSONAllowEmpty(writer, request, &payload) {
 		return
 	}
 	item, err := s.connectors.Connect(request.Context(), chi.URLParam(request, "connector_id"), payload)

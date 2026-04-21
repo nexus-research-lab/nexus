@@ -29,6 +29,7 @@ type Config struct {
 	LogFormat                      string
 	LogPath                        string
 	LogStdout                      bool
+	LogNoColor                     bool
 	LogFileEnabled                 bool
 	LogRotateDaily                 bool
 	LogMaxSizeMB                   int
@@ -107,6 +108,7 @@ func Load() Config {
 		LogFormat:                      logFormat,
 		LogPath:                        getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
 		LogStdout:                      mustBool(getEnv("LOG_STDOUT", "true")),
+		LogNoColor:                     mustBool(getEnv("LOG_NO_COLOR", "false")),
 		LogFileEnabled:                 mustBool(getEnv("LOG_FILE_ENABLED", "true")),
 		LogRotateDaily:                 mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
 		LogMaxSizeMB:                   mustInt(getEnv("LOG_MAX_SIZE_MB", "10")),
