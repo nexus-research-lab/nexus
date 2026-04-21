@@ -7,7 +7,10 @@ import { useProviderAvailability } from "@/hooks/capability/use-provider-availab
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
-import { AgentConversationIdentity, get_session_control_status_text } from "@/types/agent/agent-conversation";
+import {
+  AgentConversationIdentity,
+  get_session_control_status_text,
+} from "@/types/agent/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 
@@ -17,7 +20,10 @@ import { ConversationErrorBubble, is_provider_error } from "@/features/conversat
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { group_messages_by_round, get_latest_reply_timestamp } from "@/features/conversation/shared/utils";
+import {
+  group_messages_by_round,
+  get_latest_reply_timestamp,
+} from "@/features/conversation/shared/utils";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
@@ -32,6 +38,10 @@ export interface DmChatPanelProps {
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
   on_conversation_snapshot_change?: (snapshot: SessionSnapshotPayload) => void;
+  on_room_event?: (
+    event_type: string,
+    data: import("@/types/agent/agent-conversation").RoomEventPayload,
+  ) => void;
 }
 
 export function DmChatPanel({
@@ -45,6 +55,7 @@ export function DmChatPanel({
   on_todos_change,
   on_loading_change,
   on_conversation_snapshot_change,
+  on_room_event,
 }: DmChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
   const session_key = session_identity?.session_key ?? null;
@@ -71,6 +82,7 @@ export function DmChatPanel({
     on_error: (err) => {
       console.error("DM conversation error:", err);
     },
+    on_room_event,
   });
 
   const {
@@ -87,7 +99,9 @@ export function DmChatPanel({
     on_touch_move,
     on_touch_end,
   } = useFollowScroll({
-    trigger_deps: [messages, is_loading] as const,
+    message_count: messages.length,
+    auxiliary_block_count: pending_permissions.length,
+    is_loading,
     session_key,
     history_prepend_token,
   });
@@ -100,12 +114,20 @@ export function DmChatPanel({
   const can_control_session = session_control_state !== "observer";
   const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
   const session_control_text = useMemo(
-    () => get_session_control_status_text(session_control_state, session_observer_count),
+    () =>
+      get_session_control_status_text(
+        session_control_state,
+        session_observer_count,
+      ),
     [session_control_state, session_observer_count],
   );
 
-  useEffect(() => { on_todos_change?.(todos); }, [on_todos_change, todos]);
-  useEffect(() => { on_loading_change?.(is_loading); }, [is_loading, on_loading_change]);
+  useEffect(() => {
+    on_todos_change?.(todos);
+  }, [on_todos_change, todos]);
+  useEffect(() => {
+    on_loading_change?.(is_loading);
+  }, [is_loading, on_loading_change]);
 
   useEffect(() => {
     if (!session_key || messages.length === 0) return;
@@ -118,7 +140,9 @@ export function DmChatPanel({
       conversation_id: session_identity?.conversation_id ?? null,
       room_session_id: session_identity?.room_session_id ?? null,
       message_count: messages.length,
-      ...(latest_reply_timestamp ? { last_activity_at: latest_reply_timestamp } : {}),
+      ...(latest_reply_timestamp
+        ? { last_activity_at: latest_reply_timestamp }
+        : {}),
       session_id: last?.session_id ?? null,
     };
     const snapshot_key = JSON.stringify(snapshot);
@@ -130,7 +154,12 @@ export function DmChatPanel({
 
     last_snapshot_key_ref.current = snapshot_key;
     on_conversation_snapshot_change?.(snapshot);
-  }, [session_identity, session_key, messages, on_conversation_snapshot_change]);
+  }, [
+    session_identity,
+    session_key,
+    messages,
+    on_conversation_snapshot_change,
+  ]);
 
   useSessionLoader({
     session_key,
@@ -138,16 +167,19 @@ export function DmChatPanel({
     debug_name: "DmChatPanel",
   });
 
-  const message_groups = useMemo(() => group_messages_by_round(messages), [messages]);
+  const message_groups = useMemo(
+    () => group_messages_by_round(messages),
+    [messages],
+  );
   const round_ids = Array.from(message_groups.keys());
 
   const maybe_load_older_messages = useCallback(async () => {
     const container = scroll_ref.current;
     if (
-      !container
-      || !has_more_history
-      || is_history_loading
-      || container.scrollTop > HISTORY_LOAD_THRESHOLD_PX
+      !container ||
+      !has_more_history ||
+      is_history_loading ||
+      container.scrollTop > HISTORY_LOAD_THRESHOLD_PX
     ) {
       return;
     }
@@ -174,16 +206,23 @@ export function DmChatPanel({
   useEffect(() => {
     const container = scroll_ref.current;
     if (
-      !container
-      || !has_more_history
-      || is_history_loading
-      || is_loading
-      || container.scrollHeight > container.clientHeight + 24
+      !container ||
+      !has_more_history ||
+      is_history_loading ||
+      is_loading ||
+      container.scrollHeight > container.clientHeight + 24
     ) {
       return;
     }
     void maybe_load_older_messages();
-  }, [has_more_history, is_history_loading, is_loading, maybe_load_older_messages, messages.length, scroll_ref]);
+  }, [
+    has_more_history,
+    is_history_loading,
+    is_loading,
+    maybe_load_older_messages,
+    messages.length,
+    scroll_ref,
+  ]);
 
   const handle_send_message = async (content: string) => {
     if (!content.trim() || is_loading) return;
@@ -203,7 +242,12 @@ export function DmChatPanel({
 
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
-    if (!session_key || !normalized_draft || is_loading || !can_control_session) {
+    if (
+      !session_key ||
+      !normalized_draft ||
+      is_loading ||
+      !can_control_session
+    ) {
       return;
     }
 
@@ -222,7 +266,15 @@ export function DmChatPanel({
         consumed_initial_draft_ref.current = null;
         console.error("Failed to auto send initial DM prompt:", error);
       });
-  }, [can_control_session, initial_draft, is_loading, on_initial_draft_consumed, scroll_to_bottom, send_message, session_key]);
+  }, [
+    can_control_session,
+    initial_draft,
+    is_loading,
+    on_initial_draft_consumed,
+    scroll_to_bottom,
+    send_message,
+    session_key,
+  ]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">

@@ -27,6 +27,7 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
+	"github.com/nexus-research-lab/nexus/internal/titlegen"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 )
 
@@ -40,6 +41,7 @@ type AppServices struct {
 	Skills       *skillsvc.Service
 	Connectors   *connectorsvc.Service
 	Launcher     *launcher.Service
+	Title        *titlegen.Service
 	Permission   *permissionctx.Context
 	Runtime      *runtimectx.Manager
 	Channels     *channels.Router
@@ -69,8 +71,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
 	connectorService := connectorsvc.NewService(cfg, db)
-	launcherService := launcher.NewService(cfg, core.Agent, core.Room)
+	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()
+	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission)
+	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
 	channelRouter.SetLogger(logger.With("component", "channels"))
@@ -78,12 +82,14 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	chatService.SetLogger(logger.With("component", "chat"))
 	chatService.SetProviderResolver(providerService)
 	chatService.SetRoomSessionStore(newSessionRepository(cfg, db))
+	chatService.SetTitleGenerator(titleService)
 	ingressService := channels.NewIngressService(cfg, core.Agent, chatService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	channelRouter.SetIngress(ingressService)
 	roomRealtime := roomsvc.NewRealtimeService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
 	roomRealtime.SetProviderResolver(providerService)
+	roomRealtime.SetTitleGenerator(titleService)
 	automationService := automationsvc.NewService(
 		cfg,
 		db,
@@ -113,6 +119,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Skills:       skillService,
 		Connectors:   connectorService,
 		Launcher:     launcherService,
+		Title:        titleService,
 		Permission:   permission,
 		Runtime:      runtimeManager,
 		Channels:     channelRouter,

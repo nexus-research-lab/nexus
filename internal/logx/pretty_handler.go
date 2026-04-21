@@ -92,8 +92,9 @@ func (h *prettyHandler) Handle(_ context.Context, record slog.Record) error {
 	scope, fields := pickScope(fields)
 	access, fields := pickAccess(fields)
 	requestID, fields := pickRequestID(fields)
+	sdkDebug, fields := pickSDKDebug(fields)
 
-	line := h.format(record.Time, record.Level, scope, record.Message, access, requestID, fields)
+	line := h.format(record.Time, record.Level, scope, record.Message, access, requestID, sdkDebug, fields)
 
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -108,6 +109,7 @@ func (h *prettyHandler) format(
 	message string,
 	access *accessLog,
 	requestID string,
+	sdkDebug *sdkDebugLog,
 	fields []field,
 ) string {
 	builder := &strings.Builder{}
@@ -139,11 +141,11 @@ func (h *prettyHandler) format(
 		// HTTP access log: METHOD STATUS DURATION BYTES PATH
 		builder.WriteString(h.paint(fmt.Sprintf("%-6s", strings.ToUpper(access.method)), colorForMethod(access.method)))
 		builder.WriteByte(' ')
-		builder.WriteString(h.paint(fmt.Sprintf("%3d", access.status), colorForStatus(access.status)))
+		builder.WriteString(h.paint(fmt.Sprintf("%4d", access.status), colorForStatus(access.status)))
 		builder.WriteByte(' ')
-		builder.WriteString(h.paint(fmt.Sprintf("%6s", access.duration), ansiBrightBlack))
+		builder.WriteString(h.paint(fmt.Sprintf("%5s", access.duration), ansiBrightBlack))
 		builder.WriteByte(' ')
-		builder.WriteString(h.paint(fmt.Sprintf("%6s", access.bytes), ansiBrightBlack))
+		builder.WriteString(h.paint(fmt.Sprintf("%7s", access.bytes), ansiBrightBlack))
 		builder.WriteByte(' ')
 
 		if requestID != "" {
@@ -156,6 +158,20 @@ func (h *prettyHandler) format(
 		builder.WriteByte(' ')
 	} else {
 		builder.WriteString(h.paint(strings.TrimSpace(message), colorForMessage(level)))
+		compactContext := ""
+		if sdkDebug != nil {
+			compactContext = formatSDKContext(sdkDebug)
+			if compactContext != "" {
+				builder.WriteByte(' ')
+				builder.WriteString(h.paint(compactContext, ansiBrightBlack))
+			}
+		}
+		if sdkDebug != nil && strings.TrimSpace(sdkDebug.summary) != "" {
+			if strings.TrimSpace(message) != "" || compactContext != "" {
+				builder.WriteByte(' ')
+			}
+			builder.WriteString(h.paint(strings.TrimSpace(sdkDebug.summary), colorForSDKSummary(sdkDebug.summary)))
+		}
 	}
 
 	for _, f := range fields {
@@ -192,6 +208,13 @@ type accessLog struct {
 	duration string
 	bytes    string
 	path     string
+}
+
+type sdkDebugLog struct {
+	summary    string
+	sessionKey string
+	agentID    string
+	roundID    string
 }
 
 func pickScope(fields []field) (string, []field) {
@@ -273,7 +296,7 @@ func pickAccess(fields []field) (*accessLog, []field) {
 	return &accessLog{
 		method:   method,
 		status:   status,
-		duration: durationMs + "ms",
+		duration: formatDuration(durationMs),
 		bytes:    formatBytes(bytesWritten),
 		path:     path,
 	}, rest
@@ -293,6 +316,31 @@ func pickRequestID(fields []field) (string, []field) {
 		requestID = requestID[:8]
 	}
 	return requestID, rest
+}
+
+func pickSDKDebug(fields []field) (*sdkDebugLog, []field) {
+	debugLog := &sdkDebugLog{}
+	rest := make([]field, 0, len(fields))
+	hasSummary := false
+	for _, f := range fields {
+		switch f.key {
+		case "sdk_summary":
+			debugLog.summary = f.value
+			hasSummary = strings.TrimSpace(f.value) != ""
+		case "session_key":
+			debugLog.sessionKey = f.value
+		case "agent_id":
+			debugLog.agentID = f.value
+		case "round_id":
+			debugLog.roundID = f.value
+		default:
+			rest = append(rest, f)
+		}
+	}
+	if !hasSummary {
+		return nil, fields
+	}
+	return debugLog, rest
 }
 
 // ----- 颜色策略 -----
@@ -333,6 +381,24 @@ func colorForMessage(level slog.Level) string {
 		return ansiYellow
 	default:
 		return ansiRed
+	}
+}
+
+func colorForSDKSummary(summary string) string {
+	normalized := strings.TrimSpace(summary)
+	switch {
+	case strings.HasPrefix(normalized, "stream "):
+		return ansiCyan
+	case strings.HasPrefix(normalized, "assistant "):
+		return ansiGreen
+	case strings.HasPrefix(normalized, "result "):
+		return ansiBlue
+	case strings.HasPrefix(normalized, "system "):
+		return ansiMagenta
+	case strings.HasPrefix(normalized, "tool_progress"):
+		return ansiYellow
+	default:
+		return ansiWhite
 	}
 }
 
@@ -384,6 +450,20 @@ func formatBytes(raw string) string {
 	default:
 		return fmt.Sprintf("%dB", value)
 	}
+}
+
+func formatDuration(raw string) string {
+	if raw == "" {
+		return "-"
+	}
+	ms, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return raw + "ms"
+	}
+	if ms >= 1000 {
+		return fmt.Sprintf("%.2fs", ms/1000)
+	}
+	return raw + "ms"
 }
 
 // ----- attr 展开 -----
@@ -450,4 +530,53 @@ func quoteIfNeeded(value string) string {
 		return strconv.Quote(value)
 	}
 	return value
+}
+
+func formatSDKContext(debugLog *sdkDebugLog) string {
+	if debugLog == nil {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	if sessionKey := shortSessionKey(debugLog.sessionKey); sessionKey != "" {
+		parts = append(parts, "s="+padCompactValue(sessionKey, 12))
+	}
+	if agentID := shortIdentifier(debugLog.agentID); agentID != "" {
+		parts = append(parts, "a="+padCompactValue(agentID, 12))
+	}
+	if roundID := shortIdentifier(debugLog.roundID); roundID != "" {
+		parts = append(parts, "r="+padCompactValue(roundID, 12))
+	}
+	return strings.Join(parts, " ")
+}
+
+func shortSessionKey(sessionKey string) string {
+	normalized := strings.TrimSpace(sessionKey)
+	if normalized == "" {
+		return ""
+	}
+	parts := strings.Split(normalized, ":")
+	return shortIdentifier(parts[len(parts)-1])
+}
+
+func shortIdentifier(value string) string {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return ""
+	}
+	runes := []rune(normalized)
+	if len(runes) <= 12 {
+		return normalized
+	}
+	return string(runes[:12])
+}
+
+func padCompactValue(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) >= width {
+		return value
+	}
+	return value + strings.Repeat(" ", width-len(runes))
 }

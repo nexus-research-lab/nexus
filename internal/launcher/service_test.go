@@ -17,6 +17,7 @@ import (
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -34,7 +35,8 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	defer db.Close()
 	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	roomService := roomsvc.NewService(cfg, agentService, sqliterepo.NewRoomRepository(db))
-	service := NewService(cfg, agentService, roomService)
+	sessionService := sessionsvc.NewService(cfg, agentService, sqliterepo.NewSessionRepository(db))
+	service := NewService(cfg, agentService, roomService, sessionService)
 
 	ctx := context.Background()
 	agentA := createLauncherAgent(t, agentService, ctx, "产品助手")
@@ -46,10 +48,6 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
-	if _, err = roomService.EnsureDirectRoom(ctx, agentA.AgentID); err != nil {
-		t.Fatalf("创建直聊失败: %v", err)
-	}
-
 	queryResult, err := service.Query(ctx, "@产品助手 请梳理需求")
 	if err != nil {
 		t.Fatalf("解析 @agent 查询失败: %v", err)
@@ -90,6 +88,47 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	if suggestions.Rooms[0].ID != roomContext.Room.ID {
 		t.Fatalf("推荐 room 不正确: %+v", suggestions.Rooms[0])
 	}
+
+	if _, err = roomService.UpdateConversation(ctx, roomContext.Room.ID, roomContext.Conversation.ID, roomsvc.UpdateConversationRequest{
+		Title: "需求讨论",
+	}); err != nil {
+		t.Fatalf("更新 room 对话标题失败: %v", err)
+	}
+
+	dmContext, err := roomService.EnsureDirectRoom(ctx, agentA.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊失败: %v", err)
+	}
+	if _, err = roomService.UpdateConversation(ctx, dmContext.Room.ID, dmContext.Conversation.ID, roomsvc.UpdateConversationRequest{
+		Title: "产品私聊",
+	}); err != nil {
+		t.Fatalf("更新直聊标题失败: %v", err)
+	}
+
+	bootstrap, err := service.Bootstrap(ctx)
+	if err != nil {
+		t.Fatalf("读取 launcher bootstrap 失败: %v", err)
+	}
+	if len(bootstrap.Conversations) == 0 {
+		t.Fatalf("bootstrap conversations 不应为空")
+	}
+	assertContainsConversationTitle(t, bootstrap.Conversations, "需求讨论")
+	assertContainsConversationTitle(t, bootstrap.Conversations, "产品私聊")
+}
+
+func assertContainsConversationTitle(
+	t *testing.T,
+	items []BootstrapConversation,
+	title string,
+) {
+	t.Helper()
+
+	for _, item := range items {
+		if item.Title == title {
+			return
+		}
+	}
+	t.Fatalf("bootstrap conversations 缺少标题 %q: %+v", title, items)
 }
 
 func createLauncherAgent(

@@ -18,11 +18,16 @@ import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-pa
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { subscribe_room_directory_updates } from "@/lib/api/room-api";
 import { useAgentStore } from "@/store/agent";
-import { LauncherAgentSummary, LauncherRoomSummary } from "@/types/app/launcher";
+import {
+  LauncherAgentSummary,
+  LauncherConversationSummary,
+  LauncherRoomSummary,
+} from "@/types/app/launcher";
 
 interface LauncherBootstrapState {
   agents: LauncherAgentSummary[];
   rooms: LauncherRoomSummary[];
+  conversations: LauncherConversationSummary[];
 }
 
 let launcher_bootstrap_inflight: Promise<LauncherBootstrapState> | null = null;
@@ -36,6 +41,7 @@ function run_launcher_bootstrap(): Promise<LauncherBootstrapState> {
     .then((payload) => ({
       agents: payload.agents,
       rooms: payload.rooms,
+      conversations: payload.conversations,
     }))
     .finally(() => {
       launcher_bootstrap_inflight = null;
@@ -53,6 +59,9 @@ export function useLauncherPageController() {
   const [is_hydrated, set_is_hydrated] = useState(false);
   const [agents, set_agents] = useState<LauncherAgentSummary[]>([]);
   const [rooms, set_rooms] = useState<LauncherRoomSummary[]>([]);
+  const [conversations, set_conversations] = useState<
+    LauncherConversationSummary[]
+  >([]);
   const dialog_agents = useMemo(
     () => stored_agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [stored_agents],
@@ -62,6 +71,7 @@ export function useLauncherPageController() {
     void get_launcher_bootstrap_api().then((payload) => {
       set_agents(payload.agents);
       set_rooms(payload.rooms);
+      set_conversations(payload.conversations);
     });
   }, []);
 
@@ -87,10 +97,14 @@ export function useLauncherPageController() {
         if (!is_cancelled) {
           set_agents(payload.agents);
           set_rooms(payload.rooms);
+          set_conversations(payload.conversations);
         }
       })
       .catch((error) => {
-        console.error("[useLauncherPageController] 初始化 Launcher 数据失败:", error);
+        console.error(
+          "[useLauncherPageController] 初始化 Launcher 数据失败:",
+          error,
+        );
       })
       .finally(() => {
         if (!is_cancelled) {
@@ -103,27 +117,35 @@ export function useLauncherPageController() {
     };
   }, []);
 
-  useEffect(() => subscribe_room_directory_updates(refresh_bootstrap), [refresh_bootstrap]);
+  useEffect(
+    () => subscribe_room_directory_updates(refresh_bootstrap),
+    [refresh_bootstrap],
+  );
 
-  return useMemo(() => ({
-    agents,
-    rooms,
-    current_agent_id,
-    is_hydrated,
-    handle_select_agent: set_current_agent,
-    handle_delete_agent: async (agent_id: string) => {
-      await delete_agent(agent_id);
-      refresh_bootstrap();
-    },
-    ...agent_dialog,
-  }), [
-    agents,
-    rooms,
-    current_agent_id,
-    is_hydrated,
-    set_current_agent,
-    delete_agent,
-    refresh_bootstrap,
-    agent_dialog,
-  ]);
+  return useMemo(
+    () => ({
+      agents,
+      rooms,
+      conversations,
+      current_agent_id,
+      is_hydrated,
+      handle_select_agent: set_current_agent,
+      handle_delete_agent: async (agent_id: string) => {
+        await delete_agent(agent_id);
+        refresh_bootstrap();
+      },
+      ...agent_dialog,
+    }),
+    [
+      agents,
+      rooms,
+      conversations,
+      current_agent_id,
+      is_hydrated,
+      set_current_agent,
+      delete_agent,
+      refresh_bootstrap,
+      agent_dialog,
+    ],
+  );
 }

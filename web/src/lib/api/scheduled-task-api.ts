@@ -6,6 +6,7 @@
 
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
+import { to_timestamp_or_null } from "@/lib/api/timestamp-utils";
 import type {
   ApiScheduledTask,
   ApiScheduledTaskExecutionResult,
@@ -23,28 +24,20 @@ import type {
 const AGENT_API_BASE_URL = get_agent_api_base_url();
 const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/tasks`;
 
-function to_timestamp(value?: string | null): number | null {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function transform_task(api_task: ApiScheduledTask): ScheduledTaskItem {
   return {
     ...api_task,
-    next_run_at: to_timestamp(api_task.next_run_at),
-    last_run_at: to_timestamp(api_task.last_run_at),
+    next_run_at: to_timestamp_or_null(api_task.next_run_at),
+    last_run_at: to_timestamp_or_null(api_task.last_run_at),
   };
 }
 
 function transform_run(api_run: ApiScheduledTaskRun): ScheduledTaskRunItem {
   return {
     ...api_run,
-    scheduled_for: to_timestamp(api_run.scheduled_for),
-    started_at: to_timestamp(api_run.started_at),
-    finished_at: to_timestamp(api_run.finished_at),
+    scheduled_for: to_timestamp_or_null(api_run.scheduled_for),
+    started_at: to_timestamp_or_null(api_run.started_at),
+    finished_at: to_timestamp_or_null(api_run.finished_at),
   };
 }
 
@@ -53,7 +46,7 @@ function transform_run_now_result(
 ): ScheduledTaskRunNowResponse {
   return {
     ...api_result,
-    scheduled_for: to_timestamp(api_result.scheduled_for),
+    scheduled_for: to_timestamp_or_null(api_result.scheduled_for),
   };
 }
 
@@ -77,7 +70,6 @@ export async function list_scheduled_tasks_api(
     })}`,
     {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
     },
   );
 
@@ -87,11 +79,13 @@ export async function list_scheduled_tasks_api(
 export async function create_scheduled_task_api(
   params: CreateScheduledTaskParams,
 ): Promise<ScheduledTaskItem> {
-  const result = await request_api<ApiScheduledTask>(SCHEDULED_TASKS_API_BASE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const result = await request_api<ApiScheduledTask>(
+    SCHEDULED_TASKS_API_BASE_URL,
+    {
+      method: "POST",
+      body: JSON.stringify(params),
+    },
+  );
 
   return transform_task(result);
 }
@@ -104,7 +98,6 @@ export async function update_scheduled_task_api(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     },
   );
@@ -119,7 +112,6 @@ export async function delete_scheduled_task_api(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}`,
     {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
     },
   );
 }
@@ -131,7 +123,6 @@ export async function run_scheduled_task_api(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}/run`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
     },
   );
 
@@ -146,7 +137,6 @@ export async function update_scheduled_task_status_api(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}/status`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     },
   );
@@ -161,7 +151,6 @@ export async function list_scheduled_task_runs_api(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}/runs`,
     {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
     },
   );
 

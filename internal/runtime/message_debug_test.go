@@ -72,3 +72,32 @@ func TestBuildSDKMessageLogFieldsIncludesSummary(t *testing.T) {
 		t.Fatalf("sdk_summary 值异常: %+v", fields)
 	}
 }
+
+func TestBuildSDKMessageLogFieldsKeepsOnlySummaryForStream(t *testing.T) {
+	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "session-123",
+		UUID:      "uuid-456",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_stop",
+			},
+		},
+	})
+
+	for index := 0; index < len(fields); index += 2 {
+		key, ok := fields[index].(string)
+		if !ok {
+			continue
+		}
+		if key == "sdk_session_id" ||
+			key == "sdk_message_uuid" ||
+			key == "sdk_message_type" ||
+			key == "sdk_message_subtype" ||
+			key == "stream_event_type" ||
+			key == "stream_delta_type" ||
+			key == "stream_preview" {
+			t.Fatalf("不应输出冗余 SDK 调试字段: %+v", fields)
+		}
+	}
+}

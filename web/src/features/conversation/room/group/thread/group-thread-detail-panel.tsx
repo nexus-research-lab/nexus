@@ -5,7 +5,10 @@ import { ArrowLeft, Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { Message } from "@/types/conversation/message";
-import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
+import {
+  PendingPermission,
+  PermissionDecisionPayload,
+} from "@/types/conversation/permission";
 import { MessageItem } from "@/features/conversation/shared/message";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 
@@ -64,17 +67,24 @@ export function GroupThreadDetailPanel({
     on_wheel,
   } = useFollowScroll({
     // Thread 和 DM 实时态一样，需要在过程消息、权限确认和 loading 变化时持续跟随到底部。
-    trigger_deps: [messages, is_loading, pending_permissions] as const,
+    message_count: messages.length,
+    auxiliary_block_count: pending_permissions.length,
+    is_loading,
     session_key: thread_session_key,
   });
 
   return (
-    <div className={cn(
-      "flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
-      is_mobile ? "bg-(--surface-panel-background)" : "bg-transparent",
-    )}>
+    <div
+      className={cn(
+        "flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
+        is_mobile ? "bg-(--surface-panel-background)" : "bg-transparent",
+      )}
+    >
       {/* ── 头部 ────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>
+      <div
+        className="flex shrink-0 items-center gap-2 border-b px-3 py-3"
+        style={{ borderColor: "var(--divider-subtle-color)" }}
+      >
         {is_mobile ? (
           <button
             type="button"
@@ -87,11 +97,17 @@ export function GroupThreadDetailPanel({
           </button>
         ) : null}
 
-        <MessageAvatar avatar_url={agent_avatar} class_name="h-8 w-8 shrink-0 rounded-xl" size="full">
+        <MessageAvatar
+          avatar_url={agent_avatar}
+          class_name="h-8 w-8 shrink-0 rounded-xl"
+          size="full"
+        >
           {!agent_avatar && <Bot className="h-3.5 w-3.5" />}
         </MessageAvatar>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-(--text-strong)">{agent_name}</p>
+          <p className="truncate text-sm font-semibold text-(--text-strong)">
+            {agent_name}
+          </p>
           <p className="text-xs text-(--text-soft)">Thread</p>
         </div>
 

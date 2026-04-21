@@ -9,7 +9,7 @@
 
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import {
   Bot,
   Check,
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { TextareaDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -36,9 +37,7 @@ import {
   MessageAvatar,
 } from "../ui/message-primitives";
 import { ContentRenderer } from "./content-renderer";
-import {
-  format_message_time,
-} from "./message-item-support";
+import { format_message_time } from "./message-item-support";
 import type { MessageItemState } from "./message-item-types";
 
 interface MessageUserSectionProps {
@@ -60,6 +59,8 @@ export function MessageUserSection({
   on_edit_user_message,
   on_open_workspace_file,
 }: MessageUserSectionProps) {
+  const [is_edit_dialog_open, set_is_edit_dialog_open] = useState(false);
+
   if (!user_message) {
     return null;
   }
@@ -67,25 +68,24 @@ export function MessageUserSection({
   return (
     <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
       <div className="w-full">
-        <div className={cn(
-          "group flex min-w-0 justify-end",
-          compact ? "" : "gap-3",
-        )}>
+        <div
+          className={cn(
+            "group flex min-w-0 justify-end",
+            compact ? "" : "gap-3",
+          )}
+        >
           <div className="relative ml-auto w-fit max-w-[min(100%,720px)]">
-            <div className={cn(
-              "flex items-center justify-end gap-2",
-              compact ? "h-6" : "h-7",
-            )}>
-              <div className="pointer-events-none absolute left-0 top-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+            <div
+              className={cn(
+                "flex items-center justify-end gap-2",
+                compact ? "h-6" : "h-7",
+              )}
+            >
+              <div className="shrink-0 opacity-100 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100">
                 {on_edit_user_message ? (
                   <MessageActionButton
                     aria-label="编辑消息"
-                    onClick={() => {
-                      const new_content = prompt("编辑消息:", user_content);
-                      if (new_content && new_content !== user_content) {
-                        on_edit_user_message(user_message.message_id, new_content);
-                      }
-                    }}
+                    onClick={() => set_is_edit_dialog_open(true)}
                     tone="default"
                   >
                     <Edit2 className="h-3 w-3" />
@@ -96,15 +96,24 @@ export function MessageUserSection({
                   onClick={on_copy_user}
                   tone={copied_user ? "success" : "default"}
                 >
-                  {copied_user ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied_user ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
                 </MessageActionButton>
               </div>
 
               <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
                 {format_message_time(user_message.timestamp)}
               </span>
-              <span className="shrink-0 text-sm font-bold text-(--text-strong)">你</span>
-              <MessageAvatar class_name="shrink-0" size={compact ? "compact" : "full"}>
+              <span className="shrink-0 text-sm font-bold text-(--text-strong)">
+                你
+              </span>
+              <MessageAvatar
+                class_name="shrink-0"
+                size={compact ? "compact" : "full"}
+              >
                 <User className={compact ? "h-3 w-3" : "h-4 w-4"} />
               </MessageAvatar>
             </div>
@@ -124,6 +133,26 @@ export function MessageUserSection({
           </div>
         </div>
       </div>
+
+      {on_edit_user_message ? (
+        <TextareaDialog
+          is_open={is_edit_dialog_open}
+          title="编辑消息"
+          message="修改后的内容会直接替换当前这条用户消息。"
+          placeholder="输入新的消息内容"
+          default_value={user_content}
+          on_cancel={() => set_is_edit_dialog_open(false)}
+          on_confirm={(next_content) => {
+            const normalized_content = next_content.trim();
+            if (!normalized_content || normalized_content === user_content) {
+              set_is_edit_dialog_open(false);
+              return;
+            }
+            on_edit_user_message(user_message.message_id, normalized_content);
+            set_is_edit_dialog_open(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -148,12 +177,14 @@ function PendingPermissionList({
   }
 
   return (
-    <div className={cn(
-      "mt-3 flex flex-col gap-3",
-      is_room_thread_mode
-        ? "border-t border-(--divider-subtle-color) pt-3"
-        : "rounded-2xl bg-(--surface-inset-background) p-3",
-    )}>
+    <div
+      className={cn(
+        "mt-3 flex flex-col gap-3",
+        is_room_thread_mode
+          ? "border-t border-(--divider-subtle-color) pt-3"
+          : "rounded-2xl bg-(--surface-inset-background) p-3",
+      )}
+    >
       {permissions.map((permission) => (
         <ToolBlock
           key={permission.request_id}
@@ -172,16 +203,18 @@ function PendingPermissionList({
             summary: permission.summary,
             suggestions: permission.suggestions,
             expires_at: permission.expires_at,
-            on_allow: (updated_permissions) => on_permission_response?.({
-              request_id: permission.request_id,
-              decision: "allow",
-              updated_permissions,
-            }),
-            on_deny: (updated_permissions) => on_permission_response?.({
-              request_id: permission.request_id,
-              decision: "deny",
-              updated_permissions,
-            }),
+            on_allow: (updated_permissions) =>
+              on_permission_response?.({
+                request_id: permission.request_id,
+                decision: "allow",
+                updated_permissions,
+              }),
+            on_deny: (updated_permissions) =>
+              on_permission_response?.({
+                request_id: permission.request_id,
+                decision: "deny",
+                updated_permissions,
+              }),
           }}
           interaction_disabled={!can_respond_to_permissions}
           interaction_disabled_reason={permission_read_only_reason}
@@ -201,7 +234,11 @@ interface MessageAssistantSectionProps {
   on_open_workspace_file?: (path: string) => void;
   hidden_tool_names?: string[];
   assistant_header_action?: ReactNode;
-  assistant_content_mode: "dm_live" | "dm_archived" | "room_thread" | "room_result";
+  assistant_content_mode:
+    | "dm_live"
+    | "dm_archived"
+    | "room_thread"
+    | "room_result";
   state: MessageItemState;
 }
 
@@ -236,10 +273,14 @@ export function MessageAssistantSection({
   return (
     <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
       <div className={cn("w-full", compact ? "max-w-full" : "max-w-[980px]")}>
-        <div className={cn(
-          "group grid min-w-0",
-          compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
-        )}>
+        <div
+          className={cn(
+            "group grid min-w-0",
+            compact
+              ? "grid-cols-[minmax(0,1fr)]"
+              : "grid-cols-[40px_minmax(0,1fr)] gap-3",
+          )}
+        >
           {!compact ? (
             <MessageAvatar avatar_url={current_agent_avatar}>
               {!current_agent_avatar && <Bot className="h-4 w-4" />}
@@ -247,12 +288,18 @@ export function MessageAssistantSection({
           ) : null}
 
           <div className="relative min-w-0">
-            <div className={cn(
-              "flex min-w-0 items-center gap-2",
-              compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
-            )}>
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-2",
+                compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
+              )}
+            >
               {compact ? (
-                <MessageAvatar class_name="shrink-0" size="compact" avatar_url={current_agent_avatar}>
+                <MessageAvatar
+                  class_name="shrink-0"
+                  size="compact"
+                  avatar_url={current_agent_avatar}
+                >
                   {!current_agent_avatar && <Bot className="h-3 w-3" />}
                 </MessageAvatar>
               ) : null}
@@ -265,15 +312,15 @@ export function MessageAssistantSection({
               </span>
 
               {state.model ? (
-                <span className="min-w-0 truncate text-xs text-(--text-soft)">{state.model}</span>
+                <span className="min-w-0 truncate text-xs text-(--text-soft)">
+                  {state.model}
+                </span>
               ) : null}
 
               <div className="flex-1" />
 
               {assistant_header_action ? (
-                <div className="shrink-0">
-                  {assistant_header_action}
-                </div>
+                <div className="shrink-0">{assistant_header_action}</div>
               ) : null}
 
               {state.can_stop_message ? (
@@ -299,14 +346,21 @@ export function MessageAssistantSection({
               style={state.content_area_style}
             >
               {state.should_render_standalone_activity_status ? (
-                <MessageActivityStatus class_name="py-1" state={state.live_activity_state!} />
+                <MessageActivityStatus
+                  class_name="py-1"
+                  state={state.live_activity_state!}
+                />
               ) : null}
 
-              {state.stream_status === "cancelled" && state.merged_content_length === 0 ? (
-                <span className="text-xs italic text-(--text-soft)">已停止</span>
+              {state.stream_status === "cancelled" &&
+              state.merged_content_length === 0 ? (
+                <span className="text-xs italic text-(--text-soft)">
+                  已停止
+                </span>
               ) : null}
 
-              {state.stream_status === "error" && state.merged_content_length === 0 ? (
+              {state.stream_status === "error" &&
+              state.merged_content_length === 0 ? (
                 <span className="text-xs italic text-rose-500">执行失败</span>
               ) : null}
 
@@ -315,22 +369,30 @@ export function MessageAssistantSection({
                   <ContentRenderer
                     content={state.direct_ordered_projection.content}
                     is_streaming={state.show_cursor}
-                    streaming_block_indexes={state.direct_ordered_projection.streaming_indexes}
+                    streaming_block_indexes={
+                      state.direct_ordered_projection.streaming_indexes
+                    }
                     fallback_activity_state={state.live_activity_state}
-                    pending_permissions_by_tool_use_id={state.matched_pending_permissions_by_tool_use_id}
-                  on_permission_response={on_permission_response}
-                  can_respond_to_permissions={can_respond_to_permissions}
-                  permission_read_only_reason={permission_read_only_reason}
-                  on_open_workspace_file={on_open_workspace_file}
-                  hidden_tool_names={hidden_tool_names}
-                  show_timeline_dots
-                />
+                    pending_permissions_by_tool_use_id={
+                      state.matched_pending_permissions_by_tool_use_id
+                    }
+                    on_permission_response={on_permission_response}
+                    can_respond_to_permissions={can_respond_to_permissions}
+                    permission_read_only_reason={permission_read_only_reason}
+                    on_open_workspace_file={on_open_workspace_file}
+                    hidden_tool_names={hidden_tool_names}
+                    show_timeline_dots
+                  />
                   {pending_permission_block}
                 </div>
               ) : null}
 
               {state.should_render_process_callchain ? (
-                <div ref={state.process_anchor_ref as React.RefObject<HTMLDivElement>}>
+                <div
+                  ref={
+                    state.process_anchor_ref as React.RefObject<HTMLDivElement>
+                  }
+                >
                   <button
                     className="flex w-full items-center gap-2 py-1.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
                     onClick={state.toggle_process_expanded}
@@ -354,12 +416,18 @@ export function MessageAssistantSection({
                       <ContentRenderer
                         content={state.process_projection.content}
                         is_streaming={state.show_cursor}
-                        streaming_block_indexes={state.process_projection.streaming_indexes}
+                        streaming_block_indexes={
+                          state.process_projection.streaming_indexes
+                        }
                         fallback_activity_state={state.live_activity_state}
-                        pending_permissions_by_tool_use_id={state.matched_pending_permissions_by_tool_use_id}
+                        pending_permissions_by_tool_use_id={
+                          state.matched_pending_permissions_by_tool_use_id
+                        }
                         on_permission_response={on_permission_response}
                         can_respond_to_permissions={can_respond_to_permissions}
-                        permission_read_only_reason={permission_read_only_reason}
+                        permission_read_only_reason={
+                          permission_read_only_reason
+                        }
                         on_open_workspace_file={on_open_workspace_file}
                         hidden_tool_names={hidden_tool_names}
                         class_name="ml-1"
@@ -377,17 +445,18 @@ export function MessageAssistantSection({
                   <ContentRenderer
                     content={state.final_assistant_content ?? []}
                     is_streaming={state.final_assistant_is_streaming}
-                    streaming_block_indexes={state.final_assistant_streaming_indexes}
+                    streaming_block_indexes={
+                      state.final_assistant_streaming_indexes
+                    }
                     fallback_activity_state={state.live_activity_state}
                     on_open_workspace_file={on_open_workspace_file}
                   />
                 </div>
               ) : null}
 
-              {!state.should_render_direct_assistant_content && !state.should_render_process_callchain ? (
-                <div className="pt-2">
-                  {pending_permission_block}
-                </div>
+              {!state.should_render_direct_assistant_content &&
+              !state.should_render_process_callchain ? (
+                <div className="pt-2">{pending_permission_block}</div>
               ) : null}
             </div>
 
@@ -397,7 +466,11 @@ export function MessageAssistantSection({
                 show_cursor={state.show_cursor}
                 compact={compact}
                 copied_assistant={state.copied_assistant}
-                on_copy_assistant={state.can_copy_assistant ? state.handle_copy_assistant : undefined}
+                on_copy_assistant={
+                  state.can_copy_assistant
+                    ? state.handle_copy_assistant
+                    : undefined
+                }
               />
             ) : null}
           </div>

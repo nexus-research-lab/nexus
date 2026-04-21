@@ -203,6 +203,7 @@ function RoomSurfaceLayoutInner({
                     on_conversation_snapshot_change={on_conversation_snapshot_change}
                     on_loading_change={on_loading_change}
                     on_open_workspace_file={handle_open_workspace_file}
+                    on_room_event={on_room_event}
                     on_todos_change={on_todos_change}
                     session_identity={current_agent_session_identity}
                   />

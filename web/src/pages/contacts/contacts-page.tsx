@@ -11,31 +11,44 @@ import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
-import { AgentIdentityDraft, AgentOptions as AgentConfigOptions } from "@/types/agent/agent";
+import {
+  AgentIdentityDraft,
+  AgentOptions as AgentConfigOptions,
+} from "@/types/agent/agent";
 import { get_initial_agent_options, is_main_agent } from "@/config/options";
 
 export function ContactsPage() {
   const navigate = useNavigate();
-  const {
-    agents,
-    create_agent,
-    update_agent,
-    delete_agent,
-    load_agents_from_server,
-    loading,
-  } = useAgentStore();
-  const { conversations, load_conversations_from_server } = useConversationStore();
+  const agents = useAgentStore((state) => state.agents);
+  const create_agent = useAgentStore((state) => state.create_agent);
+  const update_agent = useAgentStore((state) => state.update_agent);
+  const delete_agent = useAgentStore((state) => state.delete_agent);
+  const load_agents_from_server = useAgentStore(
+    (state) => state.load_agents_from_server,
+  );
+  const loading = useAgentStore((state) => state.loading);
+  const conversations = useConversationStore((state) => state.conversations);
+  const load_conversations_from_server = useConversationStore(
+    (state) => state.load_conversations_from_server,
+  );
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [dialog_mode, set_dialog_mode] = useState<"create" | "edit">("create");
-  const [editing_agent_id, set_editing_agent_id] = useState<string | null>(null);
-  const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
+  const [editing_agent_id, set_editing_agent_id] = useState<string | null>(
+    null,
+  );
+  const [pending_delete_agent, set_pending_delete_agent] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const regular_agents = useMemo(
     () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
 
   const editing_agent = useMemo(
-    () => regular_agents.find((agent) => agent.agent_id === editing_agent_id) ?? null,
+    () =>
+      regular_agents.find((agent) => agent.agent_id === editing_agent_id) ??
+      null,
     [editing_agent_id, regular_agents],
   );
   const dialog_initial_title = useMemo(
@@ -59,28 +72,34 @@ export function ContactsPage() {
   }, [dialog_mode, editing_agent]);
 
   // 💬 Chat → ensureDirectRoom 发起 DM
-  const handle_open_direct_room = useCallback((agent_id: string) => {
-    void ensure_direct_room(agent_id).then((context) => {
-      navigate(
-        AppRouteBuilders.room_conversation(
-          context.room.id,
-          context.conversation.id,
-        ),
-      );
-    });
-  }, [navigate]);
+  const handle_open_direct_room = useCallback(
+    (agent_id: string) => {
+      void ensure_direct_room(agent_id).then((context) => {
+        navigate(
+          AppRouteBuilders.room_conversation(
+            context.room.id,
+            context.conversation.id,
+          ),
+        );
+      });
+    },
+    [navigate],
+  );
 
   // 👥 Create Team → 用该 Agent 创建单人成员 Room
-  const handle_create_team = useCallback((agent_id: string) => {
-    void create_room({ agent_ids: [agent_id] }).then((context) => {
-      navigate(
-        AppRouteBuilders.room_conversation(
-          context.room.id,
-          context.conversation.id,
-        ),
-      );
-    });
-  }, [navigate]);
+  const handle_create_team = useCallback(
+    (agent_id: string) => {
+      void create_room({ agent_ids: [agent_id] }).then((context) => {
+        navigate(
+          AppRouteBuilders.room_conversation(
+            context.room.id,
+            context.conversation.id,
+          ),
+        );
+      });
+    },
+    [navigate],
+  );
 
   // 新建 Agent → 打开 AgentOptions 对话框（create 模式）
   const handle_open_create_agent = useCallback(() => {
@@ -96,45 +115,52 @@ export function ContactsPage() {
     set_is_dialog_open(true);
   }, []);
 
-  const handle_validate_agent_name = useCallback(async (name: string) => {
-    const exclude_agent_id = dialog_mode === "edit" ? editing_agent_id ?? undefined : undefined;
-    return validate_agent_name_api(name, exclude_agent_id);
-  }, [dialog_mode, editing_agent_id]);
+  const handle_validate_agent_name = useCallback(
+    async (name: string) => {
+      const exclude_agent_id =
+        dialog_mode === "edit" ? (editing_agent_id ?? undefined) : undefined;
+      return validate_agent_name_api(name, exclude_agent_id);
+    },
+    [dialog_mode, editing_agent_id],
+  );
 
-  const handle_save_agent = useCallback(async (
-    title: string,
-    options: AgentConfigOptions,
-    identity: AgentIdentityDraft,
-  ) => {
-    const next_options = {
-      provider: options.provider,
-      permission_mode: options.permission_mode,
-      allowed_tools: options.allowed_tools,
-      disallowed_tools: options.disallowed_tools,
-      setting_sources: options.setting_sources,
-    };
+  const handle_save_agent = useCallback(
+    async (
+      title: string,
+      options: AgentConfigOptions,
+      identity: AgentIdentityDraft,
+    ) => {
+      const next_options = {
+        provider: options.provider,
+        permission_mode: options.permission_mode,
+        allowed_tools: options.allowed_tools,
+        disallowed_tools: options.disallowed_tools,
+        setting_sources: options.setting_sources,
+      };
 
-    if (dialog_mode === "create") {
-      await create_agent({
-        name: title,
-        options: next_options,
-        avatar: identity.avatar,
-        description: identity.description,
-        vibe_tags: identity.vibe_tags,
-      });
-      return;
-    }
+      if (dialog_mode === "create") {
+        await create_agent({
+          name: title,
+          options: next_options,
+          avatar: identity.avatar,
+          description: identity.description,
+          vibe_tags: identity.vibe_tags,
+        });
+        return;
+      }
 
-    if (dialog_mode === "edit" && editing_agent_id) {
-      await update_agent(editing_agent_id, {
-        name: title,
-        options: next_options,
-        avatar: identity.avatar,
-        description: identity.description,
-        vibe_tags: identity.vibe_tags,
-      });
-    }
-  }, [create_agent, dialog_mode, editing_agent_id, update_agent]);
+      if (dialog_mode === "edit" && editing_agent_id) {
+        await update_agent(editing_agent_id, {
+          name: title,
+          options: next_options,
+          avatar: identity.avatar,
+          description: identity.description,
+          vibe_tags: identity.vibe_tags,
+        });
+      }
+    },
+    [create_agent, dialog_mode, editing_agent_id, update_agent],
+  );
 
   const handle_confirm_delete_agent = useCallback(async () => {
     if (!pending_delete_agent) {
@@ -145,17 +171,20 @@ export function ContactsPage() {
     set_pending_delete_agent(null);
   }, [delete_agent, pending_delete_agent]);
 
-  const handle_request_delete_agent = useCallback((agent_id: string) => {
-    const target_agent = agents.find((agent) => agent.agent_id === agent_id);
-    if (!target_agent || is_main_agent(target_agent.agent_id)) {
-      return;
-    }
-    set_is_dialog_open(false);
-    set_pending_delete_agent({
-      id: agent_id,
-      name: target_agent?.name ?? "该 Agent",
-    });
-  }, [agents]);
+  const handle_request_delete_agent = useCallback(
+    (agent_id: string) => {
+      const target_agent = agents.find((agent) => agent.agent_id === agent_id);
+      if (!target_agent || is_main_agent(target_agent.agent_id)) {
+        return;
+      }
+      set_is_dialog_open(false);
+      set_pending_delete_agent({
+        id: agent_id,
+        name: target_agent?.name ?? "该 Agent",
+      });
+    },
+    [agents],
+  );
 
   useEffect(() => {
     void load_agents_from_server();
