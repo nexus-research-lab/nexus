@@ -119,6 +119,7 @@ export function RoomMobileSurface({
             on_conversation_snapshot_change={on_conversation_snapshot_change}
             on_initial_draft_consumed={on_initial_draft_consumed}
             on_loading_change={on_loading_change}
+            on_room_event={on_room_event}
             session_identity={current_agent_session_identity}
           />
         ) : (

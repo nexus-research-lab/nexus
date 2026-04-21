@@ -28,6 +28,7 @@ export interface DmChatPanelProps {
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
+  on_room_event?: (event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
   on_conversation_snapshot_change?: (snapshot: SessionSnapshotPayload) => void;
 }
 
@@ -40,6 +41,7 @@ export function DmChatPanel({
   on_initial_draft_consumed,
   on_open_workspace_file,
   on_todos_change,
+  on_room_event,
   on_loading_change,
   on_conversation_snapshot_change,
 }: DmChatPanelProps) {
@@ -68,6 +70,7 @@ export function DmChatPanel({
     on_error: (err) => {
       console.error("DM conversation error:", err);
     },
+    on_room_event,
   });
 
   const {
