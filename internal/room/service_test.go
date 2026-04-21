@@ -400,7 +400,7 @@ func seedRoomConversationLog(
 	t.Helper()
 
 	roomHistory := workspace2.NewRoomHistoryStore(root)
-	if err := roomHistory.AppendInlineMessage(conversationID, session.Message{
+	if err := roomHistory.AppendInlineMessage(conversationID, sessionmodel.Message{
 		"message_id":      "seed_" + conversationID,
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
 		"room_id":         roomID,

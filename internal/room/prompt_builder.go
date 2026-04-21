@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/session"
+	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 
 // BuildDispatchPrompt 为 Room 成员构建共享快照 prompt。
 func BuildDispatchPrompt(
-	history []session.Message,
+	history []sessionmodel.Message,
 	latestUserMessage string,
 	agentNameByID map[string]string,
 	targetAgentID string,
@@ -60,7 +60,7 @@ func BuildDispatchPrompt(
 	)
 }
 
-func buildHistoryLines(history []session.Message, agentNameByID map[string]string) []string {
+func buildHistoryLines(history []sessionmodel.Message, agentNameByID map[string]string) []string {
 	if len(history) == 0 {
 		return nil
 	}
@@ -87,7 +87,7 @@ func buildHistoryLines(history []session.Message, agentNameByID map[string]strin
 	return lines
 }
 
-func formatHistoryLine(message session.Message, agentNameByID map[string]string) string {
+func formatHistoryLine(message sessionmodel.Message, agentNameByID map[string]string) string {
 	role := strings.TrimSpace(normalizeAnyString(message["role"]))
 	if role == "assistant" {
 		if isComplete, ok := message["is_complete"].(bool); ok && !isComplete {
@@ -110,10 +110,7 @@ func formatHistoryLine(message session.Message, agentNameByID map[string]string)
 	}
 }
 
-func extractHistoryText(message session.Message) string {
-	if normalizeAnyString(message["role"]) == "result" {
-		return ""
-	}
+func extractHistoryText(message sessionmodel.Message) string {
 	if raw, ok := message["content"].(string); ok {
 		return strings.TrimSpace(raw)
 	}

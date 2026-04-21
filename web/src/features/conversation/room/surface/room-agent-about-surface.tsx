@@ -58,7 +58,6 @@ export function RoomAgentAboutSurface({
     permission_mode: selected_agent.options.permission_mode,
     allowed_tools: selected_agent.options.allowed_tools,
     disallowed_tools: selected_agent.options.disallowed_tools,
-    system_prompt: selected_agent.options.system_prompt,
     setting_sources: selected_agent.options.setting_sources,
   }), [
     selected_agent.options.allowed_tools,
@@ -66,7 +65,6 @@ export function RoomAgentAboutSurface({
     selected_agent.options.permission_mode,
     selected_agent.options.provider,
     selected_agent.options.setting_sources,
-    selected_agent.options.system_prompt,
   ]);
 
   const handle_save = useCallback(async (

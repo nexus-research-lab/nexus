@@ -10,9 +10,13 @@ package agent_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
@@ -106,10 +110,56 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 }
 
+func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, agentsvc.CreateRequest{Name: "删除助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	projectDir := agentTranscriptProjectDir(created.WorkspacePath)
+	if err = os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("创建 transcript 项目目录失败: %v", err)
+	}
+	file, err := os.Create(filepath.Join(projectDir, "delete-session.jsonl"))
+	if err != nil {
+		t.Fatalf("创建 transcript 文件失败: %v", err)
+	}
+	if err = json.NewEncoder(file).Encode(map[string]any{
+		"type":      "user",
+		"uuid":      "delete-user-1",
+		"sessionId": "delete-session",
+		"message": map[string]any{
+			"role":    "user",
+			"content": "你好",
+		},
+	}); err != nil {
+		_ = file.Close()
+		t.Fatalf("写入 transcript 文件失败: %v", err)
+	}
+	_ = file.Close()
+
+	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
+		t.Fatalf("删除 agent 失败: %v", err)
+	}
+	if _, err = os.Stat(projectDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("删除 agent 后 transcript 项目目录仍残留: %v", err)
+	}
+}
+
 func newTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18010,
@@ -121,6 +171,64 @@ func newTestConfig(t *testing.T) config.Config {
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
+}
+
+var agentTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+func agentTranscriptProjectDir(workspacePath string) string {
+	return filepath.Join(
+		os.Getenv("NEXUS_CONFIG_DIR"),
+		"projects",
+		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
+	)
+}
+
+func canonicalizeAgentTranscriptPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	if absolutePath, err := filepath.Abs(path); err == nil {
+		path = absolutePath
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	return path
+}
+
+func sanitizeAgentTranscriptPath(path string) string {
+	const maxLength = 200
+	sanitized := agentTranscriptSanitizePattern.ReplaceAllString(path, "-")
+	if len(sanitized) <= maxLength {
+		return sanitized
+	}
+	return sanitized[:maxLength] + "-" + agentTranscriptHash(path)
+}
+
+func agentTranscriptHash(value string) string {
+	var hash int32
+	for _, character := range value {
+		hash = hash*31 + int32(character)
+	}
+
+	number := int64(hash)
+	if number < 0 {
+		number = -number
+	}
+	if number == 0 {
+		return "0"
+	}
+
+	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+	result := make([]byte, 0, 8)
+	for number > 0 {
+		result = append(result, digits[number%36])
+		number /= 36
+	}
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return string(result)
 }
 
 func migrateSQLite(t *testing.T, databaseURL string) {

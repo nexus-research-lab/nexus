@@ -77,6 +77,53 @@ func NewAgentHistoryStore(root string) *AgentHistoryStore {
 	}
 }
 
+// DeleteTranscriptSession 删除单个 Claude transcript 文件。
+func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessionID string) (bool, error) {
+	if strings.TrimSpace(sessionID) == "" {
+		return false, nil
+	}
+
+	transcriptPath, err := s.resolveTranscriptPath(workspacePath, sessionID)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	if err := os.Remove(transcriptPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	s.invalidateTranscriptCache(transcriptPath)
+	if err := removeDirectoryIfEmpty(filepath.Dir(transcriptPath)); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+// DeleteTranscriptProject 删除整个 workspace 对应的 transcript 项目目录。
+func (s *AgentHistoryStore) DeleteTranscriptProject(workspacePath string) (bool, error) {
+	projectDir := findTranscriptProjectDir(canonicalizeTranscriptPath(workspacePath))
+	if strings.TrimSpace(projectDir) == "" {
+		return false, nil
+	}
+	if _, err := os.Stat(projectDir); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	if err := os.RemoveAll(projectDir); err != nil {
+		return false, err
+	}
+	s.invalidateTranscriptCachePrefix(projectDir)
+	return true, nil
+}
+
 // AppendOverlayMessage 追加一条 Nexus overlay 消息。
 func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKey string, message sessionmodel.Message) error {
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), message)
@@ -428,6 +475,36 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 	}
 }
 
+func (s *AgentHistoryStore) invalidateTranscriptCache(path string) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	delete(s.messageCache, path)
+}
+
+func (s *AgentHistoryStore) invalidateTranscriptCachePrefix(prefix string) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	for path := range s.messageCache {
+		if path == prefix || strings.HasPrefix(path, prefix+string(os.PathSeparator)) {
+			delete(s.messageCache, path)
+		}
+	}
+}
+
+func removeDirectoryIfEmpty(path string) error {
+	entries, err := os.ReadDir(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if len(entries) > 0 {
+		return nil
+	}
+	return os.Remove(path)
+}
+
 func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 	if len(entries) == 0 {
 		return nil
@@ -534,7 +611,6 @@ func projectTranscriptChain(
 
 		switch decoded.Type {
 		case sdkprotocol.MessageTypeUser:
-			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			if isTranscriptToolResult(decoded) {
 				if processor == nil {
 					currentRoundID = firstNonEmpty(strings.TrimSpace(stringFromAny(entry.Data["parentUuid"])), strings.TrimSpace(decoded.UUID))
@@ -544,9 +620,16 @@ func projectTranscriptChain(
 				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 				continue
 			}
+			// 中文注释：Claude transcript 会夹杂一类“空 user turn”，
+			// 它们不是前端真实输入，不能消费 Nexus 的 round marker。
+			// 否则后续真实 assistant 会挂错 round，result 也就无法并回同一轮。
+			if !shouldMaterializeTranscriptUserTurn(entry.Data) {
+				continue
+			}
+			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 			processor = newTranscriptProcessor(sessionKey, agentID, currentRoundID, decoded.SessionID)
-			projected = append(projected, buildTranscriptUserMessage(
+			userMessage := buildTranscriptUserMessage(
 				sessionKey,
 				agentID,
 				currentRoundID,
@@ -554,7 +637,11 @@ func projectTranscriptChain(
 				entry.Data,
 				marker.Content,
 				entryTimestamp,
-			))
+			)
+			if userMessage == nil {
+				continue
+			}
+			projected = append(projected, *userMessage)
 		case sdkprotocol.MessageTypeAssistant,
 			sdkprotocol.MessageTypeSystem,
 			sdkprotocol.MessageTypeToolProgress:
@@ -605,11 +692,17 @@ func countTranscriptUserTurns(chain []transcriptEntry) int {
 		if err != nil {
 			continue
 		}
-		if decoded.Type == sdkprotocol.MessageTypeUser && !isTranscriptToolResult(decoded) {
+		if decoded.Type == sdkprotocol.MessageTypeUser &&
+			!isTranscriptToolResult(decoded) &&
+			shouldMaterializeTranscriptUserTurn(entry.Data) {
 			count++
 		}
 	}
 	return count
+}
+
+func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {
+	return sanitizeTranscriptUserContent(transcriptUserContent(entry)) != ""
 }
 
 func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) transcriptRoundMarker {
@@ -648,26 +741,30 @@ func buildTranscriptUserMessage(
 	entry map[string]any,
 	contentOverride string,
 	timestamp int64,
-) sessionmodel.Message {
+) *sessionmodel.Message {
+	content := firstNonEmpty(strings.TrimSpace(contentOverride), transcriptUserContent(entry))
+	if content == "" {
+		return nil
+	}
 	payload := sessionmodel.Message{
 		"message_id":  roundID,
 		"session_key": sessionKey,
 		"agent_id":    agentID,
 		"round_id":    roundID,
 		"role":        "user",
-		"content":     firstNonEmpty(strings.TrimSpace(contentOverride), transcriptUserContent(entry)),
+		"content":     content,
 		"timestamp":   timestamp,
 	}
 	if strings.TrimSpace(sessionID) != "" {
 		payload["session_id"] = strings.TrimSpace(sessionID)
 	}
-	return payload
+	return &payload
 }
 
 func transcriptUserContent(entry map[string]any) string {
 	messageValue, _ := entry["message"].(map[string]any)
 	contentValue := messageValue["content"]
-	if text := strings.TrimSpace(stringFromAny(contentValue)); text != "" {
+	if text := sanitizeTranscriptUserContent(strings.TrimSpace(stringFromAny(contentValue))); text != "" {
 		return text
 	}
 	items, _ := contentValue.([]any)
@@ -677,11 +774,19 @@ func transcriptUserContent(entry map[string]any) string {
 		if !ok {
 			continue
 		}
-		if text := strings.TrimSpace(stringFromAny(payload["text"])); text != "" {
+		if text := sanitizeTranscriptUserContent(strings.TrimSpace(stringFromAny(payload["text"]))); text != "" {
 			parts = append(parts, text)
 		}
 	}
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+func sanitizeTranscriptUserContent(content string) string {
+	trimmed := strings.TrimSpace(content)
+	if sessionmodel.IsInternalTranscriptInterruptPrompt(trimmed) {
+		return ""
+	}
+	return trimmed
 }
 
 func stampTranscriptDurableMessages(
@@ -708,7 +813,7 @@ func isTranscriptToolResult(message sdkprotocol.ReceivedMessage) bool {
 		return true
 	}
 	for _, block := range message.User.Message.Content {
-		blockType := strings.TrimSpace(block.Type)
+		blockType := strings.TrimSpace(string(block.Type()))
 		if blockType == "tool_result" || blockType == "server_tool_result" {
 			return true
 		}

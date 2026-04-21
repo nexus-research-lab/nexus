@@ -17,6 +17,11 @@ import (
 // EventType 表示统一事件类型。
 type EventType string
 
+// ChatAckTimeoutMS 是客户端等待 chat_ack 的上限（毫秒）。
+// 服务端不强制该窗口，但承诺在此之前回 ack；
+// 前端据此设置本地超时，两侧同源避免漂移。
+const ChatAckTimeoutMS = 10000
+
 const (
 	EventTypeMessage               EventType = "message"
 	EventTypeStream                EventType = "stream"
@@ -188,9 +193,10 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 // NewChatAckEvent 构造 chat_ack 事件。
 func NewChatAckEvent(sessionKey string, reqID string, roundID string, pending []map[string]any) EventMessage {
 	event := NewEvent(EventTypeChatAck, map[string]any{
-		"req_id":   reqID,
-		"round_id": roundID,
-		"pending":  pending,
+		"req_id":         reqID,
+		"round_id":       roundID,
+		"pending":        pending,
+		"ack_timeout_ms": ChatAckTimeoutMS,
 	})
 	event.SessionKey = sessionKey
 	return event

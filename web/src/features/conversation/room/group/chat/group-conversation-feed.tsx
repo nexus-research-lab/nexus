@@ -25,6 +25,7 @@ interface GroupConversationFeedProps {
   is_last_round_pending_permissions: PendingPermission[];
   is_loading: boolean;
   runtime_phase?: AgentConversationRuntimePhase | null;
+  live_round_ids: string[];
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
   pending_permission_groups: Map<string, PendingPermission[]>;
@@ -84,6 +85,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
   is_last_round_pending_permissions,
   is_loading,
   runtime_phase,
+  live_round_ids,
   is_mobile_layout,
   message_groups,
   pending_permission_groups,
@@ -111,6 +113,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         is_last_round_pending_permissions={is_last_round_pending_permissions}
         is_loading={is_loading}
         runtime_phase={runtime_phase}
+        live_round_ids={live_round_ids}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
         pending_permission_groups={pending_permission_groups}
@@ -135,6 +138,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         const round_pending_permissions = pending_permission_groups.get(roundId) || [];
         const round_pending_slots = pending_slot_groups.get(roundId) || [];
         const isLastRound = idx === round_ids.length - 1;
+        const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
         const has_room_entries = has_room_agent_round_entries(roundMessages, round_pending_slots);
 
         // Group Room 中一旦出现 Agent 回复，就统一走 GroupRoundCardGroup。
@@ -149,7 +153,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
               agent_name_map={agent_name_map}
               agent_avatar_map={agent_avatar_map}
               is_last_round={isLastRound}
-              is_loading={is_loading}
+              is_loading={is_last_round_live}
               on_permission_response={on_permission_response}
               can_respond_to_permissions={can_respond_to_permissions}
               permission_read_only_reason={permission_read_only_reason}
@@ -171,9 +175,9 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
             round_id={roundId}
             messages={roundMessages}
             is_last_round={isLastRound}
-            is_loading={is_loading}
-            runtime_phase={isLastRound ? runtime_phase : null}
-            pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
+            is_loading={is_last_round_live}
+            runtime_phase={is_last_round_live ? runtime_phase : null}
+            pending_permissions={is_last_round_live ? is_last_round_pending_permissions : []}
             on_permission_response={on_permission_response}
             can_respond_to_permissions={can_respond_to_permissions}
             permission_read_only_reason={permission_read_only_reason}
@@ -201,6 +205,7 @@ function VirtualFeed({
   is_last_round_pending_permissions,
   is_loading,
   runtime_phase,
+  live_round_ids,
   is_mobile_layout,
   message_groups,
   pending_permission_groups,
@@ -271,6 +276,7 @@ function VirtualFeed({
           const round_pending_permissions = pending_permission_groups.get(roundId) || [];
           const round_pending_slots = pending_slot_groups.get(roundId) || [];
           const isLastRound = virtual_item.index === round_ids.length - 1;
+          const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
           const has_room_entries = has_room_agent_round_entries(roundMessages, round_pending_slots);
 
           return (
@@ -288,7 +294,7 @@ function VirtualFeed({
                   agent_name_map={agent_name_map}
                   agent_avatar_map={agent_avatar_map}
                   is_last_round={isLastRound}
-                  is_loading={is_loading}
+                  is_loading={is_last_round_live}
                   on_permission_response={on_permission_response}
                   can_respond_to_permissions={can_respond_to_permissions}
                   permission_read_only_reason={permission_read_only_reason}
@@ -303,9 +309,9 @@ function VirtualFeed({
                   round_id={roundId}
                   messages={roundMessages}
                   is_last_round={isLastRound}
-                  is_loading={is_loading}
-                  runtime_phase={isLastRound ? runtime_phase : null}
-                  pending_permissions={isLastRound && is_loading ? is_last_round_pending_permissions : []}
+                  is_loading={is_last_round_live}
+                  runtime_phase={is_last_round_live ? runtime_phase : null}
+                  pending_permissions={is_last_round_live ? is_last_round_pending_permissions : []}
                   on_permission_response={on_permission_response}
                   can_respond_to_permissions={can_respond_to_permissions}
                   permission_read_only_reason={permission_read_only_reason}

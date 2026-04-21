@@ -79,6 +79,8 @@ type sessionState struct {
 	Client        Client
 	RunningRounds map[string]struct{}
 	RoundCancels  map[string]context.CancelFunc
+	RoundDone     map[string]chan struct{}
+	Interruptions map[string]string
 }
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
@@ -140,8 +142,12 @@ func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.C
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
 	state.RunningRounds[roundID] = struct{}{}
+	delete(state.Interruptions, roundID)
 	if cancel != nil {
 		state.RoundCancels[roundID] = cancel
+	}
+	if _, exists := state.RoundDone[roundID]; !exists {
+		state.RoundDone[roundID] = make(chan struct{})
 	}
 }
 
@@ -158,6 +164,11 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	}
 	delete(state.RunningRounds, roundID)
 	delete(state.RoundCancels, roundID)
+	delete(state.Interruptions, roundID)
+	if done, ok := state.RoundDone[roundID]; ok {
+		close(done)
+		delete(state.RoundDone, roundID)
+	}
 }
 
 // GetRunningRoundIDs 返回当前 session 的运行中轮次。
@@ -198,39 +209,70 @@ func (m *Manager) CountRunningRounds(agentID string) int {
 }
 
 // InterruptSession 中断当前 session 的全部运行中 round。
-func (m *Manager) InterruptSession(ctx context.Context, sessionKey string) ([]string, error) {
-	m.mu.Lock()
+func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reason string) ([]string, error) {
+	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
 	if !ok {
-		m.mu.Unlock()
+		m.mu.RUnlock()
 		return nil, nil
 	}
 
 	roundIDs := make([]string, 0, len(state.RunningRounds))
-	cancels := make([]context.CancelFunc, 0, len(state.RoundCancels))
+	doneSignals := make([]chan struct{}, 0, len(state.RoundDone))
 	for roundID := range state.RunningRounds {
 		roundIDs = append(roundIDs, roundID)
 	}
-	for roundID, cancel := range state.RoundCancels {
-		if cancel != nil {
-			cancels = append(cancels, cancel)
+	for _, roundID := range roundIDs {
+		if done, ok := state.RoundDone[roundID]; ok && done != nil {
+			doneSignals = append(doneSignals, done)
 		}
-		delete(state.RoundCancels, roundID)
-	}
-	for roundID := range state.RunningRounds {
-		delete(state.RunningRounds, roundID)
 	}
 	client := state.Client
-	m.mu.Unlock()
+	m.mu.RUnlock()
 
 	sort.Strings(roundIDs)
-	for _, cancel := range cancels {
-		cancel()
+	if len(roundIDs) == 0 {
+		return nil, nil
 	}
+
+	interruptReason := strings.TrimSpace(reason)
+
+	m.mu.Lock()
+	state = m.ensureStateLocked(sessionKey)
+	for _, roundID := range roundIDs {
+		state.Interruptions[roundID] = interruptReason
+	}
+	client = state.Client
+	m.mu.Unlock()
+
 	if client == nil {
 		return roundIDs, nil
 	}
-	return roundIDs, client.Interrupt(ctx)
+	if err := client.Interrupt(ctx); err != nil {
+		return roundIDs, err
+	}
+	for _, done := range doneSignals {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return roundIDs, ctx.Err()
+		}
+	}
+	return roundIDs, nil
+}
+
+// GetInterruptReason 返回 round 是否已收到显式中断请求。
+func (m *Manager) GetInterruptReason(sessionKey string, roundID string) string {
+	if strings.TrimSpace(sessionKey) == "" || strings.TrimSpace(roundID) == "" {
+		return ""
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil {
+		return ""
+	}
+	return strings.TrimSpace(state.Interruptions[roundID])
 }
 
 // CloseSession 关闭指定 session。
@@ -244,6 +286,11 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 	if !ok || state.Client == nil {
 		return nil
 	}
+	for _, cancel := range state.RoundCancels {
+		if cancel != nil {
+			cancel()
+		}
+	}
 	return state.Client.Disconnect(ctx)
 }
 
@@ -253,6 +300,8 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 		state = &sessionState{
 			RunningRounds: make(map[string]struct{}),
 			RoundCancels:  make(map[string]context.CancelFunc),
+			RoundDone:     make(map[string]chan struct{}),
+			Interruptions: make(map[string]string),
 		}
 		m.sessions[sessionKey] = state
 	}

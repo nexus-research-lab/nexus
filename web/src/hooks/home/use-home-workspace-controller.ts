@@ -32,16 +32,11 @@ export function useHomeWorkspaceController({
   }, [current_agent_id]);
 
   const handle_open_workspace_file = useCallback((path: string | null) => {
-    setActiveWorkspacePath((currentPath) => {
-      if (path && currentPath === path && is_editor_open) {
-        setIsEditorOpen(false);
-        return null;
-      }
-
-      setIsEditorOpen(Boolean(path));
-      return path;
-    });
-  }, [is_editor_open]);
+    // 对话区点击文件引用的语义应当始终是“打开这个文件”，
+    // 不能因为重复点击同一路径就把编辑器反向关掉。
+    setActiveWorkspacePath(path);
+    setIsEditorOpen(Boolean(path));
+  }, []);
 
   const handle_start_editor_resize = useCallback(() => {
     setIsResizingEditor(true);

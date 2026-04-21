@@ -30,9 +30,8 @@ export interface RoomMemberAgentOption {
   name: string;
   avatar?: string | null;
   status?: string;
-  options?: {
-    system_prompt?: string;
-  };
+  headline?: string | null;
+  description?: string | null;
 }
 
 interface CreateRoomDialogProps {
@@ -344,9 +343,10 @@ export function CreateRoomDialog({
                             {agent.name}
                           </p>
                           <p className="truncate text-[10px] text-(--text-muted)">
-                            {agent.options?.system_prompt
-                              ? agent.options.system_prompt.slice(0, 50) + (agent.options.system_prompt.length > 50 ? "..." : "")
-                              : agent.status ?? t("status.idle")}
+                            {agent.headline?.trim()
+                              || agent.description?.trim()
+                              || agent.status
+                              || t("status.idle")}
                           </p>
                         </div>
 

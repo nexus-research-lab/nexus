@@ -11,7 +11,7 @@ import { MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { list_rooms, get_room_contexts, subscribe_room_list_updates } from "@/lib/api/room-api";
+import { list_rooms, get_room_contexts, subscribe_room_directory_updates } from "@/lib/api/room-api";
 import { sort_rooms_by_recency } from "@/lib/conversation/room-utils";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import { WorkspaceEmptyState } from "@/shared/ui/workspace/frame/workspace-empty-state";
@@ -41,7 +41,7 @@ export function DmsPage() {
     return () => { is_cancelled = true; };
   }, []);
 
-  useEffect(() => subscribe_room_list_updates(() => {
+  useEffect(() => subscribe_room_directory_updates(() => {
     void list_rooms(200).then(set_rooms);
   }), []);
 

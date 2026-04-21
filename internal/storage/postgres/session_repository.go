@@ -155,7 +155,6 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (session.Session, 
 	); err != nil {
 		return session.Session{}, err
 	}
-
 	resolvedTitle := title
 	if resolvedTitle == "" {
 		resolvedTitle = roomName

@@ -64,6 +64,8 @@ export function DmChatPanel({
     load_session,
     load_older_messages,
     send_permission_response,
+    runtime_phase,
+    live_round_ids,
   } = useAgentConversation({
     identity: session_identity,
     on_error: (err) => {
@@ -186,11 +188,7 @@ export function DmChatPanel({
   const handle_send_message = async (content: string) => {
     if (!content.trim() || is_loading) return;
     scroll_to_bottom("auto");
-    try {
-      await send_message(content);
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
+    await send_message(content);
   };
 
   const handle_stop = () => stop_generation();
@@ -256,6 +254,8 @@ export function DmChatPanel({
           current_agent_avatar={current_agent_avatar ?? null}
           is_last_round_pending_permissions={pending_permissions}
           is_loading={is_loading}
+          runtime_phase={runtime_phase}
+          live_round_ids={live_round_ids}
           is_mobile_layout={is_mobile_layout}
           message_groups={message_groups}
           on_open_workspace_file={on_open_workspace_file}
@@ -292,6 +292,7 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         control_status_text={session_control_text}
         is_loading={is_loading}
+        runtime_phase={runtime_phase}
         on_prepare_attachments={handle_prepare_attachments}
         on_send_message={handle_send_message}
         on_stop={handle_stop}

@@ -29,7 +29,6 @@ import {
   type TabKey,
 } from "@/features/agents/options/components/agent-options-nav";
 import { AgentOptionsIdentityTab } from "@/features/agents/options/components/agent-options-identity-tab";
-import { AgentOptionsPersonaTab } from "@/features/agents/options/components/agent-options-persona-tab";
 import { AgentOptionsSkillsTab } from "@/features/agents/options/components/agent-options-skills-tab";
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
 import {
@@ -110,11 +109,6 @@ export function AgentOptionsEditor({
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
   const [providerOptionsError, setProviderOptionsError] = useState<string | null>(null);
 
-  // ---- Persona 状态 ----
-  const [systemPrompt, setSystemPrompt] = useState(
-    sourceOptions.system_prompt || ""
-  );
-
   // ---- Advanced 状态 ----
   const [permissionMode, setPermissionMode] = useState(
     sourceOptions.permission_mode || "default"
@@ -146,7 +140,6 @@ export function AgentOptionsEditor({
     setProvider(normalize_agent_option_provider(opts.provider));
     setDefaultProvider("");
     setProviderOptionsError(null);
-    setSystemPrompt(opts.system_prompt || "");
     setPermissionMode(opts.permission_mode || "default");
     setAllowedTools(opts.allowed_tools || []);
     setDisallowedTools(opts.disallowed_tools || []);
@@ -308,7 +301,6 @@ export function AgentOptionsEditor({
       permission_mode: permissionMode,
       allowed_tools: allowedTools,
       disallowed_tools: disallowedTools,
-      system_prompt: systemPrompt || undefined,
       setting_sources: ["project"],
     };
     setIsSaving(true);
@@ -353,14 +345,6 @@ export function AgentOptionsEditor({
           on_provider_change={setProvider}
           name_validation={nameValidation}
           is_validating_name={isValidatingName}
-          variant={variant}
-        />
-      )}
-
-      {activeTab === "persona" && (
-        <AgentOptionsPersonaTab
-          system_prompt={systemPrompt}
-          on_system_prompt_change={setSystemPrompt}
           variant={variant}
         />
       )}

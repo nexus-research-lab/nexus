@@ -1,5 +1,5 @@
 import { SetStateAction, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react';
-import { get_agent_ws_url, get_message_history_round_page_size } from '@/config/options';
+import { get_agent_ws_url, get_message_history_round_page_size, get_message_send_ack_timeout_ms } from '@/config/options';
 import { get_room_conversation_messages } from '@/lib/api/room-api';
 import { are_equivalent_session_keys } from '@/lib/conversation/session-key';
 import { get_browser_client_id } from '@/lib/uuid';
@@ -24,7 +24,6 @@ import {
   AgentConversationActionContext,
   AgentConversationLifecycleContext,
   AgentConversationSessionControlState,
-  AgentThinkingPayload,
   RoomEventPayload,
   UseAgentConversationOptions,
   UseAgentConversationReturn,
@@ -49,6 +48,159 @@ import {
   AgentConversationRuntimeMachine,
   AgentConversationRuntimeSnapshot,
 } from './agent-conversation-runtime-machine';
+
+interface VolatileConversationSnapshot {
+  messages: Message[];
+  pending_agent_slots: RoomPendingAgentSlotState[];
+  updated_at: number;
+}
+
+const VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX = 'nexus.agent_conversation.volatile';
+
+function is_terminal_slot_status(status: AssistantMessageStatus): boolean {
+  return status === 'done' || status === 'cancelled' || status === 'error';
+}
+
+function build_volatile_conversation_storage_key(session_key: string): string {
+  return `${VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX}:${session_key}`;
+}
+
+function get_volatile_conversation_storage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function read_volatile_conversation_snapshot(
+  session_key: string,
+): VolatileConversationSnapshot | null {
+  const storage = get_volatile_conversation_storage();
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    const raw = storage.getItem(build_volatile_conversation_storage_key(session_key));
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<VolatileConversationSnapshot> | null;
+    if (!parsed) {
+      return null;
+    }
+
+    return {
+      messages: Array.isArray(parsed.messages) ? parsed.messages as Message[] : [],
+      pending_agent_slots: Array.isArray(parsed.pending_agent_slots)
+        ? parsed.pending_agent_slots as RoomPendingAgentSlotState[]
+        : [],
+      updated_at: typeof parsed.updated_at === 'number' ? parsed.updated_at : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function write_volatile_conversation_snapshot(
+  session_key: string,
+  snapshot: VolatileConversationSnapshot,
+): void {
+  const storage = get_volatile_conversation_storage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(
+      build_volatile_conversation_storage_key(session_key),
+      JSON.stringify(snapshot),
+    );
+  } catch {
+    // sessionStorage 满了时直接忽略，不阻断会话流程
+  }
+}
+
+function remove_volatile_conversation_snapshot(session_key: string): void {
+  const storage = get_volatile_conversation_storage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(build_volatile_conversation_storage_key(session_key));
+  } catch {
+    // 忽略移除失败
+  }
+}
+
+function merge_pending_agent_slots(
+  restored_slots: RoomPendingAgentSlotState[],
+  current_slots: RoomPendingAgentSlotState[],
+): RoomPendingAgentSlotState[] {
+  if (restored_slots.length === 0) {
+    return current_slots;
+  }
+
+  const merged_slots = new Map<string, RoomPendingAgentSlotState>();
+  for (const slot of restored_slots) {
+    merged_slots.set(slot.msg_id, slot);
+  }
+  for (const slot of current_slots) {
+    merged_slots.set(slot.msg_id, slot);
+  }
+  return Array.from(merged_slots.values());
+}
+
+function is_ephemeral_message(message: Message): boolean {
+  return message.delivery_mode === 'ephemeral';
+}
+
+function build_volatile_conversation_snapshot(
+  messages: Message[],
+  runtime_snapshot: AgentConversationRuntimeSnapshot,
+  pending_agent_slots: RoomPendingAgentSlotState[],
+): VolatileConversationSnapshot | null {
+  const active_round_ids = new Set<string>(runtime_snapshot.live_round_ids);
+
+  for (const slot of pending_agent_slots) {
+    if (!is_terminal_slot_status(slot.status)) {
+      active_round_ids.add(slot.round_id);
+    }
+  }
+
+  if (active_round_ids.size === 0) {
+    return null;
+  }
+
+  const volatile_messages = messages.filter((message) => {
+    if (is_ephemeral_message(message)) {
+      return false;
+    }
+    if (active_round_ids.has(message.round_id)) {
+      return true;
+    }
+
+    return message.role === 'assistant' && !is_terminal_slot_status(message.stream_status ?? 'streaming');
+  });
+  const volatile_slots = pending_agent_slots.filter((slot) => !is_terminal_slot_status(slot.status));
+
+  if (volatile_messages.length === 0 && volatile_slots.length === 0) {
+    return null;
+  }
+
+  return {
+    messages: volatile_messages,
+    pending_agent_slots: volatile_slots,
+    updated_at: Date.now(),
+  };
+}
 
 function filter_pending_slots_from_snapshot(
   current_slots: RoomPendingAgentSlotState[],
@@ -155,7 +307,6 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const [history_prepend_token, set_history_prepend_token] = useState(0);
   const [pending_agent_slots, set_pending_agent_slots_state] = useState<RoomPendingAgentSlotState[]>([]);
   const [pending_permissions, set_pending_permissions_state] = useState<UseAgentConversationReturn['pending_permissions']>([]);
-  const [agent_thinking, set_agent_thinking] = useState<AgentThinkingPayload | null>(null);
   const [session_control_state, set_session_control_state] = useState<AgentConversationSessionControlState>('unknown');
   const [session_controller_client_id, set_session_controller_client_id] = useState<string | null>(null);
   const [session_observer_count, set_session_observer_count] = useState(0);
@@ -177,13 +328,16 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   });
   const pending_agent_slots_ref = useRef<RoomPendingAgentSlotState[]>([]);
   const pending_permissions_ref = useRef<UseAgentConversationReturn['pending_permissions']>([]);
-  const ws_send_ref = useRef<(payload: WebSocketMessage) => void>(() => {});
+  const pending_chat_ack_ref = useRef<Map<string, { reject: (error: Error) => void; resolve: () => void; timeout_id: number }>>(new Map());
+  const ws_send_ref = useRef<(payload: WebSocketMessage) => { disposition: "sent" | "queued" | "dropped" }>(() => ({ disposition: 'dropped' }));
+  const ws_reconnect_ref = useRef<() => void>(() => {});
   const ws_state_ref = useRef<WebSocketState>('disconnected');
   // Per-session message cache: accumulates messages received for non-active sessions
   // so they are not lost when the user switches conversations.
   const bg_message_cache_ref = useRef<Map<string, Message[]>>(new Map());
   const is_loading = runtime_snapshot.is_loading;
   const runtime_phase = runtime_snapshot.phase;
+  const live_round_ids = runtime_snapshot.live_round_ids;
   const is_session_controller = session_control_state === 'controller';
 
   const set_messages = useCallback((
@@ -285,6 +439,9 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, []);
 
   const on_background_message = useCallback((key: string, message: Message) => {
+    if (is_ephemeral_message(message)) {
+      return;
+    }
     const cache = bg_message_cache_ref.current;
     const existing = cache.get(key) ?? [];
     const next = upsert_message(existing, message);
@@ -294,6 +451,56 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   const on_room_event = useCallback((event_type: string, data: RoomEventPayload) => {
     on_room_event_callback?.(event_type, data);
   }, [on_room_event_callback]);
+
+  const clear_pending_chat_ack = useCallback((round_id?: string | null) => {
+    if (!round_id) {
+      return false;
+    }
+    const pending_request = pending_chat_ack_ref.current.get(round_id);
+    if (!pending_request) {
+      return false;
+    }
+    window.clearTimeout(pending_request.timeout_id);
+    pending_chat_ack_ref.current.delete(round_id);
+    pending_request.resolve();
+    return true;
+  }, []);
+
+  const cancel_pending_chat_acks = useCallback((reason: string) => {
+    for (const [round_id, pending_request] of pending_chat_ack_ref.current.entries()) {
+      window.clearTimeout(pending_request.timeout_id);
+      pending_request.reject(new Error(reason));
+      pending_chat_ack_ref.current.delete(round_id);
+    }
+  }, []);
+
+  const fail_pending_chat_ack = useCallback((round_id: string, message: string) => {
+    const pending_request = pending_chat_ack_ref.current.get(round_id);
+    if (!pending_request) {
+      return;
+    }
+    window.clearTimeout(pending_request.timeout_id);
+    pending_chat_ack_ref.current.delete(round_id);
+    pending_request.reject(new Error(message));
+    apply_runtime_transition((machine) => {
+      machine.clear_round(round_id, chat_type === 'group');
+    });
+    set_pending_agent_slots((prev) => prev.filter((slot) => (
+      !matches_round_lifecycle(slot.round_id, round_id)
+    )));
+    set_pending_permissions((prev) => prev.filter((permission) => (
+      !permission.caused_by || !matches_round_lifecycle(permission.caused_by, round_id)
+    )));
+    set_messages((prev) => prev.filter((message) => !(
+      message.role === 'user' &&
+      message.message_id === round_id &&
+      message.round_id === round_id
+    )));
+    set_error(message);
+    if (ws_state_ref.current === 'connected') {
+      ws_reconnect_ref.current();
+    }
+  }, [apply_runtime_transition, chat_type, set_messages, set_pending_agent_slots, set_pending_permissions]);
 
   const reset_session_control = useCallback(() => {
     set_session_control_state('unknown');
@@ -342,6 +549,24 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     set_pending_permissions,
     set_error,
     bg_message_cache_ref,
+    restore_volatile_session_snapshot: (target_session_key) => {
+      const snapshot = read_volatile_conversation_snapshot(target_session_key);
+      if (!snapshot) {
+        return false;
+      }
+
+      let restored_messages = snapshot.messages;
+      set_messages((current_messages) => {
+        restored_messages = merge_loaded_messages(snapshot.messages, current_messages);
+        return restored_messages;
+      });
+      set_pending_agent_slots((current_slots) => (
+        merge_pending_agent_slots(snapshot.pending_agent_slots, current_slots)
+      ));
+      set_error(null);
+      reconcile_runtime_state_from_snapshot(restored_messages);
+      return restored_messages.length > 0 || snapshot.pending_agent_slots.length > 0;
+    },
     on_session_messages_loaded: (loaded_messages, meta) => {
       if (!meta.is_reload) {
         history_cursor_ref.current = {
@@ -366,6 +591,24 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     reconcile_runtime_state_from_snapshot,
     set_has_more_history,
   ]);
+
+  useEffect(() => {
+    if (!session_key) {
+      return;
+    }
+
+    const snapshot = build_volatile_conversation_snapshot(
+      messages,
+      runtime_snapshot,
+      pending_agent_slots,
+    );
+    if (!snapshot) {
+      remove_volatile_conversation_snapshot(session_key);
+      return;
+    }
+
+    write_volatile_conversation_snapshot(session_key, snapshot);
+  }, [messages, pending_agent_slots, runtime_snapshot, session_key]);
 
   const reload_current_session = useCallback(async () => {
     const active_session_key = active_session_key_ref.current;
@@ -492,12 +735,19 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     )));
     set_messages((prev) => {
       let has_changes = false;
-      const next_messages = prev.map((message) => {
+      const next_messages: Message[] = [];
+      for (const message of prev) {
+        if (is_ephemeral_message(message)) {
+          has_changes = true;
+          continue;
+        }
         if (message.role !== 'assistant') {
-          return message;
+          next_messages.push(message);
+          continue;
         }
         if (is_terminal_round(message.round_id)) {
-          return message;
+          next_messages.push(message);
+          continue;
         }
         if (
           message.stop_reason ||
@@ -505,14 +755,15 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
           message.stream_status === 'cancelled' ||
           message.stream_status === 'error'
         ) {
-          return message;
+          next_messages.push(message);
+          continue;
         }
         has_changes = true;
-        return {
+        next_messages.push({
           ...message,
           stream_status: 'cancelled' as const,
-        };
-      });
+        });
+      }
       return has_changes ? next_messages : prev;
     });
   }, [apply_runtime_transition, chat_type, set_messages, set_pending_agent_slots, set_pending_permissions]);
@@ -585,6 +836,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     apply_runtime_transition((machine) => {
       machine.track_chat_ack(ack);
     });
+    clear_pending_chat_ack(ack.round_id);
     const pending_count = ack.pending?.length ?? 0;
     set_pending_agent_slots((prev) => {
       const preserved_slots = prev.filter((slot) => {
@@ -600,13 +852,14 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       }));
       return [...preserved_slots, ...next_slots];
     });
-  }, [apply_runtime_transition, set_pending_agent_slots]);
+  }, [apply_runtime_transition, clear_pending_chat_ack, set_pending_agent_slots]);
 
   const track_assistant_message = useCallback((message: AssistantMessage) => {
+    clear_pending_chat_ack(message.round_id);
     apply_runtime_transition((machine) => {
       machine.track_assistant_message(message);
     });
-  }, [apply_runtime_transition]);
+  }, [apply_runtime_transition, clear_pending_chat_ack]);
 
   const apply_round_status = useCallback((
     round_id: string,
@@ -615,6 +868,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     apply_runtime_transition((machine) => {
       machine.track_round_status(round_id, status);
     });
+    clear_pending_chat_ack(round_id);
 
     if (status === 'running') {
       return;
@@ -632,12 +886,19 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     )));
     set_messages((prev) => {
       let has_changes = false;
-      const next_messages = prev.map((message) => {
+      const next_messages: Message[] = [];
+      for (const message of prev) {
+        if (matches_round_lifecycle(message.round_id, round_id) && is_ephemeral_message(message)) {
+          has_changes = true;
+          continue;
+        }
         if (message.role !== 'assistant') {
-          return message;
+          next_messages.push(message);
+          continue;
         }
         if (!matches_round_lifecycle(message.round_id, round_id)) {
-          return message;
+          next_messages.push(message);
+          continue;
         }
         if (
           message.stream_status === terminal_status ||
@@ -645,17 +906,18 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
           message.stream_status === 'error' ||
           message.stream_status === 'done'
         ) {
-          return message;
+          next_messages.push(message);
+          continue;
         }
         has_changes = true;
-        return {
+        next_messages.push({
           ...message,
           stream_status: terminal_status,
-        };
-      });
+        });
+      }
       return has_changes ? next_messages : prev;
-      });
-  }, [apply_runtime_transition, set_messages, set_pending_agent_slots, set_pending_permissions]);
+    });
+  }, [apply_runtime_transition, clear_pending_chat_ack, set_messages, set_pending_agent_slots, set_pending_permissions]);
 
   const build_session_bind_message = useCallback((
     target_session_key: string,
@@ -750,7 +1012,6 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_pending_permissions,
       enqueue_stream_payload,
       on_background_message,
-      set_agent_thinking,
       on_room_event,
       update_message_status,
       sync_session_status,
@@ -792,6 +1053,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     }
 
     active_identity_key_ref.current = next_identity_key;
+    cancel_pending_chat_acks('会话上下文已切换，未确认的消息发送已取消');
     session_seq_cursor_ref.current = 0;
     room_seq_cursor_ref.current = 0;
     reset_runtime_machine();
@@ -800,8 +1062,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     set_history_prepend_token(0);
     set_pending_agent_slots((current_slots) => (current_slots.length ? [] : current_slots));
     set_pending_permissions((current_permissions) => (current_permissions.length ? [] : current_permissions));
-    set_agent_thinking(null);
-  }, [identity, reset_history_state, reset_runtime_machine, reset_session_control, set_pending_agent_slots, set_pending_permissions]);
+  }, [cancel_pending_chat_acks, identity, reset_history_state, reset_runtime_machine, reset_session_control, set_pending_agent_slots, set_pending_permissions]);
 
   useEffect(() => {
     const next_session_key = identity?.session_key?.trim() || null;
@@ -814,16 +1075,17 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   // Cancel any pending rAF flush on unmount to prevent setState after unmount
   useEffect(() => {
     return () => {
+      cancel_pending_chat_acks('会话已卸载，未确认的消息发送已取消');
       if (stream_raf_ref.current !== null) {
         cancelAnimationFrame(stream_raf_ref.current);
         stream_raf_ref.current = null;
       }
     };
-  }, []);
+  }, [cancel_pending_chat_acks]);
 
   const has_connected_ref = useRef(false);
 
-  const { state: ws_state, send: ws_send } = useWebSocket({
+  const { state: ws_state, send: ws_send, reconnect: ws_reconnect } = useWebSocket({
     url: ws_url,
     auto_connect: true,
     reconnect: true,
@@ -847,6 +1109,10 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   useEffect(() => {
     ws_send_ref.current = ws_send;
   }, [ws_send]);
+
+  useEffect(() => {
+    ws_reconnect_ref.current = ws_reconnect;
+  }, [ws_reconnect]);
 
   useEffect(() => {
     ws_state_ref.current = ws_state;
@@ -948,9 +1214,20 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     }
 
     apply_runtime_transition((machine) => {
-      machine.queue_round(round_id);
+      machine.track_outbound_round(round_id);
     });
-  }, [action_context, apply_runtime_transition]);
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout_id = window.setTimeout(() => {
+        fail_pending_chat_ack(round_id, '消息未送达后端，请重试');
+      }, get_message_send_ack_timeout_ms());
+      pending_chat_ack_ref.current.set(round_id, {
+        resolve,
+        reject,
+        timeout_id,
+      });
+    });
+  }, [action_context, apply_runtime_transition, fail_pending_chat_ack]);
 
   const stop_generation = useCallback((msg_id?: string) => {
     stop_session_generation(action_context, msg_id);
@@ -975,24 +1252,24 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
   }, [action_context]);
 
   const start_session = useCallback(() => {
+    cancel_pending_chat_acks('会话已重建，未确认的消息发送已取消');
     start_agent_session(lifecycle_context);
     reset_history_state();
     set_history_prepend_token(0);
     reset_runtime_machine();
-    set_agent_thinking(null);
-  }, [lifecycle_context, reset_history_state, reset_runtime_machine]);
+  }, [cancel_pending_chat_acks, lifecycle_context, reset_history_state, reset_runtime_machine]);
 
   const load_session = useCallback(async (id: string): Promise<void> => {
     await load_agent_session(id, lifecycle_context);
   }, [lifecycle_context]);
 
   const clear_session = useCallback(() => {
+    cancel_pending_chat_acks('会话已清空，未确认的消息发送已取消');
     clear_agent_session(lifecycle_context);
     reset_history_state();
     set_history_prepend_token(0);
     reset_runtime_machine();
-    set_agent_thinking(null);
-  }, [lifecycle_context, reset_history_state, reset_runtime_machine]);
+  }, [cancel_pending_chat_acks, lifecycle_context, reset_history_state, reset_runtime_machine]);
 
   const bind_session_key = useCallback((key: string | null) => {
     const normalized_key = key?.trim() || null;
@@ -1001,6 +1278,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     }
 
     active_session_key_ref.current = normalized_key;
+    cancel_pending_chat_acks('会话已切换，未确认的消息发送已取消');
     reset_history_state();
     set_history_prepend_token(0);
     set_session_key((current_key) => (
@@ -1016,17 +1294,16 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
       set_pending_permissions((current_permissions) => (
         current_permissions.length ? [] : current_permissions
       ));
-      set_agent_thinking(null);
     }
-  }, [reset_history_state, reset_runtime_machine, reset_session_control, set_is_session_loading, set_pending_agent_slots, set_pending_permissions]);
+  }, [cancel_pending_chat_acks, reset_history_state, reset_runtime_machine, reset_session_control, set_is_session_loading, set_pending_agent_slots, set_pending_permissions]);
 
   const reset_session = useCallback(() => {
+    cancel_pending_chat_acks('会话已重置，未确认的消息发送已取消');
     reset_agent_session(lifecycle_context);
     reset_history_state();
     set_history_prepend_token(0);
     reset_runtime_machine();
-    set_agent_thinking(null);
-  }, [lifecycle_context, reset_history_state, reset_runtime_machine]);
+  }, [cancel_pending_chat_acks, lifecycle_context, reset_history_state, reset_runtime_machine]);
 
   return {
     error,
@@ -1034,6 +1311,7 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     session_key,
     ws_state,
     is_loading,
+    live_round_ids,
     is_session_loading,
     is_history_loading,
     has_more_history,
@@ -1045,7 +1323,6 @@ export function useAgentConversation(options: UseAgentConversationOptions = {}):
     session_observer_count,
     pending_agent_slots,
     pending_permissions,
-    agent_thinking,
     send_message,
     bind_session_key,
     start_session,

@@ -359,28 +359,36 @@ func summarizeContentBlocks(blocks []sdkprotocol.ContentBlock) ([]string, string
 	blockTypes := make([]string, 0, len(blocks))
 	previewParts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		blockType := normalizeSDKBlockType(block.Type)
+		blockType := normalizeSDKBlockType(string(block.Type()))
 		if blockType == "" {
 			blockType = "unknown"
 		}
 		blockTypes = append(blockTypes, blockType)
 		switch blockType {
 		case "text":
-			if text := truncateForLog(block.Text); text != "" {
-				previewParts = append(previewParts, text)
+			if textBlock, ok := sdkprotocol.AsTextBlock(block); ok {
+				if text := truncateForLog(textBlock.Text); text != "" {
+					previewParts = append(previewParts, text)
+				}
 			}
 		case "thinking":
-			if thinking := truncateForLog(block.Thinking); thinking != "" {
-				previewParts = append(previewParts, "thinking:"+thinking)
+			if thinkingBlock, ok := sdkprotocol.AsThinkingBlock(block); ok {
+				if thinking := truncateForLog(thinkingBlock.Thinking); thinking != "" {
+					previewParts = append(previewParts, "thinking:"+thinking)
+				}
 			}
 		case "tool_use":
-			previewParts = append(previewParts, "tool_use:"+firstNonEmpty(block.Name, block.ID))
-		case "tool_result":
-			payload := truncateForLog(rawJSON(block.Content))
-			if payload == "" {
-				payload = block.ToolUseID
+			if toolUseBlock, ok := sdkprotocol.AsToolUseBlock(block); ok {
+				previewParts = append(previewParts, "tool_use:"+firstNonEmpty(toolUseBlock.Name, toolUseBlock.ID))
 			}
-			previewParts = append(previewParts, "tool_result:"+payload)
+		case "tool_result":
+			if toolResultBlock, ok := sdkprotocol.AsToolResultBlock(block); ok {
+				payload := truncateForLog(rawJSON(decodeRawJSON(toolResultBlock.Content)))
+				if payload == "" {
+					payload = toolResultBlock.ToolUseID
+				}
+				previewParts = append(previewParts, "tool_result:"+payload)
+			}
 		}
 	}
 	return blockTypes, truncateForLog(strings.Join(previewParts, " | "))
@@ -406,6 +414,17 @@ func rawJSON(value any) string {
 		return ""
 	}
 	return string(payload)
+}
+
+func decodeRawJSON(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var result any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return strings.TrimSpace(string(raw))
+	}
+	return result
 }
 
 func rawMap(value any) map[string]any {

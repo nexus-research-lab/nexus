@@ -55,7 +55,6 @@ export function ContactsPage() {
       max_turns: editing_agent.options.max_turns,
       max_thinking_tokens: editing_agent.options.max_thinking_tokens,
       setting_sources: editing_agent.options.setting_sources,
-      system_prompt: editing_agent.options.system_prompt,
     };
   }, [dialog_mode, editing_agent]);
 
@@ -113,7 +112,6 @@ export function ContactsPage() {
       allowed_tools: options.allowed_tools,
       disallowed_tools: options.disallowed_tools,
       setting_sources: options.setting_sources,
-      system_prompt: options.system_prompt,
     };
 
     if (dialog_mode === "create") {

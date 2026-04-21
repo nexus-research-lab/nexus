@@ -21,7 +21,7 @@ import (
 func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 	mapper := newMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-stream")
 
-	events, _, _ := mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-1",
 		Stream: &sdkprotocol.StreamEvent{
@@ -35,6 +35,9 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("message_start 映射失败: %v", err)
+	}
 	if len(events) != 2 {
 		t.Fatalf("message_start 事件数量不正确: %+v", events)
 	}
@@ -52,7 +55,7 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 		t.Fatalf("message_start 未透传 model: %+v", events[1].Data)
 	}
 
-	events, _, _ = mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err = mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-1",
 		Stream: &sdkprotocol.StreamEvent{
@@ -66,11 +69,14 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("content_block_start 映射失败: %v", err)
+	}
 	if len(events) != 1 || events[0].EventType != protocol.EventTypeStream {
 		t.Fatalf("content_block_start 事件不正确: %+v", events)
 	}
 
-	events, _, _ = mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err = mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-1",
 		Stream: &sdkprotocol.StreamEvent{
@@ -84,6 +90,9 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("content_block_delta 映射失败: %v", err)
+	}
 	if len(events) != 1 {
 		t.Fatalf("content_block_delta 事件数量不正确: %+v", events)
 	}
@@ -92,7 +101,7 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 		t.Fatalf("thinking delta 没有累计: %+v", contentBlock)
 	}
 
-	events, _, _ = mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err = mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-1",
 		Stream: &sdkprotocol.StreamEvent{
@@ -105,6 +114,9 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("message_delta 映射失败: %v", err)
+	}
 	if len(events) != 3 || events[0].Data["type"] != "message_delta" {
 		t.Fatalf("message_delta 事件不正确: %+v", events)
 	}
@@ -115,7 +127,7 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 		t.Fatalf("message_delta 后应结束 stream 生命周期: %+v", events)
 	}
 
-	events, _, _ = mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err = mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-1",
 		Stream: &sdkprotocol.StreamEvent{
@@ -124,6 +136,9 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("message_stop 映射失败: %v", err)
+	}
 	if len(events) != 1 || events[0].Data["type"] != "message_stop" {
 		t.Fatalf("message_stop 事件不正确: %+v", events)
 	}
@@ -136,7 +151,7 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
 	mapper := newMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-system")
 
-	events, _, _ := mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeSystem,
 		SessionID: "sdk-session-2",
 		System: &sdkprotocol.SystemMessage{
@@ -148,6 +163,9 @@ func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("system/task_progress 映射失败: %v", err)
+	}
 	if len(events) != 1 {
 		t.Fatalf("system/task_progress 映射失败: %+v", events)
 	}
@@ -163,10 +181,41 @@ func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
 	}
 }
 
+func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
+	mapper := newMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry")
+
+	events, durableMessages, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeSystem,
+		SessionID: "sdk-session-api-retry",
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "api_retry",
+			Data: map[string]any{
+				"message": "API 正在重试",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("api_retry 映射失败: %v", err)
+	}
+	if len(durableMessages) != 0 {
+		t.Fatalf("api_retry 不应进入 durable 消息: %+v", durableMessages)
+	}
+	if len(events) != 1 {
+		t.Fatalf("api_retry 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "ephemeral" {
+		t.Fatalf("api_retry 应作为 ephemeral message 广播: %+v", events[0])
+	}
+	if events[0].Data["role"] != "system" || events[0].MessageID != "system_api_retry_round-api-retry" {
+		t.Fatalf("api_retry 事件内容不正确: %+v", events[0])
+	}
+}
+
 func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
 	mapper := newMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-reused-index")
 
-	mapper.Map(sdkprotocol.ReceivedMessage{
+	if _, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-3",
 		Stream: &sdkprotocol.StreamEvent{
@@ -178,9 +227,11 @@ func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
 				},
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("初始 stream message 映射失败: %v", err)
+	}
 
-	events, _, _ := mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-3",
 		Stream: &sdkprotocol.StreamEvent{
@@ -194,11 +245,14 @@ func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("thinking block 映射失败: %v", err)
+	}
 	if len(events) != 1 || events[0].Data["index"] != 0 {
 		t.Fatalf("thinking 索引不正确: %+v", events)
 	}
 
-	events, _, _ = mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, _, _, err = mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "sdk-session-3",
 		Stream: &sdkprotocol.StreamEvent{
@@ -212,6 +266,9 @@ func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("text block 映射失败: %v", err)
+	}
 	if len(events) != 1 {
 		t.Fatalf("text block 事件数量不正确: %+v", events)
 	}
@@ -224,7 +281,7 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 	mapper := newMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-tool-result")
 
 	// 先注入 tool_use 使 segment 能查到工具名
-	mapper.Map(sdkprotocol.ReceivedMessage{
+	if _, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeAssistant,
 		Assistant: &sdkprotocol.AssistantMessage{
 			Message: sdkprotocol.ConversationEnvelope{
@@ -233,9 +290,11 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 				},
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("tool_use 映射失败: %v", err)
+	}
 
-	events, terminalStatus, _ := mapper.Map(sdkprotocol.ReceivedMessage{
+	events, _, terminalStatus, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeUser,
 		User: &sdkprotocol.UserMessage{
 			Message: sdkprotocol.ConversationEnvelope{
@@ -250,6 +309,9 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 		},
 	})
 
+	if err != nil {
+		t.Fatalf("tool_result 映射失败: %v", err)
+	}
 	if len(events) != 2 {
 		t.Fatalf("tool result 映射事件数量不正确: %+v", events)
 	}
@@ -264,5 +326,65 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 	}
 	if terminalStatus != "" {
 		t.Fatalf("tool result 不应产生 terminal status: %s", terminalStatus)
+	}
+}
+
+func TestMessageMapperProjectsResultOntoAssistant(t *testing.T) {
+	mapper := newMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-result")
+
+	events, durableMessages, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:         "assistant-result-1",
+				StopReason: "end_turn",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: "最终答案"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("assistant result 前置消息映射失败: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("assistant 完成快照事件数量不正确: %+v", events)
+	}
+	if len(durableMessages) != 1 || durableMessages[0]["role"] != "assistant" {
+		t.Fatalf("assistant durable 消息不正确: %+v", durableMessages)
+	}
+
+	events, durableMessages, terminalStatus, resultSubtype, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:      "success",
+			DurationMS:   1200,
+			NumTurns:     1,
+			Result:       "最终答案",
+			Usage:        map[string]any{"input_tokens": 9, "output_tokens": 3},
+			TotalCostUSD: 0.0012,
+		},
+	})
+	if err != nil {
+		t.Fatalf("result 映射失败: %v", err)
+	}
+	if terminalStatus != "finished" || resultSubtype != "success" {
+		t.Fatalf("result 终态不正确: status=%s subtype=%s", terminalStatus, resultSubtype)
+	}
+	if len(durableMessages) != 1 || durableMessages[0]["role"] != "result" {
+		t.Fatalf("result durable 消息不正确: %+v", durableMessages)
+	}
+	if len(events) != 1 {
+		t.Fatalf("result 投影事件数量不正确: %+v", events)
+	}
+	if events[0].Data["role"] != "assistant" {
+		t.Fatalf("result 应投影回 assistant 事件: %+v", events[0].Data)
+	}
+	summary, ok := events[0].Data["result_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("assistant 应挂载 result_summary: %+v", events[0].Data)
+	}
+	if summary["result"] != nil {
+		t.Fatalf("重复正文不应继续出现在 result_summary.result: %+v", summary)
 	}
 }

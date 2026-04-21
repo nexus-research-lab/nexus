@@ -14,19 +14,19 @@ import {
 import { Agent, ApiAgent } from "@/types/agent/agent";
 
 const AGENT_API_BASE_URL = get_agent_api_base_url();
-const ROOM_LIST_UPDATED_EVENT_NAME = "nexus:room-list-updated";
+const ROOM_DIRECTORY_UPDATED_EVENT_NAME = "nexus:room-directory-updated";
 
-export function notify_room_list_updated() {
+export function notify_room_directory_updated() {
   if (typeof window === "undefined") {
     return;
   }
 
   // Room / DM 的列表数据目前被多个页面各自缓存。
   // 统一从 API 层发出变更事件，避免每个创建入口都手写 refresh。
-  window.dispatchEvent(new CustomEvent(ROOM_LIST_UPDATED_EVENT_NAME));
+  window.dispatchEvent(new CustomEvent(ROOM_DIRECTORY_UPDATED_EVENT_NAME));
 }
 
-export function subscribe_room_list_updates(listener: () => void): () => void {
+export function subscribe_room_directory_updates(listener: () => void): () => void {
   if (typeof window === "undefined") {
     return () => {};
   }
@@ -35,9 +35,9 @@ export function subscribe_room_list_updates(listener: () => void): () => void {
     listener();
   };
 
-  window.addEventListener(ROOM_LIST_UPDATED_EVENT_NAME, handle_update);
+  window.addEventListener(ROOM_DIRECTORY_UPDATED_EVENT_NAME, handle_update);
   return () => {
-    window.removeEventListener(ROOM_LIST_UPDATED_EVENT_NAME, handle_update);
+    window.removeEventListener(ROOM_DIRECTORY_UPDATED_EVENT_NAME, handle_update);
   };
 }
 
@@ -54,6 +54,9 @@ function transform_api_agent(api_agent: ApiAgent): Agent {
     agent_id: api_agent.agent_id,
     name: api_agent.name,
     workspace_path: api_agent.workspace_path,
+    display_name: api_agent.display_name ?? null,
+    headline: api_agent.headline ?? null,
+    profile_markdown: api_agent.profile_markdown ?? null,
     options: api_agent.options || {},
     created_at: new Date(api_agent.created_at).getTime(),
     status: api_agent.status,
@@ -145,7 +148,7 @@ export async function create_room(params: CreateRoomParams): Promise<RoomContext
       avatar: params.avatar ?? null,
     }),
   });
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -163,7 +166,7 @@ export async function update_room(
       avatar: params.avatar ?? null,
     }),
   });
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -182,7 +185,7 @@ export async function create_room_conversation(
       }),
     },
   );
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -201,7 +204,7 @@ export async function update_room_conversation(
       }),
     },
   );
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -215,7 +218,7 @@ export async function delete_room_conversation(
       method: "DELETE",
     },
   );
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -233,7 +236,7 @@ export async function add_room_member(
       }),
     },
   );
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -247,7 +250,7 @@ export async function remove_room_member(
       method: "DELETE",
     },
   );
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }
 
@@ -255,7 +258,7 @@ export async function delete_room(room_id: string): Promise<{success: boolean}> 
   const result = await request_api<{success: boolean}>(`${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`, {
     method: "DELETE",
   });
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return result;
 }
 
@@ -266,6 +269,6 @@ export async function ensure_direct_room(agent_id: string): Promise<RoomContextA
       method: "GET",
     },
   );
-  notify_room_list_updated();
+  notify_room_directory_updated();
   return transform_room_context(context);
 }

@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { is_main_agent } from "@/config/options";
 import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-page-agent-dialog";
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
-import { subscribe_room_list_updates } from "@/lib/api/room-api";
+import { subscribe_room_directory_updates } from "@/lib/api/room-api";
 import { useAgentStore } from "@/store/agent";
 import { LauncherAgentSummary, LauncherRoomSummary } from "@/types/app/launcher";
 
@@ -103,7 +103,7 @@ export function useLauncherPageController() {
     };
   }, []);
 
-  useEffect(() => subscribe_room_list_updates(refresh_bootstrap), [refresh_bootstrap]);
+  useEffect(() => subscribe_room_directory_updates(refresh_bootstrap), [refresh_bootstrap]);
 
   return useMemo(() => ({
     agents,

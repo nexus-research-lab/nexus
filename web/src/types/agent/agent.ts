@@ -17,7 +17,6 @@ export interface AgentOptions {
     permission_mode?: string;
     allowed_tools?: string[];
     disallowed_tools?: string[];
-    system_prompt?: string;
     cwd?: string;
     max_turns?: number;
     max_thinking_tokens?: number;
@@ -32,6 +31,9 @@ export interface Agent {
     agent_id: string;
     name: string;
     workspace_path: string;
+    display_name?: string | null;
+    headline?: string | null;
+    profile_markdown?: string | null;
     options: AgentOptions;
     created_at: number;
     status: string;
@@ -52,6 +54,9 @@ export interface ApiAgent {
     agent_id: string;
     name: string;
     workspace_path: string;
+    display_name?: string | null;
+    headline?: string | null;
+    profile_markdown?: string | null;
     options: Record<string, any> | null;
     created_at: string;
     status: string;

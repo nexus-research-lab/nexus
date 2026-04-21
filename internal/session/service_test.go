@@ -13,6 +13,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -94,8 +95,8 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取普通 session 消息失败: %v", err)
 	}
-	if len(messages) != 3 {
-		t.Fatalf("消息归一化结果不正确: got=%d want=3", len(messages))
+	if len(messages) != 2 {
+		t.Fatalf("消息归一化结果不正确: got=%d want=2", len(messages))
 	}
 	contentBlocks, ok := messages[1]["content"].([]map[string]any)
 	if !ok && messages[1]["content"] != nil {
@@ -113,11 +114,12 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if !ok || len(contentBlocks) != 1 || contentBlocks[0]["type"] != "text" || contentBlocks[0]["text"] != "最终回复" {
 		t.Fatalf("消息压缩未保留最新快照: %+v", messages[1])
 	}
-	if messages[1]["stream_status"] != "cancelled" {
-		t.Fatalf("未终止 round 的 assistant 应归一化为 cancelled: %+v", messages[1])
+	if _, exists := messages[1]["stream_status"]; exists {
+		t.Fatalf("未终止 round 的 assistant 不应补写 stream_status: %+v", messages[1])
 	}
-	if messages[2]["role"] != "result" || messages[2]["subtype"] != "interrupted" {
-		t.Fatalf("未终止 round 未物化 interrupted result: %+v", messages)
+	summary, ok := messages[1]["result_summary"].(map[string]any)
+	if !ok || strings.TrimSpace(stringValue(summary["subtype"])) != "interrupted" {
+		t.Fatalf("未终止 round 应把 interrupted 摘要挂到 assistant 上: %+v", messages[1])
 	}
 
 	messagePage, err := sessionService.GetSessionMessagesPage(ctx, dmKey, sessionsvc.MessagePageRequest{
@@ -126,13 +128,13 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("分页读取普通 session 消息失败: %v", err)
 	}
-	if len(messagePage.Items) != 3 || messagePage.HasMore {
+	if len(messagePage.Items) != 2 || messagePage.HasMore {
 		t.Fatalf("普通 session 最新页结果不正确: %+v", messagePage)
 	}
 	if messagePage.Items[0]["message_id"] != "round_1" {
 		t.Fatalf("普通 session 最新页起点不正确: %+v", messagePage.Items)
 	}
-	if messagePage.Items[2]["message_id"] != "result_round_1" {
+	if messagePage.Items[1]["message_id"] != "msg_assistant_1" {
 		t.Fatalf("普通 session 最新页终点不正确: %+v", messagePage.Items)
 	}
 
@@ -140,14 +142,15 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 Room 共享流失败: %v", err)
 	}
-	if len(roomMessages) != 2 {
-		t.Fatalf("Room 共享消息数量不正确: got=%d want=2", len(roomMessages))
+	if len(roomMessages) != 1 {
+		t.Fatalf("Room 共享消息数量不正确: got=%d want=1", len(roomMessages))
 	}
-	if roomMessages[0]["stream_status"] != "cancelled" {
-		t.Fatalf("Room assistant 快照未归一化为 cancelled: %+v", roomMessages[0])
+	if _, exists := roomMessages[0]["stream_status"]; exists {
+		t.Fatalf("Room assistant 历史回放不应补写 stream_status: %+v", roomMessages[0])
 	}
-	if roomMessages[1]["role"] != "result" || roomMessages[1]["subtype"] != "interrupted" {
-		t.Fatalf("Room 未终止 round 未物化 interrupted result: %+v", roomMessages)
+	roomSummary, ok := roomMessages[0]["result_summary"].(map[string]any)
+	if !ok || strings.TrimSpace(stringValue(roomSummary["subtype"])) != "interrupted" {
+		t.Fatalf("Room 未终止 round 应把 interrupted 摘要挂到 assistant 上: %+v", roomMessages[0])
 	}
 
 	roomMessagePage, err := sessionService.GetSessionMessagesPage(
@@ -158,11 +161,11 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("分页读取 Room 共享流失败: %v", err)
 	}
-	if len(roomMessagePage.Items) != 2 || roomMessagePage.HasMore {
+	if len(roomMessagePage.Items) != 1 || roomMessagePage.HasMore {
 		t.Fatalf("Room 最新页结果不正确: %+v", roomMessagePage)
 	}
-	if roomMessagePage.Items[0]["role"] != "assistant" || roomMessagePage.Items[1]["role"] != "result" {
-		t.Fatalf("Room 最新页应返回完整 round: %+v", roomMessagePage.Items)
+	if roomMessagePage.Items[0]["role"] != "assistant" {
+		t.Fatalf("Room 最新页应返回 assistant 聚合结果: %+v", roomMessagePage.Items)
 	}
 
 	updatedTitle := "Launcher 重命名"
@@ -179,6 +182,9 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 	if _, err = sessionService.GetSession(ctx, dmKey); err == nil {
 		t.Fatal("删除后不应还能读取到 session")
+	}
+	if _, err = os.Stat(sessionTranscriptFilePath(agentA.WorkspacePath, dmSessionID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("删除 session 后 transcript 仍残留: %v", err)
 	}
 }
 
@@ -271,7 +277,8 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 			"sessionId":  sessionID,
 			"parentUuid": "transcript-user-1",
 			"message": map[string]any{
-				"role": "assistant",
+				"role":        "assistant",
+				"stop_reason": "end_turn",
 				"content": []map[string]any{
 					{"type": "text", "text": "这是一个 Go + React 的 Nexus 项目。"},
 				},
@@ -295,8 +302,8 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 transcript 历史失败: %v", err)
 	}
-	if len(messages) != 3 {
-		t.Fatalf("transcript 历史数量不正确: got=%d want=3", len(messages))
+	if len(messages) != 2 {
+		t.Fatalf("transcript 历史数量不正确: got=%d want=2", len(messages))
 	}
 	if got := strings.TrimSpace(stringValue(messages[0]["round_id"])); got != "round_transcript_1" {
 		t.Fatalf("round marker 未覆盖 transcript round_id: got=%s want=round_transcript_1", got)
@@ -304,8 +311,8 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 	if got := strings.TrimSpace(stringValue(messages[1]["round_id"])); got != "round_transcript_1" {
 		t.Fatalf("assistant round_id 未继承 round marker: got=%s want=round_transcript_1", got)
 	}
-	if got := strings.TrimSpace(stringValue(messages[2]["round_id"])); got != "round_transcript_1" {
-		t.Fatalf("result round_id 未继承 round marker: got=%s want=round_transcript_1", got)
+	if _, exists := messages[1]["result_summary"]; exists {
+		t.Fatalf("transcript 内置 result 不应直接进入历史摘要: %+v", messages[1])
 	}
 }
 
@@ -389,6 +396,19 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 			"uuid":       "room-topic-assistant-1",
 			"sessionId":  sessionID,
 			"parentUuid": "room-topic-user-1",
+			"timestamp":  now.Add(-1500 * time.Millisecond).UTC().Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "先确认用户具体想问什么。"},
+				},
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "room-topic-assistant-1",
+			"sessionId":  sessionID,
+			"parentUuid": "room-topic-user-1",
 			"timestamp":  now.Add(-time.Second).UTC().Format(time.RFC3339Nano),
 			"message": map[string]any{
 				"role":        "assistant",
@@ -410,16 +430,22 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	if messages[0]["role"] != "user" || messages[1]["role"] != "assistant" {
 		t.Fatalf("room topic transcript 历史角色不正确: %+v", messages)
 	}
-	if messages[1]["stream_status"] != "done" {
-		t.Fatalf("room topic assistant 应归一化为 done: %+v", messages[1])
+	if _, exists := messages[1]["stream_status"]; exists {
+		t.Fatalf("room topic assistant 不应补写 stream_status: %+v", messages[1])
 	}
-
 	updatedSession, err := sessionService.GetSession(ctx, sessionKey)
 	if err != nil {
 		t.Fatalf("读取更新后的 room topic session 失败: %v", err)
 	}
 	if updatedSession.SessionID == nil || strings.TrimSpace(*updatedSession.SessionID) != sessionID {
 		t.Fatalf("room topic sdk_session_id 未从 workspace meta 回写数据库: %+v", updatedSession)
+	}
+	updatedContext, err := roomService.GetConversationContext(ctx, topicContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取更新后的 room topic context 失败: %v", err)
+	}
+	if len(updatedContext.Sessions) == 0 || updatedContext.Sessions[0].SDKSessionID != sessionID {
+		t.Fatalf("room topic context 未同步 sdk_session_id: %+v", updatedContext.Sessions)
 	}
 }
 
@@ -520,11 +546,7 @@ var sessionTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {
 	t.Helper()
-	projectDir := filepath.Join(
-		os.Getenv("NEXUS_CONFIG_DIR"),
-		"projects",
-		sanitizeSessionTranscriptPath(canonicalizeSessionTranscriptPath(workspacePath)),
-	)
+	projectDir := sessionTranscriptProjectDir(workspacePath)
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("创建 transcript 目录失败: %v", err)
 	}
@@ -540,6 +562,18 @@ func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID
 			t.Fatalf("写入 transcript fixture 失败: %v", err)
 		}
 	}
+}
+
+func sessionTranscriptProjectDir(workspacePath string) string {
+	return filepath.Join(
+		os.Getenv("NEXUS_CONFIG_DIR"),
+		"projects",
+		sanitizeSessionTranscriptPath(canonicalizeSessionTranscriptPath(workspacePath)),
+	)
+}
+
+func sessionTranscriptFilePath(workspacePath string, sessionID string) string {
+	return filepath.Join(sessionTranscriptProjectDir(workspacePath), strings.TrimSpace(sessionID)+".jsonl")
 }
 
 func canonicalizeSessionTranscriptPath(path string) string {

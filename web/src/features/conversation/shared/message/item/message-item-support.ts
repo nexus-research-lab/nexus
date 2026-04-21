@@ -9,7 +9,10 @@
 
 import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import { is_ask_user_question_timed_out_result } from "@/types/conversation/ask-user-question";
-import { ContentBlock } from "@/types/conversation/message";
+import {
+  ContentBlock,
+  SystemEventTone,
+} from "@/types/conversation/message";
 
 export interface OrderedAssistantEntry {
   block: ContentBlock;
@@ -39,7 +42,8 @@ export function map_runtime_phase_to_activity_state(
   switch (phase) {
     case "awaiting_permission":
       return "waiting_permission" as const;
-    case "queued":
+    case "sending":
+      return "sending" as const;
     case "running":
       return "thinking" as const;
     case "streaming":
@@ -94,18 +98,18 @@ export function has_timed_out_ask_user_question(content: ContentBlock[]): boolea
   return false;
 }
 
-export function get_system_message_container_class_name(tone: "neutral" | "warning"): string {
-  if (tone === "warning") {
-    return "border border-amber-200/60 bg-amber-50/70 text-amber-950/88";
-  }
-  return "border border-(--surface-panel-subtle-border) bg-(--surface-inset-background) text-(--text-default)";
-}
-
-export function get_system_message_icon_class_name(tone: "neutral" | "warning"): string {
+export function get_system_message_icon_class_name(tone: SystemEventTone): string {
   if (tone === "warning") {
     return "text-amber-700/80";
   }
   return "text-(--icon-muted)";
+}
+
+export function get_system_message_label_class_name(tone: SystemEventTone): string {
+  if (tone === "warning") {
+    return "text-amber-800/80";
+  }
+  return "text-(--text-muted)";
 }
 
 export function projection_from_ordered_entries(

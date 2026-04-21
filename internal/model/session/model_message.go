@@ -14,12 +14,33 @@ import "strings"
 // Message 表示历史消息行。
 type Message map[string]any
 
+// Clone 复制消息，避免不同层直接共享 map 引用。
+func Clone(message Message) Message {
+	if len(message) == 0 {
+		return Message{}
+	}
+	cloned := make(Message, len(message))
+	for key, value := range message {
+		cloned[key] = value
+	}
+	return cloned
+}
+
 // MessageRole 返回消息角色。
 func MessageRole(message Message) string {
 	if len(message) == 0 {
 		return ""
 	}
 	value, _ := message["role"].(string)
+	return strings.TrimSpace(value)
+}
+
+// MessageRoundID 返回消息所属 round_id。
+func MessageRoundID(message Message) string {
+	if len(message) == 0 {
+		return ""
+	}
+	value, _ := message["round_id"].(string)
 	return strings.TrimSpace(value)
 }
 

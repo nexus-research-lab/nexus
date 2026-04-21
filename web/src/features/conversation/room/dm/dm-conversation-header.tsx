@@ -16,7 +16,6 @@ import {
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/controls/workspace-conversation-switcher";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -26,7 +25,6 @@ interface DmConversationHeaderProps {
   conversations: RoomConversationView[];
   current_agent_name: string | null;
   current_agent_avatar?: string | null;
-  is_loading: boolean;
   todos: TodoItem[];
   active_tab: RoomSurfaceTabKey;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
@@ -39,7 +37,6 @@ const DmConversationHeaderView = memo(({
   conversations,
   current_agent_name,
   current_agent_avatar,
-  is_loading,
   todos,
   active_tab,
   on_change_tab,
@@ -67,15 +64,6 @@ const DmConversationHeaderView = memo(({
     />
   );
 
-  const trailing = is_loading ? (
-    <WorkspaceStatusBadge
-      icon={<span className="text-current">●</span>}
-      label={t("status.replying")}
-      size="compact"
-      tone="running"
-    />
-  ) : null;
-
   return (
     <WorkspaceSurfaceHeader
       active_tab={active_tab}
@@ -95,7 +83,6 @@ const DmConversationHeaderView = memo(({
       tabs={dm_tabs}
       title={header_title}
       title_trailing={title_trailing}
-      trailing={trailing}
     />
   );
 });

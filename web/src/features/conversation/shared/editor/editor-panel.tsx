@@ -180,7 +180,7 @@ function PdfPreview({
         title={file_name}
       />
 
-      <div className="flex-1 bg-[var(--surface-panel-subtle-background)]">
+      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         <iframe
           className="h-full w-full"
           src={download_url}
@@ -280,9 +280,9 @@ function ImagePreview({
         title={file_name}
       />
 
-      <div className="flex-1 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-6">
+      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
         {has_error ? (
-          <div className="text-center">
+          <div className="m-auto text-center">
             <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
             <p className="mt-4 text-sm font-medium text-(--text-strong)">图片加载失败</p>
             <p className="mt-2 text-xs text-(--text-soft)">请尝试下载文件</p>
@@ -359,8 +359,8 @@ function BinaryFilePlaceholder({
         title={file_name}
       />
 
-      <div className="flex-1 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8">
-        <div className="max-w-xs text-center">
+      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-8">
+        <div className="m-auto max-w-xs text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
             <FileWarning className="h-8 w-8 text-(--icon-muted)" />
           </div>
@@ -644,7 +644,7 @@ export function EditorPanel({
                 <div className="px-4 py-3 text-sm text-destructive">{error}</div>
               ) : null}
 
-              <div ref={editor_area_ref} className="flex-1 px-4 py-4">
+              <div ref={editor_area_ref} className="min-h-0 flex-1 overflow-hidden px-4 py-4">
                 {is_external_writing ? (
                   <TypewriterFileView
                     content={draft_content}

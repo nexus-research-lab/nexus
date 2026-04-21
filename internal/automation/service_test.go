@@ -439,11 +439,18 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取投递目标消息失败: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("期望投递目标写入 2 条消息，实际 %d", len(messages))
+	if len(messages) != 1 {
+		t.Fatalf("期望投递目标写入 1 条 assistant 消息，实际 %d", len(messages))
 	}
-	if firstNonEmptyString(stringFromMessage(messages[1], "result")) != "巡检完成：CPU 使用率正常" {
-		t.Fatalf("投递文本不正确: %+v", messages[1])
+	if firstNonEmptyString(stringFromMessage(messages[0], "content")) != "巡检完成：CPU 使用率正常" {
+		t.Fatalf("投递正文不正确: %+v", messages[0])
+	}
+	summary, ok := messages[0]["result_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("投递目标应挂载 result_summary: %+v", messages[0])
+	}
+	if firstNonEmptyString(stringFromMessage(summary, "subtype")) != "success" {
+		t.Fatalf("投递终态不正确: %+v", messages[0])
 	}
 }
 
@@ -734,7 +741,7 @@ func TestWakeHeartbeatNextHeartbeatDoesNotDispatchBeforeDueTime(t *testing.T) {
 	}
 }
 
-func TestWakeHeartbeatNowWhileRunningDoesNotSetPendingWake(t *testing.T) {
+func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing.T) {
 	db := newAutomationTestDB(t)
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
@@ -779,8 +786,12 @@ func TestWakeHeartbeatNowWhileRunningDoesNotSetPendingWake(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
 	}
-	if status.PendingWake {
-		t.Fatalf("running 状态下 wake-now 不应残留 pending_wake=true")
+	if !status.PendingWake {
+		t.Fatalf("running 状态下 wake-now 应保留 pending_wake=true")
+	}
+	items := service.wakeRequests[buildMainSessionKey("agent-1")]
+	if len(items) != 1 || items[0].WakeMode != WakeModeNow {
+		t.Fatalf("running 状态下 wake-now 应继续排队等待下一轮消费: %+v", items)
 	}
 }
 
@@ -847,7 +858,7 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	}
 }
 
-func TestHeartbeatStatusRunningReflectsAutomationLoopState(t *testing.T) {
+func TestHeartbeatStatusRunningReflectsHeartbeatExecutionState(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	service := NewService(
@@ -887,8 +898,25 @@ func TestHeartbeatStatusRunningReflectsAutomationLoopState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
 	}
-	if !statusAfterStart.Running {
-		t.Fatalf("Start 后 running 应为 true")
+	if statusAfterStart.Running {
+		t.Fatalf("仅启动调度器时 running 不应为 true")
+	}
+
+	service.mu.Lock()
+	state := service.heartbeatState["agent-1"]
+	if state == nil {
+		service.mu.Unlock()
+		t.Fatalf("heartbeat state 不存在")
+	}
+	state.Running = true
+	service.mu.Unlock()
+
+	statusWhileRunning, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
+	if err != nil {
+		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
+	}
+	if !statusWhileRunning.Running {
+		t.Fatalf("heartbeat 执行中 running 应为 true")
 	}
 }
 
@@ -1077,7 +1105,7 @@ func TestRunTaskNowSkipsDuplicateExplicitDeliveryWhenTargetMatchesExecutionSessi
 	}
 }
 
-func TestWakeRequestBookkeepingDeduplicatesBySessionAndMode(t *testing.T) {
+func TestWakeRequestBookkeepingPreservesQueuedRequests(t *testing.T) {
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		nil,
@@ -1096,17 +1124,39 @@ func TestWakeRequestBookkeepingDeduplicatesBySessionAndMode(t *testing.T) {
 	service.recordWakeRequest("agent-1", sessionKey, WakeModeNextHeartbeat, nil)
 
 	items := service.wakeRequests[sessionKey]
-	if len(items) != 2 {
-		t.Fatalf("同 session 应按 wake_mode 去重，实际条目 %d", len(items))
+	if len(items) != 3 {
+		t.Fatalf("同 session 的 wake request 不应被覆盖，实际条目 %d", len(items))
 	}
-	nowText := ""
-	for _, item := range items {
-		if item.WakeMode == WakeModeNow {
-			nowText = item.Text
-		}
+	if items[0].Text != "first" || items[1].Text != "second" || items[2].WakeMode != WakeModeNextHeartbeat {
+		t.Fatalf("wake request 应按到达顺序保留: %+v", items)
 	}
-	if nowText != "second" {
-		t.Fatalf("同 mode 应保留最后一次请求，实际 %q", nowText)
+}
+
+func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) {
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	sessionKey := buildMainSessionKey("agent-1")
+	first := "first"
+	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &first)
+
+	immediate, deferred := service.takeWakeRequests("agent-1", sessionKey)
+	if len(immediate) != 1 || len(deferred) != 0 {
+		t.Fatalf("首次消费 wake request 结果不正确: immediate=%+v deferred=%+v", immediate, deferred)
+	}
+
+	second := "second"
+	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &second)
+	remaining := service.wakeRequests[sessionKey]
+	if len(remaining) != 1 || remaining[0].Text != "second" {
+		t.Fatalf("dispatch 开始后新增的 wake request 应保留到下一轮: %+v", remaining)
 	}
 }
 
@@ -1306,7 +1356,45 @@ func (r *testAgentResolver) GetAgent(_ context.Context, agentID string) (*agents
 	}, nil
 }
 
-func stringFromMessage(message session.Message, key string) string {
-	value, _ := message[key].(string)
-	return strings.TrimSpace(value)
+func stringFromMessage(message sessionmodel.Message, key string) string {
+	if value, ok := message[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	if key != "content" {
+		return ""
+	}
+	if items, ok := message[key].([]map[string]any); ok {
+		return joinTextBlocks(items)
+	}
+	rawItems, ok := message[key].([]any)
+	if !ok {
+		return ""
+	}
+	items := make([]map[string]any, 0, len(rawItems))
+	for _, raw := range rawItems {
+		payload, ok := raw.(map[string]any)
+		if ok {
+			items = append(items, payload)
+		}
+	}
+	return joinTextBlocks(items)
+}
+
+func joinTextBlocks(items []map[string]any) string {
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if firstNonEmptyString(strings.TrimSpace(messageAnyString(item["type"]))) != "text" {
+			continue
+		}
+		text := strings.TrimSpace(messageAnyString(item["text"]))
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+func messageAnyString(value any) string {
+	text, _ := value.(string)
+	return text
 }

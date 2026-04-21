@@ -4,7 +4,7 @@ import { memo, useCallback, useMemo } from "react";
 import { MessageItem } from "@/features/conversation/shared/message";
 
 import { cn } from "@/lib/utils";
-import { AssistantMessage, Message, ResultMessage, RoomPendingAgentSlotState, } from "@/types/conversation/message";
+import { AssistantMessage, Message, RoomPendingAgentSlotState, } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 import { build_room_agent_round_entries, is_agent_round_active, } from "@/features/conversation/shared/utils";
 import { GroupAgentStatusCard } from "./group-agent-status-card";
@@ -33,7 +33,6 @@ function GroupCompletedReply(
     agent_name,
     agent_avatar,
     assistant_messages,
-    result_message,
     is_thread_active,
     on_click_thread,
     on_open_workspace_file,
@@ -43,18 +42,14 @@ function GroupCompletedReply(
     agent_name: string;
     agent_avatar: string | null;
     assistant_messages: AssistantMessage[];
-    result_message?: ResultMessage;
     is_thread_active: boolean;
     on_click_thread: () => void;
     on_open_workspace_file?: (path: string) => void;
   }) {
-  const messages_for_render = useMemo(() => {
-    const next_messages: Message[] = [...assistant_messages];
-    if (result_message) {
-      next_messages.push(result_message);
-    }
-    return next_messages;
-  }, [assistant_messages, result_message]);
+  const messages_for_render = useMemo<Message[]>(
+    () => [...assistant_messages],
+    [assistant_messages],
+  );
 
   return (
     <div className="border-b border-(--divider-subtle-color)">
@@ -170,7 +165,6 @@ function GroupRoundCardGroupInner(
             agent_name={entry.agent_name}
             agent_avatar={entry.agent_avatar}
             assistant_messages={entry.assistant_messages}
-            result_message={entry.result_message}
             is_thread_active={is_thread_active}
             on_click_thread={() => toggle_thread(entry.agent_id)}
             on_open_workspace_file={on_open_workspace_file}
@@ -195,7 +189,7 @@ function GroupRoundCardGroupInner(
                       agent_name={entry.agent_name}
                       agent_avatar={entry.agent_avatar}
                       messages={entry.assistant_messages}
-                      result_message={entry.result_message}
+                      result_summary={entry.result_summary}
                       pending_slot={entry.pending_slot}
                       status={entry.status}
                       pending_permissions={entry_pending_permissions}

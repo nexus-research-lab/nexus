@@ -50,6 +50,8 @@ type Config struct {
 	AuthCookieSameSite             string
 	AuthCookieSecure               bool
 	AuthSessionTTLHours            int
+	BaseSystemPrompt               string
+	MainAgentSystemPrompt          string
 	DiscordEnabled                 bool
 	DiscordBotToken                string
 	TelegramEnabled                bool
@@ -125,6 +127,8 @@ func Load() Config {
 		AuthCookieSameSite:             getEnv("AUTH_COOKIE_SAMESITE", "lax"),
 		AuthCookieSecure:               mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
 		AuthSessionTTLHours:            mustInt(getEnv("AUTH_SESSION_TTL_HOURS", "24")),
+		BaseSystemPrompt:               getEnv("BASE_SYSTEM_PROMPT", ""),
+		MainAgentSystemPrompt:          getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
 		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
 		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
 		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),

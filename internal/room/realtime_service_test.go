@@ -48,6 +48,7 @@ type fakeRoomClient struct {
 	messages       chan sdkprotocol.ReceivedMessage
 	interruptCalls int
 	onQuery        func(context.Context, string) error
+	onInterrupt    func(context.Context)
 }
 
 func newFakeRoomClient() *fakeRoomClient {
@@ -70,10 +71,14 @@ func (c *fakeRoomClient) ReceiveMessages(context.Context) <-chan sdkprotocol.Rec
 	return c.messages
 }
 
-func (c *fakeRoomClient) Interrupt(context.Context) error {
+func (c *fakeRoomClient) Interrupt(ctx context.Context) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.interruptCalls++
+	callback := c.onInterrupt
+	c.mu.Unlock()
+	if callback != nil {
+		callback(ctx)
+	}
 	return nil
 }
 
@@ -262,7 +267,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	assertPathRemoved(t, workspace2.New(cfg.WorkspacePath).SessionMessagePath(memberAgent.WorkspacePath, privateSessionKey))
+	assertPathRemoved(t, filepath.Join(workspace2.New(cfg.WorkspacePath).SessionDir(memberAgent.WorkspacePath, privateSessionKey), "messages.jsonl"))
 	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
 	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
@@ -293,14 +298,15 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
-	if len(sharedMessages) != 3 {
-		t.Fatalf("共享消息数量不正确: got=%d want=3", len(sharedMessages))
+	if len(sharedMessages) != 2 {
+		t.Fatalf("共享消息数量不正确: got=%d want=2", len(sharedMessages))
 	}
 	if sharedMessages[1]["message_id"] != "assistant-sdk-1" {
 		t.Fatalf("共享 assistant message_id 不正确: %+v", sharedMessages[1])
 	}
-	if sharedMessages[2]["role"] != "result" || sharedMessages[2]["result"] != "done" {
-		t.Fatalf("共享 result 应来自 overlay: %+v", sharedMessages)
+	sharedSummary, ok := sharedMessages[1]["result_summary"].(map[string]any)
+	if !ok || anyToString(sharedSummary["result"]) != "done" {
+		t.Fatalf("共享 result 摘要应挂在 assistant 上: %+v", sharedMessages[1])
 	}
 	privateMessages := readRoomPrivateHistory(
 		t,
@@ -310,14 +316,15 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		memberAgent.AgentID,
 		client.sessionID,
 	)
-	if len(privateMessages) != 3 {
-		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=3", len(privateMessages))
+	if len(privateMessages) != 2 {
+		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=2", len(privateMessages))
 	}
-	if privateMessages[0]["role"] != "user" || privateMessages[1]["role"] != "assistant" || privateMessages[2]["role"] != "result" {
+	if privateMessages[0]["role"] != "user" || privateMessages[1]["role"] != "assistant" {
 		t.Fatalf("私有 runtime 消息顺序不正确: %+v", privateMessages)
 	}
-	if anyToInt(privateMessages[2]["duration_ms"]) != 15 || privateMessages[2]["result"] != "done" {
-		t.Fatalf("私有 result 应保留 runtime 摘要: %+v", privateMessages[2])
+	privateSummary, ok := privateMessages[1]["result_summary"].(map[string]any)
+	if !ok || anyToInt(privateSummary["duration_ms"]) != 15 || anyToString(privateSummary["result"]) != "done" {
+		t.Fatalf("私有 result 应保留 runtime 摘要: %+v", privateMessages[1])
 	}
 }
 
@@ -489,7 +496,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	assertPathRemoved(t, workspace2.New(cfg.WorkspacePath).SessionMessagePath(memberAgent.WorkspacePath, privateSessionKey))
+	assertPathRemoved(t, filepath.Join(workspace2.New(cfg.WorkspacePath).SessionDir(memberAgent.WorkspacePath, privateSessionKey), "messages.jsonl"))
 	roomThinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
 	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
@@ -521,15 +528,18 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
-	if len(sharedMessages) != 3 {
-		t.Fatalf("共享消息数量不正确: got=%d want=3", len(sharedMessages))
+	if len(sharedMessages) != 2 {
+		t.Fatalf("共享消息数量不正确: got=%d want=2", len(sharedMessages))
 	}
 	sharedBlocks := roomContentBlocksFromPayload(t, sharedMessages[1])
 	if len(sharedBlocks) != 2 || sharedBlocks[0]["type"] != "thinking" || sharedBlocks[1]["type"] != "text" {
 		t.Fatalf("共享历史 assistant 内容块不正确: %+v", sharedMessages[1])
 	}
-	if sharedMessages[1]["stream_status"] != "done" {
-		t.Fatalf("共享历史 assistant stream_status 未收口: %+v", sharedMessages[1])
+	if _, exists := sharedMessages[1]["stream_status"]; exists {
+		t.Fatalf("共享历史 assistant 不应携带 stream_status: %+v", sharedMessages[1])
+	}
+	if _, ok := sharedMessages[1]["result_summary"].(map[string]any); !ok {
+		t.Fatalf("共享历史 assistant 应挂载 result 摘要: %+v", sharedMessages[1])
 	}
 	privateMessages := readRoomPrivateHistory(
 		t,
@@ -539,15 +549,18 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 		memberAgent.AgentID,
 		client.sessionID,
 	)
-	if len(privateMessages) != 3 {
-		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=3", len(privateMessages))
+	if len(privateMessages) != 2 {
+		t.Fatalf("私有 runtime 消息数量不正确: got=%d want=2", len(privateMessages))
 	}
 	privateBlocks := roomContentBlocksFromPayload(t, privateMessages[1])
 	if len(privateBlocks) != 2 || privateBlocks[0]["type"] != "thinking" || privateBlocks[1]["type"] != "text" {
 		t.Fatalf("私有历史 assistant 内容块不正确: %+v", privateMessages[1])
 	}
-	if privateMessages[1]["stream_status"] != "done" {
-		t.Fatalf("私有历史 assistant stream_status 未收口: %+v", privateMessages[1])
+	if _, exists := privateMessages[1]["stream_status"]; exists {
+		t.Fatalf("私有历史 assistant 不应携带 stream_status: %+v", privateMessages[1])
+	}
+	if _, ok := privateMessages[1]["result_summary"].(map[string]any); !ok {
+		t.Fatalf("私有历史 assistant 应挂载 result 摘要: %+v", privateMessages[1])
 	}
 }
 
@@ -698,14 +711,40 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	}
 
 	clientA := newFakeRoomClient()
-	clientA.onQuery = func(ctx context.Context, _ string) error {
-		<-ctx.Done()
-		return ctx.Err()
+	clientA.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	clientA.onInterrupt = func(_ context.Context) {
+		go func() {
+			clientA.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: clientA.sessionID,
+				UUID:      "room-interrupted-a",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
 	}
 	clientB := newFakeRoomClient()
-	clientB.onQuery = func(ctx context.Context, _ string) error {
-		<-ctx.Done()
-		return ctx.Err()
+	clientB.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	clientB.onInterrupt = func(_ context.Context) {
+		go func() {
+			clientB.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: clientB.sessionID,
+				UUID:      "room-interrupted-b",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
 	}
 
 	permission := permissionctx.NewContext()
@@ -746,9 +785,6 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
 	})
-	if countEventType(events, protocol.EventTypeStreamCancelled) < 2 {
-		t.Fatalf("期望至少 2 个 stream_cancelled 事件: %+v", events)
-	}
 	if countRoomResultSubtype(events, "interrupted") < 2 {
 		t.Fatalf("期望每个 slot 都产出 interrupted result: %+v", events)
 	}
@@ -769,7 +805,8 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	}
 	sharedInterrupted := 0
 	for _, message := range sharedMessages {
-		if message["role"] == "result" && message["subtype"] == "interrupted" {
+		summary, ok := message["result_summary"].(map[string]any)
+		if ok && summary["subtype"] == "interrupted" {
 			sharedInterrupted++
 		}
 	}
@@ -779,7 +816,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 
 	for _, agentValue := range []*agentsvc.Agent{agentA, agentB} {
 		privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType)
-		assertPathRemoved(t, workspace2.New(cfg.WorkspacePath).SessionMessagePath(agentValue.WorkspacePath, privateSessionKey))
+		assertPathRemoved(t, filepath.Join(workspace2.New(cfg.WorkspacePath).SessionDir(agentValue.WorkspacePath, privateSessionKey), "messages.jsonl"))
 		writeRoomTranscriptFixture(t, agentValue.WorkspacePath, "room-sdk-session", []map[string]any{
 			{
 				"type":      "user",
@@ -802,7 +839,8 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		)
 		foundInterrupted := false
 		for _, message := range privateMessages {
-			if message["role"] == "result" && message["subtype"] == "interrupted" {
+			summary, ok := message["result_summary"].(map[string]any)
+			if ok && summary["subtype"] == "interrupted" {
 				foundInterrupted = true
 				break
 			}
@@ -948,7 +986,7 @@ func readRoomPrivateHistory(
 	sessionKey string,
 	agentID string,
 	sessionID string,
-) []session.Message {
+) []sessionmodel.Message {
 	t.Helper()
 	historyStore := workspace2.NewAgentHistoryStore(root)
 	rows, err := historyStore.ReadMessages(workspacePath, session.Session{
@@ -1061,6 +1099,13 @@ func anyToInt(value any) int {
 	}
 }
 
+func anyToString(value any) string {
+	if typed, ok := value.(string); ok {
+		return typed
+	}
+	return ""
+}
+
 func assertRoomEventTypes(t *testing.T, events []protocol.EventMessage, expected []protocol.EventType) {
 	t.Helper()
 	if len(events) < len(expected) {
@@ -1091,6 +1136,13 @@ func countRoomResultSubtype(events []protocol.EventMessage, subtype string) int 
 		}
 		if event.Data["role"] == "result" && event.Data["subtype"] == subtype {
 			count++
+			continue
+		}
+		if event.Data["role"] == "assistant" {
+			summary, ok := event.Data["result_summary"].(map[string]any)
+			if ok && summary["subtype"] == subtype {
+				count++
+			}
 		}
 	}
 	return count
@@ -1121,7 +1173,7 @@ func assertRoomStreamBlockIndex(t *testing.T, events []protocol.EventMessage, me
 	t.Fatalf("未找到 Room block_type=%s message_id=%s 的 stream 事件: %+v", blockType, messageID, events)
 }
 
-func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) session.Message {
+func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) sessionmodel.Message {
 	t.Helper()
 	for _, event := range events {
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
@@ -1130,7 +1182,7 @@ func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessag
 		if event.Data["role"] != "assistant" {
 			continue
 		}
-		return session.Message(event.Data)
+		return sessionmodel.Message(event.Data)
 	}
 	t.Fatalf("未找到 Room assistant message_id=%s 的 durable 消息: %+v", messageID, events)
 	return nil

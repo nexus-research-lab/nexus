@@ -165,7 +165,7 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 		return nil, false, nil
 	}
 
-	resolved := cloneMessage(transcriptMessage)
+	resolved := sessionmodel.Clone(transcriptMessage)
 	overrideRoomTranscriptFields(resolved, row)
 	return resolved, true, nil
 }
@@ -175,6 +175,9 @@ func buildRoomTranscriptReference(
 	workspacePath string,
 	privateSessionKey string,
 ) map[string]any {
+	if sessionmodel.MessageRole(message) != "assistant" {
+		return nil
+	}
 	sessionID := strings.TrimSpace(stringFromAny(message["session_id"]))
 	messageID := strings.TrimSpace(stringFromAny(message["message_id"]))
 	if sessionID == "" || messageID == "" || strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(privateSessionKey) == "" {
@@ -184,13 +187,9 @@ func buildRoomTranscriptReference(
 	row := map[string]any{
 		overlayKindField:      overlayKindTranscriptRef,
 		"message_id":          messageID,
-		"session_key":         strings.TrimSpace(stringFromAny(message["session_key"])),
-		"room_id":             strings.TrimSpace(stringFromAny(message["room_id"])),
 		"conversation_id":     strings.TrimSpace(stringFromAny(message["conversation_id"])),
 		"agent_id":            strings.TrimSpace(stringFromAny(message["agent_id"])),
 		"round_id":            strings.TrimSpace(stringFromAny(message["round_id"])),
-		"parent_id":           strings.TrimSpace(stringFromAny(message["parent_id"])),
-		"role":                strings.TrimSpace(stringFromAny(message["role"])),
 		"session_id":          sessionID,
 		"timestamp":           messageTimestamp(message),
 		"workspace_path":      strings.TrimSpace(workspacePath),
@@ -215,7 +214,7 @@ func indexRoomTranscriptMessages(rows []sessionmodel.Message) map[string]session
 		if messageID == "" {
 			continue
 		}
-		result[messageID] = cloneMessage(row)
+		result[messageID] = sessionmodel.Clone(row)
 	}
 	return result
 }
@@ -223,13 +222,9 @@ func indexRoomTranscriptMessages(rows []sessionmodel.Message) map[string]session
 func overrideRoomTranscriptFields(target sessionmodel.Message, source sessionmodel.Message) {
 	for _, key := range []string{
 		"message_id",
-		"session_key",
-		"room_id",
 		"conversation_id",
 		"agent_id",
 		"round_id",
-		"parent_id",
-		"role",
 	} {
 		if value := strings.TrimSpace(stringFromAny(source[key])); value != "" {
 			target[key] = value

@@ -61,18 +61,6 @@ func (s *Store) SessionMetaPath(workspacePath string, sessionKey string) string 
 	return filepath.Join(s.SessionDir(workspacePath, sessionKey), "meta.json")
 }
 
-// SessionMessagePath 返回旧版私有 session messages.jsonl 路径。
-// 该路径仅供历史迁移使用，运行时不再读写。
-func (s *Store) SessionMessagePath(workspacePath string, sessionKey string) string {
-	return filepath.Join(s.SessionDir(workspacePath, sessionKey), "messages.jsonl")
-}
-
-// LegacyRoomConversationMessagePath 返回旧版 Room 共享 messages.jsonl 路径。
-// 该路径仅供历史迁移使用，运行时不再读取。
-func (s *Store) LegacyRoomConversationMessagePath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "messages.jsonl")
-}
-
 // SessionOverlayPath 返回 overlay.jsonl 路径。
 func (s *Store) SessionOverlayPath(workspacePath string, sessionKey string) string {
 	return filepath.Join(s.SessionDir(workspacePath, sessionKey), "overlay.jsonl")

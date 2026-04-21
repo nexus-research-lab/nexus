@@ -8,6 +8,11 @@ import { PermissionDecisionPayload } from '@/types/conversation/permission';
 
 import { upsert_message } from './message-helpers';
 
+function fail_send(set_error: AgentConversationActionContext["set_error"], message: string): never {
+  set_error(message);
+  throw new Error(message);
+}
+
 /**
  * 发送用户消息并建立当前轮次的本地状态。
  */
@@ -36,20 +41,16 @@ export async function send_session_message(
     return null;
   }
   if (!resolved_session_key) {
-    set_error('请先选择或创建会话');
-    return null;
+    fail_send(set_error, '请先选择或创建会话');
   }
   if (!is_structured_session_key(resolved_session_key)) {
-    set_error('当前会话的 session_key 非法，请刷新后重试');
-    return null;
+    fail_send(set_error, '当前会话的 session_key 非法，请刷新后重试');
   }
   if (ws_state !== 'connected') {
-    set_error('WebSocket未连接,请稍候重试');
-    return null;
+    fail_send(set_error, 'WebSocket未连接，请稍候重试');
   }
   if (session_control_state === 'observer') {
-    set_error('当前窗口是观察视图，无法发送消息');
-    return null;
+    fail_send(set_error, '当前窗口是观察视图，无法发送消息');
   }
 
   const round_id = generate_uuid();
@@ -64,10 +65,6 @@ export async function send_session_message(
     timestamp: Date.now(),
     ...(chat_type === 'group' ? { room_id: room_id ?? undefined, conversation_id: conversation_id ?? undefined } : {}),
   };
-
-  set_messages((prev) => upsert_message(prev, userMessage));
-  set_pending_permissions([]);
-  set_error(null);
 
   const ws_payload: Record<string, unknown> = {
     type: 'chat',
@@ -85,7 +82,14 @@ export async function send_session_message(
     if (conversation_id) ws_payload.conversation_id = conversation_id;
   }
 
-  ws_send(ws_payload as WebSocketMessage);
+  const send_result = ws_send(ws_payload as WebSocketMessage);
+  if (send_result.disposition !== 'sent') {
+    fail_send(set_error, '消息未发送到后端，请检查连接后重试');
+  }
+
+  set_messages((prev) => upsert_message(prev, userMessage));
+  set_pending_permissions([]);
+  set_error(null);
   return round_id;
 }
 
@@ -154,7 +158,11 @@ export function stop_session_generation(
     if (conversation_id) payload.conversation_id = conversation_id;
   }
 
-  ws_send(payload as WebSocketMessage);
+  const send_result = ws_send(payload as WebSocketMessage);
+  if (send_result.disposition !== 'sent') {
+    set_error('中断请求发送失败，请稍后重试');
+    return;
+  }
   set_pending_permissions([]);
 }
 
@@ -227,7 +235,11 @@ export function send_session_permission_response(
     response.updated_permissions = payload.updated_permissions;
   }
 
-  ws_send(response);
+  const send_result = ws_send(response);
+  if (send_result.disposition !== 'sent') {
+    set_error('权限决策发送失败，请稍后重试');
+    return false;
+  }
   set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
   set_error(null);
   return true;

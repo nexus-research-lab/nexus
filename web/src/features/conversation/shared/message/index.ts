@@ -20,5 +20,5 @@ export type {
   UserMessage,
   AssistantMessage,
   SystemMessage,
-  ResultMessage,
+  ResultSummary,
 } from "@/types/conversation/message";

@@ -158,11 +158,6 @@ func (s *SessionFileStore) readSessionMeta(metaPath string) (sessionmodel.Sessio
 	if item.LastActivity.IsZero() {
 		item.LastActivity = item.CreatedAt
 	}
-	if item.RoomSessionID == nil {
-		if value := stringFromAny(item.Options["room_session_id"]); value != "" {
-			item.RoomSessionID = stringPointer(value)
-		}
-	}
 	return item, nil
 }
 

@@ -240,11 +240,11 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if err != nil {
 		return err
 	}
-	return s.interruptSession(ctx, sessionKey, "任务已中断")
+	return s.interruptSession(ctx, sessionKey, "")
 }
 
 func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
-	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey)
+	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey, resultText)
 	if err != nil {
 		return err
 	}
@@ -257,94 +257,8 @@ func (s *Service) interruptSession(ctx context.Context, sessionKey string, resul
 		"reason", resultText,
 	)
 	s.permission.CancelRequestsForSession(sessionKey, resultText)
-	for _, roundID := range roundIDs {
-		s.emitInterruptedRound(ctx, sessionKey, roundID, resultText)
-	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	return nil
-}
-
-func (s *Service) emitInterruptedRound(ctx context.Context, sessionKey string, roundID string, resultText string) {
-	parsed := protocol.ParseSessionKey(sessionKey)
-	resultMessage := session.Message{
-		"message_id":      "result_" + roundID,
-		"session_key":     sessionKey,
-		"agent_id":        parsed.AgentID,
-		"round_id":        roundID,
-		"role":            "result",
-		"timestamp":       time.Now().UnixMilli(),
-		"subtype":         "interrupted",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       1,
-		"result":          resultText,
-		"is_error":        false,
-	}
-
-	// 对齐 Python 行为，先修复本轮未完成的 assistant 片段，再写入 result。
-	if err := s.repairInterruptedRound(ctx, sessionKey, roundID, parsed.AgentID); err != nil {
-		s.loggerFor(ctx).Warn("DM interrupted round 修复失败",
-			"session_key", sessionKey,
-			"round_id", roundID,
-			"err", err,
-		)
-	}
-
-	if err := s.persistInterruptedRound(ctx, sessionKey, parsed, resultMessage); err != nil {
-		s.loggerFor(ctx).Error("DM interrupted 结果持久化失败",
-			"session_key", sessionKey,
-			"agent_id", parsed.AgentID,
-			"round_id", roundID,
-			"err", err,
-		)
-	}
-	s.permission.BroadcastEvent(ctx, sessionKey, protocol.EventMessage{
-		ProtocolVersion: 2,
-		DeliveryMode:    "durable",
-		EventType:       protocol.EventTypeMessage,
-		SessionKey:      sessionKey,
-		Data:            resultMessage,
-		Timestamp:       time.Now().UnixMilli(),
-	})
-	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, roundID, "interrupted", "interrupted"))
-}
-
-func (s *Service) repairInterruptedRound(ctx context.Context, sessionKey string, roundID string, agentID string) error {
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
-	if err != nil {
-		return err
-	}
-	_, err = s.ensureSession(ctx, agentValue, protocol.ParseSessionKey(sessionKey), sessionKey)
-	if err != nil {
-		return err
-	}
-	// transcript 已经成为唯一正文真相源，这里不再扫描旧 messages.jsonl 修补半截 assistant。
-	_ = roundID
-	return nil
-}
-
-func (s *Service) persistInterruptedRound(
-	ctx context.Context,
-	sessionKey string,
-	parsed protocol.SessionKey,
-	resultMessage session.Message,
-) error {
-	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
-	if err != nil {
-		return err
-	}
-	sessionValue, err := s.ensureSession(ctx, agentValue, parsed, sessionKey)
-	if err != nil {
-		return err
-	}
-	if sessionValue.SessionID != nil && strings.TrimSpace(*sessionValue.SessionID) != "" {
-		resultMessage["session_id"] = strings.TrimSpace(*sessionValue.SessionID)
-	}
-	if err := s.appendSyntheticHistoryMessage(agentValue.WorkspacePath, sessionValue, resultMessage); err != nil {
-		return err
-	}
-	_, err = s.refreshSessionMetaAfterMessage(agentValue.WorkspacePath, sessionValue, resultMessage)
-	return err
 }
 
 func (s *Service) ensureClient(
@@ -388,6 +302,11 @@ func (s *Service) ensureClient(
 			options.SDKMCPServers = servers
 		}
 	}
+	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(agentValue)
+	if err != nil {
+		return nil, err
+	}
+	options.AppendSystemPrompt = appendSystemPrompt
 	if sessionItem.SessionID != nil && strings.TrimSpace(*sessionItem.SessionID) != "" {
 		options.Resume = strings.TrimSpace(*sessionItem.SessionID)
 	}
@@ -397,19 +316,80 @@ func (s *Service) ensureClient(
 	if agentValue.Options.MaxTurns != nil && *agentValue.Options.MaxTurns > 0 {
 		options.MaxTurns = *agentValue.Options.MaxTurns
 	}
-	client, err := s.runtime.GetOrCreate(ctx, sessionKey, options)
-	if err != nil {
-		return nil, err
-	}
-	if err := client.Connect(ctx); err != nil {
-		return nil, err
-	}
-	if permissionMode != "" {
-		if err := client.SetPermissionMode(ctx, permissionMode); err != nil && !errors.Is(err, agentclient.ErrNotConnected) {
-			return nil, err
+	return s.acquireRuntimeClient(ctx, sessionKey, options, permissionMode)
+}
+
+func (s *Service) acquireRuntimeClient(
+	ctx context.Context,
+	sessionKey string,
+	options agentclient.Options,
+	permissionMode sdkprotocol.PermissionMode,
+) (runtimectx.Client, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		client, err := s.runtime.GetOrCreate(ctx, sessionKey, options)
+		if err != nil {
+			if !isBrokenRuntimeClientError(err) || attempt > 0 {
+				return nil, err
+			}
+			lastErr = err
+			if recycleErr := s.recycleRuntimeClient(sessionKey, err); recycleErr != nil {
+				return nil, errors.Join(err, recycleErr)
+			}
+			continue
 		}
+		if err := client.Connect(ctx); err != nil {
+			if !isBrokenRuntimeClientError(err) || attempt > 0 {
+				return nil, err
+			}
+			lastErr = err
+			if recycleErr := s.recycleRuntimeClient(sessionKey, err); recycleErr != nil {
+				return nil, errors.Join(err, recycleErr)
+			}
+			continue
+		}
+		if permissionMode != "" {
+			if err := client.SetPermissionMode(ctx, permissionMode); err != nil {
+				if (!errors.Is(err, agentclient.ErrNotConnected) && !isBrokenRuntimeClientError(err)) || attempt > 0 {
+					return nil, err
+				}
+				lastErr = err
+				if recycleErr := s.recycleRuntimeClient(sessionKey, err); recycleErr != nil {
+					return nil, errors.Join(err, recycleErr)
+				}
+				continue
+			}
+		}
+		return client, nil
 	}
-	return client, nil
+	if lastErr == nil {
+		lastErr = errors.New("runtime client acquire failed")
+	}
+	return nil, lastErr
+}
+
+func (s *Service) recycleRuntimeClient(sessionKey string, cause error) error {
+	recycleCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	s.loggerFor(recycleCtx).Warn("DM runtime client 已失效，回收后重建",
+		"session_key", sessionKey,
+		"cause", cause,
+	)
+	return s.runtime.CloseSession(recycleCtx, sessionKey)
+}
+
+func isBrokenRuntimeClientError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, agentclient.ErrNotConnected) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "file already closed") ||
+		strings.Contains(message, "send control request failed") ||
+		strings.Contains(message, "write payload failed") ||
+		strings.Contains(message, "broken pipe")
 }
 
 func (s *Service) buildRuntimeEnv(ctx context.Context, agentValue *agent3.Agent) (map[string]string, error) {
@@ -577,7 +557,7 @@ func (r *roundRunner) run(ctx context.Context) {
 					logger.Info("DM round 消息流关闭")
 					return
 				}
-				r.failRound(errors.New("DM 子任务在收到终态前提前结束"))
+				r.failRound(errors.New("任务中断"))
 				return
 			}
 			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
@@ -589,29 +569,38 @@ func (r *roundRunner) run(ctx context.Context) {
 }
 
 func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage) bool {
-	events, terminalStatus, resultSubtype := r.mapper.Map(message)
+	interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
+	events, durableMessages, terminalStatus, resultSubtype, err := r.mapper.Map(message, interruptReason)
+	if err != nil {
+		r.failRound(err)
+		return true
+	}
 	if sid := strings.TrimSpace(firstNonEmpty(r.mapper.SessionID(), message.SessionID, r.client.SessionID())); sid != "" {
 		r.session.SessionID = &sid
 	}
 
-	for _, event := range events {
-		if event.EventType == protocol.EventTypeMessage {
-			payload := session.Message(event.Data)
-			if payload != nil {
-				if err := r.persistMessage(payload); err != nil {
-					r.failRound(err)
-					return true
-				}
-				if payload["role"] == "assistant" {
-					r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
-						DispatchSessionKey: r.sessionKey,
-						AgentID:            r.agent.AgentID,
-						MessageID:          normalizeString(payload["message_id"]),
-						CausedBy:           r.roundID,
-					})
-				}
-			}
+	for _, payload := range durableMessages {
+		if payload == nil {
+			continue
 		}
+		if value := firstNonEmpty(normalizeString(payload["session_id"]), stringPointerValue(r.session.SessionID)); value != "" {
+			payload["session_id"] = value
+		}
+		if err := r.persistMessage(payload); err != nil {
+			r.failRound(err)
+			return true
+		}
+		if payload["role"] == "assistant" {
+			r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
+				DispatchSessionKey: r.sessionKey,
+				AgentID:            r.agent.AgentID,
+				MessageID:          normalizeString(payload["message_id"]),
+				CausedBy:           r.roundID,
+			})
+		}
+	}
+
+	for _, event := range events {
 		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
 	}
 
@@ -637,6 +626,10 @@ func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage)
 }
 
 func (r *roundRunner) failRound(err error) {
+	if interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
+		r.finishInterrupted(interruptReason)
+		return
+	}
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
@@ -649,7 +642,7 @@ func (r *roundRunner) failRound(err error) {
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
 	}
-	resultMessage := session.Message{
+	resultMessage := sessionmodel.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
@@ -683,10 +676,10 @@ func (r *roundRunner) failRound(err error) {
 		} else if updated != nil {
 			r.session = *updated
 		}
-		event := protocol.NewEvent(protocol.EventTypeMessage, resultMessage)
+		event := protocol.NewEvent(protocol.EventTypeMessage, r.mapper.ProjectResultMessage(resultMessage))
 		event.SessionKey = r.sessionKey
 		event.AgentID = r.agent.AgentID
-		event.MessageID = normalizeString(resultMessage["message_id"])
+		event.MessageID = normalizeString(event.Data["message_id"])
 		event.DeliveryMode = "durable"
 		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
 	}
@@ -705,7 +698,71 @@ func (r *roundRunner) failRound(err error) {
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 }
 
-func (r *roundRunner) persistMessage(message session.Message) error {
+func (r *roundRunner) finishInterrupted(resultText string) {
+	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
+		"session_key", r.sessionKey,
+		"agent_id", r.agent.AgentID,
+		"round_id", r.roundID,
+		"reason", resultText,
+	)
+	r.terminalSeen = true
+	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	persistedSessionID := ""
+	if r.session.SessionID != nil {
+		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
+	}
+	resultMessage := sessionmodel.Message{
+		"message_id":      "result_" + r.roundID,
+		"session_key":     r.sessionKey,
+		"agent_id":        r.agent.AgentID,
+		"round_id":        r.roundID,
+		"session_id":      firstNonEmpty(r.client.SessionID(), persistedSessionID),
+		"role":            "result",
+		"timestamp":       time.Now().UnixMilli(),
+		"subtype":         "interrupted",
+		"duration_ms":     0,
+		"duration_api_ms": 0,
+		"num_turns":       0,
+		"usage":           map[string]any{},
+		"is_error":        false,
+	}
+	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
+		resultMessage["result"] = trimmedResult
+	}
+	if persistErr := r.service.appendSyntheticHistoryMessage(r.workspacePath, r.session, resultMessage); persistErr != nil {
+		r.service.loggerFor(context.Background()).Error("DM interrupted 结果持久化失败",
+			"session_key", r.sessionKey,
+			"agent_id", r.agent.AgentID,
+			"round_id", r.roundID,
+			"err", persistErr,
+		)
+	} else {
+		if updated, updateErr := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, resultMessage); updateErr != nil {
+			r.service.loggerFor(context.Background()).Error("DM interrupted 刷新 session meta 失败",
+				"session_key", r.sessionKey,
+				"agent_id", r.agent.AgentID,
+				"round_id", r.roundID,
+				"err", updateErr,
+			)
+		} else if updated != nil {
+			r.session = *updated
+		}
+		event := protocol.NewEvent(protocol.EventTypeMessage, r.mapper.ProjectResultMessage(resultMessage))
+		event.SessionKey = r.sessionKey
+		event.AgentID = r.agent.AgentID
+		event.MessageID = normalizeString(event.Data["message_id"])
+		event.DeliveryMode = "durable"
+		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+	}
+	r.service.permission.BroadcastEvent(
+		context.Background(),
+		r.sessionKey,
+		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),
+	)
+	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+}
+
+func (r *roundRunner) persistMessage(message sessionmodel.Message) error {
 	if err := r.service.appendRuntimeHistoryMessage(r.workspacePath, r.session, message); err != nil {
 		return err
 	}
@@ -722,7 +779,7 @@ func (r *roundRunner) persistMessage(message session.Message) error {
 func (s *Service) appendRuntimeHistoryMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message session.Message,
+	message sessionmodel.Message,
 ) error {
 	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
 		return err
@@ -736,7 +793,7 @@ func (s *Service) appendRuntimeHistoryMessage(
 func (s *Service) appendSyntheticHistoryMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message session.Message,
+	message sessionmodel.Message,
 ) error {
 	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
 		return err
@@ -759,12 +816,10 @@ func (s *Service) refreshSessionMetaAfterRoundMarker(
 func (s *Service) refreshSessionMetaAfterMessage(
 	workspacePath string,
 	current session.Session,
-	message session.Message,
+	message sessionmodel.Message,
 ) (*session.Session, error) {
 	current.SessionID = preferSessionID(current.SessionID, normalizeString(message["session_id"]))
-	if normalizeString(message["role"]) == "result" {
-		current.Status = "active"
-	}
+	current.Status = "active"
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
 	if err := sessionmodel.EnsureTranscriptHistory(current.Options, current.SessionKey); err != nil {
@@ -798,7 +853,8 @@ func (s *Service) syncSDKSessionID(
 	sessionID string,
 ) (session.Session, error) {
 	trimmedSessionID := strings.TrimSpace(sessionID)
-	if trimmedSessionID == "" || stringPointerValue(current.SessionID) == trimmedSessionID {
+	currentSessionID := strings.TrimSpace(stringPointerValue(current.SessionID))
+	if trimmedSessionID == "" || currentSessionID == trimmedSessionID {
 		return current, nil
 	}
 	current.SessionID = &trimmedSessionID
@@ -818,34 +874,9 @@ func (s *Service) syncSDKSessionID(
 }
 
 func mergeRoomBackedSession(current session.Session, roomSession session.Session) session.Session {
-	merged := current
-	merged.SessionKey = firstNonEmpty(merged.SessionKey, roomSession.SessionKey)
-	merged.AgentID = firstNonEmpty(merged.AgentID, roomSession.AgentID)
-	merged.ChannelType = firstNonEmpty(merged.ChannelType, roomSession.ChannelType)
-	merged.ChatType = firstNonEmpty(merged.ChatType, roomSession.ChatType)
-	merged.Status = firstNonEmpty(merged.Status, roomSession.Status)
-	merged.Title = firstNonEmpty(merged.Title, roomSession.Title)
-	if merged.RoomSessionID == nil && roomSession.RoomSessionID != nil {
-		merged.RoomSessionID = roomSession.RoomSessionID
-	}
-	if merged.RoomID == nil && roomSession.RoomID != nil {
-		merged.RoomID = roomSession.RoomID
-	}
-	if merged.ConversationID == nil && roomSession.ConversationID != nil {
-		merged.ConversationID = roomSession.ConversationID
-	}
-	if merged.SessionID == nil && roomSession.SessionID != nil {
-		merged.SessionID = roomSession.SessionID
-	}
-	if merged.Options == nil {
-		merged.Options = map[string]any{}
-	}
-	if roomSession.Options != nil {
-		for key, value := range roomSession.Options {
-			if _, exists := merged.Options[key]; !exists {
-				merged.Options[key] = value
-			}
-		}
+	merged := roomSession
+	if strings.TrimSpace(stringPointerValue(merged.SessionID)) == "" && current.SessionID != nil {
+		merged.SessionID = current.SessionID
 	}
 	return merged
 }

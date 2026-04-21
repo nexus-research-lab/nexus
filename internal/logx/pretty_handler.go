@@ -141,19 +141,21 @@ func (h *prettyHandler) format(
 		builder.WriteByte(' ')
 		builder.WriteString(h.paint(fmt.Sprintf("%3d", access.status), colorForStatus(access.status)))
 		builder.WriteByte(' ')
-		builder.WriteString(h.paint(fmt.Sprintf("%5s", access.duration), ansiBrightBlack))
+		builder.WriteString(h.paint(fmt.Sprintf("%6s", access.duration), ansiBrightBlack))
 		builder.WriteByte(' ')
 		builder.WriteString(h.paint(fmt.Sprintf("%6s", access.bytes), ansiBrightBlack))
 		builder.WriteByte(' ')
+
+		if requestID != "" {
+			builder.WriteString(h.paint("rid=", ansiBrightBlack))
+			builder.WriteString(h.paint(requestID, ansiBrightBlack))
+			builder.WriteByte(' ')
+		}
+
 		builder.WriteString(h.paint(access.path, ansiWhite))
+		builder.WriteByte(' ')
 	} else {
 		builder.WriteString(h.paint(strings.TrimSpace(message), colorForMessage(level)))
-	}
-
-	if requestID != "" {
-		builder.WriteString("  ")
-		builder.WriteString(h.paint("rid=", ansiBrightBlack))
-		builder.WriteString(h.paint(requestID, ansiBrightBlack))
 	}
 
 	for _, f := range fields {

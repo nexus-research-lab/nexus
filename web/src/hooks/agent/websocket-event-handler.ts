@@ -8,7 +8,6 @@ import {
   StreamMessage,
 } from '@/types';
 import {
-  AgentThinkingPayload,
   HandleAgentConversationWebSocketMessageParams,
   RoomEventPayload,
 } from '@/types/agent/agent-conversation';
@@ -28,7 +27,6 @@ export function handle_agent_conversation_web_socket_message({
   set_pending_permissions,
   enqueue_stream_payload,
   on_background_message,
-  set_agent_thinking,
   on_room_event,
   update_message_status,
   sync_session_status,
@@ -88,24 +86,6 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
-  // Agent thinking/done status in multi-agent rooms
-  // 只处理当前会话的 thinking 状态，避免跨 room 污染
-  if (event.event_type === 'agent_thinking') {
-    if (incoming_session_key && !is_current_session_event(incoming_session_key)) {
-      return;
-    }
-    set_agent_thinking?.(event.data as AgentThinkingPayload);
-    return;
-  }
-
-  if (event.event_type === 'agent_done') {
-    if (incoming_session_key && !is_current_session_event(incoming_session_key)) {
-      return;
-    }
-    set_agent_thinking?.(null);
-    return;
-  }
-
   // Room-level events (member changes, room deleted, etc.)
   if (
     event.event_type === 'room_member_added' ||
@@ -124,9 +104,6 @@ export function handle_agent_conversation_web_socket_message({
     }
     const payload = (event.data ?? {}) as SessionStatusEventPayload;
     sync_session_status?.(payload);
-    if (!payload.is_generating) {
-      set_agent_thinking?.(null);
-    }
     return;
   }
 
@@ -139,9 +116,6 @@ export function handle_agent_conversation_web_socket_message({
       return;
     }
     apply_round_status?.(payload.round_id, payload.status);
-    if (payload.status !== 'running') {
-      set_agent_thinking?.(null);
-    }
     return;
   }
 
@@ -151,7 +125,7 @@ export function handle_agent_conversation_web_socket_message({
       return;
     }
     const ack = event.data as ChatAckData;
-    if (!ack?.pending?.length) {
+    if (!ack?.round_id) {
       return;
     }
     track_chat_ack?.(ack, incoming_session_key);
@@ -221,25 +195,30 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
+  const payload_with_delivery_mode: Message = (
+    event.delivery_mode
+      ? {
+        ...payload,
+        delivery_mode: event.delivery_mode,
+      }
+      : payload
+  );
+
   if (!is_current_session_event(message_session_key)) {
-    // Cache complete messages for non-active sessions so they aren't lost
-    // when the user switches conversations and switches back.
-    if (on_background_message) {
-      on_background_message(message_session_key, payload);
+    // 只缓存 durable 消息，ephemeral 仅服务当前活跃轮次展示。
+    if (event.delivery_mode !== 'ephemeral' && on_background_message) {
+      on_background_message(message_session_key, payload_with_delivery_mode);
     }
     return;
   }
 
   const normalized_payload = (
-    payload.role === 'assistant'
-      ? normalize_assistant_message(payload as AssistantMessage)
-      : payload
+    payload_with_delivery_mode.role === 'assistant'
+      ? normalize_assistant_message(payload_with_delivery_mode as AssistantMessage)
+      : payload_with_delivery_mode
   );
 
   set_messages((prev) => upsert_message(prev, normalized_payload));
-  if (payload.role === 'result') {
-    return;
-  }
   if (normalized_payload.role === 'assistant') {
     track_assistant_message?.(normalized_payload as AssistantMessage);
   }

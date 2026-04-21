@@ -157,6 +157,8 @@ export function GroupChatPanel({
     load_session,
     load_older_messages,
     send_permission_response,
+    runtime_phase,
+    live_round_ids,
   } = useAgentConversation({
     identity: session_identity,
     on_error: (err) => {
@@ -289,11 +291,7 @@ export function GroupChatPanel({
   const handle_send_message = async (content: string) => {
     if (!content.trim()) return;
     scroll_to_bottom("auto");
-    try {
-      await send_message(content);
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
+    await send_message(content);
   };
 
   const handle_stop_message = useCallback((msg_id: string) => stop_generation(msg_id), [stop_generation]);
@@ -459,6 +457,8 @@ export function GroupChatPanel({
               current_agent_avatar={current_agent_avatar ?? null}
               is_last_round_pending_permissions={pending_permissions}
               is_loading={is_loading}
+              runtime_phase={runtime_phase}
+              live_round_ids={live_round_ids}
               is_mobile_layout={is_mobile_layout}
               message_groups={message_groups}
               pending_permission_groups={pending_permission_groups}
@@ -498,6 +498,7 @@ export function GroupChatPanel({
             compact={is_mobile_layout}
             control_status_text={session_control_text}
             is_loading={is_loading}
+            runtime_phase={runtime_phase}
             mention_unavailable_agent_ids={mention_unavailable_agent_ids}
             on_prepare_attachments={handle_prepare_attachments}
             on_send_message={handle_send_message}

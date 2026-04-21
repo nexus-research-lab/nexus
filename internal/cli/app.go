@@ -53,7 +53,7 @@ func New(cfg config.Config) (*cobra.Command, error) {
 	root.AddCommand(newUserCommand(authService))
 	root.AddCommand(newRoomCommand(roomService))
 	root.AddCommand(newConversationCommand(roomService, sessionService))
-	root.AddCommand(newSessionCommand(cfg.WorkspacePath, agentService, roomService, sessionService))
+	root.AddCommand(newSessionCommand(sessionService))
 	root.AddCommand(newWorkspaceCommand(workspaceService))
 	root.AddCommand(newSkillCommand(skillService))
 	root.AddCommand(newConnectorCommand(connectorService))
@@ -468,12 +468,7 @@ func newLauncherCommand(service *launcher.Service) *cobra.Command {
 	return command
 }
 
-func newSessionCommand(
-	workspaceRoot string,
-	agentService *agent2.Service,
-	roomService *roomsvc.Service,
-	service *sessionsvc.Service,
-) *cobra.Command {
+func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "session",
 		Short: "session 领域命令",
@@ -634,8 +629,6 @@ func newSessionCommand(
 		_ = deleteCommand.MarkFlagRequired("session-key")
 		return deleteCommand
 	}())
-
-	command.AddCommand(newSessionHistoryMigrateCommand(workspaceRoot, agentService, roomService, service))
 
 	return command
 }

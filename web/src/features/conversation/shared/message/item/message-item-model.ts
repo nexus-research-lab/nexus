@@ -21,7 +21,13 @@ import {
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
-import type { AssistantMessage, ContentBlock, SystemMessage } from "@/types/conversation/message";
+import {
+  get_system_message_display_meta,
+  type AssistantMessage,
+  type ContentBlock,
+  type SystemEventContent,
+  type SystemMessage,
+} from "@/types/conversation/message";
 import {
   collect_unresolved_tool_use_candidates,
   match_pending_permissions_to_tool_uses,
@@ -52,6 +58,25 @@ function format_compact_count(value: number): string {
   return `${value}`;
 }
 
+function get_result_summary_display_text(
+  result_summary: AssistantMessage["result_summary"] | undefined,
+): string | null {
+  const result_text = result_summary?.result?.trim();
+  if (result_text) {
+    return result_text;
+  }
+  if (!result_summary) {
+    return null;
+  }
+  if (result_summary.subtype === "interrupted") {
+    return null;
+  }
+  if (result_summary.subtype === "error" || result_summary.is_error) {
+    return "执行失败";
+  }
+  return null;
+}
+
 export function useMessageItemState({
   is_last_round,
   is_loading,
@@ -77,7 +102,7 @@ export function useMessageItemState({
   const {
     user_message,
     assistant_messages,
-    result_message,
+    result_summary,
     merged_content,
     merged_content_source_message_ids,
     streaming_block_indexes,
@@ -87,31 +112,53 @@ export function useMessageItemState({
     is_loading,
   });
 
-  const system_messages = useMemo(() => (
-    messages.filter((message): message is SystemMessage => (
+  const system_messages = useMemo(() => {
+    if (!is_last_round || !is_loading) {
+      return [];
+    }
+
+    return messages.filter((message): message is SystemMessage => (
       message.role === "system"
       && typeof message.content === "string"
       && Boolean(message.content.trim())
-    ))
-  ), [messages]);
+    ));
+  }, [is_last_round, is_loading, messages]);
+  const system_event_blocks = useMemo<SystemEventContent[]>(() => (
+    system_messages.map((message) => {
+      const display_meta = get_system_message_display_meta(message);
+      return {
+        type: "system_event",
+        content: message.content,
+        label: display_meta.label,
+        tone: display_meta.tone,
+        icon: display_meta.icon,
+        source_message_id: message.message_id,
+        timestamp: message.timestamp,
+        subtype: message.metadata?.subtype,
+        tool_use_id: typeof message.metadata?.tool_use_id === "string"
+          ? message.metadata.tool_use_id
+          : null,
+      };
+    })
+  ), [system_messages]);
 
   const first_assistant = assistant_messages[0] as AssistantMessage | undefined;
   const model = first_assistant?.model;
-  const timestamp = first_assistant?.timestamp || system_messages[0]?.timestamp || result_message?.timestamp;
+  const timestamp = first_assistant?.timestamp || system_event_blocks[0]?.timestamp || result_summary?.timestamp;
 
   const stream_status = useMemo(() => {
     return first_assistant?.stream_status ?? null;
   }, [first_assistant]);
 
   const stats = useMemo<MessageStatsData | null>(() => {
-    const usage = result_message?.usage;
-    const duration = result_message
-      ? (result_message.duration_ms > 0
-        ? `${(result_message.duration_ms / 1000).toFixed(1)}s`
+    const usage = result_summary?.usage;
+    const duration = result_summary
+      ? (result_summary.duration_ms > 0
+        ? `${(result_summary.duration_ms / 1000).toFixed(1)}s`
         : "0s")
       : null;
-    const cost = result_message?.total_cost_usd !== undefined
-      ? `$${result_message.total_cost_usd.toFixed(4)}`
+    const cost = result_summary?.total_cost_usd !== undefined
+      ? `$${result_summary.total_cost_usd.toFixed(4)}`
       : null;
     const cache_hit = usage?.cache_read_input_tokens;
     const tokens = usage
@@ -128,7 +175,7 @@ export function useMessageItemState({
       cost,
       cache_hit: cache_hit && cache_hit > 0 ? `缓存 ${format_compact_count(cache_hit)}` : null,
     };
-  }, [result_message]);
+  }, [result_summary]);
 
   const user_content = useMemo(() => {
     if (!user_message || user_message.role !== "user") {
@@ -216,12 +263,12 @@ export function useMessageItemState({
   }, [hidden_tool_names, merged_content]);
 
   const visible_ordered_assistant_entries = useMemo<OrderedAssistantEntry[]>(() => {
-    const entries: OrderedAssistantEntry[] = [];
+    const assistant_entries: OrderedAssistantEntry[] = [];
 
     merged_content.forEach((block, merged_index) => {
       if (block.type === "text") {
         if (block.text.trim()) {
-          entries.push({
+          assistant_entries.push({
             block,
             merged_index,
             source_message_id: merged_content_source_message_ids[merged_index] || "",
@@ -232,7 +279,7 @@ export function useMessageItemState({
 
       if (block.type === "thinking") {
         if (block.thinking?.trim()) {
-          entries.push({
+          assistant_entries.push({
             block,
             merged_index,
             source_message_id: merged_content_source_message_ids[merged_index] || "",
@@ -243,7 +290,7 @@ export function useMessageItemState({
 
       if (block.type === "tool_use") {
         if (!hidden_tool_names.includes(block.name)) {
-          entries.push({
+          assistant_entries.push({
             block,
             merged_index,
             source_message_id: merged_content_source_message_ids[merged_index] || "",
@@ -254,7 +301,7 @@ export function useMessageItemState({
 
       if (block.type === "tool_result") {
         if (!hidden_tool_use_ids.has(block.tool_use_id)) {
-          entries.push({
+          assistant_entries.push({
             block,
             merged_index,
             source_message_id: merged_content_source_message_ids[merged_index] || "",
@@ -264,7 +311,7 @@ export function useMessageItemState({
       }
 
       if (block.type === "task_progress") {
-        entries.push({
+        assistant_entries.push({
           block,
           merged_index,
           source_message_id: merged_content_source_message_ids[merged_index] || "",
@@ -272,8 +319,62 @@ export function useMessageItemState({
       }
     });
 
-    return entries;
-  }, [hidden_tool_use_ids, hidden_tool_names, merged_content, merged_content_source_message_ids]);
+    const ordered_entries: OrderedAssistantEntry[] = [];
+    const system_blocks_by_tool_use_id = new Map<string, SystemEventContent[]>();
+    const unmatched_system_blocks: SystemEventContent[] = [];
+
+    system_event_blocks.forEach((block) => {
+      if (block.tool_use_id) {
+        const existing_blocks = system_blocks_by_tool_use_id.get(block.tool_use_id) ?? [];
+        existing_blocks.push(block);
+        system_blocks_by_tool_use_id.set(block.tool_use_id, existing_blocks);
+        return;
+      }
+      unmatched_system_blocks.push(block);
+    });
+
+    assistant_entries.forEach((entry) => {
+      ordered_entries.push(entry);
+      if (entry.block.type !== "tool_use") {
+        return;
+      }
+
+      const matched_system_blocks = system_blocks_by_tool_use_id.get(entry.block.id);
+      if (!matched_system_blocks?.length) {
+        return;
+      }
+
+      matched_system_blocks.forEach((block) => {
+        ordered_entries.push({
+          block,
+          merged_index: -1,
+          source_message_id: block.source_message_id,
+        });
+      });
+      system_blocks_by_tool_use_id.delete(entry.block.id);
+    });
+
+    system_blocks_by_tool_use_id.forEach((blocks) => {
+      unmatched_system_blocks.push(...blocks);
+    });
+    unmatched_system_blocks
+      .sort((left, right) => left.timestamp - right.timestamp)
+      .forEach((block) => {
+        ordered_entries.push({
+          block,
+          merged_index: -1,
+          source_message_id: block.source_message_id,
+        });
+      });
+
+    return ordered_entries;
+  }, [
+    hidden_tool_use_ids,
+    hidden_tool_names,
+    merged_content,
+    merged_content_source_message_ids,
+    system_event_blocks,
+  ]);
 
   const visible_ordered_assistant_content = useMemo(() => {
     return visible_ordered_assistant_entries.map((entry) => entry.block);
@@ -396,7 +497,7 @@ export function useMessageItemState({
   }, [final_assistant_turn, visible_ordered_assistant_entries]);
 
   const archived_process_projection = useMemo<ContentProjection>(() => {
-    const result_text = result_message?.result?.trim();
+    const result_text = result_summary?.result?.trim();
     const should_strip_tail = final_tail_entries.length > 0
       && (
         !result_text
@@ -433,7 +534,7 @@ export function useMessageItemState({
     final_assistant_turn,
     final_tail_entries,
     final_tail_text,
-    result_message,
+    result_summary,
     streaming_block_indexes,
     visible_ordered_assistant_entries,
   ]);
@@ -492,7 +593,7 @@ export function useMessageItemState({
       return null;
     }
 
-    const result_text = result_message?.result?.trim();
+    const result_text = get_result_summary_display_text(result_summary);
     if (result_text) {
       return result_text;
     }
@@ -513,7 +614,7 @@ export function useMessageItemState({
     fallback_final_assistant_content,
     final_assistant_turn,
     final_tail_entries,
-    result_message,
+    result_summary,
   ]);
 
   const final_assistant_streaming_indexes = useMemo(() => {
@@ -600,6 +701,11 @@ export function useMessageItemState({
         : "waiting_permission";
     }
 
+    const runtime_activity_state = map_runtime_phase_to_activity_state(runtime_phase);
+    if (runtime_activity_state === "sending") {
+      return "sending";
+    }
+
     const latest_streaming_block = find_latest_streaming_block(
       merged_content,
       streaming_block_indexes,
@@ -614,7 +720,7 @@ export function useMessageItemState({
     const has_visible_reply_text = merged_content.some((block) => (
       block.type === "text" && Boolean(block.text.trim())
     ));
-    if (has_visible_reply_text && (stream_status === "streaming" || assistant_messages.length > 0)) {
+    if (has_visible_reply_text && stream_status === "streaming") {
       return "replying";
     }
 
@@ -622,10 +728,8 @@ export function useMessageItemState({
       return "thinking";
     }
 
-    return map_runtime_phase_to_activity_state(runtime_phase)
-      ?? (assistant_messages.length > 0 ? "replying" : "thinking");
+    return runtime_activity_state;
   }, [
-    assistant_messages.length,
     is_last_round,
     is_loading,
     merged_content,
@@ -640,9 +744,6 @@ export function useMessageItemState({
       return false;
     }
     if (unmatched_pending_permissions.length > 0) {
-      return false;
-    }
-    if (system_messages.length > 0) {
       return false;
     }
     if (
@@ -665,15 +766,14 @@ export function useMessageItemState({
     if (final_assistant_content && final_assistant_content.length > 0) {
       return false;
     }
-    return !result_message;
+    return !result_summary;
   }, [
     direct_ordered_projection.content.length,
     final_assistant_content,
     live_activity_state,
     process_projection.content.length,
-    result_message,
+    result_summary,
     stream_status,
-    system_messages.length,
     unmatched_pending_permissions.length,
   ]);
 
@@ -749,7 +849,7 @@ export function useMessageItemState({
   const can_copy_assistant = Boolean(final_assistant_text.trim());
   const should_show_assistant_footer = (
     assistant_content_mode === "dm_archived" || assistant_content_mode === "room_result"
-  ) && !is_loading && (Boolean(stats) || can_copy_assistant);
+  ) && (Boolean(stats) || (!is_loading && can_copy_assistant));
 
   const can_stop_message = Boolean(
     on_stop_message && (stream_status === "pending" || stream_status === "streaming"),
@@ -813,7 +913,6 @@ export function useMessageItemState({
     copied_assistant,
     user_message,
     user_content,
-    system_messages,
     model,
     timestamp,
     stream_status,

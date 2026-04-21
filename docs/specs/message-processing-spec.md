@@ -26,6 +26,8 @@
 - 一轮执行的终态结果
 - 包含结果文本、执行终态与 runtime 摘要
 - result 真相源只来自 Nexus overlay
+- 对外 API / WebSocket 不再直接暴露 standalone `result`
+- 最终展示统一收口为 `assistant.result_summary`
 
 ### 2.4 round
 
@@ -39,6 +41,7 @@
 - 前端通过 WebSocket `chat` 发起一轮执行
 - 后端创建 / 复用 runtime client
 - runtime 返回 stream / durable message / round status
+- `chat_ack` 上限 10 秒（常量 `protocol.ChatAckTimeoutMS`），超时视为发送失败
 
 ### 3.2 前端展示
 
@@ -93,6 +96,11 @@ DM / 私有 session 主要保存：
 - `result` 不是 assistant 完成的必要条件
 - 历史读取不能因为“没有 result”就把 transcript assistant 直接判成 interrupted
 - synthetic interrupted 只允许出现在真正缺少终态且 round 已结束的场景
+
+兼容性说明：
+
+- assistant 的 `is_complete` 字段在持久化层继续维护，以兼容旧 transcript / 历史回放数据
+- 终态判定入口只看 `stop_reason`
 
 补充约束：
 
@@ -151,7 +159,14 @@ Room shared 不再保存完整正文副本，而是：
 
 1. user
 2. assistant / system / task_progress
-3. result
+
+说明：
+
+- `result` 在文件侧仍然存在于 overlay
+- 但对外投影时，优先挂到 assistant 的 `result_summary`
+- 只有内部存储层保留 `result` 语义，不再把它当成前端可见主消息类型
+- 未完成 round 的物化产物直接是 `assistant + stop_reason: cancelled + result_summary.subtype: interrupted`
+- 不再经过 `role: result` 的中间态
 
 ## 7. API 约束
 
@@ -186,3 +201,4 @@ GET /agent/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 - 实时态：WebSocket 增量
 - 历史态：transcript / overlay 归一化结果
 - 分页单位：round
+- 对外终态：统一为 `assistant + result_summary`

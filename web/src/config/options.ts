@@ -15,6 +15,8 @@ const DEFAULT_API_PATH = "/agent/v1";
 const DEFAULT_WS_PATH = "/agent/v1/chat/ws";
 const ENABLE_STRICT_MODE = false;
 const MESSAGE_HISTORY_ROUND_PAGE_SIZE = 3;
+// 与后端 protocol.ChatAckTimeoutMS 保持一致。
+const MESSAGE_SEND_ACK_TIMEOUT_MS = 10000;
 
 function build_browser_url(pathname: string, use_websocket_protocol: boolean): string {
   if (typeof window === "undefined") {
@@ -55,6 +57,10 @@ export function is_strict_mode_enabled(): boolean {
 
 export function get_message_history_round_page_size(): number {
   return MESSAGE_HISTORY_ROUND_PAGE_SIZE;
+}
+
+export function get_message_send_ack_timeout_ms(): number {
+  return MESSAGE_SEND_ACK_TIMEOUT_MS;
 }
 
 export function get_default_agent_id(): string {
