@@ -28,13 +28,15 @@ import (
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	"github.com/nexus-research-lab/nexus/internal/titlegen"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
+
+const interruptForceCancelDelay = 150 * time.Millisecond
 
 type roomClientFactory interface {
 	New(agentclient.Options) runtimectx.Client
@@ -96,6 +98,29 @@ type activeRoomRound struct {
 	doneOnce       sync.Once
 }
 
+type roomRoundMapperAdapter struct {
+	mapper *slotMessageMapper
+}
+
+func (a roomRoundMapperAdapter) Map(
+	incoming sdkprotocol.ReceivedMessage,
+	interruptReason ...string,
+) (runtimectx.RoundMapResult, error) {
+	events, messages, terminalStatus, err := a.mapper.Map(incoming, interruptReason...)
+	if err != nil {
+		return runtimectx.RoundMapResult{}, err
+	}
+	return runtimectx.RoundMapResult{
+		Events:          events,
+		DurableMessages: messages,
+		TerminalStatus:  terminalStatus,
+	}, nil
+}
+
+func (a roomRoundMapperAdapter) SessionID() string {
+	return a.mapper.SessionID()
+}
+
 // RealtimeService 负责 Room 的共享流实时编排。
 // MCPServerBuilder 由 bootstrap 注入，按当前会话上下文构造一组进程内 MCP server。
 // 用 string 形参避免 room 包反向依赖 automation 子包，防止 import cycle。
@@ -107,20 +132,21 @@ type RealtimeService struct {
 	agents      *agent2.Service
 	runtime     *runtimectx.Manager
 	permission  *permission3.Context
-	providers   roomProviderResolver
+	providers   runtimectx.RuntimeConfigResolver
 	history     *workspacestore.AgentHistoryStore
 	roomHistory *workspacestore.RoomHistoryStore
 	factory     roomClientFactory
 	broadcaster RoomBroadcaster
 	logger      *slog.Logger
 	mcpServers  MCPServerBuilder
+	titles      roomTitleScheduler
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
 }
 
-type roomProviderResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*providercfg.RuntimeConfig, error)
+type roomTitleScheduler interface {
+	Schedule(context.Context, titlegen.Request)
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。
@@ -175,13 +201,18 @@ func (s *RealtimeService) SetLogger(logger *slog.Logger) {
 }
 
 // SetProviderResolver 注入 Provider 运行时解析器。
-func (s *RealtimeService) SetProviderResolver(resolver roomProviderResolver) {
+func (s *RealtimeService) SetProviderResolver(resolver runtimectx.RuntimeConfigResolver) {
 	s.providers = resolver
 }
 
 // SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
 func (s *RealtimeService) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
+}
+
+// SetTitleGenerator 注入会话标题生成器。
+func (s *RealtimeService) SetTitleGenerator(generator roomTitleScheduler) {
+	s.titles = generator
 }
 
 // HandleChat 处理 Room 主对话消息。
@@ -243,6 +274,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		return err
 	}
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomMessageEvent(roomID, conversationID, userMessage, request.RoundID))
+	s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
 
 	if len(targetAgentIDs) == 0 {
 		s.loggerFor(ctx).Warn("Room 消息未命中任何目标成员",
@@ -361,6 +393,27 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 
 	go s.runRound(roundCtx, activeRound, history, request.Content, agentNameByID, agentByID)
 	return nil
+}
+
+func (s *RealtimeService) scheduleTitleGeneration(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *ConversationContextAggregate,
+	content string,
+) {
+	if s.titles == nil || contextValue == nil {
+		return
+	}
+	s.titles.Schedule(ctx, titlegen.Request{
+		SessionKey:               sessionKey,
+		Provider:                 "",
+		Content:                  content,
+		ConversationID:           contextValue.Conversation.ID,
+		ConversationRoomID:       contextValue.Room.ID,
+		ConversationTitle:        contextValue.Conversation.Title,
+		ConversationRoomName:     contextValue.Room.Name,
+		ConversationMessageCount: contextValue.Conversation.MessageCount,
+	})
 }
 
 // HandleInterrupt 处理中断请求。
@@ -576,48 +629,34 @@ func (s *RealtimeService) runSlot(
 		CausedBy:           slot.AgentRoundID,
 	})
 
-	// Room runtime 与 DM runtime 保持同一套 provider-only 语义，
-	// Agent 层不再透传旧 model，只从 Provider 解析运行时环境。
-	runtimeEnv, err := s.buildRuntimeEnv(slotCtx, agentValue)
-	if err != nil {
-		s.handleSlotFailure(roundValue, slot, mapper, err)
-		return
-	}
-	permissionMode := sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
-	if permissionMode == "" {
-		permissionMode = sdkprotocol.PermissionModeDefault
-	}
-	options := agentclient.Options{
-		CWD:                    agentValue.WorkspacePath,
-		PermissionMode:         permissionMode,
-		AllowedTools:           append([]string(nil), agentValue.Options.AllowedTools...),
-		DisallowedTools:        append([]string(nil), agentValue.Options.DisallowedTools...),
-		SettingSources:         append([]string(nil), agentValue.Options.SettingSources...),
-		IncludePartialMessages: true,
-		Env:                    runtimeEnv,
-		PermissionHandler: func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
-			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
-		},
-	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(agentValue)
 	if err != nil {
 		s.handleSlotFailure(roundValue, slot, mapper, err)
 		return
 	}
-	options.AppendSystemPrompt = appendSystemPrompt
-	if strings.TrimSpace(slot.SDKSessionID) != "" {
-		options.Resume = strings.TrimSpace(slot.SDKSessionID)
-	}
-	if agentValue.Options.MaxThinkingTokens != nil && *agentValue.Options.MaxThinkingTokens > 0 {
-		options.MaxThinkingTokens = *agentValue.Options.MaxThinkingTokens
-	}
-	if agentValue.Options.MaxTurns != nil && *agentValue.Options.MaxTurns > 0 {
-		options.MaxTurns = *agentValue.Options.MaxTurns
-	}
+	mcpServers := map[string]agentclient.SDKMCPServer(nil)
 	if s.mcpServers != nil {
-		if servers := s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room"); len(servers) > 0 {
-			options.SDKMCPServers = servers
-		}
+		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")
+	}
+	options, err := runtimectx.BuildAgentClientOptions(slotCtx, s.providers, runtimectx.AgentClientOptionsInput{
+		WorkspacePath:  agentValue.WorkspacePath,
+		Provider:       agentValue.Options.Provider,
+		PermissionMode: sdkprotocol.PermissionMode(agentValue.Options.PermissionMode),
+		PermissionHandler: func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
+			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+		},
+		AllowedTools:       agentValue.Options.AllowedTools,
+		DisallowedTools:    agentValue.Options.DisallowedTools,
+		SettingSources:     agentValue.Options.SettingSources,
+		AppendSystemPrompt: appendSystemPrompt,
+		ResumeSessionID:    slot.SDKSessionID,
+		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
+		MaxTurns:           agentValue.Options.MaxTurns,
+		MCPServers:         mcpServers,
+	})
+	if err != nil {
+		s.handleSlotFailure(roundValue, slot, mapper, err)
+		return
 	}
 	client := s.factory.New(options)
 	slot.Client = client
@@ -644,8 +683,37 @@ func (s *RealtimeService) runSlot(
 	))
 
 	dispatchPrompt := BuildDispatchPrompt(history, latestUserMessage, agentNameByID, slot.AgentID)
-	if err := client.Query(slotCtx, dispatchPrompt); err != nil {
-		if slotCtx.Err() != nil || errors.Is(err, context.Canceled) {
+	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
+		Query:  dispatchPrompt,
+		Client: client,
+		Mapper: roomRoundMapperAdapter{mapper: mapper},
+		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+		},
+		SyncSessionID: func(sessionID string) error {
+			return s.syncSlotSDKSessionID(slotCtx, slot, sessionID)
+		},
+		HandleDurableMessage: func(messageValue sessionmodel.Message) error {
+			if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
+				return err
+			}
+			if !sessionmodel.IsTranscriptNativeMessage(sessionmodel.Message(messageValue)) {
+				if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
+					return err
+				}
+			}
+			if sessionmodel.MessageRole(messageValue) == "result" {
+				slot.Status = resultStatus(messageValue["subtype"])
+			}
+			return nil
+		},
+		EmitEvent: func(event protocol.EventMessage) error {
+			s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, event)
+			return nil
+		},
+	})
+	if err != nil {
+		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
 			s.handleSlotCancelled(roundValue, slot, mapper)
 			return
 		}
@@ -653,70 +721,19 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 
-	messageCh := client.ReceiveMessages(slotCtx)
-	for {
-		select {
-		case <-slotCtx.Done():
-			s.handleSlotCancelled(roundValue, slot, mapper)
-			return
-		case incoming, ok := <-messageCh:
-			if !ok {
-				if slot.Status == "cancelled" {
-					return
-				}
-				s.handleSlotFailure(roundValue, slot, mapper, errors.New("Room 子任务在收到终态前提前结束"))
-				return
-			}
-			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
-
-			interruptReason := s.runtime.GetInterruptReason(roundValue.SessionKey, slot.AgentRoundID)
-			events, durableMessages, terminalStatus, err := mapper.Map(incoming, interruptReason)
-			if err != nil {
-				s.handleSlotFailure(roundValue, slot, mapper, err)
-				return
-			}
-			currentSessionID := firstNonEmpty(mapper.SessionID(), client.SessionID())
-			if err := s.syncSlotSDKSessionID(slotCtx, slot, currentSessionID); err != nil {
-				s.handleSlotFailure(roundValue, slot, mapper, err)
-				return
-			}
-			for index := range durableMessages {
-				messageValue := durableMessages[index]
-				if value := firstNonEmpty(anyString(messageValue["session_id"]), currentSessionID); value != "" {
-					messageValue["session_id"] = value
-				}
-				if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
-					s.handleSlotFailure(roundValue, slot, mapper, err)
-					return
-				}
-				if !sessionmodel.IsTranscriptNativeMessage(sessionmodel.Message(messageValue)) {
-					if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
-						s.handleSlotFailure(roundValue, slot, mapper, err)
-						return
-					}
-				}
-				if sessionmodel.MessageRole(messageValue) == "result" {
-					slot.Status = resultStatus(messageValue["subtype"])
-				}
-			}
-			for _, event := range events {
-				s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, event)
-			}
-			if strings.TrimSpace(terminalStatus) != "" {
-				s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
-					protocol.EventTypeStreamEnd,
-					roundValue.SessionKey,
-					roundValue.RoomID,
-					roundValue.ConversationID,
-					slot.AgentID,
-					slot.MsgID,
-					slot.AgentRoundID,
-				))
-				logger.Info("Room slot 结束", "status", slot.Status)
-				return
-			}
-		}
+	if slot.Status == "running" {
+		slot.Status = resultStatus(result.ResultSubtype)
 	}
+	s.broadcastSharedEvent(context.Background(), roundValue.SessionKey, roundValue.RoomID, wrapRoomLifecycleEvent(
+		protocol.EventTypeStreamEnd,
+		roundValue.SessionKey,
+		roundValue.RoomID,
+		roundValue.ConversationID,
+		slot.AgentID,
+		slot.MsgID,
+		slot.AgentRoundID,
+	))
+	logger.Info("Room slot 结束", "status", slot.Status)
 }
 
 func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {
@@ -729,32 +746,6 @@ func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *active
 		return nil
 	}
 	return s.rooms.UpdateSessionSDKSessionID(ctx, slot.RoomSessionID, sessionID)
-}
-
-func (s *RealtimeService) buildRuntimeEnv(ctx context.Context, agentValue *agent2.Agent) (map[string]string, error) {
-	if s.providers == nil {
-		return nil, nil
-	}
-	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, agentValue.Options.Provider)
-	if err != nil {
-		return nil, err
-	}
-	if runtimeConfig == nil {
-		return nil, nil
-	}
-	env := map[string]string{
-		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
-		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
-		"ANTHROPIC_MODEL":                runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
-	}
-	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
-		env["ENABLE_TOOL_SEARCH"] = "false"
-	}
-	return env, nil
 }
 
 func (s *RealtimeService) handleSlotFailure(roundValue *activeRoomRound, slot *activeRoomSlot, mapper *slotMessageMapper, err error) {
@@ -1186,6 +1177,15 @@ func (s *RealtimeService) interruptRound(
 		case <-slot.Done:
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-time.After(interruptForceCancelDelay):
+			if slot.Cancel != nil {
+				slot.Cancel()
+			}
+			select {
+			case <-slot.Done:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 		s.permission.BroadcastSessionStatus(context.Background(), sessionKey, s.runtime.GetRunningRoundIDs(sessionKey))
 		return nil
@@ -1210,6 +1210,15 @@ func (s *RealtimeService) interruptRound(
 	case <-roundValue.Done:
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-time.After(interruptForceCancelDelay):
+		if roundValue.Cancel != nil {
+			roundValue.Cancel()
+		}
+		select {
+		case <-roundValue.Done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	s.permission.BroadcastSessionStatus(context.Background(), sessionKey, s.runtime.GetRunningRoundIDs(sessionKey))
 	return nil

@@ -222,6 +222,11 @@ func (s *Service) UpdateSession(ctx context.Context, rawSessionKey string, reque
 	return s.files.UpsertSession(workspacePath, *item)
 }
 
+// UpdateSessionTitle 以最小输入更新会话标题，供跨领域服务复用。
+func (s *Service) UpdateSessionTitle(ctx context.Context, rawSessionKey string, title string) (*Session, error) {
+	return s.UpdateSession(ctx, rawSessionKey, UpdateRequest{Title: &title})
+}
+
 // DeleteSession 删除普通 Agent 会话目录。
 func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error {
 	sessionKey, _, err := s.requireSessionKey(rawSessionKey)
