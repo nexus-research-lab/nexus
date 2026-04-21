@@ -1,51 +1,97 @@
 ---
 name: scheduled-task-manager
-description: 管理 Agent 与 Room 会话上的定时任务。当需要创建、查看、启停、立即执行、查看运行记录或删除定时任务时，使用此 skill。
+description: 管理智能体与 Room 会话上的定时任务。当需要创建、查看、启停、立即执行、查看运行记录或删除定时任务时，使用此 skill。
 ---
 
 # scheduled-task-manager
 
-管理 Nexus 平台中的定时任务。优先使用主智能体内置的定时任务工具，不要把这项能力当成 shell 命令包装器来使用。
+通过 `nexus_automation` MCP 工具管理 Nexus 平台的定时任务。这些工具和前端「新建任务」对话框一一对应——填工具参数等价于在 UI 上点字段。
 
 ## 使用原则
 
-- 涉及创建任务时，先明确四件事：
-  - 归属对象：`Agent` 还是 `Room`
-  - 执行方式：`主会话 / 现有会话 / 临时会话 / 专用长期会话`
-  - 调度规则：`every / cron / at`
-  - 执行内容：任务要做什么
-- 涉及删除或覆盖现有任务时，先列出当前任务，确认目标 `job_id`。
-- 默认使用正常模式读取紧凑 JSON；只有排查异常时才加 `--verbose`。
+- **作用域**：普通 Agent 只能 CRUD 自己 `agent_id` 名下的任务，`list_scheduled_tasks` 也只会返回自己的任务，越权调用会被后端拒绝。主智能体（Nexus）豁免该限制，可指定任意 `agent_id`。
+- 创建任务前，像在 UI 上一样明确四件事，缺一就用 AskUserQuestion 问用户：
+  1. **目标智能体**：`agent_id`（不传则用当前智能体）
+  2. **执行会话**：`execution_mode` = 主会话 / 现有会话 / 临时会话 / 专用长期会话
+  3. **调度规则**：`schedule.kind` = 单次 / 每天 / 间隔
+  4. **结果回传**：`reply_mode` = 不回传 / 回到执行会话 / 回到指定会话
+- 删除或覆盖现有任务前，先 `list_scheduled_tasks` 确认目标 `job_id`。
+- 只有短文本、一次一条的提醒/播报类任务，才允许默认按 `execution_mode=temporary` + `reply_mode=none` 创建；否则必须显式确认。
 
-## UI 字段对照
+## UI 字段 ↔ 工具参数对照
 
-- UI 的“使用主会话” = `session_target.kind = main`
-- UI 的“使用现有会话” = `session_target.kind = bound`
-- UI 的“每次新建临时会话” = `session_target.kind = isolated`
-- UI 的“使用专用长期会话” = `session_target.kind = named`
-- UI 的“结果回传”
-  - “不回传” = `delivery.mode = none`
-  - “回到执行会话” = 优先回到本次选中的执行/上下文会话；若执行目标是 Agent 主会话，则结果留在主会话内，不额外投递
-  - “回到指定会话” = `delivery.mode = explicit`
+| UI 字段 | 工具参数 |
+|---|---|
+| 任务名称 | `name` |
+| 目标智能体 | `agent_id` |
+| 执行会话 = 使用主会话 | `execution_mode: "main"` |
+| 执行会话 = 使用现有会话 | `execution_mode: "existing"` + `selected_session_key` |
+| 执行会话 = 每次新建临时会话 | `execution_mode: "temporary"` |
+| 执行会话 = 使用专用长期会话 | `execution_mode: "dedicated"` + `named_session_key` |
+| 结果回传 = 不回传 | `reply_mode: "none"` |
+| 结果回传 = 回到执行会话 | `reply_mode: "execution"` |
+| 结果回传 = 回到指定会话 | `reply_mode: "selected"` + `selected_reply_session_key` |
+| 调度 = 单次 | `schedule.kind: "single"` + `run_at` |
+| 调度 = 每天 | `schedule.kind: "daily"` + `daily_time` (+ `weekdays`) |
+| 调度 = 间隔 | `schedule.kind: "interval"` + `interval_value` + `interval_unit` |
+| 时区 | `schedule.timezone`（必填，IANA，例 `Asia/Shanghai`） |
+| 任务指令 | `instruction` |
+| 创建后立即启用任务 | `enabled`（缺省 true） |
 
-如果用户是从 UI 理解需求，优先用 UI 语义复述一遍，再落到结构化字段，避免把 `main / bound / named / isolated` 直接甩给用户。
+向用户描述时用左列 UI 语义，不要把右列的原始字段名甩给用户。
 
-## 可用动作
+## Schedule 三种模式的参数模板
 
-- `list_scheduled_tasks`
-- `create_scheduled_task`
-- `update_scheduled_task`
-- `delete_scheduled_task`
-- `enable_scheduled_task`
-- `disable_scheduled_task`
-- `run_scheduled_task`
-- `get_scheduled_task_runs`
+**单次**（对齐 UI「单次」Tab）：
+```json
+{
+  "kind": "single",
+  "run_at": "2026-04-21T18:00",
+  "timezone": "Asia/Shanghai"
+}
+```
+
+**每天**（对齐 UI「每天」Tab，不填 `weekdays` = 每天执行）：
+```json
+{
+  "kind": "daily",
+  "daily_time": "09:00",
+  "weekdays": ["mon", "tue", "wed", "thu", "fri"],
+  "timezone": "Asia/Shanghai"
+}
+```
+`weekdays` 取值：`mon`/`tue`/`wed`/`thu`/`fri`/`sat`/`sun`。
+
+**间隔**（对齐 UI「间隔」Tab）：
+```json
+{
+  "kind": "interval",
+  "interval_value": 30,
+  "interval_unit": "minutes",
+  "timezone": "Asia/Shanghai"
+}
+```
+`interval_unit` 取值：`seconds`/`minutes`/`hours`。
+
+## 可用工具
+
+| 工具 | 用途 |
+|---|---|
+| `list_scheduled_tasks` | 列出任务（可按 agent_id 过滤） |
+| `create_scheduled_task` | 创建任务 |
+| `update_scheduled_task` | 按 `job_id` 局部更新 |
+| `delete_scheduled_task` | 按 `job_id` 删除 |
+| `enable_scheduled_task` | 启用 |
+| `disable_scheduled_task` | 停用（保留配置） |
+| `run_scheduled_task` | 立即触发一次执行 |
+| `get_scheduled_task_runs` | 查看运行历史 |
 
 ## 建议工作流
 
-1. 先 `list_scheduled_tasks` 看当前状态
-2. 创建前确认归属对象、执行方式和调度规则
-3. 创建后根据需要 `run_scheduled_task` 做一次验证
-4. 观察异常时使用 `get_scheduled_task_runs`
-5. 调整配置时优先 `update_scheduled_task`
-6. 不再需要时再执行 `delete_scheduled_task`
+1. `list_scheduled_tasks` 看当前状态
+2. 按 UI 四件事确认字段
+3. `create_scheduled_task` 创建
+4. 必要时 `run_scheduled_task` 验证一次
+5. 异常时 `get_scheduled_task_runs` 看失败原因
+6. 调整走 `update_scheduled_task`（只传要改的字段）
+7. 不再需要 → `delete_scheduled_task`

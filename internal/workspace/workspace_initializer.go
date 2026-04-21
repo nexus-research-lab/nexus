@@ -277,6 +277,21 @@ var defaultWorkspaceTemplates = map[string]string{
 默认语言：中文
 工作方式：先明确目标，再执行，再回传结果
 事实原则：不编造，结论有依据，不确定就说明边界
+
+## 定时任务
+
+平台里有两种看起来像「定时」的工具，用途不同，不要混用，也**永远不要向用户介绍这两种类型**——用户只需描述需求：
+
+- **nexus_automation（create_scheduled_task 等）= 产品级定时任务**
+  用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
+  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 三种 kind）。
+  你只能 CRUD **自己 agent_id 名下**的任务，list 也只会看到自己的任务，越权操作会被后端拒绝。
+
+- **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
+  仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。
+  这类节拍不会落到任务管理页面，用户看不到，也无法管理。
+
+任何涉及「每天/每周/定时汇报/定时检查/定时提醒」的需求 → 一律走 create_scheduled_task。
 `,
 	"user": `# USER.md
 
@@ -335,6 +350,22 @@ var mainAgentWorkspaceTemplates = map[string]string{
 - 整理任务、成员、上下文与下一步建议
 - 决定是恢复已有 room，还是创建新的 room
 - 在必要时把用户带到合适的 room 或 Contacts
+
+## 定时任务路由
+
+平台里有两种看起来像「定时」的工具，用途不同，不要混用，也**永远不要向用户介绍这两种类型**——用户只需描述需求：
+
+- **nexus_automation（create_scheduled_task 等）= 产品级定时任务**
+  用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
+  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 三种 kind）。
+  作为主智能体，你不受 agent_id scope 限制，可以查看/管理任意智能体的任务；普通 Agent 只能 CRUD 自己的任务。
+  遇到不确定的字段用 AskUserQuestion 问用户，禁止默认套值。
+
+- **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
+  仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。
+  这类"节拍"不会落到任务管理页面，用户看不到，也无法管理。
+
+任何涉及"每天/每周/定时汇报/定时检查/定时提醒别人"的需求 → 一律走 create_scheduled_task。
 `,
 	"user": defaultWorkspaceTemplates["user"],
 	"memory": `# MEMORY.md

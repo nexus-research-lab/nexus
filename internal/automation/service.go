@@ -238,6 +238,26 @@ func (s *Service) CountEnabledTasks(ctx context.Context, agentID string) (int, e
 	return s.repository.CountEnabledCronJobs(ctx, strings.TrimSpace(agentID))
 }
 
+// GetTask 按 job_id 读取任务。返回 nil 表示未找到。
+func (s *Service) GetTask(ctx context.Context, jobID string) (*CronJob, error) {
+	if err := s.ensureReady(ctx); err != nil {
+		return nil, err
+	}
+	job, err := s.repository.GetCronJob(ctx, strings.TrimSpace(jobID))
+	if err != nil {
+		return nil, err
+	}
+	if job == nil {
+		return nil, nil
+	}
+	state := s.ensureJobState(*job)
+	enriched := *job
+	enriched.Running = state.Running
+	enriched.NextRunAt = cloneTimePointer(state.NextRunAt)
+	enriched.LastRunAt = cloneTimePointer(state.LastRunAt)
+	return &enriched, nil
+}
+
 // CreateTask 创建任务。
 func (s *Service) CreateTask(ctx context.Context, input CreateJobInput) (*CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
