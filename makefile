@@ -12,6 +12,7 @@ AGENT_UID ?= 1001
 AGENT_GID ?= 1001
 HOST_SUDO ?= sudo
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
+PRIVATE_SDK_MODULE ?= github.com/nexus-research-lab/nexus-agent-sdk-go
 
 # Default target
 .DEFAULT_GOAL := help
@@ -77,6 +78,26 @@ dev: ## Run both frontend and backend in development mode
 install: ## Install all dependencies
 	@echo "Installing Go dependencies..."
 	@if command -v go >/dev/null 2>&1; then \
+		if grep -q "^replace $(PRIVATE_SDK_MODULE) => /" go.mod; then \
+			echo "Error: go.mod still contains a local replace for $(PRIVATE_SDK_MODULE)."; \
+			echo "The current main branch expects access to a private SDK repository and cannot be installed from a clean environment until that replace is removed or the dependency strategy is updated."; \
+			echo "See README.md -> Private Go SDK dependency for the required GitHub / GOPRIVATE setup and current limitations."; \
+			exit 1; \
+		fi; \
+		go env GOPRIVATE | tr ',' '\n' | grep -Fxq "github.com/nexus-research-lab/*" || { \
+			echo "Error: GOPRIVATE is not configured for github.com/nexus-research-lab/*."; \
+			echo "Set GOPRIVATE (and usually GONOSUMDB) before running make install:"; \
+			echo "  go env -w GOPRIVATE=github.com/nexus-research-lab/*"; \
+			echo "  go env -w GONOSUMDB=github.com/nexus-research-lab/*"; \
+			echo "See README.md -> Private Go SDK dependency for details."; \
+			exit 1; \
+		}; \
+		git config --get-regexp '^url\..*github\.com[:/]nexus-research-lab/' >/dev/null 2>&1 || { \
+			echo "Error: git is not configured with non-interactive credentials for github.com/nexus-research-lab/."; \
+			echo "Configure a PAT or SSH access before running make install."; \
+			echo "See README.md -> Private Go SDK dependency for examples."; \
+			exit 1; \
+		}; \
 		go mod download; \
 	else \
 		echo "No usable Go runtime found"; \

@@ -30,6 +30,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 )
 
@@ -49,11 +50,31 @@ type deliveryRouter interface {
 	DeliverText(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryTarget, error)
 }
 
+type runtimeSessionCloser interface {
+	CloseSession(context.Context, string) error
+}
+
 type jobRuntimeState struct {
-	Job       CronJob
-	Running   bool
-	NextRunAt *time.Time
-	LastRunAt *time.Time
+	Job           CronJob
+	Running       bool
+	NextRunAt     *time.Time
+	LastRunAt     *time.Time
+	FailureStreak int
+}
+
+// 失败重试策略：连续失败不超过 maxFailureRetries 次时，按 retryBackoffs 顺序退避重排。
+// 超过阈值后回退到 Schedule 的正常节奏，由下一个自然触发继续尝试。
+var retryBackoffs = []time.Duration{
+	30 * time.Second,
+	2 * time.Minute,
+	10 * time.Minute,
+}
+
+func retryBackoffFor(streak int) (time.Duration, bool) {
+	if streak <= 0 || streak > len(retryBackoffs) {
+		return 0, false
+	}
+	return retryBackoffs[streak-1], true
 }
 
 type heartbeatRuntimeState struct {
@@ -66,17 +87,27 @@ type heartbeatRuntimeState struct {
 	DeliveryError   *string
 }
 
+type heartbeatWakeRequest struct {
+	AgentID    string
+	SessionKey string
+	WakeMode   string
+	Text       string
+}
+
+const heartbeatExplicitTargetUnsupportedMessage = "heartbeat target_mode=explicit is not supported in Task 6 runtime"
+
 // Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
 type Service struct {
-	config     config.Config
-	repository *sqlRepository
-	agents     *agent2.Service
-	chat       chatRunner
-	room       roomRunner
-	permission *permissionctx.Context
-	workspace  workspaceReader
-	delivery   deliveryRouter
-	logger     *slog.Logger
+	config        config.Config
+	repository    *sqlRepository
+	agents        *agent2.Service
+	chat          chatRunner
+	room          roomRunner
+	permission    *permissionctx.Context
+	workspace     workspaceReader
+	delivery      deliveryRouter
+	logger        *slog.Logger
+	sessionCloser runtimeSessionCloser
 
 	nowFn     func() time.Time
 	idFactory func(string) string
@@ -84,6 +115,7 @@ type Service struct {
 	mu             sync.Mutex
 	jobStates      map[string]*jobRuntimeState
 	heartbeatState map[string]*heartbeatRuntimeState
+	wakeRequests   map[string][]heartbeatWakeRequest
 	started        bool
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
@@ -114,6 +146,7 @@ func NewService(
 		idFactory:      newAutomationID,
 		jobStates:      make(map[string]*jobRuntimeState),
 		heartbeatState: make(map[string]*heartbeatRuntimeState),
+		wakeRequests:   make(map[string][]heartbeatWakeRequest),
 	}
 }
 
@@ -124,6 +157,11 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 		return
 	}
 	s.logger = logger
+}
+
+// SetRuntimeSessionCloser 注入运行时会话关闭器，用于清理 isolated 自动化会话。
+func (s *Service) SetRuntimeSessionCloser(sessionCloser runtimeSessionCloser) {
+	s.sessionCloser = sessionCloser
 }
 
 // Start 启动后台调度循环。
@@ -321,6 +359,9 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) error {
 	if err = s.repository.DeleteCronJob(ctx, current.JobID); err != nil {
 		return err
 	}
+	if err = s.cleanupIsolatedAutomationSessions(ctx, *current); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
 	s.mu.Unlock()
@@ -348,6 +389,12 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*ExecutionResul
 
 func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
+}
+
+func (s *Service) isAutomationLoopRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.started
 }
 
 // ListTaskRuns 返回任务运行历史。
@@ -383,7 +430,7 @@ func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*Hear
 		EverySeconds:    state.Config.EverySeconds,
 		TargetMode:      state.Config.TargetMode,
 		AckMaxChars:     state.Config.AckMaxChars,
-		Running:         state.Running,
+		Running:         s.isAutomationLoopRunning(),
 		PendingWake:     state.PendingWake,
 		NextRunAt:       cloneTimePointer(state.NextRunAt),
 		LastHeartbeatAt: cloneTimePointer(state.LastHeartbeatAt),
@@ -407,6 +454,9 @@ func (s *Service) UpdateHeartbeat(ctx context.Context, agentID string, input Hea
 		TargetMode:   strings.TrimSpace(input.TargetMode),
 		AckMaxChars:  input.AckMaxChars,
 	}.Normalized()
+	if configValue.TargetMode == HeartbeatTargetExplicit {
+		return nil, ErrHeartbeatConfigInvalid
+	}
 	if err := configValue.Validate(); err != nil {
 		return nil, err
 	}
@@ -470,12 +520,13 @@ func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request Hea
 			return nil, err
 		}
 	}
+	sessionKey := buildMainSessionKey(state.Config.AgentID)
+	s.recordWakeRequest(state.Config.AgentID, sessionKey, mode, request.Text)
 
 	s.mu.Lock()
 	switch mode {
 	case WakeModeNow:
 		if state.Running {
-			state.PendingWake = true
 			s.mu.Unlock()
 			return &HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: true}, nil
 		}
@@ -545,10 +596,6 @@ func (s *Service) runDueOnce() {
 		if state == nil || state.Running {
 			continue
 		}
-		if state.PendingWake {
-			dueHeartbeats = append(dueHeartbeats, agentID)
-			continue
-		}
 		if !state.Config.Enabled || state.NextRunAt == nil || state.NextRunAt.After(now) {
 			continue
 		}
@@ -586,7 +633,8 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 		return nil, err
 	}
 	if strings.TrimSpace(job.SessionTarget.Kind) == SessionTargetMain {
-		if err := s.enqueueMainSessionEvent(ctx, job, triggerKind); err != nil {
+		eventID, err := s.enqueueMainSessionEvent(ctx, job, triggerKind)
+		if err != nil {
 			return nil, err
 		}
 		mode := job.SessionTarget.WakeMode
@@ -594,6 +642,7 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 			mode = WakeModeNextHeartbeat
 		}
 		if _, err := s.WakeHeartbeat(ctx, job.AgentID, HeartbeatWakeRequest{Mode: mode}); err != nil {
+			_ = s.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
 			logger.Error("自动化任务唤醒主会话 heartbeat 失败", "err", err)
 			return nil, err
 		}
@@ -664,7 +713,7 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 		return nil, err
 	}
 
-	go s.observeJobRun(job, runID, roundID, sink, cleanup)
+	go s.observeJobRun(job, runID, roundID, sessionKey, sink, cleanup)
 
 	return &ExecutionResult{
 		JobID:        job.JobID,
@@ -677,7 +726,14 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 	}, nil
 }
 
-func (s *Service) observeJobRun(job CronJob, runID string, roundID string, sink *executionSink, cleanup func()) {
+func (s *Service) observeJobRun(
+	job CronJob,
+	runID string,
+	roundID string,
+	sessionKey string,
+	sink *executionSink,
+	cleanup func(),
+) {
 	defer cleanup()
 	defer sink.Close()
 
@@ -692,7 +748,7 @@ func (s *Service) observeJobRun(job CronJob, runID string, roundID string, sink 
 	}
 	errorMessage := cloneStringPointer(observation.ErrorMessage)
 	if status == RunStatusSucceeded {
-		if deliveryError := s.deliverJobObservation(job, observation); deliveryError != nil {
+		if deliveryError := s.deliverJobObservation(job, sessionKey, observation); deliveryError != nil {
 			status = RunStatusFailed
 			errorMessage = deliveryError
 		}
@@ -724,6 +780,7 @@ func (s *Service) observeJobRun(job CronJob, runID string, roundID string, sink 
 func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 	ctx := context.Background()
 	logger := s.loggerFor(ctx).With("agent_id", agentID, "reason", reason)
+	sessionKey := buildMainSessionKey(agentID)
 	state, err := s.ensureHeartbeatState(ctx, agentID)
 	if err != nil {
 		logger.Error("heartbeat 状态初始化失败", "err", err)
@@ -743,6 +800,9 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		state = runtime
 	}
 	s.mu.Unlock()
+	immediateWakeRequests := s.drainNowWakeRequests(agentID)
+	deferredWakeRequests := s.listNextHeartbeatWakeRequests(agentID)
+	defer s.clearWakeRequestsBySession(sessionKey)
 
 	events, err := s.claimSystemEvents(ctx, agentID)
 	if err != nil {
@@ -751,7 +811,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		return
 	}
 
-	instruction, err := s.buildHeartbeatInstruction(ctx, agentID, events)
+	instruction, err := s.buildHeartbeatInstruction(ctx, agentID, events, immediateWakeRequests, deferredWakeRequests)
 	if err != nil {
 		logger.Error("heartbeat 构建指令失败", "event_count", len(events), "err", err)
 		s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
@@ -765,7 +825,6 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		return
 	}
 
-	sessionKey := buildMainSessionKey(agentID)
 	roundID := s.idFactory("hbround")
 	sink := newExecutionSink("heartbeat:" + agentID + ":" + roundID)
 	cleanup := s.bindSink(sessionKey, sink)
@@ -842,7 +901,13 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 	_ = reason
 }
 
-func (s *Service) buildHeartbeatInstruction(ctx context.Context, agentID string, events []SystemEvent) (string, error) {
+func (s *Service) buildHeartbeatInstruction(
+	ctx context.Context,
+	agentID string,
+	events []SystemEvent,
+	immediateWakeRequests []heartbeatWakeRequest,
+	deferredWakeRequests []heartbeatWakeRequest,
+) (string, error) {
 	sections := make([]string, 0, 3)
 	if s.workspace != nil {
 		file, err := s.workspace.GetFile(ctx, agentID, "HEARTBEAT.md")
@@ -850,7 +915,25 @@ func (s *Service) buildHeartbeatInstruction(ctx context.Context, agentID string,
 			return "", err
 		}
 		if file != nil && strings.TrimSpace(file.Content) != "" {
-			sections = append(sections, strings.TrimSpace(file.Content))
+			tasks := parseHeartbeatTasks(file.Content)
+			if len(tasks) > 0 {
+				taskLines := make([]string, 0, len(tasks))
+				for _, item := range tasks {
+					line := firstNonEmpty(
+						strings.TrimSpace(item.Prompt),
+						strings.TrimSpace(item.Name),
+						strings.TrimSpace(item.Interval),
+					)
+					if line != "" {
+						taskLines = append(taskLines, line)
+					}
+				}
+				if len(taskLines) > 0 {
+					sections = append(sections, "Heartbeat tasks:\n- "+strings.Join(taskLines, "\n- "))
+				}
+			} else {
+				sections = append(sections, strings.TrimSpace(file.Content))
+			}
 		}
 	}
 
@@ -863,15 +946,48 @@ func (s *Service) buildHeartbeatInstruction(ctx context.Context, agentID string,
 			eventLines = append(eventLines, text)
 			continue
 		}
-		instruction := strings.TrimSpace(anyString(payload["instruction"]))
-		if instruction != "" {
-			eventLines = append(eventLines, instruction)
-			continue
-		}
 		eventLines = append(eventLines, item.EventType)
 	}
 	if len(eventLines) > 0 {
 		sections = append(sections, "System events:\n- "+strings.Join(eventLines, "\n- "))
+	}
+
+	existingLines := make(map[string]struct{}, len(eventLines))
+	for _, item := range eventLines {
+		existingLines[item] = struct{}{}
+	}
+	wakeLines := make([]string, 0, len(immediateWakeRequests)+len(deferredWakeRequests))
+	appendWakeLine := func(request heartbeatWakeRequest) {
+		text := strings.TrimSpace(request.Text)
+		if text != "" {
+			if _, duplicated := existingLines[text]; duplicated {
+				return
+			}
+			wakeLines = append(wakeLines, text)
+			existingLines[text] = struct{}{}
+			return
+		}
+		fallback := "wake request (" + strings.TrimSpace(request.WakeMode) + ")"
+		if strings.TrimSpace(request.WakeMode) == "" {
+			fallback = "wake request (unknown)"
+		}
+		if _, duplicated := existingLines[fallback]; duplicated {
+			return
+		}
+		wakeLines = append(wakeLines, fallback)
+		existingLines[fallback] = struct{}{}
+	}
+	for _, item := range immediateWakeRequests {
+		appendWakeLine(item)
+	}
+	for _, item := range deferredWakeRequests {
+		appendWakeLine(item)
+	}
+	if len(wakeLines) > 0 {
+		sections = append(sections, "Wake requests:\n- "+strings.Join(wakeLines, "\n- "))
+	}
+	if summary := s.describeScheduledTasksSection(ctx, agentID); summary != "" {
+		sections = append(sections, summary)
 	}
 	return strings.TrimSpace(strings.Join(sections, "\n\n")), nil
 }
@@ -937,21 +1053,25 @@ func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roun
 	})
 }
 
-func (s *Service) enqueueMainSessionEvent(ctx context.Context, job CronJob, triggerKind string) error {
-	return s.repository.InsertSystemEvent(
+func (s *Service) enqueueMainSessionEvent(ctx context.Context, job CronJob, triggerKind string) (string, error) {
+	eventID := s.idFactory("evt")
+	if err := s.repository.InsertSystemEvent(
 		ctx,
-		s.idFactory("evt"),
+		eventID,
 		"cron.trigger",
 		"cron",
 		job.AgentID,
 		map[string]any{
 			"agent_id":            job.AgentID,
 			"job_id":              job.JobID,
-			"instruction":         job.Instruction,
+			"text":                job.Instruction,
 			"trigger_kind":        triggerKind,
 			"session_target_kind": job.SessionTarget.Kind,
 		},
-	)
+	); err != nil {
+		return "", err
+	}
+	return eventID, nil
 }
 
 func (s *Service) ensureReady(ctx context.Context) error {
@@ -1002,8 +1122,6 @@ func (s *Service) ensureDirectTargetSupported(target SessionTarget) error {
 
 func (s *Service) ensureJobState(job CronJob) *jobRuntimeState {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	state := s.jobStates[job.JobID]
 	if state == nil {
 		state = &jobRuntimeState{}
@@ -1015,6 +1133,16 @@ func (s *Service) ensureJobState(job CronJob) *jobRuntimeState {
 	}
 	if !job.Enabled {
 		state.Running = false
+	}
+	// 启动期发现 at-kind 已过期且仍处于启用态时，主动落库为停用，避免反复检查空 NextRunAt 浪费循环。
+	shouldDisable := job.Enabled &&
+		strings.EqualFold(job.Schedule.Kind, ScheduleKindAt) &&
+		state.NextRunAt == nil
+	jobSnapshot := state.Job
+	s.mu.Unlock()
+
+	if shouldDisable {
+		s.disableExpiredJobAsync(jobSnapshot)
 	}
 	return state
 }
@@ -1033,20 +1161,22 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*he
 	}
 	if configValue == nil {
 		defaultValue := DefaultHeartbeatConfig(agentID)
+		sanitizedConfig, deliveryError := sanitizeHeartbeatConfig(defaultValue)
 		state = &heartbeatRuntimeState{
-			Config:          defaultValue,
-			NextRunAt:       s.computeHeartbeatNext(defaultValue, s.nowFn()),
+			Config:          sanitizedConfig,
+			NextRunAt:       s.computeHeartbeatNext(sanitizedConfig, s.nowFn()),
 			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
 			LastAckAt:       cloneTimePointer(lastAckAt),
+			DeliveryError:   cloneStringPointer(deliveryError),
 		}
 	} else {
-		normalized := configValue.Normalized()
+		normalized, deliveryError := sanitizeHeartbeatConfig(configValue.Normalized())
 		state = &heartbeatRuntimeState{
 			Config:          normalized,
 			NextRunAt:       s.computeHeartbeatNext(normalized, s.nowFn()),
 			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
 			LastAckAt:       cloneTimePointer(lastAckAt),
-			DeliveryError:   nil,
+			DeliveryError:   cloneStringPointer(deliveryError),
 		}
 	}
 
@@ -1077,17 +1207,70 @@ func (s *Service) computeHeartbeatNext(configValue HeartbeatConfig, now time.Tim
 
 func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, succeeded bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	state := s.jobStates[jobID]
 	if state == nil {
+		s.mu.Unlock()
 		return
 	}
 	state.Running = false
-	state.NextRunAt = s.computeJobNext(state.Job, s.nowFn())
 	if finishedAt != nil {
 		state.LastRunAt = cloneTimePointer(finishedAt)
 	}
-	_ = succeeded
+
+	now := s.nowFn()
+	naturalNext := s.computeJobNext(state.Job, now)
+
+	if succeeded {
+		state.FailureStreak = 0
+		state.NextRunAt = naturalNext
+	} else {
+		state.FailureStreak++
+		state.NextRunAt = naturalNext
+		if backoff, ok := retryBackoffFor(state.FailureStreak); ok {
+			retryAt := now.UTC().Add(backoff)
+			if naturalNext == nil || retryAt.Before(*naturalNext) {
+				retryCopy := retryAt
+				state.NextRunAt = &retryCopy
+			}
+		}
+	}
+
+	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
+	shouldDisable := state.Job.Enabled &&
+		strings.EqualFold(state.Job.Schedule.Kind, ScheduleKindAt) &&
+		state.NextRunAt == nil
+	jobSnapshot := state.Job
+	s.mu.Unlock()
+
+	if shouldDisable {
+		s.disableExpiredJobAsync(jobSnapshot)
+	}
+}
+
+func (s *Service) disableExpiredJobAsync(job CronJob) {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		updated := job
+		updated.Enabled = false
+		if _, err := s.repository.UpsertCronJob(context.Background(), updated); err != nil {
+			s.loggerFor(context.Background()).Warn("at 任务到期自动停用失败",
+				"job_id", job.JobID,
+				"agent_id", job.AgentID,
+				"err", err,
+			)
+			return
+		}
+		s.mu.Lock()
+		if state := s.jobStates[job.JobID]; state != nil {
+			state.Job.Enabled = false
+		}
+		s.mu.Unlock()
+		s.loggerFor(context.Background()).Info("at 任务到期已自动停用",
+			"job_id", job.JobID,
+			"agent_id", job.AgentID,
+		)
+	}()
 }
 
 func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, ackAt *time.Time, deliveryError *string) {
@@ -1125,6 +1308,127 @@ func (s *Service) persistHeartbeatTimes(ctx context.Context, agentID string, las
 		return err
 	}
 	return s.repository.UpsertHeartbeatState(ctx, s.idFactory("hb"), state.Config, lastHeartbeatAt, lastAckAt)
+}
+
+func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode string, text *string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sessionKey = strings.TrimSpace(sessionKey)
+	request := heartbeatWakeRequest{
+		AgentID:    strings.TrimSpace(agentID),
+		SessionKey: sessionKey,
+		WakeMode:   strings.TrimSpace(wakeMode),
+		Text:       strings.TrimSpace(anyStringPointer(text)),
+	}
+	items := append([]heartbeatWakeRequest(nil), s.wakeRequests[sessionKey]...)
+	for index, item := range items {
+		if item.WakeMode == request.WakeMode {
+			items[index] = request
+			s.wakeRequests[sessionKey] = items
+			return
+		}
+	}
+	s.wakeRequests[sessionKey] = append(items, request)
+}
+
+func (s *Service) drainNowWakeRequests(agentID string) []heartbeatWakeRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]heartbeatWakeRequest, 0)
+	for sessionKey, items := range s.wakeRequests {
+		kept := make([]heartbeatWakeRequest, 0, len(items))
+		for _, item := range items {
+			if item.AgentID == strings.TrimSpace(agentID) && item.WakeMode == WakeModeNow {
+				result = append(result, item)
+				continue
+			}
+			kept = append(kept, item)
+		}
+		if len(kept) == 0 {
+			delete(s.wakeRequests, sessionKey)
+			continue
+		}
+		s.wakeRequests[sessionKey] = kept
+	}
+	return result
+}
+
+func (s *Service) listNextHeartbeatWakeRequests(agentID string) []heartbeatWakeRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]heartbeatWakeRequest, 0)
+	for _, items := range s.wakeRequests {
+		for _, item := range items {
+			if item.AgentID == strings.TrimSpace(agentID) && item.WakeMode == WakeModeNextHeartbeat {
+				result = append(result, item)
+			}
+		}
+	}
+	return result
+}
+
+func (s *Service) clearWakeRequestsBySession(sessionKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.wakeRequests, strings.TrimSpace(sessionKey))
+}
+
+func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job CronJob) error {
+	if strings.TrimSpace(job.SessionTarget.Kind) != SessionTargetIsolated {
+		return nil
+	}
+	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(workspacePath) == "" {
+		return nil
+	}
+	prefix := fmt.Sprintf("agent:%s:automation:dm:cron:%s:", strings.TrimSpace(job.AgentID), strings.TrimSpace(job.JobID))
+	files := workspacestore.NewSessionFileStore(s.config.WorkspacePath)
+	sessions, err := files.ListSessions(workspacePath)
+	if err != nil {
+		return err
+	}
+	for _, item := range sessions {
+		sessionKey := strings.TrimSpace(item.SessionKey)
+		if !strings.HasPrefix(sessionKey, prefix) {
+			continue
+		}
+		parsed := protocol.ParseSessionKey(sessionKey)
+		if parsed.Kind != protocol.SessionKeyKindAgent || !parsed.IsStructured || parsed.Channel != "automation" {
+			continue
+		}
+		if _, deleteErr := files.DeleteSession(workspacePath, sessionKey); deleteErr != nil {
+			return deleteErr
+		}
+		if s.sessionCloser != nil {
+			_ = s.sessionCloser.CloseSession(context.Background(), sessionKey)
+		}
+	}
+	return nil
+}
+
+func (s *Service) resolveAutomationWorkspacePath(ctx context.Context, agentID string) (string, error) {
+	if s.agents != nil && strings.TrimSpace(agentID) != "" {
+		agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(agentValue.WorkspacePath) != "" {
+			return strings.TrimSpace(agentValue.WorkspacePath), nil
+		}
+	}
+	return strings.TrimSpace(s.config.WorkspacePath), nil
+}
+
+func sanitizeHeartbeatConfig(configValue HeartbeatConfig) (HeartbeatConfig, *string) {
+	result := configValue
+	if strings.TrimSpace(result.TargetMode) != HeartbeatTargetExplicit {
+		return result, nil
+	}
+	result.TargetMode = HeartbeatTargetNone
+	return result, stringPointer(heartbeatExplicitTargetUnsupportedMessage)
 }
 
 func resolveSessionKey(job CronJob, runID *string) (string, error) {
@@ -1203,8 +1507,18 @@ func stringPointer(value string) *string {
 	return &normalized
 }
 
-func (s *Service) deliverJobObservation(job CronJob, observation executionObservation) *string {
+func (s *Service) deliverJobObservation(
+	job CronJob,
+	executionSessionKey string,
+	observation executionObservation,
+) *string {
 	if strings.TrimSpace(job.Delivery.Mode) == "" || strings.TrimSpace(job.Delivery.Mode) == DeliveryModeNone {
+		return nil
+	}
+	if strings.TrimSpace(job.Delivery.Mode) == DeliveryModeExplicit &&
+		strings.TrimSpace(job.Delivery.Channel) == "websocket" &&
+		strings.TrimSpace(job.Delivery.To) != "" &&
+		strings.TrimSpace(job.Delivery.To) == strings.TrimSpace(executionSessionKey) {
 		return nil
 	}
 	if s.delivery == nil {

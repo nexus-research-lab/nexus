@@ -185,6 +185,9 @@ func (t SessionTarget) Validate() error {
 		if strings.TrimSpace(t.NamedSessionKey) == "" {
 			return errors.New("named_session_key is required when session_target.kind is named")
 		}
+		if strings.EqualFold(strings.TrimSpace(t.NamedSessionKey), "main") {
+			return errors.New("named_session_key 'main' is reserved")
+		}
 	default:
 		return errors.New("session_target.kind must be one of isolated, main, bound, named")
 	}
@@ -253,15 +256,25 @@ func (d DeliveryTarget) Normalized() DeliveryTarget {
 
 // Validate 校验任务来源。
 func (s Source) Validate() error {
+	contextID := strings.TrimSpace(s.ContextID)
+	contextLabel := strings.TrimSpace(s.ContextLabel)
 	switch strings.TrimSpace(s.Kind) {
 	case "", SourceKindUserPage, SourceKindAgent, SourceKindCLI, SourceKindSystem:
 	default:
 		return errors.New("source.kind must be one of user_page, agent, cli, system")
 	}
-	switch strings.TrimSpace(s.ContextType) {
+	contextType := strings.TrimSpace(s.ContextType)
+	switch contextType {
 	case "", "agent", "room":
 	default:
 		return errors.New("source.context_type must be one of agent, room")
+	}
+	if contextType == "" {
+		if contextID != "" || contextLabel != "" {
+			return errors.New("context_type is required when context_id or context_label is provided")
+		}
+	} else if contextID == "" {
+		return errors.New("context_id is required when context_type is provided")
 	}
 	if strings.TrimSpace(s.SessionKey) != "" {
 		if _, err := protocol.RequireStructuredSessionKey(s.SessionKey); err != nil {
