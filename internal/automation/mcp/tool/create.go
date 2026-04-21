@@ -2,7 +2,6 @@ package tool
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
@@ -14,10 +13,11 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 )
 
-const createDescription = "创建新的定时任务。若用户没有明确提供执行方式、结果回传方式或时区，" +
-	"必须先通过 AskUserQuestion 与用户确认，禁止直接套默认参数。" +
-	"只有非常简单、短文本、一次一条的提醒/播报类任务，才允许默认按 temporary + none 创建。" +
-	"优先使用和页面一致的 execution_mode / reply_mode 语义，不要直接组合底层 session_target / delivery 细节。"
+const createDescription = "创建定时任务。本工具 == UI「新建任务」对话框的命令版本，字段一对一映射：" +
+	"name / instruction / schedule(kind=single|daily|interval) / execution_mode / reply_mode / " +
+	"selected_session_key(existing) / named_session_key(dedicated) / selected_reply_session_key(selected)。" +
+	"若用户没有明确 execution_mode / reply_mode / schedule.timezone，必须先用 AskUserQuestion 与用户确认，" +
+	"禁止默认套值。只有短文本、一次一条的提醒/播报类任务才允许默认按 temporary + none 创建。"
 
 func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
 	return agentclient.MCPTool{
@@ -42,18 +42,23 @@ func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 	}
 }
 
-// buildCreateInput 把工具入参（已经过守卫与默认值处理）翻译成底层 CreateJobInput。
+// buildCreateInput 把工具入参翻译成底层 CreateJobInput。
+// 只接受 UI 对齐字段，不再允许直接传 session_target / delivery / source。
 func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automationsvc.CreateJobInput, error) {
 	schedule, err := builder.Schedule(args["schedule"])
 	if err != nil {
 		return automationsvc.CreateJobInput{}, err
 	}
-	agentID := argx.FirstNonEmpty(argx.String(args, "agent_id"), sctx.CurrentAgentID)
-	if agentID == "" {
-		return automationsvc.CreateJobInput{}, errors.New("agent_id is required")
+	agentID, err := resolveCreateAgentID(sctx, argx.String(args, "agent_id"))
+	if err != nil {
+		return automationsvc.CreateJobInput{}, err
 	}
 	executionMode := strings.TrimSpace(argx.String(args, "execution_mode"))
 	replyMode := strings.TrimSpace(argx.String(args, "reply_mode"))
+
+	if err := semantic.ValidatePage(executionMode, replyMode); err != nil {
+		return automationsvc.CreateJobInput{}, err
+	}
 
 	sessionTarget, err := semantic.SessionTarget(args, sctx, executionMode)
 	if err != nil {
@@ -63,9 +68,6 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 	if err != nil {
 		return automationsvc.CreateJobInput{}, err
 	}
-	if err := semantic.ValidatePage(sessionTarget, delivery, executionMode, replyMode); err != nil {
-		return automationsvc.CreateJobInput{}, err
-	}
 	return automationsvc.CreateJobInput{
 		Name:          argx.String(args, "name"),
 		AgentID:       agentID,
@@ -73,7 +75,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 		Instruction:   argx.String(args, "instruction"),
 		SessionTarget: sessionTarget,
 		Delivery:      delivery,
-		Source:        semantic.Source(args["source"], sctx, agentID),
+		Source:        semantic.Source(sctx, agentID),
 		Enabled:       argx.Bool(args, "enabled", true),
 	}, nil
 }

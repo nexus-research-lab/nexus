@@ -9,17 +9,21 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 )
 
-func list(svc contract.Service) agentclient.MCPTool {
+func list(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
 	return agentclient.MCPTool{
 		Name:        "list_scheduled_tasks",
-		Description: "列出某个智能体或全部定时任务。未传 agent_id 则列全部。",
+		Description: "列出定时任务。普通 agent 只能看到自己 agent_id 名下的任务；主智能体可传 agent_id 过滤或不传以列全部。",
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"agent_id": map[string]any{"type": "string"}},
 		},
 		Annotations: &agentclient.MCPToolAnnotations{ReadOnly: true},
 		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
-			jobs, err := svc.ListTasks(ctx, argx.String(args, "agent_id"))
+			filterAgentID, err := resolveListAgentID(sctx, argx.String(args, "agent_id"))
+			if err != nil {
+				return render.Error(err), nil
+			}
+			jobs, err := svc.ListTasks(ctx, filterAgentID)
 			if err != nil {
 				return render.Error(err), nil
 			}

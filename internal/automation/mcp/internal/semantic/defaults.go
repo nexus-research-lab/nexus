@@ -31,15 +31,15 @@ func CanDefaultToTemporaryNone(args map[string]any) bool {
 	}
 	kind := strings.TrimSpace(argx.String(schedule, "kind"))
 	switch kind {
-	case "every":
-		if argx.Int(schedule["interval_seconds"]) <= 0 {
+	case "interval":
+		if argx.Int(schedule["interval_value"]) <= 0 {
 			return false
 		}
-	case "cron":
-		if strings.TrimSpace(argx.String(schedule, "cron_expression")) == "" {
+	case "daily":
+		if strings.TrimSpace(argx.String(schedule, "daily_time")) == "" {
 			return false
 		}
-	case "at":
+	case "single":
 		if strings.TrimSpace(argx.String(schedule, "run_at")) == "" {
 			return false
 		}
@@ -54,18 +54,16 @@ func ApplySimpleDefaults(args map[string]any) map[string]any {
 	if !CanDefaultToTemporaryNone(args) {
 		return args
 	}
-	hasSessionTarget := argx.HasObject(args, "session_target") || argx.String(args, "execution_mode") != ""
-	hasDelivery := argx.HasObject(args, "delivery") || argx.String(args, "reply_mode") != ""
-	if !hasSessionTarget {
+	if argx.String(args, "execution_mode") == "" {
 		args["execution_mode"] = "temporary"
 	}
-	if !hasDelivery {
+	if argx.String(args, "reply_mode") == "" {
 		args["reply_mode"] = "none"
 	}
 	return args
 }
 
-// RequireExplicitCreateFields 在不允许默认时强制要求 schedule.timezone 与 session_target / delivery 字段齐全。
+// RequireExplicitCreateFields 在不允许默认时强制要求 schedule.timezone 与 execution_mode / reply_mode 字段齐全。
 func RequireExplicitCreateFields(args map[string]any) error {
 	schedule, ok := args["schedule"].(map[string]any)
 	if !ok {
@@ -74,11 +72,11 @@ func RequireExplicitCreateFields(args map[string]any) error {
 	missing := []string{}
 	allowSimple := CanDefaultToTemporaryNone(args)
 	if !allowSimple {
-		if !argx.HasObject(args, "session_target") && argx.String(args, "execution_mode") == "" {
-			missing = append(missing, "session_target")
+		if argx.String(args, "execution_mode") == "" {
+			missing = append(missing, "execution_mode")
 		}
-		if !argx.HasObject(args, "delivery") && argx.String(args, "reply_mode") == "" {
-			missing = append(missing, "delivery")
+		if argx.String(args, "reply_mode") == "" {
+			missing = append(missing, "reply_mode")
 		}
 	}
 	if strings.TrimSpace(argx.String(schedule, "timezone")) == "" {

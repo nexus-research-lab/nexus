@@ -66,6 +66,18 @@ func (s *stubService) ListTaskRuns(_ context.Context, _ string) ([]automationsvc
 	return nil, nil
 }
 
+func (s *stubService) GetTask(_ context.Context, jobID string) (*automationsvc.CronJob, error) {
+	for i := range s.jobs {
+		if s.jobs[i].JobID == jobID {
+			return &s.jobs[i], nil
+		}
+	}
+	if s.created != nil && s.created.JobID == jobID {
+		return s.created, nil
+	}
+	return &automationsvc.CronJob{JobID: jobID}, nil
+}
+
 func newInterval(v int) *int { return &v }
 
 func callTool(t *testing.T, svc Service, sctx ServerContext, name string, args map[string]any) (map[string]any, bool) {
@@ -104,25 +116,36 @@ func extractText(t *testing.T, result map[string]any) string {
 	return ""
 }
 
-func TestCreateRejectsMissingSessionTarget(t *testing.T) {
+func intervalSchedule(value int, unit string) map[string]any {
+	return map[string]any{
+		"kind":           "interval",
+		"interval_value": value,
+		"interval_unit":  unit,
+		"timezone":       "Asia/Shanghai",
+	}
+}
+
+func dailySchedule(hhmm string) map[string]any {
+	return map[string]any{
+		"kind":       "daily",
+		"daily_time": hhmm,
+		"timezone":   "Asia/Shanghai",
+	}
+}
+
+func TestCreateRejectsMissingExecutionMode(t *testing.T) {
 	svc := &stubService{}
 	sctx := ServerContext{CurrentAgentID: "agent-1"}
-	tz := "Asia/Shanghai"
-	interval := 300
 	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
 		"name":        "每五分钟总结一次昨天的错误日志",
 		"instruction": "请总结昨天的错误日志",
-		"schedule": map[string]any{
-			"kind":             "every",
-			"interval_seconds": interval,
-			"timezone":         tz,
-		},
+		"schedule":    intervalSchedule(5, "minutes"),
 	})
 	if !isError {
 		t.Fatalf("expected error result, got %+v", result)
 	}
-	if !strings.Contains(extractText(t, result), "session_target") {
-		t.Fatalf("error must mention session_target: %s", extractText(t, result))
+	if !strings.Contains(extractText(t, result), "execution_mode") {
+		t.Fatalf("error must mention execution_mode: %s", extractText(t, result))
 	}
 }
 
@@ -132,11 +155,7 @@ func TestCreateAllowsSimpleDefaults(t *testing.T) {
 	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
 		"name":        "简单提醒",
 		"instruction": "喝水",
-		"schedule": map[string]any{
-			"kind":             "every",
-			"interval_seconds": 900,
-			"timezone":         "Asia/Shanghai",
-		},
+		"schedule":    intervalSchedule(15, "minutes"),
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -146,6 +165,9 @@ func TestCreateAllowsSimpleDefaults(t *testing.T) {
 	}
 	if svc.createInput.Delivery.Mode != automationsvc.DeliveryModeNone {
 		t.Fatalf("expected none delivery from default, got %q", svc.createInput.Delivery.Mode)
+	}
+	if svc.createInput.Schedule.IntervalSeconds == nil || *svc.createInput.Schedule.IntervalSeconds != 15*60 {
+		t.Fatalf("expected 900s interval, got %+v", svc.createInput.Schedule.IntervalSeconds)
 	}
 }
 
@@ -157,11 +179,7 @@ func TestCreateExecutionModeExistingRequiresSession(t *testing.T) {
 		"instruction":    "跟进订单状态并汇总",
 		"execution_mode": "existing",
 		"reply_mode":     "none",
-		"schedule": map[string]any{
-			"kind":             "every",
-			"interval_seconds": 600,
-			"timezone":         "Asia/Shanghai",
-		},
+		"schedule":       intervalSchedule(10, "minutes"),
 	})
 	if !isError {
 		t.Fatalf("expected error result, got %+v", result)
@@ -178,12 +196,8 @@ func TestCreatePageSemanticsForbidsMainWithReply(t *testing.T) {
 		"name":           "长期监控",
 		"instruction":    "持续监控生产告警",
 		"execution_mode": "main",
-		"reply_mode":     "current_chat",
-		"schedule": map[string]any{
-			"kind":             "every",
-			"interval_seconds": 300,
-			"timezone":         "Asia/Shanghai",
-		},
+		"reply_mode":     "selected",
+		"schedule":       intervalSchedule(5, "minutes"),
 	})
 	if !isError {
 		t.Fatalf("expected error, got %+v", result)
@@ -193,7 +207,7 @@ func TestCreatePageSemanticsForbidsMainWithReply(t *testing.T) {
 	}
 }
 
-func TestCreateResolvesDeliveryFromReplyMode(t *testing.T) {
+func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
 	svc := &stubService{}
 	sctx := ServerContext{
 		CurrentAgentID:    "agent-1",
@@ -201,15 +215,12 @@ func TestCreateResolvesDeliveryFromReplyMode(t *testing.T) {
 		SourceContextType: "agent",
 	}
 	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "定点播报",
-		"instruction":    "每天 9 点说早安",
-		"execution_mode": "temporary",
-		"reply_mode":     "current_chat",
-		"schedule": map[string]any{
-			"kind":            "cron",
-			"cron_expression": "0 9 * * *",
-			"timezone":        "Asia/Shanghai",
-		},
+		"name":                       "定点播报",
+		"instruction":                "每天 9 点说早安",
+		"execution_mode":             "temporary",
+		"reply_mode":                 "selected",
+		"selected_reply_session_key": "agent:agent-1:dm:dm-user:main:",
+		"schedule":                   dailySchedule("09:00"),
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -219,6 +230,9 @@ func TestCreateResolvesDeliveryFromReplyMode(t *testing.T) {
 	}
 	if svc.createInput.Delivery.To != sctx.CurrentSessionKey {
 		t.Fatalf("expected delivery.To=current_session_key, got %q", svc.createInput.Delivery.To)
+	}
+	if svc.createInput.Schedule.CronExpression == nil || *svc.createInput.Schedule.CronExpression != "0 9 * * *" {
+		t.Fatalf("expected cron 0 9 * * *, got %+v", svc.createInput.Schedule.CronExpression)
 	}
 }
 
@@ -234,11 +248,7 @@ func TestCreateExecutionReplyTemporaryFromAgentContextFallsBackToNone(t *testing
 		"instruction":    "每天 9 点说早安",
 		"execution_mode": "temporary",
 		"reply_mode":     "execution",
-		"schedule": map[string]any{
-			"kind":            "cron",
-			"cron_expression": "0 9 * * *",
-			"timezone":        "Asia/Shanghai",
-		},
+		"schedule":       dailySchedule("09:00"),
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -248,9 +258,58 @@ func TestCreateExecutionReplyTemporaryFromAgentContextFallsBackToNone(t *testing
 	}
 }
 
+func TestCreateDailyWithWeekdaysBuildsCron(t *testing.T) {
+	svc := &stubService{}
+	sctx := ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
+	schedule := map[string]any{
+		"kind":       "daily",
+		"daily_time": "08:30",
+		"weekdays":   []any{"mon", "wed", "fri"},
+		"timezone":   "Asia/Shanghai",
+	}
+	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"name":           "工作日早会提醒",
+		"instruction":    "提醒参加每日站会",
+		"execution_mode": "temporary",
+		"reply_mode":     "none",
+		"schedule":       schedule,
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.createInput.Schedule.CronExpression == nil {
+		t.Fatalf("expected cron expression to be generated")
+	}
+	if *svc.createInput.Schedule.CronExpression != "30 8 * * 1,3,5" {
+		t.Fatalf("expected cron '30 8 * * 1,3,5', got %q", *svc.createInput.Schedule.CronExpression)
+	}
+}
+
+func TestCreateRejectsLegacyScheduleKind(t *testing.T) {
+	svc := &stubService{}
+	sctx := ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
+	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"name":           "旧参数",
+		"instruction":    "喝水",
+		"execution_mode": "temporary",
+		"reply_mode":     "none",
+		"schedule": map[string]any{
+			"kind":             "every",
+			"interval_seconds": 300,
+			"timezone":         "Asia/Shanghai",
+		},
+	})
+	if !isError {
+		t.Fatalf("expected error for legacy kind=every, got %+v", result)
+	}
+	if !strings.Contains(extractText(t, result), "single") {
+		t.Fatalf("error should hint at new kinds, got %q", extractText(t, result))
+	}
+}
+
 func TestRunNowReturnsStatus(t *testing.T) {
 	svc := &stubService{}
-	result, isError := callTool(t, svc, ServerContext{}, "run_scheduled_task", map[string]any{"job_id": "job-1"})
+	result, isError := callTool(t, svc, ServerContext{IsMainAgent: true}, "run_scheduled_task", map[string]any{"job_id": "job-1"})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
@@ -266,7 +325,7 @@ func TestRunNowReturnsStatus(t *testing.T) {
 
 func TestDeleteRequiresJobID(t *testing.T) {
 	svc := &stubService{}
-	result, isError := callTool(t, svc, ServerContext{}, "delete_scheduled_task", map[string]any{})
+	result, isError := callTool(t, svc, ServerContext{IsMainAgent: true}, "delete_scheduled_task", map[string]any{})
 	if !isError {
 		t.Fatalf("expected error, got %+v", result)
 	}
@@ -278,7 +337,7 @@ func TestListPassesAgentID(t *testing.T) {
 			Kind: "every", IntervalSeconds: newInterval(300), Timezone: "Asia/Shanghai",
 		}}},
 	}
-	result, isError := callTool(t, svc, ServerContext{}, "list_scheduled_tasks", map[string]any{"agent_id": "agent-1"})
+	result, isError := callTool(t, svc, ServerContext{IsMainAgent: true}, "list_scheduled_tasks", map[string]any{"agent_id": "agent-1"})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
@@ -286,7 +345,7 @@ func TestListPassesAgentID(t *testing.T) {
 
 func TestListPropagatesError(t *testing.T) {
 	svc := &stubService{listErr: errors.New("boom")}
-	result, isError := callTool(t, svc, ServerContext{}, "list_scheduled_tasks", nil)
+	result, isError := callTool(t, svc, ServerContext{IsMainAgent: true}, "list_scheduled_tasks", nil)
 	if !isError {
 		t.Fatalf("expected error result")
 	}

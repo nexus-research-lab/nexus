@@ -10,18 +10,26 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/automation/mcp/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/automation/mcp/internal/builder"
 	"github.com/nexus-research-lab/nexus/internal/automation/mcp/internal/render"
+	"github.com/nexus-research-lab/nexus/internal/automation/mcp/internal/semantic"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 )
+
+const updateDescription = "按 job_id 局部更新定时任务字段。字段语义与 UI「编辑任务」对话框一致：" +
+	"name / instruction / schedule / execution_mode / reply_mode / selected_session_key / " +
+	"named_session_key / selected_reply_session_key / enabled。只有提供的字段会被更新。"
 
 func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
 	return agentclient.MCPTool{
 		Name:        "update_scheduled_task",
-		Description: "按 job_id 局部更新定时任务字段。",
+		Description: updateDescription,
 		InputSchema: updateSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
 			jobID := argx.String(args, "job_id")
 			if jobID == "" {
 				return render.Error(errors.New("job_id is required")), nil
+			}
+			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
+				return render.Error(err), nil
 			}
 			input, err := buildUpdateInput(args, sctx)
 			if err != nil {
@@ -37,6 +45,7 @@ func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 }
 
 // buildUpdateInput 把工具入参映射成底层 UpdateJobInput（仅设置出现的字段）。
+// 只接受 UI 对齐字段，不再允许直接传 session_target / delivery / source。
 func buildUpdateInput(args map[string]any, sctx contract.ServerContext) (automationsvc.UpdateJobInput, error) {
 	input := automationsvc.UpdateJobInput{}
 	if name, ok := args["name"]; ok {
@@ -58,26 +67,26 @@ func buildUpdateInput(args map[string]any, sctx contract.ServerContext) (automat
 		}
 		input.Schedule = &schedule
 	}
-	if raw, ok := args["session_target"]; ok {
-		target, err := builder.SessionTarget(raw, sctx.CurrentSessionKey)
+	executionMode := strings.TrimSpace(argx.String(args, "execution_mode"))
+	replyMode := strings.TrimSpace(argx.String(args, "reply_mode"))
+	if executionMode != "" {
+		if err := semantic.ValidatePage(executionMode, replyMode); err != nil {
+			return automationsvc.UpdateJobInput{}, err
+		}
+		target, err := semantic.SessionTarget(args, sctx, executionMode)
 		if err != nil {
 			return automationsvc.UpdateJobInput{}, err
 		}
 		input.SessionTarget = &target
-	}
-	if raw, ok := args["delivery"]; ok {
-		delivery, err := builder.Delivery(raw, sctx.CurrentSessionKey)
-		if err != nil {
-			return automationsvc.UpdateJobInput{}, err
+		if replyMode != "" {
+			delivery, err := semantic.Delivery(args, sctx, executionMode, replyMode, target)
+			if err != nil {
+				return automationsvc.UpdateJobInput{}, err
+			}
+			input.Delivery = &delivery
 		}
-		input.Delivery = &delivery
-	}
-	if raw, ok := args["source"]; ok {
-		source, err := builder.Source(raw)
-		if err != nil {
-			return automationsvc.UpdateJobInput{}, err
-		}
-		input.Source = &source
+	} else if replyMode != "" {
+		return automationsvc.UpdateJobInput{}, errors.New("reply_mode update requires execution_mode in the same call so the routing context stays consistent")
 	}
 	return input, nil
 }

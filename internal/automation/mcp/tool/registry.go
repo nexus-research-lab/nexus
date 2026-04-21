@@ -10,13 +10,13 @@ import (
 // BuildAll 汇集全部工具，供 mcp.NewServer 注册。
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []agentclient.MCPTool {
 	return []agentclient.MCPTool{
-		list(svc),
+		list(svc, sctx),
 		create(svc, sctx),
 		update(svc, sctx),
-		del(svc),
-		status(svc, "enable_scheduled_task", true),
-		status(svc, "disable_scheduled_task", false),
-		runNow(svc),
-		runs(svc),
+		del(svc, sctx),
+		status(svc, sctx, "enable_scheduled_task", true),
+		status(svc, sctx, "disable_scheduled_task", false),
+		runNow(svc, sctx),
+		runs(svc, sctx),
 	}
 }
