@@ -71,8 +71,22 @@ func ApplyDefaultTimezone(args map[string]any, sctx contract.ServerContext) {
 }
 
 // contextHeavyKeywords 命中后强制要求显式确认 execution/reply 字段，禁止套默认值。
+// 中英双语：避免英文 instruction（"summary of today"）绕过判断走默认。
 var contextHeavyKeywords = []string{
 	"总结", "汇总", "简报", "报告", "跟进", "复盘", "检查", "分析", "研究", "整理", "回顾", "监控",
+	"summary", "summarize", "summarise", "report", "review", "analyze", "analyse",
+	"analysis", "follow up", "follow-up", "followup", "audit", "investigate",
+	"monitor", "digest", "recap", "retrospective",
+}
+
+func containsHeavyKeyword(instruction string) bool {
+	lower := strings.ToLower(instruction)
+	for _, keyword := range contextHeavyKeywords {
+		if strings.Contains(lower, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 // CanDefaultToTemporaryNone 判断是否允许在 create 时默认按 temporary + none 创建。
@@ -82,10 +96,8 @@ func CanDefaultToTemporaryNone(args map[string]any) bool {
 	if instruction == "" || utf8.RuneCountInString(instruction) > 24 {
 		return false
 	}
-	for _, keyword := range contextHeavyKeywords {
-		if strings.Contains(instruction, keyword) {
-			return false
-		}
+	if containsHeavyKeyword(instruction) {
+		return false
 	}
 	schedule, ok := args["schedule"].(map[string]any)
 	if !ok {
@@ -165,5 +177,7 @@ type requiredFieldError struct {
 
 func (e *requiredFieldError) Error() string {
 	return "missing required scheduling fields: " + strings.Join(e.Missing, ", ") +
-		". Use AskUserQuestion to confirm them with the user, or shorten the instruction (≤24 字) to qualify for the default temporary+none mode."
+		". Either ask the user to confirm these fields (e.g. via AskUserQuestion), " +
+		"or shorten the instruction to a short reminder (≤24 chars / 24 字) without heavy-context keywords " +
+		"(summary / report / analyze / 总结 / 汇总 / 分析 …) to qualify for the default temporary+none mode."
 }

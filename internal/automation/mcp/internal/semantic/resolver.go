@@ -22,6 +22,9 @@ func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMo
 	case "":
 		return automationsvc.SessionTarget{}, errors.New("execution_mode is required (main / existing / temporary / dedicated)")
 	case "main":
+		if !sctx.IsMainAgent {
+			return automationsvc.SessionTarget{}, errors.New("execution_mode=main is reserved for the main agent; regular agents must use existing / temporary / dedicated")
+		}
 		return automationsvc.SessionTarget{Kind: automationsvc.SessionTargetMain, WakeMode: automationsvc.WakeModeNextHeartbeat}.Normalized(), nil
 	case "existing":
 		bound := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
