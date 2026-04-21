@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { TextareaDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -135,12 +135,13 @@ export function MessageUserSection({
       </div>
 
       {on_edit_user_message ? (
-        <TextareaDialog
+        <PromptDialog
           is_open={is_edit_dialog_open}
           title="编辑消息"
           message="修改后的内容会直接替换当前这条用户消息。"
           placeholder="输入新的消息内容"
           default_value={user_content}
+          multiline
           on_cancel={() => set_is_edit_dialog_open(false)}
           on_confirm={(next_content) => {
             const normalized_content = next_content.trim();

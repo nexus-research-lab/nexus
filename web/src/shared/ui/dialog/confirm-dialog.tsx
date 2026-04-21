@@ -30,16 +30,7 @@ interface PromptDialogProps {
   message?: string;
   placeholder?: string;
   default_value?: string;
-  on_confirm: (value: string) => void;
-  on_cancel: () => void;
-}
-
-interface TextareaDialogProps {
-  is_open: boolean;
-  title: string;
-  message?: string;
-  placeholder?: string;
-  default_value?: string;
+  multiline?: boolean;
   rows?: number;
   on_confirm: (value: string) => void;
   on_cancel: () => void;
@@ -182,10 +173,12 @@ export function PromptDialog({
   message,
   placeholder = "",
   default_value = "",
+  multiline = false,
+  rows = 8,
   on_confirm,
   on_cancel,
 }: PromptDialogProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const [value, setValue] = useState(default_value);
 
   // 当对话框打开时重置值
@@ -198,9 +191,16 @@ export function PromptDialog({
   useEffect(() => {
     if (is_open && inputRef.current) {
       inputRef.current.focus();
-      inputRef.current.select();
+      if (!multiline) {
+        inputRef.current.select();
+      } else {
+        inputRef.current.setSelectionRange(
+          inputRef.current.value.length,
+          inputRef.current.value.length,
+        );
+      }
     }
-  }, [is_open]);
+  }, [is_open, multiline]);
 
   useEffect(() => {
     const handle_key_down = (e: KeyboardEvent) => {
@@ -210,14 +210,18 @@ export function PromptDialog({
         on_cancel();
         setValue(default_value);
       }
-      if (e.key === "Enter") {
+      if (!multiline && e.key === "Enter") {
+        e.preventDefault();
+        on_confirm(value);
+      }
+      if (multiline && (e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         on_confirm(value);
       }
     };
     window.addEventListener("keydown", handle_key_down);
     return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_open, on_cancel, on_confirm, value, default_value]);
+  }, [default_value, is_open, multiline, on_cancel, on_confirm, value]);
 
   if (!is_open) return null;
 
@@ -256,14 +260,30 @@ export function PromptDialog({
             </p>
           ) : null}
 
-          <input
-            ref={inputRef}
-            type="text"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={placeholder}
-            className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
-          />
+          {multiline ? (
+            <>
+              <textarea
+                ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder={placeholder}
+                rows={rows}
+                className="dialog-input radius-shell-sm min-h-[180px] w-full resize-y px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+              />
+              <p className="pt-2 text-xs text-(--text-soft)">
+                按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-[11px]">Cmd/Ctrl + Enter</kbd> 可直接保存。
+              </p>
+            </>
+          ) : (
+            <input
+              ref={inputRef as React.RefObject<HTMLInputElement>}
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={placeholder}
+              className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+            />
+          )}
         </div>
 
         <div className="dialog-footer">
@@ -283,141 +303,6 @@ export function PromptDialog({
             type="button"
           >
             确认
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-
-  if (typeof document === "undefined") {
-    return null;
-  }
-
-  return createPortal(dialog, document.body);
-}
-
-export function TextareaDialog({
-  is_open,
-  title,
-  message,
-  placeholder = "",
-  default_value = "",
-  rows = 8,
-  on_confirm,
-  on_cancel,
-}: TextareaDialogProps) {
-  const textarea_ref = useRef<HTMLTextAreaElement>(null);
-  const [value, setValue] = useState(default_value);
-
-  useEffect(() => {
-    if (is_open) {
-      setValue(default_value);
-    }
-  }, [default_value, is_open]);
-
-  useEffect(() => {
-    if (is_open && textarea_ref.current) {
-      textarea_ref.current.focus();
-      textarea_ref.current.setSelectionRange(
-        textarea_ref.current.value.length,
-        textarea_ref.current.value.length,
-      );
-    }
-  }, [is_open]);
-
-  useEffect(() => {
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (!is_open) {
-        return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        on_cancel();
-        setValue(default_value);
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        on_confirm(value);
-      }
-    };
-
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [default_value, is_open, on_cancel, on_confirm, value]);
-
-  if (!is_open) {
-    return null;
-  }
-
-  const dialog = (
-    <div
-      className="dialog-backdrop z-[9999] animate-in fade-in duration-(--motion-duration-fast)"
-      data-modal-root="true"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="textarea-dialog-title"
-    >
-      <section className="dialog-shell radius-shell-lg flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)">
-        <div className="dialog-header">
-          <div className="min-w-0 flex-1">
-            <h3 id="textarea-dialog-title" className="dialog-title">
-              {title}
-            </h3>
-          </div>
-          <button
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            aria-label="关闭"
-            onClick={() => {
-              setValue(default_value);
-              on_cancel();
-            }}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="dialog-body">
-          {message ? (
-            <p className="pb-3 text-sm leading-6 text-muted-foreground">
-              {message}
-            </p>
-          ) : null}
-
-          <textarea
-            ref={textarea_ref}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder={placeholder}
-            rows={rows}
-            className="dialog-input radius-shell-sm min-h-[180px] w-full resize-y px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
-          />
-          <p className="pt-2 text-xs text-(--text-soft)">
-            按{" "}
-            <kbd className="rounded bg-black/5 px-1 py-0.5 text-[11px]">
-              Cmd/Ctrl + Enter
-            </kbd>{" "}
-            可直接保存。
-          </p>
-        </div>
-
-        <div className="dialog-footer">
-          <button
-            className={get_dialog_action_class_name("default")}
-            onClick={() => {
-              setValue(default_value);
-              on_cancel();
-            }}
-            type="button"
-          >
-            取消
-          </button>
-          <button
-            className={get_dialog_action_class_name("primary")}
-            onClick={() => on_confirm(value)}
-            type="button"
-          >
-            保存
           </button>
         </div>
       </section>
