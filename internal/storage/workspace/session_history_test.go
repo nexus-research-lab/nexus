@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：session_history_test.go
-// @Date   ：2026/04/16 23:59:00
-// @Author ：leemysw
-// 2026/04/16 23:59:00   Create
-// =====================================================
-
 package workspace
 
 import (

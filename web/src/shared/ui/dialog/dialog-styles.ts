@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：dialog-styles.ts
-# @Date   ：2026-04-05 17:09
-# @Author ：leemysw
-# 2026-04-05 17:09   Create
-# =====================================================
-*/
-
 import { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";

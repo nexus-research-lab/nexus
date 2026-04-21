@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：glass-primitives.tsx
-# @Date   ：2026-04-12 17:08
-# @Author ：leemysw
-# 2026-04-12 17:08   Create
-# =====================================================
-*/
-
 "use client";
 
 import { LiquidGlassPanel, type LiquidGlassPanelProps } from "./liquid-glass-panel";

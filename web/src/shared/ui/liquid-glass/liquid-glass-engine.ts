@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：liquid-glass-engine.ts
-# @Date   ：2026-04-11 11:34
-# @Author ：leemysw
-# 2026-04-11 11:34   Create
-# =====================================================
-*/
-
 interface LiquidGlassAssetBundle {
   displacement_map_url: string;
   highlight_map_url: string;

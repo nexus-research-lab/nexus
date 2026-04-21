@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：use-launcher-page-controller.ts
-# @Date   ：2026-04-15 16:39
-# @Author ：leemysw
-# 2026-04-15 16:39   Create
-# =====================================================
-*/
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：system_message_summary.go
-// @Date   ：2026/04/16 18:48:00
-// @Author ：leemysw
-// 2026/04/16 18:48:00   Create
-// =====================================================
-
 package runtime
 
 import (

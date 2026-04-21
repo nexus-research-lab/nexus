@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：liquid-glass-presets.ts
-# @Date   ：2026-04-11 23:41
-# @Author ：leemysw
-# 2026-04-11 23:41   Create
-# =====================================================
-*/
-
 export type LiquidGlassVariant = "toolbar" | "panel" | "focus" | "dialog" | "chip" | "switch" | "magnifier";
 
 export interface LiquidGlassVariantPreset {

@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：export-liquid-glass-assets.mjs
-# @Date   ：2026-04-12 23:44
-# @Author ：leemysw
-# 2026-04-12 23:44   Create
-# =====================================================
-*/
-
 import fs from "node:fs";
 import path from "node:path";
 

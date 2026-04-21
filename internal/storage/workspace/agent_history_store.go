@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：agent_history_store.go
-// @Date   ：2026/04/19 16:24:00
-// @Author ：leemysw
-// 2026/04/19 16:24:00   Create
-// =====================================================
-
 package workspace
 
 import (

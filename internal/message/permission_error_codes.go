@@ -1,9 +1,3 @@
-// =====================================================
-// @File   ：permission_error_codes.go
-// @Date   ：2026/04/16
-// @Author ：leemysw
-// =====================================================
-
 package message
 
 import "strings"

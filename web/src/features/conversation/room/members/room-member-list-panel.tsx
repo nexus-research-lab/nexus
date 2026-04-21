@@ -1,14 +1,3 @@
-/**
-# !/usr/bin/env xx
-# -*- coding: utf-8 -*-
-# =====================================================
-# @File   ：room-member-list-panel.tsx
-# @Date   ：2026-04-12 15:32
-# @Author ：leemysw
-# 2026-04-12 15:32   Create
-# =====================================================
-*/
-
 "use client";
 
 import { createPortal } from "react-dom";

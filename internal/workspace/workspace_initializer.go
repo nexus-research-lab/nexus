@@ -1,12 +1,3 @@
-// # !/usr/bin/env go
-// -*- coding: utf-8 -*-
-// =====================================================
-// @File   ：workspace_initializer.go
-// @Date   ：2026/04/11 14:58:00
-// @Author ：leemysw
-// 2026/04/11 14:58:00   Create
-// =====================================================
-
 package workspace
 
 import (
