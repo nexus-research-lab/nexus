@@ -91,7 +91,8 @@ export function handle_agent_conversation_web_socket_message({
     event.event_type === 'room_member_added' ||
     event.event_type === 'room_member_removed' ||
     event.event_type === 'room_deleted' ||
-    event.event_type === 'room_resync_required'
+    event.event_type === 'room_resync_required' ||
+    event.event_type === 'session_resync_required'
   ) {
     on_room_event?.(event.event_type, (event.data ?? {}) as RoomEventPayload);
     return;

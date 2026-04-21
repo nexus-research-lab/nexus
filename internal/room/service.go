@@ -413,6 +413,16 @@ func (s *Service) UpdateConversation(ctx context.Context, roomID string, convers
 	return contextValue, nil
 }
 
+// UpdateConversationTitle 以最小输入更新对话标题，供跨领域服务复用。
+func (s *Service) UpdateConversationTitle(
+	ctx context.Context,
+	roomID string,
+	conversationID string,
+	title string,
+) (*ConversationContextAggregate, error) {
+	return s.UpdateConversation(ctx, roomID, conversationID, UpdateConversationRequest{Title: title})
+}
+
 // DeleteConversation 删除 room 话题并返回回退上下文。
 func (s *Service) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*ConversationContextAggregate, error) {
 	contexts, err := s.GetRoomContexts(ctx, roomID)

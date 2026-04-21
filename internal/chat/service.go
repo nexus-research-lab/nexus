@@ -24,10 +24,10 @@ import (
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	"github.com/nexus-research-lab/nexus/internal/titlegen"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -61,25 +61,50 @@ type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[st
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
-	config       config.Config
-	agents       *agent3.Service
-	runtime      *runtimectx.Manager
-	permission   *permission3.Context
-	roomStore    roomSessionStore
-	providers    providerRuntimeResolver
-	files        *workspacestore.SessionFileStore
-	history      *workspacestore.AgentHistoryStore
-	logger       *slog.Logger
-	mcpServers   MCPServerBuilder
-}
-
-type providerRuntimeResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*providercfg.RuntimeConfig, error)
+	config     config.Config
+	agents     *agent3.Service
+	runtime    *runtimectx.Manager
+	permission *permission3.Context
+	roomStore  roomSessionStore
+	providers  runtimectx.RuntimeConfigResolver
+	files      *workspacestore.SessionFileStore
+	history    *workspacestore.AgentHistoryStore
+	logger     *slog.Logger
+	mcpServers MCPServerBuilder
+	titles     titleScheduler
 }
 
 type roomSessionStore interface {
 	GetRoomSessionByKey(context.Context, protocol.SessionKey) (*session.Session, error)
 	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
+}
+
+type titleScheduler interface {
+	Schedule(context.Context, titlegen.Request)
+}
+
+type chatRoundMapperAdapter struct {
+	mapper *messageMapper
+}
+
+func (a chatRoundMapperAdapter) Map(
+	incoming sdkprotocol.ReceivedMessage,
+	interruptReason ...string,
+) (runtimectx.RoundMapResult, error) {
+	events, durableMessages, terminalStatus, resultSubtype, err := a.mapper.Map(incoming, interruptReason...)
+	if err != nil {
+		return runtimectx.RoundMapResult{}, err
+	}
+	return runtimectx.RoundMapResult{
+		Events:          events,
+		DurableMessages: durableMessages,
+		TerminalStatus:  terminalStatus,
+		ResultSubtype:   resultSubtype,
+	}, nil
+}
+
+func (a chatRoundMapperAdapter) SessionID() string {
+	return a.mapper.SessionID()
 }
 
 type roundRunner struct {
@@ -93,7 +118,6 @@ type roundRunner struct {
 	content       string
 	client        runtimectx.Client
 	mapper        *messageMapper
-	terminalSeen  bool
 }
 
 // NewService 创建 DM 会话编排服务。
@@ -130,13 +154,18 @@ func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 }
 
 // SetProviderResolver 注入 Provider 运行时解析器。
-func (s *Service) SetProviderResolver(resolver providerRuntimeResolver) {
+func (s *Service) SetProviderResolver(resolver runtimectx.RuntimeConfigResolver) {
 	s.providers = resolver
 }
 
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。
 func (s *Service) SetRoomSessionStore(store roomSessionStore) {
 	s.roomStore = store
+}
+
+// SetTitleGenerator 注入会话标题生成器。
+func (s *Service) SetTitleGenerator(generator titleScheduler) {
+	s.titles = generator
 }
 
 // HandleChat 处理一条 DM chat 写请求。
@@ -156,6 +185,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
+	initialMessageCount := sessionItem.MessageCount
 
 	if err = s.interruptSession(ctx, sessionKey, "收到新的用户消息，上一轮已停止"); err != nil {
 		return err
@@ -226,12 +256,45 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runner.session = *updatedSession
 	}
 
+	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
+
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, request.RoundID, "running", ""))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go runner.run(roundCtx)
 	return nil
+}
+
+func (s *Service) scheduleTitleGeneration(
+	ctx context.Context,
+	parsed protocol.SessionKey,
+	sessionItem session.Session,
+	content string,
+	initialMessageCount int,
+) {
+	if s.titles == nil {
+		return
+	}
+	conversationID := strings.TrimSpace(stringPointerValue(sessionItem.ConversationID))
+	if conversationID == "" && parsed.ChatType == "dm" {
+		conversationID = strings.TrimSpace(parsed.Ref)
+	}
+	roomID := strings.TrimSpace(stringPointerValue(sessionItem.RoomID))
+	conversationMessageCount := 0
+	if conversationID == "" {
+		conversationMessageCount = -1
+	}
+	s.titles.Schedule(ctx, titlegen.Request{
+		SessionKey:               sessionItem.SessionKey,
+		Provider:                 "",
+		Content:                  content,
+		SessionTitle:             sessionItem.Title,
+		SessionMessageCount:      initialMessageCount,
+		ConversationID:           conversationID,
+		ConversationRoomID:       roomID,
+		ConversationMessageCount: conversationMessageCount,
+	})
 }
 
 // HandleInterrupt 处理中断请求。
@@ -281,40 +344,30 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
-	// Agent 级 runtime 已收口为 provider-only，
-	// 这里不再透传旧的 Agent model，而是统一从 Provider 解析运行时环境。
-	runtimeEnv, err := s.buildRuntimeEnv(ctx, agentValue)
-	if err != nil {
-		return nil, err
-	}
-	options := agentclient.Options{
-		CWD:                    agentValue.WorkspacePath,
-		PermissionMode:         permissionMode,
-		AllowedTools:           append([]string(nil), agentValue.Options.AllowedTools...),
-		DisallowedTools:        append([]string(nil), agentValue.Options.DisallowedTools...),
-		SettingSources:         append([]string(nil), agentValue.Options.SettingSources...),
-		IncludePartialMessages: true,
-		Env:                    runtimeEnv,
-		PermissionHandler:      permissionHandler,
-	}
-	if s.mcpServers != nil {
-		if servers := s.mcpServers(agentValue.AgentID, sessionKey, "agent"); len(servers) > 0 {
-			options.SDKMCPServers = servers
-		}
-	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(agentValue)
 	if err != nil {
 		return nil, err
 	}
-	options.AppendSystemPrompt = appendSystemPrompt
-	if sessionItem.SessionID != nil && strings.TrimSpace(*sessionItem.SessionID) != "" {
-		options.Resume = strings.TrimSpace(*sessionItem.SessionID)
+	mcpServers := map[string]agentclient.SDKMCPServer(nil)
+	if s.mcpServers != nil {
+		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent")
 	}
-	if agentValue.Options.MaxThinkingTokens != nil && *agentValue.Options.MaxThinkingTokens > 0 {
-		options.MaxThinkingTokens = *agentValue.Options.MaxThinkingTokens
-	}
-	if agentValue.Options.MaxTurns != nil && *agentValue.Options.MaxTurns > 0 {
-		options.MaxTurns = *agentValue.Options.MaxTurns
+	options, err := runtimectx.BuildAgentClientOptions(ctx, s.providers, runtimectx.AgentClientOptionsInput{
+		WorkspacePath:      agentValue.WorkspacePath,
+		Provider:           agentValue.Options.Provider,
+		PermissionMode:     permissionMode,
+		PermissionHandler:  permissionHandler,
+		AllowedTools:       agentValue.Options.AllowedTools,
+		DisallowedTools:    agentValue.Options.DisallowedTools,
+		SettingSources:     agentValue.Options.SettingSources,
+		AppendSystemPrompt: appendSystemPrompt,
+		ResumeSessionID:    stringPointerValue(sessionItem.SessionID),
+		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
+		MaxTurns:           agentValue.Options.MaxTurns,
+		MCPServers:         mcpServers,
+	})
+	if err != nil {
+		return nil, err
 	}
 	return s.acquireRuntimeClient(ctx, sessionKey, options, permissionMode)
 }
@@ -390,32 +443,6 @@ func isBrokenRuntimeClientError(err error) bool {
 		strings.Contains(message, "send control request failed") ||
 		strings.Contains(message, "write payload failed") ||
 		strings.Contains(message, "broken pipe")
-}
-
-func (s *Service) buildRuntimeEnv(ctx context.Context, agentValue *agent3.Agent) (map[string]string, error) {
-	if s.providers == nil {
-		return nil, nil
-	}
-	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, agentValue.Options.Provider)
-	if err != nil {
-		return nil, err
-	}
-	if runtimeConfig == nil {
-		return nil, nil
-	}
-	env := map[string]string{
-		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
-		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
-		"ANTHROPIC_MODEL":                runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
-	}
-	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
-		env["ENABLE_TOOL_SEARCH"] = "false"
-	}
-	return env, nil
 }
 
 func (s *Service) ensureSession(
@@ -536,93 +563,71 @@ func (r *roundRunner) run(ctx context.Context) {
 		"round_id", r.roundID,
 	)
 	logger.Info("开始执行 DM round")
-	if err := r.client.Query(ctx, r.content); err != nil {
-		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
-			logger.Warn("DM round 在发起查询前被取消")
+	result, err := runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
+		Query:  r.content,
+		Client: r.client,
+		Mapper: chatRoundMapperAdapter{mapper: r.mapper},
+		InterruptReason: func() string {
+			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
+		},
+		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+		},
+		SyncSessionID: func(sessionID string) error {
+			updatedSession, syncErr := r.service.syncSDKSessionID(
+				context.Background(),
+				r.workspacePath,
+				r.session,
+				sessionID,
+			)
+			if syncErr != nil {
+				return syncErr
+			}
+			r.session = updatedSession
+			return nil
+		},
+		HandleDurableMessage: func(message sessionmodel.Message) error {
+			if err := r.persistMessage(message); err != nil {
+				return err
+			}
+			if message["role"] == "assistant" {
+				r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
+					DispatchSessionKey: r.sessionKey,
+					AgentID:            r.agent.AgentID,
+					MessageID:          normalizeString(message["message_id"]),
+					CausedBy:           r.roundID,
+				})
+			}
+			return nil
+		},
+		EmitEvent: func(event protocol.EventMessage) error {
+			r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+			return nil
+		},
+	})
+	if err != nil {
+		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
+			r.finishInterrupted(r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
 			return
 		}
 		r.failRound(err)
 		return
 	}
 
-	messageCh := r.client.ReceiveMessages(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Warn("DM round 上下文已取消")
-			return
-		case incoming, ok := <-messageCh:
-			if !ok {
-				if r.terminalSeen {
-					logger.Info("DM round 消息流关闭")
-					return
-				}
-				r.failRound(errors.New("任务中断"))
-				return
-			}
-			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
-			if r.handleIncomingMessage(incoming) {
-				return
-			}
-		}
-	}
-}
-
-func (r *roundRunner) handleIncomingMessage(message sdkprotocol.ReceivedMessage) bool {
-	interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
-	events, durableMessages, terminalStatus, resultSubtype, err := r.mapper.Map(message, interruptReason)
-	if err != nil {
-		r.failRound(err)
-		return true
-	}
-	if sid := strings.TrimSpace(firstNonEmpty(r.mapper.SessionID(), message.SessionID, r.client.SessionID())); sid != "" {
-		r.session.SessionID = &sid
-	}
-
-	for _, payload := range durableMessages {
-		if payload == nil {
-			continue
-		}
-		if value := firstNonEmpty(normalizeString(payload["session_id"]), stringPointerValue(r.session.SessionID)); value != "" {
-			payload["session_id"] = value
-		}
-		if err := r.persistMessage(payload); err != nil {
-			r.failRound(err)
-			return true
-		}
-		if payload["role"] == "assistant" {
-			r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
-				DispatchSessionKey: r.sessionKey,
-				AgentID:            r.agent.AgentID,
-				MessageID:          normalizeString(payload["message_id"]),
-				CausedBy:           r.roundID,
-			})
-		}
-	}
-
-	for _, event := range events {
-		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
-	}
-
-	if terminalStatus != "" {
-		r.terminalSeen = true
-		r.service.loggerFor(context.Background()).Info("DM round 结束",
-			"session_key", r.sessionKey,
-			"agent_id", r.agent.AgentID,
-			"round_id", r.roundID,
-			"status", terminalStatus,
-			"result_subtype", resultSubtype,
-		)
-		r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
-		r.service.permission.BroadcastEvent(
-			context.Background(),
-			r.sessionKey,
-			protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, terminalStatus, resultSubtype),
-		)
-		r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-		return true
-	}
-	return false
+	r.service.loggerFor(context.Background()).Info("DM round 结束",
+		"session_key", r.sessionKey,
+		"agent_id", r.agent.AgentID,
+		"round_id", r.roundID,
+		"status", result.TerminalStatus,
+		"result_subtype", result.ResultSubtype,
+	)
+	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	r.service.permission.BroadcastEvent(
+		context.Background(),
+		r.sessionKey,
+		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
+	)
+	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 }
 
 func (r *roundRunner) failRound(err error) {
@@ -636,7 +641,6 @@ func (r *roundRunner) failRound(err error) {
 		"round_id", r.roundID,
 		"err", err,
 	)
-	r.terminalSeen = true
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
@@ -705,7 +709,6 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
-	r.terminalSeen = true
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {

@@ -101,7 +101,7 @@ export function RoomPage() {
       return;
     }
 
-    if (event_type === "room_resync_required") {
+    if (event_type === "room_resync_required" || event_type === "session_resync_required") {
       void controller.handle_refresh_room_state();
     }
     // room_member_added / room_member_removed are handled by the next server-rendered

@@ -23,16 +23,6 @@ const sdkMessagePreviewLimit = 240
 func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
 	fields := []any{
 		"sdk_summary", BuildSDKMessageLogSummary(message),
-		"sdk_message_type", string(message.Type),
-	}
-	if subtype := strings.TrimSpace(message.Subtype); subtype != "" {
-		fields = append(fields, "sdk_message_subtype", subtype)
-	}
-	if sessionID := strings.TrimSpace(message.SessionID); sessionID != "" {
-		fields = append(fields, "sdk_session_id", sessionID)
-	}
-	if uuid := strings.TrimSpace(message.UUID); uuid != "" {
-		fields = append(fields, "sdk_message_uuid", uuid)
 	}
 
 	switch message.Type {
@@ -88,21 +78,12 @@ func buildAssistantMessageFields(message sdkprotocol.ReceivedMessage) []any {
 	if message.Assistant == nil {
 		return nil
 	}
-	fields := []any{
-		"assistant_message_id", strings.TrimSpace(message.Assistant.Message.ID),
-	}
+	fields := []any{}
 	if model := strings.TrimSpace(message.Assistant.Message.Model); model != "" {
 		fields = append(fields, "assistant_model", model)
 	}
 	if stopReason := strings.TrimSpace(fmt.Sprint(message.Assistant.Message.StopReason)); stopReason != "" && stopReason != "<nil>" {
 		fields = append(fields, "assistant_stop_reason", stopReason)
-	}
-	blockTypes, preview := summarizeContentBlocks(message.Assistant.Message.Content)
-	if len(blockTypes) > 0 {
-		fields = append(fields, "assistant_block_types", strings.Join(blockTypes, ","))
-	}
-	if preview != "" {
-		fields = append(fields, "assistant_preview", preview)
 	}
 	if errText := strings.TrimSpace(message.Assistant.Error); errText != "" {
 		fields = append(fields, "assistant_error", errText)
@@ -115,7 +96,6 @@ func buildResultMessageFields(message sdkprotocol.ReceivedMessage) []any {
 		return nil
 	}
 	fields := []any{
-		"result_subtype", strings.TrimSpace(message.Result.Subtype),
 		"result_is_error", message.Result.IsError,
 		"result_num_turns", message.Result.NumTurns,
 	}
@@ -125,9 +105,6 @@ func buildResultMessageFields(message sdkprotocol.ReceivedMessage) []any {
 	if stopReason := strings.TrimSpace(fmt.Sprint(message.Result.StopReason)); stopReason != "" && stopReason != "<nil>" {
 		fields = append(fields, "result_stop_reason", stopReason)
 	}
-	if resultPreview := truncateForLog(message.Result.Result); resultPreview != "" {
-		fields = append(fields, "result_preview", resultPreview)
-	}
 	if len(message.Result.Errors) > 0 {
 		fields = append(fields, "result_errors", strings.Join(message.Result.Errors, " | "))
 	}
@@ -135,61 +112,11 @@ func buildResultMessageFields(message sdkprotocol.ReceivedMessage) []any {
 }
 
 func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
-	if message.Stream == nil {
-		return nil
-	}
-	event := rawMap(message.Stream.Event)
-	eventType := strings.TrimSpace(rawString(event["type"]))
-	fields := []any{}
-	if eventType != "" {
-		fields = append(fields, "stream_event_type", eventType)
-	}
-	switch eventType {
-	case "content_block_delta":
-		delta := rawMap(event["delta"])
-		deltaType := strings.TrimSpace(rawString(delta["type"]))
-		if deltaType != "" {
-			fields = append(fields, "stream_delta_type", deltaType)
-		}
-		preview := firstNonEmpty(
-			rawString(delta["text"]),
-			rawString(delta["thinking"]),
-			rawString(delta["partial_json"]),
-		)
-		if preview != "" {
-			fields = append(fields, "stream_preview", truncateForLog(preview))
-		}
-	case "content_block_start":
-		block := rawMap(event["content_block"])
-		blockType := strings.TrimSpace(rawString(block["type"]))
-		if blockType != "" {
-			fields = append(fields, "stream_block_type", blockType)
-		}
-		preview := firstNonEmpty(rawString(block["text"]), rawString(block["thinking"]), rawString(block["name"]))
-		if preview != "" {
-			fields = append(fields, "stream_preview", truncateForLog(preview))
-		}
-	case "message_start", "message_delta", "message_stop", "content_block_stop":
-		if preview := truncateForLog(rawJSON(event)); preview != "" {
-			fields = append(fields, "stream_payload", preview)
-		}
-	default:
-		if preview := truncateForLog(rawJSON(event)); preview != "" {
-			fields = append(fields, "stream_payload", preview)
-		}
-	}
-	return fields
+	return nil
 }
 
 func buildToolProgressFields(message sdkprotocol.ReceivedMessage) []any {
-	if message.ToolProgress == nil {
-		return nil
-	}
-	return []any{
-		"tool_name", strings.TrimSpace(message.ToolProgress.ToolName),
-		"tool_use_id", strings.TrimSpace(message.ToolProgress.ToolUseID),
-		"task_id", strings.TrimSpace(message.ToolProgress.TaskID),
-	}
+	return nil
 }
 
 func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
@@ -217,31 +144,8 @@ func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
 			)
 		}
 	case "task_started":
-		if message.System.TaskStarted != nil {
-			fields = append(
-				fields,
-				"task_id", strings.TrimSpace(message.System.TaskStarted.TaskID),
-				"task_description", truncateForLog(message.System.TaskStarted.Description),
-			)
-		}
 	case "task_progress":
-		if message.System.TaskProgress != nil {
-			fields = append(
-				fields,
-				"task_id", strings.TrimSpace(message.System.TaskProgress.TaskID),
-				"task_summary", truncateForLog(firstNonEmpty(message.System.TaskProgress.Summary, message.System.TaskProgress.Description)),
-				"last_tool_name", strings.TrimSpace(message.System.TaskProgress.LastToolName),
-			)
-		}
 	case "task_notification":
-		if message.System.TaskNotification != nil {
-			fields = append(
-				fields,
-				"task_id", strings.TrimSpace(message.System.TaskNotification.TaskID),
-				"task_status", strings.TrimSpace(message.System.TaskNotification.Status),
-				"task_summary", truncateForLog(message.System.TaskNotification.Summary),
-			)
-		}
 	}
 	return fields
 }
