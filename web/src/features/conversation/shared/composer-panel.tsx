@@ -6,6 +6,8 @@ import { FileText, Paperclip, Send, StopCircle, X } from "lucide-react";
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import { Agent } from "@/types/agent/agent";
 
 import {
@@ -24,7 +26,7 @@ import {
   get_attachment_rejection_reason,
   PreparedComposerAttachment,
 } from "./composer-attachments";
-import { MentionPopover } from "./mention-popover";
+import { MentionTargetItem, MentionTargetPopover } from "./mention-popover";
 
 interface AttachmentFile {
   id: string;
@@ -34,6 +36,7 @@ interface AttachmentFile {
 interface ComposerPanelProps {
   compact: boolean;
   is_loading?: boolean;
+  runtime_phase?: AgentConversationRuntimePhase | null;
   on_send_message: (content: string) => void | Promise<void>;
   on_stop?: () => void;
   initial_draft?: string | null;
@@ -102,6 +105,7 @@ function build_message_with_attachments(
 const ComposerPanelView = memo(({
   compact,
   is_loading = false,
+  runtime_phase = null,
   on_send_message,
   on_stop,
   initial_draft = null,
@@ -113,6 +117,7 @@ const ComposerPanelView = memo(({
   control_status_text,
   on_prepare_attachments,
 }: ComposerPanelProps) => {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
@@ -126,6 +131,12 @@ const ComposerPanelView = memo(({
   const available_room_members = room_members.filter(
     (member) => !mention_unavailable_agent_ids.includes(member.agent_id),
   );
+  const mention_target_items = available_room_members.map<MentionTargetItem>((member) => ({
+    id: member.agent_id,
+    label: member.name,
+    subtitle: null,
+    kind: "agent",
+  }));
 
   // @mention 状态
   const [mention_active, set_mention_active] = useState(false);
@@ -137,6 +148,8 @@ const ComposerPanelView = memo(({
   const last_composition_end_at_ref = useRef(0);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
+  const is_dispatching = is_loading && runtime_phase === "sending";
+  const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
@@ -236,10 +249,15 @@ const ComposerPanelView = memo(({
     setHistoryIndex(-1);
     setHistoryDraft("");
 
-    await on_send_message(next_message);
-    setInput("");
-    setAttachments([]);
-    setAttachmentError(null);
+    try {
+      await on_send_message(next_message);
+      setInput("");
+      setAttachments([]);
+      setAttachmentError(null);
+    } catch (error) {
+      console.error("发送消息失败:", error);
+      return;
+    }
 
     if (textarea_ref.current) {
       textarea_ref.current.style.height = "auto";
@@ -443,13 +461,19 @@ const ComposerPanelView = memo(({
             <Paperclip size={16} />
           </button>
 
-          {mention_active && available_room_members.length > 0 ? (
-            <MentionPopover
+          {mention_active && mention_target_items.length > 0 ? (
+            <MentionTargetPopover
               anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
               filter={mention_filter}
-              members={available_room_members}
+              items={mention_target_items}
               on_close={handle_mention_close}
-              on_select={handle_mention_select}
+              on_select={(item) => {
+                const selected_member = available_room_members.find((member) => member.agent_id === item.id);
+                if (selected_member) {
+                  handle_mention_select(selected_member);
+                }
+              }}
+              placement="above"
             />
           ) : null}
 
@@ -478,7 +502,7 @@ const ComposerPanelView = memo(({
             value={input}
           />
 
-          {is_loading && on_stop ? (
+          {can_stop_generation ? (
             <button
               aria-label="停止生成"
               className={COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME}
@@ -510,10 +534,15 @@ const ComposerPanelView = memo(({
           <div className="flex items-center gap-3 text-[10px] text-(--text-soft)">
             {disabled && control_status_text ? (
               <span className="text-(--text-default)">{control_status_text}</span>
-            ) : is_loading && on_stop ? (
+            ) : is_dispatching ? (
               <span className="flex items-center gap-2 text-emerald-900/90">
                 <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                <span className="animate-pulse">正在回复中…</span>
+                <span className="animate-pulse">{t("status.sending")}</span>
+              </span>
+            ) : can_stop_generation ? (
+              <span className="flex items-center gap-2 text-emerald-900/90">
+                <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
+                <span className="animate-pulse">{t("status.replying")}…</span>
                 <span className="text-(--text-soft)">[ESC 停止]</span>
               </span>
             ) : is_preparing_attachments ? (

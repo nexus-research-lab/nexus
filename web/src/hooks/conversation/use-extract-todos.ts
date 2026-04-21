@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
-import { Message, ResultMessage } from "@/types/conversation/message";
+import { AssistantMessage, Message } from "@/types/conversation/message";
 import { TodoItem } from "@/types/conversation/todo";
 
 function is_same_session_message(message: Message, external_session_key: string): boolean {
@@ -72,15 +72,16 @@ export const useExtractTodos = (
       return [];
     }
 
-    const roundResult = [...messages]
+    const roundAssistantWithSummary = [...messages]
       .reverse()
-      .find((msg): msg is ResultMessage =>
-        msg.role === "result"
+      .find((msg): msg is AssistantMessage =>
+        msg.role === "assistant"
         && msg.round_id === latestTodoRoundId
         && is_same_session_message(msg, external_session_key)
+        && Boolean(msg.result_summary)
       );
 
-    if (roundResult && roundResult.is_error) {
+    if (roundAssistantWithSummary?.result_summary?.is_error) {
       return [];
     }
 
@@ -91,7 +92,7 @@ export const useExtractTodos = (
       && msg.role !== "system"
     );
 
-    if (hasLaterRoundMessage && !roundResult) {
+    if (hasLaterRoundMessage && !roundAssistantWithSummary?.result_summary) {
       return [];
     }
 

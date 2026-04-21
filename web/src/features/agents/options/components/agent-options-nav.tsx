@@ -7,19 +7,18 @@
 "use client";
 
 import { ReactNode } from "react";
-import { UserPen, Brain, ToolCase, Album, type LucideIcon } from "lucide-react";
+import { UserPen, ToolCase, Album, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 /** Tab 键值类型 */
-export type TabKey = "identity" | "persona" | "skills" | "advanced";
+export type TabKey = "identity" | "skills" | "advanced";
 
 /** 单个导航项配置 */
 interface NavItem {
   key: TabKey;
   label_key:
     | "agent_options.nav.identity"
-    | "agent_options.nav.persona"
     | "agent_options.nav.tools"
     | "agent_options.nav.skills";
   icon: LucideIcon;
@@ -28,7 +27,6 @@ interface NavItem {
 /** 导航栏 Tab 配置列表 */
 const NAV_ITEMS: NavItem[] = [
   { key: "identity", label_key: "agent_options.nav.identity", icon: UserPen },
-  { key: "persona", label_key: "agent_options.nav.persona", icon: Brain },
   { key: "advanced", label_key: "agent_options.nav.tools", icon: ToolCase },
   { key: "skills", label_key: "agent_options.nav.skills", icon: Album },
 ];

@@ -228,7 +228,7 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if err != nil {
 		return err
 	}
-	_, workspacePath, _, err := s.loadMutableWorkspaceSession(ctx, sessionKey)
+	item, workspacePath, _, err := s.loadMutableWorkspaceSession(ctx, sessionKey)
 	if err != nil {
 		return err
 	}
@@ -242,11 +242,16 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if !deleted {
 		return ErrSessionNotFound
 	}
+	if item != nil && item.SessionID != nil {
+		if _, err := s.history.DeleteTranscriptSession(workspacePath, strings.TrimSpace(*item.SessionID)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // GetSessionMessages 读取 session 历史消息。
-func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) ([]Message, error) {
+func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) ([]sessionmodel.Message, error) {
 	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return nil, err
@@ -375,33 +380,18 @@ func (s *Service) hydrateRoomHistorySession(
 	}
 
 	merged := roomSession
-	if merged.SessionID == nil && fileSession.SessionID != nil {
+	roomSessionID := strings.TrimSpace(stringPointerValue(roomSession.SessionID))
+	fileSessionID := strings.TrimSpace(stringPointerValue(fileSession.SessionID))
+	if roomSessionID == "" && fileSessionID != "" {
 		merged.SessionID = fileSession.SessionID
 		if merged.RoomSessionID != nil && strings.TrimSpace(*merged.RoomSessionID) != "" {
 			if updateErr := s.repository.UpdateRoomSessionSDKSessionID(
 				ctx,
 				strings.TrimSpace(*merged.RoomSessionID),
-				strings.TrimSpace(*fileSession.SessionID),
+				fileSessionID,
 			); updateErr != nil {
 				return nil, updateErr
 			}
-		}
-	}
-	if merged.RoomSessionID == nil && fileSession.RoomSessionID != nil {
-		merged.RoomSessionID = fileSession.RoomSessionID
-	}
-	if merged.RoomID == nil && fileSession.RoomID != nil {
-		merged.RoomID = fileSession.RoomID
-	}
-	if merged.ConversationID == nil && fileSession.ConversationID != nil {
-		merged.ConversationID = fileSession.ConversationID
-	}
-	if merged.Options == nil {
-		merged.Options = map[string]any{}
-	}
-	for key, value := range fileSession.Options {
-		if _, exists := merged.Options[key]; !exists {
-			merged.Options[key] = value
 		}
 	}
 	return &merged, nil
@@ -554,6 +544,13 @@ func mergeSessions(fileSessions []Session, roomSessions []Session) []Session {
 		return result[i].LastActivity.After(result[j].LastActivity)
 	})
 	return result
+}
+
+func stringPointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func shouldHideWorkspaceSession(item Session) bool {

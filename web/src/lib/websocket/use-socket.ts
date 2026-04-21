@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebSocketClient } from './socket-client';
-import { WebSocketConfig, WebSocketState, WebSocketMessage } from '@/types/system/websocket';
+import { WebSocketConfig, WebSocketState, WebSocketMessage, WebSocketSendResult } from '@/types/system/websocket';
 
 export interface UseWebSocketOptions extends Omit<WebSocketConfig, 'protocols'> {
   on_message?: (message: any) => void;
@@ -82,8 +82,12 @@ class SharedWebSocketChannel {
     this.client.disconnect();
   }
 
-  public send(data: WebSocketMessage): void {
-    this.client.send(data);
+  public reconnect(): void {
+    this.client.forceReconnect();
+  }
+
+  public send(data: WebSocketMessage): WebSocketSendResult {
+    return this.client.send(data);
   }
 
   public get_snapshot(): { error: Event | null; state: WebSocketState } {
@@ -208,8 +212,11 @@ export function useWebSocket(options: UseWebSocketOptions) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 维度创建，配置由首个订阅者固定。
   }, [options.url]);
 
-  const send = useCallback((data: WebSocketMessage) => {
-    channel_ref.current?.send(data);
+  const send = useCallback((data: WebSocketMessage): WebSocketSendResult => {
+    if (!channel_ref.current) {
+      return { disposition: 'dropped' };
+    }
+    return channel_ref.current.send(data);
   }, []);
 
   const connect = useCallback(() => {
@@ -220,11 +227,16 @@ export function useWebSocket(options: UseWebSocketOptions) {
     channel_ref.current?.disconnect();
   }, []);
 
+  const reconnect = () => {
+    channel_ref.current?.reconnect();
+  };
+
   return {
     state,
     error,
     send,
     connect,
     disconnect,
+    reconnect,
   };
 }

@@ -14,6 +14,12 @@ export interface WebSocketMessage {
   [key: string]: any;
 }
 
+export type WebSocketSendDisposition = "sent" | "queued" | "dropped";
+
+export interface WebSocketSendResult {
+  disposition: WebSocketSendDisposition;
+}
+
 export interface WebSocketConfig {
   url: string;
   protocols?: string | string[];

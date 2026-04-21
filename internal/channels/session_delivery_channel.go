@@ -65,7 +65,8 @@ func (c *sessionDeliveryChannel) Stop(context.Context) error {
 	return nil
 }
 
-// SendDeliveryText 按 session_key 追加一组 assistant/result 消息。
+// SendDeliveryText 按 session_key 追加 assistant 正文与内部 result overlay，
+// 对外统一只广播挂载 result_summary 的 assistant。
 func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
 	sessionKey := firstNonEmpty(target.SessionKey, target.To)
 	sessionKey, err := protocol.RequireStructuredSessionKey(sessionKey)
@@ -95,7 +96,7 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 
 	now := time.Now().UTC()
 	roundID := c.idFactory("delivery_round")
-	assistantMessage := session.Message{
+	assistantMessage := sessionmodel.Message{
 		"message_id":  c.idFactory("assistant"),
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
@@ -111,7 +112,7 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 		},
 		"is_complete": true,
 	}
-	resultMessage := session.Message{
+	resultMessage := sessionmodel.Message{
 		"message_id":      c.idFactory("result"),
 		"session_key":     sessionKey,
 		"agent_id":        parsed.AgentID,
@@ -138,15 +139,14 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 		return err
 	}
 
-	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, assistantMessage)
-	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, resultMessage)
+	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, sessionmodel.ProjectResultMessage(assistantMessage, resultMessage))
 	return nil
 }
 
 func (c *sessionDeliveryChannel) persistMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message session.Message,
+	message sessionmodel.Message,
 ) (session.Session, error) {
 	if err := c.appendHistoryMessage(workspacePath, sessionValue, message); err != nil {
 		return session.Session{}, err
@@ -172,7 +172,7 @@ func (c *sessionDeliveryChannel) persistMessage(
 func (c *sessionDeliveryChannel) appendHistoryMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message session.Message,
+	message sessionmodel.Message,
 ) error {
 	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
 		return err
@@ -184,7 +184,7 @@ func (c *sessionDeliveryChannel) broadcastMessage(
 	ctx context.Context,
 	sessionKey string,
 	agentID string,
-	message session.Message,
+	message sessionmodel.Message,
 ) {
 	if c.permission == nil {
 		return

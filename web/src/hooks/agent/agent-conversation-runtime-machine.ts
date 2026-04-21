@@ -26,9 +26,10 @@ export interface ActiveMessageTracker {
 
 export interface AgentConversationRuntimeSnapshot {
   phase: AgentConversationRuntimePhase;
-  pending_round_ids: string[];
+  sending_round_ids: string[];
   running_round_ids: string[];
   terminal_round_ids: string[];
+  live_round_ids: string[];
   active_messages: Record<string, ActiveMessageTracker>;
   pending_permission_count: number;
   is_loading: boolean;
@@ -36,6 +37,12 @@ export interface AgentConversationRuntimeSnapshot {
 
 function is_terminal_assistant_status(status?: AssistantMessageStatus): boolean {
   return status === 'done' || status === 'cancelled' || status === 'error';
+}
+
+function has_terminal_assistant_projection(message: AssistantMessage): boolean {
+  return Boolean(message.result_summary)
+    || Boolean(message.stop_reason)
+    || is_terminal_assistant_status(message.stream_status);
 }
 
 function build_active_message_record(
@@ -47,7 +54,7 @@ function build_active_message_record(
 export class AgentConversationRuntimeMachine {
   private chat_type: AgentConversationChatType;
 
-  private pending_round_ids = new Set<string>();
+  private sending_round_ids = new Set<string>();
 
   private running_round_ids = new Set<string>();
 
@@ -66,16 +73,16 @@ export class AgentConversationRuntimeMachine {
   }
 
   public reset(): void {
-    this.pending_round_ids.clear();
+    this.sending_round_ids.clear();
     this.running_round_ids.clear();
     this.terminal_round_ids.clear();
     this.active_message_trackers.clear();
     this.pending_permission_count = 0;
   }
 
-  public queue_round(round_id: string): void {
+  public track_outbound_round(round_id: string): void {
     this.terminal_round_ids.delete(round_id);
-    this.pending_round_ids.add(round_id);
+    this.sending_round_ids.add(round_id);
   }
 
   public clear_round(
@@ -91,9 +98,9 @@ export class AgentConversationRuntimeMachine {
       (include_related_rounds && tracked_round_id.startsWith(`${round_id}:`))
     );
 
-    for (const tracked_round_id of [...this.pending_round_ids]) {
+    for (const tracked_round_id of [...this.sending_round_ids]) {
       if (should_clear_round(tracked_round_id)) {
-        this.pending_round_ids.delete(tracked_round_id);
+        this.sending_round_ids.delete(tracked_round_id);
       }
     }
 
@@ -140,7 +147,7 @@ export class AgentConversationRuntimeMachine {
   }
 
   public track_chat_ack(ack: ChatAckData): void {
-    this.pending_round_ids.delete(ack.round_id);
+    this.sending_round_ids.delete(ack.round_id);
     const pending_count = ack.pending?.length ?? 0;
 
     for (const slot of ack.pending ?? []) {
@@ -164,7 +171,7 @@ export class AgentConversationRuntimeMachine {
       return;
     }
 
-    if (message.stop_reason || is_terminal_assistant_status(message.stream_status)) {
+    if (has_terminal_assistant_projection(message)) {
       this.active_message_trackers.delete(message.message_id);
       return;
     }
@@ -180,7 +187,7 @@ export class AgentConversationRuntimeMachine {
     status: RoundLifecycleStatus,
   ): void {
     if (status === 'running') {
-      this.pending_round_ids.delete(round_id);
+      this.sending_round_ids.delete(round_id);
       this.terminal_round_ids.delete(round_id);
       this.running_round_ids.add(round_id);
       return;
@@ -199,7 +206,7 @@ export class AgentConversationRuntimeMachine {
 
     this.running_round_ids = next_running_round_ids;
     for (const round_id of next_running_round_ids) {
-      this.pending_round_ids.delete(round_id);
+      this.sending_round_ids.delete(round_id);
       this.terminal_round_ids.delete(round_id);
     }
   }
@@ -216,7 +223,7 @@ export class AgentConversationRuntimeMachine {
         continue;
       }
 
-      if (message.stop_reason || is_terminal_assistant_status(message.stream_status)) {
+      if (has_terminal_assistant_projection(message)) {
         terminal_message_ids.add(message.message_id);
       }
     }
@@ -235,8 +242,7 @@ export class AgentConversationRuntimeMachine {
           continue;
         }
         if (
-          message.stop_reason ||
-          is_terminal_assistant_status(message.stream_status) ||
+          has_terminal_assistant_projection(message) ||
           this.is_round_terminal(message.round_id)
         ) {
           continue;
@@ -253,11 +259,21 @@ export class AgentConversationRuntimeMachine {
 
   public snapshot(): AgentConversationRuntimeSnapshot {
     const phase = this.resolve_phase();
+    const live_round_ids = new Set<string>([
+      ...this.sending_round_ids,
+      ...this.running_round_ids,
+    ]);
+    for (const tracker of this.active_message_trackers.values()) {
+      if (tracker.round_id) {
+        live_round_ids.add(tracker.round_id);
+      }
+    }
     return {
       phase,
-      pending_round_ids: [...this.pending_round_ids],
+      sending_round_ids: [...this.sending_round_ids],
       running_round_ids: [...this.running_round_ids],
       terminal_round_ids: [...this.terminal_round_ids],
+      live_round_ids: [...live_round_ids],
       active_messages: build_active_message_record(this.active_message_trackers),
       pending_permission_count: this.pending_permission_count,
       is_loading: phase !== 'idle',
@@ -293,8 +309,8 @@ export class AgentConversationRuntimeMachine {
       }
     }
 
-    if (this.pending_round_ids.size > 0) {
-      return 'queued';
+    if (this.sending_round_ids.size > 0) {
+      return 'sending';
     }
 
     if (this.running_round_ids.size > 0 || this.active_message_trackers.size > 0) {

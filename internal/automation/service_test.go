@@ -393,11 +393,18 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取投递目标消息失败: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("期望投递目标写入 2 条消息，实际 %d", len(messages))
+	if len(messages) != 1 {
+		t.Fatalf("期望投递目标写入 1 条 assistant 消息，实际 %d", len(messages))
 	}
-	if firstNonEmptyString(stringFromMessage(messages[1], "result")) != "巡检完成：CPU 使用率正常" {
-		t.Fatalf("投递文本不正确: %+v", messages[1])
+	if firstNonEmptyString(stringFromMessage(messages[0], "content")) != "巡检完成：CPU 使用率正常" {
+		t.Fatalf("投递正文不正确: %+v", messages[0])
+	}
+	summary, ok := messages[0]["result_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("投递目标应挂载 result_summary: %+v", messages[0])
+	}
+	if firstNonEmptyString(stringFromMessage(summary, "subtype")) != "success" {
+		t.Fatalf("投递终态不正确: %+v", messages[0])
 	}
 }
 
@@ -626,7 +633,45 @@ func (r *testAgentResolver) GetAgent(_ context.Context, agentID string) (*agents
 	}, nil
 }
 
-func stringFromMessage(message session.Message, key string) string {
-	value, _ := message[key].(string)
-	return strings.TrimSpace(value)
+func stringFromMessage(message sessionmodel.Message, key string) string {
+	if value, ok := message[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	if key != "content" {
+		return ""
+	}
+	if items, ok := message[key].([]map[string]any); ok {
+		return joinTextBlocks(items)
+	}
+	rawItems, ok := message[key].([]any)
+	if !ok {
+		return ""
+	}
+	items := make([]map[string]any, 0, len(rawItems))
+	for _, raw := range rawItems {
+		payload, ok := raw.(map[string]any)
+		if ok {
+			items = append(items, payload)
+		}
+	}
+	return joinTextBlocks(items)
+}
+
+func joinTextBlocks(items []map[string]any) string {
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if firstNonEmptyString(strings.TrimSpace(messageAnyString(item["type"]))) != "text" {
+			continue
+		}
+		text := strings.TrimSpace(messageAnyString(item["text"]))
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+func messageAnyString(value any) string {
+	text, _ := value.(string)
+	return text
 }

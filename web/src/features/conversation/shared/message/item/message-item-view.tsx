@@ -9,7 +9,7 @@
 
 "use client";
 
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import {
   Bot,
   Check,
@@ -17,7 +17,6 @@ import {
   ChevronRight,
   Copy,
   Edit2,
-  RotateCcw,
   Square,
   User,
   Wrench,
@@ -28,7 +27,6 @@ import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
-import { get_system_message_display_meta } from "@/types/conversation/message";
 
 import { ToolBlock } from "../blocks/tool-block";
 import { MessageStats } from "../ui/message-stats";
@@ -40,8 +38,6 @@ import {
 import { ContentRenderer } from "./content-renderer";
 import {
   format_message_time,
-  get_system_message_container_class_name,
-  get_system_message_icon_class_name,
 } from "./message-item-support";
 import type { MessageItemState } from "./message-item-types";
 
@@ -75,12 +71,12 @@ export function MessageUserSection({
           "group flex min-w-0 justify-end",
           compact ? "" : "gap-3",
         )}>
-          <div className="relative ml-auto min-w-0 max-w-[min(100%,720px)]">
+          <div className="relative ml-auto w-fit max-w-[min(100%,720px)]">
             <div className={cn(
               "flex items-center justify-end gap-2",
               compact ? "h-6" : "h-7",
             )}>
-              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="pointer-events-none absolute left-0 top-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
                 {on_edit_user_message ? (
                   <MessageActionButton
                     aria-label="编辑消息"
@@ -113,12 +109,12 @@ export function MessageUserSection({
               </MessageAvatar>
             </div>
 
-            <div className="rounded-2xl bg-[color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
+            <div className="ml-auto w-fit max-w-full rounded-2xl bg-[color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
               <ContentRenderer
                 content={user_content}
                 on_open_workspace_file={on_open_workspace_file}
                 class_name={cn(
-                  "w-full text-left text-(--text-strong)",
+                  "text-left text-(--text-strong)",
                   compact
                     ? "text-[15px] leading-6 [&_.katex-display]:my-2"
                     : "text-[16px] leading-7 [&_.katex-display]:my-3",
@@ -306,41 +302,6 @@ export function MessageAssistantSection({
                 <MessageActivityStatus class_name="py-1" state={state.live_activity_state!} />
               ) : null}
 
-              {state.system_messages.length > 0 ? (
-                <div className="mb-3 flex flex-col gap-2">
-                  {state.system_messages.map((message) => {
-                    const display_meta = get_system_message_display_meta(message);
-                    return (
-                      <div
-                        key={message.message_id}
-                        className={cn(
-                          "flex items-start gap-2 rounded-2xl px-3 py-2.5",
-                          get_system_message_container_class_name(display_meta.tone),
-                          is_room_thread_mode && display_meta.tone === "neutral"
-                            ? "border border-(--divider-subtle-color) bg-transparent text-(--text-default)"
-                            : null,
-                        )}
-                      >
-                        <RotateCcw
-                          className={cn(
-                            "mt-0.5 h-3.5 w-3.5 shrink-0",
-                            get_system_message_icon_class_name(display_meta.tone),
-                          )}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                            {display_meta.label}
-                          </p>
-                          <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-6 wrap-anywhere">
-                            {message.content}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-
               {state.stream_status === "cancelled" && state.merged_content_length === 0 ? (
                 <span className="text-xs italic text-(--text-soft)">已停止</span>
               ) : null}
@@ -357,12 +318,13 @@ export function MessageAssistantSection({
                     streaming_block_indexes={state.direct_ordered_projection.streaming_indexes}
                     fallback_activity_state={state.live_activity_state}
                     pending_permissions_by_tool_use_id={state.matched_pending_permissions_by_tool_use_id}
-                    on_permission_response={on_permission_response}
-                    can_respond_to_permissions={can_respond_to_permissions}
-                    permission_read_only_reason={permission_read_only_reason}
-                    on_open_workspace_file={on_open_workspace_file}
-                    hidden_tool_names={hidden_tool_names}
-                  />
+                  on_permission_response={on_permission_response}
+                  can_respond_to_permissions={can_respond_to_permissions}
+                  permission_read_only_reason={permission_read_only_reason}
+                  on_open_workspace_file={on_open_workspace_file}
+                  hidden_tool_names={hidden_tool_names}
+                  show_timeline_dots
+                />
                   {pending_permission_block}
                 </div>
               ) : null}

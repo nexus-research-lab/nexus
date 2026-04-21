@@ -1,7 +1,7 @@
 import {
   AssistantMessage,
   Message,
-  ResultMessage,
+  ResultSummary,
   RoomPendingAgentSlotState,
 } from "@/types/conversation/message";
 import { PendingPermission } from "@/types/conversation/permission";
@@ -82,7 +82,7 @@ export type AgentRoundStatus = "pending" | "streaming" | "done" | "error" | "can
 export interface RoomAgentRoundEntry {
   agent_id: string;
   assistant_messages: AssistantMessage[];
-  result_message?: ResultMessage;
+  result_summary?: ResultSummary;
   pending_slot?: RoomPendingAgentSlotState;
   status: AgentRoundStatus;
   timestamp: number;
@@ -106,8 +106,7 @@ export function has_room_agent_round_entries(
   pending_slots: RoomPendingAgentSlotState[] = [],
 ): boolean {
   return pending_slots.length > 0 || messages.some((message) => (
-    Boolean(message.agent_id) &&
-    (message.role === "assistant" || message.role === "result")
+    Boolean(message.agent_id) && message.role === "assistant"
   ));
 }
 
@@ -126,14 +125,20 @@ export function group_round_by_agent(messages: Message[]): Map<string, Assistant
   return groups;
 }
 
-function build_result_message_map(messages: Message[]): Map<string, ResultMessage> {
-  const result_map = new Map<string, ResultMessage>();
-  for (const message of messages) {
-    if (message.role === "result" && message.agent_id) {
-      result_map.set(message.agent_id, message as ResultMessage);
+function build_result_summary_map(messages: Message[]): Map<string, ResultSummary> {
+  const summary_map = new Map<string, ResultSummary>();
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "assistant" || !message.agent_id || summary_map.has(message.agent_id)) {
+      continue;
     }
+    const assistant = message as AssistantMessage;
+    if (!assistant.result_summary) {
+      continue;
+    }
+    summary_map.set(message.agent_id, assistant.result_summary);
   }
-  return result_map;
+  return summary_map;
 }
 
 /** 将当前主 round 下的 pending slot 按 agent_id 索引。 */
@@ -150,14 +155,14 @@ function build_pending_slot_map(
 /** 从一组 assistant 消息中推导该 Agent 的聚合状态 */
 export function get_agent_round_status(
   messages: AssistantMessage[],
-  result_message?: ResultMessage | null,
+  result_summary?: ResultSummary | null,
   pending_slot?: RoomPendingAgentSlotState | null,
 ): AgentRoundStatus {
-  if (result_message) {
-    if (result_message.subtype === "error" || result_message.is_error) {
+  if (result_summary) {
+    if (result_summary.subtype === "error" || result_summary.is_error) {
       return "error";
     }
-    if (result_message.subtype === "interrupted") {
+    if (result_summary.subtype === "interrupted") {
       return "cancelled";
     }
     return "done";
@@ -200,10 +205,10 @@ export function get_agent_round_status(
   if (has_cancelled) return "cancelled";
   if (has_done) return "done";
 
-  // Room 的执行态必须由 pending slot 或 ResultMessage 驱动。
+  // Room 的执行态必须由 pending slot 或 result_summary 驱动。
   // 仅凭“历史里留着 assistant 过程消息”不能继续判成 streaming，
   // 但如果 assistant 本身已经明确收口为 done，则仍应视为完成，
-  // 这样无 ResultMessage 的正常结束轮次才能正确回退显示最终 assistant。
+  // 这样无独立结果消息的正常结束轮次才能正确回退显示最终 assistant。
   return "cancelled";
 }
 
@@ -215,11 +220,11 @@ export function is_agent_round_active(status: AgentRoundStatus): boolean {
 /** 计算 Agent 回复在时间线中的排序时间，优先使用 result 的完成时间。 */
 export function get_agent_round_timestamp(
   messages: AssistantMessage[],
-  result_message?: ResultMessage | null,
+  result_summary?: ResultSummary | null,
   pending_slot?: RoomPendingAgentSlotState | null,
 ): number {
-  if (result_message?.timestamp) {
-    return result_message.timestamp;
+  if (result_summary?.timestamp) {
+    return result_summary.timestamp;
   }
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -241,27 +246,27 @@ export function build_room_agent_round_entries(
   messages: Message[],
   pending_slots: RoomPendingAgentSlotState[] = [],
 ): RoomAgentRoundEntry[] {
-  const result_map = build_result_message_map(messages);
+  const summary_map = build_result_summary_map(messages);
   const agent_groups = group_round_by_agent(messages);
   const pending_slot_map = build_pending_slot_map(pending_slots);
   const agent_ids = new Set<string>([
     ...agent_groups.keys(),
-    ...result_map.keys(),
+    ...summary_map.keys(),
     ...pending_slot_map.keys(),
   ]);
 
   return Array.from(agent_ids).map((agent_id) => {
     const assistant_messages = agent_groups.get(agent_id) ?? [];
-    const result_message = result_map.get(agent_id);
+    const result_summary = summary_map.get(agent_id);
     const pending_slot = pending_slot_map.get(agent_id);
 
     return {
       agent_id,
       assistant_messages,
-      result_message,
+      result_summary,
       pending_slot,
-      status: get_agent_round_status(assistant_messages, result_message, pending_slot),
-      timestamp: get_agent_round_timestamp(assistant_messages, result_message, pending_slot),
+      status: get_agent_round_status(assistant_messages, result_summary, pending_slot),
+      timestamp: get_agent_round_timestamp(assistant_messages, result_summary, pending_slot),
     };
   });
 }
@@ -272,23 +277,23 @@ export function get_room_agent_round_entry(
   agent_id: string,
   pending_slots: RoomPendingAgentSlotState[] = [],
 ): RoomAgentRoundEntry | null {
-  const result_map = build_result_message_map(messages);
+  const summary_map = build_result_summary_map(messages);
   const agent_groups = group_round_by_agent(messages);
   const assistant_messages = agent_groups.get(agent_id) ?? [];
-  const result_message = result_map.get(agent_id);
+  const result_summary = summary_map.get(agent_id);
   const pending_slot = pending_slots.find((slot) => slot.agent_id === agent_id);
 
-  if (assistant_messages.length === 0 && !result_message && !pending_slot) {
+  if (assistant_messages.length === 0 && !result_summary && !pending_slot) {
     return null;
   }
 
   return {
     agent_id,
     assistant_messages,
-    result_message,
+    result_summary,
     pending_slot,
-    status: get_agent_round_status(assistant_messages, result_message, pending_slot),
-    timestamp: get_agent_round_timestamp(assistant_messages, result_message, pending_slot),
+    status: get_agent_round_status(assistant_messages, result_summary, pending_slot),
+    timestamp: get_agent_round_timestamp(assistant_messages, result_summary, pending_slot),
   };
 }
 
@@ -367,8 +372,10 @@ export function extract_agent_preview_text(messages: AssistantMessage[], max_len
 export function get_latest_reply_timestamp(messages: Message[]): number | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    if (msg.role !== "assistant" && msg.role !== "result") continue;
-    if (Number.isFinite(msg.timestamp) && msg.timestamp > 0) return msg.timestamp;
+    if (msg.role !== "assistant") continue;
+    const assistant = msg as AssistantMessage;
+    const timestamp = assistant.result_summary?.timestamp ?? assistant.timestamp;
+    if (Number.isFinite(timestamp) && timestamp > 0) return timestamp;
   }
   const last = messages[messages.length - 1];
   if (last && Number.isFinite(last.timestamp) && last.timestamp > 0) return last.timestamp;

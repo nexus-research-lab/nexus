@@ -4,7 +4,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
-import { Agent } from "@/types/agent/agent";
 
 export interface MentionTargetItem {
     id: string;
@@ -20,14 +19,6 @@ interface MentionTargetPopoverProps {
     on_select: (item: MentionTargetItem) => void;
     on_close: () => void;
     placement?: "above" | "below" | "auto";
-}
-
-interface MentionPopoverProps {
-    members: Agent[];
-    filter: string;
-    anchor_rect: DOMRect | null;
-    on_select: (agent: Agent) => void;
-    on_close: () => void;
 }
 
 /**
@@ -173,39 +164,3 @@ export const MentionTargetPopover = memo(({
 });
 
 MentionTargetPopover.displayName = "MentionTargetPopover";
-
-/**
- * Room composer 仍然只需要 @agent 选择，这里保留兼容包装层。
- */
-export const MentionPopover = memo(({
-    members,
-    filter,
-    anchor_rect,
-    on_select,
-    on_close,
-}: MentionPopoverProps) => {
-    const items = useMemo<MentionTargetItem[]>(() => members.map((member) => ({
-        id: member.agent_id,
-        label: member.name,
-        subtitle: null,
-        kind: "agent",
-    })), [members]);
-
-    return (
-        <MentionTargetPopover
-            anchor_rect={anchor_rect}
-            filter={filter}
-            items={items}
-            on_close={on_close}
-            on_select={(item) => {
-                const selected_member = members.find((member) => member.agent_id === item.id);
-                if (selected_member) {
-                    on_select(selected_member);
-                }
-            }}
-            placement="above"
-        />
-    );
-});
-
-MentionPopover.displayName = "MentionPopover";

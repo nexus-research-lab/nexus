@@ -72,6 +72,7 @@ export async function load_agent_session(
     } else {
       reset_session_view(context);
     }
+    context.restore_volatile_session_snapshot?.(session_key);
   }
 
   try {

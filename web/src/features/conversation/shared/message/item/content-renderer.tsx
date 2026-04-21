@@ -1,9 +1,16 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Info, LoaderCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { ContentBlock, TaskProgressContent, ToolResultContent, ToolUseContent } from "@/types/conversation/message";
+import {
+  ContentBlock,
+  SystemEventContent,
+  TaskProgressContent,
+  ToolResultContent,
+  ToolUseContent,
+} from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 
 import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
@@ -16,12 +23,16 @@ import {
   MessageCallout,
   MessageCalloutTitle,
   MessageRail,
+  MessageRailBody,
+  MessageRailLabel,
   MessageResultLabel,
 } from "../ui/message-rail";
 import {
   DEFAULT_TIMELINE_DOT_TOP,
   get_timeline_anchor_element,
   get_timeline_anchor_top,
+  get_system_message_icon_class_name,
+  get_system_message_label_class_name,
 } from "./message-item-support";
 
 interface ContentRendererProps {
@@ -37,6 +48,22 @@ interface ContentRendererProps {
   hidden_tool_names?: string[];
   class_name?: string;
   show_timeline_dots?: boolean;
+}
+
+function SystemEventIcon({
+  icon,
+  class_name,
+}: {
+  icon: SystemEventContent["icon"];
+  class_name?: string;
+}) {
+  if (icon === "retry") {
+    return <RotateCcw className={class_name} />;
+  }
+  if (icon === "progress") {
+    return <LoaderCircle className={class_name} />;
+  }
+  return <Info className={class_name} />;
 }
 
 function TimelineBlock({
@@ -213,6 +240,29 @@ export function ContentRenderer(
             index,
             <ThinkingBlock thinking={block.thinking || ''} is_streaming={blockIsStreaming} />,
           );
+        }
+
+        if (block.type === 'system_event') {
+          return wrap_block(index, (
+            <MessageRail class_name="min-w-0">
+              <MessageRailLabel class_name={cn("flex-1", get_system_message_label_class_name(block.tone))}>
+                <span
+                  data-timeline-anchor
+                  data-timeline-anchor-mode="box"
+                  className="flex h-4 w-4 shrink-0 items-center justify-center"
+                >
+                  <SystemEventIcon
+                    icon={block.icon}
+                    class_name={cn("h-3 w-3", get_system_message_icon_class_name(block.tone))}
+                  />
+                </span>
+                <span>{block.label}</span>
+              </MessageRailLabel>
+              <MessageRailBody class_name="pt-1 text-[14px] leading-6 text-(--text-default)">
+                {block.content}
+              </MessageRailBody>
+            </MessageRail>
+          ));
         }
 
         if (block.type === 'task_progress') {

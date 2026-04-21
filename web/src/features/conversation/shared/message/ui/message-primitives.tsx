@@ -20,6 +20,7 @@ type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";
 type MessageLoadingDotsSize = "sm" | "md";
 export type MessageActivityState =
+  | "sending"
   | "thinking"
   | "replying"
   | "browsing"
@@ -46,6 +47,7 @@ function get_first_visible_spinner_frame_index(name: BrailleSpinnerName): number
 }
 
 const ACTIVITY_LABEL_MAP: Record<MessageActivityState, string> = {
+  sending: "正在发送",
   thinking: "正在思考",
   replying: "正在回复",
   browsing: "正在浏览",
@@ -55,6 +57,7 @@ const ACTIVITY_LABEL_MAP: Record<MessageActivityState, string> = {
 };
 
 const ACTIVITY_TONE_CLASS_MAP: Record<MessageActivityState, string> = {
+  sending: "text-(--text-muted)",
   thinking: "text-(--text-muted)",
   replying: "text-(--text-default)",
   browsing: "text-cyan-600",
@@ -64,6 +67,7 @@ const ACTIVITY_TONE_CLASS_MAP: Record<MessageActivityState, string> = {
 };
 
 const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {
+  sending: "braille",
   thinking: "braille",
   replying: "dna",
   browsing: "braille",
@@ -202,6 +206,8 @@ export function MessageLoadingDots({
 
 function MessageActivityIcon({ state }: { state: MessageActivityState }) {
   switch (state) {
+    case "sending":
+      return <MessageSquareText className="h-3.5 w-3.5" />;
     case "thinking":
       return <Brain className="h-3.5 w-3.5" />;
     case "replying":

@@ -139,7 +139,8 @@ Room 历史现在按 round 分页，不再按 message 行分页。
 - 首屏最近一页
 - 上滚加载更早 round
 - Room 多 agent 子轮次会折回主 round
-- 同一 round 内稳定顺序是 `user -> assistant -> result`
+- 同一 round 对外稳定顺序是 `user -> assistant`
+- assistant 的终态摘要通过 `result_summary` 挂载
 
 ## 8. 当前实现约束
 

@@ -78,6 +78,34 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
+func extractAssistantText(message sessionmodel.Message) string {
+	items, ok := message["content"].([]map[string]any)
+	if !ok {
+		rawItems, ok := message["content"].([]any)
+		if !ok {
+			return ""
+		}
+		items = make([]map[string]any, 0, len(rawItems))
+		for _, raw := range rawItems {
+			payload, ok := raw.(map[string]any)
+			if ok {
+				items = append(items, payload)
+			}
+		}
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if stringValue(item["type"]) != "text" {
+			continue
+		}
+		text := stringValue(item["text"])
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
 func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	workspacePath := t.TempDir()
 	db := newChannelTestDB(t)
@@ -142,21 +170,24 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取消息失败: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("期望写入 2 条消息，实际 %d", len(messages))
+	if len(messages) != 1 {
+		t.Fatalf("期望写入 1 条 assistant 消息，实际 %d", len(messages))
 	}
-	if stringValue(messages[0]["role"]) != "assistant" || stringValue(messages[1]["role"]) != "result" {
-		t.Fatalf("投递消息角色顺序不正确: %+v", messages)
+	if stringValue(messages[0]["role"]) != "assistant" {
+		t.Fatalf("投递消息角色不正确: %+v", messages)
 	}
-	if stringValue(messages[1]["result"]) != "自动提醒" {
-		t.Fatalf("result 内容不正确: %+v", messages[1])
+	if extractAssistantText(messages[0]) != "自动提醒" {
+		t.Fatalf("assistant 正文不正确: %+v", messages[0])
+	}
+	if _, ok := messages[0]["result_summary"].(map[string]any); !ok {
+		t.Fatalf("assistant 应挂载 result_summary: %+v", messages[0])
 	}
 
 	events := sender.Events()
-	if len(events) != 2 {
-		t.Fatalf("期望广播 2 条 durable message，实际 %d", len(events))
+	if len(events) != 1 {
+		t.Fatalf("期望广播 1 条 durable message，实际 %d", len(events))
 	}
-	if events[0].EventType != protocol.EventTypeMessage || events[1].EventType != protocol.EventTypeMessage {
+	if events[0].EventType != protocol.EventTypeMessage {
 		t.Fatalf("广播事件类型不正确: %+v", events)
 	}
 }

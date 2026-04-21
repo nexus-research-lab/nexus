@@ -14,7 +14,6 @@ import type {
   AssistantMessage,
   ContentBlock,
   Message,
-  SystemMessage,
 } from "@/types/conversation/message";
 import type {
   PendingPermission,
@@ -59,7 +58,6 @@ export interface MessageItemState {
   copied_assistant: boolean;
   user_message: Message | undefined;
   user_content: string;
-  system_messages: SystemMessage[];
   model: string | undefined;
   timestamp: number | undefined;
   stream_status: AssistantMessage["stream_status"] | null;

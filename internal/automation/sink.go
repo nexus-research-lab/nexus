@@ -109,22 +109,21 @@ func (s *executionSink) WaitForRound(ctx context.Context, roundID string) execut
 					if text := strings.TrimSpace(extractTextContent(payload["content"])); text != "" {
 						observation.AssistantText = text
 					}
-				}
-				if role == "result" {
-					if resultText := strings.TrimSpace(anyString(payload["result"])); resultText != "" {
-						observation.ResultText = resultText
-					}
-					subtype := strings.TrimSpace(anyString(payload["subtype"]))
-					switch subtype {
-					case "success", "":
-						observation.Status = RunStatusSucceeded
-					case "interrupted":
-						observation.Status = RunStatusCancelled
-					default:
-						observation.Status = RunStatusFailed
-						message := strings.TrimSpace(anyString(payload["result"]))
-						if message != "" {
-							observation.ErrorMessage = &message
+					if summary, ok := payload["result_summary"].(map[string]any); ok {
+						if resultText := strings.TrimSpace(anyString(summary["result"])); resultText != "" {
+							observation.ResultText = resultText
+						}
+						switch strings.TrimSpace(anyString(summary["subtype"])) {
+						case "success", "":
+							observation.Status = RunStatusSucceeded
+						case "interrupted":
+							observation.Status = RunStatusCancelled
+						default:
+							observation.Status = RunStatusFailed
+							message := strings.TrimSpace(anyString(summary["result"]))
+							if message != "" {
+								observation.ErrorMessage = &message
+							}
 						}
 					}
 				}

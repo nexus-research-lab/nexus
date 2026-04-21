@@ -38,6 +38,9 @@ func (r *AgentRepository) ListActiveAgents(ctx context.Context) ([]agentmodel.Ag
     COALESCE(a.avatar, ''),
     COALESCE(a.description, ''),
 	    COALESCE(a.vibe_tags::text, '[]'),
+	    COALESCE(p.display_name, ''),
+	    COALESCE(p.headline, ''),
+	    COALESCE(p.profile_markdown, ''),
 	    a.created_at,
 	    COALESCE(rt.provider, ''),
 	    COALESCE(rt.permission_mode, ''),
@@ -48,6 +51,7 @@ func (r *AgentRepository) ListActiveAgents(ctx context.Context) ([]agentmodel.Ag
     rt.max_thinking_tokens,
     COALESCE(rt.setting_sources_json, '[]')
 FROM agents a
+LEFT JOIN profiles p ON p.agent_id = a.id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id
 WHERE a.status = 'active'
 ORDER BY a.created_at ASC`)
@@ -78,6 +82,9 @@ func (r *AgentRepository) GetAgent(ctx context.Context, agentID string) (*agentm
     COALESCE(a.avatar, ''),
     COALESCE(a.description, ''),
 	    COALESCE(a.vibe_tags::text, '[]'),
+	    COALESCE(p.display_name, ''),
+	    COALESCE(p.headline, ''),
+	    COALESCE(p.profile_markdown, ''),
 	    a.created_at,
 	    COALESCE(rt.provider, ''),
 	    COALESCE(rt.permission_mode, ''),
@@ -88,6 +95,7 @@ func (r *AgentRepository) GetAgent(ctx context.Context, agentID string) (*agentm
     rt.max_thinking_tokens,
     COALESCE(rt.setting_sources_json, '[]')
 FROM agents a
+LEFT JOIN profiles p ON p.agent_id = a.id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id
 WHERE a.id = $1`, agentID)
 
@@ -186,6 +194,16 @@ WHERE id = $7`,
 	}
 
 	if _, err = tx.ExecContext(ctx, `
+UPDATE profiles
+SET display_name = $1, updated_at = now()
+WHERE agent_id = $2`,
+		record.Name,
+		record.AgentID,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err = tx.ExecContext(ctx, `
 	UPDATE runtimes
 	SET provider = $1, permission_mode = $2, allowed_tools_json = $3, disallowed_tools_json = $4,
 	    mcp_servers_json = $5, max_turns = $6, max_thinking_tokens = $7, setting_sources_json = $8, updated_at = now()
@@ -257,6 +275,9 @@ func scanAgent(scanner interface {
 		&item.Avatar,
 		&item.Description,
 		&vibeTagsJSON,
+		&item.DisplayName,
+		&item.Headline,
+		&item.ProfileMarkdown,
 		&createdAt,
 		&item.Options.Provider,
 		&item.Options.PermissionMode,

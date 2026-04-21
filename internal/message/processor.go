@@ -40,11 +40,13 @@ type StreamPayload struct {
 type Output struct {
 	StreamEvents        []StreamPayload
 	DurableMessages     []sessionmodel.Message
+	EphemeralMessages   []sessionmodel.Message
 	RegisteredSessionID string
 	TerminalStatus      string
 	ResultSubtype       string
 	StreamStarted       bool
 	AssistantCompleted  bool
+	Err                 error
 }
 
 // Processor 负责把 SDK 消息转换成统一协议语义。
@@ -53,9 +55,9 @@ type Processor struct {
 	sessionID string
 	segment   AssistantSegment
 
-	streamStarted                   bool
-	streamTerminalObserved          bool
-	lastAssistantMessageFingerprint string
+	streamStarted                bool
+	streamTerminalObserved       bool
+	lastDurableAssistantSnapshot sessionmodel.Message
 }
 
 // NewProcessor 创建统一消息处理器。
@@ -79,7 +81,12 @@ func (p *Processor) SessionID() string {
 // Process 处理一条 SDK 消息。
 func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 	output := Output{}
-	if updated := p.registerSessionID(message); updated != "" {
+	updated, err := p.registerSessionID(message)
+	if err != nil {
+		output.Err = err
+		return output
+	}
+	if updated != "" {
 		output.RegisteredSessionID = updated
 	}
 
@@ -94,7 +101,9 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 			}
 		}
 	case sdkprotocol.MessageTypeSystem:
-		output.DurableMessages = append(output.DurableMessages, p.processSystemMessage(message)...)
+		durableMessages, ephemeralMessages := p.processSystemMessage(message)
+		output.DurableMessages = append(output.DurableMessages, durableMessages...)
+		output.EphemeralMessages = append(output.EphemeralMessages, ephemeralMessages...)
 	case sdkprotocol.MessageTypeResult:
 		subtype := normalizeResultSubtype(message.Result)
 		output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
@@ -138,7 +147,7 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 		)
 		p.streamStarted = true
 		p.streamTerminalObserved = false
-		p.lastAssistantMessageFingerprint = ""
+		p.lastDurableAssistantSnapshot = nil
 		output.StreamStarted = true
 		output.StreamEvents = append(output.StreamEvents, StreamPayload{
 			MessageID: p.segment.MessageID(),
@@ -245,7 +254,7 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 		)
 		p.streamStarted = false
 		p.streamTerminalObserved = false
-		p.lastAssistantMessageFingerprint = ""
+		p.lastDurableAssistantSnapshot = nil
 	}
 	content := normalizeContentBlocks(message.Assistant.Message.Content)
 	p.segment.ReplaceFromSnapshot(
@@ -264,9 +273,9 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 	return durable
 }
 
-func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) []sessionmodel.Message {
+func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([]sessionmodel.Message, []sessionmodel.Message) {
 	if message.System == nil {
-		return nil
+		return nil, nil
 	}
 	subtype := strings.TrimSpace(message.System.Subtype)
 	if subtype == "task_progress" {
@@ -293,15 +302,18 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) []
 			),
 		)
 		if progressMessage == nil {
-			return nil
+			return nil, nil
 		}
-		return []sessionmodel.Message{*progressMessage}
+		return []sessionmodel.Message{*progressMessage}, nil
 	}
 
-	if visible := p.buildVisibleSystemMessage(message.System); visible != nil {
-		return []sessionmodel.Message{*visible}
+	if visible, ephemeral := p.buildVisibleSystemMessage(message.System); visible != nil {
+		if ephemeral {
+			return nil, []sessionmodel.Message{*visible}
+		}
+		return []sessionmodel.Message{*visible}, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *sessionmodel.Message {
@@ -378,14 +390,16 @@ func (p *Processor) buildTaskProgressMessage(taskID string, description string, 
 	return p.buildAssistantDurableMessage(false, false, "")
 }
 
-func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) *sessionmodel.Message {
+func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) (*sessionmodel.Message, bool) {
 	if message == nil {
-		return nil
+		return nil, false
 	}
 	subtype := strings.TrimSpace(message.Subtype)
 	var (
-		content  string
-		metadata map[string]any
+		content           string
+		metadata          map[string]any
+		explicitMessageID string
+		ephemeral         bool
 	)
 	switch subtype {
 	case "task_started":
@@ -408,19 +422,21 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 			metadata = map[string]any{}
 		}
 		metadata["subtype"] = "api_retry"
+		explicitMessageID = "system_api_retry_" + p.ctx.RoundID
+		ephemeral = true
 	default:
-		return nil
+		return nil, false
 	}
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		fmt.Sprintf("system_%s_%d", p.ctx.RoundID, time.Now().UnixMilli()),
+		firstNonEmpty(explicitMessageID, fmt.Sprintf("system_%s_%d", p.ctx.RoundID, time.Now().UnixMilli())),
 		"system",
 	)
 	payload["content"] = content
 	payload["metadata"] = metadata
 	messageValue := sessionmodel.Message(payload)
-	return &messageValue
+	return &messageValue, ephemeral
 }
 
 func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subtype string) sessionmodel.Message {
@@ -460,26 +476,59 @@ func (p *Processor) buildBlockStreamPayload(streamType string, index int, block 
 	}
 }
 
-func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) string {
-	if strings.TrimSpace(p.sessionID) != "" {
-		if strings.TrimSpace(message.SessionID) != "" {
-			p.sessionID = strings.TrimSpace(message.SessionID)
+func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) (string, error) {
+	currentSessionID := strings.TrimSpace(p.sessionID)
+	candidates := []string{strings.TrimSpace(message.SessionID)}
+	if message.Type == sdkprotocol.MessageTypeSystem && message.System != nil {
+		candidates = append(candidates, strings.TrimSpace(stringValue(message.System.Data["session_id"])))
+	}
+
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
 		}
-		return ""
+		if currentSessionID == "" {
+			p.sessionID = candidate
+			return candidate, nil
+		}
+		if currentSessionID != candidate {
+			return "", fmt.Errorf(
+				"processor session_id changed: current=%s incoming=%s round_id=%s",
+				currentSessionID,
+				candidate,
+				p.ctx.RoundID,
+			)
+		}
 	}
-	if strings.TrimSpace(message.SessionID) != "" {
-		p.sessionID = strings.TrimSpace(message.SessionID)
-		return ""
+	return "", nil
+}
+
+// NormalizeInterruptedOutput 统一把“用户主动停止后 SDK 仍返回 error”的结果收口成 interrupted。
+func NormalizeInterruptedOutput(output *Output, interruptReason string) {
+	if output == nil {
+		return
 	}
-	if message.Type != sdkprotocol.MessageTypeSystem || message.System == nil {
-		return ""
+	if output.ResultSubtype != "error" && output.TerminalStatus != "error" {
+		return
 	}
-	sessionID := stringValue(message.System.Data["session_id"])
-	if strings.TrimSpace(sessionID) == "" {
-		return ""
+
+	resultText := strings.TrimSpace(interruptReason)
+	output.ResultSubtype = "interrupted"
+	output.TerminalStatus = "interrupted"
+	for index := range output.DurableMessages {
+		messageValue := output.DurableMessages[index]
+		if sessionmodel.MessageRole(messageValue) != "result" {
+			continue
+		}
+		messageValue["subtype"] = "interrupted"
+		messageValue["is_error"] = false
+		if resultText == "" {
+			delete(messageValue, "result")
+		} else {
+			messageValue["result"] = resultText
+		}
+		output.DurableMessages[index] = messageValue
 	}
-	p.sessionID = strings.TrimSpace(sessionID)
-	return p.sessionID
 }
 
 func baseMessageEnvelope(ctx MessageContext, sessionID string, messageID string, role string) map[string]any {
@@ -546,16 +595,27 @@ func (p *Processor) buildAssistantDurableMessage(
 	if strings.TrimSpace(parentID) != "" {
 		payload["parent_id"] = strings.TrimSpace(parentID)
 	}
-	fingerprint := assistantMessageFingerprint(payload)
-	if fingerprint == p.lastAssistantMessageFingerprint {
+	if assistantMessagesEqual(p.lastDurableAssistantSnapshot, payload) {
 		return nil
 	}
-	p.lastAssistantMessageFingerprint = fingerprint
+	p.lastDurableAssistantSnapshot = sessionmodel.Clone(payload)
 	return &payload
 }
 
-func assistantMessageFingerprint(message sessionmodel.Message) string {
-	payload := map[string]any{
+func assistantMessagesEqual(previous sessionmodel.Message, current sessionmodel.Message) bool {
+	if len(previous) == 0 || len(current) == 0 {
+		return false
+	}
+	previousPayload, previousErr := json.Marshal(assistantMessageComparablePayload(previous))
+	currentPayload, currentErr := json.Marshal(assistantMessageComparablePayload(current))
+	if previousErr != nil || currentErr != nil {
+		return false
+	}
+	return string(previousPayload) == string(currentPayload)
+}
+
+func assistantMessageComparablePayload(message sessionmodel.Message) map[string]any {
+	return map[string]any{
 		"message_id":  message["message_id"],
 		"parent_id":   message["parent_id"],
 		"content":     message["content"],
@@ -565,11 +625,6 @@ func assistantMessageFingerprint(message sessionmodel.Message) string {
 		"session_id":  message["session_id"],
 		"round_id":    message["round_id"],
 	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Sprintf("%v", payload)
-	}
-	return string(encoded)
 }
 
 func stringValue(value any) string {

@@ -197,6 +197,35 @@ func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 	}
 }
 
+func TestProcessorDoesNotPersistApiRetrySystemMessage(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-api-retry",
+		ParentID:   "round-api-retry",
+	}, "sdk-session-api-retry")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "api_retry",
+			Data: map[string]any{
+				"message": "API 正在重试",
+			},
+		},
+	})
+
+	if len(output.DurableMessages) != 0 {
+		t.Fatalf("api_retry 不应生成 durable 消息: %+v", output.DurableMessages)
+	}
+	if len(output.EphemeralMessages) != 1 {
+		t.Fatalf("api_retry 应生成一条 ephemeral 消息: %+v", output)
+	}
+	if output.EphemeralMessages[0]["message_id"] != "system_api_retry_round-api-retry" {
+		t.Fatalf("api_retry 应使用稳定 message_id: %+v", output.EphemeralMessages[0])
+	}
+}
+
 func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

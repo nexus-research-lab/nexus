@@ -6,10 +6,10 @@ import {
   WebSocketClientCallbacks,
   WebSocketConfig,
   WebSocketMessage,
+  WebSocketSendResult,
   WebSocketState,
 } from '@/types/system/websocket';
 import { notify_auth_required } from '@/lib/api/http';
-import { notify_room_list_updated } from '@/lib/api/room-api';
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -22,7 +22,7 @@ export class WebSocketClient {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private heartbeatTimeoutTimer: NodeJS.Timeout | null = null;
   private messageQueue: WebSocketMessage[] = [];
-  private lastPongTime = 0;
+  private lastServerActivityTime = 0;
 
   private readonly DEFAULT_CONFIG: Required<WebSocketConfig> = {
     url: '',
@@ -73,20 +73,35 @@ export class WebSocketClient {
   /**
    * 发送消息
    */
-  public send(data: WebSocketMessage): void {
+  public send(data: WebSocketMessage): WebSocketSendResult {
+    if (!this.should_queue_message(data) && this.isTransportStale()) {
+      console.warn('[WebSocketClient] Transport stale, reconnect before sending business message', data.type);
+      this.forceReconnect('Transport stale');
+      return { disposition: 'dropped' };
+    }
+
     if (this.state === 'connected' && this.ws?.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify(data));
+        return { disposition: 'sent' };
       } catch (error) {
         console.error('[WebSocketClient] Send error:', error);
-        // 消息发送失败，加入队列
-        this.messageQueue.push(data);
+        if (this.should_queue_message(data)) {
+          this.messageQueue.push(data);
+          return { disposition: 'queued' };
+        }
+        return { disposition: 'dropped' };
       }
-    } else {
-      // 未连接，加入队列
+    }
+
+    if (this.should_queue_message(data)) {
       this.messageQueue.push(data);
       console.warn('[WebSocketClient] Message queued, not connected');
+      return { disposition: 'queued' };
     }
+
+    console.warn('[WebSocketClient] Message dropped, transport unavailable', data.type);
+    return { disposition: 'dropped' };
   }
 
   /**
@@ -94,6 +109,31 @@ export class WebSocketClient {
    */
   public getState(): WebSocketState {
     return this.state;
+  }
+
+  /**
+   * 强制重建连接，避免继续复用僵尸连接。
+   */
+  public forceReconnect(reason: string = 'Force reconnect'): void {
+    const previousSocket = this.ws;
+    this.cleanup();
+    this.isIntentionalDisconnect = false;
+    this.ws = null;
+    this.setState('reconnecting');
+
+    if (previousSocket) {
+      previousSocket.onopen = null;
+      previousSocket.onmessage = null;
+      previousSocket.onerror = null;
+      previousSocket.onclose = null;
+      try {
+        previousSocket.close(4001, reason);
+      } catch (error) {
+        console.debug('[WebSocketClient] Ignore close error during forceReconnect', error);
+      }
+    }
+
+    this.createConnection();
   }
 
 
@@ -120,6 +160,7 @@ export class WebSocketClient {
   private handleOpen(event: Event): void {
     console.debug('[WebSocketClient] Connected');
     this.isIntentionalDisconnect = false;
+    this.lastServerActivityTime = Date.now();
     this.setState('connected');
     this.reconnectAttempts = 0;
 
@@ -142,18 +183,12 @@ export class WebSocketClient {
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
+      this.lastServerActivityTime = Date.now();
 
       // 处理pong响应
       if (data.event_type === 'pong') {
-        this.lastPongTime = Date.now();
         this.resetHeartbeatTimeout();
         return;
-      }
-
-      if (data.event_type === 'room_list_updated') {
-        // 主智能体可能在后端直接创建 room / dm。
-        // 这类变更不会经过前端 room-api，必须在 WS 基础层统一转发为列表刷新事件。
-        notify_room_list_updated();
       }
 
       this.callbacks.on_message?.(data);
@@ -315,6 +350,40 @@ export class WebSocketClient {
       this.reconnectTimer = null;
     }
     this.stopHeartbeat();
+  }
+
+  /**
+   * 只有会话绑定/订阅这类幂等控制消息允许离线排队。
+   * chat/interrupt/permission_response 必须立刻失败，避免前端误以为后端已受理。
+   */
+  private should_queue_message(data: WebSocketMessage): boolean {
+    switch (data.type) {
+      case 'ping':
+      case 'bind_session':
+      case 'unbind_session':
+      case 'subscribe_room':
+      case 'unsubscribe_room':
+      case 'subscribe_workspace':
+      case 'unsubscribe_workspace':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * OPEN 但长时间收不到任何服务端活动时，视为僵尸连接。
+   */
+  private isTransportStale(): boolean {
+    if (this.state !== 'connected' || this.ws?.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+    if (this.lastServerActivityTime <= 0) {
+      return false;
+    }
+
+    const maxSilenceMs = this.config.heartbeat_interval + this.config.heartbeat_timeout;
+    return Date.now() - this.lastServerActivityTime > maxSilenceMs;
   }
 
   /**

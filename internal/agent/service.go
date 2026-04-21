@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
@@ -23,6 +24,8 @@ var (
 type Service struct {
 	config     config.Config
 	repository Repository
+	history    *workspacestore.AgentHistoryStore
+	prompts    *promptBuilder
 	once       sync.Once
 	readyErr   error
 }
@@ -32,5 +35,7 @@ func NewService(cfg config.Config, repository Repository) *Service {
 	return &Service{
 		config:     cfg,
 		repository: repository,
+		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		prompts:    newPromptBuilder(cfg),
 	}
 }

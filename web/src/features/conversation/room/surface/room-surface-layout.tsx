@@ -163,7 +163,6 @@ function RoomSurfaceLayoutInner({
               conversations={current_room_conversations}
               current_agent_name={current_agent.name}
               current_agent_avatar={current_agent.avatar ?? null}
-              is_loading={is_conversation_busy}
               on_change_tab={on_change_surface_tab}
               on_create_conversation={on_create_conversation}
               on_select_conversation={on_select_conversation}

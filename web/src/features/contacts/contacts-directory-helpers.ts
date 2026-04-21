@@ -11,11 +11,14 @@ export function matches_contacts_search(agent: Agent, query: string): boolean {
   const normalized_query = query.trim().toLowerCase();
   const searchable_text = [
     agent.name,
+    agent.display_name,
+    agent.headline,
+    agent.profile_markdown,
+    agent.description,
     agent.workspace_path,
     agent.status,
     agent.options.provider,
     agent.options.permission_mode,
-    agent.options.system_prompt,
   ]
     .filter(Boolean)
     .join(" ")

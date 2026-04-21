@@ -20,13 +20,13 @@ import {
   StreamMessage,
 } from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/conversation/permission';
-import { WebSocketMessage, WebSocketState } from '@/types/system/websocket';
+import { WebSocketMessage, WebSocketSendResult, WebSocketState } from '@/types/system/websocket';
 import { WorkspaceEventPayload } from '@/types/app/workspace-live';
 
 export type AgentConversationChatType = 'dm' | 'group';
 export type AgentConversationRuntimePhase =
   | 'idle'
-  | 'queued'
+  | 'sending'
   | 'running'
   | 'streaming'
   | 'awaiting_permission';
@@ -93,6 +93,7 @@ export interface UseAgentConversationReturn {
   session_key: string | null;
   ws_state: WebSocketState;
   is_loading: boolean;
+  live_round_ids: string[];
   is_session_loading: boolean;
   is_history_loading: boolean;
   has_more_history: boolean;
@@ -114,8 +115,6 @@ export interface UseAgentConversationReturn {
   stop_generation: (msg_id?: string) => void;
   pending_permissions: PendingPermission[];
   send_permission_response: (payload: PermissionDecisionPayload) => boolean;
-  /** Current agent thinking status (multi-agent room only) */
-  agent_thinking: AgentThinkingPayload | null;
 }
 
 export interface ConversationSnapshot {
@@ -130,7 +129,7 @@ export interface AgentConversationActionContext {
   session_key: string | null;
   ws_state: WebSocketState;
   session_control_state: AgentConversationSessionControlState;
-  ws_send: (message: WebSocketMessage) => void;
+  ws_send: (message: WebSocketMessage) => WebSocketSendResult;
   active_session_key_ref: RefObject<string | null>;
   pending_permissions: PendingPermission[];
   pending_agent_slots: RoomPendingAgentSlotState[];
@@ -153,6 +152,8 @@ export interface AgentConversationLifecycleContext {
   set_error: Dispatch<SetStateAction<string | null>>;
   /** Cache of background messages received for non-active sessions */
   bg_message_cache_ref?: RefObject<Map<string, Message[]>>;
+  /** 恢复当前 session 尚未落入历史快照的进行中轮次。 */
+  restore_volatile_session_snapshot?: (session_key: string) => boolean;
   /** Session 快照完成加载后，允许 Hook 对运行时状态做对账 */
   on_session_messages_loaded?: (
     messages: Message[],
@@ -164,12 +165,6 @@ export interface AgentConversationLifecycleContext {
       next_before_round_timestamp: number | null;
     },
   ) => void;
-}
-
-export interface AgentThinkingPayload {
-  agent_id: string;
-  agent_name: string;
-  round_id: string;
 }
 
 export interface RoomEventPayload {
@@ -195,8 +190,6 @@ export interface HandleAgentConversationWebSocketMessageParams {
   enqueue_stream_payload?: (payload: StreamMessage) => void;
   /** Called when a complete message arrives for a non-active session (for background caching) */
   on_background_message?: (session_key: string, message: Message) => void;
-  /** Agent thinking/done status for multi-agent rooms */
-  set_agent_thinking?: (payload: AgentThinkingPayload | null) => void;
   /** Room-level events from the server (member add/remove/room deleted) */
   on_room_event?: (event_type: string, data: RoomEventPayload) => void;
   /** Update a single message's stream_status field */

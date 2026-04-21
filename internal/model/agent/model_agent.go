@@ -25,16 +25,19 @@ type Options struct {
 
 // Agent 表示对外 Agent 模型。
 type Agent struct {
-	AgentID       string    `json:"agent_id"`
-	Name          string    `json:"name"`
-	WorkspacePath string    `json:"workspace_path"`
-	Options       Options   `json:"options"`
-	CreatedAt     time.Time `json:"created_at"`
-	Status        string    `json:"status"`
-	Avatar        string    `json:"avatar,omitempty"`
-	Description   string    `json:"description,omitempty"`
-	VibeTags      []string  `json:"vibe_tags,omitempty"`
-	SkillsCount   int       `json:"skills_count"`
+	AgentID         string    `json:"agent_id"`
+	Name            string    `json:"name"`
+	WorkspacePath   string    `json:"workspace_path"`
+	DisplayName     string    `json:"display_name,omitempty"`
+	Headline        string    `json:"headline,omitempty"`
+	ProfileMarkdown string    `json:"profile_markdown,omitempty"`
+	Options         Options   `json:"options"`
+	CreatedAt       time.Time `json:"created_at"`
+	Status          string    `json:"status"`
+	Avatar          string    `json:"avatar,omitempty"`
+	Description     string    `json:"description,omitempty"`
+	VibeTags        []string  `json:"vibe_tags,omitempty"`
+	SkillsCount     int       `json:"skills_count"`
 }
 
 // CreateRequest 表示创建 Agent 请求。

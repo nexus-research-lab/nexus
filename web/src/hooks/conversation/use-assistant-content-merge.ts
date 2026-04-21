@@ -7,7 +7,7 @@
 
 import { useMemo } from "react";
 
-import { ContentBlock, Message, ResultMessage } from "@/types/conversation/message";
+import { AssistantMessage, ContentBlock, Message, ResultSummary } from "@/types/conversation/message";
 
 interface UseAssistantContentMergeOptions {
   messages: Message[];
@@ -20,8 +20,8 @@ interface UseAssistantContentMergeReturn {
   user_message: Message | undefined;
   /** 所有 assistant 消息 */
   assistant_messages: Message[];
-  /** result 消息 */
-  result_message: ResultMessage | undefined;
+  /** assistant 终态摘要 */
+  result_summary: ResultSummary | undefined;
   /** 当前正在流式输出的 assistant 消息 ID */
   streaming_assistant_message_id: string | null;
   /** 合并去重后的所有内容块 */
@@ -44,11 +44,11 @@ export function useAssistantContentMerge({
   is_loading,
 }: UseAssistantContentMergeOptions): UseAssistantContentMergeReturn {
   // 分离消息
-  const { user_message, assistant_messages, result_message } = useMemo(() => {
+  const { user_message, assistant_messages, result_summary } = useMemo(() => {
     const user = messages.find((m) => m.role === "user");
-    const result = messages.find((m) => m.role === "result") as ResultMessage | undefined;
-    const assistant = messages.filter((m) => m.role === "assistant");
-    return { user_message: user, assistant_messages: assistant, result_message: result };
+    const assistant = messages.filter((m) => m.role === "assistant") as AssistantMessage[];
+    const summary = get_latest_result_summary(assistant);
+    return { user_message: user, assistant_messages: assistant, result_summary: summary };
   }, [messages]);
 
   const streaming_assistant_message_id = useMemo(() => {
@@ -148,7 +148,7 @@ export function useAssistantContentMerge({
   return {
     user_message,
     assistant_messages,
-    result_message,
+    result_summary,
     streaming_assistant_message_id,
     merged_content,
     merged_content_source_message_ids,
@@ -157,6 +157,19 @@ export function useAssistantContentMerge({
     assistant_text_streaming_indexes,
     assistant_text_content,
   };
+}
+
+function get_latest_result_summary(
+  assistant_messages: AssistantMessage[],
+): ResultSummary | undefined {
+  for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
+    const summary = assistant_messages[index].result_summary;
+    if (!summary) {
+      continue;
+    }
+    return summary;
+  }
+  return undefined;
 }
 
 function find_last_streamable_block_index(blocks: ContentBlock[]): number {

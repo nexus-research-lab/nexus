@@ -214,6 +214,11 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if existing.AgentID == s.config.DefaultAgentID {
 		return errors.New("主智能体不可删除")
 	}
+	if s.history != nil {
+		if _, err = s.history.DeleteTranscriptProject(existing.WorkspacePath); err != nil {
+			return err
+		}
+	}
 	if err = os.RemoveAll(existing.WorkspacePath); err != nil {
 		return err
 	}

@@ -34,8 +34,36 @@ const (
 )
 
 func normalizeHistoryRows(rows []sessionmodel.Message, activeRoundIDs map[string]struct{}) []sessionmodel.Message {
-	compacted := compactMessages(rows)
+	compacted := compactMessages(filterInternalHistoryRows(rows))
 	return normalizeCompactedHistoryRows(compacted, activeRoundIDs)
+}
+
+func filterInternalHistoryRows(rows []sessionmodel.Message) []sessionmodel.Message {
+	if len(rows) == 0 {
+		return rows
+	}
+	filtered := make([]sessionmodel.Message, 0, len(rows))
+	for _, row := range rows {
+		if shouldSkipInternalHistoryRow(row) {
+			continue
+		}
+		filtered = append(filtered, row)
+	}
+	return filtered
+}
+
+func shouldSkipInternalHistoryRow(row sessionmodel.Message) bool {
+	role := strings.TrimSpace(stringFromAny(row["role"]))
+	switch role {
+	case "system":
+		metadata, _ := row["metadata"].(map[string]any)
+		return strings.TrimSpace(stringFromAny(metadata["subtype"])) == "api_retry"
+	case "user":
+		content := strings.TrimSpace(stringFromAny(row["content"]))
+		return sessionmodel.IsInternalTranscriptInterruptPrompt(content)
+	default:
+		return false
+	}
 }
 
 func normalizeCompactedHistoryRows(
@@ -43,8 +71,7 @@ func normalizeCompactedHistoryRows(
 	activeRoundIDs map[string]struct{},
 ) []sessionmodel.Message {
 	materialized := materializeUnfinishedRounds(compacted, activeRoundIDs)
-	roundStatus := buildRoundStatus(materialized)
-	return normalizeAssistantRows(materialized, roundStatus)
+	return mergeRoundResultSummaries(materialized)
 }
 
 func normalizeRoundPageLimit(limit int) int {
@@ -232,48 +259,92 @@ func compareHistoryPageGroupCursor(
 	return strings.Compare(group.CursorRoundID, beforeRoundID)
 }
 
-func buildRoundStatus(rows []sessionmodel.Message) map[string]roundTerminalStatus {
-	statusMap := make(map[string]roundTerminalStatus)
+func mergeRoundResultSummaries(rows []sessionmodel.Message) []sessionmodel.Message {
+	if len(rows) == 0 {
+		return rows
+	}
+	merger := newRoundResultSummaryMerger(rows)
+	merger.attachMatchingResults()
+	return merger.buildResultRows()
+}
+
+type roundResultSummaryMerger struct {
+	rows                        []sessionmodel.Message
+	lastAssistantIndexByRoundID map[string]int
+	assistantTextByRoundID      map[string]string
+	mergedResultMessageIDs      map[string]struct{}
+}
+
+func newRoundResultSummaryMerger(rows []sessionmodel.Message) *roundResultSummaryMerger {
+	merger := &roundResultSummaryMerger{
+		rows:                        cloneHistoryRows(rows),
+		lastAssistantIndexByRoundID: make(map[string]int),
+		assistantTextByRoundID:      make(map[string]string),
+		mergedResultMessageIDs:      make(map[string]struct{}),
+	}
+	merger.indexAssistants()
+	return merger
+}
+
+func cloneHistoryRows(rows []sessionmodel.Message) []sessionmodel.Message {
+	cloned := make([]sessionmodel.Message, 0, len(rows))
 	for _, row := range rows {
+		cloned = append(cloned, sessionmodel.Clone(row))
+	}
+	return cloned
+}
+
+func (m *roundResultSummaryMerger) indexAssistants() {
+	for index, row := range m.rows {
+		if sessionmodel.MessageRole(row) != "assistant" {
+			continue
+		}
 		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
 		if roundID == "" {
 			continue
 		}
-		if _, exists := statusMap[roundID]; !exists {
-			statusMap[roundID] = roundStatusRunning
-		}
-		if strings.TrimSpace(stringFromAny(row["role"])) == "result" {
-			statusMap[roundID] = normalizeRoundStatusValue(row["subtype"])
-			continue
-		}
-		if statusMap[roundID] != roundStatusRunning {
-			continue
-		}
-		if terminalStatus := assistantTerminalStatus(row); terminalStatus != roundStatusRunning {
-			statusMap[roundID] = terminalStatus
+		m.lastAssistantIndexByRoundID[roundID] = index
+		if assistantText := sessionmodel.ExtractAssistantDisplayText(row); assistantText != "" {
+			m.assistantTextByRoundID[roundID] = assistantText
 		}
 	}
-	return statusMap
 }
 
-func normalizeAssistantRows(rows []sessionmodel.Message, statusMap map[string]roundTerminalStatus) []sessionmodel.Message {
-	result := make([]sessionmodel.Message, 0, len(rows))
-	for _, row := range rows {
-		if strings.TrimSpace(stringFromAny(row["role"])) != "assistant" {
-			result = append(result, cloneMessage(row))
+func (m *roundResultSummaryMerger) attachMatchingResults() {
+	for _, row := range m.rows {
+		if sessionmodel.MessageRole(row) != "result" {
 			continue
 		}
 		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
-		assistantStatus := resolveAssistantStatus(statusMap[roundID])
-		normalized := cloneMessage(row)
-		if assistantStatus != "" {
-			normalized["is_complete"] = true
-			currentStatus := strings.TrimSpace(stringFromAny(normalized["stream_status"]))
-			if currentStatus == "" || currentStatus == "streaming" || currentStatus == "pending" {
-				normalized["stream_status"] = assistantStatus
-			}
+		assistantIndex, hasAssistant := m.lastAssistantIndexByRoundID[roundID]
+		if !hasAssistant {
+			continue
 		}
-		result = append(result, normalized)
+
+		assistant := sessionmodel.Clone(m.rows[assistantIndex])
+		summary := sessionmodel.BuildAssistantResultSummary(row, m.assistantTextByRoundID[roundID])
+		if len(summary) == 0 {
+			continue
+		}
+		assistant["result_summary"] = summary
+		m.rows[assistantIndex] = assistant
+		if messageID := strings.TrimSpace(stringFromAny(row["message_id"])); messageID != "" {
+			m.mergedResultMessageIDs[messageID] = struct{}{}
+		}
+	}
+}
+
+func (m *roundResultSummaryMerger) buildResultRows() []sessionmodel.Message {
+	result := make([]sessionmodel.Message, 0, len(m.rows))
+	for _, row := range m.rows {
+		if sessionmodel.MessageRole(row) == "result" {
+			if _, merged := m.mergedResultMessageIDs[strings.TrimSpace(stringFromAny(row["message_id"]))]; merged {
+				continue
+			}
+			result = append(result, sessionmodel.BuildSyntheticAssistantFromResult(row))
+			continue
+		}
+		result = append(result, row)
 	}
 	return result
 }
@@ -345,22 +416,27 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 			timestamp = time.Now().UnixMilli()
 		}
 		payload := sessionmodel.Message{
-			"message_id":      "result_" + roundID,
+			"message_id":      "assistant_interrupt_" + roundID,
 			"session_key":     snapshot.SessionKey,
 			"room_id":         emptyStringToNil(snapshot.RoomID),
 			"conversation_id": emptyStringToNil(snapshot.ConversationID),
 			"agent_id":        snapshot.AgentID,
 			"round_id":        roundID,
 			"session_id":      emptyStringToNil(snapshot.SessionID),
-			"role":            "result",
+			"role":            "assistant",
 			"timestamp":       timestamp,
-			"subtype":         "interrupted",
-			"duration_ms":     0,
-			"duration_api_ms": 0,
-			"num_turns":       0,
-			"usage":           map[string]any{},
-			"result":          "任务已中断",
-			"is_error":        false,
+			"stop_reason":     "cancelled",
+			"is_complete":     true,
+			"content":         []map[string]any{},
+			"result_summary": map[string]any{
+				"message_id":      "result_" + roundID,
+				"timestamp":       timestamp,
+				"subtype":         "interrupted",
+				"duration_ms":     0,
+				"duration_api_ms": 0,
+				"num_turns":       0,
+				"is_error":        false,
+			},
 		}
 		if strings.TrimSpace(snapshot.ParentID) != "" {
 			payload["parent_id"] = snapshot.ParentID
@@ -406,41 +482,17 @@ func assistantTerminalStatus(row sessionmodel.Message) roundTerminalStatus {
 	if strings.TrimSpace(stringFromAny(row["role"])) != "assistant" {
 		return roundStatusRunning
 	}
-	if !boolFromAny(row["is_complete"]) {
+	stopReason := strings.ToLower(strings.TrimSpace(stringFromAny(row["stop_reason"])))
+	if stopReason == "" {
 		return roundStatusRunning
 	}
-
-	switch normalizedStatus := strings.ToLower(strings.TrimSpace(stringFromAny(row["stream_status"]))); normalizedStatus {
-	case "cancelled", "interrupted":
-		return roundStatusInterrupted
-	case "error", "failed":
-		return roundStatusError
-	case "done", "success", "finished":
-		return roundStatusSuccess
-	}
-
-	switch normalizedStopReason := strings.ToLower(strings.TrimSpace(stringFromAny(row["stop_reason"]))); normalizedStopReason {
+	switch stopReason {
 	case "cancelled", "interrupted":
 		return roundStatusInterrupted
 	case "error":
 		return roundStatusError
-	case "end_turn", "stop_sequence", "tool_use", "max_tokens":
-		return roundStatusSuccess
-	}
-
-	return roundStatusSuccess
-}
-
-func resolveAssistantStatus(status roundTerminalStatus) string {
-	switch status {
-	case roundStatusInterrupted:
-		return "cancelled"
-	case roundStatusError:
-		return "error"
-	case roundStatusSuccess:
-		return "done"
 	default:
-		return ""
+		return roundStatusSuccess
 	}
 }
 
@@ -494,20 +546,13 @@ func historyRoleOrder(row sessionmodel.Message) int {
 	}
 }
 
-func cloneMessage(message sessionmodel.Message) sessionmodel.Message {
-	if len(message) == 0 {
-		return sessionmodel.Message{}
-	}
-	result := make(sessionmodel.Message, len(message))
-	for key, value := range message {
-		result[key] = value
-	}
-	return result
-}
-
 func emptyStringToNil(value string) any {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
 	return strings.TrimSpace(value)
+}
+
+func cloneMessage(message sessionmodel.Message) sessionmodel.Message {
+	return sessionmodel.Clone(message)
 }

@@ -77,7 +77,6 @@ export function useRoomPageAgentDialog({
       permission_mode: editing_agent.options.permission_mode,
       allowed_tools: editing_agent.options.allowed_tools,
       disallowed_tools: editing_agent.options.disallowed_tools,
-      system_prompt: editing_agent.options.system_prompt,
       max_turns: editing_agent.options.max_turns,
       max_thinking_tokens: editing_agent.options.max_thinking_tokens,
       setting_sources: editing_agent.options.setting_sources,
@@ -106,7 +105,6 @@ export function useRoomPageAgentDialog({
       permission_mode: options.permission_mode,
       allowed_tools: options.allowed_tools,
       disallowed_tools: options.disallowed_tools,
-      system_prompt: options.system_prompt,
       setting_sources: options.setting_sources,
     };
 
@@ -143,7 +141,6 @@ export function useRoomPageAgentDialog({
       permission_mode: options.permission_mode,
       allowed_tools: options.allowed_tools,
       disallowed_tools: options.disallowed_tools,
-      system_prompt: options.system_prompt,
       setting_sources: options.setting_sources,
     };
 

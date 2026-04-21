@@ -5,7 +5,7 @@ import { Bot, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AssistantMessage,
-  ResultMessage,
+  ResultSummary,
   RoomPendingAgentSlotState,
 } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
@@ -21,7 +21,7 @@ interface GroupAgentStatusCardProps {
   agent_name: string;
   agent_avatar?: string | null;
   messages: AssistantMessage[];
-  result_message?: ResultMessage;
+  result_summary?: ResultSummary;
   pending_slot?: RoomPendingAgentSlotState;
   status: AgentRoundStatus;
   pending_permissions?: PendingPermission[];
@@ -38,7 +38,7 @@ function GroupAgentStatusCardInner({
   agent_name,
   agent_avatar,
   messages,
-  result_message,
+  result_summary,
   pending_slot,
   status,
   pending_permissions = [],
@@ -61,7 +61,7 @@ function GroupAgentStatusCardInner({
   const is_waiting_permission = pending_permissions.length > 0 && (status === "pending" || status === "streaming");
   const last_msg = messages[messages.length - 1];
   const can_stop = on_stop_message && (status === "pending" || status === "streaming");
-  const timestamp = last_msg?.timestamp ?? result_message?.timestamp ?? pending_slot?.timestamp ?? 0;
+  const timestamp = last_msg?.timestamp ?? result_summary?.timestamp ?? pending_slot?.timestamp ?? 0;
   const model = last_msg?.model ?? null;
   const summary_text = useMemo(() => {
     if (is_waiting_permission) {

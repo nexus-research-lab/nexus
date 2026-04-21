@@ -59,6 +59,7 @@ type Service struct {
 	agents     *agent2.Service
 	repository Repository
 	files      *workspacestore.SessionFileStore
+	history    *workspacestore.AgentHistoryStore
 }
 
 // NewService 创建 Room 服务。
@@ -68,6 +69,7 @@ func NewService(cfg config.Config, agents *agent2.Service, repository Repository
 		agents:     agents,
 		repository: repository,
 		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 	}
 }
 
@@ -498,6 +500,11 @@ func (s *Service) cleanupConversationArtifacts(
 
 			if _, err := s.files.DeleteSession(workspacePath, sessionKey); err != nil {
 				errs = append(errs, err)
+			}
+			if s.history != nil && strings.TrimSpace(sessionValue.SDKSessionID) != "" {
+				if _, err := s.history.DeleteTranscriptSession(workspacePath, sessionValue.SDKSessionID); err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
 	}
