@@ -252,12 +252,20 @@ func (s *Server) handleControlMessage(ctx context.Context, sender *websocketSend
 			if errors.Is(err, chatsvc.ErrRoomChatNotImplemented) {
 				errorType = "not_implemented"
 			}
+			roundID := stringValue(inbound["round_id"])
+			details := map[string]any{"type": msgType}
+			if roundID != "" {
+				details["round_id"] = roundID
+			}
 			_ = sender.SendEvent(ctx, s.newGatewayErrorEvent(
 				sessionKey,
 				errorType,
 				err.Error(),
-				map[string]any{"type": msgType},
+				details,
 			))
+			if roundID != "" {
+				_ = sender.SendEvent(ctx, protocol.NewRoundStatusEvent(sessionKey, roundID, "error", "error"))
+			}
 		}
 	case "interrupt":
 		var err error

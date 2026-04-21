@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cable, Loader2, Plus, Star } from "lucide-react";
 
 import { set_default_agent_provider } from "@/config/options";
+import { invalidate_provider_availability } from "@/hooks/capability/use-provider-availability";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import {
   create_provider_config_api,
@@ -183,6 +184,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       const items = await list_provider_configs_api();
       sync_provider_snapshot(items, preferred_provider);
       set_feedback((current) => (current?.tone === "error" ? null : current));
+      invalidate_provider_availability();
     } catch (error) {
       set_feedback({
         tone: "error",
