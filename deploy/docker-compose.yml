@@ -42,7 +42,6 @@ services:
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
     volumes:
       - ${HOST_DATA_DIR:-./data}/.nexus:/home/agent/.nexus
-      - ${HOST_DATA_DIR:-./data}/.claude:/home/agent/.claude
       - ${HOST_DATA_DIR:-./data}/.claude.json:/home/agent/.claude.json
     expose:
       - "8010"
