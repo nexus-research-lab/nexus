@@ -19,6 +19,8 @@ services:
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian-security}
         GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        BUN_CONFIG_REGISTRY: ${BUN_CONFIG_REGISTRY:-https://registry.npmmirror.com/}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
     env_file:
@@ -28,6 +30,10 @@ services:
       HOST: 0.0.0.0
       PORT: 8010
       NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+      BUN_CONFIG_REGISTRY: ${BUN_CONFIG_REGISTRY:-https://registry.npmmirror.com/}
+      PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+      UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}
+      UV_INDEX_URL: ${UV_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
       NEXUS_APT_ALLOWLIST: ${NEXUS_APT_ALLOWLIST:-ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip}
       DATABASE_DRIVER: ${DATABASE_DRIVER:-sqlite}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////home/agent/.nexus/data/nexus.db}

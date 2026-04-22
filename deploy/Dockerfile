@@ -60,6 +60,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
 RUN --mount=type=cache,target=/var/cache/apt \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -73,21 +75,48 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     bash \
+    build-essential \
     ca-certificates \
     curl \
     git \
     jq \
+    pkg-config \
+    python-is-python3 \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-venv \
     sudo && \
     rm -rf /var/lib/apt/lists/*
 
+ENV HOME=/home/agent \
+    PATH=/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
+    NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
+    BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
+    UV_BREAK_SYSTEM_PACKAGES=true \
+    UV_DEFAULT_INDEX=${PIP_INDEX_URL} \
+    UV_INDEX_URL=${PIP_INDEX_URL}
+
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm config set registry "${NPM_REGISTRY}" && \
-    npm install -g @anthropic-ai/claude-code --registry "${NPM_REGISTRY}" && \
+    npm install -g @anthropic-ai/claude-code bun --registry "${NPM_REGISTRY}" && \
     npm cache clean --force
+
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    python3 -m pip install --no-cache-dir --break-system-packages \
+    --index-url "${PIP_INDEX_URL}" \
+    uv && \
+    (python3 -m pip cache purge || true)
+
+RUN printf 'registry=%s\n' "${NPM_REGISTRY}" > /etc/npmrc && \
+    mkdir -p /etc/uv && \
+    printf '[[index]]\nurl = "%s"\ndefault = true\n\n[pip]\nindex-url = "%s"\n' "${PIP_INDEX_URL}" "${PIP_INDEX_URL}" > /etc/uv/uv.toml
 
 RUN groupadd --system --gid 1001 agent && \
     useradd --system --uid 1001 --gid agent --shell /bin/bash --create-home agent && \
-    mkdir -p /opt/app/deploy /home/agent/.nexus /home/agent/.claude
+    mkdir -p /opt/app/deploy /home/agent/.nexus /home/agent/.claude /home/agent/.config/pip /home/agent/.config/uv /home/agent/.cache/pip
 
 WORKDIR /opt/app
 
@@ -110,7 +139,6 @@ RUN chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
     chown -R agent:agent /opt/app /home/agent
 
 USER agent
-ENV HOME=/home/agent
 
 EXPOSE 8010
 

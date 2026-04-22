@@ -216,6 +216,30 @@ make prepare-host-data
 HOST_SUDO= make prepare-host-data
 ```
 
+生产运行镜像现在内置完整的 Agent 工具链：
+
+- Node.js / npm
+- Bun
+- Python 3 / pip / venv
+- uv
+- `claude-code`
+
+并且默认写入中国镜像源配置：
+
+- Debian `apt`：`https://mirrors.tuna.tsinghua.edu.cn`
+- npm / Bun：`https://registry.npmmirror.com/`
+- pip / uv：`https://pypi.tuna.tsinghua.edu.cn/simple`
+
+这些默认值既用于镜像构建，也会在容器启动时生成用户级 `.npmrc`、`.bunfig.toml`、`pip.conf` 和 `uv.toml`。如果要覆盖默认镜像源，可以在 `.env` 中设置：
+
+- `APT_MIRROR`
+- `DEBIAN_SECURITY_MIRROR`
+- `NPM_REGISTRY`
+- `BUN_CONFIG_REGISTRY`
+- `PIP_INDEX_URL`
+- `UV_DEFAULT_INDEX`
+- `UV_INDEX_URL`
+
 ## 关键配置
 
 ### 后端
@@ -235,6 +259,11 @@ HOST_SUDO= make prepare-host-data
 - `WORKSPACE_PATH`
 - `DEFAULT_AGENT_ID`
 - `NEXUS_APT_ALLOWLIST`
+- `NPM_REGISTRY`
+- `BUN_CONFIG_REGISTRY`
+- `PIP_INDEX_URL`
+- `UV_DEFAULT_INDEX`
+- `UV_INDEX_URL`
 - `AUTH_SESSION_TTL_HOURS`
 - `AUTH_COOKIE_SECURE`
 - `ACCESS_TOKEN`
