@@ -36,11 +36,6 @@ export function derive_sidebar_item_id_from_path(pathname: string): string | nul
     return room_id ? decodeURIComponent(room_id) : null;
   }
 
-  if (pathname.startsWith("/contacts/")) {
-    const agent_id = pathname.split("/")[2];
-    return agent_id ? decodeURIComponent(agent_id) : null;
-  }
-
   return null;
 }
 

@@ -25,7 +25,7 @@ func UserWorkspaceBasePath(cfg config.Config, ownerUserID string) string {
 	if strings.TrimSpace(ownerUserID) == systemOwnerUserID {
 		return WorkspaceBasePath(cfg)
 	}
-	return filepath.Join(WorkspaceBasePath(cfg), "users", BuildWorkspaceDirName(ownerUserID), "agents")
+	return filepath.Join(WorkspaceBasePath(cfg), BuildWorkspaceDirName(ownerUserID))
 }
 
 // ResolveWorkspacePath 计算 Agent workspace 路径。

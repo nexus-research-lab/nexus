@@ -9,6 +9,7 @@ import { request_api } from "@/lib/api/http";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 
 export let DEFAULT_AGENT_ID = "";
+export let DEFAULT_AGENT_AVATAR = "";
 export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 
 const DEFAULT_API_PATH = "/agent/v1";
@@ -67,8 +68,17 @@ export function get_default_agent_id(): string {
   return DEFAULT_AGENT_ID;
 }
 
+export function get_default_agent_avatar(): string {
+  return DEFAULT_AGENT_AVATAR;
+}
+
 export function get_default_agent_provider(): AgentProvider {
   return DEFAULT_AGENT_PROVIDER;
+}
+
+export function set_default_agent_avatar(avatar?: string | null): void {
+  const normalized_avatar = avatar?.trim();
+  DEFAULT_AGENT_AVATAR = normalized_avatar || "";
 }
 
 export function set_default_agent_provider(provider?: string | null): void {
@@ -91,7 +101,11 @@ export function resolve_agent_id(agent_id?: string | null): string {
 }
 
 export async function hydrate_runtime_options(): Promise<void> {
-  const payload = await request_api<{ default_agent_id: string; default_agent_provider?: string | null }>(
+  const payload = await request_api<{
+    default_agent_id: string;
+    default_agent_avatar?: string | null;
+    default_agent_provider?: string | null;
+  }>(
     `${get_agent_api_base_url()}/runtime/options`,
     {
       method: "GET",
@@ -104,5 +118,6 @@ export async function hydrate_runtime_options(): Promise<void> {
   }
 
   DEFAULT_AGENT_ID = next_default_agent_id;
+  set_default_agent_avatar(payload?.default_agent_avatar);
   set_default_agent_provider(payload?.default_agent_provider);
 }
