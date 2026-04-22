@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 连接器 OAuth 端到端：为 GitHub / Gmail / LinkedIn / X / Instagram / Shopify 打通授权 → token 交换链路，引入 Provider 抽象与 PKCE 支持。
-- 允许用户在 Web 配置每个 OAuth 应用的 Client ID/Secret，覆盖环境变量。
+- :sparkles: Connector 端到端落地：支持 Web 自助配置 OAuth 应用；已连接 connector 以 `nexus_connectors` MCP server 形式对 Agent 暴露 `connector_list` / `connector_call` 工具。
 
 ### Changed
 - 收口 chat / room 运行时骨架到 `conversation` 层：`RoundCoordinator` 统一处理 round 生命周期、runtime client 复用与会话状态广播，`Dispatcher` 统一 DM / Room / ingress / automation / gateway websocket 的入站路由。
