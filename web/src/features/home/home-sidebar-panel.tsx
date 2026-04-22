@@ -29,6 +29,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
@@ -273,94 +274,108 @@ export const HomePanelContent = memo(function HomePanelContent() {
     void refresh_directory();
   }, [active_item_id, delete_target, refresh_directory, set_active_item]);
 
+  const rooms_empty_description = has_agents
+    ? t("home.rooms_empty_description")
+    : t("home.rooms_empty_no_agents_description");
+  const rooms_empty_action = has_agents
+    ? t("home.rooms_empty_action")
+    : t("home.rooms_empty_no_agents_action");
+  const handle_rooms_empty_action = has_agents
+    ? handle_create_room
+    : navigate_to_agents_directory;
+
   return (
     <div className="flex flex-col">
       {/* Rooms 分区 — 带新建按钮 */}
-      <CollapsibleSection
-        action_icon={<Plus className="h-4 w-4" />}
-        action_title={t("home.create_room")}
-        count={normal_rooms.length}
-        on_action={handle_create_room}
-        section_id="home-rooms"
-        title={t("home.rooms")}
-      >
-        {normal_rooms.length > 0 ? (
-          normal_rooms.map((room) => (
-            <SidebarListItem
-              key={room.id}
-              icon={(() => {
-                const room_avatar_id = get_room_avatar_icon_id(
-                  room.id,
-                  room.name,
-                  room.avatar,
-                );
-                const room_avatar_src = get_icon_avatar_src(room_avatar_id, "room");
+      <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.rooms}>
+        <CollapsibleSection
+          action_icon={<Plus className="h-4 w-4" />}
+          action_title={t("home.create_room")}
+          count={normal_rooms.length}
+          on_action={handle_create_room}
+          section_id="home-rooms"
+          title={t("home.rooms")}
+        >
+          {normal_rooms.length > 0 ? (
+            normal_rooms.map((room) => (
+              <SidebarListItem
+                key={room.id}
+                icon={(() => {
+                  const room_avatar_id = get_room_avatar_icon_id(
+                    room.id,
+                    room.name,
+                    room.avatar,
+                  );
+                  const room_avatar_src = get_icon_avatar_src(room_avatar_id, "room");
 
-                return room_avatar_src ? (
-                  <img
-                    alt={room.name?.trim() || untitled_room_label}
-                    className="h-5 w-5 rounded-[5px] object-cover"
-                    src={room_avatar_src}
-                  />
-                ) : (
-                  <Hash className="h-4 w-4" />
-                );
-              })()}
-              is_active={active_item_id === room.id}
-              label={room.name?.trim() || untitled_room_label}
-              on_click={() => navigate_to_room(room.id)}
-              on_delete={() => set_delete_target({
-                id: room.id,
-                name: room.name?.trim() || untitled_room_label,
-                room_type: "room",
-              })}
+                  return room_avatar_src ? (
+                    <img
+                      alt={room.name?.trim() || untitled_room_label}
+                      className="h-5 w-5 rounded-[5px] object-cover"
+                      src={room_avatar_src}
+                    />
+                  ) : (
+                    <Hash className="h-4 w-4" />
+                  );
+                })()}
+                is_active={active_item_id === room.id}
+                label={room.name?.trim() || untitled_room_label}
+                on_click={() => navigate_to_room(room.id)}
+                on_delete={() => set_delete_target({
+                  id: room.id,
+                  name: room.name?.trim() || untitled_room_label,
+                  room_type: "room",
+                })}
+              />
+            ))
+          ) : (
+            <SidebarEmptyGuide
+              action_label={rooms_empty_action}
+              description={rooms_empty_description}
+              icon={MessageSquarePlus}
+              on_action={handle_rooms_empty_action}
+              title={t("home.rooms_empty_title")}
             />
-          ))
-        ) : (
-          <SidebarEmptyGuide
-            action_label={t("home.rooms_empty_action")}
-            description={t("home.rooms_empty_description")}
-            icon={MessageSquarePlus}
-            on_action={handle_create_room}
-            title={t("home.rooms_empty_title")}
-          />
-        )}
-      </CollapsibleSection>
+          )}
+        </CollapsibleSection>
+      </div>
 
       {/* Agents 分区 */}
-      <CollapsibleSection
-        count={regular_agents.length}
-        is_title_active={location.pathname === AppRouteBuilders.contacts()}
-        on_title_click={navigate_to_agents_directory}
-        section_id="home-agents"
-        title={t("home.agents")}
-      >
-        {regular_agents.length > 0 ? (
-          regular_agents.map((agent) => (
-            <SidebarListItem
-              key={agent.id}
-              icon={render_agent_avatar_icon(agent.name, agent.avatar)}
-              is_active={active_item_id === regular_dm_rooms_by_agent_id.get(agent.id)?.id}
-              label={agent.name}
-              meta={(() => {
-                const running_task_count = agent_runtime_statuses[agent.id]?.running_task_count ?? 0;
-                return running_task_count > 0
-                  ? `${running_task_count} 任务`
-                  : t("status.idle");
-              })()}
-              on_click={() => void navigate_to_agent_dm(agent.id)}
+      <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.agents}>
+        <CollapsibleSection
+          count={regular_agents.length}
+          is_title_active={location.pathname === AppRouteBuilders.contacts()}
+          on_title_click={navigate_to_agents_directory}
+          section_id="home-agents"
+          title={t("home.agents")}
+        >
+          {regular_agents.length > 0 ? (
+            regular_agents.map((agent) => (
+              <SidebarListItem
+                key={agent.id}
+                icon={render_agent_avatar_icon(agent.name, agent.avatar)}
+                is_active={active_item_id === regular_dm_rooms_by_agent_id.get(agent.id)?.id}
+                label={agent.name}
+                meta={(() => {
+                  const running_task_count = agent_runtime_statuses[agent.id]?.running_task_count ?? 0;
+                  return running_task_count > 0
+                    ? `${running_task_count} 任务`
+                    : t("status.idle");
+                })()}
+                on_click={() => void navigate_to_agent_dm(agent.id)}
+              />
+            ))
+          ) : (
+            <SidebarEmptyGuide
+              action_label={t("home.agents_empty_action")}
+              description={t("home.agents_empty_description")}
+              icon={UserPlus}
+              on_action={navigate_to_agents_directory}
+              title={t("home.agents_empty_title")}
             />
-          ))
-        ) : (
-          <SidebarEmptyGuide
-            action_label={t("home.agents_empty_action")}
-            description={t("home.agents_empty_description")}
-            icon={UserPlus}
-            on_action={navigate_to_agents_directory}
-            title={t("home.agents_empty_title")}
-          />
-        )}
-      </CollapsibleSection>
+          )}
+        </CollapsibleSection>
+      </div>
 
       {/* 删除确认对话框 */}
       <ConfirmDialog

@@ -8,8 +8,8 @@
  * 宽度从 store 读取，右边缘可拖拽调整（180–400px）。
  */
 
-import { LogOut, Settings } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Compass, LogOut, Settings } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -22,8 +22,14 @@ import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn, get_icon_avatar_src } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
-import { SidebarOnboardingHint } from "@/shared/ui/sidebar/sidebar-onboarding-hint";
+import {
+  build_sidebar_navigation_tour,
+  SIDEBAR_NAVIGATION_TOUR_ID,
+  SIDEBAR_TOUR_ANCHORS,
+} from "@/shared/ui/sidebar/sidebar-navigation-tour";
+
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
 import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { useAgentStore } from "@/store/agent";
@@ -40,6 +46,13 @@ const MODAL_ROOT_SELECTOR = "[data-modal-root='true']";
 export function SidebarWidePanel() {
   const { t } = useI18n();
   const { logout } = useAuth();
+  const {
+    active_tour_id,
+    has_completed_tour,
+    register_tour,
+    start_tour,
+    unregister_tour,
+  } = useOnboardingTour();
   const location = useLocation();
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
@@ -58,6 +71,11 @@ export function SidebarWidePanel() {
   const nexus_avatar_src = get_icon_avatar_src(nexus_avatar);
   const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
     || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
+  const sidebar_navigation_tour = useMemo(
+    () => build_sidebar_navigation_tour(t),
+    [t],
+  );
+  const has_auto_started_tour_ref = useRef(false);
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -166,6 +184,33 @@ export function SidebarWidePanel() {
     });
   }, [default_agent_id, navigate, set_active_panel_item]);
 
+  useEffect(() => {
+    register_tour(sidebar_navigation_tour);
+    return () => {
+      unregister_tour(sidebar_navigation_tour.id);
+    };
+  }, [register_tour, sidebar_navigation_tour, unregister_tour]);
+
+  useEffect(() => {
+    if (has_auto_started_tour_ref.current) {
+      return;
+    }
+    if (active_tour_id) {
+      return;
+    }
+    if (has_completed_tour(SIDEBAR_NAVIGATION_TOUR_ID)) {
+      return;
+    }
+    has_auto_started_tour_ref.current = true;
+    const timeout_id = window.setTimeout(() => {
+      start_tour(SIDEBAR_NAVIGATION_TOUR_ID);
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timeout_id);
+    };
+  }, [active_tour_id, has_completed_tour, start_tour]);
+
   return (
     <div
       className={cn(
@@ -271,43 +316,61 @@ export function SidebarWidePanel() {
 
       {/* 面板内容 */}
       <div className="soft-scrollbar scrollbar-stable-gutter flex-1 overflow-y-auto px-2.5 py-2.5">
-        <SidebarOnboardingHint />
         <HomePanelContent />
 
-        <CollapsibleSection
-          count={CAPABILITY_SECTION_COUNT}
-          section_id="sidebar-capabilities"
-          title={t("sidebar.capabilities")}
-        >
-          <CapabilitiesPanelContent />
-        </CollapsibleSection>
+        <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities}>
+          <CollapsibleSection
+            count={CAPABILITY_SECTION_COUNT}
+            section_id="sidebar-capabilities"
+            title={t("sidebar.capabilities")}
+          >
+            <CapabilitiesPanelContent />
+          </CollapsibleSection>
+        </div>
       </div>
 
       <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">
-        <Link
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-            is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
-          )}
-          title={t("sidebar.settings")}
-          to={AppRouteBuilders.settings()}
-        >
-          <Settings className="h-4 w-4" />
-        </Link>
+          <div className="flex items-center gap-2.5">
+            <Link
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+              )}
+              title={t("sidebar.settings")}
+              to={AppRouteBuilders.settings()}
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
 
-        <div className="min-w-0 flex-1" />
+            <button
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                active_tour_id === SIDEBAR_NAVIGATION_TOUR_ID && "pointer-events-none opacity-(--disabled-opacity)",
+              )}
+              data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
+              onClick={() => start_tour(SIDEBAR_NAVIGATION_TOUR_ID)}
+              title={t("sidebar.guide_action_restart")}
+              type="button"
+            >
+              <Compass className="h-4 w-4" />
+            </button>
+          </div>
 
-        <button
-          className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-          onClick={() => {
-            void logout();
-          }}
-          title={t("sidebar.logout")}
-          type="button"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
+          <div className="min-w-0 flex-1" />
+
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+            onClick={() => {
+              void logout();
+            }}
+            title={t("sidebar.logout")}
+            type="button"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
       </div>
     </div>
   );
 }
+
+

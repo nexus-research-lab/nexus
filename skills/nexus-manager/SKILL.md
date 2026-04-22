@@ -174,7 +174,7 @@ go run "{project_root}/cmd/nexusctl" skill uninstall --agent-id research --skill
 
 ## Workspace 规则
 
-每个成员创建后自动分配独立工作空间。单用户模式位于 `~/.nexus/workspace/<agent_slug>/`；多用户模式位于 `~/.nexus/workspace/users/<user_id>/agents/<agent_slug>/`。
+每个成员创建后自动分配独立工作空间。单用户模式位于 `~/.nexus/workspace/<agent_slug>/`；多用户模式位于 `~/.nexus/workspace/<user_id>/<agent_slug>/`。
 
 ### 目录结构
 

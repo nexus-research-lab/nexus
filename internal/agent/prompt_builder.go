@@ -1,11 +1,13 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	memorysvc "github.com/nexus-research-lab/nexus/internal/memory"
 )
@@ -70,7 +72,7 @@ func newPromptBuilder(cfg config.Config) *promptBuilder {
 }
 
 // Build 构建运行时附加系统提示词。
-func (b *promptBuilder) Build(agentValue *Agent) (string, error) {
+func (b *promptBuilder) Build(ctx context.Context, agentValue *Agent) (string, error) {
 	if agentValue == nil {
 		return "", nil
 	}
@@ -79,6 +81,10 @@ func (b *promptBuilder) Build(agentValue *Agent) (string, error) {
 	staticPrompt := strings.TrimSpace(b.loadStaticPrompt(agentValue))
 	if staticPrompt != "" {
 		sections = append(sections, staticPrompt)
+	}
+
+	if scopeSection := buildRuntimeScopeSection(ctx); scopeSection != "" {
+		sections = append(sections, scopeSection)
 	}
 
 	if profileSection := buildAgentProfileSection(agentValue); profileSection != "" {
@@ -111,6 +117,34 @@ func (b *promptBuilder) Build(agentValue *Agent) (string, error) {
 		return "", nil
 	}
 	return strings.Join(sections, "\n\n---\n\n"), nil
+}
+
+func buildRuntimeScopeSection(ctx context.Context) string {
+	principal := authsvc.PrincipalFromContext(ctx)
+	state, hasState := authsvc.StateFromContext(ctx)
+	userID, hasUserID := authsvc.CurrentUserID(ctx)
+
+	lines := []string{"## 当前运行作用域"}
+	switch {
+	case hasUserID:
+		lines = append(lines,
+			"运行模式: 多用户用户作用域",
+			"当前 user_id: "+userID,
+		)
+		if principal != nil && strings.TrimSpace(principal.Username) != "" {
+			lines = append(lines, "当前 username: "+strings.TrimSpace(principal.Username))
+		}
+		lines = append(lines, "边界要求: 只能读取和操作当前 user_id 作用域内的 agent、room、session、workspace，不要假设可访问其他用户的数据。")
+	case hasState && state.AuthRequired:
+		lines = append(lines, "运行模式: 认证系统作用域", "边界要求: 当前请求未绑定具体用户，不要假设拥有全局用户数据访问权。")
+	default:
+		lines = append(lines,
+			"运行模式: 单用户系统作用域",
+			"当前主体: "+authsvc.SystemUserID,
+			"边界要求: 当前实例按单用户模式运行，可以把当前工作区视为系统默认作用域。",
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (b *promptBuilder) loadStaticPrompt(agentValue *Agent) string {
