@@ -15,8 +15,8 @@ services:
       cache_to:
         - type=local,dest=../.buildx-cache/nexus,mode=max
       args:
-        APT_MIRROR: ${APT_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
-        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian-security}
+        APT_MIRROR: ${APT_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn/debian-security}
         GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
