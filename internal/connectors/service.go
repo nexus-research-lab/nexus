@@ -49,6 +49,24 @@ type Detail struct {
 	Features     []string `json:"features"`
 }
 
+// OAuthClientView 是前端可见的 OAuth 应用配置摘要，不包含 secret 明文。
+type OAuthClientView struct {
+	ConnectorID     string    `json:"connector_id"`
+	ClientID        string    `json:"client_id"`
+	HasClientSecret bool      `json:"has_client_secret"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// ConnectionSnapshot 是 Agent MCP 调用 connector REST API 所需的连接快照。
+type ConnectionSnapshot struct {
+	ConnectorID string            `json:"connector_id"`
+	AuthType    string            `json:"auth_type"`
+	APIBaseURL  string            `json:"api_base_url"`
+	AccessToken string            `json:"-"`
+	ShopDomain  string            `json:"shop_domain,omitempty"`
+	Extra       map[string]string `json:"extra,omitempty"`
+}
+
 // AuthURLResult 表示 OAuth 授权地址。
 type AuthURLResult struct {
 	AuthURL string `json:"auth_url"`
@@ -88,14 +106,23 @@ type Service struct {
 	db         *sql.DB
 	driver     string
 	httpClient *http.Client
+	clients    *oauthClientStore
 }
 
 // NewService 创建连接器服务。
 func NewService(cfg config.Config, db *sql.DB) *Service {
+	driver := protocol.NormalizeSQLDriver(cfg.DatabaseDriver)
+	var clients *oauthClientStore
+	if key, err := decodeCredentialKey(cfg.ConnectorCredentialsKey); err == nil {
+		clients = newOAuthClientStore(db, driver, key)
+	} else if strings.TrimSpace(cfg.ConnectorCredentialsKey) != "" {
+		fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 解析失败，OAuth client DB 配置将不可用")
+	}
 	return &Service{
-		config: cfg,
-		db:     db,
-		driver: protocol.NormalizeSQLDriver(cfg.DatabaseDriver),
+		config:  cfg,
+		db:      db,
+		driver:  driver,
+		clients: clients,
 		httpClient: &http.Client{
 			Timeout: 20 * time.Second,
 		},
@@ -103,7 +130,7 @@ func NewService(cfg config.Config, db *sql.DB) *Service {
 }
 
 // ListConnectors 列出连接器目录。
-func (s *Service) ListConnectors(ctx context.Context, query string, category string, status string) ([]Info, error) {
+func (s *Service) ListConnectors(ctx context.Context, ownerUserID string, query string, category string, status string) ([]Info, error) {
 	states, err := s.listConnectionStates(ctx)
 	if err != nil {
 		return nil, err
@@ -120,13 +147,13 @@ func (s *Service) ListConnectors(ctx context.Context, query string, category str
 		if needle != "" && !connectorMatches(entry, needle) {
 			continue
 		}
-		items = append(items, s.toInfo(entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected")))
+		items = append(items, s.toInfo(ctx, ownerUserID, entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected")))
 	}
 	return items, nil
 }
 
 // GetConnectorDetail 返回单个连接器详情。
-func (s *Service) GetConnectorDetail(ctx context.Context, connectorID string) (*Detail, error) {
+func (s *Service) GetConnectorDetail(ctx context.Context, ownerUserID string, connectorID string) (*Detail, error) {
 	entry, ok := getConnector(connectorID)
 	if !ok {
 		return nil, errors.New("connector not found")
@@ -135,7 +162,7 @@ func (s *Service) GetConnectorDetail(ctx context.Context, connectorID string) (*
 	if err != nil {
 		return nil, err
 	}
-	detail := s.toDetail(entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"))
+	detail := s.toDetail(ctx, ownerUserID, entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"))
 	return &detail, nil
 }
 
@@ -147,6 +174,80 @@ func (s *Service) GetConnectedCount(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// ListActiveConnections 列出已连接 connector，暂时保留 ownerUserID 签名供后续 user scope 使用。
+func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]ConnectionSnapshot, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT connector_id FROM connector_connections WHERE state = 'connected'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []ConnectionSnapshot{}
+	for rows.Next() {
+		var connectorID string
+		if err = rows.Scan(&connectorID); err != nil {
+			return nil, err
+		}
+		item, err := s.LoadActiveConnection(ctx, ownerUserID, connectorID)
+		if err != nil {
+			return nil, err
+		}
+		if item != nil {
+			result = append(result, *item)
+		}
+	}
+	return result, rows.Err()
+}
+
+// LoadActiveConnection 读取已连接 connector 的 token 快照。
+func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*ConnectionSnapshot, error) {
+	// TODO(connector-user-scope): 追加 owner_user_id 过滤 —— 见 Phase 3。
+	query := fmt.Sprintf(
+		"SELECT connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE connector_id = %s AND state = 'connected'",
+		s.bind(1),
+	)
+	var record connectionRecord
+	err := s.db.QueryRowContext(ctx, query, strings.TrimSpace(connectorID)).Scan(
+		&record.ConnectorID,
+		&record.Credentials,
+		&record.CredentialsEncrypted,
+		&record.AuthType,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	entry, ok := getConnector(record.ConnectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	payload, err := s.connectionCredentialsPayload(record)
+	if err != nil {
+		return nil, err
+	}
+	parsed := map[string]string{}
+	if err = json.Unmarshal(payload, &parsed); err != nil {
+		return nil, err
+	}
+	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"])
+	if token == "" {
+		return nil, errors.New("connector 未获取到 access token")
+	}
+	delete(parsed, "access_token")
+	delete(parsed, "token")
+	delete(parsed, "bearer_token")
+	shop := connectorFirstNonEmpty(parsed["shop"], parsed["shop_domain"])
+	return &ConnectionSnapshot{
+		ConnectorID: record.ConnectorID,
+		AuthType:    record.AuthType,
+		APIBaseURL:  entry.APIBaseURL,
+		AccessToken: token,
+		ShopDomain:  shop,
+		Extra:       parsed,
+	}, nil
 }
 
 // GetCategories 返回连接器分类映射。
@@ -173,7 +274,7 @@ func (s *Service) RequiredExtraKeys(connectorID string) []string {
 }
 
 // GetAuthURL 生成 OAuth 授权地址。
-func (s *Service) GetAuthURL(ctx context.Context, connectorID string, redirectURI string, extras map[string]string) (*AuthURLResult, error) {
+func (s *Service) GetAuthURL(ctx context.Context, ownerUserID string, connectorID string, redirectURI string, extras map[string]string) (*AuthURLResult, error) {
 	entry, ok := getConnector(connectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
@@ -195,7 +296,7 @@ func (s *Service) GetAuthURL(ctx context.Context, connectorID string, redirectUR
 			return nil, fmt.Errorf("%s 参数缺失", key)
 		}
 	}
-	clientID, _, configErr := s.oauthCredentials(entry.ConnectorID)
+	clientID, _, configErr := s.oauthCredentials(ctx, ownerUserID, entry.ConnectorID)
 	if configErr != nil {
 		return nil, configErr
 	}
@@ -251,7 +352,7 @@ func (s *Service) GetAuthURL(ctx context.Context, connectorID string, redirectUR
 }
 
 // CompleteOAuthCallback 完成 OAuth token 交换。
-func (s *Service) CompleteOAuthCallback(ctx context.Context, request OAuthCallbackRequest) (*Info, error) {
+func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string, request OAuthCallbackRequest) (*Info, error) {
 	stateValue := strings.TrimSpace(request.State)
 	state, err := s.consumeState(ctx, stateValue)
 	if err != nil {
@@ -283,7 +384,7 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, request OAuthCallba
 	if err != nil {
 		return nil, err
 	}
-	clientID, clientSecret, configErr := s.oauthCredentials(entry.ConnectorID)
+	clientID, clientSecret, configErr := s.oauthCredentials(ctx, ownerUserID, entry.ConnectorID)
 	if configErr != nil {
 		return nil, configErr
 	}
@@ -298,7 +399,7 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, request OAuthCallba
 	if err != nil {
 		return nil, err
 	}
-	credentials := normalizeOAuthPayload(payload)
+	credentials := mergeCredentialExtras(normalizeOAuthPayload(payload), extra)
 	if err = s.upsertConnection(ctx, connectionRecord{
 		ConnectorID: entry.ConnectorID,
 		State:       "connected",
@@ -307,7 +408,7 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, request OAuthCallba
 	}); err != nil {
 		return nil, err
 	}
-	info := s.toInfo(entry, "connected")
+	info := s.toInfo(ctx, ownerUserID, entry, "connected")
 	return &info, nil
 }
 
@@ -335,7 +436,7 @@ func (s *Service) Connect(ctx context.Context, connectorID string, credentials m
 	}); err != nil {
 		return nil, err
 	}
-	info := s.toInfo(entry, "connected")
+	info := s.toInfo(ctx, "", entry, "connected")
 	return &info, nil
 }
 
@@ -353,12 +454,12 @@ func (s *Service) Disconnect(ctx context.Context, connectorID string) (*Info, er
 	}); err != nil {
 		return nil, err
 	}
-	info := s.toInfo(entry, "disconnected")
+	info := s.toInfo(ctx, "", entry, "disconnected")
 	return &info, nil
 }
 
-func (s *Service) toInfo(entry CatalogEntry, connectionState string) Info {
-	configError := s.oauthConfigError(entry.ConnectorID, entry.AuthType, entry.Status)
+func (s *Service) toInfo(ctx context.Context, ownerUserID string, entry CatalogEntry, connectionState string) Info {
+	configError := s.oauthConfigError(ctx, ownerUserID, entry.ConnectorID, entry.AuthType, entry.Status)
 	var configErrorPtr *string
 	if configError != "" {
 		configErrorPtr = &configError
@@ -379,8 +480,8 @@ func (s *Service) toInfo(entry CatalogEntry, connectionState string) Info {
 	}
 }
 
-func (s *Service) toDetail(entry CatalogEntry, connectionState string) Detail {
-	info := s.toInfo(entry, connectionState)
+func (s *Service) toDetail(ctx context.Context, ownerUserID string, entry CatalogEntry, connectionState string) Detail {
+	info := s.toInfo(ctx, ownerUserID, entry, connectionState)
 	return Detail{
 		Info:         info,
 		AuthURL:      entry.AuthURL,
@@ -583,7 +684,92 @@ func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
 	return nil
 }
 
-func (s *Service) oauthCredentials(connectorID string) (string, string, error) {
+func (s *Service) connectionCredentialsPayload(record connectionRecord) ([]byte, error) {
+	if record.CredentialsEncrypted.Valid && strings.TrimSpace(record.CredentialsEncrypted.String) != "" {
+		key, err := decodeCredentialKey(s.config.ConnectorCredentialsKey)
+		if err != nil {
+			return nil, err
+		}
+		return decryptCredentialPayload(key, record.CredentialsEncrypted.String)
+	}
+	return []byte(record.Credentials), nil
+}
+
+func (s *Service) GetOAuthClient(ctx context.Context, ownerUserID, connectorID string) (*OAuthClientView, error) {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	if entry.AuthType != "oauth2" {
+		return nil, errors.New("连接器不支持 OAuth")
+	}
+	if s.clients == nil {
+		return nil, nil
+	}
+	record, err := s.clients.Get(ctx, ownerUserID, entry.ConnectorID)
+	if err != nil {
+		return nil, err
+	}
+	if record == nil {
+		return nil, nil
+	}
+	return &OAuthClientView{
+		ConnectorID:     record.ConnectorID,
+		ClientID:        record.ClientID,
+		HasClientSecret: strings.TrimSpace(record.ClientSecret) != "",
+		UpdatedAt:       record.UpdatedAt,
+	}, nil
+}
+
+func (s *Service) UpsertOAuthClient(ctx context.Context, ownerUserID, connectorID, clientID, clientSecret string) error {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return errors.New("未知连接器")
+	}
+	if entry.AuthType != "oauth2" {
+		return errors.New("连接器不支持 OAuth")
+	}
+	if entry.Status != "available" {
+		return errors.New("连接器暂不可用")
+	}
+	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(clientSecret) == "" {
+		return errors.New("OAuth Client ID / Secret 不能为空")
+	}
+	if s.clients == nil {
+		return errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 OAuth 应用凭据")
+	}
+	return s.clients.Upsert(ctx, OAuthClient{
+		OwnerUserID:  ownerUserID,
+		ConnectorID:  entry.ConnectorID,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	})
+}
+
+func (s *Service) DeleteOAuthClient(ctx context.Context, ownerUserID, connectorID string) error {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return errors.New("未知连接器")
+	}
+	if entry.AuthType != "oauth2" {
+		return errors.New("连接器不支持 OAuth")
+	}
+	if s.clients == nil {
+		return nil
+	}
+	return s.clients.Delete(ctx, ownerUserID, entry.ConnectorID)
+}
+
+func (s *Service) oauthCredentials(ctx context.Context, ownerUserID string, connectorID string) (string, string, error) {
+	if s.clients != nil {
+		record, err := s.clients.Get(ctx, ownerUserID, connectorID)
+		if err != nil {
+			return "", "", err
+		}
+		if record != nil {
+			return requireOAuthCredentials(record.ClientID, record.ClientSecret, connectorID)
+		}
+	}
 	switch connectorID {
 	case "github":
 		return requireOAuthCredentials(s.config.ConnectorGitHubClientID, s.config.ConnectorGitHubClientSecret, "GitHub")
@@ -602,11 +788,11 @@ func (s *Service) oauthCredentials(connectorID string) (string, string, error) {
 	}
 }
 
-func (s *Service) oauthConfigError(connectorID string, authType string, status string) string {
+func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, connectorID string, authType string, status string) string {
 	if authType != "oauth2" || status != "available" {
 		return ""
 	}
-	_, _, err := s.oauthCredentials(connectorID)
+	_, _, err := s.oauthCredentials(ctx, ownerUserID, connectorID)
 	if err != nil {
 		return err.Error()
 	}
@@ -674,6 +860,27 @@ func normalizeOAuthPayload(payload []byte) string {
 	encoded, err := json.Marshal(normalized)
 	if err != nil {
 		return string(payload)
+	}
+	return string(encoded)
+}
+
+func mergeCredentialExtras(credentials string, extra map[string]string) string {
+	if len(extra) == 0 || !json.Valid([]byte(credentials)) {
+		return credentials
+	}
+	parsed := map[string]string{}
+	if err := json.Unmarshal([]byte(credentials), &parsed); err != nil {
+		return credentials
+	}
+	for key, value := range extra {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		parsed[key] = value
+	}
+	encoded, err := json.Marshal(parsed)
+	if err != nil {
+		return credentials
 	}
 	return string(encoded)
 }

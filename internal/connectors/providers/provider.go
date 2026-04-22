@@ -38,6 +38,7 @@ type TokenRequest struct {
 // Provider 定义单个 OAuth 供应商。
 type Provider interface {
 	ConnectorID() string
+	APIBaseURL() string
 	RequiresPKCE() bool
 	RequiredExtraKeys() []string
 	BuildAuthURL(ctx context.Context, req AuthRequest) (string, error)

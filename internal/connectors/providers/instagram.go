@@ -29,6 +29,10 @@ func (p instagramProvider) ConnectorID() string {
 	return "instagram"
 }
 
+func (p instagramProvider) APIBaseURL() string {
+	return "https://graph.instagram.com"
+}
+
 func (p instagramProvider) RequiresPKCE() bool {
 	return false
 }

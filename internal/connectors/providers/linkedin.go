@@ -29,6 +29,10 @@ func (p linkedInProvider) ConnectorID() string {
 	return "linkedin"
 }
 
+func (p linkedInProvider) APIBaseURL() string {
+	return "https://api.linkedin.com"
+}
+
 func (p linkedInProvider) RequiresPKCE() bool {
 	return true
 }

@@ -94,8 +94,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	automationService.SetRuntimeSessionCloser(runtimeManager)
 	automationService.SetLogger(logger.With("component", "automation"))
 
-	// 把 nexus_automation MCP server 注入聊天/Room runtime，主智能体可通过工具自助管理定时任务。
-	mcpBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
+	// 把内置 MCP server 注入聊天/Room runtime。
+	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
+	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
+	mcpBuilder := combinedMCPBuilder(automationBuilder, connectorBuilder)
 	chatService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
 

@@ -11,6 +11,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ConnectorDetailDialog } from "./connector-detail-dialog";
+import { ConnectorOAuthClientDialog } from "./connector-oauth-client-dialog";
 import { ConnectorsGrid } from "./connectors-grid";
 import { ConnectorsHeader } from "./connectors-header";
 import { ConnectorsSearchBar } from "./connectors-search-bar";
@@ -93,8 +94,20 @@ export function ConnectorsDirectory() {
         detail={ctrl.selected_detail}
         loading={ctrl.detail_loading}
         on_close={ctrl.close_detail}
+        on_configure_oauth_client={ctrl.open_oauth_client_config}
         on_connect={(id) => void ctrl.handle_connect(id)}
         on_disconnect={(id) => void ctrl.handle_disconnect(id)}
+      />
+
+      <ConnectorOAuthClientDialog
+        connector_id={ctrl.oauth_client_config_connector_id}
+        on_close={ctrl.close_oauth_client_config}
+        on_error={ctrl.set_error_message}
+        on_saved={async (id) => {
+          ctrl.set_status_message("OAuth 应用配置已保存");
+          await ctrl.refresh();
+          await ctrl.open_detail(id);
+        }}
       />
 
       {/* 操作反馈 */}
