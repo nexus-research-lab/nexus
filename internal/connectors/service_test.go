@@ -266,6 +266,67 @@ func TestServiceEncryptsConnectionCredentials(t *testing.T) {
 	}
 }
 
+func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	cfg.ConnectorCredentialsKey = testConnectorCredentialKey()
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer db.Close()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	if err = service.upsertConnection(ctx, connectionRecord{
+		ConnectorID: "github",
+		State:       "connected",
+		Credentials: `{"access_token":"token","scope":"repo"}`,
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入连接状态失败: %v", err)
+	}
+
+	item, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "github")
+	if err != nil {
+		t.Fatalf("读取连接快照失败: %v", err)
+	}
+	if item == nil || item.AccessToken != "token" || item.APIBaseURL != "https://api.github.com" {
+		t.Fatalf("连接快照不正确: %+v", item)
+	}
+	if item.Extra["scope"] != "repo" {
+		t.Fatalf("extra 字段未保留: %+v", item.Extra)
+	}
+}
+
+func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer db.Close()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	if err = service.upsertConnection(ctx, connectionRecord{
+		ConnectorID: "github",
+		State:       "connected",
+		Credentials: `{"scope":"repo"}`,
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入连接状态失败: %v", err)
+	}
+
+	_, err = service.LoadActiveConnection(ctx, auth.SystemUserID, "github")
+	if err == nil || !strings.Contains(err.Error(), "access token") {
+		t.Fatalf("缺少 access token 应报错，实际: %v", err)
+	}
+}
+
 func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)

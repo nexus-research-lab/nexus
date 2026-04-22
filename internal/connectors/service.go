@@ -57,6 +57,16 @@ type OAuthClientView struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+// ConnectionSnapshot 是 Agent MCP 调用 connector REST API 所需的连接快照。
+type ConnectionSnapshot struct {
+	ConnectorID string            `json:"connector_id"`
+	AuthType    string            `json:"auth_type"`
+	APIBaseURL  string            `json:"api_base_url"`
+	AccessToken string            `json:"-"`
+	ShopDomain  string            `json:"shop_domain,omitempty"`
+	Extra       map[string]string `json:"extra,omitempty"`
+}
+
 // AuthURLResult 表示 OAuth 授权地址。
 type AuthURLResult struct {
 	AuthURL string `json:"auth_url"`
@@ -164,6 +174,80 @@ func (s *Service) GetConnectedCount(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// ListActiveConnections 列出已连接 connector，暂时保留 ownerUserID 签名供后续 user scope 使用。
+func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]ConnectionSnapshot, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT connector_id FROM connector_connections WHERE state = 'connected'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []ConnectionSnapshot{}
+	for rows.Next() {
+		var connectorID string
+		if err = rows.Scan(&connectorID); err != nil {
+			return nil, err
+		}
+		item, err := s.LoadActiveConnection(ctx, ownerUserID, connectorID)
+		if err != nil {
+			return nil, err
+		}
+		if item != nil {
+			result = append(result, *item)
+		}
+	}
+	return result, rows.Err()
+}
+
+// LoadActiveConnection 读取已连接 connector 的 token 快照。
+func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*ConnectionSnapshot, error) {
+	// TODO(connector-user-scope): 追加 owner_user_id 过滤 —— 见 Phase 3。
+	query := fmt.Sprintf(
+		"SELECT connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE connector_id = %s AND state = 'connected'",
+		s.bind(1),
+	)
+	var record connectionRecord
+	err := s.db.QueryRowContext(ctx, query, strings.TrimSpace(connectorID)).Scan(
+		&record.ConnectorID,
+		&record.Credentials,
+		&record.CredentialsEncrypted,
+		&record.AuthType,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	entry, ok := getConnector(record.ConnectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	payload, err := s.connectionCredentialsPayload(record)
+	if err != nil {
+		return nil, err
+	}
+	parsed := map[string]string{}
+	if err = json.Unmarshal(payload, &parsed); err != nil {
+		return nil, err
+	}
+	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"])
+	if token == "" {
+		return nil, errors.New("connector 未获取到 access token")
+	}
+	delete(parsed, "access_token")
+	delete(parsed, "token")
+	delete(parsed, "bearer_token")
+	shop := connectorFirstNonEmpty(parsed["shop"], parsed["shop_domain"])
+	return &ConnectionSnapshot{
+		ConnectorID: record.ConnectorID,
+		AuthType:    record.AuthType,
+		APIBaseURL:  entry.APIBaseURL,
+		AccessToken: token,
+		ShopDomain:  shop,
+		Extra:       parsed,
+	}, nil
 }
 
 // GetCategories 返回连接器分类映射。
@@ -315,7 +399,7 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string,
 	if err != nil {
 		return nil, err
 	}
-	credentials := normalizeOAuthPayload(payload)
+	credentials := mergeCredentialExtras(normalizeOAuthPayload(payload), extra)
 	if err = s.upsertConnection(ctx, connectionRecord{
 		ConnectorID: entry.ConnectorID,
 		State:       "connected",
@@ -600,6 +684,17 @@ func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
 	return nil
 }
 
+func (s *Service) connectionCredentialsPayload(record connectionRecord) ([]byte, error) {
+	if record.CredentialsEncrypted.Valid && strings.TrimSpace(record.CredentialsEncrypted.String) != "" {
+		key, err := decodeCredentialKey(s.config.ConnectorCredentialsKey)
+		if err != nil {
+			return nil, err
+		}
+		return decryptCredentialPayload(key, record.CredentialsEncrypted.String)
+	}
+	return []byte(record.Credentials), nil
+}
+
 func (s *Service) GetOAuthClient(ctx context.Context, ownerUserID, connectorID string) (*OAuthClientView, error) {
 	entry, ok := getConnector(connectorID)
 	if !ok {
@@ -765,6 +860,27 @@ func normalizeOAuthPayload(payload []byte) string {
 	encoded, err := json.Marshal(normalized)
 	if err != nil {
 		return string(payload)
+	}
+	return string(encoded)
+}
+
+func mergeCredentialExtras(credentials string, extra map[string]string) string {
+	if len(extra) == 0 || !json.Valid([]byte(credentials)) {
+		return credentials
+	}
+	parsed := map[string]string{}
+	if err := json.Unmarshal([]byte(credentials), &parsed); err != nil {
+		return credentials
+	}
+	for key, value := range extra {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		parsed[key] = value
+	}
+	encoded, err := json.Marshal(parsed)
+	if err != nil {
+		return credentials
 	}
 	return string(encoded)
 }

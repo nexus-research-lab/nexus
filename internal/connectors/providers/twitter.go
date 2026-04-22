@@ -29,6 +29,10 @@ func (p twitterProvider) ConnectorID() string {
 	return "x-twitter"
 }
 
+func (p twitterProvider) APIBaseURL() string {
+	return "https://api.twitter.com"
+}
+
 func (p twitterProvider) RequiresPKCE() bool {
 	return true
 }

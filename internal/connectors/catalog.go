@@ -14,6 +14,7 @@ type CatalogEntry struct {
 	RequiresExtra []string
 	AuthURL       string
 	TokenURL      string
+	APIBaseURL    string
 	Scopes        []string
 	MCPServerURL  string
 	DocsURL       string
@@ -42,6 +43,7 @@ var connectorCatalog = []CatalogEntry{
 		Provider:    "gmail",
 		AuthURL:     "https://accounts.google.com/o/oauth2/v2/auth",
 		TokenURL:    "https://oauth2.googleapis.com/token",
+		APIBaseURL:  "https://gmail.googleapis.com",
 		Scopes:      []string{"https://www.googleapis.com/auth/gmail.modify"},
 		DocsURL:     "https://developers.google.com/gmail/api",
 		Features:    []string{"读取邮件", "发送邮件", "管理标签", "搜索邮件"},
@@ -58,6 +60,7 @@ var connectorCatalog = []CatalogEntry{
 		Provider:    "x-twitter",
 		AuthURL:     "https://twitter.com/i/oauth2/authorize",
 		TokenURL:    "https://api.twitter.com/2/oauth2/token",
+		APIBaseURL:  "https://api.twitter.com",
 		Scopes:      []string{"tweet.read", "users.read", "offline.access"},
 		DocsURL:     "https://developer.twitter.com/en/docs",
 		Features:    []string{"读取推文", "发布推文", "搜索话题", "追踪趋势"},
@@ -74,6 +77,7 @@ var connectorCatalog = []CatalogEntry{
 		Provider:    "linkedin",
 		AuthURL:     "https://www.linkedin.com/oauth/v2/authorization",
 		TokenURL:    "https://www.linkedin.com/oauth/v2/accessToken",
+		APIBaseURL:  "https://api.linkedin.com",
 		Scopes:      []string{"openid", "profile", "email"},
 		DocsURL:     "https://learn.microsoft.com/en-us/linkedin/",
 		Features:    []string{"个人档案", "公司搜索", "职位浏览", "人脉管理"},
@@ -91,6 +95,7 @@ var connectorCatalog = []CatalogEntry{
 		RequiresExtra: []string{"shop"},
 		AuthURL:       "https://{shop}.myshopify.com/admin/oauth/authorize",
 		TokenURL:      "https://{shop}.myshopify.com/admin/oauth/access_token",
+		APIBaseURL:    "https://{shop}.myshopify.com/admin/api/2024-07",
 		Scopes:        []string{"read_products", "read_orders", "read_customers"},
 		DocsURL:       "https://shopify.dev/docs/api",
 		Features:      []string{"商品管理", "订单查看", "客户数据", "库存同步"},
@@ -107,6 +112,7 @@ var connectorCatalog = []CatalogEntry{
 		Provider:    "instagram",
 		AuthURL:     "https://www.instagram.com/oauth/authorize",
 		TokenURL:    "https://api.instagram.com/oauth/access_token",
+		APIBaseURL:  "https://graph.instagram.com",
 		Scopes:      []string{"instagram_business_basic"},
 		DocsURL:     "https://developers.facebook.com/docs/instagram-api",
 		Features:    []string{"媒体发布", "互动数据", "粉丝分析", "评论管理"},
@@ -123,6 +129,7 @@ var connectorCatalog = []CatalogEntry{
 		Provider:    "github",
 		AuthURL:     "https://github.com/login/oauth/authorize",
 		TokenURL:    "https://github.com/login/oauth/access_token",
+		APIBaseURL:  "https://api.github.com",
 		Scopes:      []string{"repo", "read:user", "user:email"},
 		DocsURL:     "https://docs.github.com/en/rest",
 		Features:    []string{"仓库管理", "Issue 跟踪", "PR 审查", "代码搜索"},

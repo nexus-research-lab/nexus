@@ -26,6 +26,10 @@ func (p shopifyProvider) ConnectorID() string {
 	return "shopify"
 }
 
+func (p shopifyProvider) APIBaseURL() string {
+	return "https://{shop}.myshopify.com/admin/api/2024-07"
+}
+
 func (p shopifyProvider) RequiresPKCE() bool {
 	return false
 }

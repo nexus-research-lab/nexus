@@ -29,6 +29,10 @@ func (p googleProvider) ConnectorID() string {
 	return "gmail"
 }
 
+func (p googleProvider) APIBaseURL() string {
+	return "https://gmail.googleapis.com"
+}
+
 func (p googleProvider) RequiresPKCE() bool {
 	return true
 }
