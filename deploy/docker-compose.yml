@@ -10,6 +10,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      additional_contexts:
+        nexus_agent_sdk: ${NEXUS_AGENT_SDK_DIR:-../../nexus-agent-sdk/nexus-agent-sdk-go}
       cache_from:
         - type=local,src=../.buildx-cache/nexus
       cache_to:
@@ -21,6 +23,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         BUN_CONFIG_REGISTRY: ${BUN_CONFIG_REGISTRY:-https://registry.npmmirror.com/}
+        PRIVATE_SDK_MODULE: ${PRIVATE_SDK_MODULE:-github.com/nexus-research-lab/nexus-agent-sdk-go}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
     env_file:
