@@ -13,6 +13,7 @@ ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG GOPROXY=https://goproxy.cn,direct
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
+ARG PRIVATE_SDK_MODULE=github.com/nexus-research-lab/nexus-agent-sdk-go
 
 RUN --mount=type=cache,target=/var/cache/apt \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -33,12 +34,14 @@ RUN --mount=type=cache,target=/var/cache/apt \
 WORKDIR /src
 
 COPY go.mod go.sum /src/
+COPY --from=nexus_agent_sdk . /src/.private-sdk
 
 ENV GOPROXY=${GOPROXY}
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    go mod edit -dropreplace github.com/nexus-research-lab/nexus-agent-sdk-go || true && \
+    test -f /src/.private-sdk/go.mod && \
+    go mod edit -replace ${PRIVATE_SDK_MODULE}=/src/.private-sdk && \
     go mod download
 
 COPY cmd /src/cmd
