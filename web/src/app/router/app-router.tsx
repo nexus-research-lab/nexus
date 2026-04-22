@@ -15,9 +15,6 @@ import { AppLayout } from "@/shared/ui/layout/app-layout";
 const ContactsPage = lazy(() =>
   import("@/pages/contacts/contacts-page").then((m) => ({ default: m.ContactsPage })),
 );
-const DmsPage = lazy(() =>
-  import("@/pages/dms/dms-page").then((m) => ({ default: m.DmsPage })),
-);
 const HomePage = lazy(() =>
   import("@/pages/home/home-page").then((m) => ({ default: m.HomePage })),
 );
@@ -78,7 +75,6 @@ export function AppRouter() {
               {/* 有侧边栏的页面 — 共享 AppLayout，路由切换时侧边栏不重新挂载 */}
               <Route element={<AppLayout />}>
                 <Route element={<HomePage />} path={APP_ROUTE_PATHS.home} />
-                <Route element={<DmsPage />} path={APP_ROUTE_PATHS.dm_directory} />
 
                 {/* Room 路由 */}
                 <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
@@ -89,7 +85,6 @@ export function AppRouter() {
 
                 {/* Contacts 路由 */}
                 <Route element={<ContactsPage />} path={APP_ROUTE_PATHS.contacts} />
-                <Route element={<ContactsPage />} path={APP_ROUTE_PATHS.contact_profile} />
 
                 {/* Skills 路由 */}
                 <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skills} />

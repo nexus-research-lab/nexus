@@ -129,7 +129,7 @@ export function RoomPage() {
     }
 
     const fallback_route = pending_deleted_room.room_type === "dm"
-      ? AppRouteBuilders.dm_directory()
+      ? AppRouteBuilders.contacts()
       : AppRouteBuilders.home();
     navigate(fallback_route, { replace: true });
     set_pending_deleted_room(null);

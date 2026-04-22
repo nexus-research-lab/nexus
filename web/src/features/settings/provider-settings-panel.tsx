@@ -87,6 +87,19 @@ function get_provider_title(item: ProviderConfigRecord): string {
   return item.display_name || item.provider;
 }
 
+function format_provider_token_preview(masked_token?: string | null): string {
+  const normalized_masked_token = masked_token?.trim();
+  if (!normalized_masked_token) {
+    return "";
+  }
+
+  if (normalized_masked_token.length <= 10) {
+    return normalized_masked_token;
+  }
+
+  return `…${normalized_masked_token.slice(-10)}`;
+}
+
 function order_provider_records(
   items: ProviderConfigRecord[],
   previous_items: ProviderConfigRecord[],
@@ -326,7 +339,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [refresh_providers, selected_record, submitting, t]);
 
   const token_placeholder = is_editing
-    ? (selected_record?.auth_token_masked || t("settings.providers.token_empty"))
+    ? (format_provider_token_preview(selected_record?.auth_token_masked) || t("settings.providers.token_empty"))
     : t("settings.providers.auth_token_placeholder");
 
   const panel_content = (
@@ -362,13 +375,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         role="button"
                         tabIndex={0}
                       >
-                        <div className="min-w-0">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <span className="truncate text-sm font-semibold text-(--text-strong)">
-                                {get_provider_title(item)}
-                              </span>
-                            </div>
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
+                          <div className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-(--text-strong)">
+                              {get_provider_title(item)}
+                            </span>
+                          </div>
+                          <div className="flex justify-end">
                             <button
                               aria-label={t("settings.providers.set_default_provider")}
                               className={cn(
@@ -396,19 +409,23 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             </button>
                           </div>
 
-                          <div className="mt-2 truncate text-[11px] text-(--text-soft)">
+                          <div className="min-w-0 truncate text-[11px] text-(--text-soft)">
                             {item.base_url || "--"}
                           </div>
+                          <div />
 
-                          <div className="mt-1 truncate text-[11px] text-(--text-soft)">
+                          <div className="min-w-0 truncate text-[11px] text-(--text-soft)">
                             {item.model}
                           </div>
+                          <div />
 
-                          <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-(--text-soft)">
-                            <span className="truncate select-none">
-                              {item.auth_token_masked || t("settings.providers.token_empty")}
+                          <div className="min-w-0 text-[11px] text-(--text-soft)">
+                            <span className="block truncate select-none">
+                              {format_provider_token_preview(item.auth_token_masked) || t("settings.providers.token_empty")}
                             </span>
-                            <span className="chip-default rounded-full px-2 py-0.5 text-[10px] font-medium">
+                          </div>
+                          <div className="flex items-end justify-end">
+                            <span className="chip-default inline-flex min-w-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium">
                               {t("settings.providers.usage", { count: item.usage_count })}
                             </span>
                           </div>

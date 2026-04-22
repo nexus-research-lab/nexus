@@ -11,14 +11,12 @@ import {
   WorkspaceIconFrame,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import { Agent } from "@/types/agent/agent";
-import { Conversation } from "@/types/conversation/conversation";
 
 import { ContactsAgentCard } from "./contacts-agent-card";
 import { matches_contacts_search } from "./contacts-directory-helpers";
 
 interface ContactsDirectoryProps {
   agents: Agent[];
-  conversations: Conversation[];
   /** 💬 Chat → ensureDirectRoom 发起 DM */
   on_open_direct_room: (agent_id: string) => void;
   /** 新建 Agent → 打开 AgentOptions 对话框（create 模式） */
@@ -32,7 +30,6 @@ interface ContactsDirectoryProps {
 /** Contacts 全宽卡片网格 — 风格 */
 export function ContactsDirectory({
   agents,
-  conversations,
   on_open_direct_room,
   on_create_agent,
   on_edit_agent,

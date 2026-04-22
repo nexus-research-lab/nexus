@@ -16,19 +16,6 @@ export interface LauncherQueryResponse {
   initial_message?: string;
 }
 
-export interface LauncherSuggestion {
-  type: "agent" | "room";
-  id: string;
-  name: string;
-  avatar?: string;
-  last_activity?: string;
-}
-
-export interface LauncherSuggestionsResponse {
-  agents: LauncherSuggestion[];
-  rooms: LauncherSuggestion[];
-}
-
 export async function get_launcher_bootstrap_api(): Promise<LauncherBootstrapResponse> {
   return request_api<LauncherBootstrapResponse>(
     `${get_agent_api_base_url()}/launcher/bootstrap`,
@@ -49,18 +36,6 @@ export async function query_launcher(
     {
       method: "POST",
       body: JSON.stringify(params),
-    },
-  );
-}
-
-/**
- * 获取 Launcher 推荐列表
- */
-export async function get_launcher_suggestions(): Promise<LauncherSuggestionsResponse> {
-  return request_api<LauncherSuggestionsResponse>(
-    `${get_agent_api_base_url()}/launcher/suggestions`,
-    {
-      method: "GET",
     },
   );
 }

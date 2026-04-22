@@ -10,7 +10,6 @@ import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
-import { useConversationStore } from "@/store/conversation";
 import {
   AgentIdentityDraft,
   AgentOptions as AgentConfigOptions,
@@ -27,10 +26,6 @@ export function ContactsPage() {
     (state) => state.load_agents_from_server,
   );
   const loading = useAgentStore((state) => state.loading);
-  const conversations = useConversationStore((state) => state.conversations);
-  const load_conversations_from_server = useConversationStore(
-    (state) => state.load_conversations_from_server,
-  );
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [dialog_mode, set_dialog_mode] = useState<"create" | "edit">("create");
   const [editing_agent_id, set_editing_agent_id] = useState<string | null>(
@@ -188,8 +183,7 @@ export function ContactsPage() {
 
   useEffect(() => {
     void load_agents_from_server();
-    void load_conversations_from_server();
-  }, [load_agents_from_server, load_conversations_from_server]);
+  }, [load_agents_from_server]);
 
   // 加载中 — 内联 loading，外层布局由路由层提供
   if (loading && !regular_agents.length) {
@@ -210,7 +204,6 @@ export function ContactsPage() {
       <WorkspacePageFrame content_padding_class_name="p-0">
         <ContactsDirectory
           agents={regular_agents}
-          conversations={conversations}
           on_create_agent={handle_open_create_agent}
           on_create_team={handle_create_team}
           on_edit_agent={handle_open_edit_agent}
