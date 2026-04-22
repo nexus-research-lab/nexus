@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -9,11 +9,19 @@ import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surf
 import { useRoomPageController } from "@/hooks/room-page-controller/use-room-page-controller";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { RoomRouteParams } from "@/types/app/route";
 import { UpdateRoomParams } from "@/types/conversation/room";
+import {
+  build_dm_conversation_tour,
+  build_room_conversation_tour,
+  build_room_empty_conversation_tour,
+} from "@/features/conversation/room/room-tour";
 
 export function RoomPage() {
+  const { t } = useI18n();
   const params = useParams<RoomRouteParams>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -26,6 +34,28 @@ export function RoomPage() {
   const controller = useRoomPageController({
     room_id: params.room_id,
     conversation_id: params.conversation_id,
+  });
+  const conversation_tour = useMemo(() => {
+    if (!controller.current_room) {
+      return null;
+    }
+    if (controller.current_room.room_type === "dm") {
+      return build_dm_conversation_tour(t);
+    }
+    if (controller.current_room_conversation) {
+      return build_room_conversation_tour(t);
+    }
+    return build_room_empty_conversation_tour(t);
+  }, [
+    controller.current_room,
+    controller.current_room_conversation,
+    t,
+  ]);
+
+  const { start_current_tour } = usePageOnboardingTour({
+    tour: conversation_tour,
+    enabled: controller.is_hydrated && Boolean(controller.current_room),
+    auto_start_delay_ms: 260,
   });
 
   useEffect(() => {
@@ -228,6 +258,7 @@ export function RoomPage() {
             is_editor_open={controller.is_editor_open}
             is_resizing_editor={controller.is_resizing_editor}
             is_conversation_busy={controller.is_conversation_busy}
+            on_replay_tour={start_current_tour}
             on_add_room_member={controller.handle_add_room_member}
             on_open_member_manager={controller.handle_prepare_room_agent_catalog}
             on_remove_room_member={controller.handle_remove_room_member}

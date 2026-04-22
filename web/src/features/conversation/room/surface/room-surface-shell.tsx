@@ -34,6 +34,7 @@ interface RoomSurfaceShellProps {
   is_conversation_busy: boolean;
   current_todos: TodoItem[];
   workspace_split_ref: React.RefObject<HTMLElement | null>;
+  on_replay_tour?: () => void;
   on_back_to_directory: () => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
@@ -75,6 +76,7 @@ export function RoomSurfaceShell({
   is_conversation_busy,
   current_todos,
   workspace_split_ref,
+  on_replay_tour,
   on_back_to_directory,
   on_create_conversation,
   on_select_conversation,
@@ -169,6 +171,7 @@ export function RoomSurfaceShell({
       is_editor_open={is_editor_open}
       is_resizing_editor={is_resizing_editor}
       is_conversation_busy={is_conversation_busy}
+      on_replay_tour={on_replay_tour}
       on_add_room_member={on_add_room_member}
       on_open_member_manager={on_open_member_manager}
       on_remove_room_member={on_remove_room_member}

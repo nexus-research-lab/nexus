@@ -24,6 +24,7 @@ import {
   group_messages_by_round,
   get_latest_reply_timestamp,
 } from "@/features/conversation/shared/utils";
+import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
@@ -280,6 +281,7 @@ export function DmChatPanel({
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
 
       <div
+        data-tour-anchor={CONVERSATION_TOUR_ANCHORS.feed}
         ref={scroll_ref}
         className={
           is_mobile_layout
@@ -348,6 +350,7 @@ export function DmChatPanel({
         on_prepare_attachments={handle_prepare_attachments}
         on_send_message={handle_send_message}
         on_stop={handle_stop}
+        tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
         disabled={!can_control_session}
       />
     </div>

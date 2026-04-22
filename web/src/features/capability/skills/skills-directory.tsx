@@ -12,10 +12,15 @@ import { SkillsCatalogGrid } from "./skills-catalog-grid";
 import { SkillsExternalResults } from "./skills-external-results";
 import { SkillsHeader } from "./skills-header";
 import { SkillsSearchBar } from "./skills-search-bar";
+import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 
-export function SkillsDirectory() {
+interface SkillsDirectoryProps {
+  on_replay_tour?: () => void;
+}
+
+export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
   const ctrl = useSkillMarketplace();
   const feedback_items: FeedbackBannerItem[] = [];
   if (ctrl.status_message) {
@@ -55,13 +60,21 @@ export function SkillsDirectory() {
       <WorkspaceSurfaceScaffold
         body_class_name="px-5 py-5 xl:px-6"
         body_scrollable
-        header={<SkillsHeader ctrl={ctrl} />}
+        header={(
+          <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
+            <SkillsHeader ctrl={ctrl} on_replay_tour={on_replay_tour} />
+          </div>
+        )}
         stable_gutter
       >
-        <SkillsSearchBar ctrl={ctrl} />
+        <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
+          <SkillsSearchBar ctrl={ctrl} />
+        </div>
 
-        {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
-        {ctrl.discovery_mode === "catalog" && <SkillsCatalogGrid ctrl={ctrl} />}
+        <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
+          {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
+          {ctrl.discovery_mode === "catalog" && <SkillsCatalogGrid ctrl={ctrl} />}
+        </div>
       </WorkspaceSurfaceScaffold>
 
       <FeedbackBannerStack items={feedback_items} />

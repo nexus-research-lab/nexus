@@ -47,6 +47,7 @@ interface ComposerPanelProps {
   mention_unavailable_agent_ids?: string[];
   control_status_text?: string;
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  tour_anchor?: string;
 }
 
 type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
@@ -116,6 +117,7 @@ const ComposerPanelView = memo(({
   mention_unavailable_agent_ids = [],
   control_status_text,
   on_prepare_attachments,
+  tour_anchor,
 }: ComposerPanelProps) => {
   const { t } = useI18n();
   const [input, setInput] = useState("");
@@ -414,6 +416,7 @@ const ComposerPanelView = memo(({
 
   return (
     <section
+      data-tour-anchor={tour_anchor}
       className={cn(
         "mx-auto w-full max-w-[1020px] border-t border-(--surface-canvas-border) bg-transparent",
         compact ? "px-2 pb-2 pt-2" : "px-3 pb-3 pt-3 sm:px-5 xl:px-6",

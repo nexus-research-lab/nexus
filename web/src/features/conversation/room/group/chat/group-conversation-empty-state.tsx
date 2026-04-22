@@ -22,6 +22,7 @@ import {
   WorkspaceCatalogTitle,
   WorkspaceIconFrame,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 interface GroupConversationEmptyStateProps {
   on_create_conversation: (title?: string) => void | Promise<string | null>;
@@ -63,6 +64,7 @@ export function GroupConversationEmptyState({
 
             <WorkspaceCatalogFooter class_name="mt-6 flex-wrap gap-2.5" justify="start">
               <WorkspaceCatalogTextAction
+                data-tour-anchor={CONVERSATION_TOUR_ANCHORS.empty_create}
                 tone="primary"
                 onClick={() => {
                   void on_create_conversation();
