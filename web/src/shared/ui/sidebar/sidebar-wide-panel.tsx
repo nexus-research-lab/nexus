@@ -9,7 +9,7 @@
  */
 
 import { LogOut, Settings } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -22,8 +22,15 @@ import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn, get_icon_avatar_src } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
+import {
+  build_sidebar_navigation_tour,
+  SIDEBAR_NAVIGATION_TOUR_ID,
+  SIDEBAR_TOUR_ANCHORS,
+} from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { SidebarOnboardingHint } from "@/shared/ui/sidebar/sidebar-onboarding-hint";
+import { SIDEBAR_ONBOARDING_HINT_DISMISSED_KEY } from "@/shared/ui/sidebar/sidebar-onboarding-hint";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
 import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { useAgentStore } from "@/store/agent";
@@ -40,6 +47,13 @@ const MODAL_ROOT_SELECTOR = "[data-modal-root='true']";
 export function SidebarWidePanel() {
   const { t } = useI18n();
   const { logout } = useAuth();
+  const {
+    active_tour_id,
+    has_completed_tour,
+    register_tour,
+    start_tour,
+    unregister_tour,
+  } = useOnboardingTour();
   const location = useLocation();
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
@@ -58,6 +72,11 @@ export function SidebarWidePanel() {
   const nexus_avatar_src = get_icon_avatar_src(nexus_avatar);
   const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
     || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
+  const sidebar_navigation_tour = useMemo(
+    () => build_sidebar_navigation_tour(t),
+    [t],
+  );
+  const has_auto_started_tour_ref = useRef(false);
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -165,6 +184,43 @@ export function SidebarWidePanel() {
       console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
     });
   }, [default_agent_id, navigate, set_active_panel_item]);
+
+  useEffect(() => {
+    register_tour(sidebar_navigation_tour);
+    return () => {
+      unregister_tour(sidebar_navigation_tour.id);
+    };
+  }, [register_tour, sidebar_navigation_tour, unregister_tour]);
+
+  useEffect(() => {
+    if (has_auto_started_tour_ref.current) {
+      return;
+    }
+    if (active_tour_id) {
+      return;
+    }
+    if (has_completed_tour(SIDEBAR_NAVIGATION_TOUR_ID)) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const is_hint_dismissed =
+      window.localStorage.getItem(SIDEBAR_ONBOARDING_HINT_DISMISSED_KEY) === "true";
+    if (is_hint_dismissed) {
+      return;
+    }
+
+    has_auto_started_tour_ref.current = true;
+    const timeout_id = window.setTimeout(() => {
+      start_tour(SIDEBAR_NAVIGATION_TOUR_ID);
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timeout_id);
+    };
+  }, [active_tour_id, has_completed_tour, start_tour]);
 
   return (
     <div
@@ -274,13 +330,15 @@ export function SidebarWidePanel() {
         <SidebarOnboardingHint />
         <HomePanelContent />
 
-        <CollapsibleSection
-          count={CAPABILITY_SECTION_COUNT}
-          section_id="sidebar-capabilities"
-          title={t("sidebar.capabilities")}
-        >
-          <CapabilitiesPanelContent />
-        </CollapsibleSection>
+        <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities}>
+          <CollapsibleSection
+            count={CAPABILITY_SECTION_COUNT}
+            section_id="sidebar-capabilities"
+            title={t("sidebar.capabilities")}
+          >
+            <CapabilitiesPanelContent />
+          </CollapsibleSection>
+        </div>
       </div>
 
       <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">

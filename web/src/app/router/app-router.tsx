@@ -10,6 +10,7 @@ import { PlaceholderPage } from "@/pages/placeholder/placeholder-page";
 import { AuthGuard } from "@/app/router/auth-guard";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { AppLayout } from "@/shared/ui/layout/app-layout";
+import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
 
 // 懒加载页面组件 — 首次导航时按需加载
 const ContactsPage = lazy(() =>
@@ -61,57 +62,59 @@ export function AppRouter() {
 
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-          <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
+      <OnboardingTourProvider>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
 
-          <Route element={<AuthGuard />}>
-            <Route element={<AuthenticatedAppSessionRoot />}>
-              {/* Launcher — 无侧边栏布局，eager 加载 */}
-              <Route element={<AppLayout show_sidebar={false} />} path={APP_ROUTE_PATHS.launcher}>
-                <Route index element={<LauncherPage />} />
-              </Route>
+            <Route element={<AuthGuard />}>
+              <Route element={<AuthenticatedAppSessionRoot />}>
+                {/* Launcher — 无侧边栏布局，eager 加载 */}
+                <Route element={<AppLayout show_sidebar={false} />} path={APP_ROUTE_PATHS.launcher}>
+                  <Route index element={<LauncherPage />} />
+                </Route>
 
-              {/* 有侧边栏的页面 — 共享 AppLayout，路由切换时侧边栏不重新挂载 */}
-              <Route element={<AppLayout />}>
-                <Route element={<HomePage />} path={APP_ROUTE_PATHS.home} />
+                {/* 有侧边栏的页面 — 共享 AppLayout，路由切换时侧边栏不重新挂载 */}
+                <Route element={<AppLayout />}>
+                  <Route element={<HomePage />} path={APP_ROUTE_PATHS.home} />
 
-                {/* Room 路由 */}
-                <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
-                <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_conversation} />
+                  {/* Room 路由 */}
+                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
+                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_conversation} />
 
-                {/* /rooms 独立路由重定向到 /app */}
-                <Route element={<Navigate replace to={APP_ROUTE_PATHS.home} />} path="/rooms" />
+                  {/* /rooms 独立路由重定向到 /app */}
+                  <Route element={<Navigate replace to={APP_ROUTE_PATHS.home} />} path="/rooms" />
 
-                {/* Contacts 路由 */}
-                <Route element={<ContactsPage />} path={APP_ROUTE_PATHS.contacts} />
+                  {/* Contacts 路由 */}
+                  <Route element={<ContactsPage />} path={APP_ROUTE_PATHS.contacts} />
 
-                {/* Skills 路由 */}
-                <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skills} />
-                <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skill_detail} />
+                  {/* Skills 路由 */}
+                  <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skills} />
+                  <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skill_detail} />
 
-                {/* 能力子路由 */}
-                <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
-                <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />
-                <Route
-                  element={<PlaceholderPage title={t("placeholder.channels_title")} description={t("placeholder.channels_description")} />}
-                  path={APP_ROUTE_PATHS.channels}
-                />
-                <Route
-                  element={<PlaceholderPage title={t("placeholder.pairings_title")} description={t("placeholder.pairings_description")} />}
-                  path={APP_ROUTE_PATHS.pairings}
-                />
+                  {/* 能力子路由 */}
+                  <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
+                  <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />
+                  <Route
+                    element={<PlaceholderPage title={t("placeholder.channels_title")} description={t("placeholder.channels_description")} />}
+                    path={APP_ROUTE_PATHS.channels}
+                  />
+                  <Route
+                    element={<PlaceholderPage title={t("placeholder.pairings_title")} description={t("placeholder.pairings_description")} />}
+                    path={APP_ROUTE_PATHS.pairings}
+                  />
 
-                {/* 其他占位路由 */}
-                <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
+                  {/* 其他占位路由 */}
+                  <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
+                </Route>
               </Route>
             </Route>
-          </Route>
 
-          {/* 兜底重定向 */}
-          <Route element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} path="*" />
-        </Routes>
-      </Suspense>
+            {/* 兜底重定向 */}
+            <Route element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} path="*" />
+          </Routes>
+        </Suspense>
+      </OnboardingTourProvider>
     </BrowserRouter>
   );
 }
