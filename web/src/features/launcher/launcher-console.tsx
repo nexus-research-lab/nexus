@@ -5,11 +5,16 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
 import { ANIMATIONS } from "@/config/animation-assets";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar";
 import { query_launcher } from "@/lib/api/launcher-api";
 import { ensure_direct_room, get_room_contexts } from "@/lib/api/room-api";
+import {
+  build_launcher_tour,
+} from "@/features/launcher/launcher-tour";
+import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 import {
   build_decorative_tokens,
   build_launcher_mention_targets,
@@ -29,11 +34,16 @@ export function LauncherConsole({
   on_open_main_agent_dm,
   on_select_agent,
 }: LauncherConsoleProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const navigate = useNavigate();
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-
+  const launcher_tour = useMemo(() => build_launcher_tour(t), [t]);
+  const { start_current_tour } = usePageOnboardingTour({
+    tour: launcher_tour,
+    auto_start_delay_ms: 260,
+  });
   const decorative_tokens = useMemo(
     () => build_decorative_tokens(agents, rooms),
     [agents, rooms],

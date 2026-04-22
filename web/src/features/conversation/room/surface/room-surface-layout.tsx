@@ -25,6 +25,7 @@ import { RoomWorkspaceView } from "../workspace/room-workspace-view";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { RoomAgentAboutSurface } from "./room-agent-about-surface";
 import { RoomHistorySurface } from "./room-history-surface";
+import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 const ChatBoundary = import.meta.env.DEV ? GroupChatErrorBoundary : Fragment;
 
@@ -49,6 +50,7 @@ interface RoomSurfaceLayoutProps {
   is_conversation_busy: boolean;
   current_todos: TodoItem[];
   workspace_split_ref: RefObject<HTMLElement | null>;
+  on_replay_tour?: () => void;
   on_change_surface_tab: (tab: RoomSurfaceTabKey) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
@@ -108,6 +110,7 @@ function RoomSurfaceLayoutInner({
                                     is_conversation_busy,
                                     current_todos,
                                     workspace_split_ref,
+                                    on_replay_tour,
                                     on_change_surface_tab,
                                     on_create_conversation,
                                     on_select_conversation,
@@ -156,37 +159,43 @@ function RoomSurfaceLayoutInner({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceSurfaceScaffold
           body_class_name="relative"
-          header={is_dm ? (
-            <DmConversationHeader
-              active_tab={active_surface_tab}
-              conversation_id={conversation_id}
-              conversations={current_room_conversations}
-              current_agent_name={current_agent.name}
-              current_agent_avatar={current_agent.avatar ?? null}
-              on_change_tab={on_change_surface_tab}
-              on_create_conversation={on_create_conversation}
-              on_select_conversation={on_select_conversation}
-              todos={current_todos}
-            />
-          ) : (
-            <GroupConversationHeader
-              active_tab={active_surface_tab}
-              available_room_agents={available_room_agents}
-              conversation_id={conversation_id}
-              conversations={current_room_conversations}
-              current_room_title={current_room_title}
-              on_add_room_member={on_add_room_member}
-              on_open_member_manager={on_open_member_manager}
-              on_change_tab={on_change_surface_tab}
-              on_create_conversation={on_create_conversation}
-              on_remove_room_member={on_remove_room_member}
-              on_select_conversation={on_select_conversation}
-              on_update_room={on_update_room}
-              room_avatar={room_avatar}
-              room_id={room_id}
-              room_members={room_members}
-              todos={current_todos}
-            />
+          header={(
+            <div data-tour-anchor={CONVERSATION_TOUR_ANCHORS.header}>
+              {is_dm ? (
+                <DmConversationHeader
+                  active_tab={active_surface_tab}
+                  conversation_id={conversation_id}
+                  conversations={current_room_conversations}
+                  current_agent_name={current_agent.name}
+                  current_agent_avatar={current_agent.avatar ?? null}
+                  on_change_tab={on_change_surface_tab}
+                  on_create_conversation={on_create_conversation}
+                  on_replay_tour={on_replay_tour}
+                  on_select_conversation={on_select_conversation}
+                  todos={current_todos}
+                />
+              ) : (
+                <GroupConversationHeader
+                  active_tab={active_surface_tab}
+                  available_room_agents={available_room_agents}
+                  conversation_id={conversation_id}
+                  conversations={current_room_conversations}
+                  current_room_title={current_room_title}
+                  on_add_room_member={on_add_room_member}
+                  on_open_member_manager={on_open_member_manager}
+                  on_change_tab={on_change_surface_tab}
+                  on_create_conversation={on_create_conversation}
+                  on_replay_tour={on_replay_tour}
+                  on_remove_room_member={on_remove_room_member}
+                  on_select_conversation={on_select_conversation}
+                  on_update_room={on_update_room}
+                  room_avatar={room_avatar}
+                  room_id={room_id}
+                  room_members={room_members}
+                  todos={current_todos}
+                />
+              )}
+            </div>
           )}
         >
           <div className="flex h-full min-h-0 min-w-0">

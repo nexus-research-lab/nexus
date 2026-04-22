@@ -8,12 +8,13 @@
  * 宽度从 store 读取，右边缘可拖拽调整（180–400px）。
  */
 
-import { Compass, LogOut, Settings } from "lucide-react";
+import { Compass, LogOut, MessageSquare, Rocket, Settings, Wrench } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_default_agent_avatar, get_default_agent_id, is_main_agent } from "@/config/options";
+import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import { HomePanelContent } from "@/features/home/home-sidebar-panel";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
@@ -22,7 +23,12 @@ import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn, get_icon_avatar_src } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  OnboardingGuideCenter,
+  type OnboardingGuideCenterItem,
+} from "@/shared/ui/onboarding/onboarding-guide-center";
 import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
+import { set_requested_tour_id } from "@/shared/ui/onboarding/tour-state";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import {
   build_sidebar_navigation_tour,
@@ -34,10 +40,18 @@ import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
 import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { useAgentStore } from "@/store/agent";
 import {
+  SIDEBAR_CAPABILITY_ITEM_IDS,
   derive_sidebar_item_id_from_path,
   SIDEBAR_SYSTEM_ITEM_IDS,
   useSidebarStore,
 } from "@/store/sidebar";
+import { LAUNCHER_TOUR_ID } from "@/features/launcher/launcher-tour";
+import {
+  DM_CONVERSATION_TOUR_ID,
+  ROOM_CONVERSATION_TOUR_ID,
+  ROOM_EMPTY_CONVERSATION_TOUR_ID,
+} from "@/features/conversation/room/room-tour";
+import { SKILLS_TOUR_ID } from "@/features/capability/skills/skills-tour";
 
 const CAPABILITY_SECTION_COUNT = 5;
 const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
@@ -49,7 +63,10 @@ export function SidebarWidePanel() {
   const {
     active_tour_id,
     has_completed_tour,
+    is_tour_registered,
     register_tour,
+    reset_version,
+    reset_all_tours,
     start_tour,
     unregister_tour,
   } = useOnboardingTour();
@@ -63,6 +80,7 @@ export function SidebarWidePanel() {
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
   const root_ref = useRef<HTMLDivElement | null>(null);
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
+  const [is_guide_center_open, set_is_guide_center_open] = useState(false);
   const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
   const prefers_reduced_motion = usePrefersReducedMotion();
   const default_agent_id = get_default_agent_id();
@@ -76,6 +94,16 @@ export function SidebarWidePanel() {
     [t],
   );
   const has_auto_started_tour_ref = useRef(false);
+  const is_dm_tour_registered = is_tour_registered(DM_CONVERSATION_TOUR_ID);
+  const registered_room_tour_id = useMemo(() => {
+    if (is_tour_registered(ROOM_CONVERSATION_TOUR_ID)) {
+      return ROOM_CONVERSATION_TOUR_ID;
+    }
+    if (is_tour_registered(ROOM_EMPTY_CONVERSATION_TOUR_ID)) {
+      return ROOM_EMPTY_CONVERSATION_TOUR_ID;
+    }
+    return null;
+  }, [is_tour_registered]);
 
   /** 拖拽状态 ref，避免频繁 re-render */
   const is_dragging_ref = useRef(false);
@@ -209,7 +237,186 @@ export function SidebarWidePanel() {
     return () => {
       window.clearTimeout(timeout_id);
     };
-  }, [active_tour_id, has_completed_tour, start_tour]);
+  }, [has_completed_tour, start_tour]);
+
+  useEffect(() => {
+    has_auto_started_tour_ref.current = false;
+  }, [reset_version]);
+
+  const handle_start_tour_from_center = useCallback((tour_id: string) => {
+    set_is_guide_center_open(false);
+    window.setTimeout(() => {
+      start_tour(tour_id);
+    }, 0);
+  }, [start_tour]);
+
+  const handle_request_page_tour = useCallback((
+    tour_id: string,
+    route: string,
+    sidebar_item_id?: string | null,
+  ) => {
+    set_requested_tour_id(tour_id);
+    set_is_guide_center_open(false);
+    if (sidebar_item_id) {
+      set_active_panel_item(sidebar_item_id);
+    }
+    navigate(route);
+  }, [navigate, set_active_panel_item]);
+
+  const handle_open_dm_tour = useCallback(async () => {
+    if (is_dm_tour_registered) {
+      handle_start_tour_from_center(DM_CONVERSATION_TOUR_ID);
+      return;
+    }
+
+    set_is_guide_center_open(false);
+    if (!default_agent_id) {
+      navigate(AppRouteBuilders.contacts());
+      return;
+    }
+
+    try {
+      const target = await resolve_direct_room_navigation_target(default_agent_id);
+      set_requested_tour_id(DM_CONVERSATION_TOUR_ID);
+      set_active_panel_item(target.context.room.id);
+      navigate(target.route);
+    } catch (error) {
+      console.error("[SidebarWidePanel] 打开 DM 引导失败:", error);
+      navigate(AppRouteBuilders.contacts());
+    }
+  }, [
+    default_agent_id,
+    handle_start_tour_from_center,
+    is_dm_tour_registered,
+    navigate,
+    set_active_panel_item,
+  ]);
+
+  const handle_open_room_tour = useCallback(async () => {
+    if (registered_room_tour_id) {
+      handle_start_tour_from_center(registered_room_tour_id);
+      return;
+    }
+
+    set_is_guide_center_open(false);
+
+    try {
+      const payload = await get_launcher_bootstrap_api();
+      const target_room = payload.rooms.find((room) => room.room_type === "room");
+
+      if (!target_room) {
+        navigate(AppRouteBuilders.home());
+        return;
+      }
+
+      const room_conversations = payload.conversations
+        .filter((conversation) => conversation.room_id === target_room.id)
+        .sort((left, right) =>
+          new Date(right.last_activity).getTime() - new Date(left.last_activity).getTime()
+        );
+
+      set_active_panel_item(target_room.id);
+      if (room_conversations.length > 0 && room_conversations[0].conversation_id) {
+        set_requested_tour_id(ROOM_CONVERSATION_TOUR_ID);
+        navigate(
+          AppRouteBuilders.room_conversation(
+            target_room.id,
+            room_conversations[0].conversation_id,
+          ),
+        );
+        return;
+      }
+
+      set_requested_tour_id(ROOM_EMPTY_CONVERSATION_TOUR_ID);
+      navigate(AppRouteBuilders.room(target_room.id));
+    } catch (error) {
+      console.error("[SidebarWidePanel] 打开 Room 引导失败:", error);
+      navigate(AppRouteBuilders.home());
+    }
+  }, [
+    handle_start_tour_from_center,
+    navigate,
+    registered_room_tour_id,
+    set_active_panel_item,
+  ]);
+
+  const guide_center_items = useMemo<OnboardingGuideCenterItem[]>(() => {
+    const items: OnboardingGuideCenterItem[] = [
+      {
+        id: LAUNCHER_TOUR_ID,
+        icon: Rocket,
+        title: t("launcher.tour_intro_title"),
+        description: t("launcher.tour_intro_description"),
+        action_label: t("common.view_guide"),
+        completed: has_completed_tour(LAUNCHER_TOUR_ID),
+        on_action: () => handle_request_page_tour(
+          LAUNCHER_TOUR_ID,
+          AppRouteBuilders.launcher(),
+        ),
+      },
+      {
+        id: SIDEBAR_NAVIGATION_TOUR_ID,
+        icon: Compass,
+        title: t("sidebar.tour_intro_title"),
+        description: t("sidebar.tour_intro_description"),
+        action_label: t("common.view_guide"),
+        completed: has_completed_tour(SIDEBAR_NAVIGATION_TOUR_ID),
+        on_action: () => handle_start_tour_from_center(SIDEBAR_NAVIGATION_TOUR_ID),
+      },
+      {
+        id: DM_CONVERSATION_TOUR_ID,
+        icon: MessageSquare,
+        title: t("room.tour_dm_intro_title"),
+        description: t("room.tour_dm_intro_description"),
+        action_label: t("common.view_guide"),
+        completed: has_completed_tour(DM_CONVERSATION_TOUR_ID),
+        on_action: () => {
+          void handle_open_dm_tour();
+        },
+      },
+      {
+        id: ROOM_CONVERSATION_TOUR_ID,
+        icon: MessageSquare,
+        title: t("room.tour_group_intro_title"),
+        description: t("room.tour_group_intro_description"),
+        action_label: t("common.view_guide"),
+        completed: has_completed_tour(ROOM_CONVERSATION_TOUR_ID)
+          || has_completed_tour(ROOM_EMPTY_CONVERSATION_TOUR_ID),
+        on_action: () => {
+          void handle_open_room_tour();
+        },
+      },
+      {
+        id: SKILLS_TOUR_ID,
+        icon: Wrench,
+        title: t("capability.skills_tour_intro_title"),
+        description: t("capability.skills_tour_intro_description"),
+        action_label: t("common.view_guide"),
+        completed: has_completed_tour(SKILLS_TOUR_ID),
+        on_action: () => {
+          if (is_tour_registered(SKILLS_TOUR_ID)) {
+            handle_start_tour_from_center(SKILLS_TOUR_ID);
+            return;
+          }
+          handle_request_page_tour(
+            SKILLS_TOUR_ID,
+            AppRouteBuilders.skills(),
+            SIDEBAR_CAPABILITY_ITEM_IDS.skills,
+          );
+        },
+      },
+    ];
+
+    return items;
+  }, [
+    handle_open_dm_tour,
+    handle_open_room_tour,
+    handle_request_page_tour,
+    handle_start_tour_from_center,
+    has_completed_tour,
+    is_tour_registered,
+    t,
+  ]);
 
   return (
     <div
@@ -345,11 +552,11 @@ export function SidebarWidePanel() {
             <button
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                active_tour_id === SIDEBAR_NAVIGATION_TOUR_ID && "pointer-events-none opacity-(--disabled-opacity)",
+                is_guide_center_open && "bg-(--surface-interactive-active-background) text-(--text-strong)",
               )}
               data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
-              onClick={() => start_tour(SIDEBAR_NAVIGATION_TOUR_ID)}
-              title={t("sidebar.guide_action_restart")}
+              onClick={() => set_is_guide_center_open(true)}
+              title={t("common.guide_center")}
               type="button"
             >
               <Compass className="h-4 w-4" />
@@ -369,8 +576,21 @@ export function SidebarWidePanel() {
             <LogOut className="h-4 w-4" />
           </button>
       </div>
+
+      <OnboardingGuideCenter
+        close_label={t("common.close")}
+        description={t("onboarding.guide_center_description")}
+        is_open={is_guide_center_open}
+        items={guide_center_items}
+        on_close={() => set_is_guide_center_open(false)}
+        on_reset={() => {
+          reset_all_tours();
+          set_is_guide_center_open(false);
+        }}
+        reset_label={t("common.reset_guides")}
+        reviewed_label={t("common.reviewed")}
+        title={t("common.guide_center")}
+      />
     </div>
   );
 }
-
-

@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 import type { SkillMarketplaceController } from "./skills-view-model";
+import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
 
 interface SkillsSearchBarProps {
   ctrl: SkillMarketplaceController;
@@ -31,7 +32,10 @@ export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
       </div>
 
       {ctrl.discovery_mode === "catalog" ? (
-        <div className="soft-scrollbar scrollbar-hide flex min-w-0 flex-1 items-center gap-5 overflow-x-auto">
+        <div
+          className="soft-scrollbar scrollbar-hide flex min-w-0 flex-1 items-center gap-5 overflow-x-auto"
+          data-tour-anchor={SKILLS_TOUR_ANCHORS.categories}
+        >
           {ctrl.categories.map((category) => {
             const is_active = ctrl.active_category === category.key;
             return (

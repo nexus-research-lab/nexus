@@ -18,6 +18,7 @@ interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   key: TTabKey;
   label: string;
   icon?: LucideIcon;
+  anchor?: string;
 }
 
 interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
@@ -29,6 +30,7 @@ interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
   subtitle?: ReactNode;
   trailing?: ReactNode;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
+  tabs_nav_anchor?: string;
   tabs_trailing?: ReactNode;
   active_tab?: TTabKey;
   on_change_tab?: (tab: TTabKey) => void;
@@ -49,6 +51,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   subtitle,
   trailing,
   tabs = [],
+  tabs_nav_anchor,
   tabs_trailing,
   active_tab,
   on_change_tab,
@@ -111,6 +114,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
               "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
               density === "compact" ? "items-center gap-3" : "items-center gap-4",
             )}
+            data-tour-anchor={tabs_nav_anchor}
           >
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -119,6 +123,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
                 <button
                   aria-pressed={is_active}
                   aria-current={is_active ? "page" : undefined}
+                  data-tour-anchor={tab.anchor}
                   key={tab.key}
                   className={cn(
                     "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",

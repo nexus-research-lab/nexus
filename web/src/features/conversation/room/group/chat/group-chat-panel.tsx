@@ -39,6 +39,7 @@ import {
   useSetGroupThreadPanelData,
 } from "../thread/group-thread-state";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
+import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
@@ -502,6 +503,7 @@ export function GroupChatPanel({
       ) : (
         <>
           <div
+            data-tour-anchor={CONVERSATION_TOUR_ANCHORS.feed}
             ref={scroll_ref}
             className={
               is_mobile_layout
@@ -579,6 +581,7 @@ export function GroupChatPanel({
             on_send_message={handle_send_message}
             on_stop={can_control_session ? () => stop_generation() : undefined}
             room_members={room_members}
+            tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
             disabled={!can_control_session}
           />
         </>

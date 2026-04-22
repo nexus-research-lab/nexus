@@ -9,9 +9,10 @@ import {
   useState,
   type MouseEvent,
 } from "react";
-import { ArrowRight, ArrowUp, MessageSquare } from "lucide-react";
+import { ArrowRight, MessageSquare } from "lucide-react";
 
 import { HeroBlobShell } from "@/features/launcher/launcher-glass-shell";
+import { LAUNCHER_TOUR_ANCHORS } from "@/features/launcher/launcher-tour";
 import {
   MentionTargetItem,
   MentionTargetPopover,
@@ -155,34 +156,38 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
         <div className="space-y-3 sm:space-y-4">
           <FadeSlideIn delay_ms={0} duration_ms={380} y_offset={6}>
             <div className="flex flex-col items-center gap-2.5">
-              <button
-                className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition duration-200 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45"
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--launcher-input-fill) 92%, rgba(255, 255, 255, 0.12))",
-                  boxShadow:
-                    "inset 0 0 0 1px var(--launcher-input-stroke), 0 12px 26px rgba(48, 63, 88, 0.10)",
-                  color: "var(--launcher-input-text)",
-                }}
-                onClick={handle_enter_home_click}
-                type="button"
-              >
-                <span
-                  className="inline-flex min-h-8 items-center justify-center rounded-full px-3 text-[10px] font-semibold tracking-[0.22em]"
+              <div className="flex items-center gap-2">
+                <button
+                  data-tour-anchor={LAUNCHER_TOUR_ANCHORS.enter_app}
+                  className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition duration-200 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45"
                   style={{
                     background:
-                      "color-mix(in srgb, var(--launcher-input-inner-fill) 68%, rgba(255, 255, 255, 0.34))",
+                      "color-mix(in srgb, var(--launcher-input-fill) 92%, rgba(255, 255, 255, 0.12))",
                     boxShadow:
-                      "inset 0 0 0 1px var(--launcher-input-inner-stroke)",
+                      "inset 0 0 0 1px var(--launcher-input-stroke), 0 12px 26px rgba(48, 63, 88, 0.10)",
+                    color: "var(--launcher-input-text)",
                   }}
+                  onClick={handle_enter_home_click}
+                  type="button"
                 >
-                  APP
-                </span>
-                <span className="text-[12px] font-semibold tracking-[0.12em] text-foreground/90 sm:text-[13px]">
-                  {t("launcher.enter_app")}
-                </span>
-                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
-              </button>
+                  <span
+                    className="inline-flex min-h-8 items-center justify-center rounded-full px-3 text-[10px] font-semibold tracking-[0.22em]"
+                    style={{
+                      background:
+                        "color-mix(in srgb, var(--launcher-input-inner-fill) 68%, rgba(255, 255, 255, 0.34))",
+                      boxShadow:
+                        "inset 0 0 0 1px var(--launcher-input-inner-stroke)",
+                    }}
+                  >
+                    APP
+                  </span>
+                  <span className="text-[12px] font-semibold tracking-[0.12em] text-foreground/90 sm:text-[13px]">
+                    {t("launcher.enter_app")}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
+                </button>
+
+              </div>
             </div>
           </FadeSlideIn>
           <div className="relative inline-block">
@@ -204,6 +209,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
         <div className="mt-8 sm:mt-10">
           <FadeSlideIn delay_ms={440} duration_ms={420} y_offset={10}>
             <div
+              data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
               className="mx-auto w-full max-w-[326px] rounded-2xl border px-4 py-1 sm:max-w-[420px] "
               style={{
                 background:
@@ -304,7 +310,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   {is_query_loading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
-                    <ArrowUp className="h-4 w-4" />
+                    <img alt="Send" className="h-7 w-7 object-contain" src="/nexus/pointing.png" />
                   )}
                 </button>
               </div>
@@ -312,8 +318,9 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           </FadeSlideIn>
 
           <div
+            data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
             className={cn(
-              "flex flex-wrap items-center justify-center gap-1",
+              "mx-auto flex w-full max-w-[326px] flex-wrap items-center justify-center gap-1 sm:max-w-[420px]",
               "mt-3 sm:mt-4",
             )}
           >
@@ -390,6 +397,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               style={{ display: "inline-flex" }}
             >
               <button
+                data-tour-anchor={LAUNCHER_TOUR_ANCHORS.handoff}
                 className="px-1 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
                 style={{ color: "var(--launcher-handoff-color)" }}
                 onClick={() => on_open_main_agent_dm(query)}

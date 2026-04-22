@@ -11,10 +11,11 @@
 
 "use client";
 
-import { Cable, Languages, Palette } from "lucide-react";
+import { Cable, Compass, Languages, Palette, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
 import { LanguageSwitch } from "@/shared/ui/i18n/language-switch";
 import { useTheme } from "@/shared/theme/theme-context";
 import { ThemeSwitch } from "@/shared/ui/theme/theme-switch";
@@ -69,6 +70,7 @@ function get_locale_label(
 function GeneralSettingsSection() {
   const { locale, t } = useI18n();
   const { theme } = useTheme();
+  const { reset_all_tours } = useOnboardingTour();
   const current_theme_label = useMemo(() => get_theme_label(theme, t), [theme, t]);
   const current_locale_label = useMemo(() => get_locale_label(locale, t), [locale, t]);
 
@@ -122,6 +124,36 @@ function GeneralSettingsSection() {
               {current_locale_label}
             </div>
             <LanguageSwitch density="compact" show_icon={false} stretch />
+          </div>
+        </div>
+
+        <div className="mx-4 border-t border-(--divider-subtle-color)" />
+
+        <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+                <Compass className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
+                  {t("settings.onboarding_title")}
+                </h3>
+                <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
+                  {t("settings.onboarding_description")}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-start gap-2 lg:items-end">
+            <button
+              className="inline-flex items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2 text-[11px] font-semibold text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={reset_all_tours}
+              type="button"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t("settings.onboarding_action_reset")}
+            </button>
           </div>
         </div>
       </section>

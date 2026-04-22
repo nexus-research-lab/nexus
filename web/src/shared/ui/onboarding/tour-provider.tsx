@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,8 +17,11 @@ import { Hash, Puzzle, Users2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-
-const TOUR_COMPLETION_STORAGE_KEY = "nexus:onboarding:tours";
+import {
+  read_completed_tours,
+  reset_all_tour_state,
+  write_completed_tours,
+} from "@/shared/ui/onboarding/tour-state";
 
 type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
 
@@ -54,38 +58,13 @@ interface OnboardingTourContextValue {
   next_step: () => void;
   previous_step: () => void;
   has_completed_tour: (tour_id: string) => boolean;
+  is_tour_registered: (tour_id: string) => boolean;
+  reset_all_tours: () => void;
   active_tour_id: string | null;
+  reset_version: number;
 }
 
 const ONBOARDING_TOUR_CONTEXT = createContext<OnboardingTourContextValue | null>(null);
-
-function read_completed_tours(): Record<string, boolean> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    const raw = window.localStorage.getItem(TOUR_COMPLETION_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw) as Record<string, boolean>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function write_completed_tours(next_value: Record<string, boolean>) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(
-    TOUR_COMPLETION_STORAGE_KEY,
-    JSON.stringify(next_value),
-  );
-}
 
 function clamp_step_index(step_index: number, steps_count: number): number {
   if (steps_count <= 0) {
@@ -99,6 +78,11 @@ interface PopoverPosition {
   left: number;
 }
 
+interface PopoverSize {
+  width: number;
+  height: number;
+}
+
 function estimate_card_height(step?: OnboardingTourStep): number {
   if (!step) return 180;
   let height = 104;
@@ -106,6 +90,14 @@ function estimate_card_height(step?: OnboardingTourStep): number {
   if (step.description) height += 24;
   if (step.items?.length) height += step.items.length * 34;
   return height;
+}
+
+function clamp_popover_top(top: number, card_height: number, viewport_height: number): number {
+  return Math.max(16, Math.min(top, viewport_height - card_height - 16));
+}
+
+function clamp_popover_left(left: number, card_width: number, viewport_width: number): number {
+  return Math.max(16, Math.min(left, viewport_width - card_width - 16));
 }
 
 function TourStepIllustration({
@@ -141,53 +133,63 @@ function get_popover_position(
   target_rect: DOMRect | null,
   viewport_width: number,
   viewport_height: number,
-  step?: OnboardingTourStep,
+  popover_size: PopoverSize,
 ): PopoverPosition {
-  const card_width = Math.min(344, viewport_width - 32);
-  const card_height = Math.min(estimate_card_height(step), viewport_height - 80);
+  const card_width = Math.min(popover_size.width, viewport_width - 32);
+  const card_height = Math.min(popover_size.height, viewport_height - 32);
   const gutter = 16;
 
   if (!target_rect || placement === "center") {
     return {
-      top: Math.max(24, Math.min(viewport_height / 2 - card_height / 2, viewport_height - card_height - 24)),
-      left: Math.max(16, viewport_width / 2 - card_width / 2),
+      top: clamp_popover_top(viewport_height / 2 - card_height / 2, card_height, viewport_height),
+      left: clamp_popover_left(viewport_width / 2 - card_width / 2, card_width, viewport_width),
     };
   }
 
   switch (placement) {
     case "left":
       return {
-        top: Math.max(24, Math.min(target_rect.top + target_rect.height / 2 - card_height / 2, viewport_height - card_height - 24)),
-        left: Math.max(16, target_rect.left - card_width - gutter),
+        top: clamp_popover_top(
+          target_rect.top + target_rect.height / 2 - card_height / 2,
+          card_height,
+          viewport_height,
+        ),
+        left: clamp_popover_left(target_rect.left - card_width - gutter, card_width, viewport_width),
       };
     case "top":
       return {
-        top: Math.max(24, target_rect.top - card_height - gutter),
-        left: Math.min(
-          Math.max(16, target_rect.left + target_rect.width / 2 - card_width / 2),
-          viewport_width - card_width - 16,
+        top: clamp_popover_top(target_rect.top - card_height - gutter, card_height, viewport_height),
+        left: clamp_popover_left(
+          target_rect.left + target_rect.width / 2 - card_width / 2,
+          card_width,
+          viewport_width,
         ),
       };
     case "bottom":
       return {
-        top: Math.min(
+        top: clamp_popover_top(
           target_rect.bottom + gutter,
-          viewport_height - card_height - 24,
+          card_height,
+          viewport_height,
         ),
-        left: Math.min(
-          Math.max(16, target_rect.left + target_rect.width / 2 - card_width / 2),
-          viewport_width - card_width - 16,
+        left: clamp_popover_left(
+          target_rect.left + target_rect.width / 2 - card_width / 2,
+          card_width,
+          viewport_width,
         ),
       };
     case "right":
-    default:
+    default: {
+      const raw_top = target_rect.top + target_rect.height / 2 - card_height / 2;
       return {
-        top: Math.max(24, Math.min(target_rect.top + target_rect.height / 2 - card_height / 2, viewport_height - card_height - 24)),
-        left: Math.min(
+        top: clamp_popover_top(raw_top, card_height, viewport_height),
+        left: clamp_popover_left(
           target_rect.right + gutter,
-          viewport_width - card_width - 16,
+          card_width,
+          viewport_width,
         ),
       };
+    }
   }
 }
 
@@ -207,6 +209,11 @@ function OnboardingTourOverlay({
   const { t } = useI18n();
   const step = tour.steps[step_index];
   const [target_rect, set_target_rect] = useState<DOMRect | null>(null);
+  const card_ref = useRef<HTMLDivElement | null>(null);
+  const [popover_size, set_popover_size] = useState<PopoverSize>({
+    width: Math.min(344, typeof window === "undefined" ? 344 : window.innerWidth - 32),
+    height: estimate_card_height(step),
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -244,6 +251,49 @@ function OnboardingTourOverlay({
     };
   }, [step?.target]);
 
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const element = card_ref.current;
+    if (!element) {
+      return undefined;
+    }
+
+    const update_size = () => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+      set_popover_size((current_size) => {
+        if (
+          Math.abs(current_size.width - rect.width) < 1
+          && Math.abs(current_size.height - rect.height) < 1
+        ) {
+          return current_size;
+        }
+        return {
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+    };
+
+    update_size();
+
+    const resize_observer = new ResizeObserver(() => {
+      update_size();
+    });
+    resize_observer.observe(element);
+    window.addEventListener("resize", update_size);
+
+    return () => {
+      resize_observer.disconnect();
+      window.removeEventListener("resize", update_size);
+    };
+  }, [step]);
+
   if (typeof document === "undefined" || !step) {
     return null;
   }
@@ -254,7 +304,7 @@ function OnboardingTourOverlay({
     target_rect,
     window.innerWidth,
     window.innerHeight,
-    step,
+    popover_size,
   );
   const is_last_step = step_index >= tour.steps.length - 1;
 
@@ -285,6 +335,7 @@ function OnboardingTourOverlay({
         }}
       >
         <div
+          ref={card_ref}
           className={cn(
             "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[24px] border px-4 py-3.5 shadow-[0_22px_58px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)]",
           )}
@@ -366,6 +417,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     () => read_completed_tours(),
   );
   const [active_tour, set_active_tour] = useState<ActiveTourState | null>(null);
+  const [reset_version, set_reset_version] = useState(0);
 
   const register_tour = useCallback((tour: OnboardingTourDefinition) => {
     tours_ref.current[tour.id] = tour;
@@ -452,6 +504,17 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     return Boolean(completed_tours[tour_id]);
   }, [completed_tours]);
 
+  const is_tour_registered = useCallback((tour_id: string) => {
+    return Boolean(tours_ref.current[tour_id]);
+  }, []);
+
+  const reset_all_tours = useCallback(() => {
+    reset_all_tour_state();
+    set_completed_tours({});
+    set_active_tour(null);
+    set_reset_version((current_value) => current_value + 1);
+  }, []);
+
   const context_value = useMemo<OnboardingTourContextValue>(() => ({
     register_tour,
     unregister_tour,
@@ -460,14 +523,20 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     next_step,
     previous_step,
     has_completed_tour,
+    is_tour_registered,
+    reset_all_tours,
     active_tour_id: active_tour?.tour_id ?? null,
+    reset_version,
   }), [
     active_tour?.tour_id,
     close_tour,
     has_completed_tour,
+    is_tour_registered,
     next_step,
     previous_step,
     register_tour,
+    reset_version,
+    reset_all_tours,
     start_tour,
     unregister_tour,
   ]);

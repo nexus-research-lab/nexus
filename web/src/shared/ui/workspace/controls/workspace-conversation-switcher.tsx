@@ -20,6 +20,7 @@ interface WorkspaceConversationSwitcherProps {
   conversations: RoomConversationView[];
   conversation_id: string | null;
   density?: "default" | "compact";
+  trigger_anchor?: string;
   on_select_conversation: (conversation_id: string) => void;
   on_create_conversation?: (title?: string) => Promise<string | null>;
   on_view_history?: () => void;
@@ -32,6 +33,7 @@ export function WorkspaceConversationSwitcher({
   conversations,
   conversation_id,
   density = "compact",
+  trigger_anchor,
   on_select_conversation,
   on_create_conversation,
   on_view_history,
@@ -105,6 +107,7 @@ export function WorkspaceConversationSwitcher({
           "flex max-w-[168px] items-center text-(--text-default) transition-[background-color,border-color,color,transform] duration-(--motion-duration-fast) ease-out",
           density === "compact" ? "h-6 gap-1 px-0 pb-0.5 text-[12px]" : "h-8 gap-1 rounded-full px-3 text-[12px]",
         )}
+        data-tour-anchor={trigger_anchor}
         style={trigger_style}
         onClick={() => set_is_open((prev) => !prev)}
         type="button"

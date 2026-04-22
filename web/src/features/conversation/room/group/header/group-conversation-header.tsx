@@ -2,6 +2,7 @@
 
 import { memo, useState } from "react";
 import {
+  Compass,
   FolderTree,
   Hash,
   History,
@@ -11,7 +12,11 @@ import {
 
 import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceSurfaceHeader, WorkspaceTaskStrip } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import {
+  WorkspaceSurfaceHeader,
+  WorkspaceSurfaceToolbarAction,
+  WorkspaceTaskStrip,
+} from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/controls/workspace-conversation-switcher";
 import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -20,6 +25,7 @@ import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
+import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 interface GroupConversationHeaderProps {
   conversation_id: string | null;
@@ -31,6 +37,7 @@ interface GroupConversationHeaderProps {
   available_room_agents: Agent[];
   todos: TodoItem[];
   active_tab: RoomSurfaceTabKey;
+  on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_conversation: (conversation_id: string) => void;
   on_create_conversation?: (title?: string) => Promise<string | null>;
@@ -43,9 +50,11 @@ interface GroupConversationHeaderProps {
 function MemberAvatarStack({
   room_members,
   on_click,
+  tour_anchor,
 }: {
   room_members: Agent[];
   on_click: () => void;
+  tour_anchor?: string;
 }) {
   const { t } = useI18n();
   const visible_members = room_members.slice(0, 4);
@@ -54,6 +63,7 @@ function MemberAvatarStack({
   return (
     <button
       className="flex h-7 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 text-[10.5px] font-medium text-(--text-default) transition-[border-color,background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border) hover:text-(--text-strong)"
+      data-tour-anchor={tour_anchor}
       onClick={on_click}
       type="button"
     >
@@ -99,6 +109,7 @@ const GroupConversationHeaderView = memo(({
   available_room_agents,
   todos,
   active_tab,
+  on_replay_tour,
   on_change_tab,
   on_select_conversation,
   on_create_conversation,
@@ -110,11 +121,16 @@ const GroupConversationHeaderView = memo(({
   const { t } = useI18n();
   const [is_member_list_open, set_is_member_list_open] = useState(false);
   const header_title = current_room_title?.trim() || t("room.untitled_collaboration");
-  const room_tabs: { key: RoomSurfaceTabKey; label: string; icon: typeof MessageSquare }[] = [
-    { key: "chat", label: t("room.chat"), icon: MessageSquare },
-    { key: "history", label: t("room.history"), icon: History },
-    { key: "workspace", label: t("room.workspace"), icon: FolderTree },
-    { key: "about", label: t("room.about"), icon: Info },
+  const room_tabs: {
+    key: RoomSurfaceTabKey;
+    label: string;
+    icon: typeof MessageSquare;
+    anchor?: string;
+  }[] = [
+    { key: "chat", label: t("room.chat"), icon: MessageSquare, anchor: CONVERSATION_TOUR_ANCHORS.tab_chat },
+    { key: "history", label: t("room.history"), icon: History, anchor: CONVERSATION_TOUR_ANCHORS.tab_history },
+    { key: "workspace", label: t("room.workspace"), icon: FolderTree, anchor: CONVERSATION_TOUR_ANCHORS.tab_workspace },
+    { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
   const resolved_room_avatar_id = get_room_avatar_icon_id(room_id, header_title, room_avatar);
@@ -138,6 +154,7 @@ const GroupConversationHeaderView = memo(({
       conversations={conversations}
       conversation_id={conversation_id}
       density="compact"
+      trigger_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
       on_create_conversation={on_create_conversation}
       on_select_conversation={on_select_conversation}
       on_view_history={() => on_change_tab("history")}
@@ -145,16 +162,23 @@ const GroupConversationHeaderView = memo(({
   );
 
   const trailing = (
-    <>
+    <div className="flex items-center gap-2">
       <div className="hidden lg:flex">
         <MemberAvatarStack
           on_click={() => {
             void handle_open_member_list();
           }}
           room_members={room_members}
+          tour_anchor={CONVERSATION_TOUR_ANCHORS.member_manage}
         />
       </div>
-    </>
+      {on_replay_tour ? (
+        <WorkspaceSurfaceToolbarAction onClick={on_replay_tour}>
+          <Compass className="h-3.5 w-3.5" />
+          {t("common.view_guide")}
+        </WorkspaceSurfaceToolbarAction>
+      ) : null}
+    </div>
   );
 
   return (
