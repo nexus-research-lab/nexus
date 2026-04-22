@@ -225,7 +225,11 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
-	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+	ctx := authsvc.WithState(context.Background(), authsvc.State{
+		AuthRequired: true,
+		UserCount:    2,
+	})
+	ctx = authsvc.WithPrincipal(ctx, &authsvc.Principal{
 		UserID:     "user-123",
 		Username:   "alice",
 		AuthMethod: "test",
@@ -239,5 +243,31 @@ func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
 	}
 	if options.Env[nexusctlUserIDEnvName] != "user-123" {
 		t.Fatalf("未把当前 user_id 注入运行时环境: %+v", options.Env)
+	}
+	if options.Env[nexusRuntimeUserIDEnvName] != "user-123" {
+		t.Fatalf("未把通用运行时 user_id 注入环境: %+v", options.Env)
+	}
+	if options.Env[nexusRuntimeScopeModeEnvName] != "user_scoped" {
+		t.Fatalf("未把多用户作用域模式注入环境: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
+	ctx := authsvc.WithState(context.Background(), authsvc.State{
+		AuthRequired: false,
+		UserCount:    0,
+	})
+
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusRuntimeScopeModeEnvName] != "single_user" {
+		t.Fatalf("未把单用户作用域模式注入环境: %+v", options.Env)
+	}
+	if options.Env[nexusRuntimeUserIDEnvName] != authsvc.SystemUserID {
+		t.Fatalf("未把单用户保底主体注入环境: %+v", options.Env)
 	}
 }

@@ -15,13 +15,13 @@ import (
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/logx"
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -653,7 +653,7 @@ func (s *RealtimeService) runSlot(
 		CausedBy:           slot.AgentRoundID,
 	})
 
-	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(agentValue)
+	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(slotCtx, agentValue)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return

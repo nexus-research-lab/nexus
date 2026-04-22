@@ -12,6 +12,7 @@ import (
 	agent3 "github.com/nexus-research-lab/nexus/internal/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/logx"
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
@@ -19,7 +20,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -343,7 +343,7 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
-	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(agentValue)
+	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return nil, err
 	}

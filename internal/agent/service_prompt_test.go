@@ -1,12 +1,14 @@
 package agent_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	memorysvc "github.com/nexus-research-lab/nexus/internal/memory"
 )
@@ -28,7 +30,7 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 		MainAgentSystemPrompt: "MAIN CUSTOM PROMPT",
 	}, nil)
 
-	prompt, err := service.BuildRuntimePrompt(&agentsvc.Agent{
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &agentsvc.Agent{
 		AgentID:         "agent-1",
 		Name:            "planner",
 		DisplayName:     "规划助手",
@@ -42,6 +44,7 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	}
 
 	assertPromptContains(t, prompt, "BASE CUSTOM PROMPT")
+	assertPromptContains(t, prompt, "运行模式: 单用户系统作用域")
 	assertPromptContains(t, prompt, "当前工作区绝对路径: "+workspacePath)
 	assertPromptContains(t, prompt, "执行规则：必须先读 AGENTS。")
 	assertPromptContains(t, prompt, "用户偏好：默认中文。")
@@ -63,7 +66,7 @@ func TestServiceBuildRuntimePromptUsesMainAgentPromptOverride(t *testing.T) {
 		MainAgentSystemPrompt: "MAIN CUSTOM PROMPT",
 	}, nil)
 
-	prompt, err := service.BuildRuntimePrompt(&agentsvc.Agent{
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &agentsvc.Agent{
 		AgentID:       "nexus",
 		Name:          "nexus",
 		WorkspacePath: workspacePath,
@@ -76,6 +79,36 @@ func TestServiceBuildRuntimePromptUsesMainAgentPromptOverride(t *testing.T) {
 	}
 	assertPromptContains(t, prompt, "MAIN CUSTOM PROMPT")
 	assertPromptContains(t, prompt, "主智能体规则")
+}
+
+func TestServiceBuildRuntimePromptIncludesUserScopeContext(t *testing.T) {
+	workspacePath := t.TempDir()
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID: "nexus",
+	}, nil)
+	ctx := authsvc.WithState(context.Background(), authsvc.State{
+		AuthRequired: true,
+		UserCount:    2,
+	})
+	ctx = authsvc.WithPrincipal(ctx, &authsvc.Principal{
+		UserID:     "user-123",
+		Username:   "alice",
+		AuthMethod: authsvc.AuthMethodPassword,
+	})
+
+	prompt, err := service.BuildRuntimePrompt(ctx, &agentsvc.Agent{
+		AgentID:       "nexus",
+		Name:          "nexus",
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("构建多用户运行时提示词失败: %v", err)
+	}
+
+	assertPromptContains(t, prompt, "运行模式: 多用户用户作用域")
+	assertPromptContains(t, prompt, "当前 user_id: user-123")
+	assertPromptContains(t, prompt, "当前 username: alice")
+	assertPromptContains(t, prompt, "不要假设可访问其他用户的数据")
 }
 
 func writePromptFile(t *testing.T, workspacePath string, fileName string, content string) {
