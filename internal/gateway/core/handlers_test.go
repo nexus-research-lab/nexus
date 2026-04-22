@@ -7,9 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/gateway"
 	"github.com/nexus-research-lab/nexus/internal/gateway/gatewaytest"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	sqlitestorage "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 )
 
 func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
@@ -18,6 +20,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 
 	db := gatewaytest.OpenSQLite(t, cfg.DatabaseURL)
 	defer db.Close()
+	agents := agentpkg.NewService(cfg, sqlitestorage.NewAgentRepository(db))
 	providers := providercfg.NewServiceWithDB(cfg, db)
 	if _, err := providers.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",
@@ -29,6 +32,16 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 		IsDefault:   true,
 	}); err != nil {
 		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
+	defaultAgent, err := agents.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("加载默认 agent 失败: %v", err)
+	}
+	avatar := "12"
+	if _, err = agents.UpdateAgent(context.Background(), defaultAgent.AgentID, agentpkg.UpdateRequest{
+		Avatar: &avatar,
+	}); err != nil {
+		t.Fatalf("更新默认 agent 头像失败: %v", err)
 	}
 
 	server, err := gateway.NewServer(cfg)
@@ -47,6 +60,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	var payload struct {
 		Data struct {
 			DefaultAgentID       string  `json:"default_agent_id"`
+			DefaultAgentAvatar   string  `json:"default_agent_avatar"`
 			DefaultAgentProvider *string `json:"default_agent_provider"`
 		} `json:"data"`
 	}
@@ -58,5 +72,8 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	}
 	if payload.Data.DefaultAgentProvider == nil || *payload.Data.DefaultAgentProvider != "glm" {
 		t.Fatalf("default_agent_provider 不正确: got=%v", payload.Data.DefaultAgentProvider)
+	}
+	if payload.Data.DefaultAgentAvatar != avatar {
+		t.Fatalf("default_agent_avatar 不正确: got=%s want=%s", payload.Data.DefaultAgentAvatar, avatar)
 	}
 }

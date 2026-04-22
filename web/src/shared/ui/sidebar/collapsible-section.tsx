@@ -32,6 +32,10 @@ interface CollapsibleSectionProps {
   /** 标题左侧图标 */
   icon?: ReactNode;
   children: React.ReactNode;
+  /** 标题点击行为，与折叠切换分离 */
+  on_title_click?: () => void;
+  /** 标题是否处于激活态 */
+  is_title_active?: boolean;
   /** 标题栏右侧操作按钮（+ / → 等），固定宽度占位 */
   on_action?: () => void;
   /** 操作按钮的 title 属性 */
@@ -203,6 +207,8 @@ export function CollapsibleSection({
   count,
   icon,
   children,
+  on_title_click,
+  is_title_active = false,
   on_action,
   action_title = "新建",
   action_icon,
@@ -211,28 +217,63 @@ export function CollapsibleSection({
     (s) => s.collapsed_sections[section_id] ?? false,
   );
   const toggle = useSidebarStore((s) => s.toggle_section);
+  const title_content = (
+    <>
+      {icon ? <span className="flex items-center">{icon}</span> : null}
+      <span>{title}</span>
+      {typeof count === "number" ? (
+        <span className="text-[12px] font-medium tabular-nums text-(--text-muted)">{count}</span>
+      ) : null}
+    </>
+  );
 
   return (
     <section className="border-b divider-subtle pb-1.5 last:border-b-0">
       <div className="group/section flex w-full items-center justify-between px-2.5 py-2">
-        <button
-          className={SIDEBAR_SECTION_TRIGGER_CLASS_NAME}
-          onClick={() => toggle(section_id)}
-          type="button"
-        >
-          <span className={SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME}>
-            {is_collapsed ? (
-              <ChevronRight className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5" />
-            )}
-          </span>
-          {icon ? <span className="flex items-center">{icon}</span> : null}
-          <span>{title}</span>
-          {typeof count === "number" ? (
-            <span className="text-[12px] font-medium tabular-nums text-(--text-muted)">{count}</span>
-          ) : null}
-        </button>
+        {on_title_click ? (
+          <div className="flex min-w-0 flex-1 items-center">
+            <button
+              className={cn(
+                SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME,
+                "rounded-full text-(--icon-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--icon-default)",
+              )}
+              onClick={() => toggle(section_id)}
+              type="button"
+            >
+              {is_collapsed ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              className={cn(
+                SIDEBAR_SECTION_TRIGGER_CLASS_NAME,
+                "min-w-0 flex-1",
+                is_title_active && "text-(--text-strong)",
+              )}
+              onClick={on_title_click}
+              type="button"
+            >
+              {title_content}
+            </button>
+          </div>
+        ) : (
+          <button
+            className={SIDEBAR_SECTION_TRIGGER_CLASS_NAME}
+            onClick={() => toggle(section_id)}
+            type="button"
+          >
+            <span className={SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME}>
+              {is_collapsed ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </span>
+            {title_content}
+          </button>
+        )}
 
         {/* 右侧操作按钮，固定宽度占位保证对齐 */}
         {on_action ? (
