@@ -95,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 权限请求不再广播给全部房间订阅者，改为只投递给当前 session 控制端；Room 普通协作事件仍保留 room 广播。
 
 ### Fixed
+- 修复多用户部署下 `nexus-manager` 通过 `nexusctl` 执行系统操作时丢失当前登录用户作用域的问题：CLI 业务命令现在强制走请求上下文/`NEXUSCTL_USER_ID` 作用域，agent runtime 会按当前登录用户注入该环境变量，避免跨用户读取或操作 `agent / room / session / workspace / skill` 数据。
 - 修复 `session_repository` 模块级初始化产生的导入副作用（#11）。
 - 修复 Alembic 迁移多 head 冲突问题。
 - 修复 `make dev` / `make db-init` 因 Alembic 双 `head` 与后端启动旧导入路径导致的本地启动失败问题。

@@ -14,6 +14,7 @@ CLI 工具路径：`go run "{project_root}/cmd/nexusctl"`
 - `nexusctl` 默认输出 JSON，可以直接作为推理上下文输入。
 - 子命令按领域拆分：`agent`、`room`、`conversation`、`workspace`、`skill`、`launcher`。
 - 失败时优先读 JSON 中的错误，不要假设命令名仍旧是旧 Python 风格。
+- 多用户部署下不要把 `user_id` 写进命令模板；运行时会自动注入当前用户作用域。只有手工在终端直跑 `nexusctl` 时，才需要显式传 `--scope-user-id` 或设置 `NEXUSCTL_USER_ID`。
 
 ## 核心概念
 
@@ -173,7 +174,7 @@ go run "{project_root}/cmd/nexusctl" skill uninstall --agent-id research --skill
 
 ## Workspace 规则
 
-每个成员创建后自动分配独立工作空间，位于 `~/.nexus/workspace/<agent_slug>/`。
+每个成员创建后自动分配独立工作空间。单用户模式位于 `~/.nexus/workspace/<agent_slug>/`；多用户模式位于 `~/.nexus/workspace/users/<user_id>/agents/<agent_slug>/`。
 
 ### 目录结构
 

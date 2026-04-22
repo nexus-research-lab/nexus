@@ -4,11 +4,14 @@ import (
 	"context"
 	"strings"
 
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
+
+const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
@@ -41,6 +44,7 @@ func BuildAgentClientOptions(
 	if err != nil {
 		return agentclient.Options{}, err
 	}
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 
 	permissionMode := input.PermissionMode
 	if permissionMode == "" {
@@ -112,6 +116,37 @@ func cloneMCPServers(
 	}
 	result := make(map[string]agentclient.SDKMCPServer, len(current))
 	for key, value := range current {
+		result[key] = value
+	}
+	return result
+}
+
+func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
+	userID, ok := authsvc.CurrentUserID(ctx)
+	if !ok {
+		return nil
+	}
+	trimmedUserID := strings.TrimSpace(userID)
+	if trimmedUserID == "" {
+		return nil
+	}
+	return map[string]string{
+		nexusctlUserIDEnvName: trimmedUserID,
+	}
+}
+
+func mergeRuntimeEnv(
+	base map[string]string,
+	extra map[string]string,
+) map[string]string {
+	if len(base) == 0 && len(extra) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(base)+len(extra))
+	for key, value := range base {
+		result[key] = value
+	}
+	for key, value := range extra {
 		result[key] = value
 	}
 	return result

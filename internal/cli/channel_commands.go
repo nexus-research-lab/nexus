@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-
 	"github.com/nexus-research-lab/nexus/internal/channels"
 
 	"github.com/spf13/cobra"
@@ -50,7 +48,7 @@ func newChannelIngressCommand(service *channels.IngressService) *cobra.Command {
 					AccountID: deliveryAccount,
 				}
 			}
-			result, err := service.Accept(context.Background(), channels.IngressRequest{
+			result, err := service.Accept(commandContext(cmd), channels.IngressRequest{
 				Channel:          channel,
 				SessionKey:       sessionKey,
 				AgentID:          agentID,
