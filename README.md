@@ -226,7 +226,7 @@ HOST_SUDO= make prepare-host-data
 
 并且默认写入中国镜像源配置：
 
-- Debian `apt`：`https://mirrors.tuna.tsinghua.edu.cn`
+- Debian `apt`：`http://mirrors.tuna.tsinghua.edu.cn`
 - npm / Bun：`https://registry.npmmirror.com/`
 - pip / uv：`https://pypi.tuna.tsinghua.edu.cn/simple`
 

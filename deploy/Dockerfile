@@ -9,21 +9,21 @@ LABEL description="Nexus"
 ENV DEBIAN_FRONTEND=noninteractive \
     CGO_ENABLED=1
 
-ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
-ARG DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
+ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG GOPROXY=https://goproxy.cn,direct
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
 
 RUN --mount=type=cache,target=/var/cache/apt \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
-        sed -i -E "s#https?://(deb|security).debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
+        sed -i -E "s#^URIs: https?://deb.debian.org/debian\$#URIs: ${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
+        sed -i -E "s#^URIs: https?://deb.debian.org/debian-security\$#URIs: ${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
     fi && \
     if [ -f /etc/apt/sources.list ]; then \
-        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list && \
-        sed -i -E "s#https?://(deb|security).debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list; \
+        sed -i -E "s#https?://deb.debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list && \
+        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list; \
     fi && \
-    apt-get update && \
+    apt-get update -o Acquire::Retries=3 && \
     apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
@@ -57,22 +57,22 @@ LABEL description="Nexus"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
-ARG DEBIAN_SECURITY_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
+ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG NPM_REGISTRY=https://registry.npmmirror.com/
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
 RUN --mount=type=cache,target=/var/cache/apt \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
-        sed -i -E "s#https?://(deb|security).debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
+        sed -i -E "s#^URIs: https?://deb.debian.org/debian\$#URIs: ${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
+        sed -i -E "s#^URIs: https?://deb.debian.org/debian-security\$#URIs: ${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
     fi && \
     if [ -f /etc/apt/sources.list ]; then \
-        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list && \
-        sed -i -E "s#https?://(deb|security).debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list; \
+        sed -i -E "s#https?://deb.debian.org/debian-security#${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list && \
+        sed -i -E "s#https?://deb.debian.org/debian#${APT_MIRROR}/debian#g" /etc/apt/sources.list; \
     fi && \
-    apt-get update && \
+    apt-get update -o Acquire::Retries=3 && \
     apt-get install -y --no-install-recommends \
     bash \
     build-essential \
@@ -81,12 +81,12 @@ RUN --mount=type=cache,target=/var/cache/apt \
     git \
     jq \
     pkg-config \
-    python-is-python3 \
     python3 \
     python3-dev \
     python3-pip \
     python3-venv \
     sudo && \
+    ln -sf /usr/bin/python3 /usr/local/bin/python && \
     rm -rf /var/lib/apt/lists/*
 
 ENV HOME=/home/agent \
