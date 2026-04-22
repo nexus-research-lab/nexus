@@ -59,7 +59,7 @@ func bootstrapLegacyMigrationVersion(
 	if err != nil {
 		return err
 	}
-	targetVersion, err := detectSchemaVersion(ctx, tx, driver, baselineVersion, latestVersion)
+	targetVersion, err := detectSchemaVersion(ctx, tx, driver, baselineVersion, latestVersion, currentVersion, hasVersionTable)
 	if err != nil {
 		return err
 	}
@@ -149,6 +149,15 @@ SET room_type = CASE WHEN COALESCE(room_type, '') = '' THEN 'room' ELSE room_typ
     description = COALESCE(description, '')`); err != nil {
 		return err
 	}
+	hasConnectorConnections, err := tableExists(ctx, executor, driver, "connector_connections")
+	if err != nil {
+		return err
+	}
+	if !hasConnectorConnections {
+		if _, err = executor.ExecContext(ctx, createConnectorConnectionsTableSQL(driver)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -181,12 +190,34 @@ func alterTableAddTimestampSQL(driver string, tableName string, columnName strin
 	}
 }
 
+func createConnectorConnectionsTableSQL(driver string) string {
+	timestampType := "DATETIME"
+	timestampDefault := "CURRENT_TIMESTAMP"
+	if driver == "pgx" {
+		timestampType = "TIMESTAMP WITHOUT TIME ZONE"
+		timestampDefault = "now()"
+	}
+	return fmt.Sprintf(`
+CREATE TABLE connector_connections (
+    connector_id VARCHAR(128) NOT NULL PRIMARY KEY,
+    state VARCHAR(32) NOT NULL,
+    credentials TEXT NOT NULL,
+    auth_type VARCHAR(32) NOT NULL,
+    oauth_state VARCHAR(255),
+    oauth_state_expires_at %s,
+    created_at %s DEFAULT %s NOT NULL,
+    updated_at %s DEFAULT %s NOT NULL
+)`, timestampType, timestampType, timestampDefault, timestampType, timestampDefault)
+}
+
 func detectSchemaVersion(
 	ctx context.Context,
 	executor sqlExecutor,
 	driver string,
 	baselineVersion int64,
 	latestVersion int64,
+	currentVersion int64,
+	hasVersionTable bool,
 ) (int64, error) {
 	currentGo, err := isCurrentGoSchema(ctx, executor, driver)
 	if err != nil {
@@ -208,10 +239,19 @@ func detectSchemaVersion(
 			}
 			return latestVersion, nil
 		}
+		hasUserScope, scopeErr := hasUserScopeSchema(ctx, executor, driver)
+		if scopeErr != nil {
+			return 0, scopeErr
+		}
 		// Schema 进入 Go 时代主线但缺少 user_scope 增量，属于 00002 已执行状态；
-		// 必须回到 baseline+1，让 Goose 继续补跑剩余迁移，而不是跳到 latest-1。
-		if latestVersion > baselineVersion {
+		// 必须回到 baseline+1，让 Goose 继续补跑剩余迁移。
+		if !hasUserScope && latestVersion > baselineVersion {
 			return baselineVersion + 1, nil
+		}
+		// Schema 已有 user_scope，后续差异通常是 00004/00005 这类增量。
+		// 此时优先信任合法 goose 版本记录，避免把正确版本覆写成猜测值。
+		if hasVersionTable && currentVersion >= baselineVersion && currentVersion <= latestVersion {
+			return currentVersion, nil
 		}
 		return baselineVersion, nil
 	}
@@ -243,6 +283,29 @@ func isCurrentGoSchema(ctx context.Context, executor sqlExecutor, driver string)
 }
 
 func isLatestGoSchema(ctx context.Context, executor sqlExecutor, driver string) (bool, error) {
+	hasUserScope, err := hasUserScopeSchema(ctx, executor, driver)
+	if err != nil || !hasUserScope {
+		return false, err
+	}
+	hasOAuthStates, err := tableExists(ctx, executor, driver, "connector_oauth_states")
+	if err != nil || !hasOAuthStates {
+		return false, err
+	}
+	hasEncryptedCredentials, err := columnExists(ctx, executor, driver, "connector_connections", "credentials_encrypted")
+	if err != nil || !hasEncryptedCredentials {
+		return false, err
+	}
+	hasAlembic, err := tableExists(ctx, executor, driver, "alembic_version")
+	if err != nil {
+		return false, err
+	}
+	if hasAlembic {
+		return false, nil
+	}
+	return true, nil
+}
+
+func hasUserScopeSchema(ctx context.Context, executor sqlExecutor, driver string) (bool, error) {
 	requiredColumns := []struct {
 		tableName  string
 		columnName string

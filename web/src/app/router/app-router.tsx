@@ -30,6 +30,11 @@ const SkillsPage = lazy(() =>
 const ConnectorsPage = lazy(() =>
   import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
 );
+const ConnectorOAuthCallbackPage = lazy(() =>
+  import("@/pages/connectors/connector-oauth-callback-page").then((m) => ({
+    default: m.ConnectorOAuthCallbackPage,
+  })),
+);
 const SettingsPage = lazy(() =>
   import("@/pages/settings/settings-page").then((m) => ({ default: m.SettingsPage })),
 );
@@ -66,6 +71,11 @@ export function AppRouter() {
           <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
 
           <Route element={<AuthGuard />}>
+            <Route
+              element={<ConnectorOAuthCallbackPage />}
+              path={APP_ROUTE_PATHS.connectors_oauth_callback}
+            />
+
             <Route element={<AuthenticatedAppSessionRoot />}>
               {/* Launcher — 无侧边栏布局，eager 加载 */}
               <Route element={<AppLayout show_sidebar={false} />} path={APP_ROUTE_PATHS.launcher}>

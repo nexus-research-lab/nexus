@@ -1253,7 +1253,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 			Short: "生成 OAuth 授权地址",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.GetAuthURL(commandContext(cmd), args[0], redirectURI)
+				item, err := service.GetAuthURL(commandContext(cmd), args[0], redirectURI, nil)
 				if err != nil {
 					return err
 				}

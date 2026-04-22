@@ -7,13 +7,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  complete_connector_o_auth_api,
   connect_connector_api,
   disconnect_connector_api,
   get_connector_auth_url_api,
   get_connector_detail_api,
   get_connectors_api,
 } from "@/lib/api/connector-api";
+import { AppRouteBuilders } from "@/app/router/route-paths";
+import { open_shop_prompt } from "@/features/capability/connectors/shop-domain-prompt";
 import { ConnectorDetail, ConnectorInfo } from "@/types/capability/connector";
 import type { ConnectorDirectoryController } from "@/features/capability/connectors/connectors-view-model";
 
@@ -97,9 +98,18 @@ export function useConnectorController(): ConnectorDirectoryController {
         // 查找该连接器信息，判断是否 OAuth
         const target = all_connectors.find((c) => c.connector_id === connector_id);
         if (target?.auth_type === "oauth2") {
+          let shop: string | undefined;
+          if (target.connector_id === "shopify" || target.requires_extra?.includes("shop")) {
+            const prompted_shop = await open_shop_prompt();
+            if (!prompted_shop) {
+              return;
+            }
+            shop = prompted_shop;
+          }
+
           // 获取 OAuth 授权 URL 并在新窗口打开
-          const redirect_uri = `${window.location.origin}/capability/connectors`;
-          const { auth_url } = await get_connector_auth_url_api(connector_id, redirect_uri);
+          const redirect_uri = `${window.location.origin}${AppRouteBuilders.connectors_oauth_callback()}`;
+          const { auth_url } = await get_connector_auth_url_api(connector_id, redirect_uri, shop);
           if (!auth_url) {
             throw new Error("授权地址为空，请检查连接器配置");
           }
@@ -152,21 +162,6 @@ export function useConnectorController(): ConnectorDirectoryController {
     [load, selected_detail],
   );
 
-  const handle_oauth_callback = useCallback(
-    async (payload: { code: string; state: string; redirect_uri?: string }) => {
-      try {
-        await complete_connector_o_auth_api(payload.code, payload.state, payload.redirect_uri);
-        set_status_message("连接成功");
-        await load();
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "OAuth 连接失败";
-        set_error_message(message);
-        throw e;
-      }
-    },
-    [load],
-  );
-
   return {
     connectors,
     loading,
@@ -181,7 +176,6 @@ export function useConnectorController(): ConnectorDirectoryController {
     close_detail,
     handle_connect,
     handle_disconnect,
-    handle_oauth_callback,
     busy_id,
     status_message,
     error_message,
