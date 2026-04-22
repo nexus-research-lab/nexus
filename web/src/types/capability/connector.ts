@@ -24,6 +24,7 @@ export interface ConnectorInfo {
   connection_state: ConnectionState;
   connected_at?: string;
   is_configured: boolean;
+  requires_extra?: string[];
   config_error?: string | null;
 }
 

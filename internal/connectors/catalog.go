@@ -2,20 +2,22 @@ package connectors
 
 // CatalogEntry 表示一条连接器目录记录。
 type CatalogEntry struct {
-	ConnectorID  string
-	Name         string
-	Title        string
-	Description  string
-	Icon         string
-	Category     string
-	AuthType     string
-	Status       string
-	AuthURL      string
-	TokenURL     string
-	Scopes       []string
-	MCPServerURL string
-	DocsURL      string
-	Features     []string
+	ConnectorID   string
+	Name          string
+	Title         string
+	Description   string
+	Icon          string
+	Category      string
+	AuthType      string
+	Status        string
+	Provider      string
+	RequiresExtra []string
+	AuthURL       string
+	TokenURL      string
+	Scopes        []string
+	MCPServerURL  string
+	DocsURL       string
+	Features      []string
 }
 
 var categoryLabels = map[string]string{
@@ -37,6 +39,7 @@ var connectorCatalog = []CatalogEntry{
 		Category:    "productivity",
 		AuthType:    "oauth2",
 		Status:      "available",
+		Provider:    "gmail",
 		AuthURL:     "https://accounts.google.com/o/oauth2/v2/auth",
 		TokenURL:    "https://oauth2.googleapis.com/token",
 		Scopes:      []string{"https://www.googleapis.com/auth/gmail.modify"},
@@ -52,9 +55,10 @@ var connectorCatalog = []CatalogEntry{
 		Category:    "social",
 		AuthType:    "oauth2",
 		Status:      "available",
+		Provider:    "x-twitter",
 		AuthURL:     "https://twitter.com/i/oauth2/authorize",
 		TokenURL:    "https://api.twitter.com/2/oauth2/token",
-		Scopes:      []string{"tweet.read", "tweet.write", "users.read"},
+		Scopes:      []string{"tweet.read", "users.read", "offline.access"},
 		DocsURL:     "https://developer.twitter.com/en/docs",
 		Features:    []string{"读取推文", "发布推文", "搜索话题", "追踪趋势"},
 	},
@@ -67,26 +71,29 @@ var connectorCatalog = []CatalogEntry{
 		Category:    "social",
 		AuthType:    "oauth2",
 		Status:      "available",
+		Provider:    "linkedin",
 		AuthURL:     "https://www.linkedin.com/oauth/v2/authorization",
 		TokenURL:    "https://www.linkedin.com/oauth/v2/accessToken",
-		Scopes:      []string{"r_liteprofile", "r_emailaddress"},
+		Scopes:      []string{"openid", "profile", "email"},
 		DocsURL:     "https://learn.microsoft.com/en-us/linkedin/",
 		Features:    []string{"个人档案", "公司搜索", "职位浏览", "人脉管理"},
 	},
 	{
-		ConnectorID: "shopify",
-		Name:        "shopify",
-		Title:       "Shopify",
-		Description: "访问商品、订单与客户数据",
-		Icon:        "shopify",
-		Category:    "ecommerce",
-		AuthType:    "oauth2",
-		Status:      "available",
-		AuthURL:     "https://{shop}.myshopify.com/admin/oauth/authorize",
-		TokenURL:    "https://{shop}.myshopify.com/admin/oauth/access_token",
-		Scopes:      []string{"read_products", "read_orders", "read_customers"},
-		DocsURL:     "https://shopify.dev/docs/api",
-		Features:    []string{"商品管理", "订单查看", "客户数据", "库存同步"},
+		ConnectorID:   "shopify",
+		Name:          "shopify",
+		Title:         "Shopify",
+		Description:   "访问商品、订单与客户数据",
+		Icon:          "shopify",
+		Category:      "ecommerce",
+		AuthType:      "oauth2",
+		Status:        "available",
+		Provider:      "shopify",
+		RequiresExtra: []string{"shop"},
+		AuthURL:       "https://{shop}.myshopify.com/admin/oauth/authorize",
+		TokenURL:      "https://{shop}.myshopify.com/admin/oauth/access_token",
+		Scopes:        []string{"read_products", "read_orders", "read_customers"},
+		DocsURL:       "https://shopify.dev/docs/api",
+		Features:      []string{"商品管理", "订单查看", "客户数据", "库存同步"},
 	},
 	{
 		ConnectorID: "instagram",
@@ -97,9 +104,10 @@ var connectorCatalog = []CatalogEntry{
 		Category:    "social",
 		AuthType:    "oauth2",
 		Status:      "available",
-		AuthURL:     "https://api.instagram.com/oauth/authorize",
+		Provider:    "instagram",
+		AuthURL:     "https://www.instagram.com/oauth/authorize",
 		TokenURL:    "https://api.instagram.com/oauth/access_token",
-		Scopes:      []string{"user_profile", "user_media"},
+		Scopes:      []string{"instagram_business_basic"},
 		DocsURL:     "https://developers.facebook.com/docs/instagram-api",
 		Features:    []string{"媒体发布", "互动数据", "粉丝分析", "评论管理"},
 	},
@@ -112,6 +120,7 @@ var connectorCatalog = []CatalogEntry{
 		Category:    "development",
 		AuthType:    "oauth2",
 		Status:      "available",
+		Provider:    "github",
 		AuthURL:     "https://github.com/login/oauth/authorize",
 		TokenURL:    "https://github.com/login/oauth/access_token",
 		Scopes:      []string{"repo", "read:user", "user:email"},
