@@ -52,6 +52,9 @@ type Config struct {
 	TelegramEnabled                bool
 	TelegramBotToken               string
 	ConnectorOAuthRedirectURI      string
+	ConnectorOAuthAllowedOrigins   []string
+	ConnectorOAuthStateTTLSeconds  int
+	ConnectorCredentialsKey        string
 	ConnectorGitHubClientID        string
 	ConnectorGitHubClientSecret    string
 	ConnectorGoogleClientID        string
@@ -130,7 +133,10 @@ func Load() Config {
 		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
 		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),
 		TelegramBotToken:               getEnv("TELEGRAM_BOT_TOKEN", ""),
-		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors"),
+		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
+		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
+		ConnectorOAuthStateTTLSeconds:  mustInt(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600")),
+		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
 		ConnectorGoogleClientID:        getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
@@ -167,6 +173,18 @@ func mustBool(raw string) bool {
 		return false
 	}
 	return value
+}
+
+func mustStringList(raw string) []string {
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 // GetMessageHistoryRoundPageSize 返回历史消息分页的默认 round 数。

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roompkg "github.com/nexus-research-lab/nexus/internal/room"
@@ -182,7 +183,7 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	item, err := h.roomService.CreateRoom(request.Context(), payload)
-	if errors.Is(err, roompkg.ErrAgentNotFound) {
+	if errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -247,7 +248,7 @@ func (h *Handlers) HandleDeleteRoom(writer http.ResponseWriter, request *http.Re
 // HandleEnsureDirectRoom 确保 DM room 存在。
 func (h *Handlers) HandleEnsureDirectRoom(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.roomService.EnsureDirectRoom(request.Context(), chi.URLParam(request, "agent_id"))
-	if errors.Is(err, roompkg.ErrAgentNotFound) {
+	if errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -269,7 +270,7 @@ func (h *Handlers) HandleAddRoomMember(writer http.ResponseWriter, request *http
 		return
 	}
 	item, err := h.roomService.AddRoomMember(request.Context(), chi.URLParam(request, "room_id"), payload)
-	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrAgentNotFound) {
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}

@@ -31,7 +31,7 @@ func TestBootstrapLegacyMigrationVersionStampsBaselineForCurrentSchema(t *testin
 		t.Fatalf("bootstrap baseline version 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 4)
+	assertCurrentVersion(t, db, "sqlite", 6)
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) {
@@ -61,7 +61,7 @@ func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) 
 	if err := goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("执行 Go 适配迁移失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 4)
+	assertCurrentVersion(t, db, "sqlite", 6)
 	assertSQLiteTableExists(t, db, "provider")
 	assertSQLiteTableExists(t, db, "users")
 	assertSQLiteTableExists(t, db, "auth_password_credentials")
@@ -70,6 +70,8 @@ func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) 
 	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
 	assertSQLiteColumnExists(t, db, "agents", "is_main")
 	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
+	assertSQLiteTableExists(t, db, "connector_oauth_states")
+	assertSQLiteColumnExists(t, db, "connector_connections", "credentials_encrypted")
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsZeroVersionTable(t *testing.T) {
@@ -91,7 +93,7 @@ func TestBootstrapLegacyMigrationVersionRepairsZeroVersionTable(t *testing.T) {
 		t.Fatalf("bootstrap baseline version after zero row 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 4)
+	assertCurrentVersion(t, db, "sqlite", 6)
 }
 
 func TestBootstrapLegacyMigrationVersionNormalizesCollapsedVersions(t *testing.T) {
@@ -113,7 +115,7 @@ func TestBootstrapLegacyMigrationVersionNormalizesCollapsedVersions(t *testing.T
 		t.Fatalf("bootstrap baseline version after collapsed versions 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 4)
+	assertCurrentVersion(t, db, "sqlite", 6)
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing.T) {
@@ -135,8 +137,8 @@ func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing
 		t.Fatalf("bootstrap singleton latest version 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 4)
-	assertAppliedVersions(t, db, "sqlite", []int64{1, 2, 3, 4})
+	assertCurrentVersion(t, db, "sqlite", 6)
+	assertAppliedVersions(t, db, "sqlite", []int64{1, 2, 3, 4, 5, 6})
 }
 
 func TestBootstrapLegacyMigrationVersionKeepsPendingGoMigrationVersion(t *testing.T) {
@@ -162,10 +164,12 @@ func TestBootstrapLegacyMigrationVersionKeepsPendingGoMigrationVersion(t *testin
 	if err := goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("执行 00003 migration 失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 4)
+	assertCurrentVersion(t, db, "sqlite", 6)
 	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
 	assertSQLiteColumnExists(t, db, "agents", "is_main")
 	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
+	assertSQLiteTableExists(t, db, "connector_oauth_states")
+	assertSQLiteColumnExists(t, db, "connector_connections", "credentials_encrypted")
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsPrematureLatestVersion(t *testing.T) {
@@ -192,12 +196,14 @@ func TestBootstrapLegacyMigrationVersionRepairsPrematureLatestVersion(t *testing
 	assertAppliedVersions(t, db, "sqlite", []int64{1, 2})
 
 	if err := goose.Up(db, migrationDir); err != nil {
-		t.Fatalf("执行 00003 migration 失败: %v", err)
+		t.Fatalf("执行剩余 migration 失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 4)
+	assertCurrentVersion(t, db, "sqlite", 6)
 	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
 	assertSQLiteColumnExists(t, db, "agents", "is_main")
 	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
+	assertSQLiteTableExists(t, db, "connector_oauth_states")
+	assertSQLiteColumnExists(t, db, "connector_connections", "credentials_encrypted")
 }
 
 func openSQLiteTestDB(t *testing.T, fileName string) *sql.DB {
@@ -271,10 +277,31 @@ CREATE TABLE provider (
     enabled BOOLEAN NOT NULL,
     is_default BOOLEAN NOT NULL
 );
+CREATE TABLE connector_connections (
+    connector_id VARCHAR(128) NOT NULL PRIMARY KEY,
+    state VARCHAR(32) NOT NULL,
+    credentials TEXT NOT NULL,
+    credentials_encrypted TEXT,
+    auth_type VARCHAR(32) NOT NULL,
+    oauth_state VARCHAR(255),
+    oauth_state_expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 CREATE TABLE automation_cron_jobs (
     job_id VARCHAR(64) NOT NULL PRIMARY KEY,
     source_kind VARCHAR(32) NOT NULL DEFAULT 'system',
     source_context_id VARCHAR(255)
+);
+CREATE TABLE connector_oauth_states (
+    state VARCHAR(64) NOT NULL PRIMARY KEY,
+    connector_id VARCHAR(128) NOT NULL,
+    code_verifier VARCHAR(128),
+    redirect_uri VARCHAR(512) NOT NULL,
+    shop_domain VARCHAR(255),
+    extra_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    expires_at DATETIME NOT NULL
 );`
 	_, err := db.Exec(schema)
 	return err
@@ -369,19 +396,7 @@ func insertGooseVersion(ctx context.Context, db *sql.DB, databaseDriver string, 
 	if err != nil {
 		return err
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-	if err = store.Insert(ctx, tx, goosedb.InsertRequest{Version: version}); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return store.Insert(ctx, db, goosedb.InsertRequest{Version: version})
 }
 
 func setGooseSQLiteDialect(t *testing.T) {

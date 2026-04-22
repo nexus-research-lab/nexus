@@ -16,8 +16,6 @@ import (
 )
 
 var (
-	// ErrAgentNotFound 表示成员 Agent 不存在。
-	ErrAgentNotFound = errors.New("agent not found")
 	// ErrRoomNotFound 表示房间不存在。
 	ErrRoomNotFound = errors.New("room not found")
 	// ErrConversationNotFound 表示房间对话不存在。
@@ -599,7 +597,7 @@ func (s *Service) loadAgentRefs(ctx context.Context, agentIDs []string) ([]Agent
 	for _, agentID := range agentIDs {
 		ref, ok := refByID[agentID]
 		if !ok || ref.Status != "active" || strings.TrimSpace(ref.RuntimeID) == "" {
-			return nil, fmt.Errorf("%w: %s", ErrAgentNotFound, agentID)
+			return nil, fmt.Errorf("%w: %s", agent2.ErrAgentNotFound, agentID)
 		}
 		result = append(result, ref)
 	}

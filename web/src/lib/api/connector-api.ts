@@ -83,9 +83,11 @@ export const disconnect_connector_api = async (
 export const get_connector_auth_url_api = async (
   connector_id: string,
   redirect_uri?: string,
+  shop?: string,
 ): Promise<{ auth_url: string }> => {
   const sp = new URLSearchParams();
   if (redirect_uri) sp.set("redirect_uri", redirect_uri);
+  if (shop) sp.set("shop", shop);
   const qs = sp.toString();
   const url = `${BASE}/connectors/${connector_id}/auth-url${qs ? `?${qs}` : ""}`;
   return request_api<{ auth_url: string }>(url, {

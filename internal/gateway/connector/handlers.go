@@ -65,7 +65,18 @@ func (h *Handlers) HandleConnectorDetail(writer http.ResponseWriter, request *ht
 }
 
 func (h *Handlers) HandleConnectorAuthURL(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.connectors.GetAuthURL(request.Context(), chi.URLParam(request, "connector_id"), request.URL.Query().Get("redirect_uri"))
+	query := request.URL.Query()
+	connectorID := chi.URLParam(request, "connector_id")
+	allowedExtraKeys := h.connectors.RequiredExtraKeys(connectorID)
+	extras := make(map[string]string, len(allowedExtraKeys))
+	for _, key := range allowedExtraKeys {
+		values := query[key]
+		if len(values) == 0 {
+			continue
+		}
+		extras[key] = values[0]
+	}
+	item, err := h.connectors.GetAuthURL(request.Context(), connectorID, query.Get("redirect_uri"), extras)
 	if strings.Contains(strings.ToLower(gatewayshared.ErrString(err)), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return

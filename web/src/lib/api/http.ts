@@ -36,6 +36,16 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 function emit_auth_required() {
   if (typeof window === "undefined") {
     return;
@@ -321,7 +331,7 @@ export async function request_api<T>(
       }
       throw new UnauthorizedError(message);
     }
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status);
   }
 
   if (!payload || !("data" in payload)) {

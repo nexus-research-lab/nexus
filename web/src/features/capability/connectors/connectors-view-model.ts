@@ -23,7 +23,6 @@ export interface ConnectorDirectoryController {
   close_detail: () => void;
   handle_connect: (connector_id: string) => Promise<void>;
   handle_disconnect: (connector_id: string) => Promise<void>;
-  handle_oauth_callback: (payload: { code: string; state: string; redirect_uri?: string }) => Promise<void>;
   busy_id: string | null;
   status_message: string | null;
   error_message: string | null;

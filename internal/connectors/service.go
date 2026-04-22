@@ -2,35 +2,40 @@ package connectors
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // Info 表示连接器列表项。
 type Info struct {
-	ConnectorID     string  `json:"connector_id"`
-	Name            string  `json:"name"`
-	Title           string  `json:"title"`
-	Description     string  `json:"description"`
-	Icon            string  `json:"icon"`
-	Category        string  `json:"category"`
-	AuthType        string  `json:"auth_type"`
-	Status          string  `json:"status"`
-	ConnectionState string  `json:"connection_state"`
-	IsConfigured    bool    `json:"is_configured"`
-	ConfigError     *string `json:"config_error,omitempty"`
+	ConnectorID     string   `json:"connector_id"`
+	Name            string   `json:"name"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	Icon            string   `json:"icon"`
+	Category        string   `json:"category"`
+	AuthType        string   `json:"auth_type"`
+	Status          string   `json:"status"`
+	ConnectionState string   `json:"connection_state"`
+	IsConfigured    bool     `json:"is_configured"`
+	RequiresExtra   []string `json:"requires_extra,omitempty"`
+	ConfigError     *string  `json:"config_error,omitempty"`
 }
 
 // Detail 表示连接器详情。
@@ -58,12 +63,23 @@ type OAuthCallbackRequest struct {
 }
 
 type connectionRecord struct {
-	ConnectorID         string
-	State               string
-	Credentials         string
-	AuthType            string
-	OAuthState          sql.NullString
-	OAuthStateExpiresAt sql.NullTime
+	ConnectorID          string
+	State                string
+	Credentials          string
+	CredentialsEncrypted sql.NullString
+	AuthType             string
+	OAuthState           sql.NullString
+	OAuthStateExpiresAt  sql.NullTime
+}
+
+type stateRow struct {
+	State        string
+	ConnectorID  string
+	CodeVerifier string
+	RedirectURI  string
+	ShopDomain   string
+	ExtraJSON    string
+	ExpiresAt    time.Time
 }
 
 // Service 提供连接器目录、授权与状态能力。
@@ -142,14 +158,42 @@ func (s *Service) GetCategories() map[string]string {
 	return result
 }
 
+// RequiredExtraKeys 返回连接器授权时允许透传的额外参数。
+func (s *Service) RequiredExtraKeys(connectorID string) []string {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil
+	}
+	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	provider, err := providers.Get(providerID)
+	if err != nil {
+		return append([]string{}, entry.RequiresExtra...)
+	}
+	return append([]string{}, provider.RequiredExtraKeys()...)
+}
+
 // GetAuthURL 生成 OAuth 授权地址。
-func (s *Service) GetAuthURL(ctx context.Context, connectorID string, redirectURI string) (*AuthURLResult, error) {
+func (s *Service) GetAuthURL(ctx context.Context, connectorID string, redirectURI string, extras map[string]string) (*AuthURLResult, error) {
 	entry, ok := getConnector(connectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
 	}
 	if entry.Status != "available" {
 		return nil, errors.New("连接器暂不可用")
+	}
+	if err := s.purgeExpiredStates(ctx); err != nil {
+		return nil, err
+	}
+	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	provider, err := providers.Get(providerID)
+	if err != nil {
+		return nil, err
+	}
+	normalizedExtras := normalizeExtras(extras)
+	for _, key := range provider.RequiredExtraKeys() {
+		if strings.TrimSpace(normalizedExtras[key]) == "" {
+			return nil, fmt.Errorf("%s 参数缺失", key)
+		}
 	}
 	clientID, _, configErr := s.oauthCredentials(entry.ConnectorID)
 	if configErr != nil {
@@ -159,96 +203,100 @@ func (s *Service) GetAuthURL(ctx context.Context, connectorID string, redirectUR
 	if resolvedRedirectURI == "" {
 		resolvedRedirectURI = s.config.ConnectorOAuthRedirectURI
 	}
-	if strings.Contains(entry.AuthURL, "{shop}") {
-		return nil, errors.New("Shopify 需要店铺域名，当前 Go 版暂未支持")
+	if err := s.validateRedirectURI(resolvedRedirectURI); err != nil {
+		return nil, err
 	}
-	state, err := randomStateToken()
+	var verifier string
+	var challenge string
+	if provider.RequiresPKCE() {
+		verifier, challenge, err = providers.GeneratePKCE()
+		if err != nil {
+			return nil, err
+		}
+	}
+	state, err := providers.RandomState()
 	if err != nil {
 		return nil, err
 	}
-	if err = s.upsertConnection(ctx, connectionRecord{
-		ConnectorID:         entry.ConnectorID,
-		State:               "disconnected",
-		Credentials:         "",
-		AuthType:            entry.AuthType,
-		OAuthState:          sql.NullString{String: state, Valid: true},
-		OAuthStateExpiresAt: sql.NullTime{Time: time.Now().Add(10 * time.Minute), Valid: true},
+	extraJSON, err := json.Marshal(normalizedExtras)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.insertState(ctx, stateRow{
+		State:        state,
+		ConnectorID:  entry.ConnectorID,
+		CodeVerifier: verifier,
+		RedirectURI:  resolvedRedirectURI,
+		ShopDomain:   normalizedExtras["shop"],
+		ExtraJSON:    string(extraJSON),
+		ExpiresAt:    time.Now().Add(s.oauthStateTTL()),
 	}); err != nil {
 		return nil, err
 	}
-	authURL, err := url.Parse(entry.AuthURL)
+	authURL, err := provider.BuildAuthURL(ctx, providers.AuthRequest{
+		ClientID:     clientID,
+		RedirectURI:  resolvedRedirectURI,
+		Scopes:       entry.Scopes,
+		State:        state,
+		CodeVerifier: challenge,
+		Extra:        normalizedExtras,
+	})
 	if err != nil {
 		return nil, err
 	}
-	params := authURL.Query()
-	params.Set("response_type", "code")
-	params.Set("client_id", clientID)
-	params.Set("redirect_uri", resolvedRedirectURI)
-	params.Set("state", state)
-	if len(entry.Scopes) > 0 {
-		params.Set("scope", strings.Join(entry.Scopes, " "))
-	}
-	if entry.ConnectorID == "gmail" {
-		params.Set("access_type", "offline")
-		params.Set("prompt", "consent")
-	}
-	authURL.RawQuery = params.Encode()
 	return &AuthURLResult{
-		AuthURL: authURL.String(),
+		AuthURL: authURL,
 		State:   state,
 	}, nil
 }
 
 // CompleteOAuthCallback 完成 OAuth token 交换。
 func (s *Service) CompleteOAuthCallback(ctx context.Context, request OAuthCallbackRequest) (*Info, error) {
-	connection, err := s.getConnectionByOAuthState(ctx, strings.TrimSpace(request.State))
+	stateValue := strings.TrimSpace(request.State)
+	state, err := s.consumeState(ctx, stateValue)
 	if err != nil {
 		return nil, err
 	}
-	if connection == nil {
+	if state == nil {
 		return nil, errors.New("OAuth state 无效或已过期")
 	}
-	if connection.OAuthStateExpiresAt.Valid && connection.OAuthStateExpiresAt.Time.Before(time.Now()) {
-		return nil, errors.New("OAuth state 已过期，请重新发起授权")
+	if state.ExpiresAt.Before(time.Now()) {
+		return nil, errors.New("OAuth state 无效或已过期")
 	}
-	entry, ok := getConnector(connection.ConnectorID)
+	entry, ok := getConnector(state.ConnectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
 	}
-	if strings.Contains(entry.TokenURL, "{shop}") {
-		return nil, errors.New("Shopify OAuth token exchange 当前未实现")
+	requestRedirectURI := strings.TrimSpace(request.RedirectURI)
+	if requestRedirectURI != "" && state.RedirectURI != "" && requestRedirectURI != state.RedirectURI {
+		return nil, errors.New("redirect URI 不匹配")
+	}
+	if err := s.validateRedirectURI(connectorFirstNonEmpty(requestRedirectURI, state.RedirectURI)); err != nil {
+		return nil, err
+	}
+	extra, err := state.extra()
+	if err != nil {
+		return nil, err
+	}
+	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	provider, err := providers.Get(providerID)
+	if err != nil {
+		return nil, err
 	}
 	clientID, clientSecret, configErr := s.oauthCredentials(entry.ConnectorID)
 	if configErr != nil {
 		return nil, configErr
 	}
-	redirectURI := strings.TrimSpace(request.RedirectURI)
-	if redirectURI == "" {
-		redirectURI = s.config.ConnectorOAuthRedirectURI
-	}
-	form := url.Values{}
-	form.Set("grant_type", "authorization_code")
-	form.Set("code", strings.TrimSpace(request.Code))
-	form.Set("redirect_uri", redirectURI)
-	form.Set("client_id", clientID)
-	form.Set("client_secret", clientSecret)
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, entry.TokenURL, strings.NewReader(form.Encode()))
+	payload, err := provider.ExchangeToken(ctx, s.httpClient, providers.TokenRequest{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURI:  state.RedirectURI,
+		Code:         strings.TrimSpace(request.Code),
+		CodeVerifier: state.CodeVerifier,
+		Extra:        extra,
+	})
 	if err != nil {
 		return nil, err
-	}
-	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	httpRequest.Header.Set("Accept", "application/json")
-	response, err := s.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	payload, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("OAuth token exchange 失败: %s", strings.TrimSpace(string(payload)))
 	}
 	credentials := normalizeOAuthPayload(payload)
 	if err = s.upsertConnection(ctx, connectionRecord{
@@ -326,6 +374,7 @@ func (s *Service) toInfo(entry CatalogEntry, connectionState string) Info {
 		Status:          entry.Status,
 		ConnectionState: connectionState,
 		IsConfigured:    configError == "",
+		RequiresExtra:   append([]string{}, entry.RequiresExtra...),
 		ConfigError:     configErrorPtr,
 	}
 }
@@ -361,27 +410,83 @@ func (s *Service) listConnectionStates(ctx context.Context) (map[string]string, 
 	return result, rows.Err()
 }
 
-func (s *Service) getConnectionByOAuthState(ctx context.Context, state string) (*connectionRecord, error) {
+func (s *Service) insertState(ctx context.Context, row stateRow) error {
+	query := fmt.Sprintf(
+		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, shop_domain, extra_json, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+		s.bind(1),
+		s.bind(2),
+		s.bind(3),
+		s.bind(4),
+		s.bind(5),
+		s.bind(6),
+		s.bind(7),
+	)
+	_, err := s.db.ExecContext(
+		ctx,
+		query,
+		row.State,
+		row.ConnectorID,
+		emptyStringAsNil(row.CodeVerifier),
+		row.RedirectURI,
+		emptyStringAsNil(row.ShopDomain),
+		emptyStringAsNil(row.ExtraJSON),
+		row.ExpiresAt,
+	)
+	return err
+}
+
+func (s *Service) consumeState(ctx context.Context, state string) (*stateRow, error) {
 	if strings.TrimSpace(state) == "" {
 		return nil, nil
 	}
 	query := fmt.Sprintf(
-		"SELECT connector_id, state, credentials, auth_type, oauth_state, oauth_state_expires_at FROM connector_connections WHERE oauth_state = %s",
+		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING state, connector_id, code_verifier, redirect_uri, shop_domain, extra_json, expires_at",
 		s.bind(1),
 	)
-	row := s.db.QueryRowContext(ctx, query, state)
-	return scanConnection(row)
+	var row stateRow
+	var codeVerifier sql.NullString
+	var shopDomain sql.NullString
+	var extraJSON sql.NullString
+	err := s.db.QueryRowContext(ctx, query, strings.TrimSpace(state)).Scan(
+		&row.State,
+		&row.ConnectorID,
+		&codeVerifier,
+		&row.RedirectURI,
+		&shopDomain,
+		&extraJSON,
+		&row.ExpiresAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	row.CodeVerifier = codeVerifier.String
+	row.ShopDomain = shopDomain.String
+	row.ExtraJSON = extraJSON.String
+	return &row, nil
+}
+
+func (s *Service) purgeExpiredStates(ctx context.Context) error {
+	query := fmt.Sprintf("DELETE FROM connector_oauth_states WHERE expires_at < %s", s.bind(1))
+	_, err := s.db.ExecContext(ctx, query, time.Now())
+	return err
 }
 
 func (s *Service) upsertConnection(ctx context.Context, record connectionRecord) error {
+	if err := s.encryptConnectionCredentials(&record); err != nil {
+		return err
+	}
 	if s.driver == "pgx" {
 		query := `
 INSERT INTO connector_connections (
-    connector_id, state, credentials, auth_type, oauth_state, oauth_state_expires_at
-) VALUES ($1, $2, $3, $4, $5, $6)
+    connector_id, state, credentials, credentials_encrypted, auth_type, oauth_state, oauth_state_expires_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (connector_id) DO UPDATE SET
     state = EXCLUDED.state,
     credentials = EXCLUDED.credentials,
+    credentials_encrypted = EXCLUDED.credentials_encrypted,
     auth_type = EXCLUDED.auth_type,
     oauth_state = EXCLUDED.oauth_state,
     oauth_state_expires_at = EXCLUDED.oauth_state_expires_at,
@@ -392,19 +497,21 @@ ON CONFLICT (connector_id) DO UPDATE SET
 			record.ConnectorID,
 			record.State,
 			record.Credentials,
+			nullString(record.CredentialsEncrypted),
 			record.AuthType,
-			nullString(record.OAuthState),
-			nullTime(record.OAuthStateExpiresAt),
+			nil,
+			nil,
 		)
 		return err
 	}
 	query := `
 INSERT INTO connector_connections (
-    connector_id, state, credentials, auth_type, oauth_state, oauth_state_expires_at
-) VALUES (?, ?, ?, ?, ?, ?)
+    connector_id, state, credentials, credentials_encrypted, auth_type, oauth_state, oauth_state_expires_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(connector_id) DO UPDATE SET
     state = excluded.state,
     credentials = excluded.credentials,
+    credentials_encrypted = excluded.credentials_encrypted,
     auth_type = excluded.auth_type,
     oauth_state = excluded.oauth_state,
     oauth_state_expires_at = excluded.oauth_state_expires_at,
@@ -415,9 +522,10 @@ ON CONFLICT(connector_id) DO UPDATE SET
 		record.ConnectorID,
 		record.State,
 		record.Credentials,
+		nullString(record.CredentialsEncrypted),
 		record.AuthType,
-		nullString(record.OAuthState),
-		nullTime(record.OAuthStateExpiresAt),
+		nil,
+		nil,
 	)
 	return err
 }
@@ -427,6 +535,52 @@ func (s *Service) bind(index int) string {
 		return fmt.Sprintf("$%d", index)
 	}
 	return "?"
+}
+
+func (s *Service) oauthStateTTL() time.Duration {
+	if s.config.ConnectorOAuthStateTTLSeconds <= 0 {
+		return 10 * time.Minute
+	}
+	return time.Duration(s.config.ConnectorOAuthStateTTLSeconds) * time.Second
+}
+
+func (s *Service) validateRedirectURI(raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return errors.New("redirect URI 格式不正确")
+	}
+	for _, allowed := range s.config.ConnectorOAuthAllowedOrigins {
+		allowedURL, err := url.Parse(strings.TrimSpace(allowed))
+		if err != nil || allowedURL.Scheme == "" || allowedURL.Host == "" {
+			continue
+		}
+		if parsed.Scheme == allowedURL.Scheme && parsed.Host == allowedURL.Host && strings.HasPrefix(parsed.Path, allowedURL.Path) {
+			return nil
+		}
+	}
+	return errors.New("redirect URI 不在允许列表中")
+}
+
+func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
+	if strings.TrimSpace(record.Credentials) == "" {
+		record.CredentialsEncrypted = sql.NullString{}
+		return nil
+	}
+	key, err := decodeCredentialKey(s.config.ConnectorCredentialsKey)
+	if err != nil {
+		if s.config.Debug {
+			fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 未配置，connector credentials 将以明文保存")
+			return nil
+		}
+		return err
+	}
+	encrypted, err := encryptCredentialPayload(key, []byte(record.Credentials))
+	if err != nil {
+		return err
+	}
+	record.Credentials = "__encrypted__"
+	record.CredentialsEncrypted = sql.NullString{String: encrypted, Valid: true}
+	return nil
 }
 
 func (s *Service) oauthCredentials(connectorID string) (string, string, error) {
@@ -484,25 +638,6 @@ func connectorMatches(entry CatalogEntry, query string) bool {
 	return false
 }
 
-func scanConnection(scanner interface{ Scan(dest ...any) error }) (*connectionRecord, error) {
-	var record connectionRecord
-	err := scanner.Scan(
-		&record.ConnectorID,
-		&record.State,
-		&record.Credentials,
-		&record.AuthType,
-		&record.OAuthState,
-		&record.OAuthStateExpiresAt,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &record, nil
-}
-
 func nullString(value sql.NullString) any {
 	if value.Valid {
 		return value.String
@@ -510,11 +645,11 @@ func nullString(value sql.NullString) any {
 	return nil
 }
 
-func nullTime(value sql.NullTime) any {
-	if value.Valid {
-		return value.Time
+func emptyStringAsNil(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
 	}
-	return nil
+	return value
 }
 
 func requireOAuthCredentials(clientID string, clientSecret string, label string) (string, string, error) {
@@ -522,14 +657,6 @@ func requireOAuthCredentials(clientID string, clientSecret string, label string)
 		return "", "", fmt.Errorf("%s OAuth Client ID / Secret 未配置", label)
 	}
 	return clientID, clientSecret, nil
-}
-
-func randomStateToken() (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(buffer), nil
 }
 
 func normalizeOAuthPayload(payload []byte) string {
@@ -549,6 +676,78 @@ func normalizeOAuthPayload(payload []byte) string {
 		return string(payload)
 	}
 	return string(encoded)
+}
+
+func normalizeExtras(extras map[string]string) map[string]string {
+	normalized := map[string]string{}
+	for key, value := range extras {
+		normalized[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+	return normalized
+}
+
+func (row stateRow) extra() (map[string]string, error) {
+	result := map[string]string{}
+	if strings.TrimSpace(row.ExtraJSON) != "" {
+		if err := json.Unmarshal([]byte(row.ExtraJSON), &result); err != nil {
+			return nil, errors.New("OAuth state extra 参数格式不正确")
+		}
+	}
+	if result["shop"] == "" && strings.TrimSpace(row.ShopDomain) != "" {
+		result["shop"] = row.ShopDomain
+	}
+	return normalizeExtras(result), nil
+}
+
+func decodeCredentialKey(raw string) ([]byte, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 未配置")
+	}
+	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
+	if err != nil || len(key) != 32 {
+		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 必须是 32 字节 base64")
+	}
+	return key, nil
+}
+
+func encryptCredentialPayload(key []byte, payload []byte) (string, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ciphertext := gcm.Seal(nil, nonce, payload, nil)
+	encoded := append(nonce, ciphertext...)
+	return "v1:" + base64.StdEncoding.EncodeToString(encoded), nil
+}
+
+func decryptCredentialPayload(key []byte, payload string) ([]byte, error) {
+	encoded := strings.TrimPrefix(strings.TrimSpace(payload), "v1:")
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) < gcm.NonceSize() {
+		return nil, errors.New("connector credentials payload 格式不正确")
+	}
+	nonce := raw[:gcm.NonceSize()]
+	ciphertext := raw[gcm.NonceSize():]
+	return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
 func connectorFirstNonEmpty(values ...string) string {

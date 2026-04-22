@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 
 import { useConnectorController } from "@/hooks/capability/use-connector-controller";
 
@@ -20,11 +19,7 @@ import { ConnectorsSearchBar } from "./connectors-search-bar";
 
 export function ConnectorsDirectory() {
   const ctrl = useConnectorController();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const handled_callback_ref = useRef<string | null>(null);
   const {
-    handle_oauth_callback,
     set_error_message,
     status_message,
     error_message,
@@ -59,85 +54,6 @@ export function ConnectorsDirectory() {
       window.removeEventListener("message", handle_message);
     };
   }, [ctrl, set_error_message, set_status_message]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-    const error = params.get("error");
-    const callback_key = `${code || ""}:${state || ""}:${error || ""}`;
-    if (!code && !state && !error) {
-      handled_callback_ref.current = null;
-      return;
-    }
-    if (handled_callback_ref.current === callback_key) {
-      return;
-    }
-    handled_callback_ref.current = callback_key;
-
-    if (error) {
-      const error_message = `OAuth 授权失败: ${error}`;
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(
-          { type: "connector-oauth:error", message: error_message },
-          window.location.origin,
-        );
-        window.close();
-        return;
-      }
-      set_error_message(error_message);
-      navigate(location.pathname, { replace: true });
-      return;
-    }
-
-    if (!code || !state) {
-      const error_message = "OAuth 回调参数不完整";
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(
-          { type: "connector-oauth:error", message: error_message },
-          window.location.origin,
-        );
-        window.close();
-        return;
-      }
-      set_error_message(error_message);
-      navigate(location.pathname, { replace: true });
-      return;
-    }
-
-    void handle_oauth_callback({
-      code,
-      state,
-      redirect_uri: `${window.location.origin}${location.pathname}`,
-    })
-      .then(() => {
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(
-            { type: "connector-oauth:success", message: "连接成功" },
-            window.location.origin,
-          );
-          window.close();
-          return;
-        }
-      })
-      .catch((err: unknown) => {
-        const error_message = err instanceof Error ? err.message : "OAuth 连接失败";
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(
-            { type: "connector-oauth:error", message: error_message },
-            window.location.origin,
-          );
-          window.close();
-          return;
-        }
-      })
-      .finally(() => {
-        if (window.opener && !window.opener.closed) {
-          return;
-        }
-        navigate(location.pathname, { replace: true });
-    });
-  }, [handle_oauth_callback, location.pathname, location.search, navigate, set_error_message]);
 
   const feedback_items: FeedbackBannerItem[] = [];
   if (status_message) {

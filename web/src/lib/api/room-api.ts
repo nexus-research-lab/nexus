@@ -1,6 +1,7 @@
 import { get_agent_api_base_url } from "@/config/options";
 import { transform_api_agent } from "@/lib/api/agent-transform";
-import { request_api } from "@/lib/api/http";
+import { ApiRequestError, request_api } from "@/lib/api/http";
+import { useAgentStore } from "@/store/agent";
 import {
   ApiRoomContextAggregate,
   ApiRoomConversationMessagePage,
@@ -270,12 +271,24 @@ export async function delete_room(
 export async function ensure_direct_room(
   agent_id: string,
 ): Promise<RoomContextAggregate> {
-  const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agent_id)}`,
-    {
-      method: "GET",
-    },
-  );
+  let context: ApiRoomContextAggregate;
+  try {
+    context = await request_api<ApiRoomContextAggregate>(
+      `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agent_id)}`,
+      {
+        method: "GET",
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      const store = useAgentStore.getState();
+      if (store.current_agent_id === agent_id) {
+        store.set_current_agent(null);
+      }
+      void store.load_agents_from_server();
+    }
+    throw error;
+  }
   notify_room_directory_updated();
   return transform_room_context(context);
 }

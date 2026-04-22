@@ -242,6 +242,7 @@ HOST_SUDO= make prepare-host-data
 - `DISCORD_BOT_TOKEN`
 - `TELEGRAM_ENABLED`
 - `TELEGRAM_BOT_TOKEN`
+- `CONNECTOR_OAUTH_REDIRECT_URI`：默认 `http://localhost:3000/capability/connectors/oauth/callback`，必须与各连接器开发者后台登记的回调 URI 完全一致。
 
 Provider 运行时的 `auth_token / base_url / model` 由 Settings 页面写入数据库中的 Provider 配置表后生效，
 Agent 自身只保存 `provider` 选择，不再保存独立 `model`。
