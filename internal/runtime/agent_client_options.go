@@ -12,6 +12,8 @@ import (
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
+const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
+const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
@@ -122,17 +124,27 @@ func cloneMCPServers(
 }
 
 func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
+	state, hasState := authsvc.StateFromContext(ctx)
 	userID, ok := authsvc.CurrentUserID(ctx)
-	if !ok {
-		return nil
+	env := map[string]string{}
+	if ok {
+		trimmedUserID := strings.TrimSpace(userID)
+		if trimmedUserID != "" {
+			env[nexusctlUserIDEnvName] = trimmedUserID
+			env[nexusRuntimeUserIDEnvName] = trimmedUserID
+			env[nexusRuntimeScopeModeEnvName] = "user_scoped"
+		}
 	}
-	trimmedUserID := strings.TrimSpace(userID)
-	if trimmedUserID == "" {
-		return nil
+	if len(env) > 0 {
+		return env
 	}
-	return map[string]string{
-		nexusctlUserIDEnvName: trimmedUserID,
+	if hasState && !state.AuthRequired {
+		return map[string]string{
+			nexusRuntimeScopeModeEnvName: "single_user",
+			nexusRuntimeUserIDEnvName:    authsvc.SystemUserID,
+		}
 	}
+	return nil
 }
 
 func mergeRuntimeEnv(
