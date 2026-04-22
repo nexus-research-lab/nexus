@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	auth "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -31,7 +32,7 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 	service := NewService(cfg, db)
 	ctx := context.Background()
 
-	items, err := service.ListConnectors(ctx, "github", "", "")
+	items, err := service.ListConnectors(ctx, auth.SystemUserID, "github", "", "")
 	if err != nil {
 		t.Fatalf("列出连接器失败: %v", err)
 	}
@@ -42,7 +43,7 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 		t.Fatalf("GitHub 连接器应视为已配置: %+v", items[0])
 	}
 
-	authURL, err := service.GetAuthURL(ctx, "github", "", nil)
+	authURL, err := service.GetAuthURL(ctx, auth.SystemUserID, "github", "", nil)
 	if err != nil {
 		t.Fatalf("生成授权地址失败: %v", err)
 	}
@@ -74,6 +75,74 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 	}
 }
 
+func TestServiceOAuthClientOverridesEnvCredentials(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	cfg.ConnectorCredentialsKey = testConnectorCredentialKey()
+	cfg.ConnectorGitHubClientID = ""
+	cfg.ConnectorGitHubClientSecret = ""
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer db.Close()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	const ownerUserID = "user-oauth-client"
+
+	items, err := service.ListConnectors(ctx, ownerUserID, "github", "", "")
+	if err != nil {
+		t.Fatalf("列出连接器失败: %v", err)
+	}
+	if len(items) != 1 || items[0].IsConfigured {
+		t.Fatalf("未配置用户 OAuth client 时应为待配置: %+v", items)
+	}
+
+	if err = service.UpsertOAuthClient(ctx, ownerUserID, "github", "user-client-id", "user-client-secret"); err != nil {
+		t.Fatalf("保存用户 OAuth client 失败: %v", err)
+	}
+	view, err := service.GetOAuthClient(ctx, ownerUserID, "github")
+	if err != nil {
+		t.Fatalf("读取用户 OAuth client 失败: %v", err)
+	}
+	if view == nil || view.ClientID != "user-client-id" || !view.HasClientSecret {
+		t.Fatalf("OAuth client view 不正确: %+v", view)
+	}
+
+	items, err = service.ListConnectors(ctx, ownerUserID, "github", "", "")
+	if err != nil {
+		t.Fatalf("列出连接器失败: %v", err)
+	}
+	if len(items) != 1 || !items[0].IsConfigured {
+		t.Fatalf("配置用户 OAuth client 后应可连接: %+v", items)
+	}
+
+	authURL, err := service.GetAuthURL(ctx, ownerUserID, "github", "", nil)
+	if err != nil {
+		t.Fatalf("生成授权地址失败: %v", err)
+	}
+	parsedURL, err := url.Parse(authURL.AuthURL)
+	if err != nil {
+		t.Fatalf("解析授权地址失败: %v", err)
+	}
+	if parsedURL.Query().Get("client_id") != "user-client-id" {
+		t.Fatalf("应使用 DB 中的 client_id，实际: %s", authURL.AuthURL)
+	}
+
+	if err = service.DeleteOAuthClient(ctx, ownerUserID, "github"); err != nil {
+		t.Fatalf("删除用户 OAuth client 失败: %v", err)
+	}
+	view, err = service.GetOAuthClient(ctx, ownerUserID, "github")
+	if err != nil {
+		t.Fatalf("删除后读取用户 OAuth client 失败: %v", err)
+	}
+	if view != nil {
+		t.Fatalf("删除后 OAuth client view 应为空: %+v", view)
+	}
+}
+
 func TestServiceShopifyRequiresShop(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
@@ -87,12 +156,12 @@ func TestServiceShopifyRequiresShop(t *testing.T) {
 	service := NewService(cfg, db)
 	ctx := context.Background()
 
-	_, err = service.GetAuthURL(ctx, "shopify", "", nil)
+	_, err = service.GetAuthURL(ctx, auth.SystemUserID, "shopify", "", nil)
 	if err == nil || !strings.Contains(err.Error(), "shop 参数缺失") {
 		t.Fatalf("expected missing shop error, got %v", err)
 	}
 
-	authURL, err := service.GetAuthURL(ctx, "shopify", "", map[string]string{"shop": "demo"})
+	authURL, err := service.GetAuthURL(ctx, auth.SystemUserID, "shopify", "", map[string]string{"shop": "demo"})
 	if err != nil {
 		t.Fatalf("生成 Shopify 授权地址失败: %v", err)
 	}
@@ -112,7 +181,7 @@ func TestServiceRejectsRedirectURIOutsideAllowedOrigins(t *testing.T) {
 	defer db.Close()
 
 	service := NewService(cfg, db)
-	_, err = service.GetAuthURL(context.Background(), "github", "https://evil.example/callback", nil)
+	_, err = service.GetAuthURL(context.Background(), auth.SystemUserID, "github", "https://evil.example/callback", nil)
 	if err == nil || !strings.Contains(err.Error(), "允许列表") {
 		t.Fatalf("应拒绝非白名单 redirect URI，实际: %v", err)
 	}
@@ -131,11 +200,11 @@ func TestServiceMultipleAuthURLsDoNotOverwrite(t *testing.T) {
 	service := NewService(cfg, db)
 	ctx := context.Background()
 
-	first, err := service.GetAuthURL(ctx, "github", "", nil)
+	first, err := service.GetAuthURL(ctx, auth.SystemUserID, "github", "", nil)
 	if err != nil {
 		t.Fatalf("生成第一次授权地址失败: %v", err)
 	}
-	second, err := service.GetAuthURL(ctx, "github", "", nil)
+	second, err := service.GetAuthURL(ctx, auth.SystemUserID, "github", "", nil)
 	if err != nil {
 		t.Fatalf("生成第二次授权地址失败: %v", err)
 	}
@@ -235,7 +304,7 @@ func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
 		t.Fatalf("写入 OAuth state 失败: %v", err)
 	}
 
-	info, err := service.CompleteOAuthCallback(ctx, OAuthCallbackRequest{
+	info, err := service.CompleteOAuthCallback(ctx, auth.SystemUserID, OAuthCallbackRequest{
 		Code:        "code",
 		State:       "state-token",
 		RedirectURI: cfg.ConnectorOAuthRedirectURI,
@@ -288,7 +357,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 		t.Fatalf("写入 OAuth state 失败: %v", err)
 	}
 
-	_, err = service.CompleteOAuthCallback(ctx, OAuthCallbackRequest{
+	_, err = service.CompleteOAuthCallback(ctx, auth.SystemUserID, OAuthCallbackRequest{
 		Code:        "bad-code",
 		State:       " state-token ",
 		RedirectURI: cfg.ConnectorOAuthRedirectURI,
@@ -342,7 +411,7 @@ func TestServiceOAuthCallbackPassesStoredExtraJSONToProvider(t *testing.T) {
 		t.Fatalf("写入 OAuth state 失败: %v", err)
 	}
 
-	info, err := service.CompleteOAuthCallback(ctx, OAuthCallbackRequest{
+	info, err := service.CompleteOAuthCallback(ctx, auth.SystemUserID, OAuthCallbackRequest{
 		Code:        "code",
 		State:       "shopify-state",
 		RedirectURI: cfg.ConnectorOAuthRedirectURI,

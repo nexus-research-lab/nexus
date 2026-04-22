@@ -7,6 +7,7 @@
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs",
+    "typecheck": "tsc --noEmit",
     "export:liquid-glass": "node ./scripts/export-liquid-glass-assets.mjs"
   },
   "dependencies": {

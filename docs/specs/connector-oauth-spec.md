@@ -64,6 +64,17 @@ Shopify: create a public app in the Partner dashboard and add the callback under
 - Only provider-declared extra keys are persisted in `extra_json`; unknown query parameters are ignored.
 - Connector credentials are encrypted with AES-GCM into `connector_connections.credentials_encrypted` when `CONNECTOR_CREDENTIALS_KEY` is configured. The key must be a 32-byte base64 value.
 
+## Per-user OAuth clients
+
+Users can configure OAuth application credentials from the connector detail dialog. Records are stored in `connector_oauth_clients` by `(owner_user_id, connector_id)`.
+
+Credential resolution order:
+
+1. User-scoped DB row in `connector_oauth_clients`.
+2. Deployment-level `CONNECTOR_*_CLIENT_ID` / `CONNECTOR_*_CLIENT_SECRET` environment config.
+
+`client_secret` is always encrypted into `client_secret_encrypted` with AES-GCM using `CONNECTOR_CREDENTIALS_KEY`. Unlike connector token storage, OAuth client secrets do not allow plaintext debug fallback; saving a user OAuth app fails when the key is missing or invalid.
+
 ## Troubleshooting
 
 - `OAuth state 无效或已过期`: the authorization attempt is missing, already used, or older than 10 minutes. Start Connect again.
