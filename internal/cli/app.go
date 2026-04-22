@@ -93,6 +93,13 @@ func commandContext(cmd *cobra.Command) context.Context {
 	return cmd.Context()
 }
 
+func currentCLIUserID(cmd *cobra.Command) string {
+	if userID, ok := authsvc.CurrentUserID(commandContext(cmd)); ok {
+		return userID
+	}
+	return authsvc.SystemUserID
+}
+
 func buildScopedCLIContext(
 	base context.Context,
 	authService *authsvc.Service,
@@ -1217,7 +1224,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出连接器目录",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.ListConnectors(commandContext(cmd), "", "", "")
+			items, err := service.ListConnectors(commandContext(cmd), currentCLIUserID(cmd), "", "", "")
 			if err != nil {
 				return err
 			}
@@ -1234,7 +1241,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Short: "读取单个连接器详情",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.GetConnectorDetail(commandContext(cmd), args[0])
+			item, err := service.GetConnectorDetail(commandContext(cmd), currentCLIUserID(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -1253,7 +1260,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 			Short: "生成 OAuth 授权地址",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.GetAuthURL(commandContext(cmd), args[0], redirectURI, nil)
+				item, err := service.GetAuthURL(commandContext(cmd), currentCLIUserID(cmd), args[0], redirectURI, nil)
 				if err != nil {
 					return err
 				}

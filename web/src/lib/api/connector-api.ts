@@ -5,7 +5,7 @@
  * [OUTPUT]: 对外提供连接器 CRUD + OAuth 操作
  */
 
-import { ConnectorDetail, ConnectorInfo } from "@/types/capability/connector";
+import { ConnectorDetail, ConnectorInfo, ConnectorOAuthClientView } from "@/types/capability/connector";
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 
@@ -93,6 +93,42 @@ export const get_connector_auth_url_api = async (
   return request_api<{ auth_url: string }>(url, {
     method: "GET",
   });
+};
+
+/** 获取用户自助配置的 OAuth 应用摘要 */
+export const get_connector_oauth_client_api = async (
+  connector_id: string,
+): Promise<ConnectorOAuthClientView | null> => {
+  const result = await request_api<ConnectorOAuthClientView & { configured?: boolean }>(
+    `${BASE}/connectors/${connector_id}/oauth-client`,
+    { method: "GET" },
+  );
+  return result.configured === false ? null : result;
+};
+
+/** 保存用户自助配置的 OAuth 应用凭据 */
+export const upsert_connector_oauth_client_api = async (
+  connector_id: string,
+  client_id: string,
+  client_secret: string,
+): Promise<ConnectorOAuthClientView> => {
+  return request_api<ConnectorOAuthClientView>(
+    `${BASE}/connectors/${connector_id}/oauth-client`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ client_id, client_secret }),
+    },
+  );
+};
+
+/** 清除用户自助配置的 OAuth 应用凭据 */
+export const delete_connector_oauth_client_api = async (
+  connector_id: string,
+): Promise<void> => {
+  await request_api<{ configured: false }>(
+    `${BASE}/connectors/${connector_id}/oauth-client`,
+    { method: "DELETE" },
+  );
 };
 
 /** 完成 OAuth 回调 */
