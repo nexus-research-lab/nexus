@@ -12,6 +12,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { Hash, Puzzle, Users2 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -19,12 +21,18 @@ const TOUR_COMPLETION_STORAGE_KEY = "nexus:onboarding:tours";
 
 type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
 
+export interface OnboardingTourStepItem {
+  icon: "users" | "hash" | "puzzle";
+  text: string;
+}
+
 export interface OnboardingTourStep {
   id: string;
   title: string;
   description: string;
   target?: string;
   placement?: TourPlacement;
+  items?: OnboardingTourStepItem[];
 }
 
 export interface OnboardingTourDefinition {
@@ -257,6 +265,20 @@ function OnboardingTourOverlay({
           {step.description}
         </p>
 
+        {step.items && step.items.length > 0 && (
+          <div className="mt-3 flex flex-col gap-2">
+            {step.items.map((item) => (
+              <div
+                key={item.text}
+                className="flex items-center gap-2.5 rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_60%,transparent)] px-2.5 py-1.5"
+              >
+                <TourItemIcon name={item.icon} />
+                <span className="text-[13px] leading-5 text-(--text-muted)">{item.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 flex items-center justify-between gap-3">
           <span className="text-[12px] font-medium tabular-nums text-(--text-muted)">
             {step_index + 1} / {tour.steps.length}
@@ -416,6 +438,13 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
       ) : null}
     </ONBOARDING_TOUR_CONTEXT.Provider>
   );
+}
+
+function TourItemIcon({ name }: { name: OnboardingTourStepItem["icon"] }) {
+  const className = "h-3.5 w-3.5 shrink-0 text-(--icon-muted)";
+  if (name === "users") return <Users2 className={className} />;
+  if (name === "hash") return <Hash className={className} />;
+  return <Puzzle className={className} />;
 }
 
 export function useOnboardingTour() {
