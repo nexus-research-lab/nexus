@@ -243,8 +243,8 @@ HOST_SUDO= make prepare-host-data
 - `TELEGRAM_ENABLED`
 - `TELEGRAM_BOT_TOKEN`
 - `CONNECTOR_OAUTH_REDIRECT_URI`：默认 `http://localhost:3000/capability/connectors/oauth/callback`，必须与各连接器开发者后台登记的回调 URI 完全一致。
-- `CONNECTOR_*_CLIENT_ID` / `CONNECTOR_*_CLIENT_SECRET`：可作为部署级默认 OAuth 应用配置；终端用户也可以在连接器详情页配置自己的 OAuth 应用，用户配置会覆盖环境变量。
-- `CONNECTOR_CREDENTIALS_KEY`：32 字节 base64 AES-GCM 密钥，用于加密 connector token 与用户配置的 OAuth Client Secret。
+- `CONNECTOR_*_CLIENT_ID` / `CONNECTOR_*_CLIENT_SECRET`：可作为部署级默认 OAuth 应用配置；终端用户也可以在连接器详情页配置自己的 OAuth 应用，用户配置会覆盖环境变量。目前 catalog 中仅 `github` 上架，其余 provider 留作占位。
+- `CONNECTOR_CREDENTIALS_KEY`：32 字节 base64 AES-GCM 密钥，用于加密 connector token 与用户配置的 OAuth Client Secret。生成命令：`openssl rand -base64 32`。Dev 与 Prod 环境应使用不同的 key。
 
 Provider 运行时的 `auth_token / base_url / model` 由 Settings 页面写入数据库中的 Provider 配置表后生效，
 Agent 自身只保存 `provider` 选择，不再保存独立 `model`。

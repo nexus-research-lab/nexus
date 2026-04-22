@@ -120,6 +120,24 @@ export function ConnectorOAuthClientDialog({
             Client Secret 保存后不会再显示。更新配置时请重新填写 secret。
           </div>
 
+          {connector_id === "github" ? (
+            <div className="text-xs text-(--text-muted) leading-relaxed">
+              还没有 OAuth 应用？去{" "}
+              <a
+                className="text-sky-500 hover:underline"
+                href="https://github.com/settings/developers"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                GitHub Developer settings
+              </a>{" "}
+              新建 OAuth App，Callback URL 填：
+              <code className="ml-1 rounded bg-(--surface-inset-background) px-1.5 py-0.5 text-[11px]">
+                {window.location.origin}/capability/connectors/oauth/callback
+              </code>
+            </div>
+          ) : null}
+
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-(--text-muted)">Client ID</span>
             <input

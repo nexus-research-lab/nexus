@@ -144,6 +144,7 @@ func TestServiceOAuthClientOverridesEnvCredentials(t *testing.T) {
 }
 
 func TestServiceShopifyRequiresShop(t *testing.T) {
+	t.Skip("Shopify 目前在 catalog 中为 coming_soon，已暂停对外发布；如需恢复请先把 status 改回 available")
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
 
