@@ -33,6 +33,7 @@ export interface OnboardingTourStep {
   target?: string;
   placement?: TourPlacement;
   items?: OnboardingTourStepItem[];
+  image?: string;
 }
 
 export interface OnboardingTourDefinition {
@@ -98,19 +99,57 @@ interface PopoverPosition {
   left: number;
 }
 
+function estimate_card_height(step?: OnboardingTourStep): number {
+  if (!step) return 180;
+  let height = 104;
+  if (step.image) height += 136;
+  if (step.description) height += 24;
+  if (step.items?.length) height += step.items.length * 34;
+  return height;
+}
+
+function TourStepIllustration({
+  src,
+  title,
+  is_center_step,
+}: {
+  src: string;
+  title: string;
+  is_center_step: boolean;
+}) {
+  return (
+    <div className="mb-3 rounded-[18px] border border-[color:color-mix(in_srgb,var(--primary)_10%,white)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,248,255,0.94)),radial-gradient(circle_at_top_left,rgba(132,146,255,0.12),transparent_54%)] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_10px_28px_color-mix(in_srgb,var(--shadow-color)_7%,transparent)]">
+      <div className="relative overflow-hidden rounded-[14px] border border-white/80 bg-[linear-gradient(180deg,#f6f5fb,#efedf8)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.76),transparent_36%),radial-gradient(circle_at_82%_84%,rgba(132,146,255,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.18),transparent_68%)]" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,transparent,rgba(132,146,255,0.06))]" />
+        <img
+          alt={title}
+          className={cn(
+            "relative z-10 mx-auto w-full object-contain px-2 py-2.5 [image-rendering:auto]",
+            "drop-shadow-[0_10px_18px_rgba(87,98,173,0.10)] mix-blend-multiply",
+            is_center_step ? "h-[132px]" : "h-[112px]",
+          )}
+          src={src}
+        />
+      </div>
+    </div>
+  );
+}
+
 function get_popover_position(
   placement: TourPlacement,
   target_rect: DOMRect | null,
   viewport_width: number,
   viewport_height: number,
+  step?: OnboardingTourStep,
 ): PopoverPosition {
-  const card_width = Math.min(360, viewport_width - 32);
-  const card_height = 220;
+  const card_width = Math.min(344, viewport_width - 32);
+  const card_height = Math.min(estimate_card_height(step), viewport_height - 80);
   const gutter = 16;
 
   if (!target_rect || placement === "center") {
     return {
-      top: Math.max(24, viewport_height / 2 - card_height / 2),
+      top: Math.max(24, Math.min(viewport_height / 2 - card_height / 2, viewport_height - card_height - 24)),
       left: Math.max(16, viewport_width / 2 - card_width / 2),
     };
   }
@@ -118,7 +157,7 @@ function get_popover_position(
   switch (placement) {
     case "left":
       return {
-        top: Math.max(24, target_rect.top + target_rect.height / 2 - card_height / 2),
+        top: Math.max(24, Math.min(target_rect.top + target_rect.height / 2 - card_height / 2, viewport_height - card_height - 24)),
         left: Math.max(16, target_rect.left - card_width - gutter),
       };
     case "top":
@@ -143,7 +182,7 @@ function get_popover_position(
     case "right":
     default:
       return {
-        top: Math.max(24, target_rect.top + target_rect.height / 2 - card_height / 2),
+        top: Math.max(24, Math.min(target_rect.top + target_rect.height / 2 - card_height / 2, viewport_height - card_height - 24)),
         left: Math.min(
           target_rect.right + gutter,
           viewport_width - card_width - 16,
@@ -215,6 +254,7 @@ function OnboardingTourOverlay({
     target_rect,
     window.innerWidth,
     window.innerHeight,
+    step,
   );
   const is_last_step = step_index >= tour.steps.length - 1;
 
@@ -238,67 +278,79 @@ function OnboardingTourOverlay({
       ) : null}
 
       <div
-        className={cn(
-          "surface-popover absolute w-[min(360px,calc(100vw-32px))] rounded-[24px] border px-5 py-4 shadow-[0_24px_64px_color-mix(in_srgb,var(--shadow-color)_18%,transparent)]",
-        )}
+        className="absolute"
         style={{
           top: popover_position.top,
           left: popover_position.left,
         }}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="mt-1 text-[20px] font-semibold tracking-tight text-(--text-strong)">
-              {step.title}
-            </h3>
+        <div
+          className={cn(
+            "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[24px] border px-4 py-3.5 shadow-[0_22px_58px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)]",
+          )}
+        >
+          {step.image ? (
+            <TourStepIllustration
+              is_center_step={placement === "center"}
+              src={step.image}
+              title={step.title}
+            />
+          ) : null}
+
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="mt-0.5 text-[18px] font-semibold tracking-tight text-(--text-strong)">
+                {step.title}
+              </h3>
+            </div>
+            <button
+              className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => on_close()}
+              type="button"
+            >
+              {t("common.skip")}
+            </button>
           </div>
-          <button
-            className="shrink-0 rounded-full px-2 py-1 text-[12px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={() => on_close()}
-            type="button"
-          >
-            {t("common.skip")}
-          </button>
-        </div>
 
-        <p className="mt-3 text-[14px] leading-6 text-(--text-default)">
-          {step.description}
-        </p>
+          <p className="mt-2.5 text-[13px] leading-6 text-(--text-default)">
+            {step.description}
+          </p>
 
-        {step.items && step.items.length > 0 && (
-          <div className="mt-3 flex flex-col gap-2">
-            {step.items.map((item) => (
-              <div
-                key={item.text}
-                className="flex items-center gap-2.5 rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_60%,transparent)] px-2.5 py-1.5"
+          {step.items && step.items.length > 0 && (
+            <div className="mt-2.5 flex flex-col gap-1.5">
+              {step.items.map((item) => (
+                <div
+                  key={item.text}
+                  className="flex items-center gap-2 rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] px-2.5 py-1.5"
+                >
+                  <TourItemIcon name={item.icon} />
+                  <span className="text-[12px] leading-5 text-(--text-muted)">{item.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3.5 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-medium tabular-nums text-(--text-muted)">
+              {step_index + 1} / {tour.steps.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                disabled={step_index === 0}
+                onClick={on_previous}
+                type="button"
               >
-                <TourItemIcon name={item.icon} />
-                <span className="text-[13px] leading-5 text-(--text-muted)">{item.text}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="text-[12px] font-medium tabular-nums text-(--text-muted)">
-            {step_index + 1} / {tour.steps.length}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[12px] font-medium text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-              disabled={step_index === 0}
-              onClick={on_previous}
-              type="button"
-            >
-              {t("common.back")}
-            </button>
-            <button
-              className="rounded-full bg-(--primary) px-3 py-1.5 text-[12px] font-medium text-white transition-[transform,opacity] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:opacity-92"
-              onClick={is_last_step ? () => on_close({ completed: true }) : on_next}
-              type="button"
-            >
-              {is_last_step ? t("common.finish") : t("common.next")}
-            </button>
+                {t("common.back")}
+              </button>
+              <button
+                className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-[transform,opacity] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:opacity-92"
+                onClick={is_last_step ? () => on_close({ completed: true }) : on_next}
+                type="button"
+              >
+                {is_last_step ? t("common.finish") : t("common.next")}
+              </button>
+            </div>
           </div>
         </div>
       </div>
