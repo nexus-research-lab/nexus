@@ -23,6 +23,7 @@ export function build_sidebar_navigation_tour(
         title: t("sidebar.tour_intro_title"),
         description: t("sidebar.tour_intro_description"),
         placement: "center",
+        image: "/nexus/welcome.png",
         items: [
           { icon: "users", text: t("sidebar.guide_agents") },
           { icon: "hash", text: t("sidebar.guide_rooms") },
@@ -35,6 +36,7 @@ export function build_sidebar_navigation_tour(
         description: t("sidebar.tour_agents_description"),
         target: SIDEBAR_TOUR_ANCHORS.agents,
         placement: "right",
+        image: "/nexus/running.png",
       },
       {
         id: "rooms",
@@ -42,6 +44,7 @@ export function build_sidebar_navigation_tour(
         description: t("sidebar.tour_rooms_description"),
         target: SIDEBAR_TOUR_ANCHORS.rooms,
         placement: "right",
+        image: "/nexus/in-room.png",
       },
       {
         id: "capabilities",
@@ -49,6 +52,7 @@ export function build_sidebar_navigation_tour(
         description: t("sidebar.tour_capabilities_description"),
         target: SIDEBAR_TOUR_ANCHORS.capabilities,
         placement: "right",
+        image: "/nexus/working.png",
       },
       {
         id: "restart",
@@ -56,6 +60,7 @@ export function build_sidebar_navigation_tour(
         description: t("sidebar.tour_restart_description"),
         target: SIDEBAR_TOUR_ANCHORS.restart,
         placement: "right",
+        image: "/nexus/completed.png",
       },
     ],
   };
