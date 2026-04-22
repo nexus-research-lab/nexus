@@ -38,6 +38,15 @@ export interface ConnectorDetail extends ConnectorInfo {
   features: string[];
 }
 
+/** 用户配置的 OAuth 应用摘要，不包含 client_secret 明文 */
+export interface ConnectorOAuthClientView {
+  connector_id: string;
+  client_id: string;
+  has_client_secret: boolean;
+  updated_at: string;
+  configured?: boolean;
+}
+
 /** 连接器类别 */
 export interface ConnectorCategory {
   key: string;

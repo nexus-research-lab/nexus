@@ -64,9 +64,35 @@ Shopify: create a public app in the Partner dashboard and add the callback under
 - Only provider-declared extra keys are persisted in `extra_json`; unknown query parameters are ignored.
 - Connector credentials are encrypted with AES-GCM into `connector_connections.credentials_encrypted` when `CONNECTOR_CREDENTIALS_KEY` is configured. The key must be a 32-byte base64 value.
 
+## Per-user OAuth clients
+
+Users can configure OAuth application credentials from the connector detail dialog. Records are stored in `connector_oauth_clients` by `(owner_user_id, connector_id)`.
+
+Credential resolution order:
+
+1. User-scoped DB row in `connector_oauth_clients`.
+2. Deployment-level `CONNECTOR_*_CLIENT_ID` / `CONNECTOR_*_CLIENT_SECRET` environment config.
+
+`client_secret` is always encrypted into `client_secret_encrypted` with AES-GCM using `CONNECTOR_CREDENTIALS_KEY`. Unlike connector token storage, OAuth client secrets do not allow plaintext debug fallback; saving a user OAuth app fails when the key is missing or invalid.
+
 ## Troubleshooting
 
 - `OAuth state 无效或已过期`: the authorization attempt is missing, already used, or older than 10 minutes. Start Connect again.
 - `redirect_uri_mismatch`: the URI passed to Nexus must exactly match the URI registered in the provider portal.
 - `invalid_request` with PKCE providers: check that the provider supports S256 PKCE and that the callback is completing against the same Nexus backend that created the state.
 - Shopify `shop 参数缺失`: enter the myshopify.com subdomain before opening the authorize page.
+
+## Agent Runtime 集成
+
+已连接 connector 会以 `nexus_connectors` SDK MCP server 注入 chat / room runtime。工具清单：
+
+- `connector_list`: 无参数，返回当前用户已连接 connector 的 `connector_id`、`auth_type`、`api_base_url`。
+- `connector_call`: 通用 REST 代理，输入 `{connector_id, method, path, query?, body?, headers?}`。`path` 必须以 `/` 开头，并相对该 connector 的 `api_base_url`。
+
+调用约定：
+
+- Runtime 构建 MCP server 时携带 `owner_user_id`。当前 `connector_connections` 仍是全局表，查询方法保留 owner 参数并留有 `TODO(connector-user-scope)`，后续 PR 加表级 user scope 时不改 MCP 契约。
+- `connector_call` 自动设置 `Authorization: Bearer <access_token>`；用户传入的 headers 不能覆盖 Authorization。
+- 出站 base URL 仅允许 `https`，本地调试允许 `http://localhost` / loopback。
+- 响应体超过 256KB 会被截断，并返回 `"_truncated": true`。
+- 非 2xx 响应不会抛 transport error，会把 `status` 与原始响应体一起返回给 Agent。

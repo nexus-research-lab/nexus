@@ -25,6 +25,7 @@ export function useConnectorController(): ConnectorDirectoryController {
   const [active_category, set_active_category] = useState("all");
   const [selected_detail, set_selected_detail] = useState<ConnectorDetail | null>(null);
   const [detail_loading, set_detail_loading] = useState(false);
+  const [oauth_client_config_connector_id, set_oauth_client_config_connector_id] = useState<string | null>(null);
   const [busy_id, set_busy_id] = useState<string | null>(null);
   const [status_message, set_status_message] = useState<string | null>(null);
   const [error_message, set_error_message] = useState<string | null>(null);
@@ -88,6 +89,14 @@ export function useConnectorController(): ConnectorDirectoryController {
 
   const close_detail = useCallback(() => {
     set_selected_detail(null);
+  }, []);
+
+  const open_oauth_client_config = useCallback((connector_id: string) => {
+    set_oauth_client_config_connector_id(connector_id);
+  }, []);
+
+  const close_oauth_client_config = useCallback(() => {
+    set_oauth_client_config_connector_id(null);
   }, []);
 
   // 连接 —— OAuth 类型打开授权窗口，其他直接连接
@@ -172,8 +181,11 @@ export function useConnectorController(): ConnectorDirectoryController {
     connected_count,
     selected_detail,
     detail_loading,
+    oauth_client_config_connector_id,
     open_detail,
     close_detail,
+    open_oauth_client_config,
+    close_oauth_client_config,
     handle_connect,
     handle_disconnect,
     busy_id,

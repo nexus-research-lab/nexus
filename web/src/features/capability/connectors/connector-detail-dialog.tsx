@@ -24,6 +24,7 @@ interface ConnectorDetailDialogProps {
   on_close: () => void;
   on_connect: (connector_id: string) => void;
   on_disconnect: (connector_id: string) => void;
+  on_configure_oauth_client: (connector_id: string) => void;
 }
 
 /** 连接器详情弹窗 */
@@ -34,6 +35,7 @@ export function ConnectorDetailDialog({
   on_close,
   on_connect,
   on_disconnect,
+  on_configure_oauth_client,
 }: ConnectorDetailDialogProps) {
   const handle_backdrop_click = useCallback(
     (e: React.MouseEvent) => {
@@ -190,15 +192,31 @@ export function ConnectorDetailDialog({
               </button>
             ) : (
               <button
-                className={get_dialog_action_class_name(is_configured ? "primary" : "default")}
-                disabled={busy || !is_configured}
-                onClick={() => on_connect(detail.connector_id)}
+                className={get_dialog_action_class_name("primary")}
+                disabled={busy}
+                onClick={() => {
+                  if (is_configured) {
+                    on_connect(detail.connector_id);
+                    return;
+                  }
+                  on_configure_oauth_client(detail.connector_id);
+                }}
                 type="button"
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {is_configured ? "授权连接" : "等待配置"}
+                {is_configured ? "授权连接" : "配置 OAuth 应用"}
               </button>
             )}
+            {detail.auth_type === "oauth2" && is_configured ? (
+              <button
+                className={get_dialog_action_class_name("default")}
+                disabled={busy}
+                onClick={() => on_configure_oauth_client(detail.connector_id)}
+                type="button"
+              >
+                更新 OAuth 应用
+              </button>
+            ) : null}
           </div>
         )}
       </div>

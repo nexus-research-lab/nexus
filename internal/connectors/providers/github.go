@@ -29,6 +29,10 @@ func (p githubProvider) ConnectorID() string {
 	return "github"
 }
 
+func (p githubProvider) APIBaseURL() string {
+	return "https://api.github.com"
+}
+
 func (p githubProvider) RequiresPKCE() bool {
 	return false
 }
