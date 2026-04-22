@@ -103,7 +103,7 @@ func (h *prettyHandler) format(
 
 	// [ TIME ]
 	builder.WriteString(h.paint("[ ", ansiWhite))
-	builder.WriteString(h.paint(logTime.Format("15:04:05"), ansiBrightBlack))
+	builder.WriteString(h.paint(logTime.Format("15:04:05.000"), ansiBrightBlack))
 	builder.WriteString(h.paint(" ]", ansiWhite))
 	builder.WriteByte(' ')
 
@@ -130,7 +130,7 @@ func (h *prettyHandler) format(
 		builder.WriteByte(' ')
 		builder.WriteString(h.paint(fmt.Sprintf("%4d", access.status), colorForStatus(access.status)))
 		builder.WriteByte(' ')
-		builder.WriteString(h.paint(fmt.Sprintf("%5s", access.duration), ansiBrightBlack))
+		builder.WriteString(h.paint(fmt.Sprintf("%6s", access.duration), ansiBrightBlack))
 		builder.WriteByte(' ')
 		builder.WriteString(h.paint(fmt.Sprintf("%7s", access.bytes), ansiBrightBlack))
 		builder.WriteByte(' ')

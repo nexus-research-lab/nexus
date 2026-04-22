@@ -60,6 +60,7 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		"success": true,
 		"data": map[string]any{
 			"default_agent_id":       defaultAgent.AgentID,
+			"default_agent_avatar":   defaultAgent.Avatar,
 			"default_agent_provider": defaultProvider,
 		},
 	})

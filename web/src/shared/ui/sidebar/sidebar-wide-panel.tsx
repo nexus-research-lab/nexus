@@ -13,16 +13,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { get_default_agent_id, is_main_agent } from "@/config/options";
+import { get_default_agent_avatar, get_default_agent_id, is_main_agent } from "@/config/options";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import { HomePanelContent } from "@/features/home/home-sidebar-panel";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
-import { cn, get_icon_avatar_src, get_initials } from "@/lib/utils";
+import { cn, get_icon_avatar_src } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
+import { SidebarOnboardingHint } from "@/shared/ui/sidebar/sidebar-onboarding-hint";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
 import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { useAgentStore } from "@/store/agent";
@@ -53,8 +54,8 @@ export function SidebarWidePanel() {
   const prefers_reduced_motion = usePrefersReducedMotion();
   const default_agent_id = get_default_agent_id();
   const nexus_agent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
-  const nexus_avatar_src = get_icon_avatar_src(nexus_agent?.avatar);
-  const nexus_initials = get_initials(nexus_agent?.name, "NX", 2);
+  const nexus_avatar = nexus_agent?.avatar?.trim() || get_default_agent_avatar();
+  const nexus_avatar_src = get_icon_avatar_src(nexus_avatar);
   const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
     || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
 
@@ -243,9 +244,7 @@ export function SidebarWidePanel() {
                     src={nexus_avatar_src}
                   />
                 ) : (
-                  <span className="relative z-10 text-[11px] font-semibold tracking-[0.08em] text-primary">
-                    {nexus_initials}
-                  </span>
+                  <span className="relative z-10 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-subtle)">NX</span>
                 )}
               </span>
             </span>
@@ -272,6 +271,7 @@ export function SidebarWidePanel() {
 
       {/* 面板内容 */}
       <div className="soft-scrollbar scrollbar-stable-gutter flex-1 overflow-y-auto px-2.5 py-2.5">
+        <SidebarOnboardingHint />
         <HomePanelContent />
 
         <CollapsibleSection
