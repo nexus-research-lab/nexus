@@ -1,4 +1,4 @@
-ARG GO_IMAGE=golang:1.24-bookworm
+ARG GO_IMAGE=golang:1.26.2-bookworm
 ARG NODE_IMAGE=node:22-bookworm-slim
 
 FROM ${GO_IMAGE} AS builder

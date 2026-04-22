@@ -15,7 +15,7 @@
 
 ## 技术栈
 
-- 后端：Go 1.24+、chi、coder/websocket、Goose、Claude Agent SDK（Go）
+- 后端：Go 1.26.2+、chi、coder/websocket、Goose、Claude Agent SDK（Go）
 - 前端：React 19、Vite 7、React Router 7、TypeScript 5、Zustand、Tailwind CSS 4
 
 ## 项目结构
@@ -36,7 +36,7 @@
 
 ### 1. 环境
 
-- Go 1.24+
+- Go 1.26.2+
 - Node.js 20+
 - npm
 
