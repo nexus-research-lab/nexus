@@ -198,13 +198,20 @@ func detectSchemaVersion(
 			return 0, latestErr
 		}
 		if latestGo {
+			// 若 alembic_version 仍在说明 00004 还没执行，回退一级让 Goose 补跑。
+			hasAlembic, alembicErr := tableExists(ctx, executor, driver, "alembic_version")
+			if alembicErr != nil {
+				return 0, alembicErr
+			}
+			if hasAlembic && latestVersion > baselineVersion {
+				return latestVersion - 1, nil
+			}
 			return latestVersion, nil
 		}
-		// 中文注释：当前库已经进入 Go 时代主线，但还缺最新一次增量迁移；
-		// 这里要回退到“上一版真实 schema”，让 Goose 正常执行剩余迁移，
-		// 不能再把版本表直接写成 latest，否则会跳过待执行的 migration。
+		// Schema 进入 Go 时代主线但缺少 user_scope 增量，属于 00002 已执行状态；
+		// 必须回到 baseline+1，让 Goose 继续补跑剩余迁移，而不是跳到 latest-1。
 		if latestVersion > baselineVersion {
-			return latestVersion - 1, nil
+			return baselineVersion + 1, nil
 		}
 		return baselineVersion, nil
 	}

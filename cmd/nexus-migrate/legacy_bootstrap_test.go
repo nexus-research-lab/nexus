@@ -31,7 +31,7 @@ func TestBootstrapLegacyMigrationVersionStampsBaselineForCurrentSchema(t *testin
 		t.Fatalf("bootstrap baseline version 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 3)
+	assertCurrentVersion(t, db, "sqlite", 4)
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) {
@@ -61,7 +61,7 @@ func TestBootstrapLegacyMigrationVersionRepairsLatestPythonSchema(t *testing.T) 
 	if err := goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("执行 Go 适配迁移失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 3)
+	assertCurrentVersion(t, db, "sqlite", 4)
 	assertSQLiteTableExists(t, db, "provider")
 	assertSQLiteTableExists(t, db, "users")
 	assertSQLiteTableExists(t, db, "auth_password_credentials")
@@ -91,7 +91,7 @@ func TestBootstrapLegacyMigrationVersionRepairsZeroVersionTable(t *testing.T) {
 		t.Fatalf("bootstrap baseline version after zero row 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 3)
+	assertCurrentVersion(t, db, "sqlite", 4)
 }
 
 func TestBootstrapLegacyMigrationVersionNormalizesCollapsedVersions(t *testing.T) {
@@ -113,7 +113,7 @@ func TestBootstrapLegacyMigrationVersionNormalizesCollapsedVersions(t *testing.T
 		t.Fatalf("bootstrap baseline version after collapsed versions 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 3)
+	assertCurrentVersion(t, db, "sqlite", 4)
 }
 
 func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing.T) {
@@ -135,8 +135,8 @@ func TestBootstrapLegacyMigrationVersionRepairsSingletonLatestVersion(t *testing
 		t.Fatalf("bootstrap singleton latest version 失败: %v", err)
 	}
 
-	assertCurrentVersion(t, db, "sqlite", 3)
-	assertAppliedVersions(t, db, "sqlite", []int64{1, 2, 3})
+	assertCurrentVersion(t, db, "sqlite", 4)
+	assertAppliedVersions(t, db, "sqlite", []int64{1, 2, 3, 4})
 }
 
 func TestBootstrapLegacyMigrationVersionKeepsPendingGoMigrationVersion(t *testing.T) {
@@ -162,7 +162,7 @@ func TestBootstrapLegacyMigrationVersionKeepsPendingGoMigrationVersion(t *testin
 	if err := goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("执行 00003 migration 失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 3)
+	assertCurrentVersion(t, db, "sqlite", 4)
 	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
 	assertSQLiteColumnExists(t, db, "agents", "is_main")
 	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
@@ -194,7 +194,7 @@ func TestBootstrapLegacyMigrationVersionRepairsPrematureLatestVersion(t *testing
 	if err := goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("执行 00003 migration 失败: %v", err)
 	}
-	assertCurrentVersion(t, db, "sqlite", 3)
+	assertCurrentVersion(t, db, "sqlite", 4)
 	assertSQLiteColumnExists(t, db, "agents", "owner_user_id")
 	assertSQLiteColumnExists(t, db, "agents", "is_main")
 	assertSQLiteColumnExists(t, db, "rooms", "owner_user_id")
@@ -464,6 +464,18 @@ func assertSQLiteTableExists(t *testing.T, db *sql.DB, tableName string) {
 	exists, err := tableExists(context.Background(), db, "sqlite", tableName)
 	if err != nil {
 		t.Fatalf("检查表存在失败: table=%s err=%v", tableName, err)
+	}
+	if !exists {
+		t.Fatalf("期望表存在: table=%s", tableName)
+	}
+}
+
+func assertSQLiteTableNotExists(t *testing.T, db *sql.DB, tableName string) {
+	t.Helper()
+
+	exists, err := tableExists(context.Background(), db, "sqlite", tableName)
+	if err != nil {
+		t.Fatalf("检查表不存在失败: table=%s err=%v", tableName, err)
 	}
 	if exists {
 		t.Fatalf("期望表不存在: table=%s", tableName)
