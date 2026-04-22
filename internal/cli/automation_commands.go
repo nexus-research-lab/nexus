@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-
 	automation2 "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/spf13/cobra"
@@ -30,7 +28,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 			Use:   "list",
 			Short: "列出定时任务",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := service.ListTasks(context.Background(), agentID)
+				items, err := service.ListTasks(commandContext(cmd), agentID)
 				if err != nil {
 					return err
 				}
@@ -94,7 +92,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 				if cronExpression != "" {
 					payload.Schedule.CronExpression = stringRef(cronExpression)
 				}
-				item, err := service.CreateTask(context.Background(), payload)
+				item, err := service.CreateTask(commandContext(cmd), payload)
 				if err != nil {
 					return err
 				}
@@ -183,7 +181,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 				if cmd.Flags().Changed("enabled") {
 					payload.Enabled = &enabled
 				}
-				item, err := service.UpdateTask(context.Background(), args[0], payload)
+				item, err := service.UpdateTask(commandContext(cmd), args[0], payload)
 				if err != nil {
 					return err
 				}
@@ -215,7 +213,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		Short: "删除定时任务",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := service.DeleteTask(context.Background(), args[0]); err != nil {
+			if err := service.DeleteTask(commandContext(cmd), args[0]); err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{
@@ -233,7 +231,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		Short: "立即运行定时任务",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.RunTaskNow(context.Background(), args[0])
+			item, err := service.RunTaskNow(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -250,7 +248,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		Short: "读取任务运行历史",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.ListTaskRuns(context.Background(), args[0])
+			items, err := service.ListTaskRuns(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -269,7 +267,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 			Short: "切换任务启停状态",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateTaskStatus(context.Background(), args[0], enabled)
+				item, err := service.UpdateTaskStatus(commandContext(cmd), args[0], enabled)
 				if err != nil {
 					return err
 				}
@@ -298,7 +296,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 		Short: "读取 heartbeat 状态",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.GetHeartbeatStatus(context.Background(), args[0])
+			item, err := service.GetHeartbeatStatus(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -320,7 +318,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 			Short: "更新 heartbeat 配置",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateHeartbeat(context.Background(), args[0], automation2.HeartbeatUpdateInput{
+				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], automation2.HeartbeatUpdateInput{
 					Enabled:      enabled,
 					EverySeconds: everySeconds,
 					TargetMode:   targetMode,
@@ -355,7 +353,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 				if text != "" {
 					request.Text = stringRef(text)
 				}
-				item, err := service.WakeHeartbeat(context.Background(), args[0], request)
+				item, err := service.WakeHeartbeat(commandContext(cmd), args[0], request)
 				if err != nil {
 					return err
 				}

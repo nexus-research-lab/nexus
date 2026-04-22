@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
@@ -18,6 +20,8 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 
 // New 创建 CLI 应用。
 func New(cfg config.Config) (*cobra.Command, error) {
@@ -40,6 +44,30 @@ func New(cfg config.Config) (*cobra.Command, error) {
 		Use:   "nexusctl",
 		Short: "Nexus 主智能体操作系统 CLI",
 	}
+	var (
+		scopeUserID string
+		globalScope bool
+	)
+	root.PersistentFlags().StringVar(
+		&scopeUserID,
+		"scope-user-id",
+		strings.TrimSpace(os.Getenv(nexusctlUserIDEnvName)),
+		"显式指定当前命令所属的 user_id",
+	)
+	root.PersistentFlags().BoolVar(
+		&globalScope,
+		"global-scope",
+		false,
+		"显式允许在本机管理员场景下使用全局作用域",
+	)
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		nextCtx, err := buildScopedCLIContext(commandContext(cmd), authService, cmd, scopeUserID, globalScope)
+		if err != nil {
+			return err
+		}
+		cmd.SetContext(nextCtx)
+		return nil
+	}
 
 	root.AddCommand(newAgentCommand(agentService))
 	root.AddCommand(newAuthCommand(authService))
@@ -58,6 +86,85 @@ func New(cfg config.Config) (*cobra.Command, error) {
 	return root, nil
 }
 
+func commandContext(cmd *cobra.Command) context.Context {
+	if cmd == nil || cmd.Context() == nil {
+		return context.Background()
+	}
+	return cmd.Context()
+}
+
+func buildScopedCLIContext(
+	base context.Context,
+	authService *authsvc.Service,
+	cmd *cobra.Command,
+	scopeUserID string,
+	globalScope bool,
+) (context.Context, error) {
+	if base == nil {
+		base = context.Background()
+	}
+	trimmedUserID := strings.TrimSpace(scopeUserID)
+	if existingUserID, ok := authsvc.CurrentUserID(base); ok && strings.TrimSpace(existingUserID) != "" {
+		if trimmedUserID != "" && trimmedUserID != strings.TrimSpace(existingUserID) {
+			return nil, fmt.Errorf("命令上下文中的 user_id 与 --scope-user-id 不一致")
+		}
+		if globalScope {
+			return nil, fmt.Errorf("命令上下文中已存在 user_id，不能再显式指定 --global-scope")
+		}
+		return base, nil
+	}
+	if globalScope {
+		if trimmedUserID != "" {
+			return nil, fmt.Errorf("--scope-user-id 与 --global-scope 不能同时使用")
+		}
+		return base, nil
+	}
+	if trimmedUserID == "" || authService == nil || !commandRequiresUserScope(cmd) {
+		if trimmedUserID == "" && authService != nil && commandRequiresUserScope(cmd) {
+			state, err := authService.GetState(context.Background())
+			if err != nil {
+				return nil, err
+			}
+			if state.UserCount > 0 {
+				return nil, fmt.Errorf(
+					"当前 CLI 运行在多用户模式下，%s 必须显式提供 --scope-user-id，或在本机管理员场景下显式加 --global-scope",
+					cmd.CommandPath(),
+				)
+			}
+		}
+		return base, nil
+	}
+	return authsvc.WithPrincipal(base, &authsvc.Principal{
+		UserID:     trimmedUserID,
+		Username:   trimmedUserID,
+		AuthMethod: "nexusctl_scope",
+	}), nil
+}
+
+func commandRequiresUserScope(cmd *cobra.Command) bool {
+	switch commandDomain(cmd) {
+	case "", "auth", "user", "memory", "channel", "completion", "help":
+		return false
+	default:
+		return true
+	}
+}
+
+func commandDomain(cmd *cobra.Command) string {
+	current := cmd
+	for current != nil {
+		parent := current.Parent()
+		if parent == nil {
+			return ""
+		}
+		if parent.Parent() == nil {
+			return strings.Fields(current.Use)[0]
+		}
+		current = parent
+	}
+	return ""
+}
+
 func newAgentCommand(service *agent2.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "agent",
@@ -68,7 +175,7 @@ func newAgentCommand(service *agent2.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出全部 Agent",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.ListAgents(context.Background())
+			items, err := service.ListAgents(commandContext(cmd))
 			if err != nil {
 				return err
 			}
@@ -91,7 +198,7 @@ func newAgentCommand(service *agent2.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建 Agent",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateAgent(context.Background(), agent2.CreateRequest{
+				item, err := service.CreateAgent(commandContext(cmd), agent2.CreateRequest{
 					Name:        name,
 					Avatar:      avatar,
 					Description: description,
@@ -118,7 +225,7 @@ func newAgentCommand(service *agent2.Service) *cobra.Command {
 		Short: "获取指定 Agent",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.GetAgent(context.Background(), args[0])
+			item, err := service.GetAgent(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -143,7 +250,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出全部 Room",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.ListRooms(context.Background(), 200)
+			items, err := service.ListRooms(commandContext(cmd), 200)
 			if err != nil {
 				return err
 			}
@@ -167,7 +274,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建 Room",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateRoom(context.Background(), roomsvc.CreateRoomRequest{
+				item, err := service.CreateRoom(commandContext(cmd), roomsvc.CreateRoomRequest{
 					AgentIDs:    agentIDs,
 					Name:        name,
 					Description: description,
@@ -196,7 +303,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "读取指定 Room",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.GetRoom(context.Background(), args[0])
+			item, err := service.GetRoom(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -213,7 +320,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "读取 Room 上下文",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.GetRoomContexts(context.Background(), args[0])
+			items, err := service.GetRoomContexts(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -231,7 +338,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Use:   "ensure-dm",
 			Short: "获取或创建直聊 Room",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.EnsureDirectRoom(context.Background(), agentID)
+				item, err := service.EnsureDirectRoom(commandContext(cmd), agentID)
 				if err != nil {
 					return err
 				}
@@ -258,7 +365,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "更新 Room",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateRoom(context.Background(), args[0], roomsvc.UpdateRoomRequest{
+				item, err := service.UpdateRoom(commandContext(cmd), args[0], roomsvc.UpdateRoomRequest{
 					Name:        name,
 					Description: description,
 					Title:       title,
@@ -284,7 +391,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "删除 Room",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := service.DeleteRoom(context.Background(), args[0]); err != nil {
+			if err := service.DeleteRoom(commandContext(cmd), args[0]); err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{
@@ -304,7 +411,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "向 Room 添加成员",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.AddRoomMember(context.Background(), args[0], roomsvc.AddRoomMemberRequest{
+				item, err := service.AddRoomMember(commandContext(cmd), args[0], roomsvc.AddRoomMemberRequest{
 					AgentID: agentID,
 				})
 				if err != nil {
@@ -329,7 +436,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "从 Room 移除成员",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.RemoveRoomMember(context.Background(), args[0], agentID)
+				item, err := service.RemoveRoomMember(commandContext(cmd), args[0], agentID)
 				if err != nil {
 					return err
 				}
@@ -352,7 +459,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "创建 Room 话题",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateConversation(context.Background(), args[0], roomsvc.CreateConversationRequest{
+				item, err := service.CreateConversation(commandContext(cmd), args[0], roomsvc.CreateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -376,7 +483,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "更新 Room 话题",
 			Args:  cobra.ExactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateConversation(context.Background(), args[0], args[1], roomsvc.UpdateConversationRequest{
+				item, err := service.UpdateConversation(commandContext(cmd), args[0], args[1], roomsvc.UpdateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -399,7 +506,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "删除 Room 话题",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.DeleteConversation(context.Background(), args[0], args[1])
+			item, err := service.DeleteConversation(commandContext(cmd), args[0], args[1])
 			if err != nil {
 				return err
 			}
@@ -426,7 +533,7 @@ func newLauncherCommand(service *launcher.Service) *cobra.Command {
 			Use:   "query",
 			Short: "解析 Launcher 查询",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.Query(context.Background(), query)
+				item, err := service.Query(commandContext(cmd), query)
 				if err != nil {
 					return err
 				}
@@ -446,7 +553,7 @@ func newLauncherCommand(service *launcher.Service) *cobra.Command {
 		Use:   "suggestions",
 		Short: "读取 Launcher 推荐列表",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.Suggestions(context.Background())
+			item, err := service.Suggestions(commandContext(cmd))
 			if err != nil {
 				return err
 			}
@@ -478,9 +585,9 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 					err   error
 				)
 				if agentID != "" {
-					items, err = service.ListAgentSessions(context.Background(), agentID)
+					items, err = service.ListAgentSessions(commandContext(cmd), agentID)
 				} else {
-					items, err = service.ListSessions(context.Background())
+					items, err = service.ListSessions(commandContext(cmd))
 				}
 				if err != nil {
 					return err
@@ -502,7 +609,7 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "get",
 			Short: "读取单个会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.GetSession(context.Background(), sessionKey)
+				item, err := service.GetSession(commandContext(cmd), sessionKey)
 				if err != nil {
 					return err
 				}
@@ -528,7 +635,7 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateSession(context.Background(), sessionsvc.CreateRequest{
+				item, err := service.CreateSession(commandContext(cmd), sessionsvc.CreateRequest{
 					SessionKey: sessionKey,
 					AgentID:    agentID,
 					Title:      title,
@@ -559,7 +666,7 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "update",
 			Short: "更新会话标题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateSession(context.Background(), sessionKey, sessionsvc.UpdateRequest{
+				item, err := service.UpdateSession(commandContext(cmd), sessionKey, sessionsvc.UpdateRequest{
 					Title: &title,
 				})
 				if err != nil {
@@ -584,7 +691,7 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "messages",
 			Short: "读取会话消息",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := service.GetSessionMessages(context.Background(), sessionKey)
+				items, err := service.GetSessionMessages(commandContext(cmd), sessionKey)
 				if err != nil {
 					return err
 				}
@@ -606,7 +713,7 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "delete",
 			Short: "删除会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if err := service.DeleteSession(context.Background(), sessionKey); err != nil {
+				if err := service.DeleteSession(commandContext(cmd), sessionKey); err != nil {
 					return err
 				}
 				return emitJSON(map[string]any{
@@ -638,7 +745,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "list",
 			Short: "列出 Room 下的全部话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := roomService.GetRoomContexts(context.Background(), roomID)
+				items, err := roomService.GetRoomContexts(commandContext(cmd), roomID)
 				if err != nil {
 					return err
 				}
@@ -659,7 +766,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 		Short: "读取单个话题上下文",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := roomService.GetConversationContext(context.Background(), args[0])
+			item, err := roomService.GetConversationContext(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -678,7 +785,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "create",
 			Short: "创建 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := roomService.CreateConversation(context.Background(), roomID, roomsvc.CreateConversationRequest{
+				item, err := roomService.CreateConversation(commandContext(cmd), roomID, roomsvc.CreateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -705,7 +812,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "update",
 			Short: "更新 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := roomService.UpdateConversation(context.Background(), roomID, conversationID, roomsvc.UpdateConversationRequest{
+				item, err := roomService.UpdateConversation(commandContext(cmd), roomID, conversationID, roomsvc.UpdateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -734,7 +841,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "delete",
 			Short: "删除 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := roomService.DeleteConversation(context.Background(), roomID, conversationID)
+				item, err := roomService.DeleteConversation(commandContext(cmd), roomID, conversationID)
 				if err != nil {
 					return err
 				}
@@ -758,7 +865,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "messages",
 			Short: "读取共享对话消息",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := sessionService.GetSessionMessages(context.Background(), fmt.Sprintf("room:group:%s", conversationID))
+				items, err := sessionService.GetSessionMessages(commandContext(cmd), fmt.Sprintf("room:group:%s", conversationID))
 				if err != nil {
 					return err
 				}
@@ -789,7 +896,7 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "list",
 			Short: "列出工作区文件",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := service.ListFiles(context.Background(), agentID)
+				items, err := service.ListFiles(commandContext(cmd), agentID)
 				if err != nil {
 					return err
 				}
@@ -812,7 +919,7 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "get",
 			Short: "读取工作区文件",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.GetFile(context.Background(), agentID, path)
+				item, err := service.GetFile(commandContext(cmd), agentID, path)
 				if err != nil {
 					return err
 				}
@@ -838,7 +945,7 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "update",
 			Short: "更新工作区文件",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateFile(context.Background(), agentID, path, content)
+				item, err := service.UpdateFile(commandContext(cmd), agentID, path, content)
 				if err != nil {
 					return err
 				}
@@ -866,7 +973,7 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建工作区条目",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateEntry(context.Background(), agentID, path, entryType, content)
+				item, err := service.CreateEntry(commandContext(cmd), agentID, path, entryType, content)
 				if err != nil {
 					return err
 				}
@@ -894,7 +1001,7 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "rename",
 			Short: "重命名工作区条目",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.RenameEntry(context.Background(), agentID, path, newPath)
+				item, err := service.RenameEntry(commandContext(cmd), agentID, path, newPath)
 				if err != nil {
 					return err
 				}
@@ -921,7 +1028,7 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "delete",
 			Short: "删除工作区条目",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.DeleteEntry(context.Background(), agentID, path)
+				item, err := service.DeleteEntry(commandContext(cmd), agentID, path)
 				if err != nil {
 					return err
 				}
@@ -957,7 +1064,7 @@ func newSkillCommand(service *skillsvc.Service) *cobra.Command {
 			Use:   "list",
 			Short: "列出技能目录",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := service.ListSkills(context.Background(), skillsvc.Query{
+				items, err := service.ListSkills(commandContext(cmd), skillsvc.Query{
 					AgentID:     agentID,
 					CategoryKey: categoryKey,
 					SourceType:  sourceType,
@@ -987,7 +1094,7 @@ func newSkillCommand(service *skillsvc.Service) *cobra.Command {
 			Short: "读取单个技能详情",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.GetSkillDetail(context.Background(), args[0], agentID)
+				item, err := service.GetSkillDetail(commandContext(cmd), args[0], agentID)
 				if err != nil {
 					return err
 				}
@@ -1008,7 +1115,7 @@ func newSkillCommand(service *skillsvc.Service) *cobra.Command {
 			Use:   "agent-list",
 			Short: "列出 Agent 已可见技能",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				items, err := service.GetAgentSkills(context.Background(), agentID)
+				items, err := service.GetAgentSkills(commandContext(cmd), agentID)
 				if err != nil {
 					return err
 				}
@@ -1031,7 +1138,7 @@ func newSkillCommand(service *skillsvc.Service) *cobra.Command {
 			Use:   "install",
 			Short: "为 Agent 安装技能",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.InstallSkill(context.Background(), agentID, skillName)
+				item, err := service.InstallSkill(commandContext(cmd), agentID, skillName)
 				if err != nil {
 					return err
 				}
@@ -1056,7 +1163,7 @@ func newSkillCommand(service *skillsvc.Service) *cobra.Command {
 			Use:   "uninstall",
 			Short: "从 Agent 卸载技能",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if err := service.UninstallSkill(context.Background(), agentID, skillName); err != nil {
+				if err := service.UninstallSkill(commandContext(cmd), agentID, skillName); err != nil {
 					return err
 				}
 				return emitJSON(map[string]any{
@@ -1110,7 +1217,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出连接器目录",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.ListConnectors(context.Background(), "", "", "")
+			items, err := service.ListConnectors(commandContext(cmd), "", "", "")
 			if err != nil {
 				return err
 			}
@@ -1127,7 +1234,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Short: "读取单个连接器详情",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.GetConnectorDetail(context.Background(), args[0])
+			item, err := service.GetConnectorDetail(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}
@@ -1146,7 +1253,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 			Short: "生成 OAuth 授权地址",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.GetAuthURL(context.Background(), args[0], redirectURI)
+				item, err := service.GetAuthURL(commandContext(cmd), args[0], redirectURI)
 				if err != nil {
 					return err
 				}
@@ -1166,7 +1273,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Short: "断开连接器",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := service.Disconnect(context.Background(), args[0])
+			item, err := service.Disconnect(commandContext(cmd), args[0])
 			if err != nil {
 				return err
 			}

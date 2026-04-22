@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
@@ -220,5 +221,23 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if options.MaxThinkingTokens != 2048 || options.MaxTurns != 8 {
 		t.Fatalf("思考/轮次限制未透传: %+v", options)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:     "user-123",
+		Username:   "alice",
+		AuthMethod: "test",
+	})
+
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusctlUserIDEnvName] != "user-123" {
+		t.Fatalf("未把当前 user_id 注入运行时环境: %+v", options.Env)
 	}
 }

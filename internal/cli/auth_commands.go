@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-
 	auth2 "github.com/nexus-research-lab/nexus/internal/auth"
 
 	"github.com/spf13/cobra"
@@ -18,7 +16,7 @@ func newAuthCommand(service *auth2.Service) *cobra.Command {
 		Use:   "status",
 		Short: "读取认证系统状态",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			state, err := service.GetState(context.Background())
+			state, err := service.GetState(commandContext(cmd))
 			if err != nil {
 				return err
 			}
@@ -40,7 +38,7 @@ func newAuthCommand(service *auth2.Service) *cobra.Command {
 			Use:   "init-owner",
 			Short: "初始化首个 owner 用户",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.InitOwner(context.Background(), auth2.InitOwnerInput{
+				item, err := service.InitOwner(commandContext(cmd), auth2.InitOwnerInput{
 					Username:    username,
 					DisplayName: displayName,
 					Password:    password,
@@ -75,7 +73,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出全部认证用户",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := service.ListUsers(context.Background())
+			items, err := service.ListUsers(commandContext(cmd))
 			if err != nil {
 				return err
 			}
@@ -98,7 +96,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建认证用户",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateUser(context.Background(), auth2.CreateUserInput{
+				item, err := service.CreateUser(commandContext(cmd), auth2.CreateUserInput{
 					Username:    username,
 					DisplayName: displayName,
 					Password:    password,
@@ -133,7 +131,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 			Use:   "reset-password",
 			Short: "重置用户密码",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.ResetPassword(context.Background(), auth2.ResetPasswordInput{
+				item, err := service.ResetPassword(commandContext(cmd), auth2.ResetPasswordInput{
 					UserID:   userID,
 					Username: username,
 					Password: password,
