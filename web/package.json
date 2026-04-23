@@ -11,7 +11,7 @@
     "export:liquid-glass": "node ./scripts/export-liquid-glass-assets.mjs"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.3",
+    "@chenglou/pretext": "0.0.5",
     "@lottiefiles/dotlottie-react": "^0.18.7",
     "@tanstack/react-virtual": "^3.13.23",
     "@types/matter-js": "^0.20.2",
