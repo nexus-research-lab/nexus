@@ -189,7 +189,7 @@ func (c *RoundCoordinator) recycleRuntimeClient(
 		"session_key", sessionKey,
 		"cause", cause,
 	)
-	return c.runtime.CloseSession(recycleCtx, sessionKey)
+	return c.runtime.RecycleClient(recycleCtx, sessionKey)
 }
 
 func (c *RoundCoordinator) loggerFor(ctx context.Context) *slog.Logger {

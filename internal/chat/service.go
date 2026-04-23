@@ -100,16 +100,18 @@ func (a chatRoundMapperAdapter) SessionID() string {
 }
 
 type roundRunner struct {
-	service       *Service
-	workspacePath string
-	session       session.Session
-	agent         *agent3.Agent
-	sessionKey    string
-	roundID       string
-	reqID         string
-	content       string
-	client        runtimectx.Client
-	mapper        *messageMapper
+	service           *Service
+	workspacePath     string
+	session           session.Session
+	agent             *agent3.Agent
+	sessionKey        string
+	roundID           string
+	reqID             string
+	content           string
+	client            runtimectx.Client
+	mapper            *messageMapper
+	permissionMode    sdkprotocol.PermissionMode
+	permissionHandler agentclient.PermissionHandler
 }
 
 // NewService 创建 DM 会话编排服务。
@@ -209,16 +211,18 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	})
 
 	runner := &roundRunner{
-		service:       s,
-		workspacePath: agentValue.WorkspacePath,
-		session:       sessionItem,
-		agent:         agentValue,
-		sessionKey:    sessionKey,
-		roundID:       request.RoundID,
-		reqID:         firstNonEmpty(request.ReqID, request.RoundID),
-		content:       strings.TrimSpace(request.Content),
-		client:        client,
-		mapper:        newMessageMapper(sessionKey, agentID, request.RoundID),
+		service:           s,
+		workspacePath:     agentValue.WorkspacePath,
+		session:           sessionItem,
+		agent:             agentValue,
+		sessionKey:        sessionKey,
+		roundID:           request.RoundID,
+		reqID:             firstNonEmpty(request.ReqID, request.RoundID),
+		content:           strings.TrimSpace(request.Content),
+		client:            client,
+		mapper:            newMessageMapper(sessionKey, agentID, request.RoundID),
+		permissionMode:    request.PermissionMode,
+		permissionHandler: request.PermissionHandler,
 	}
 
 	s.loggerFor(ctx).Info("受理 DM 会话消息",
@@ -427,7 +431,7 @@ func (s *Service) recycleRuntimeClient(sessionKey string, cause error) error {
 		"session_key", sessionKey,
 		"cause", cause,
 	)
-	return s.runtime.CloseSession(recycleCtx, sessionKey)
+	return s.runtime.RecycleClient(recycleCtx, sessionKey)
 }
 
 func isBrokenRuntimeClientError(err error) bool {
@@ -571,48 +575,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"round_id", r.roundID,
 	)
 	logger.Info("开始执行 DM round")
-	result, err := runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
-		Query:  r.content,
-		Client: r.client,
-		Mapper: chatRoundMapperAdapter{mapper: r.mapper},
-		InterruptReason: func() string {
-			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
-		},
-		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
-		},
-		SyncSessionID: func(sessionID string) error {
-			updatedSession, syncErr := r.service.syncSDKSessionID(
-				context.Background(),
-				r.workspacePath,
-				r.session,
-				sessionID,
-			)
-			if syncErr != nil {
-				return syncErr
-			}
-			r.session = updatedSession
-			return nil
-		},
-		HandleDurableMessage: func(message sessionmodel.Message) error {
-			if err := r.persistMessage(message); err != nil {
-				return err
-			}
-			if message["role"] == "assistant" {
-				r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
-					DispatchSessionKey: r.sessionKey,
-					AgentID:            r.agent.AgentID,
-					MessageID:          normalizeString(message["message_id"]),
-					CausedBy:           r.roundID,
-				})
-			}
-			return nil
-		},
-		EmitEvent: func(event protocol.EventMessage) error {
-			r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
-			return nil
-		},
-	})
+	result, err := r.executeRoundWithRecoverableClientRetry(ctx, logger)
 	if err != nil {
 		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
 			r.finishInterrupted(r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
@@ -636,6 +599,98 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+}
+
+func (r *roundRunner) executeRoundWithRecoverableClientRetry(
+	ctx context.Context,
+	logger *slog.Logger,
+) (runtimectx.RoundExecutionResult, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		observedOutput := false
+		result, err := runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
+			Query:  r.content,
+			Client: r.client,
+			Mapper: chatRoundMapperAdapter{mapper: r.mapper},
+			InterruptReason: func() string {
+				return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
+			},
+			ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+				observedOutput = true
+				logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			},
+			SyncSessionID: func(sessionID string) error {
+				updatedSession, syncErr := r.service.syncSDKSessionID(
+					context.Background(),
+					r.workspacePath,
+					r.session,
+					sessionID,
+				)
+				if syncErr != nil {
+					return syncErr
+				}
+				r.session = updatedSession
+				return nil
+			},
+			HandleDurableMessage: func(message sessionmodel.Message) error {
+				observedOutput = true
+				if err := r.persistMessage(message); err != nil {
+					return err
+				}
+				if message["role"] == "assistant" {
+					r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
+						DispatchSessionKey: r.sessionKey,
+						AgentID:            r.agent.AgentID,
+						MessageID:          normalizeString(message["message_id"]),
+						CausedBy:           r.roundID,
+					})
+				}
+				return nil
+			},
+			EmitEvent: func(event protocol.EventMessage) error {
+				observedOutput = true
+				r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+				return nil
+			},
+		})
+		if err == nil {
+			return result, nil
+		}
+		if attempt > 0 || observedOutput || !isBrokenRuntimeClientError(err) {
+			return runtimectx.RoundExecutionResult{}, err
+		}
+		logger.Warn("DM round 遇到失效 runtime client，准备静默重建重试", "err", err)
+		if rebuildErr := r.rebuildRuntimeClient(ctx); rebuildErr != nil {
+			return runtimectx.RoundExecutionResult{}, errors.Join(err, rebuildErr)
+		}
+	}
+	return runtimectx.RoundExecutionResult{}, errors.New("round retry exhausted")
+}
+
+func (r *roundRunner) rebuildRuntimeClient(ctx context.Context) error {
+	if err := r.service.runtime.RecycleClient(ctx, r.sessionKey); err != nil {
+		return err
+	}
+	client, err := r.service.ensureClient(
+		ctx,
+		r.sessionKey,
+		r.agent,
+		r.session,
+		Request{
+			SessionKey:        r.sessionKey,
+			PermissionMode:    r.permissionMode,
+			PermissionHandler: r.permissionHandler,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	r.client = client
+	if updatedSession, syncErr := r.service.syncSDKSessionID(ctx, r.workspacePath, r.session, client.SessionID()); syncErr != nil {
+		return syncErr
+	} else {
+		r.session = updatedSession
+	}
+	return nil
 }
 
 func (r *roundRunner) failRound(err error) {
