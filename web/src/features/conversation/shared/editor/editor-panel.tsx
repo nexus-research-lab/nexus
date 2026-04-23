@@ -5,7 +5,12 @@ import {
   FileText, LoaderCircle, Minimize2, Save, FileWarning, Download, Eye, EyeOff, FileImage,
 } from "lucide-react";
 
-import { get_workspace_file_content_api, update_workspace_file_content_api, get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
+import {
+  get_workspace_file_content_api,
+  update_workspace_file_content_api,
+  get_workspace_file_download_url,
+  get_workspace_file_preview_url,
+} from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
@@ -116,6 +121,7 @@ function PdfPreview({
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
   const download_url = get_workspace_file_download_url(agent_id, path);
+  const preview_url = get_workspace_file_preview_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
@@ -183,7 +189,7 @@ function PdfPreview({
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         <iframe
           className="h-full w-full"
-          src={download_url}
+          src={preview_url}
           title={file_name}
           onLoad={() => setIsLoaded(true)}
         />
@@ -211,6 +217,7 @@ function ImagePreview({
   const [is_loaded, setIsLoaded] = useState(false);
   const [has_error, setHasError] = useState(false);
   const download_url = get_workspace_file_download_url(agent_id, path);
+  const preview_url = get_workspace_file_preview_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
@@ -290,7 +297,7 @@ function ImagePreview({
         ) : (
           <img
             className="max-h-full max-w-full rounded-lg object-contain"
-            src={download_url}
+            src={preview_url}
             alt={file_name}
             onLoad={() => setIsLoaded(true)}
             onError={() => { setIsLoaded(true); setHasError(true); }}

@@ -12,6 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+const (
+	workspaceFileDispositionAttachment = "attachment"
+	workspaceFileDispositionInline     = "inline"
+)
+
 // Handlers 封装工作区 HTTP handlers。
 type Handlers struct {
 	api       *gatewayshared.API
@@ -202,6 +207,17 @@ func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, reque
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writer.Header().Set("Content-Disposition", `attachment; filename="`+fileName+`"`)
+	writer.Header().Set(
+		"Content-Disposition",
+		buildWorkspaceFileDispositionHeader(fileName, request.URL.Query().Get("disposition")),
+	)
 	http.ServeFile(writer, request, filePath)
+}
+
+// 中文注释：预览与下载共用同一路由，但内容处置必须显式分流，避免 PDF/图片预览复用下载语义。
+func buildWorkspaceFileDispositionHeader(fileName string, requestedDisposition string) string {
+	if requestedDisposition == workspaceFileDispositionInline {
+		return `inline; filename="` + fileName + `"`
+	}
+	return `attachment; filename="` + fileName + `"`
 }

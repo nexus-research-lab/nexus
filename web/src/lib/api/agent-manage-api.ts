@@ -207,10 +207,27 @@ export const upload_workspace_file_api = async (
 };
 
 /** 获取 workspace 文件下载 URL */
+function build_workspace_file_transfer_url(
+  agent_id: string,
+  path: string,
+  disposition: "attachment" | "inline",
+): string {
+  const params = new URLSearchParams({ path, disposition });
+  return `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/download?${params.toString()}`;
+}
+
+/** 获取 workspace 文件下载 URL */
 export const get_workspace_file_download_url = (
   agent_id: string,
   path: string,
 ): string => {
-  const params = new URLSearchParams({ path });
-  return `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/download?${params.toString()}`;
+  return build_workspace_file_transfer_url(agent_id, path, "attachment");
+};
+
+/** 获取 workspace 文件预览 URL */
+export const get_workspace_file_preview_url = (
+  agent_id: string,
+  path: string,
+): string => {
+  return build_workspace_file_transfer_url(agent_id, path, "inline");
 };
