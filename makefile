@@ -153,12 +153,12 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 		*) resolved_dir="$(CURDIR)/deploy/$${host_data_dir#./}" ;; \
 	esac; \
 	echo "Preparing host data directory: $$resolved_dir"; \
-	mkdir -p "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
-	if [ -d "$$resolved_dir/.claude.json" ]; then \
+	$(HOST_SUDO) mkdir -p "$$resolved_dir" "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	if $(HOST_SUDO) test -d "$$resolved_dir/.claude.json"; then \
 		echo "Error: $$resolved_dir/.claude.json is a directory, expected a file."; \
 		exit 1; \
 	fi; \
-	touch "$$resolved_dir/.claude.json"; \
+	$(HOST_SUDO) touch "$$resolved_dir/.claude.json"; \
 	$(HOST_SUDO) chown -R $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
 	$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.claude.json"; \
 	$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
