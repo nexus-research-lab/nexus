@@ -64,6 +64,11 @@ func BuildAgentClientOptions(
 		PermissionHandler:      input.PermissionHandler,
 		AppendSystemPrompt:     input.AppendSystemPrompt,
 	}
+	if runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider); err != nil {
+		return agentclient.Options{}, err
+	} else if runtimeConfig != nil {
+		options.Model = strings.TrimSpace(runtimeConfig.Model)
+	}
 	if strings.TrimSpace(input.ResumeSessionID) != "" {
 		options.Resume = strings.TrimSpace(input.ResumeSessionID)
 	}
@@ -85,10 +90,7 @@ func BuildRuntimeEnv(
 	resolver RuntimeConfigResolver,
 	provider string,
 ) (map[string]string, error) {
-	if resolver == nil {
-		return nil, nil
-	}
-	runtimeConfig, err := resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +110,17 @@ func BuildRuntimeEnv(
 		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
 	return env, nil
+}
+
+func resolveRuntimeConfig(
+	ctx context.Context,
+	resolver RuntimeConfigResolver,
+	provider string,
+) (*providercfg.RuntimeConfig, error) {
+	if resolver == nil {
+		return nil, nil
+	}
+	return resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
 }
 
 func cloneMCPServers(

@@ -213,6 +213,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
+	if options.Model != "kimi-k2" {
+		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
+	}
 	if options.Env["ENABLE_TOOL_SEARCH"] != "false" {
 		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
 	}

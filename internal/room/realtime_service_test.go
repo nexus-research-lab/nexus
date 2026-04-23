@@ -555,7 +555,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	}
 }
 
-func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
+func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -650,8 +650,8 @@ func TestRealtimeServiceDoesNotForwardModelOption(t *testing.T) {
 	})
 
 	options := factory.LastOptions()
-	if options.Model != "" {
-		t.Fatalf("room runtime 不应向 SDK 透传 agent model: %+v", options)
+	if options.Model != "glm-5.1" {
+		t.Fatalf("room runtime 未向 SDK options 透传 provider model: %+v", options)
 	}
 	if options.Env["ANTHROPIC_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入 provider model: %+v", options.Env)
