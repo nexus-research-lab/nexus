@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -32,6 +33,7 @@ type PendingRequest struct {
 	ExpiresAt          time.Time
 	Route              RouteContext
 	ResponseCh         chan sdkprotocol.PermissionDecision
+	finalizeOnce       sync.Once
 }
 
 func (c *Context) newPendingRequest(sessionKey string, request sdkprotocol.PermissionRequest) *PendingRequest {
@@ -96,6 +98,16 @@ func (c *Context) cleanupRequest(requestID string) {
 	c.mu.Unlock()
 }
 
+func (c *Context) finalizeRequest(pending *PendingRequest, status string) {
+	if pending == nil {
+		return
+	}
+	pending.finalizeOnce.Do(func() {
+		c.cleanupRequest(pending.RequestID)
+		c.dispatchPermissionResolution(pending, status)
+	})
+}
+
 func (c *Context) buildPermissionDecision(
 	pending *PendingRequest,
 	message map[string]any,
@@ -132,6 +144,31 @@ func buildPermissionEvent(pending *PendingRequest) protocol.EventMessage {
 	event.MessageID = emptyStringToOmit(pending.Route.MessageID)
 	event.CausedBy = emptyStringToOmit(pending.Route.CausedBy)
 	return event
+}
+
+func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status string) {
+	if pending == nil {
+		return
+	}
+	controller := c.ResolveControllerSender(pending.DispatchSessionKey)
+	if controller == nil || controller.IsClosed() {
+		return
+	}
+
+	event := protocol.NewPermissionRequestResolvedEvent(
+		pending.DispatchSessionKey,
+		pending.RequestID,
+		status,
+	)
+	event.RoomID = emptyStringToOmit(pending.Route.RoomID)
+	event.ConversationID = emptyStringToOmit(pending.Route.ConversationID)
+	event.AgentID = emptyStringToOmit(firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey)))
+	event.MessageID = emptyStringToOmit(pending.Route.MessageID)
+	event.CausedBy = emptyStringToOmit(pending.Route.CausedBy)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = controller.SendEvent(ctx, event)
 }
 
 func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) map[string]string {

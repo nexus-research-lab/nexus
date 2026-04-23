@@ -16,24 +16,25 @@ type EventType string
 const ChatAckTimeoutMS = 10000
 
 const (
-	EventTypeMessage               EventType = "message"
-	EventTypeStream                EventType = "stream"
-	EventTypeChatAck               EventType = "chat_ack"
-	EventTypeRoundStatus           EventType = "round_status"
-	EventTypeSessionStatus         EventType = "session_status"
-	EventTypePermissionRequest     EventType = "permission_request"
-	EventTypeAgentRuntimeEvent     EventType = "agent_runtime_event"
-	EventTypeWorkspaceEvent        EventType = "workspace_event"
-	EventTypeRoomMemberAdded       EventType = "room_member_added"
-	EventTypeRoomMemberRemoved     EventType = "room_member_removed"
-	EventTypeRoomDeleted           EventType = "room_deleted"
-	EventTypeRoomResyncRequired    EventType = "room_resync_required"
-	EventTypeSessionResyncRequired EventType = "session_resync_required"
-	EventTypeStreamStart           EventType = "stream_start"
-	EventTypeStreamEnd             EventType = "stream_end"
-	EventTypeStreamCancelled       EventType = "stream_cancelled"
-	EventTypeError                 EventType = "error"
-	EventTypePong                  EventType = "pong"
+	EventTypeMessage                   EventType = "message"
+	EventTypeStream                    EventType = "stream"
+	EventTypeChatAck                   EventType = "chat_ack"
+	EventTypeRoundStatus               EventType = "round_status"
+	EventTypeSessionStatus             EventType = "session_status"
+	EventTypePermissionRequest         EventType = "permission_request"
+	EventTypePermissionRequestResolved EventType = "permission_request_resolved"
+	EventTypeAgentRuntimeEvent         EventType = "agent_runtime_event"
+	EventTypeWorkspaceEvent            EventType = "workspace_event"
+	EventTypeRoomMemberAdded           EventType = "room_member_added"
+	EventTypeRoomMemberRemoved         EventType = "room_member_removed"
+	EventTypeRoomDeleted               EventType = "room_deleted"
+	EventTypeRoomResyncRequired        EventType = "room_resync_required"
+	EventTypeSessionResyncRequired     EventType = "session_resync_required"
+	EventTypeStreamStart               EventType = "stream_start"
+	EventTypeStreamEnd                 EventType = "stream_end"
+	EventTypeStreamCancelled           EventType = "stream_cancelled"
+	EventTypeError                     EventType = "error"
+	EventTypePong                      EventType = "pong"
 )
 
 // EventMessage 对齐前后端统一 envelope。
@@ -119,6 +120,7 @@ export type EventType =
   | 'round_status'
   | 'session_status'
   | 'permission_request'
+  | 'permission_request_resolved'
   | 'agent_runtime_event'
   | 'workspace_event'
   | 'room_member_added'
@@ -190,6 +192,16 @@ func NewChatAckEvent(sessionKey string, reqID string, roundID string, pending []
 		"round_id":       roundID,
 		"pending":        pending,
 		"ack_timeout_ms": ChatAckTimeoutMS,
+	})
+	event.SessionKey = sessionKey
+	return event
+}
+
+// NewPermissionRequestResolvedEvent 构造权限请求结束事件。
+func NewPermissionRequestResolvedEvent(sessionKey string, requestID string, status string) EventMessage {
+	event := NewEvent(EventTypePermissionRequestResolved, map[string]any{
+		"request_id": requestID,
+		"status":     strings.TrimSpace(status),
 	})
 	event.SessionKey = sessionKey
 	return event
