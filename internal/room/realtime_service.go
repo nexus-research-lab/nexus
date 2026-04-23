@@ -662,13 +662,18 @@ func (s *RealtimeService) runSlot(
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")
 	}
+	permissionMode := sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
+	var permissionHandler agentclient.PermissionHandler
+	if permissionMode != sdkprotocol.PermissionModeBypassPermissions {
+		permissionHandler = func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
+			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+		}
+	}
 	options, err := runtimectx.BuildAgentClientOptions(slotCtx, s.providers, runtimectx.AgentClientOptionsInput{
 		WorkspacePath:  agentValue.WorkspacePath,
 		Provider:       agentValue.Options.Provider,
-		PermissionMode: sdkprotocol.PermissionMode(agentValue.Options.PermissionMode),
-		PermissionHandler: func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
-			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
-		},
+		PermissionMode: permissionMode,
+		PermissionHandler: permissionHandler,
 		AllowedTools:       agentValue.Options.AllowedTools,
 		DisallowedTools:    agentValue.Options.DisallowedTools,
 		SettingSources:     agentValue.Options.SettingSources,

@@ -352,7 +352,9 @@ func (s *Service) ensureClient(
 		permissionMode = sdkprotocol.PermissionModeDefault
 	}
 	permissionHandler := request.PermissionHandler
-	if permissionHandler == nil {
+	if permissionMode == sdkprotocol.PermissionModeBypassPermissions {
+		permissionHandler = nil
+	} else if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
