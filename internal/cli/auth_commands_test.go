@@ -65,6 +65,27 @@ func TestAuthAndUserCommands(t *testing.T) {
 	}
 }
 
+func TestInitOwnerCommandSupportsPasswordStdin(t *testing.T) {
+	cfg := newCLITestConfig(t)
+	migrateCLISQLite(t, cfg.DatabaseURL)
+
+	initPayload := runCLICommandWithEnvAndInput(
+		t,
+		cfg,
+		nil,
+		"password123\n",
+		"auth",
+		"init-owner",
+		"--username",
+		"admin",
+		"--password-stdin",
+	)
+	initItem := asMap(t, initPayload["item"])
+	if initItem["username"] != "admin" {
+		t.Fatalf("init-owner(password-stdin) 返回数据不正确: %+v", initItem)
+	}
+}
+
 func TestScopedAgentCommands(t *testing.T) {
 	cfg := newCLITestConfig(t)
 	migrateCLISQLite(t, cfg.DatabaseURL)
@@ -148,9 +169,19 @@ func runCLICommandWithEnv(
 	env map[string]string,
 	args ...string,
 ) map[string]any {
+	return runCLICommandWithEnvAndInput(t, cfg, env, "", args...)
+}
+
+func runCLICommandWithEnvAndInput(
+	t *testing.T,
+	cfg config.Config,
+	env map[string]string,
+	stdin string,
+	args ...string,
+) map[string]any {
 	t.Helper()
 
-	payload, executeErr, output := executeCLICommand(t, cfg, env, args...)
+	payload, executeErr, output := executeCLICommandWithInput(t, cfg, env, stdin, args...)
 	if executeErr != nil {
 		t.Fatalf("执行 CLI 命令失败: %v, output=%s", executeErr, output)
 	}
@@ -165,7 +196,7 @@ func runCLICommandError(
 ) string {
 	t.Helper()
 
-	_, executeErr, output := executeCLICommand(t, cfg, env, args...)
+	_, executeErr, output := executeCLICommandWithInput(t, cfg, env, "", args...)
 	if executeErr == nil {
 		t.Fatalf("命令预期失败但成功了: %s", strings.Join(args, " "))
 	}
@@ -179,6 +210,16 @@ func executeCLICommand(
 	t *testing.T,
 	cfg config.Config,
 	env map[string]string,
+	args ...string,
+) (map[string]any, error, string) {
+	return executeCLICommandWithInput(t, cfg, env, "", args...)
+}
+
+func executeCLICommandWithInput(
+	t *testing.T,
+	cfg config.Config,
+	env map[string]string,
+	stdin string,
 	args ...string,
 ) (map[string]any, error, string) {
 	t.Helper()
@@ -197,6 +238,7 @@ func executeCLICommand(
 		t.Fatalf("创建 CLI 命令失败: %v", err)
 	}
 	command.SetArgs(args)
+	command.SetIn(strings.NewReader(stdin))
 
 	originalStdout := os.Stdout
 	reader, writer, err := os.Pipe()

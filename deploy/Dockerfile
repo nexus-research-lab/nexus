@@ -51,7 +51,8 @@ COPY db /src/db
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     go build -o /out/nexus-server ./cmd/nexus-server && \
-    go build -o /out/nexus-migrate ./cmd/nexus-migrate
+    go build -o /out/nexus-migrate ./cmd/nexus-migrate && \
+    go build -o /out/nexusctl ./cmd/nexusctl
 
 FROM ${NODE_IMAGE} AS runtime
 
@@ -125,6 +126,7 @@ WORKDIR /opt/app
 
 COPY --from=builder /out/nexus-server /usr/local/bin/nexus-server
 COPY --from=builder /out/nexus-migrate /usr/local/bin/nexus-migrate
+COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
 COPY db /opt/app/db
 COPY skills /opt/app/skills
 COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
