@@ -194,6 +194,12 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 	client, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
+		s.loggerFor(ctx).Error("DM runtime client 初始化失败",
+			"session_key", sessionKey,
+			"agent_id", agentID,
+			"round_id", request.RoundID,
+			"err", err,
+		)
 		return err
 	}
 	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID()); syncErr != nil {
