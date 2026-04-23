@@ -659,6 +659,69 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatBypassPermissionsDoesNotInstallPermissionHandler(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	maxTurns := 4
+	agentValue, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, agentsvc.UpdateRequest{
+		Options: &agentsvc.Options{
+			PermissionMode: "bypassPermissions",
+			MaxTurns:       &maxTurns,
+			SettingSources: []string{"project"},
+		},
+	})
+	if err != nil || agentValue == nil {
+		t.Fatalf("更新 agent 失败: value=%+v err=%v", agentValue, err)
+	}
+
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-bypass",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-bypass")
+	sessionKey := "agent:nexus:ws:dm:bypass"
+	permission.BindSession(sessionKey, sender, "client-bypass", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 bypass 权限处理器",
+		RoundID:    "round-bypass",
+		ReqID:      "round-bypass",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.PermissionMode != sdkprotocol.PermissionModeBypassPermissions {
+		t.Fatalf("bypass 权限模式未透传: %+v", options)
+	}
+	if options.PermissionHandler != nil {
+		t.Fatalf("bypass 权限模式不应安装 permission handler: %+v", options)
+	}
+}
+
 func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)

@@ -17,6 +17,7 @@ import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
 import { CodeBlock } from "../blocks/code-block";
 import { ThinkingBlock } from "../blocks/thinking-block";
 import { ToolBlock } from "../blocks/tool-block";
+import { ToolUseErrorBlock } from "../blocks/tool-use-error-block";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
 import {
@@ -233,6 +234,10 @@ export function ContentRenderer(
               on_open_workspace_file={on_open_workspace_file}
             />,
           );
+        }
+
+        if (block.type === 'tool_use_error') {
+          return wrap_block(index, <ToolUseErrorBlock content={block.content} />);
         }
 
         if (block.type === 'thinking') {

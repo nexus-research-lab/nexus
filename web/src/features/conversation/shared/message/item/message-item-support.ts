@@ -9,7 +9,11 @@
 
 import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import { is_ask_user_question_timed_out_result } from "@/types/conversation/ask-user-question";
-import { ContentBlock, SystemEventTone } from "@/types/conversation/message";
+import {
+  ContentBlock,
+  SystemEventTone,
+  TextContent,
+} from "@/types/conversation/message";
 
 export interface OrderedAssistantEntry {
   block: ContentBlock;
@@ -29,6 +33,38 @@ export interface AssistantTurnEntry {
 export interface ContentProjection {
   content: ContentBlock[];
   streaming_indexes: Set<number>;
+}
+
+const TOOL_USE_ERROR_TAG_PATTERN =
+  /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
+
+export function split_text_block_by_tool_use_error(
+  block: TextContent,
+): ContentBlock[] {
+  if (!block.text.includes("<tool_use_error>")) {
+    return [block];
+  }
+
+  const blocks: ContentBlock[] = [];
+  let cursor = 0;
+  for (const match of block.text.matchAll(TOOL_USE_ERROR_TAG_PATTERN)) {
+    const index = match.index ?? 0;
+    const text = block.text.slice(cursor, index);
+    if (text.trim()) {
+      blocks.push({ type: "text", text });
+    }
+    const content = (match[1] ?? "").trim();
+    if (content) {
+      blocks.push({ type: "tool_use_error", content });
+    }
+    cursor = index + match[0].length;
+  }
+
+  const tail = block.text.slice(cursor);
+  if (tail.trim()) {
+    blocks.push({ type: "text", text: tail });
+  }
+  return blocks.length > 0 ? blocks : [];
 }
 
 export type AssistantContentMode =
@@ -68,6 +104,9 @@ export function find_latest_streaming_block(
       continue;
     }
     if (block.type === "text" && !block.text.trim()) {
+      continue;
+    }
+    if (block.type === "tool_use_error" && !block.content.trim()) {
       continue;
     }
     if (block.type === "thinking" && !block.thinking.trim()) {

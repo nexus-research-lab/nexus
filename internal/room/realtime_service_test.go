@@ -672,6 +672,80 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "bypass 助手")
+	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, agentsvc.UpdateRequest{
+		Options: &agentsvc.Options{
+			PermissionMode: "bypassPermissions",
+			SettingSources: []string{"project"},
+		},
+	})
+	if err != nil || memberAgent == nil {
+		t.Fatalf("更新 member agent 配置失败: value=%+v err=%v", memberAgent, err)
+	}
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "room-result-bypass",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-bypass")
+	permission.BindSession(sharedSessionKey, sender, "client-bypass", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         dmContext.Room.ID,
+		ConversationID: dmContext.Conversation.ID,
+		Content:        "测试 room bypass 权限处理器",
+		RoundID:        "room-round-bypass",
+		ReqID:          "room-round-bypass",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.PermissionMode != sdkprotocol.PermissionModeBypassPermissions {
+		t.Fatalf("room bypass 权限模式未透传: %+v", options)
+	}
+	if options.PermissionHandler != nil {
+		t.Fatalf("room bypass 权限模式不应安装 permission handler: %+v", options)
+	}
+}
+
 func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

@@ -44,6 +44,7 @@ import {
   has_timed_out_ask_user_question,
   map_runtime_phase_to_activity_state,
   projection_from_ordered_entries,
+  split_text_block_by_tool_use_error,
   type AssistantTurnEntry,
   type ContentProjection,
   type OrderedAssistantEntry,
@@ -309,14 +310,15 @@ export function useMessageItemState({
       const source_order = resolve_source_order(source_message_id);
 
       if (block.type === "text") {
-        if (block.text.trim()) {
+        const split_blocks = split_text_block_by_tool_use_error(block);
+        split_blocks.forEach((split_block) => {
           assistant_entries.push({
-            block,
+            block: split_block,
             merged_index,
             source_message_id,
             source_order,
           });
-        }
+        });
         return;
       }
 
@@ -363,6 +365,18 @@ export function useMessageItemState({
           source_message_id,
           source_order,
         });
+        return;
+      }
+
+      if (block.type === "tool_use_error") {
+        if (block.content.trim()) {
+          assistant_entries.push({
+            block,
+            merged_index,
+            source_message_id,
+            source_order,
+          });
+        }
       }
     });
 

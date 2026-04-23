@@ -12,6 +12,11 @@ export interface TextContent {
   text: string;
 }
 
+export interface ToolUseErrorContent {
+  type: "tool_use_error";
+  content: string;
+}
+
 export interface ToolUseContent {
   type: "tool_use";
   id: string;
@@ -59,6 +64,7 @@ export interface SystemEventContent {
 
 export type ContentBlock =
   | TextContent
+  | ToolUseErrorContent
   | ToolUseContent
   | ToolResultContent
   | ThinkingContent

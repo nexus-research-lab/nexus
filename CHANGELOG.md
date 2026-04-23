@@ -105,6 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复 DM runtime client 失效后回收旧进程时再次遇到断管错误会冒泡到前端并显示“服务内部错误”的问题。
 - 修复 Provider 模型只注入环境变量、未显式传给 SDK 的问题；DM 会话现在会记录 provider/model 指纹，模型配置变化后不再复用旧 SDK session。
+- 修复 `bypassPermissions` 模式仍安装权限处理器导致写入工具可能继续等待权限并超时的问题。
+- 修复工具参数校验失败时 `<tool_use_error>` 裸文本直接出现在对话里的问题，现在会渲染为结构化工具错误块。
 - 修复对话中生成文件路径只显示为长路径的问题，workspace 文件路径现在会渲染为可点击的文件资源块；同时修复输入框长内容无法在输入框内部滚动的问题。
 - 修复 Go 私有 SDK 依赖在 `make check-go` / `make db-init` / `make run-backend` 等入口缺少前置提示的问题。
 - 修复 Go 运行镜像中系统 skill 与 workspace 初始化仍引用编译期源码根目录 `/src` 的问题：现在统一按运行时应用根目录解析 `skills/`，并将 curated skill catalog 直接编进二进制，避免 `/agent/v1/agents/*/workspace/files` 等初始化链路在容器内因 `SKILL.md` 路径失效返回 500。

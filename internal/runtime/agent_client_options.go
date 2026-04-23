@@ -52,6 +52,10 @@ func BuildAgentClientOptions(
 	if permissionMode == "" {
 		permissionMode = sdkprotocol.PermissionModeDefault
 	}
+	permissionHandler := input.PermissionHandler
+	if permissionMode == sdkprotocol.PermissionModeBypassPermissions {
+		permissionHandler = nil
+	}
 
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
@@ -61,7 +65,7 @@ func BuildAgentClientOptions(
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
-		PermissionHandler:      input.PermissionHandler,
+		PermissionHandler:      permissionHandler,
 		AppendSystemPrompt:     input.AppendSystemPrompt,
 	}
 	if runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider); err != nil {
