@@ -19,7 +19,7 @@ PRIVATE_SDK_MODULE ?= github.com/nexus-research-lab/nexus-agent-sdk-go
 
 .PHONY: help build build-backend build-web start stop restart logs clean status \
 	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
-	check-backend check-go check test run-web run-backend run-backend-go \
+	check-private-sdk-access check-backend check-go check test run-web run-backend run-backend-go \
 	up down log reboot
 
 # Show help
@@ -32,29 +32,54 @@ help: ## Show this help message
 run-web: ## Run frontend in development mode
 	cd web && npm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
-db-init: ## Run Goose migrations for local database
+check-private-sdk-access: ## Check private Go SDK access
 	@if command -v go >/dev/null 2>&1; then \
-		go run ./cmd/nexus-migrate up; \
+		if grep -q "^replace $(PRIVATE_SDK_MODULE) => /" go.mod; then \
+			echo "Error: go.mod still contains a local replace for $(PRIVATE_SDK_MODULE)."; \
+			echo "The current main branch expects direct access to the private SDK repository."; \
+			echo "Remove the local replace first, then follow README.md -> Private Go SDK dependency."; \
+			exit 1; \
+		fi; \
+		effective_goprivate="$${GOPRIVATE:-}"; \
+		if [ -z "$$effective_goprivate" ]; then \
+			effective_goprivate="$$(go env GOPRIVATE 2>/dev/null || true)"; \
+		fi; \
+		printf '%s\n' "$$effective_goprivate" | tr ',' '\n' | grep -Fxq "github.com/nexus-research-lab/*" || { \
+			echo "Error: GOPRIVATE is not configured for github.com/nexus-research-lab/*."; \
+			echo "Set GOPRIVATE and GONOSUMDB before running Go checks or backend commands:"; \
+			echo "  go env -w GOPRIVATE=github.com/nexus-research-lab/*"; \
+			echo "  go env -w GONOSUMDB=github.com/nexus-research-lab/*"; \
+			echo "See README.md -> Private Go SDK dependency for details."; \
+			exit 1; \
+		}; \
+		if ! GIT_TERMINAL_PROMPT=0 go list -m $(PRIVATE_SDK_MODULE) >/dev/null 2>&1; then \
+			echo "Error: cannot access private module $(PRIVATE_SDK_MODULE) non-interactively."; \
+			echo "Configure SSH or PAT access for github.com/nexus-research-lab/* before running Go checks or backend commands."; \
+			echo ""; \
+			echo "Recommended GitHub setup:"; \
+			echo "  go env -w GOPRIVATE=github.com/nexus-research-lab/*"; \
+			echo "  go env -w GONOSUMDB=github.com/nexus-research-lab/*"; \
+			echo "  git config --global url.\"git@github.com:\".insteadOf https://github.com/"; \
+			echo "  ssh -T git@github.com"; \
+			echo ""; \
+			echo "If a failed HTTPS checkout was cached, clear it and retry:"; \
+			echo "  go clean -modcache"; \
+			echo "See README.md -> Private Go SDK dependency for PAT/SSH examples."; \
+			exit 1; \
+		fi; \
 	else \
 		echo "No usable Go runtime found"; \
 		exit 1; \
 	fi
 
-gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
-	@if command -v go >/dev/null 2>&1; then \
-		go run ./cmd/protocol-tsgen; \
-	else \
-		echo "No usable Go runtime found"; \
-		exit 1; \
-	fi
+db-init: check-private-sdk-access ## Run Goose migrations for local database
+	go run ./cmd/nexus-migrate up
+
+gen-protocol-types: check-private-sdk-access ## Generate frontend protocol types from Go protocol definitions
+	go run ./cmd/protocol-tsgen
 
 run-backend: db-init ## Run Go backend in development mode
-	@if command -v go >/dev/null 2>&1; then \
-		PORT=$(BACKEND_PORT) go run ./cmd/nexus-server; \
-	else \
-		echo "No usable Go runtime found"; \
-		exit 1; \
-	fi
+	PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
 
@@ -75,23 +100,9 @@ dev: ## Run both frontend and backend in development mode
 	fi
 	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
-install: ## Install all dependencies
+install: check-private-sdk-access ## Install all dependencies
 	@echo "Installing Go dependencies..."
 	@if command -v go >/dev/null 2>&1; then \
-		if grep -q "^replace $(PRIVATE_SDK_MODULE) => /" go.mod; then \
-			echo "Error: go.mod still contains a local replace for $(PRIVATE_SDK_MODULE)."; \
-			echo "The current main branch expects direct access to the private SDK repository."; \
-			echo "Remove the local replace first, then follow README.md -> Private Go SDK dependency."; \
-			exit 1; \
-		fi; \
-		go env GOPRIVATE | tr ',' '\n' | grep -Fxq "github.com/nexus-research-lab/*" || { \
-			echo "Error: GOPRIVATE is not configured for github.com/nexus-research-lab/*."; \
-			echo "Set GOPRIVATE (and usually GONOSUMDB) before running make install:"; \
-			echo "  go env -w GOPRIVATE=github.com/nexus-research-lab/*"; \
-			echo "  go env -w GONOSUMDB=github.com/nexus-research-lab/*"; \
-			echo "See README.md -> Private Go SDK dependency for details."; \
-			exit 1; \
-		}; \
 		if ! GIT_TERMINAL_PROMPT=0 go mod tidy; then \
 			echo ""; \
 			echo "Error: go mod tidy failed while resolving private module $(PRIVATE_SDK_MODULE)."; \
@@ -123,13 +134,8 @@ lint-web: ## Run frontend lint
 typecheck-web: ## Run frontend type check
 	cd web && npx tsc --noEmit
 
-check-go: ## Run Go build and test checks
-	@if command -v go >/dev/null 2>&1; then \
-		go test ./...; \
-	else \
-		echo "No usable Go runtime found"; \
-		exit 1; \
-	fi
+check-go: check-private-sdk-access ## Run Go build and test checks
+	go test ./...
 
 check-backend: check-go ## Alias of Go backend checks
 
