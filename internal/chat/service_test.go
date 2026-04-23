@@ -39,6 +39,7 @@ type fakeChatClient struct {
 	interruptCalls  int
 	disconnectCalls int
 	connectErrors   []error
+	queryErrors     []error
 	permissionErrs  []error
 	reconfigureOps  []agentclient.Options
 	permissionOps   []sdkprotocol.PermissionMode
@@ -67,6 +68,13 @@ func (c *fakeChatClient) Connect(context.Context) error {
 func (c *fakeChatClient) Query(ctx context.Context, prompt string) error {
 	if c.onQuery != nil {
 		c.onQuery(ctx, prompt)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.queryErrors) > 0 {
+		err := c.queryErrors[0]
+		c.queryErrors = c.queryErrors[1:]
+		return err
 	}
 	return ctx.Err()
 }
@@ -906,6 +914,94 @@ func TestServiceHandleChatRebuildsBrokenRuntimeClient(t *testing.T) {
 	secondClient.mu.Unlock()
 	if len(permissionOps) == 0 {
 		t.Fatal("重建后的 runtime client 应重新设置权限模式")
+	}
+}
+
+func TestServiceHandleChatSilentlyRebuildsBrokenRuntimeClientDuringRound(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	firstClient := newFakeChatClient()
+	firstClient.sessionID = "sdk-resume-round-broken"
+	firstClient.queryErrors = []error{
+		errors.New("client: send control request failed: process: write payload failed: write |1: file already closed"),
+	}
+	secondClient := newFakeChatClient()
+	secondClient.sessionID = "sdk-resume-round-broken"
+	secondClient.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			secondClient.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: secondClient.sessionID,
+				UUID:      "result-round-recreated",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{clients: []*fakeChatClient{firstClient, secondClient}}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-runtime-round-rebuild")
+	sessionKey := "agent:nexus:ws:dm:broken-runtime-round"
+	permission.BindSession(sessionKey, sender, "client-runtime-round-rebuild", true)
+
+	resumeID := "sdk-resume-round-broken"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &resumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Broken Runtime During Round",
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试坏 runtime 轮次内重建",
+		RoundID:    "round-runtime-rebuild-during-run",
+		ReqID:      "round-runtime-rebuild-during-run",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	if len(factory.options) != 2 {
+		t.Fatalf("轮次内坏 runtime client 应重建一次: got=%d want=2", len(factory.options))
+	}
+	if factory.OptionAt(0).Resume != resumeID || factory.OptionAt(1).Resume != resumeID {
+		t.Fatalf("轮次内重建 runtime client 时应继续使用相同 resume: first=%+v second=%+v", factory.OptionAt(0), factory.OptionAt(1))
+	}
+	firstClient.mu.Lock()
+	disconnectCalls := firstClient.disconnectCalls
+	firstClient.mu.Unlock()
+	if disconnectCalls != 1 {
+		t.Fatalf("轮次内坏 runtime client 应被回收一次: got=%d want=1", disconnectCalls)
+	}
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeError {
+			t.Fatalf("可自动恢复的坏 runtime 不应向前端广播 error: %+v", events)
+		}
 	}
 }
 

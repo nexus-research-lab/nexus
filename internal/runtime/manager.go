@@ -298,6 +298,20 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 	return state.Client.Disconnect(ctx)
 }
 
+// RecycleClient 仅回收指定 session 的运行时 client，保留 round 状态与中断状态。
+func (m *Manager) RecycleClient(ctx context.Context, sessionKey string) error {
+	m.mu.Lock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || state.Client == nil {
+		m.mu.Unlock()
+		return nil
+	}
+	client := state.Client
+	state.Client = nil
+	m.mu.Unlock()
+	return client.Disconnect(ctx)
+}
+
 func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 	state := m.sessions[sessionKey]
 	if state == nil {
