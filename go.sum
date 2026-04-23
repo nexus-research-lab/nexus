@@ -37,6 +37,10 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260420022348-0f8966c64f44 h1:8wvrRPkL07a+tyKNMJzVPDoEBsbSCBxiM6UrMLxGZxM=
 github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260420022348-0f8966c64f44/go.mod h1:qU52d7g0uLGcJABkgUjUwKAGH0zZMgscVILRRoMu4Oc=
+github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260423055433-5a3f54999c93 h1:cDBffEY11qgq6ZZ8bBMW5Ls5YVGU6sMssy4npQyyixE=
+github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260423055433-5a3f54999c93/go.mod h1:qU52d7g0uLGcJABkgUjUwKAGH0zZMgscVILRRoMu4Oc=
+github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260423064844-f4831045b929 h1:Kxoo/Ic0RVcZTtDQ0cmZ+WDvHioJ48FVlourKivSY7s=
+github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260423064844-f4831045b929/go.mod h1:qU52d7g0uLGcJABkgUjUwKAGH0zZMgscVILRRoMu4Oc=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pressly/goose/v3 v3.27.0 h1:/D30gVTuQhu0WsNZYbJi4DMOsx1lNq+6SkLe+Wp59BM=

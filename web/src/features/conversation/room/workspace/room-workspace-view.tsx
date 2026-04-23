@@ -27,9 +27,9 @@ interface RoomWorkspaceViewProps {
   on_open_workspace_file: (path: string | null) => void;
 }
 
-const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 220;
-const WORKSPACE_FILE_LIST_MIN_WIDTH = 192;
-const WORKSPACE_FILE_LIST_MAX_WIDTH = 280;
+const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 280;
+const WORKSPACE_FILE_LIST_MIN_WIDTH = 200;
+const WORKSPACE_FILE_LIST_MAX_WIDTH = 360;
 
 // ── main view ──────────────────────────────────────────────────────────────
 

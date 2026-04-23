@@ -38,6 +38,7 @@ type fakeChatClient struct {
 	messages        chan sdkprotocol.ReceivedMessage
 	interruptCalls  int
 	disconnectCalls int
+	disconnectErrs  []error
 	connectErrors   []error
 	queryErrors     []error
 	permissionErrs  []error
@@ -98,6 +99,11 @@ func (c *fakeChatClient) Disconnect(context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.disconnectCalls++
+	if len(c.disconnectErrs) > 0 {
+		err := c.disconnectErrs[0]
+		c.disconnectErrs = c.disconnectErrs[1:]
+		return err
+	}
 	return nil
 }
 
@@ -828,95 +834,6 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	}
 }
 
-func TestServiceHandleChatRebuildsBrokenRuntimeClient(t *testing.T) {
-	cfg := newChatTestConfig(t)
-	migrateChatSQLite(t, cfg.DatabaseURL)
-
-	agentService := newChatAgentService(t, cfg)
-	permission := permissionctx.NewContext()
-	firstClient := newFakeChatClient()
-	firstClient.sessionID = "sdk-resume-broken"
-	firstClient.permissionErrs = []error{
-		errors.New("client: send control request failed: process: write payload failed: write |1: file already closed"),
-	}
-	secondClient := newFakeChatClient()
-	secondClient.sessionID = "sdk-resume-broken"
-	secondClient.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			secondClient.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: secondClient.sessionID,
-				UUID:      "result-recreated",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
-	}
-
-	factory := &fakeChatFactory{clients: []*fakeChatClient{firstClient, secondClient}}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	service := NewService(cfg, agentService, runtimeManager, permission)
-	sender := newChatTestSender("sender-runtime-rebuild")
-	sessionKey := "agent:nexus:ws:dm:broken-runtime"
-	permission.BindSession(sessionKey, sender, "client-runtime-rebuild", true)
-
-	resumeID := "sdk-resume-broken"
-	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
-		SessionKey:   sessionKey,
-		AgentID:      cfg.DefaultAgentID,
-		SessionID:    &resumeID,
-		ChannelType:  "websocket",
-		ChatType:     "dm",
-		Status:       "active",
-		CreatedAt:    now,
-		LastActivity: now,
-		Title:        "Broken Runtime",
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
-	}); err != nil {
-		t.Fatalf("预写入会话 meta 失败: %v", err)
-	}
-
-	if err := service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "测试坏 runtime 重建",
-		RoundID:    "round-runtime-rebuild",
-		ReqID:      "round-runtime-rebuild",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
-
-	if len(factory.options) != 2 {
-		t.Fatalf("坏 runtime client 应重建一次: got=%d want=2", len(factory.options))
-	}
-	if factory.OptionAt(0).Resume != resumeID || factory.OptionAt(1).Resume != resumeID {
-		t.Fatalf("重建 runtime client 时应继续使用相同 resume: first=%+v second=%+v", factory.OptionAt(0), factory.OptionAt(1))
-	}
-	firstClient.mu.Lock()
-	disconnectCalls := firstClient.disconnectCalls
-	firstClient.mu.Unlock()
-	if disconnectCalls != 1 {
-		t.Fatalf("坏 runtime client 应被回收一次: got=%d want=1", disconnectCalls)
-	}
-	secondClient.mu.Lock()
-	permissionOps := append([]sdkprotocol.PermissionMode(nil), secondClient.permissionOps...)
-	secondClient.mu.Unlock()
-	if len(permissionOps) == 0 {
-		t.Fatal("重建后的 runtime client 应重新设置权限模式")
-	}
-}
-
 func TestServiceHandleChatSilentlyRebuildsBrokenRuntimeClientDuringRound(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
@@ -927,6 +844,9 @@ func TestServiceHandleChatSilentlyRebuildsBrokenRuntimeClientDuringRound(t *test
 	firstClient.sessionID = "sdk-resume-round-broken"
 	firstClient.queryErrors = []error{
 		errors.New("client: send control request failed: process: write payload failed: write |1: file already closed"),
+	}
+	firstClient.disconnectErrs = []error{
+		errors.New("process: command exited with error: signal: killed"),
 	}
 	secondClient := newFakeChatClient()
 	secondClient.sessionID = "sdk-resume-round-broken"

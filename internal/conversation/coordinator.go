@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/logx"
@@ -135,61 +134,19 @@ func (c *RoundCoordinator) AcquireRuntimeClient(
 		return nil, errors.New("round coordinator is not initialized")
 	}
 
-	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
-		client, err := c.runtime.GetOrCreate(ctx, sessionKey, options)
-		if err != nil {
-			if !isBrokenRuntimeClientError(err) || attempt > 0 {
-				return nil, err
-			}
-			lastErr = err
-			if recycleErr := c.recycleRuntimeClient(sessionKey, err); recycleErr != nil {
-				return nil, errors.Join(err, recycleErr)
-			}
-			continue
-		}
-		if err := client.Connect(ctx); err != nil {
-			if !isBrokenRuntimeClientError(err) || attempt > 0 {
-				return nil, err
-			}
-			lastErr = err
-			if recycleErr := c.recycleRuntimeClient(sessionKey, err); recycleErr != nil {
-				return nil, errors.Join(err, recycleErr)
-			}
-			continue
-		}
-		if permissionMode != "" {
-			if err := client.SetPermissionMode(ctx, permissionMode); err != nil {
-				if (!errors.Is(err, agentclient.ErrNotConnected) &&
-					!isBrokenRuntimeClientError(err)) || attempt > 0 {
-					return nil, err
-				}
-				lastErr = err
-				if recycleErr := c.recycleRuntimeClient(sessionKey, err); recycleErr != nil {
-					return nil, errors.Join(err, recycleErr)
-				}
-				continue
-			}
-		}
-		return client, nil
+	client, err := c.runtime.GetOrCreate(ctx, sessionKey, options)
+	if err != nil {
+		return nil, err
 	}
-	if lastErr == nil {
-		lastErr = errors.New("runtime client acquire failed")
+	if err := client.Connect(ctx); err != nil {
+		return nil, err
 	}
-	return nil, lastErr
-}
-
-func (c *RoundCoordinator) recycleRuntimeClient(
-	sessionKey string,
-	cause error,
-) error {
-	recycleCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	c.loggerFor(recycleCtx).Warn("runtime client 已失效，回收后重建",
-		"session_key", sessionKey,
-		"cause", cause,
-	)
-	return c.runtime.RecycleClient(recycleCtx, sessionKey)
+	if permissionMode != "" {
+		if err := client.SetPermissionMode(ctx, permissionMode); err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
 func (c *RoundCoordinator) loggerFor(ctx context.Context) *slog.Logger {

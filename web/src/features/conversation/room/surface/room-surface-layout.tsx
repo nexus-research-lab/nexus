@@ -244,8 +244,8 @@ function RoomSurfaceLayoutInner({
                 className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
                 style={{
                   width: `${editor_width_percent}%`,
-                  minWidth: active_surface_tab === "workspace" ? "560px" : "360px",
-                  maxWidth: active_surface_tab === "workspace" ? "860px" : "560px",
+                  minWidth: active_surface_tab === "workspace" ? "660px" : "460px",
+                  maxWidth: active_surface_tab === "workspace" ? "960px" : "660px",
                 }}
               >
                 <ConversationResizeHandle

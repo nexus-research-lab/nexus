@@ -116,7 +116,7 @@ func (h *prettyHandler) format(
 	if scope == "" {
 		scope = "-"
 	}
-	const scopeWidth = 18
+	const scopeWidth = 10
 	padded := scope
 	if len(padded) < scopeWidth {
 		padded = padded + strings.Repeat(" ", scopeWidth-len(padded))

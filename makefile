@@ -17,7 +17,7 @@ PRIVATE_SDK_MODULE ?= github.com/nexus-research-lab/nexus-agent-sdk-go
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-backend build-web start stop restart logs clean status \
+.PHONY: help build build-backend build-web start stop restart logs logs-all logs-nginx clean status \
 	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-private-sdk-access check-backend check-go check test run-web run-backend run-backend-go \
 	up down log reboot
@@ -182,15 +182,22 @@ start: prepare-host-data ## Start all services with Docker
 	@echo ""
 	@echo "✅ Nexus Core is running!"
 	@echo "🌐 Web UI: http://localhost"
-	@echo "📋 Logs: run 'make logs' to view service logs"
+	@echo "📋 Backend logs: run 'make logs'"
+	@echo "📋 All service logs: run 'make logs-all'"
 
 stop: ## Stop all Docker services
 	TAG=$(TAG) $(COMPOSE_CMD) down
 
 restart: stop start ## Restart all Docker services
 
-logs: ## Show Docker service logs
+logs: ## Show backend Docker service logs
+	TAG=$(TAG) $(COMPOSE_CMD) logs -f nexus
+
+logs-all: ## Show all Docker service logs
 	TAG=$(TAG) $(COMPOSE_CMD) logs -f
+
+logs-nginx: ## Show nginx Docker service logs
+	TAG=$(TAG) $(COMPOSE_CMD) logs -f nginx
 
 status: ## Show Docker service status
 	TAG=$(TAG) $(COMPOSE_CMD) ps
