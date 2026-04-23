@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -41,13 +40,17 @@ func New(cfg config.Config) (*cobra.Command, error) {
 	automationService := appServices.Automation
 
 	root := &cobra.Command{
-		Use:   "nexusctl",
-		Short: "Nexus 主智能体操作系统 CLI",
+		Use:           "nexusctl",
+		Short:         "Nexus 主智能体操作系统 CLI",
+		Long:          "面向 Agent 与脚本的 Nexus 控制面 CLI。stdout 只输出数据，stderr 只输出诊断；参数错误返回 64，执行错误返回 1。",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 	var (
 		scopeUserID string
 		globalScope bool
 	)
+	outputOptions := configureRootOutput(root)
 	root.PersistentFlags().StringVar(
 		&scopeUserID,
 		"scope-user-id",
@@ -61,6 +64,9 @@ func New(cfg config.Config) (*cobra.Command, error) {
 		"显式允许在本机管理员场景下使用全局作用域",
 	)
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := applyOutputOptions(cfg, appServices, *outputOptions); err != nil {
+			return err
+		}
 		nextCtx, err := buildScopedCLIContext(commandContext(cmd), authService, cmd, scopeUserID, globalScope)
 		if err != nil {
 			return err
@@ -113,16 +119,16 @@ func buildScopedCLIContext(
 	trimmedUserID := strings.TrimSpace(scopeUserID)
 	if existingUserID, ok := authsvc.CurrentUserID(base); ok && strings.TrimSpace(existingUserID) != "" {
 		if trimmedUserID != "" && trimmedUserID != strings.TrimSpace(existingUserID) {
-			return nil, fmt.Errorf("命令上下文中的 user_id 与 --scope-user-id 不一致")
+			return nil, usageErrorf("命令上下文中的 user_id 与 --scope-user-id 不一致")
 		}
 		if globalScope {
-			return nil, fmt.Errorf("命令上下文中已存在 user_id，不能再显式指定 --global-scope")
+			return nil, usageErrorf("命令上下文中已存在 user_id，不能再显式指定 --global-scope")
 		}
 		return base, nil
 	}
 	if globalScope {
 		if trimmedUserID != "" {
-			return nil, fmt.Errorf("--scope-user-id 与 --global-scope 不能同时使用")
+			return nil, usageErrorf("--scope-user-id 与 --global-scope 不能同时使用")
 		}
 		return base, nil
 	}
@@ -133,7 +139,7 @@ func buildScopedCLIContext(
 				return nil, err
 			}
 			if state.UserCount > 0 {
-				return nil, fmt.Errorf(
+				return nil, usageErrorf(
 					"当前 CLI 运行在多用户模式下，%s 必须显式提供 --scope-user-id，或在本机管理员场景下显式加 --global-scope",
 					cmd.CommandPath(),
 				)
@@ -230,7 +236,7 @@ func newAgentCommand(service *agent2.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "get [agent_id]",
 		Short: "获取指定 Agent",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.GetAgent(commandContext(cmd), args[0])
 			if err != nil {
@@ -308,7 +314,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "get [room_id]",
 		Short: "读取指定 Room",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.GetRoom(commandContext(cmd), args[0])
 			if err != nil {
@@ -325,7 +331,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "contexts [room_id]",
 		Short: "读取 Room 上下文",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			items, err := service.GetRoomContexts(commandContext(cmd), args[0])
 			if err != nil {
@@ -370,7 +376,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		update := &cobra.Command{
 			Use:   "update [room_id]",
 			Short: "更新 Room",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.UpdateRoom(commandContext(cmd), args[0], roomsvc.UpdateRoomRequest{
 					Name:        name,
@@ -396,7 +402,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "delete [room_id]",
 		Short: "删除 Room",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := service.DeleteRoom(commandContext(cmd), args[0]); err != nil {
 				return err
@@ -416,7 +422,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		addMember := &cobra.Command{
 			Use:   "add-member [room_id]",
 			Short: "向 Room 添加成员",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.AddRoomMember(commandContext(cmd), args[0], roomsvc.AddRoomMemberRequest{
 					AgentID: agentID,
@@ -441,7 +447,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		removeMember := &cobra.Command{
 			Use:   "remove-member [room_id]",
 			Short: "从 Room 移除成员",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.RemoveRoomMember(commandContext(cmd), args[0], agentID)
 				if err != nil {
@@ -464,7 +470,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		createConversation := &cobra.Command{
 			Use:   "create-conversation [room_id]",
 			Short: "创建 Room 话题",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.CreateConversation(commandContext(cmd), args[0], roomsvc.CreateConversationRequest{
 					Title: title,
@@ -488,7 +494,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		updateConversation := &cobra.Command{
 			Use:   "update-conversation [room_id] [conversation_id]",
 			Short: "更新 Room 话题",
-			Args:  cobra.ExactArgs(2),
+			Args:  exactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.UpdateConversation(commandContext(cmd), args[0], args[1], roomsvc.UpdateConversationRequest{
 					Title: title,
@@ -511,7 +517,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "delete-conversation [room_id] [conversation_id]",
 		Short: "删除 Room 话题",
-		Args:  cobra.ExactArgs(2),
+		Args:  exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.DeleteConversation(commandContext(cmd), args[0], args[1])
 			if err != nil {
@@ -771,7 +777,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 	command.AddCommand(&cobra.Command{
 		Use:   "get [conversation_id]",
 		Short: "读取单个话题上下文",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := roomService.GetConversationContext(commandContext(cmd), args[0])
 			if err != nil {
@@ -1099,7 +1105,7 @@ func newSkillCommand(service *skillsvc.Service) *cobra.Command {
 		getCommand := &cobra.Command{
 			Use:   "get [skill_name]",
 			Short: "读取单个技能详情",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.GetSkillDetail(commandContext(cmd), args[0], agentID)
 				if err != nil {
@@ -1239,7 +1245,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "get [connector_id]",
 		Short: "读取单个连接器详情",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.GetConnectorDetail(commandContext(cmd), currentCLIUserID(cmd), args[0])
 			if err != nil {
@@ -1258,7 +1264,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		authURLCommand := &cobra.Command{
 			Use:   "auth-url [connector_id]",
 			Short: "生成 OAuth 授权地址",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.GetAuthURL(commandContext(cmd), currentCLIUserID(cmd), args[0], redirectURI, nil)
 				if err != nil {
@@ -1278,7 +1284,7 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "disconnect [connector_id]",
 		Short: "断开连接器",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.Disconnect(commandContext(cmd), args[0])
 			if err != nil {
@@ -1293,11 +1299,4 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 	})
 
 	return command
-}
-
-func emitJSON(payload map[string]any) error {
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(payload)
 }

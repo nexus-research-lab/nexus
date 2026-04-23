@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - :sparkles: Connector 端到端落地：支持 Web 自助配置 OAuth 应用；已连接 connector 以 `nexus_connectors` MCP server 形式对 Agent 暴露 `connector_list` / `connector_call` 工具。
 
 ### Changed
+- `nexusctl` 统一收口为 Agent 友好协议：新增全局 `--json` / `--pretty` / `--verbose`，stdout 只输出数据、stderr 只输出诊断；所有成功结果补 `success=true`，错误按 `64=用法错误 / 1=执行错误` 区分，便于 Agent 可靠解析与重试。
 - Docker 部署入口现在支持通过 `AUTH_INIT_OWNER_USERNAME` / `AUTH_INIT_OWNER_DISPLAY_NAME` / `AUTH_INIT_OWNER_PASSWORD` 幂等确保管理员存在：迁移完成后若库里没有 active 的 owner/admin，则自动创建；若已存在则跳过，并改为通过 `nexusctl --password-stdin` 传递密码，避免在进程参数中暴露明文。
 - Connector 目录暂只保留 `github` 作为 available，其余 provider 置为 coming_soon；OAuth 配置弹窗在 GitHub connector 下补充"去 GitHub 创建 OAuth App"帮助链接，自动带上当前环境的 callback URL。
 - 收口 chat / room 运行时骨架到 `conversation` 层：`RoundCoordinator` 统一处理 round 生命周期、runtime client 复用与会话状态广播，`Dispatcher` 统一 DM / Room / ingress / automation / gateway websocket 的入站路由。

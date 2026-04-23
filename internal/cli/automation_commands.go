@@ -141,7 +141,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		updateCommand := &cobra.Command{
 			Use:   "update [job_id]",
 			Short: "更新定时任务",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				payload := automation2.UpdateJobInput{}
 				if name != "" {
@@ -211,7 +211,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "delete [job_id]",
 		Short: "删除定时任务",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := service.DeleteTask(commandContext(cmd), args[0]); err != nil {
 				return err
@@ -229,7 +229,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "run [job_id]",
 		Short: "立即运行定时任务",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.RunTaskNow(commandContext(cmd), args[0])
 			if err != nil {
@@ -246,7 +246,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "runs [job_id]",
 		Short: "读取任务运行历史",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			items, err := service.ListTaskRuns(commandContext(cmd), args[0])
 			if err != nil {
@@ -265,7 +265,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		statusCommand := &cobra.Command{
 			Use:   "status [job_id]",
 			Short: "切换任务启停状态",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.UpdateTaskStatus(commandContext(cmd), args[0], enabled)
 				if err != nil {
@@ -294,7 +294,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 	command.AddCommand(&cobra.Command{
 		Use:   "get [agent_id]",
 		Short: "读取 heartbeat 状态",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := service.GetHeartbeatStatus(commandContext(cmd), args[0])
 			if err != nil {
@@ -316,7 +316,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 		setCommand := &cobra.Command{
 			Use:   "set [agent_id]",
 			Short: "更新 heartbeat 配置",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], automation2.HeartbeatUpdateInput{
 					Enabled:      enabled,
@@ -347,7 +347,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 		wakeCommand := &cobra.Command{
 			Use:   "wake [agent_id]",
 			Short: "手动唤醒 heartbeat",
-			Args:  cobra.ExactArgs(1),
+			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				request := automation2.HeartbeatWakeRequest{Mode: mode}
 				if text != "" {

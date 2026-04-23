@@ -11,10 +11,24 @@ CLI 工具路径：`go run "{project_root}/cmd/nexusctl"`
 
 ## CLI 输出约定
 
-- `nexusctl` 默认输出 JSON，可以直接作为推理上下文输入。
+- Agent 正常调用统一加 `--json`，让 stdout 始终返回单行 JSON，便于直接提字段。
+- `stdout` 只读数据，`stderr` 只读诊断；失败时不要从 stdout 猜错误。
+- 参数用法错误返回 `64`，执行错误返回 `1`。遇到 `64` 先修参数，遇到 `1` 再判断是否重试或换方案。
+- 默认不要加 `--verbose`，只有在排查异常、确认 skill 部署过程或追踪系统初始化问题时才显式打开。
 - 子命令按领域拆分：`agent`、`room`、`conversation`、`workspace`、`skill`、`launcher`。
-- 失败时优先读 JSON 中的错误，不要假设命令名仍旧是旧 Python 风格。
+- 失败时优先读 stderr 里的 JSON 错误，不要假设命令名仍旧是旧 Python 风格。
 - 多用户部署下不要把 `user_id` 写进命令模板；运行时会自动注入当前用户作用域。只有手工在终端直跑 `nexusctl` 时，才需要显式传 `--scope-user-id` 或设置 `NEXUSCTL_USER_ID`。
+
+```bash
+# Agent 正常调用
+go run "{project_root}/cmd/nexusctl" --json agent list
+
+# 排查问题时再打开诊断
+go run "{project_root}/cmd/nexusctl" --json --verbose agent list
+
+# 人工查看时使用格式化输出
+go run "{project_root}/cmd/nexusctl" --pretty agent list
+```
 
 ## 核心概念
 

@@ -10,9 +10,11 @@ import (
 func main() {
 	command, err := cli.New(config.Load())
 	if err != nil {
-		os.Exit(1)
+		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
+		os.Exit(cli.ExitCode(err))
 	}
 	if err = command.Execute(); err != nil {
-		os.Exit(1)
+		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
+		os.Exit(cli.ExitCode(err))
 	}
 }

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"strings"
 
 	memory2 "github.com/nexus-research-lab/nexus/internal/memory"
@@ -221,7 +220,7 @@ func parseMemoryFields(values []string) ([]memory2.Field, error) {
 	for _, value := range values {
 		parts := strings.SplitN(value, "=", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("field 格式错误: %s", value)
+			return nil, usageErrorf("field 格式错误: %s", value)
 		}
 		items = append(items, memory2.Field{
 			Key:   strings.TrimSpace(parts[0]),

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -178,7 +177,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 func resolvePasswordInput(cmd *cobra.Command, password string, passwordStdin bool) (string, error) {
 	if passwordStdin {
 		if strings.TrimSpace(password) != "" {
-			return "", fmt.Errorf("--password 与 --password-stdin 不能同时使用")
+			return "", usageErrorf("--password 与 --password-stdin 不能同时使用")
 		}
 		content, err := io.ReadAll(cmd.InOrStdin())
 		if err != nil {
@@ -186,12 +185,12 @@ func resolvePasswordInput(cmd *cobra.Command, password string, passwordStdin boo
 		}
 		resolved := strings.TrimRight(string(content), "\r\n")
 		if strings.TrimSpace(resolved) == "" {
-			return "", fmt.Errorf("stdin 密码不能为空")
+			return "", usageErrorf("stdin 密码不能为空")
 		}
 		return resolved, nil
 	}
 	if strings.TrimSpace(password) == "" {
-		return "", fmt.Errorf("必须通过 --password 或 --password-stdin 提供密码")
+		return "", usageErrorf("必须通过 --password 或 --password-stdin 提供密码")
 	}
 	return password, nil
 }
