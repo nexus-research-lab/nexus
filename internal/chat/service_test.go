@@ -371,7 +371,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	if _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	if _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkprotocol.PermissionModeDefault,
 	}); err != nil {
@@ -647,8 +647,8 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	})
 
 	options := factory.LastOptions()
-	if options.Model != "" {
-		t.Fatalf("runtime 不应向 SDK 透传 agent model: %+v", options)
+	if options.Model != "glm-5.1" {
+		t.Fatalf("runtime 未向 SDK options 透传 provider model: %+v", options)
 	}
 	if options.Env["ANTHROPIC_MODEL"] != "glm-5.1" {
 		t.Fatalf("runtime 未注入 provider model: %+v", options.Env)
@@ -834,6 +834,100 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	providerService := newChatProviderService(t, cfg)
+	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.sessionID = "sdk-new-model"
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-new-model",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	sender := newChatTestSender("sender-stale-model")
+	sessionKey := "agent:nexus:ws:dm:stale-model"
+	permission.BindSession(sessionKey, sender, "client-stale-model", true)
+
+	staleResumeID := "sdk-old-model"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &staleResumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Stale Model",
+		Options: map[string]any{
+			sessionmodel.OptionHistorySource:    sessionmodel.HistorySourceTranscript,
+			sessionmodel.OptionRuntimeProvider: "glm",
+			sessionmodel.OptionRuntimeModel:    "old-model",
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试旧模型 session 不 resume",
+		RoundID:    "round-stale-model",
+		ReqID:      "round-stale-model",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Resume != "" {
+		t.Fatalf("runtime 模型变更后不应 resume 旧 sdk session: %+v", options)
+	}
+	if options.Model != "glm-5.1" {
+		t.Fatalf("runtime 应使用当前 provider model: %+v", options)
+	}
+	sessionValue, _ := mustFindChatSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != "sdk-new-model" {
+		t.Fatalf("新 sdk session_id 未回写: %+v", sessionValue)
+	}
+	if sessionValue.Options[sessionmodel.OptionRuntimeModel] != "glm-5.1" {
+		t.Fatalf("runtime model 指纹未回写: %+v", sessionValue.Options)
+	}
+}
 func TestServiceHandleChatSilentlyRebuildsBrokenRuntimeClientDuringRound(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)

@@ -109,6 +109,8 @@ type roundRunner struct {
 	reqID             string
 	content           string
 	client            runtimectx.Client
+	runtimeProvider   string
+	runtimeModel      string
 	mapper            *messageMapper
 	permissionMode    sdkprotocol.PermissionMode
 	permissionHandler agentclient.PermissionHandler
@@ -192,7 +194,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 
-	client, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
+	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM runtime client 初始化失败",
 			"session_key", sessionKey,
@@ -202,7 +204,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		)
 		return err
 	}
-	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID()); syncErr != nil {
+	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID(), runtimeProvider, runtimeModel); syncErr != nil {
 		return syncErr
 	} else {
 		sessionItem = updatedSession
@@ -226,6 +228,8 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		reqID:             firstNonEmpty(request.ReqID, request.RoundID),
 		content:           strings.TrimSpace(request.Content),
 		client:            client,
+		runtimeProvider:   runtimeProvider,
+		runtimeModel:      runtimeModel,
 		mapper:            newMessageMapper(sessionKey, agentID, request.RoundID),
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,
@@ -339,7 +343,7 @@ func (s *Service) ensureClient(
 	agentValue *agent3.Agent,
 	sessionItem session.Session,
 	request Request,
-) (runtimectx.Client, error) {
+) (runtimectx.Client, string, string, error) {
 	permissionMode := request.PermissionMode
 	if permissionMode == "" {
 		permissionMode = sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
@@ -355,7 +359,7 @@ func (s *Service) ensureClient(
 	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
 	mcpServers := map[string]agentclient.SDKMCPServer(nil)
 	if s.mcpServers != nil {
@@ -376,9 +380,54 @@ func (s *Service) ensureClient(
 		MCPServers:         mcpServers,
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
-	return s.acquireRuntimeClient(ctx, sessionKey, options, permissionMode)
+	options.Resume = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, agentValue.Options.Provider, options)
+	client, err := s.acquireRuntimeClient(ctx, sessionKey, options, permissionMode)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return client, strings.TrimSpace(agentValue.Options.Provider), strings.TrimSpace(options.Model), nil
+}
+
+func (s *Service) resolveReusableSDKSessionID(
+	ctx context.Context,
+	workspacePath string,
+	sessionItem session.Session,
+	provider string,
+	options agentclient.Options,
+) string {
+	resumeID := strings.TrimSpace(options.Resume)
+	if resumeID == "" {
+		return ""
+	}
+	expectedProvider := strings.TrimSpace(provider)
+	expectedModel := strings.TrimSpace(options.Model)
+	actualProvider, _ := sessionItem.Options[sessionmodel.OptionRuntimeProvider].(string)
+	actualModel, _ := sessionItem.Options[sessionmodel.OptionRuntimeModel].(string)
+	if strings.TrimSpace(actualProvider) == expectedProvider && strings.TrimSpace(actualModel) == expectedModel {
+		return resumeID
+	}
+	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过旧 SDK session resume",
+		"session_key", sessionItem.SessionKey,
+		"old_provider", strings.TrimSpace(actualProvider),
+		"new_provider", expectedProvider,
+		"old_model", strings.TrimSpace(actualModel),
+		"new_model", expectedModel,
+	)
+	sessionItem.SessionID = nil
+	if sessionItem.Options == nil {
+		sessionItem.Options = map[string]any{}
+	}
+	sessionItem.Options[sessionmodel.OptionRuntimeProvider] = expectedProvider
+	sessionItem.Options[sessionmodel.OptionRuntimeModel] = expectedModel
+	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
+		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
+			"session_key", sessionItem.SessionKey,
+			"err", err,
+		)
+	}
+	return ""
 }
 
 func (s *Service) acquireRuntimeClient(
@@ -592,6 +641,8 @@ func (r *roundRunner) executeRoundWithRecoverableClientRetry(
 					r.workspacePath,
 					r.session,
 					sessionID,
+					r.runtimeProvider,
+					r.runtimeModel,
 				)
 				if syncErr != nil {
 					return syncErr
@@ -635,10 +686,10 @@ func (r *roundRunner) executeRoundWithRecoverableClientRetry(
 }
 
 func (r *roundRunner) rebuildRuntimeClient(ctx context.Context) error {
-	if err := r.service.runtime.RecycleClient(ctx, r.sessionKey); err != nil {
+	if err := r.service.runtime.RecycleClient(ctx, r.sessionKey); err != nil && !isBrokenRuntimeClientError(err) {
 		return err
 	}
-	client, err := r.service.ensureClient(
+	client, runtimeProvider, runtimeModel, err := r.service.ensureClient(
 		ctx,
 		r.sessionKey,
 		r.agent,
@@ -653,7 +704,9 @@ func (r *roundRunner) rebuildRuntimeClient(ctx context.Context) error {
 		return err
 	}
 	r.client = client
-	if updatedSession, syncErr := r.service.syncSDKSessionID(ctx, r.workspacePath, r.session, client.SessionID()); syncErr != nil {
+	r.runtimeProvider = runtimeProvider
+	r.runtimeModel = runtimeModel
+	if updatedSession, syncErr := r.service.syncSDKSessionID(ctx, r.workspacePath, r.session, client.SessionID(), runtimeProvider, runtimeModel); syncErr != nil {
 		return syncErr
 	} else {
 		r.session = updatedSession
@@ -885,13 +938,30 @@ func (s *Service) syncSDKSessionID(
 	workspacePath string,
 	current session.Session,
 	sessionID string,
+	runtimeProvider string,
+	runtimeModel string,
 ) (session.Session, error) {
 	trimmedSessionID := strings.TrimSpace(sessionID)
 	currentSessionID := strings.TrimSpace(stringPointerValue(current.SessionID))
-	if trimmedSessionID == "" || currentSessionID == trimmedSessionID {
+	if trimmedSessionID == "" {
+		return current, nil
+	}
+	nextProvider := strings.TrimSpace(runtimeProvider)
+	nextModel := strings.TrimSpace(runtimeModel)
+	currentProvider, _ := current.Options[sessionmodel.OptionRuntimeProvider].(string)
+	currentModel, _ := current.Options[sessionmodel.OptionRuntimeModel].(string)
+	sessionIDChanged := currentSessionID != trimmedSessionID
+	fingerprintChanged := strings.TrimSpace(currentProvider) != nextProvider ||
+		strings.TrimSpace(currentModel) != nextModel
+	if !sessionIDChanged && !fingerprintChanged {
 		return current, nil
 	}
 	current.SessionID = &trimmedSessionID
+	if current.Options == nil {
+		current.Options = map[string]any{}
+	}
+	current.Options[sessionmodel.OptionRuntimeProvider] = nextProvider
+	current.Options[sessionmodel.OptionRuntimeModel] = nextModel
 	updated, err := s.files.UpsertSession(workspacePath, current)
 	if err != nil {
 		return session.Session{}, err
@@ -899,7 +969,7 @@ func (s *Service) syncSDKSessionID(
 	if updated == nil {
 		return current, nil
 	}
-	if s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
+	if sessionIDChanged && s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
 		if err := s.roomStore.UpdateRoomSessionSDKSessionID(ctx, strings.TrimSpace(*updated.RoomSessionID), trimmedSessionID); err != nil {
 			return session.Session{}, err
 		}
