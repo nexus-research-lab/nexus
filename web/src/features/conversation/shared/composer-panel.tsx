@@ -483,13 +483,19 @@ const ComposerPanelView = memo(({
           <textarea
             ref={textarea_ref}
             className={cn(
-              "multiline-cursor min-h-6 min-w-0 flex-1 max-h-[200px] resize-none overflow-y-auto bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
+              "multiline-cursor soft-scrollbar min-h-6 min-w-0 flex-1 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
               "placeholder:text-(--text-soft)",
               "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
               "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
             )}
             disabled={disabled || is_loading}
             onChange={(event) => handle_input_change(event.target.value)}
+            onWheel={(event) => {
+              const target = event.currentTarget;
+              if (target.scrollHeight > target.clientHeight) {
+                event.stopPropagation();
+              }
+            }}
             onCompositionEnd={() => {
               is_composing_ref.current = false;
               ignore_next_enter_after_composition_ref.current = true;

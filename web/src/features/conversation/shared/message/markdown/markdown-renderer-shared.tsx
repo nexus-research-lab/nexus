@@ -34,11 +34,27 @@ type MarkdownNodeLike = {
 type ResolveWorkspaceFilePath = (value: string) => string | null;
 
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
+const WORKSPACE_ABSOLUTE_FILE_PATTERN = /(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/(?<agent>[^/\s`"'，。；！？]+)\/(?<relative>[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}))/;
+const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入到|生成到|created at|saved to|written to)\s*)[`"']?(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/[^/\s`"'，。；！？]+\/[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}|[A-Za-z0-9_.-][A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,10})[`"']?(?<suffix>.*)$/i;
 
 export const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkBreaks];
 export const REHYPE_PLUGINS = [rehypeKatex];
 export const MARKDOWN_BODY_CLASS_NAME = "message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-(--divider-subtle-color)";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
+
+export interface MarkdownTextSegment {
+  type: "text";
+  text: string;
+}
+
+export interface MarkdownFileArtifactSegment {
+  type: "file_artifact";
+  label: string;
+  path: string;
+  display_path: string;
+}
+
+export type MarkdownContentSegment = MarkdownTextSegment | MarkdownFileArtifactSegment;
 
 function normalize_workspace_reference(value: string): string {
   return value.replace(/^[("'`【]+|[)"'`】,，。；：:!?]+$/g, "");
@@ -66,6 +82,88 @@ function resolve_workspace_file_reference(value: string, files: WorkspaceFileEnt
 
   const basename_matches = candidate_files.filter((entry) => entry.name === normalized);
   return basename_matches.length === 1 ? basename_matches[0].path : null;
+}
+
+function display_workspace_artifact_path(path: string): string {
+  const normalized = normalize_workspace_reference(path).replace(/\\/g, "/");
+  const match = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(normalized);
+  if (!match?.groups?.agent || !match.groups.relative) {
+    return normalized.replace(/^\.\//, "");
+  }
+  return `${match.groups.agent}/${match.groups.relative}`;
+}
+
+function clickable_workspace_artifact_path(path: string): string {
+  const normalized = normalize_workspace_reference(path).replace(/\\/g, "/");
+  const match = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(normalized);
+  if (!match?.groups?.relative) {
+    return normalized.replace(/^\.\//, "");
+  }
+  return match.groups.relative;
+}
+
+function resolve_workspace_artifact_path(
+  path: string,
+  resolve_file_path: ResolveWorkspaceFilePath,
+): string | null {
+  const normalized = normalize_workspace_reference(path).replace(/\\/g, "/");
+  if (WORKSPACE_ABSOLUTE_FILE_PATTERN.test(normalized)) {
+    return clickable_workspace_artifact_path(normalized);
+  }
+  return resolve_file_path(normalized);
+}
+
+function normalize_artifact_label(prefix: string): string {
+  const label = prefix.trim().replace(/[：:，,]$/, "").trim();
+  return label || "已保存到";
+}
+
+export function split_markdown_file_artifacts(
+  content: string,
+  resolve_file_path: ResolveWorkspaceFilePath,
+): MarkdownContentSegment[] {
+  const segments: MarkdownContentSegment[] = [];
+  const pending_text: string[] = [];
+
+  const flush_text = () => {
+    if (pending_text.length === 0) {
+      return;
+    }
+    segments.push({ type: "text", text: pending_text.join("\n") });
+    pending_text.length = 0;
+  };
+
+  for (const line of content.split("\n")) {
+    const match = SAVED_FILE_LINE_PATTERN.exec(line.trim());
+    const absolute_match = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(line.trim());
+    const path = match?.groups?.path ?? absolute_match?.groups?.path;
+    if (!path) {
+      pending_text.push(line);
+      continue;
+    }
+
+    const resolved_path = resolve_workspace_artifact_path(path, resolve_file_path);
+    if (!resolved_path) {
+      pending_text.push(line);
+      continue;
+    }
+
+    flush_text();
+    segments.push({
+      type: "file_artifact",
+      label: match?.groups?.prefix ? normalize_artifact_label(match.groups.prefix) : "文件",
+      path: resolved_path,
+      display_path: display_workspace_artifact_path(path),
+    });
+
+    const suffix = match?.groups?.suffix?.trim() ?? "";
+    if (suffix && /[\p{L}\p{N}]/u.test(suffix)) {
+      pending_text.push(suffix);
+    }
+  }
+
+  flush_text();
+  return segments.length > 0 ? segments : [{ type: "text", text: content }];
 }
 
 function is_block_code(node: MarkdownNodeLike | null | undefined, class_name: string | undefined, value: string): boolean {
