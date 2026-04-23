@@ -9,6 +9,10 @@ import (
 const (
 	// OptionHistorySource 表示会话历史真相源配置项。
 	OptionHistorySource = "history_source"
+	// OptionRuntimeProvider 表示创建/续用 SDK session 时使用的 provider key。
+	OptionRuntimeProvider = "runtime_provider"
+	// OptionRuntimeModel 表示创建/续用 SDK session 时使用的模型。
+	OptionRuntimeModel = "runtime_model"
 	// HistorySourceTranscript 表示历史来自 cc transcript，Nexus 仅保留 overlay。
 	HistorySourceTranscript = "transcript"
 )
