@@ -17,6 +17,7 @@ import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
 import { CodeBlock } from "../blocks/code-block";
 import { ThinkingBlock } from "../blocks/thinking-block";
 import { ToolBlock } from "../blocks/tool-block";
+import { ToolUseErrorBlock } from "../blocks/tool-use-error-block";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
 import {
@@ -48,6 +49,29 @@ interface ContentRendererProps {
   hidden_tool_names?: string[];
   class_name?: string;
   show_timeline_dots?: boolean;
+}
+
+type StringContentSegment =
+  | { type: "text"; text: string }
+  | { type: "tool_use_error"; content: string };
+
+const TOOL_USE_ERROR_TAG_PATTERN = /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
+
+function split_tool_use_error_segments(content: string): StringContentSegment[] {
+  const segments: StringContentSegment[] = [];
+  let cursor = 0;
+  for (const match of content.matchAll(TOOL_USE_ERROR_TAG_PATTERN)) {
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      segments.push({ type: "text", text: content.slice(cursor, index) });
+    }
+    segments.push({ type: "tool_use_error", content: match[1] ?? "" });
+    cursor = index + match[0].length;
+  }
+  if (cursor < content.length) {
+    segments.push({ type: "text", text: content.slice(cursor) });
+  }
+  return segments.length > 0 ? segments : [{ type: "text", text: content }];
 }
 
 function SystemEventIcon({
@@ -129,13 +153,23 @@ export function ContentRenderer(
   }: ContentRendererProps) {
   // Handle string content (Markdown)
   if (typeof content === 'string') {
-    const markdown = (
-      <MarkdownRenderer
-        content={content}
-        is_streaming={is_streaming}
-        on_open_workspace_file={on_open_workspace_file}
-      />
-    );
+    const content_segments = split_tool_use_error_segments(content);
+    const markdown = content_segments.map((segment, index) => {
+      if (segment.type === "tool_use_error") {
+        return <ToolUseErrorBlock key={`tool-use-error-${index}`} content={segment.content} />;
+      }
+      if (!segment.text.trim()) {
+        return null;
+      }
+      return (
+        <MarkdownRenderer
+          key={`markdown-${index}`}
+          content={segment.text}
+          is_streaming={is_streaming}
+          on_open_workspace_file={on_open_workspace_file}
+        />
+      );
+    });
 
     if (!class_name) {
       return markdown;
