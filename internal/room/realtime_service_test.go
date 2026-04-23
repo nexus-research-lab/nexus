@@ -79,10 +79,6 @@ func (c *fakeRoomClient) Reconfigure(context.Context, agentclient.Options) error
 	return nil
 }
 
-func (c *fakeRoomClient) SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error {
-	return nil
-}
-
 func (c *fakeRoomClient) SessionID() string { return c.sessionID }
 
 type fakeRoomFactory struct {

@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"strings"
 	"sync"
@@ -22,7 +21,6 @@ type Client interface {
 	Interrupt(context.Context) error
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
-	SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error
 	SessionID() string
 }
 
@@ -284,24 +282,6 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 	return state.Client.Disconnect(ctx)
 }
 
-// RecycleClient 仅回收指定 session 的运行时 client，保留 round 状态与中断状态。
-func (m *Manager) RecycleClient(ctx context.Context, sessionKey string) error {
-	m.mu.Lock()
-	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || state.Client == nil {
-		m.mu.Unlock()
-		return nil
-	}
-	client := state.Client
-	state.Client = nil
-	m.mu.Unlock()
-	err := client.Disconnect(ctx)
-	if isIgnorableRecycleDisconnectError(err) {
-		return nil
-	}
-	return err
-}
-
 func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 	state := m.sessions[sessionKey]
 	if state == nil {
@@ -318,24 +298,6 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 
 func sessionBelongsToAgent(sessionKey string, agentID string) bool {
 	return strings.HasPrefix(sessionKey, "agent:"+agentID+":")
-}
-
-func isIgnorableRecycleDisconnectError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, agentclient.ErrNotConnected) {
-		return true
-	}
-
-	// 中文注释：回收坏掉的 runtime client 时，旧进程可能已经被系统杀死，
-	// Disconnect 再次触碰 transport 会返回“文件已关闭 / 进程已退出”。
-	// 这类错误不影响后续创建新 client，不能阻断重建链路。
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "file already closed") ||
-		strings.Contains(message, "broken pipe") ||
-		strings.Contains(message, "signal: killed") ||
-		strings.Contains(message, "process: command exited with error")
 }
 
 func waitRoundDoneSignals(

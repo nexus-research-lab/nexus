@@ -2,17 +2,12 @@ package conversation
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/logx"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
 // TitleScheduler 定义标题调度能力。
@@ -123,46 +118,6 @@ func (c *RoundCoordinator) ScheduleTitle(
 	c.titles.Schedule(ctx, request)
 }
 
-// AcquireRuntimeClient 获取或重建运行时 client。
-func (c *RoundCoordinator) AcquireRuntimeClient(
-	ctx context.Context,
-	sessionKey string,
-	options agentclient.Options,
-	permissionMode sdkprotocol.PermissionMode,
-) (runtimectx.Client, error) {
-	if c == nil || c.runtime == nil {
-		return nil, errors.New("round coordinator is not initialized")
-	}
-
-	client, err := c.runtime.GetOrCreate(ctx, sessionKey, options)
-	if err != nil {
-		return nil, err
-	}
-	if err := client.Connect(ctx); err != nil {
-		return nil, err
-	}
-	if permissionMode != "" {
-		if err := client.SetPermissionMode(ctx, permissionMode); err != nil {
-			return nil, err
-		}
-	}
-	return client, nil
-}
-
 func (c *RoundCoordinator) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, c.logger)
-}
-
-func isBrokenRuntimeClientError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, agentclient.ErrNotConnected) {
-		return true
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "file already closed") ||
-		strings.Contains(message, "send control request failed") ||
-		strings.Contains(message, "write payload failed") ||
-		strings.Contains(message, "broken pipe")
 }

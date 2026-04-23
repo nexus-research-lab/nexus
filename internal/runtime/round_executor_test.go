@@ -37,10 +37,6 @@ func (c *fakeRoundExecutionClient) Reconfigure(context.Context, agentclient.Opti
 	return nil
 }
 
-func (c *fakeRoundExecutionClient) SetPermissionMode(context.Context, sdkprotocol.PermissionMode) error {
-	return nil
-}
-
 func (c *fakeRoundExecutionClient) SessionID() string { return c.sessionID }
 
 type fakeRoundExecutionMapper struct {
