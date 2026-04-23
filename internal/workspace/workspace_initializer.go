@@ -6,9 +6,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/appfs"
 )
 
 var (
@@ -244,11 +245,7 @@ func renderTemplate(raw string, context map[string]string) string {
 }
 
 func projectRoot() string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "."
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	return appfs.Root()
 }
 
 func workspaceTemplate(key string, isMainAgent bool) string {

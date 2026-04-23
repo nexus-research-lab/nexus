@@ -2,16 +2,17 @@ package skills
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/appfs"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	workspace2 "github.com/nexus-research-lab/nexus/internal/workspace"
 )
@@ -28,6 +29,11 @@ var (
 	systemSkillNames   = map[string]struct{}{"memory-manager": {}}
 	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
 )
+
+// 中文注释：catalog 元数据直接编进二进制，避免运行时容器再依赖源码目录。
+//
+//go:embed data/curated_skill_catalog.json
+var curatedCatalogPayload []byte
 
 // Info 表示 skill 列表项。
 type Info struct {
@@ -517,12 +523,8 @@ func (s *Service) loadExternalRecords() (map[string]catalogRecord, error) {
 }
 
 func (s *Service) loadCuratedEntries() (map[string]map[string]string, error) {
-	payload, err := os.ReadFile(filepath.Join(projectRoot(), "internal", "skills", "data", "curated_skill_catalog.json"))
-	if err != nil {
-		return nil, err
-	}
 	var catalog curatedCatalog
-	if err = json.Unmarshal(payload, &catalog); err != nil {
+	if err := json.Unmarshal(curatedCatalogPayload, &catalog); err != nil {
 		return nil, err
 	}
 	result := make(map[string]map[string]string, len(catalog.Skills))
@@ -657,9 +659,5 @@ func firstNonEmptySlice(candidates ...[]string) []string {
 }
 
 func projectRoot() string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "."
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	return appfs.Root()
 }
