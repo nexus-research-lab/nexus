@@ -103,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 权限请求不再广播给全部房间订阅者，改为只投递给当前 session 控制端；Room 普通协作事件仍保留 room 广播。
 
 ### Fixed
+- 修复对话中生成文件路径只显示为长路径的问题，workspace 文件路径现在会渲染为可点击的文件资源块；同时修复输入框长内容无法在输入框内部滚动的问题。
 - 修复 Go 私有 SDK 依赖在 `make check-go` / `make db-init` / `make run-backend` 等入口缺少前置提示的问题。
 - 修复 Go 运行镜像中系统 skill 与 workspace 初始化仍引用编译期源码根目录 `/src` 的问题：现在统一按运行时应用根目录解析 `skills/`，并将 curated skill catalog 直接编进二进制，避免 `/agent/v1/agents/*/workspace/files` 等初始化链路在容器内因 `SKILL.md` 路径失效返回 500。
 - 修复多用户部署下 `nexus-manager` 通过 `nexusctl` 执行系统操作时丢失当前登录用户作用域的问题：CLI 业务命令现在强制走请求上下文/`NEXUSCTL_USER_ID` 作用域，agent runtime 会按当前登录用户注入该环境变量，避免跨用户读取或操作 `agent / room / session / workspace / skill` 数据。
