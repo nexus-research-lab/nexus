@@ -24,6 +24,12 @@ import {
 } from "@/shared/ui/onboarding/tour-state";
 
 type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
+type TourStickerPlacement = "hang" | "perch" | "peek" | "point" | "hold";
+
+interface TourStickerAsset {
+  src: string;
+  placement: TourStickerPlacement;
+}
 
 export interface OnboardingTourStepItem {
   icon: "users" | "hash" | "puzzle";
@@ -65,6 +71,13 @@ interface OnboardingTourContextValue {
 }
 
 const ONBOARDING_TOUR_CONTEXT = createContext<OnboardingTourContextValue | null>(null);
+const TOUR_STICKERS: TourStickerAsset[] = [
+  { src: "/nexus/stickers/card-top.png", placement: "perch" },
+  { src: "/nexus/stickers/hanging.png", placement: "hang" },
+  { src: "/nexus/stickers/peek-right.png", placement: "peek" },
+  { src: "/nexus/stickers/pointing.png", placement: "point" },
+  { src: "/nexus/stickers/holding-card.png", placement: "hold" },
+];
 
 function clamp_step_index(step_index: number, steps_count: number): number {
   if (steps_count <= 0) {
@@ -92,12 +105,63 @@ function estimate_card_height(step?: OnboardingTourStep): number {
   return height;
 }
 
-function clamp_popover_top(top: number, card_height: number, viewport_height: number): number {
-  return Math.max(16, Math.min(top, viewport_height - card_height - 16));
+function clamp_popover_top_with_clearance(
+  top: number,
+  card_height: number,
+  viewport_height: number,
+  top_clearance: number,
+): number {
+  const bottom_limit = viewport_height - card_height - 16;
+  if (bottom_limit < top_clearance) {
+    return Math.max(16, bottom_limit);
+  }
+  return Math.max(top_clearance, Math.min(top, bottom_limit));
 }
 
 function clamp_popover_left(left: number, card_width: number, viewport_width: number): number {
   return Math.max(16, Math.min(left, viewport_width - card_width - 16));
+}
+
+function resolve_tour_sticker(
+  step_index: number,
+  placement: TourPlacement,
+): TourStickerAsset {
+  if (placement === "center") {
+    return TOUR_STICKERS[0];
+  }
+  if (placement === "left") {
+    return TOUR_STICKERS[2];
+  }
+  return TOUR_STICKERS[(step_index + 1) % TOUR_STICKERS.length];
+}
+
+function TourStepSticker({ sticker }: { sticker: TourStickerAsset }) {
+  const sticker_class_name: Record<TourStickerPlacement, string> = {
+    hang: "-top-12 right-7 h-[72px] w-auto",
+    perch: "-top-10 left-14 h-[74px] w-auto -translate-x-1/2",
+    peek: "top-16 -left-10 h-[82px] w-auto",
+    point: "-top-[52px] right-4 h-[72px] w-auto",
+    hold: "top-1/2 -right-10 h-[82px] w-auto -translate-y-1/2",
+  };
+
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className={cn(
+        "pointer-events-none absolute z-20 select-none drop-shadow-[0_14px_20px_rgba(68,74,120,0.12)] max-[520px]:hidden",
+        sticker_class_name[sticker.placement],
+      )}
+      src={sticker.src}
+    />
+  );
+}
+
+function get_sticker_top_clearance(sticker: TourStickerAsset): number {
+  if (sticker.placement === "hang" || sticker.placement === "perch" || sticker.placement === "point") {
+    return 72;
+  }
+  return 16;
 }
 
 function TourStepIllustration({
@@ -134,6 +198,7 @@ function get_popover_position(
   viewport_width: number,
   viewport_height: number,
   popover_size: PopoverSize,
+  top_clearance: number,
 ): PopoverPosition {
   const card_width = Math.min(popover_size.width, viewport_width - 32);
   const card_height = Math.min(popover_size.height, viewport_height - 32);
@@ -141,7 +206,12 @@ function get_popover_position(
 
   if (!target_rect || placement === "center") {
     return {
-      top: clamp_popover_top(viewport_height / 2 - card_height / 2, card_height, viewport_height),
+      top: clamp_popover_top_with_clearance(
+        viewport_height / 2 - card_height / 2,
+        card_height,
+        viewport_height,
+        top_clearance,
+      ),
       left: clamp_popover_left(viewport_width / 2 - card_width / 2, card_width, viewport_width),
     };
   }
@@ -149,16 +219,22 @@ function get_popover_position(
   switch (placement) {
     case "left":
       return {
-        top: clamp_popover_top(
+        top: clamp_popover_top_with_clearance(
           target_rect.top + target_rect.height / 2 - card_height / 2,
           card_height,
           viewport_height,
+          top_clearance,
         ),
         left: clamp_popover_left(target_rect.left - card_width - gutter, card_width, viewport_width),
       };
     case "top":
       return {
-        top: clamp_popover_top(target_rect.top - card_height - gutter, card_height, viewport_height),
+        top: clamp_popover_top_with_clearance(
+          target_rect.top - card_height - gutter,
+          card_height,
+          viewport_height,
+          top_clearance,
+        ),
         left: clamp_popover_left(
           target_rect.left + target_rect.width / 2 - card_width / 2,
           card_width,
@@ -167,10 +243,11 @@ function get_popover_position(
       };
     case "bottom":
       return {
-        top: clamp_popover_top(
+        top: clamp_popover_top_with_clearance(
           target_rect.bottom + gutter,
           card_height,
           viewport_height,
+          top_clearance,
         ),
         left: clamp_popover_left(
           target_rect.left + target_rect.width / 2 - card_width / 2,
@@ -182,7 +259,12 @@ function get_popover_position(
     default: {
       const raw_top = target_rect.top + target_rect.height / 2 - card_height / 2;
       return {
-        top: clamp_popover_top(raw_top, card_height, viewport_height),
+        top: clamp_popover_top_with_clearance(
+          raw_top,
+          card_height,
+          viewport_height,
+          top_clearance,
+        ),
         left: clamp_popover_left(
           target_rect.right + gutter,
           card_width,
@@ -299,12 +381,14 @@ function OnboardingTourOverlay({
   }
 
   const placement = step.placement ?? (step.target ? "right" : "center");
+  const sticker = resolve_tour_sticker(step_index, placement);
   const popover_position = get_popover_position(
     placement,
     target_rect,
     window.innerWidth,
     window.innerHeight,
     popover_size,
+    get_sticker_top_clearance(sticker),
   );
   const is_last_step = step_index >= tour.steps.length - 1;
 
@@ -334,73 +418,76 @@ function OnboardingTourOverlay({
           left: popover_position.left,
         }}
       >
-        <div
-          ref={card_ref}
-          className={cn(
-            "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[24px] border px-4 py-3.5 shadow-[0_22px_58px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)]",
-          )}
-        >
-          {step.image ? (
-            <TourStepIllustration
-              is_center_step={placement === "center"}
-              src={step.image}
-              title={step.title}
-            />
-          ) : null}
+        <div className="relative">
+          <TourStepSticker sticker={sticker} />
+          <div
+            ref={card_ref}
+            className={cn(
+              "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[24px] border px-4 py-3.5 shadow-[0_22px_58px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)]",
+            )}
+          >
+            {step.image ? (
+              <TourStepIllustration
+                is_center_step={placement === "center"}
+                src={step.image}
+                title={step.title}
+              />
+            ) : null}
 
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h3 className="mt-0.5 text-[18px] font-semibold tracking-tight text-(--text-strong)">
-                {step.title}
-              </h3>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="mt-0.5 text-[18px] font-semibold tracking-tight text-(--text-strong)">
+                  {step.title}
+                </h3>
+              </div>
+              <button
+                className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                onClick={() => on_close()}
+                type="button"
+              >
+                {t("common.skip")}
+              </button>
             </div>
-            <button
-              className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => on_close()}
-              type="button"
-            >
-              {t("common.skip")}
-            </button>
-          </div>
 
-          <p className="mt-2.5 text-[13px] leading-6 text-(--text-default)">
-            {step.description}
-          </p>
+            <p className="mt-2.5 text-[13px] leading-6 text-(--text-default)">
+              {step.description}
+            </p>
 
-          {step.items && step.items.length > 0 && (
-            <div className="mt-2.5 flex flex-col gap-1.5">
-              {step.items.map((item) => (
-                <div
-                  key={item.text}
-                  className="flex items-center gap-2 rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] px-2.5 py-1.5"
+            {step.items && step.items.length > 0 && (
+              <div className="mt-2.5 flex flex-col gap-1.5">
+                {step.items.map((item) => (
+                  <div
+                    key={item.text}
+                    className="flex items-center gap-2 rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] px-2.5 py-1.5"
+                  >
+                    <TourItemIcon name={item.icon} />
+                    <span className="text-[12px] leading-5 text-(--text-muted)">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-3.5 flex items-center justify-between gap-3">
+              <span className="text-[11px] font-medium tabular-nums text-(--text-muted)">
+                {step_index + 1} / {tour.steps.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                  disabled={step_index === 0}
+                  onClick={on_previous}
+                  type="button"
                 >
-                  <TourItemIcon name={item.icon} />
-                  <span className="text-[12px] leading-5 text-(--text-muted)">{item.text}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-3.5 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-medium tabular-nums text-(--text-muted)">
-              {step_index + 1} / {tour.steps.length}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                disabled={step_index === 0}
-                onClick={on_previous}
-                type="button"
-              >
-                {t("common.back")}
-              </button>
-              <button
-                className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-[transform,opacity] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:opacity-92"
-                onClick={is_last_step ? () => on_close({ completed: true }) : on_next}
-                type="button"
-              >
-                {is_last_step ? t("common.finish") : t("common.next")}
-              </button>
+                  {t("common.back")}
+                </button>
+                <button
+                  className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-[transform,opacity] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:opacity-92"
+                  onClick={is_last_step ? () => on_close({ completed: true }) : on_next}
+                  type="button"
+                >
+                  {is_last_step ? t("common.finish") : t("common.next")}
+                </button>
+              </div>
             </div>
           </div>
         </div>

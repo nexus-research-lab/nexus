@@ -341,60 +341,6 @@ export async function request_api<T>(
   return payload.data as T;
 }
 
-export async function request_blob(
-  input: string,
-  init?: RequestApiOptions,
-): Promise<Blob> {
-  const {
-    notify_on_401,
-    timeout_ms,
-    body: _unused_body,
-    headers: _unused_headers,
-    ...request_init
-  } = init ?? {};
-  const { body, headers } = normalize_request_payload(init);
-  const { signal, cleanup, did_timeout } = build_abort_signal(
-    init?.signal,
-    timeout_ms ?? DEFAULT_REQUEST_TIMEOUT_MS,
-  );
-
-  let response: Response;
-  try {
-    response = await fetch(input, {
-      credentials: "include",
-      ...request_init,
-      body,
-      headers,
-      signal,
-    });
-  } catch (error) {
-    cleanup();
-    if (did_timeout()) {
-      throw new Error("请求超时，请稍后重试");
-    }
-    throw error;
-  }
-
-  if (!response.ok) {
-    const payload = await parse_response_body<unknown>(response);
-    cleanup();
-    const message = build_error_message(response, payload);
-    if (response.status === 401) {
-      if (notify_on_401 !== false) {
-        emit_auth_required();
-      }
-      throw new UnauthorizedError(message);
-    }
-    throw new ApiRequestError(message, response.status);
-  }
-
-  try {
-    return await response.blob();
-  } finally {
-    cleanup();
-  }
-}
-
 export function notify_auth_required() {
   emit_auth_required();
 }

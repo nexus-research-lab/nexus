@@ -9,7 +9,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260423082348-900b430c434c
+	github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260423091621-83b28d2869de
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2

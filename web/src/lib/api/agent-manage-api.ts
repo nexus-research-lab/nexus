@@ -21,7 +21,7 @@ import {
 } from "@/types/agent/agent";
 import { get_agent_api_base_url } from "@/config/options";
 import { transform_api_agent } from "@/lib/api/agent-transform";
-import { request_api, request_blob } from "@/lib/api/http";
+import { request_api } from "@/lib/api/http";
 
 const AGENT_API_BASE_URL = get_agent_api_base_url();
 
@@ -230,15 +230,4 @@ export const get_workspace_file_preview_url = (
   path: string,
 ): string => {
   return build_workspace_file_transfer_url(agent_id, path, "inline");
-};
-
-export const get_workspace_file_preview_blob_api = (
-  agent_id: string,
-  path: string,
-  signal?: AbortSignal,
-): Promise<Blob> => {
-  return request_blob(get_workspace_file_preview_url(agent_id, path), {
-    method: "GET",
-    signal,
-  });
 };

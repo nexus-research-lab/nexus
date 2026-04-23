@@ -57,10 +57,17 @@ export function OnboardingGuideCenter({
       onClick={on_close}
       role="dialog"
     >
-      <section
-        className="dialog-shell radius-shell-xl flex w-full max-w-lg flex-col overflow-hidden"
+      <div
+        className="relative w-full max-w-lg"
         onClick={(event) => event.stopPropagation()}
       >
+        <img
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-13 right-2 z-20 h-[92px] w-auto select-none drop-shadow-[0_14px_20px_rgba(68,74,120,0.12)] max-[520px]:hidden"
+          src="/nexus/stickers/card-top.png"
+        />
+        <section className="dialog-shell radius-shell-xl flex w-full flex-col overflow-hidden">
         <div className="dialog-header !px-4 !py-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <img
@@ -150,7 +157,8 @@ export function OnboardingGuideCenter({
             {reset_label}
           </button>
         </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 

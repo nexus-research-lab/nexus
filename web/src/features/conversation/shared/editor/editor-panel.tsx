@@ -9,7 +9,7 @@ import {
   get_workspace_file_content_api,
   update_workspace_file_content_api,
   get_workspace_file_download_url,
-  get_workspace_file_preview_blob_api,
+  get_workspace_file_preview_url,
 } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -103,65 +103,11 @@ function EditorPanelHeader({
   );
 }
 
-function useWorkspaceFilePreviewObjectUrl(
-  agent_id: string,
-  path: string,
-  preview_revision?: string,
-) {
-  const [preview_url, setPreviewUrl] = useState<string | null>(null);
-  const [preview_error, setPreviewError] = useState<string | null>(null);
-  const [is_preview_loading, setIsPreviewLoading] = useState(true);
-
-  useEffect(() => {
-    let object_url: string | null = null;
-    const abort_controller = new AbortController();
-
-    setPreviewUrl(null);
-    setPreviewError(null);
-    setIsPreviewLoading(true);
-
-    void get_workspace_file_preview_blob_api(
-      agent_id,
-      path,
-      abort_controller.signal,
-    ).then((blob) => {
-      if (abort_controller.signal.aborted) {
-        return;
-      }
-      object_url = URL.createObjectURL(blob);
-      setPreviewUrl(object_url);
-    }).catch((error) => {
-      if (abort_controller.signal.aborted) {
-        return;
-      }
-      setPreviewError(error instanceof Error ? error.message : "文件预览加载失败");
-    }).finally(() => {
-      if (!abort_controller.signal.aborted) {
-        setIsPreviewLoading(false);
-      }
-    });
-
-    return () => {
-      abort_controller.abort();
-      if (object_url) {
-        URL.revokeObjectURL(object_url);
-      }
-    };
-  }, [agent_id, path, preview_revision]);
-
-  return {
-    is_preview_loading,
-    preview_error,
-    preview_url,
-  };
-}
-
 // PDF 预览组件
 function PdfPreview({
   agent_id,
   path,
   file_name,
-  preview_revision,
   on_close,
   on_resize_start,
   embedded,
@@ -169,19 +115,13 @@ function PdfPreview({
   agent_id: string;
   path: string;
   file_name: string;
-  preview_revision?: string;
   on_close: () => void;
   on_resize_start: () => void;
   embedded?: boolean;
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
   const download_url = get_workspace_file_download_url(agent_id, path);
-  const { is_preview_loading, preview_error, preview_url } =
-    useWorkspaceFilePreviewObjectUrl(agent_id, path, preview_revision);
-
-  useEffect(() => {
-    setIsLoaded(false);
-  }, [preview_url]);
+  const preview_url = get_workspace_file_preview_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
@@ -230,12 +170,7 @@ function PdfPreview({
               <FileText className="h-3 w-3" />
               PDF 预览
             </span>
-            {preview_error ? (
-              <span className="flex items-center gap-1 text-destructive">
-                <EyeOff className="h-3 w-3" />
-                加载失败
-              </span>
-            ) : is_loaded ? (
+            {is_loaded ? (
               <span className="flex items-center gap-1 text-emerald-600">
                 <Eye className="h-3 w-3" />
                 已加载
@@ -251,26 +186,13 @@ function PdfPreview({
         title={file_name}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
-        {preview_error ? (
-          <div className="m-auto max-w-xs text-center">
-            <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
-            <p className="mt-4 text-sm font-medium text-(--text-strong)">PDF 加载失败</p>
-            <p className="mt-2 text-xs leading-5 text-(--text-soft)">{preview_error}</p>
-          </div>
-        ) : preview_url ? (
-          <iframe
-            className="h-full w-full"
-            src={preview_url}
-            title={file_name}
-            onLoad={() => setIsLoaded(true)}
-          />
-        ) : (
-          <div className="m-auto flex items-center gap-2 text-xs text-(--text-muted)">
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-            {is_preview_loading ? "正在加载 PDF" : "准备预览"}
-          </div>
-        )}
+      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
+        <iframe
+          className="h-full w-full"
+          src={preview_url}
+          title={file_name}
+          onLoad={() => setIsLoaded(true)}
+        />
       </div>
     </>
   );
@@ -281,7 +203,6 @@ function ImagePreview({
   agent_id,
   path,
   file_name,
-  preview_revision,
   on_close,
   on_resize_start,
   embedded,
@@ -289,7 +210,6 @@ function ImagePreview({
   agent_id: string;
   path: string;
   file_name: string;
-  preview_revision?: string;
   on_close: () => void;
   on_resize_start: () => void;
   embedded?: boolean;
@@ -297,19 +217,11 @@ function ImagePreview({
   const [is_loaded, setIsLoaded] = useState(false);
   const [has_error, setHasError] = useState(false);
   const download_url = get_workspace_file_download_url(agent_id, path);
-  const { is_preview_loading, preview_error, preview_url } =
-    useWorkspaceFilePreviewObjectUrl(agent_id, path, preview_revision);
-
-  useEffect(() => {
-    setIsLoaded(false);
-    setHasError(false);
-  }, [preview_url]);
+  const preview_url = get_workspace_file_preview_url(agent_id, path);
 
   const handle_download = () => {
     window.open(download_url, "_blank");
   };
-
-  const error_message = preview_error || (has_error ? "图片加载失败" : null);
 
   return (
     <>
@@ -354,7 +266,7 @@ function ImagePreview({
               <FileImage className="h-3 w-3" />
               图片预览
             </span>
-            {error_message ? (
+            {has_error ? (
               <span className="flex items-center gap-1 text-destructive">
                 <EyeOff className="h-3 w-3" />
                 加载失败
@@ -375,26 +287,21 @@ function ImagePreview({
         title={file_name}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
-        {error_message ? (
-          <div className="m-auto max-w-xs text-center">
+      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
+        {has_error ? (
+          <div className="m-auto text-center">
             <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
             <p className="mt-4 text-sm font-medium text-(--text-strong)">图片加载失败</p>
-            <p className="mt-2 text-xs leading-5 text-(--text-soft)">{error_message}</p>
+            <p className="mt-2 text-xs text-(--text-soft)">请尝试下载文件</p>
           </div>
-        ) : preview_url ? (
+        ) : (
           <img
-            className="m-auto max-h-full max-w-full rounded-lg object-contain"
+            className="max-h-full max-w-full rounded-lg object-contain"
             src={preview_url}
             alt={file_name}
             onLoad={() => setIsLoaded(true)}
             onError={() => { setIsLoaded(true); setHasError(true); }}
           />
-        ) : (
-          <div className="m-auto flex items-center gap-2 text-xs text-(--text-muted)">
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-            {is_preview_loading ? "正在加载图片" : "准备预览"}
-          </div>
         )}
       </div>
     </>
@@ -504,9 +411,6 @@ export function EditorPanel({
   const file_name = path ? path.split("/").at(-1) || "" : "";
 
   const live_state = path ? file_states[`${agent_id}:${path}`] : undefined;
-  const preview_revision = live_state
-    ? `${live_state.status}:${live_state.version}:${live_state.updated_at}`
-    : undefined;
   const is_external_writing = !!live_state && live_state.source !== "api" && live_state.status === "writing";
   const has_live_content = typeof live_state?.live_content === "string";
   const is_dirty = draft_content !== saved_content;
@@ -653,7 +557,6 @@ export function EditorPanel({
               agent_id={agent_id}
               path={path}
               file_name={file_name}
-              preview_revision={preview_revision}
               on_close={on_close}
               on_resize_start={on_resize_start}
               embedded={embedded}
@@ -663,7 +566,6 @@ export function EditorPanel({
               agent_id={agent_id}
               path={path}
               file_name={file_name}
-              preview_revision={preview_revision}
               on_close={on_close}
               on_resize_start={on_resize_start}
               embedded={embedded}
