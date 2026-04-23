@@ -310,13 +310,13 @@ func (c *Context) RequestPermission(
 
 	select {
 	case decision := <-pending.ResponseCh:
-		c.cleanupRequest(pending.RequestID)
+		c.finalizeRequest(pending, "answered")
 		return decision, nil
 	case <-ctx.Done():
-		c.cleanupRequest(pending.RequestID)
+		c.finalizeRequest(pending, "cancelled")
 		return sdkprotocol.DenyPermission("Permission request cancelled", request.ToolName == "AskUserQuestion"), nil
 	case <-timer.C:
-		c.cleanupRequest(pending.RequestID)
+		c.finalizeRequest(pending, "expired")
 		return sdkprotocol.DenyPermission("Permission request timeout", request.ToolName == "AskUserQuestion"), nil
 	}
 }
@@ -338,6 +338,7 @@ func (c *Context) HandlePermissionResponse(message map[string]any) bool {
 	decision := c.buildPermissionDecision(pending, message)
 	select {
 	case pending.ResponseCh <- decision:
+		c.finalizeRequest(pending, "answered")
 	default:
 	}
 	return true
@@ -361,6 +362,7 @@ func (c *Context) CancelRequestsForSession(sessionKey string, message string) in
 	for _, pending := range requests {
 		select {
 		case pending.ResponseCh <- sdkprotocol.DenyPermission(message, true):
+			c.finalizeRequest(pending, "cancelled")
 		default:
 		}
 	}

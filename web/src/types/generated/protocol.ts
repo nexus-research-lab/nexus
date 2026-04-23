@@ -3,24 +3,25 @@
  */
 
 export type EventType =
-  | 'message'
-  | 'stream'
-  | 'chat_ack'
-  | 'round_status'
-  | 'session_status'
-  | 'permission_request'
-  | 'agent_runtime_event'
-  | 'workspace_event'
-  | 'room_member_added'
-  | 'room_member_removed'
-  | 'room_deleted'
-  | 'session_resync_required'
-  | 'room_resync_required'
-  | 'stream_start'
-  | 'stream_end'
-  | 'stream_cancelled'
-  | 'error'
-  | 'pong';
+  | "message"
+  | "stream"
+  | "chat_ack"
+  | "round_status"
+  | "session_status"
+  | "permission_request"
+  | "permission_request_resolved"
+  | "agent_runtime_event"
+  | "workspace_event"
+  | "room_member_added"
+  | "room_member_removed"
+  | "room_deleted"
+  | "session_resync_required"
+  | "room_resync_required"
+  | "stream_start"
+  | "stream_end"
+  | "stream_cancelled"
+  | "error"
+  | "pong";
 
 export interface EventMessage {
   envelope_id?: string;

@@ -280,6 +280,10 @@ function filter_pending_permissions_from_snapshot(
   }
 
   return current_permissions.filter((permission) => {
+    if (is_pending_permission_expired(permission)) {
+      return false;
+    }
+
     if (permission.caused_by && is_round_terminal(permission.caused_by)) {
       return false;
     }
@@ -298,6 +302,60 @@ function filter_pending_permissions_from_snapshot(
 
     return !loaded_assistant_message_ids.has(permission.message_id);
   });
+}
+
+function get_pending_permission_expiration_ms(
+  permission: PendingPermission,
+): number | null {
+  if (!permission.expires_at) {
+    return null;
+  }
+  const expires_at_ms = Date.parse(permission.expires_at);
+  return Number.isFinite(expires_at_ms) ? expires_at_ms : null;
+}
+
+function is_pending_permission_expired(
+  permission: PendingPermission,
+  now_ms: number = Date.now(),
+): boolean {
+  const expires_at_ms = get_pending_permission_expiration_ms(permission);
+  return expires_at_ms != null && expires_at_ms <= now_ms;
+}
+
+function prune_expired_pending_permissions(
+  current_permissions: PendingPermission[],
+  now_ms: number = Date.now(),
+): PendingPermission[] {
+  if (current_permissions.length === 0) {
+    return current_permissions;
+  }
+
+  const next_permissions = current_permissions.filter(
+    (permission) => !is_pending_permission_expired(permission, now_ms),
+  );
+  return next_permissions.length === current_permissions.length
+    ? current_permissions
+    : next_permissions;
+}
+
+function get_next_pending_permission_timeout_ms(
+  current_permissions: PendingPermission[],
+  now_ms: number = Date.now(),
+): number | null {
+  let next_timeout_ms: number | null = null;
+
+  for (const permission of current_permissions) {
+    const expires_at_ms = get_pending_permission_expiration_ms(permission);
+    if (expires_at_ms == null) {
+      continue;
+    }
+    const timeout_ms = Math.max(expires_at_ms - now_ms, 0);
+    if (next_timeout_ms == null || timeout_ms < next_timeout_ms) {
+      next_timeout_ms = timeout_ms;
+    }
+  }
+
+  return next_timeout_ms;
 }
 
 function are_runtime_snapshots_equal(
@@ -792,6 +850,33 @@ export function useAgentConversation(
 
     write_volatile_conversation_snapshot(session_key, snapshot);
   }, [messages, pending_agent_slots, runtime_snapshot, session_key]);
+
+  useEffect(() => {
+    const next_permissions = prune_expired_pending_permissions(
+      pending_permissions_ref.current,
+    );
+    if (next_permissions !== pending_permissions_ref.current) {
+      set_pending_permissions(next_permissions);
+      return;
+    }
+
+    const next_timeout_ms = get_next_pending_permission_timeout_ms(
+      pending_permissions_ref.current,
+    );
+    if (next_timeout_ms == null) {
+      return;
+    }
+
+    const timeout_id = window.setTimeout(() => {
+      set_pending_permissions((current_permissions) =>
+        prune_expired_pending_permissions(current_permissions),
+      );
+    }, next_timeout_ms + 1);
+
+    return () => {
+      window.clearTimeout(timeout_id);
+    };
+  }, [pending_permissions, set_pending_permissions]);
 
   const reload_current_session = useCallback(async () => {
     const active_session_key = active_session_key_ref.current;
