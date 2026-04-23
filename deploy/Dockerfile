@@ -94,6 +94,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm -rf /var/lib/apt/lists/*
 
 ENV HOME=/home/agent \
+    NEXUS_APP_ROOT=/opt/app \
     PATH=/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
     NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
     BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
