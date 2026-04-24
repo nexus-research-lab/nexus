@@ -41,40 +41,6 @@ jobs:
         run: |
           git checkout "${{ steps.tag.outputs.tag }}"
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install Backend Dependencies
-        run: |
-          go mod download
-
-      - name: Install Web Dependencies
-        run: |
-          cd web
-          npm ci
-
-      - name: Validate
-        run: |
-          make check-backend
-          cd web
-          npm run lint
-          npx tsc --noEmit
-
-      - name: Build Web
-        run: |
-          cd web
-          npm run build
-
       - name: Extract Release Notes
         id: notes
         run: |
@@ -108,13 +74,10 @@ jobs:
           mkdir -p "${SOURCE_DIR}" "${ARTIFACT_DIR}"
 
           git archive "${TAG}" | tar -x -C "${SOURCE_DIR}"
-          cp -R web/dist "${SOURCE_DIR}/web/dist"
 
           tar -czf "${ARTIFACT_DIR}/nexus-${TAG}.tar.gz" -C "${STAGE_DIR}" "nexus-${TAG}"
-          tar -czf "${ARTIFACT_DIR}/nexus-web-dist-${TAG}.tar.gz" -C web dist
 
           sha256sum "${ARTIFACT_DIR}/nexus-${TAG}.tar.gz" > "${ARTIFACT_DIR}/nexus-${TAG}.sha256"
-          sha256sum "${ARTIFACT_DIR}/nexus-web-dist-${TAG}.tar.gz" > "${ARTIFACT_DIR}/nexus-web-dist-${TAG}.sha256"
 
       - name: Upload Release Assets
         uses: actions/upload-artifact@v4
@@ -123,8 +86,6 @@ jobs:
           path: |
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.tar.gz
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.sha256
-            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.tar.gz
-            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.sha256
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -136,5 +97,3 @@ jobs:
           files: |
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.tar.gz
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.sha256
-            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.tar.gz
-            ${{ runner.temp }}/artifacts/nexus-web-dist-${{ steps.tag.outputs.tag }}.sha256
