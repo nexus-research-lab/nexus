@@ -182,6 +182,7 @@ func IsClientMessageError(err error) bool {
 func IsClientMessageText(message string) bool {
 	return strings.Contains(message, "不能为空") ||
 		strings.Contains(message, "不一致") ||
+		strings.Contains(message, "不正确") ||
 		strings.Contains(message, "已存在") ||
 		strings.Contains(message, "至少") ||
 		strings.Contains(message, "不支持") ||

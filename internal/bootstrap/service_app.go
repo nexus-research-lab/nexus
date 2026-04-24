@@ -19,6 +19,7 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 )
 
@@ -33,6 +34,7 @@ type AppServices struct {
 	Connectors   *connectorsvc.Service
 	Launcher     *launcher.Service
 	Title        *titlegen.Service
+	Usage        *usagesvc.Service
 	Permission   *permissionctx.Context
 	Runtime      *runtimectx.Manager
 	Channels     *channels.Router
@@ -58,6 +60,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	}
 	core := NewCoreServicesWithDB(cfg, db)
 	authService := authsvc.NewServiceWithDB(cfg, db)
+	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
@@ -72,6 +75,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	chatService := chatsvc.NewService(cfg, core.Agent, runtimeManager, permission)
 	chatService.SetLogger(logger.With("component", "chat"))
 	chatService.SetProviderResolver(providerService)
+	chatService.SetUsageRecorder(usageService)
 	chatService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	chatService.SetTitleGenerator(titleService)
 	ingressService := channels.NewIngressService(cfg, core.Agent, chatService, channelRouter)
@@ -80,6 +84,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime := roomsvc.NewRealtimeService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
 	roomRealtime.SetProviderResolver(providerService)
+	roomRealtime.SetUsageRecorder(usageService)
 	roomRealtime.SetTitleGenerator(titleService)
 	automationService := automationsvc.NewService(
 		cfg,
@@ -113,6 +118,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Connectors:   connectorService,
 		Launcher:     launcherService,
 		Title:        titleService,
+		Usage:        usageService,
 		Permission:   permission,
 		Runtime:      runtimeManager,
 		Channels:     channelRouter,

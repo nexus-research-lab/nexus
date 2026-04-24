@@ -20,6 +20,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -61,6 +62,7 @@ type Service struct {
 	providers  runtimectx.RuntimeConfigResolver
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
+	usage      usageRecorder
 	logger     *slog.Logger
 	mcpServers MCPServerBuilder
 	titles     titleScheduler
@@ -73,6 +75,10 @@ type roomSessionStore interface {
 
 type titleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
+}
+
+type usageRecorder interface {
+	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
 }
 
 type chatRoundMapperAdapter struct {
@@ -111,6 +117,7 @@ type roundRunner struct {
 	client            runtimectx.Client
 	runtimeProvider   string
 	runtimeModel      string
+	ownerUserID       string
 	mapper            *messageMapper
 	permissionMode    sdkprotocol.PermissionMode
 	permissionHandler agentclient.PermissionHandler
@@ -152,6 +159,11 @@ func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 // SetProviderResolver 注入 Provider 运行时解析器。
 func (s *Service) SetProviderResolver(resolver runtimectx.RuntimeConfigResolver) {
 	s.providers = resolver
+}
+
+// SetUsageRecorder 注入 token usage 持久化 ledger。
+func (s *Service) SetUsageRecorder(recorder usageRecorder) {
+	s.usage = recorder
 }
 
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。
@@ -230,6 +242,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		client:            client,
 		runtimeProvider:   runtimeProvider,
 		runtimeModel:      runtimeModel,
+		ownerUserID:       usagesvc.OwnerUserIDFromContext(ctx),
 		mapper:            newMessageMapper(sessionKey, agentID, request.RoundID),
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,
@@ -787,6 +800,7 @@ func (r *roundRunner) persistMessage(message sessionmodel.Message) error {
 	if err := r.service.appendRuntimeHistoryMessage(r.workspacePath, r.session, message); err != nil {
 		return err
 	}
+	r.recordUsage(message)
 	updated, err := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, message)
 	if err != nil {
 		return err
@@ -795,6 +809,21 @@ func (r *roundRunner) persistMessage(message sessionmodel.Message) error {
 		r.session = *updated
 	}
 	return nil
+}
+
+func (r *roundRunner) recordUsage(message sessionmodel.Message) {
+	if r.service.usage == nil || sessionmodel.MessageRole(message) != "result" {
+		return
+	}
+	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
+	if err := r.service.usage.RecordMessageUsage(context.Background(), input); err != nil {
+		r.service.loggerFor(context.Background()).Error("DM token usage 写入失败",
+			"session_key", r.sessionKey,
+			"agent_id", r.agent.AgentID,
+			"round_id", r.roundID,
+			"err", err,
+		)
+	}
 }
 
 func (s *Service) appendRuntimeHistoryMessage(

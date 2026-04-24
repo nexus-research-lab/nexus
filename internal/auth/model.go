@@ -106,6 +106,13 @@ type ResetPasswordInput struct {
 	Password string
 }
 
+// ChangePasswordInput 表示当前用户主动修改密码请求。
+type ChangePasswordInput struct {
+	UserID          string
+	CurrentPassword string
+	NewPassword     string
+}
+
 type passwordCredential struct {
 	CredentialID      string
 	UserID            string

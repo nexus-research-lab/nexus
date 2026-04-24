@@ -118,6 +118,33 @@ func TestServiceSetupOwnerLoginLogoutAndResetPassword(t *testing.T) {
 		t.Fatalf("新密码登录失败: %v", err)
 	}
 
+	if _, err = service.ChangePassword(ctx, ChangePasswordInput{
+		UserID:          user.UserID,
+		CurrentPassword: "password123",
+		NewPassword:     "password789",
+	}); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("个人改密应校验当前密码，实际: %v", err)
+	}
+	if _, err = service.ChangePassword(ctx, ChangePasswordInput{
+		UserID:          user.UserID,
+		CurrentPassword: "password456",
+		NewPassword:     "password789",
+	}); err != nil {
+		t.Fatalf("个人改密失败: %v", err)
+	}
+	if _, err = service.Login(ctx, LoginInput{
+		Username: "admin",
+		Password: "password456",
+	}); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("个人改密后旧密码应失效，实际: %v", err)
+	}
+	if _, err = service.Login(ctx, LoginInput{
+		Username: "admin",
+		Password: "password789",
+	}); err != nil {
+		t.Fatalf("个人改密后新密码登录失败: %v", err)
+	}
+
 	if err = service.Logout(ctx, loginResult.SessionToken); err != nil {
 		t.Fatalf("登出失败: %v", err)
 	}

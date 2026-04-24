@@ -11,7 +11,7 @@
 
 "use client";
 
-import { Cable, Compass, Languages, Palette, RotateCcw } from "lucide-react";
+import { Cable, Compass, Languages, Palette, RotateCcw, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -23,15 +23,17 @@ import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ProviderSettingsPanel } from "./provider-settings-panel";
+import { PersonalSettingsPanel } from "./personal-settings-panel";
 
-type SettingsTabKey = "general" | "providers";
+type SettingsTabKey = "general" | "personal" | "providers";
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
-  label_key: "settings.tabs.general" | "settings.tabs.providers";
+  label_key: "settings.tabs.general" | "settings.tabs.personal" | "settings.tabs.providers";
   icon: typeof Palette;
 }[] = [
   { key: "general", label_key: "settings.tabs.general", icon: Palette },
+  { key: "personal", label_key: "settings.tabs.personal", icon: UserRound },
   { key: "providers", label_key: "settings.tabs.providers", icon: Cable },
 ];
 
@@ -75,18 +77,18 @@ function GeneralSettingsSection() {
   const current_locale_label = useMemo(() => get_locale_label(locale, t), [locale, t]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-5">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-1 py-3">
       <section>
-        <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-(--text-strong)">
+        <h2 className="text-[20px] font-semibold tracking-tight text-(--text-strong)">
           {t("settings.general.title")}
         </h2>
       </section>
 
-      <section className="overflow-hidden rounded-[24px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
-        <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <section className="overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
+        <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
                 <Palette className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
@@ -104,12 +106,12 @@ function GeneralSettingsSection() {
           </div>
         </div>
 
-        <div className="mx-4 border-t border-(--divider-subtle-color)" />
+        <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
-        <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
                 <Languages className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
@@ -127,12 +129,12 @@ function GeneralSettingsSection() {
           </div>
         </div>
 
-        <div className="mx-4 border-t border-(--divider-subtle-color)" />
+        <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
-        <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
                 <Compass className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
@@ -164,6 +166,8 @@ function GeneralSettingsSection() {
 export function SettingsPanel() {
   const { t } = useI18n();
   const [active_tab, set_active_tab] = useState<SettingsTabKey>("general");
+  const active_tab_config = SETTINGS_TABS.find((item) => item.key === active_tab) ?? SETTINGS_TABS[0];
+  const ActiveIcon = active_tab_config.icon;
 
   return (
     <WorkspaceSurfaceScaffold
@@ -173,7 +177,7 @@ export function SettingsPanel() {
         <WorkspaceSurfaceHeader
           active_tab={active_tab}
           density="compact"
-          leading={active_tab === "general" ? <Palette className="h-4 w-4" /> : <Cable className="h-4 w-4" />}
+          leading={<ActiveIcon className="h-4 w-4" />}
           on_change_tab={set_active_tab}
           tabs={SETTINGS_TABS.map((item) => ({
             key: item.key,
@@ -184,7 +188,9 @@ export function SettingsPanel() {
         />
       )}
     >
-      {active_tab === "general" ? <GeneralSettingsSection /> : <ProviderSettingsPanel embedded />}
+      {active_tab === "general" ? <GeneralSettingsSection /> : null}
+      {active_tab === "personal" ? <PersonalSettingsPanel /> : null}
+      {active_tab === "providers" ? <ProviderSettingsPanel embedded /> : null}
     </WorkspaceSurfaceScaffold>
   );
 }

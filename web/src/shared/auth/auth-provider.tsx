@@ -27,6 +27,10 @@ const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {
   password_login_enabled: true,
   authenticated: false,
   username: null,
+  user_id: null,
+  display_name: null,
+  role: null,
+  auth_method: null,
 };
 
 let auth_status_bootstrap_inflight: Promise<AuthStatus> | null = null;
@@ -90,6 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...current_status,
             authenticated: false,
             username: null,
+            user_id: null,
+            display_name: null,
+            role: null,
+            auth_method: null,
           };
         });
       });

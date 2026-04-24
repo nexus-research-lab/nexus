@@ -75,6 +75,24 @@ func (r *repository) getUserWithPasswordByUsername(
 	ctx context.Context,
 	username string,
 ) (*User, *passwordCredential, error) {
+	return r.getUserWithPassword(ctx, "username", username)
+}
+
+func (r *repository) getUserWithPasswordByID(
+	ctx context.Context,
+	userID string,
+) (*User, *passwordCredential, error) {
+	return r.getUserWithPassword(ctx, "user_id", userID)
+}
+
+func (r *repository) getUserWithPassword(
+	ctx context.Context,
+	field string,
+	value string,
+) (*User, *passwordCredential, error) {
+	if field != "user_id" && field != "username" {
+		return nil, nil, fmt.Errorf("unsupported user field: %s", field)
+	}
 	row := r.db.QueryRowContext(
 		ctx,
 		`SELECT
@@ -94,9 +112,9 @@ func (r *repository) getUserWithPasswordByUsername(
     c.updated_at
 FROM users u
 LEFT JOIN auth_password_credentials c ON c.user_id = u.user_id
-WHERE u.username = `+r.bind(1)+`
+WHERE u.`+field+` = `+r.bind(1)+`
 LIMIT 1`,
-		strings.TrimSpace(username),
+		strings.TrimSpace(value),
 	)
 	var (
 		user         User

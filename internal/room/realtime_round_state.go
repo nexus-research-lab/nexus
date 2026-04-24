@@ -31,6 +31,7 @@ type activeRoomRound struct {
 	ConversationID string
 	RoomType       string
 	RoundID        string
+	OwnerUserID    string
 	Cancel         context.CancelFunc
 	Slots          map[string]*activeRoomSlot
 	Done           chan struct{}

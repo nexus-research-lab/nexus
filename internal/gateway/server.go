@@ -36,7 +36,7 @@ type Server struct {
 
 	auth       *authgateway.Handlers
 	core       *coregateway.Handlers
-	agent       *agentgateway.Handlers
+	agent      *agentgateway.Handlers
 	room       *roomgateway.Handlers
 	capability *capabilitygateway.Handlers
 	skill      *skillgateway.Handlers
@@ -115,7 +115,7 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 		logger: logger,
 		api:    api,
 		router: chi.NewRouter(),
-		auth:   authgateway.New(api, appServices.Auth),
+		auth:   authgateway.New(api, appServices.Auth, appServices.Usage),
 		core:   coregateway.New(api, appServices.Core.Agent, appServices.Provider),
 		agent: agentgateway.New(
 			api,

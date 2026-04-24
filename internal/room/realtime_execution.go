@@ -3,6 +3,11 @@ package room
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
@@ -10,10 +15,7 @@ import (
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"log/slog"
-	"strings"
-	"sync"
-	"time"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 )
 
 func (s *RealtimeService) runRound(
@@ -189,6 +191,7 @@ func (s *RealtimeService) runSlot(
 			}
 			if sessionmodel.MessageRole(messageValue) == "result" {
 				slot.Status = resultStatus(messageValue["subtype"])
+				s.recordUsage(roundValue, messageValue)
 			}
 			return nil
 		},
@@ -219,6 +222,22 @@ func (s *RealtimeService) runSlot(
 		slot.AgentRoundID,
 	))
 	logger.Info("Room slot 结束", "status", slot.Status)
+}
+
+func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message sessionmodel.Message) {
+	if s.usage == nil || roundValue == nil || sessionmodel.MessageRole(message) != "result" {
+		return
+	}
+	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
+	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
+		s.loggerFor(context.Background()).Error("Room token usage 写入失败",
+			"session_key", roundValue.SessionKey,
+			"room_id", roundValue.RoomID,
+			"conversation_id", roundValue.ConversationID,
+			"round_id", roundValue.RoundID,
+			"err", err,
+		)
+	}
 }
 
 func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {

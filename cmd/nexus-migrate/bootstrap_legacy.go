@@ -295,6 +295,14 @@ func isLatestGoSchema(ctx context.Context, executor sqlExecutor, driver string) 
 	if err != nil || !hasEncryptedCredentials {
 		return false, err
 	}
+	hasOAuthClients, err := tableExists(ctx, executor, driver, "connector_oauth_clients")
+	if err != nil || !hasOAuthClients {
+		return false, err
+	}
+	hasTokenUsage, err := tableExists(ctx, executor, driver, "token_usage_records")
+	if err != nil || !hasTokenUsage {
+		return false, err
+	}
 	hasAlembic, err := tableExists(ctx, executor, driver, "alembic_version")
 	if err != nil {
 		return false, err

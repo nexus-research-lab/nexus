@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"strings"
-	"time"
-	"unicode/utf8"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 )
 
 // HandleChat 处理 Room 主对话消息。
@@ -126,6 +128,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		ConversationID: conversationID,
 		RoomType:       contextValue.Room.RoomType,
 		RoundID:        request.RoundID,
+		OwnerUserID:    usagesvc.OwnerUserIDFromContext(ctx),
 		Slots:          make(map[string]*activeRoomSlot),
 		Done:           make(chan struct{}),
 	}

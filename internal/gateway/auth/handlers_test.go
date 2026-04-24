@@ -62,12 +62,71 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 	}
 }
 
+func TestPersonalProfileAndChangePassword(t *testing.T) {
+	cfg := gatewaytest.NewConfig(t)
+	gatewaytest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	db := gatewaytest.OpenSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	authService := authsvc.NewServiceWithDB(cfg, db)
+	if _, err := authService.InitOwner(context.Background(), authsvc.InitOwnerInput{
+		Username: "admin",
+		Password: "password123",
+	}); err != nil {
+		t.Fatalf("初始化 owner 失败: %v", err)
+	}
+
+	server, err := gateway.NewServer(cfg)
+	if err != nil {
+		t.Fatalf("创建 gateway 失败: %v", err)
+	}
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	cookie := loginByHTTP(t, httpServer.URL, "admin", "password123")
+	profile := getPersonalProfile(t, httpServer.URL, cookie)
+	if profile.User.Username != "admin" || !profile.CanChangePassword {
+		t.Fatalf("个人设置资料不正确: %+v", profile)
+	}
+	if profile.TokenUsage.QuotaLimitTokens != nil || profile.TokenUsage.TotalTokens != 0 {
+		t.Fatalf("初始 token 用量不正确: %+v", profile.TokenUsage)
+	}
+
+	if status := changePasswordStatus(t, httpServer.URL, cookie, "wrong-password", "password456"); status != http.StatusUnprocessableEntity {
+		t.Fatalf("错误当前密码应返回 422，实际: %d", status)
+	}
+	if status := changePasswordStatus(t, httpServer.URL, cookie, "password123", "password456"); status != http.StatusOK {
+		t.Fatalf("正确当前密码应改密成功，实际: %d", status)
+	}
+	if status := loginStatus(t, httpServer.URL, "admin", "password123"); status != http.StatusUnauthorized {
+		t.Fatalf("改密后旧密码应失败，实际: %d", status)
+	}
+	if status := loginStatus(t, httpServer.URL, "admin", "password456"); status != http.StatusOK {
+		t.Fatalf("改密后新密码应成功，实际: %d", status)
+	}
+}
+
 type authStatusResponse struct {
 	AuthRequired         bool    `json:"auth_required"`
 	PasswordLoginEnabled bool    `json:"password_login_enabled"`
 	Authenticated        bool    `json:"authenticated"`
 	Username             *string `json:"username"`
 	SetupRequired        bool    `json:"setup_required"`
+}
+
+type personalProfileResponse struct {
+	User struct {
+		UserID      string `json:"user_id"`
+		Username    string `json:"username"`
+		DisplayName string `json:"display_name"`
+		Role        string `json:"role"`
+		AuthMethod  string `json:"auth_method"`
+	} `json:"user"`
+	TokenUsage struct {
+		TotalTokens      int64  `json:"total_tokens"`
+		QuotaLimitTokens *int64 `json:"quota_limit_tokens"`
+	} `json:"token_usage"`
+	CanChangePassword bool `json:"can_change_password"`
 }
 
 type gatewayEnvelope[T any] struct {
@@ -93,6 +152,27 @@ func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authSta
 	var payload gatewayEnvelope[authStatusResponse]
 	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatalf("解析 auth status 响应失败: %v", err)
+	}
+	return payload.Data
+}
+
+func getPersonalProfile(t *testing.T, baseURL string, cookie *http.Cookie) personalProfileResponse {
+	t.Helper()
+
+	request, _ := http.NewRequest(http.MethodGet, baseURL+"/agent/v1/settings/profile", nil)
+	request.AddCookie(cookie)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("请求个人设置资料失败: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("个人设置资料状态码不正确: %d", response.StatusCode)
+	}
+
+	var payload gatewayEnvelope[personalProfileResponse]
+	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("解析个人设置资料失败: %v", err)
 	}
 	return payload.Data
 }
@@ -125,4 +205,51 @@ func loginByHTTP(t *testing.T, baseURL string, username string, password string)
 	}
 	t.Fatal("登录响应未返回 cookie")
 	return nil
+}
+
+func loginStatus(t *testing.T, baseURL string, username string, password string) int {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	if err != nil {
+		t.Fatalf("编码登录请求失败: %v", err)
+	}
+	request, _ := http.NewRequest(http.MethodPost, baseURL+"/agent/v1/auth/login", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("登录请求失败: %v", err)
+	}
+	defer response.Body.Close()
+	return response.StatusCode
+}
+
+func changePasswordStatus(
+	t *testing.T,
+	baseURL string,
+	cookie *http.Cookie,
+	currentPassword string,
+	newPassword string,
+) int {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]string{
+		"current_password": currentPassword,
+		"new_password":     newPassword,
+	})
+	if err != nil {
+		t.Fatalf("编码改密请求失败: %v", err)
+	}
+	request, _ := http.NewRequest(http.MethodPost, baseURL+"/agent/v1/settings/profile/password", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(cookie)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("改密请求失败: %v", err)
+	}
+	defer response.Body.Close()
+	return response.StatusCode
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 )
@@ -68,6 +69,7 @@ type RealtimeService struct {
 	providers   runtimectx.RuntimeConfigResolver
 	history     *workspacestore.AgentHistoryStore
 	roomHistory *workspacestore.RoomHistoryStore
+	usage       usageRecorder
 	factory     roomClientFactory
 	broadcaster RoomBroadcaster
 	logger      *slog.Logger
@@ -80,6 +82,10 @@ type RealtimeService struct {
 
 type roomTitleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
+}
+
+type usageRecorder interface {
+	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。
@@ -136,6 +142,11 @@ func (s *RealtimeService) SetLogger(logger *slog.Logger) {
 // SetProviderResolver 注入 Provider 运行时解析器。
 func (s *RealtimeService) SetProviderResolver(resolver runtimectx.RuntimeConfigResolver) {
 	s.providers = resolver
+}
+
+// SetUsageRecorder 注入 token usage 持久化 ledger。
+func (s *RealtimeService) SetUsageRecorder(recorder usageRecorder) {
+	s.usage = recorder
 }
 
 // SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。

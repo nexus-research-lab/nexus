@@ -311,6 +311,54 @@ func (s *Service) ResetPassword(ctx context.Context, input ResetPasswordInput) (
 	return s.repository.getUserByID(ctx, user.UserID)
 }
 
+// ChangePassword 校验当前密码后修改当前用户密码。
+func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput) (*User, error) {
+	userID := strings.TrimSpace(input.UserID)
+	if userID == "" {
+		return nil, errors.New("user_id 不能为空")
+	}
+	if strings.TrimSpace(input.CurrentPassword) == "" {
+		return nil, errors.New("当前密码不能为空")
+	}
+	if err := validatePassword(input.NewPassword); err != nil {
+		return nil, err
+	}
+
+	user, credential, err := s.repository.getUserWithPasswordByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || credential == nil || user.Status != UserStatusActive {
+		return nil, ErrInvalidCredentials
+	}
+	matched, err := VerifyPassword(input.CurrentPassword, credential.PasswordHash)
+	if err != nil {
+		return nil, err
+	}
+	if !matched {
+		return nil, ErrInvalidCredentials
+	}
+
+	passwordHash, err := HashPassword(input.NewPassword)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	nextCredential := passwordCredential{
+		CredentialID:      s.idFactory("cred"),
+		UserID:            user.UserID,
+		PasswordHash:      passwordHash,
+		PasswordAlgo:      passwordAlgorithmArgon2ID,
+		PasswordUpdatedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err = s.repository.upsertPasswordCredential(ctx, nextCredential); err != nil {
+		return nil, err
+	}
+	return s.repository.getUserByID(ctx, user.UserID)
+}
+
 // ExtractSessionToken 从请求 Cookie 中提取服务端 Session。
 func (s *Service) ExtractSessionToken(request *http.Request) string {
 	if request == nil {
