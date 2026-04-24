@@ -436,6 +436,7 @@ export function SidebarWidePanel() {
       <div className={cn("flex items-center gap-3 border-b divider-subtle px-4", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
         <button
           className="group/nexus relative flex h-12 w-[68px] shrink-0 items-center justify-center"
+          data-tour-anchor={SIDEBAR_TOUR_ANCHORS.nexus_agent}
           onClick={handle_open_nexus}
           title="Nexus"
           type="button"
@@ -505,6 +506,7 @@ export function SidebarWidePanel() {
         <div className="min-w-0">
           <Link
             className="block transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
+            data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
             title={t("sidebar.back_to_launcher")}
             to={AppRouteBuilders.launcher()}
           >

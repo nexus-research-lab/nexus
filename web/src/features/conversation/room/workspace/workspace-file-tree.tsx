@@ -111,7 +111,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
     <div>
       <div
         className={cn(
-          "group relative flex w-full items-center gap-1.25 rounded-xl px-2 py-1.25 text-left transition-colors",
+          "group relative flex min-w-full w-max items-center gap-1.25 rounded-xl px-2 py-1.25 text-left transition-colors",
           "hover:bg-(--surface-interactive-hover-background)",
           is_selected
             ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
@@ -162,7 +162,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
 
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-[13px] leading-[1.3rem]",
+            "shrink-0 whitespace-nowrap text-[13px] leading-[1.3rem]",
             entry.is_dir || is_selected ? "font-medium" : "font-normal",
           )}
         >
@@ -171,7 +171,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
 
         <div
           className={cn(
-            "ml-auto flex shrink-0 items-center gap-0.5 transition-opacity",
+            "ml-auto flex shrink-0 items-center gap-0.5 pl-2 transition-opacity",
             is_selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
         >

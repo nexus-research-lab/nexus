@@ -17,7 +17,7 @@
 - 数据库迁移统一走 Goose，目录为 `db/migrations/sqlite` 和 `db/migrations/postgres`。
 - Workspace 与 session JSONL 文件继续作为文件侧真相源保留。
 - Go 文件命名采用“职责前缀 + 领域名”形式，方便目录按职责聚合；例如 `command_room.go`、`model_agent.go`、`service_heartbeat.go`、`repository_room.go`、`builder_prompt.go`。包内主入口文件可保留 `service.go`、`model.go`、`repository.go` 这类无歧义名称。
-- 前端源码文件使用 kebab-case 的“职责前缀 + 领域名”形式；例如 `page-room.tsx`、`dialog-agent-options.tsx`、`panel-chat-dm.tsx`、`api-room.ts`、`store-workspace-live.ts`、`context-auth.ts`。React hook 文件保留 `use-*` 前缀，`index.ts`、`main.tsx`、`App.tsx`、`env.d.ts` 这类入口或 barrel 文件不强制改名。
+- 前端源码文件保留现有 kebab-case 的业务域优先命名，不把后端 Go 的职责前缀规则硬套到前端；例如 `room-page.tsx`、`agent-api.ts`、`auth-context.ts`、`connector-detail-dialog.tsx`、`workspace-surface-scaffold.tsx`。React hook 文件保留 `use-*` 前缀，`index.ts`、`main.tsx`、`App.tsx`、`env.d.ts` 这类入口或 barrel 文件不强制改名。
 
 ## Architecture Flow
 - 服务入口：`cmd/nexus-server`

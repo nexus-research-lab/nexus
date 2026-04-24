@@ -13,7 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { Hash, Puzzle, Users2 } from "lucide-react";
+import { Bot, Hash, Puzzle, Users2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -32,7 +32,7 @@ interface TourStickerAsset {
 }
 
 export interface OnboardingTourStepItem {
-  icon: "users" | "hash" | "puzzle";
+  icon: "bot" | "users" | "hash" | "puzzle";
   text: string;
 }
 
@@ -650,6 +650,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
 
 function TourItemIcon({ name }: { name: OnboardingTourStepItem["icon"] }) {
   const className = "h-3.5 w-3.5 shrink-0 text-(--icon-muted)";
+  if (name === "bot") return <Bot className={className} />;
   if (name === "users") return <Users2 className={className} />;
   if (name === "hash") return <Hash className={className} />;
   return <Puzzle className={className} />;
