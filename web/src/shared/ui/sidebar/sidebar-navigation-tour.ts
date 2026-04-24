@@ -6,6 +6,8 @@ import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-provi
 export const SIDEBAR_NAVIGATION_TOUR_ID = "sidebar-navigation";
 
 export const SIDEBAR_TOUR_ANCHORS = {
+  nexus_agent: "sidebar-nexus-agent-entry",
+  launcher: "sidebar-launcher-entry",
   agents: "sidebar-agents-section",
   rooms: "sidebar-rooms-section",
   capabilities: "sidebar-capabilities-section",
@@ -25,10 +27,27 @@ export function build_sidebar_navigation_tour(
         placement: "center",
         image: "/nexus/welcome.png",
         items: [
+          { icon: "bot", text: t("sidebar.guide_nexus_agent") },
           { icon: "users", text: t("sidebar.guide_agents") },
           { icon: "hash", text: t("sidebar.guide_rooms") },
           { icon: "puzzle", text: t("sidebar.guide_capabilities") },
         ],
+      },
+      {
+        id: "nexus-agent",
+        title: t("sidebar.tour_nexus_agent_title"),
+        description: t("sidebar.tour_nexus_agent_description"),
+        target: SIDEBAR_TOUR_ANCHORS.nexus_agent,
+        placement: "right",
+        image: "/nexus/listening.png",
+      },
+      {
+        id: "launcher",
+        title: t("sidebar.tour_launcher_title"),
+        description: t("sidebar.tour_launcher_description"),
+        target: SIDEBAR_TOUR_ANCHORS.launcher,
+        placement: "right",
+        image: "/nexus/pointing.png",
       },
       {
         id: "agents",

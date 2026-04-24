@@ -228,7 +228,7 @@ export function RoomWorkspaceView(
 
             <div className="min-h-0 flex-1 overflow-hidden" onContextMenu={handle_root_context_menu}>
               {files.length > 0 ? (
-                <div className="soft-scrollbar h-full overflow-y-auto py-1">
+                <div className="soft-scrollbar h-full overflow-auto py-1">
                   <WorkspaceFileTree
                     entries={files}
                     active_path={active_workspace_path}
