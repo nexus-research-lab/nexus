@@ -30,5 +30,6 @@ COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 
 EXPOSE 80
+EXPOSE 443
 
 CMD ["nginx", "-g", "daemon off;"]
