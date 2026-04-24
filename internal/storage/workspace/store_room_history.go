@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const overlayKindTranscriptRef = "transcript_ref"
@@ -30,7 +30,7 @@ func NewRoomHistoryStore(root string) *RoomHistoryStore {
 }
 
 // AppendInlineMessage 追加一条 Room inline overlay。
-func (s *RoomHistoryStore) AppendInlineMessage(conversationID string, message sessionmodel.Message) error {
+func (s *RoomHistoryStore) AppendInlineMessage(conversationID string, message protocol.Message) error {
 	return s.files.appendJSONL(s.paths.RoomConversationOverlayPath(conversationID), message)
 }
 
@@ -40,7 +40,7 @@ func (s *RoomHistoryStore) AppendTranscriptReference(
 	conversationID string,
 	workspacePath string,
 	privateSessionKey string,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) error {
 	row := buildRoomTranscriptReference(message, workspacePath, privateSessionKey)
 	if row == nil {
@@ -53,7 +53,7 @@ func (s *RoomHistoryStore) AppendTranscriptReference(
 func (s *RoomHistoryStore) ReadMessages(
 	conversationID string,
 	activeRoundIDs []string,
-) ([]sessionmodel.Message, error) {
+) ([]protocol.Message, error) {
 	rows, err := s.readResolvedRows(conversationID)
 	if err != nil {
 		return nil, err
@@ -68,10 +68,10 @@ func (s *RoomHistoryStore) ReadMessagesPage(
 	limit int,
 	beforeRoundID string,
 	beforeRoundTimestamp int64,
-) (sessionmodel.MessagePage, error) {
+) (protocol.MessagePage, error) {
 	rows, err := s.readResolvedRows(conversationID)
 	if err != nil {
-		return sessionmodel.MessagePage{}, err
+		return protocol.MessagePage{}, err
 	}
 	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
 	return paginateNormalizedHistoryRows(
@@ -83,24 +83,24 @@ func (s *RoomHistoryStore) ReadMessagesPage(
 	), nil
 }
 
-func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]sessionmodel.Message, error) {
+func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.Message, error) {
 	rows, err := s.files.readJSONL(s.paths.RoomConversationOverlayPath(conversationID))
 	if errors.Is(err, os.ErrNotExist) {
-		return []sessionmodel.Message{}, nil
+		return []protocol.Message{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	transcriptRowsByMessageID := make(map[string]map[string]sessionmodel.Message)
-	resolved := make([]sessionmodel.Message, 0, len(rows))
+	transcriptRowsByMessageID := make(map[string]map[string]protocol.Message)
+	resolved := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(stringFromAny(row[overlayKindField])) != overlayKindTranscriptRef {
-			resolved = append(resolved, sessionmodel.Message(row))
+			resolved = append(resolved, protocol.Message(row))
 			continue
 		}
 		messageValue, ok, resolveErr := s.resolveTranscriptReference(
-			sessionmodel.Message(row),
+			protocol.Message(row),
 			transcriptRowsByMessageID,
 		)
 		if resolveErr != nil {
@@ -114,9 +114,9 @@ func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]sessionmod
 }
 
 func (s *RoomHistoryStore) resolveTranscriptReference(
-	row sessionmodel.Message,
-	cache map[string]map[string]sessionmodel.Message,
-) (sessionmodel.Message, bool, error) {
+	row protocol.Message,
+	cache map[string]map[string]protocol.Message,
+) (protocol.Message, bool, error) {
 	workspacePath := strings.TrimSpace(stringFromAny(row["workspace_path"]))
 	privateSessionKey := strings.TrimSpace(stringFromAny(row["private_session_key"]))
 	agentID := strings.TrimSpace(stringFromAny(row["agent_id"]))
@@ -141,7 +141,7 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 			roundMarkers,
 		)
 		if errors.Is(err, os.ErrNotExist) {
-			cache[cacheKey] = map[string]sessionmodel.Message{}
+			cache[cacheKey] = map[string]protocol.Message{}
 			return nil, false, nil
 		}
 		if err != nil {
@@ -156,17 +156,17 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 		return nil, false, nil
 	}
 
-	resolved := sessionmodel.Clone(transcriptMessage)
+	resolved := protocol.Clone(transcriptMessage)
 	overrideRoomTranscriptFields(resolved, row)
 	return resolved, true, nil
 }
 
 func buildRoomTranscriptReference(
-	message sessionmodel.Message,
+	message protocol.Message,
 	workspacePath string,
 	privateSessionKey string,
 ) map[string]any {
-	if sessionmodel.MessageRole(message) != "assistant" {
+	if protocol.MessageRole(message) != "assistant" {
 		return nil
 	}
 	sessionID := strings.TrimSpace(stringFromAny(message["session_id"]))
@@ -198,19 +198,19 @@ func buildRoomTranscriptCacheKey(
 	return strings.Join([]string{workspacePath, privateSessionKey, agentID, sessionID}, "\x00")
 }
 
-func indexRoomTranscriptMessages(rows []sessionmodel.Message) map[string]sessionmodel.Message {
-	result := make(map[string]sessionmodel.Message, len(rows))
+func indexRoomTranscriptMessages(rows []protocol.Message) map[string]protocol.Message {
+	result := make(map[string]protocol.Message, len(rows))
 	for _, row := range rows {
 		messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
 		if messageID == "" {
 			continue
 		}
-		result[messageID] = sessionmodel.Clone(row)
+		result[messageID] = protocol.Clone(row)
 	}
 	return result
 }
 
-func overrideRoomTranscriptFields(target sessionmodel.Message, source sessionmodel.Message) {
+func overrideRoomTranscriptFields(target protocol.Message, source protocol.Message) {
 	for _, key := range []string{
 		"message_id",
 		"conversation_id",

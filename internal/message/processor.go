@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
@@ -30,8 +30,8 @@ type StreamPayload struct {
 // Output 表示处理单条 SDK 消息后的统一输出。
 type Output struct {
 	StreamEvents        []StreamPayload
-	DurableMessages     []sessionmodel.Message
-	EphemeralMessages   []sessionmodel.Message
+	DurableMessages     []protocol.Message
+	EphemeralMessages   []protocol.Message
 	RegisteredSessionID string
 	TerminalStatus      string
 	ResultSubtype       string
@@ -48,7 +48,7 @@ type Processor struct {
 
 	streamStarted                bool
 	streamTerminalObserved       bool
-	lastDurableAssistantSnapshot sessionmodel.Message
+	lastDurableAssistantSnapshot protocol.Message
 }
 
 // NewProcessor 创建统一消息处理器。
@@ -235,7 +235,7 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 	return output
 }
 
-func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *sessionmodel.Message {
+func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if !p.segment.IsStarted() {
 		p.segment.Start(
 			message.Assistant.Message.ID,
@@ -264,7 +264,7 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 	return durable
 }
 
-func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([]sessionmodel.Message, []sessionmodel.Message) {
+func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([]protocol.Message, []protocol.Message) {
 	if message.System == nil {
 		return nil, nil
 	}
@@ -295,19 +295,19 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([
 		if progressMessage == nil {
 			return nil, nil
 		}
-		return []sessionmodel.Message{*progressMessage}, nil
+		return []protocol.Message{*progressMessage}, nil
 	}
 
 	if visible, ephemeral := p.buildVisibleSystemMessage(message.System); visible != nil {
 		if ephemeral {
-			return nil, []sessionmodel.Message{*visible}
+			return nil, []protocol.Message{*visible}
 		}
-		return []sessionmodel.Message{*visible}, nil
+		return []protocol.Message{*visible}, nil
 	}
 	return nil, nil
 }
 
-func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *sessionmodel.Message {
+func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.ToolProgress == nil {
 		return nil
 	}
@@ -320,7 +320,7 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 	)
 }
 
-func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage) *sessionmodel.Message {
+func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.User == nil {
 		return nil
 	}
@@ -366,7 +366,7 @@ func boolValue(value any) bool {
 	return typed
 }
 
-func (p *Processor) buildTaskProgressMessage(taskID string, description string, toolUseID string, lastToolName string, usage map[string]any) *sessionmodel.Message {
+func (p *Processor) buildTaskProgressMessage(taskID string, description string, toolUseID string, lastToolName string, usage map[string]any) *protocol.Message {
 	if strings.TrimSpace(taskID) == "" {
 		return nil
 	}
@@ -381,7 +381,7 @@ func (p *Processor) buildTaskProgressMessage(taskID string, description string, 
 	return p.buildAssistantDurableMessage(false, false, "")
 }
 
-func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) (*sessionmodel.Message, bool) {
+func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) (*protocol.Message, bool) {
 	if message == nil {
 		return nil, false
 	}
@@ -426,11 +426,11 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	)
 	payload["content"] = content
 	payload["metadata"] = metadata
-	messageValue := sessionmodel.Message(payload)
+	messageValue := protocol.Message(payload)
 	return &messageValue, ephemeral
 }
 
-func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subtype string) sessionmodel.Message {
+func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subtype string) protocol.Message {
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
@@ -445,7 +445,7 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	payload["usage"] = firstNonNilMap(message.Result.Usage, map[string]any{})
 	payload["result"] = message.Result.Result
 	payload["is_error"] = subtype == "error"
-	return sessionmodel.Message(payload)
+	return protocol.Message(payload)
 }
 
 func (p *Processor) buildBlockStreamPayload(streamType string, index int, block map[string]any) StreamPayload {
@@ -508,7 +508,7 @@ func NormalizeInterruptedOutput(output *Output, interruptReason string) {
 	output.TerminalStatus = "interrupted"
 	for index := range output.DurableMessages {
 		messageValue := output.DurableMessages[index]
-		if sessionmodel.MessageRole(messageValue) != "result" {
+		if protocol.MessageRole(messageValue) != "result" {
 			continue
 		}
 		messageValue["subtype"] = "interrupted"
@@ -577,8 +577,8 @@ func (p *Processor) buildAssistantDurableMessage(
 	isComplete bool,
 	includeStopReason bool,
 	parentID string,
-) *sessionmodel.Message {
-	payload := sessionmodel.Message(p.segment.BuildAssistantMessage(p.ctx, p.sessionID, isComplete))
+) *protocol.Message {
+	payload := protocol.Message(p.segment.BuildAssistantMessage(p.ctx, p.sessionID, isComplete))
 	if !includeStopReason {
 		delete(payload, "stop_reason")
 		payload["is_complete"] = false
@@ -589,11 +589,11 @@ func (p *Processor) buildAssistantDurableMessage(
 	if assistantMessagesEqual(p.lastDurableAssistantSnapshot, payload) {
 		return nil
 	}
-	p.lastDurableAssistantSnapshot = sessionmodel.Clone(payload)
+	p.lastDurableAssistantSnapshot = protocol.Clone(payload)
 	return &payload
 }
 
-func assistantMessagesEqual(previous sessionmodel.Message, current sessionmodel.Message) bool {
+func assistantMessagesEqual(previous protocol.Message, current protocol.Message) bool {
 	if len(previous) == 0 || len(current) == 0 {
 		return false
 	}

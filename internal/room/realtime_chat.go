@@ -10,7 +10,6 @@ import (
 
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 )
@@ -59,7 +58,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		return err
 	}
 
-	userMessage := sessionmodel.Message{
+	userMessage := protocol.Message{
 		"message_id":      request.RoundID,
 		"session_key":     sessionKey,
 		"room_id":         roomID,
@@ -83,7 +82,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			"conversation_id", conversationID,
 			"round_id", request.RoundID,
 		)
-		hintMessage := sessionmodel.Message{
+		hintMessage := protocol.Message{
 			"message_id":      "result_" + request.RoundID,
 			"session_key":     sessionKey,
 			"room_id":         roomID,
@@ -109,7 +108,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			wrapRoomMessageEvent(
 				roomID,
 				conversationID,
-				sessionmodel.ProjectResultMessage(nil, hintMessage),
+				protocol.ProjectResultMessage(nil, hintMessage),
 				request.RoundID,
 			),
 		)
@@ -267,16 +266,16 @@ func (s *RealtimeService) buildAgentDirectory(
 	return agentNameByID, agentByID, nil
 }
 
-func (s *RealtimeService) persistSharedInlineMessage(conversationID string, message sessionmodel.Message) error {
+func (s *RealtimeService) persistSharedInlineMessage(conversationID string, message protocol.Message) error {
 	return s.roomHistory.AppendInlineMessage(conversationID, message)
 }
 
 func (s *RealtimeService) persistSharedDurableMessage(
 	conversationID string,
 	slot *activeRoomSlot,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) error {
-	if slot == nil || !sessionmodel.IsTranscriptNativeMessage(sessionmodel.Message(message)) {
+	if slot == nil || !protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
 		return s.persistSharedInlineMessage(conversationID, message)
 	}
 	return s.roomHistory.AppendTranscriptReference(

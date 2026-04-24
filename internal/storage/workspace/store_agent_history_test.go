@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUserTurn(t *testing.T) {
@@ -29,7 +29,7 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-2", "不是吧", 2000); err != nil {
 		t.Fatalf("写入第二条 round marker 失败: %v", err)
 	}
-	if err := history.AppendOverlayMessage(workspacePath, sessionKey, sessionmodel.Message{
+	if err := history.AppendOverlayMessage(workspacePath, sessionKey, protocol.Message{
 		"message_id":      "result-2",
 		"session_key":     sessionKey,
 		"agent_id":        "Amy",
@@ -110,13 +110,11 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 		},
 	})
 
-	rows, err := history.ReadMessages(workspacePath, sessionmodel.Session{
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
 		SessionKey: sessionKey,
 		AgentID:    "Amy",
 		SessionID:  &sessionID,
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
+		Options:    map[string]any{},
 	}, nil)
 	if err != nil {
 		t.Fatalf("读取历史消息失败: %v", err)

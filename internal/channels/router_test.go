@@ -13,7 +13,6 @@ import (
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -83,7 +82,7 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
-func extractAssistantText(message sessionmodel.Message) string {
+func extractAssistantText(message protocol.Message) string {
 	items, ok := message["content"].([]map[string]any)
 	if !ok {
 		rawItems, ok := message["content"].([]any)
@@ -135,10 +134,8 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "Test",
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:      map[string]any{},
+		IsActive:     true,
 	}); err != nil {
 		t.Fatalf("创建测试 session 失败: %v", err)
 	}

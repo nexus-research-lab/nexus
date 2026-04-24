@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
@@ -16,8 +15,8 @@ import (
 
 // OpenDB 打开当前配置对应的数据库连接。
 func OpenDB(cfg config.Config) (*sql.DB, error) {
-	driver := protocol.NormalizeSQLDriver(cfg.DatabaseDriver)
-	dsn := protocol.NormalizeDatabaseURL(cfg.DatabaseURL)
+	driver := NormalizeSQLDriver(cfg.DatabaseDriver)
+	dsn := NormalizeDatabaseURL(cfg.DatabaseURL)
 
 	// SQLite 场景需要提前创建父目录，否则第一次启动会直接报错。
 	if driver == "sqlite3" {

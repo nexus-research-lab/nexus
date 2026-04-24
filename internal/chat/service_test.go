@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,7 +15,6 @@ import (
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
@@ -856,10 +854,8 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 		LastActivity: now,
 		Title:        "Resume Chat",
 		MessageCount: 0,
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:      map[string]any{},
+		IsActive:     true,
 	}); err != nil {
 		t.Fatalf("预写入会话 meta 失败: %v", err)
 	}
@@ -940,9 +936,8 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 		LastActivity: now,
 		Title:        "Stale Model",
 		Options: map[string]any{
-			sessionmodel.OptionHistorySource:   sessionmodel.HistorySourceTranscript,
-			sessionmodel.OptionRuntimeProvider: "glm",
-			sessionmodel.OptionRuntimeModel:    "old-model",
+			protocol.OptionRuntimeProvider: "glm",
+			protocol.OptionRuntimeModel:    "old-model",
 		},
 		IsActive: true,
 	}); err != nil {
@@ -951,7 +946,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
-		Content:    "测试旧模型 session 不 resume",
+		Content:    "测试过期模型 session 不 resume",
 		RoundID:    "round-stale-model",
 		ReqID:      "round-stale-model",
 	}); err != nil {
@@ -964,7 +959,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 
 	options := factory.LastOptions()
 	if options.Resume != "" {
-		t.Fatalf("runtime 模型变更后不应 resume 旧 sdk session: %+v", options)
+		t.Fatalf("runtime 模型变更后不应 resume 过期 sdk session: %+v", options)
 	}
 	if options.Model != "glm-5.1" {
 		t.Fatalf("runtime 应使用当前 provider model: %+v", options)
@@ -973,48 +968,10 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	if stringPointer(t, sessionValue.SessionID) != "sdk-new-model" {
 		t.Fatalf("新 sdk session_id 未回写: %+v", sessionValue)
 	}
-	if sessionValue.Options[sessionmodel.OptionRuntimeModel] != "glm-5.1" {
+	if sessionValue.Options[protocol.OptionRuntimeModel] != "glm-5.1" {
 		t.Fatalf("runtime model 指纹未回写: %+v", sessionValue.Options)
 	}
 }
-func TestServiceHandleChatRejectsLegacySessionHistory(t *testing.T) {
-	cfg := newChatTestConfig(t)
-	migrateChatSQLite(t, cfg.DatabaseURL)
-
-	agentService := newChatAgentService(t, cfg)
-	permission := permissionctx.NewContext()
-	runtimeManager := runtimectx.NewManagerWithFactory(&fakeChatFactory{client: newFakeChatClient()})
-	service := NewService(cfg, agentService, runtimeManager, permission)
-
-	sessionKey := "agent:nexus:ws:dm:legacy-chat"
-	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), session.Session{
-		SessionKey:   sessionKey,
-		AgentID:      cfg.DefaultAgentID,
-		ChannelType:  "websocket",
-		ChatType:     "dm",
-		Status:       "active",
-		CreatedAt:    now,
-		LastActivity: now,
-		Title:        "Legacy Chat",
-		MessageCount: 0,
-		Options:      map[string]any{},
-		IsActive:     true,
-	}); err != nil {
-		t.Fatalf("预写入 legacy 会话失败: %v", err)
-	}
-
-	err := service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "测试 legacy",
-		RoundID:    "round-legacy",
-		ReqID:      "round-legacy",
-	})
-	if !errors.Is(err, sessionmodel.ErrLegacyHistoryUnsupported) {
-		t.Fatalf("期望 legacy 会话被拒绝，实际错误: %v", err)
-	}
-}
-
 func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	cfg := newChatTestConfig(t)
 	migrateChatSQLite(t, cfg.DatabaseURL)
@@ -1463,7 +1420,7 @@ func readChatSessionHistory(
 	cfg config.Config,
 	service *Service,
 	sessionKey string,
-) []sessionmodel.Message {
+) []protocol.Message {
 	t.Helper()
 	sessionValue, workspacePath := mustFindChatSession(t, service, cfg, sessionKey)
 	historyStore := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
@@ -1718,7 +1675,7 @@ func assertStreamBlockIndex(t *testing.T, events []protocol.EventMessage, blockT
 	t.Fatalf("未找到 block_type=%s 的 stream 事件: %+v", blockType, events)
 }
 
-func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) sessionmodel.Message {
+func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {
 	t.Helper()
 	for _, event := range events {
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
@@ -1727,7 +1684,7 @@ func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, m
 		if event.Data["role"] != "assistant" {
 			continue
 		}
-		return sessionmodel.Message(event.Data)
+		return protocol.Message(event.Data)
 	}
 	t.Fatalf("未找到 assistant message_id=%s 的 durable 消息: %+v", messageID, events)
 	return nil

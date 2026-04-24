@@ -12,7 +12,6 @@ import (
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -190,10 +189,8 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*Se
 		LastActivity: now,
 		Title:        firstNonEmpty(strings.TrimSpace(request.Title), "New Chat"),
 		MessageCount: 0,
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:      map[string]any{},
+		IsActive:     true,
 	}))
 	if err != nil {
 		return nil, err
@@ -254,7 +251,7 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 }
 
 // GetSessionMessages 读取 session 历史消息。
-func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) ([]sessionmodel.Message, error) {
+func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) ([]protocol.Message, error) {
 	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return nil, err
@@ -282,7 +279,7 @@ func (s *Service) GetSessionMessagesPage(
 	ctx context.Context,
 	rawSessionKey string,
 	request MessagePageRequest,
-) (*sessionmodel.MessagePage, error) {
+) (*protocol.MessagePage, error) {
 	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return nil, err

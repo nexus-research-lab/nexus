@@ -1,4 +1,4 @@
-package agent
+package protocol
 
 // CreateRecord 表示落库前的完整创建记录。
 type CreateRecord struct {

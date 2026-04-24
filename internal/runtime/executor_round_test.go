@@ -7,7 +7,6 @@ import (
 	"time"
 
 	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 
@@ -88,7 +87,7 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 	mapper := &fakeRoundExecutionMapper{
 		results: []RoundMapResult{
 			{
-				DurableMessages: []sessionmodel.Message{
+				DurableMessages: []protocol.Message{
 					{"message_id": "assistant-1", "role": "assistant"},
 				},
 				Events: []protocol.EventMessage{
@@ -96,7 +95,7 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 				},
 			},
 			{
-				DurableMessages: []sessionmodel.Message{
+				DurableMessages: []protocol.Message{
 					{"message_id": "result-1", "role": "result", "subtype": "success"},
 				},
 				Events: []protocol.EventMessage{
@@ -119,7 +118,7 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 			synced = append(synced, sessionID)
 			return nil
 		},
-		HandleDurableMessage: func(messageValue sessionmodel.Message) error {
+		HandleDurableMessage: func(messageValue protocol.Message) error {
 			copied := make(map[string]any, len(messageValue))
 			for key, value := range messageValue {
 				copied[key] = value

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	agentmodel "github.com/nexus-research-lab/nexus/internal/model/agent"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // AgentRepository 提供 PostgreSQL 的 Agent 仓储实现。
@@ -21,7 +21,7 @@ func NewAgentRepository(db *sql.DB) *AgentRepository {
 }
 
 // ListActiveAgents 返回所有活跃 Agent。
-func (r *AgentRepository) ListActiveAgents(ctx context.Context, ownerUserID string) ([]agentmodel.Agent, error) {
+func (r *AgentRepository) ListActiveAgents(ctx context.Context, ownerUserID string) ([]protocol.Agent, error) {
 	query := `
 	SELECT
 	    a.id,
@@ -62,7 +62,7 @@ ORDER BY a.is_main DESC, a.created_at ASC`
 	}
 	defer rows.Close()
 
-	var result []agentmodel.Agent
+	var result []protocol.Agent
 	for rows.Next() {
 		item, err := scanAgent(rows)
 		if err != nil {
@@ -74,7 +74,7 @@ ORDER BY a.is_main DESC, a.created_at ASC`
 }
 
 // GetAgent 返回指定 Agent。
-func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUserID string) (*agentmodel.Agent, error) {
+func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUserID string) (*protocol.Agent, error) {
 	query := `
 	SELECT
 	    a.id,
@@ -120,7 +120,7 @@ WHERE a.id = $1`
 }
 
 // GetMainAgent 返回指定用户的主智能体。
-func (r *AgentRepository) GetMainAgent(ctx context.Context, ownerUserID string) (*agentmodel.Agent, error) {
+func (r *AgentRepository) GetMainAgent(ctx context.Context, ownerUserID string) (*protocol.Agent, error) {
 	if ownerUserID == "" {
 		return nil, nil
 	}
@@ -164,7 +164,7 @@ LIMIT 1`, ownerUserID)
 }
 
 // CreateAgent 创建 Agent、Profile 与 Runtime。
-func (r *AgentRepository) CreateAgent(ctx context.Context, record agentmodel.CreateRecord) (*agentmodel.Agent, error) {
+func (r *AgentRepository) CreateAgent(ctx context.Context, record protocol.CreateRecord) (*protocol.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ VALUES ($1, $2, $3, NULL, $4, $5)`,
 }
 
 // UpdateAgent 更新 Agent 配置。
-func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentmodel.UpdateRecord) (*agentmodel.Agent, error) {
+func (r *AgentRepository) UpdateAgent(ctx context.Context, record protocol.UpdateRecord) (*protocol.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -317,7 +317,7 @@ func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, ownerUserID
 }
 
 // PromoteMainAgent 把指定 Agent 提升为主智能体。
-func (r *AgentRepository) PromoteMainAgent(ctx context.Context, agentID string, ownerUserID string) (*agentmodel.Agent, error) {
+func (r *AgentRepository) PromoteMainAgent(ctx context.Context, agentID string, ownerUserID string) (*protocol.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -344,9 +344,9 @@ WHERE id = $1 AND owner_user_id = $2`, agentID, ownerUserID); err != nil {
 
 func scanAgent(scanner interface {
 	Scan(dest ...any) error
-}) (agentmodel.Agent, error) {
+}) (protocol.Agent, error) {
 	var (
-		item                agentmodel.Agent
+		item                protocol.Agent
 		vibeTagsJSON        string
 		allowedToolsJSON    string
 		disallowedToolsJSON string
@@ -381,15 +381,15 @@ func scanAgent(scanner interface {
 		&settingSourcesJSON,
 	)
 	if err != nil {
-		return agentmodel.Agent{}, err
+		return protocol.Agent{}, err
 	}
 
 	item.CreatedAt = createdAt
 	item.VibeTags = decodeStringSlice(vibeTagsJSON)
-	item.Options.AllowedTools = agentmodel.ParseJSONStringSlice(allowedToolsJSON)
-	item.Options.DisallowedTools = agentmodel.ParseJSONStringSlice(disallowedToolsJSON)
-	item.Options.MCPServers = agentmodel.ParseJSONMap(mcpServersJSON)
-	item.Options.SettingSources = agentmodel.ParseJSONStringSlice(settingSourcesJSON)
+	item.Options.AllowedTools = protocol.ParseJSONStringSlice(allowedToolsJSON)
+	item.Options.DisallowedTools = protocol.ParseJSONStringSlice(disallowedToolsJSON)
+	item.Options.MCPServers = protocol.ParseJSONMap(mcpServersJSON)
+	item.Options.SettingSources = protocol.ParseJSONStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)
 		item.Options.MaxTurns = &value

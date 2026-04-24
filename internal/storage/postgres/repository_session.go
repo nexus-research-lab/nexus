@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"time"
 )
 
 // SessionRepository 提供 PostgreSQL 的 Room Session 视图查询。
@@ -21,7 +19,7 @@ func NewSessionRepository(db *sql.DB) *SessionRepository {
 }
 
 // ListRoomSessions 列出全部 Room 成员会话视图。
-func (r *SessionRepository) ListRoomSessions(ctx context.Context, ownerUserID string) ([]session.Session, error) {
+func (r *SessionRepository) ListRoomSessions(ctx context.Context, ownerUserID string) ([]protocol.Session, error) {
 	rows, err := r.db.QueryContext(ctx, postgresRoomSessionSelect+`
 WHERE s.is_primary = TRUE AND r.owner_user_id = $1
 ORDER BY s.last_activity_at DESC`, ownerUserID)
@@ -33,7 +31,7 @@ ORDER BY s.last_activity_at DESC`, ownerUserID)
 }
 
 // ListRoomSessionsByAgent 列出指定 Agent 的 Room 成员会话视图。
-func (r *SessionRepository) ListRoomSessionsByAgent(ctx context.Context, agentID string) ([]session.Session, error) {
+func (r *SessionRepository) ListRoomSessionsByAgent(ctx context.Context, agentID string) ([]protocol.Session, error) {
 	rows, err := r.db.QueryContext(ctx, postgresRoomSessionSelect+`
 WHERE s.is_primary = TRUE AND s.agent_id = $1
 ORDER BY s.last_activity_at DESC`, agentID)
@@ -45,7 +43,7 @@ ORDER BY s.last_activity_at DESC`, agentID)
 }
 
 // GetRoomSessionByKey 按结构化 key 查找 Room 成员会话。
-func (r *SessionRepository) GetRoomSessionByKey(ctx context.Context, ownerUserID string, key protocol.SessionKey) (*session.Session, error) {
+func (r *SessionRepository) GetRoomSessionByKey(ctx context.Context, ownerUserID string, key protocol.SessionKey) (*protocol.Session, error) {
 	if key.Kind != protocol.SessionKeyKindAgent || key.AgentID == "" || key.Ref == "" {
 		return nil, nil
 	}
@@ -103,8 +101,8 @@ LEFT JOIN (
 ) mc ON mc.conversation_id = c.id
 `
 
-func scanRoomSessions(rows *sql.Rows) ([]session.Session, error) {
-	result := make([]session.Session, 0)
+func scanRoomSessions(rows *sql.Rows) ([]protocol.Session, error) {
+	result := make([]protocol.Session, 0)
 	for rows.Next() {
 		item, err := scanRoomSession(rows)
 		if err != nil {
@@ -115,7 +113,7 @@ func scanRoomSessions(rows *sql.Rows) ([]session.Session, error) {
 	return result, rows.Err()
 }
 
-func scanRoomSession(scanner interface{ Scan(...any) error }) (session.Session, error) {
+func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session, error) {
 	var (
 		roomSessionID  string
 		agentID        string
@@ -144,7 +142,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (session.Session, 
 		&roomName,
 		&messageCount,
 	); err != nil {
-		return session.Session{}, err
+		return protocol.Session{}, err
 	}
 	resolvedTitle := title
 	if resolvedTitle == "" {
@@ -153,7 +151,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (session.Session, 
 	if resolvedTitle == "" {
 		resolvedTitle = "New Chat"
 	}
-	return session.Session{
+	return protocol.Session{
 		SessionKey:     protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType),
 		AgentID:        agentID,
 		SessionID:      nullableStringPointer(sdkSessionID),
@@ -167,10 +165,8 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (session.Session, 
 		LastActivity:   lastActivity.UTC(),
 		Title:          resolvedTitle,
 		MessageCount:   messageCount,
-		Options: map[string]any{
-			session.OptionHistorySource: session.HistorySourceTranscript,
-		},
-		IsActive: status == "active",
+		Options:        map[string]any{},
+		IsActive:       status == "active",
 	}, nil
 }
 

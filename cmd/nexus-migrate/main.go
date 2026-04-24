@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/mattn/go-sqlite3"
@@ -102,9 +102,9 @@ func buildCreateCommand(cfg config.Config) *cobra.Command {
 }
 
 func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
-	driver := protocol.NormalizeSQLDriver(cfg.DatabaseDriver)
-	dsn := protocol.NormalizeDatabaseURL(cfg.DatabaseURL)
-	if err := goose.SetDialect(protocol.GooseDialect(cfg.DatabaseDriver)); err != nil {
+	driver := storage.NormalizeSQLDriver(cfg.DatabaseDriver)
+	dsn := storage.NormalizeDatabaseURL(cfg.DatabaseURL)
+	if err := goose.SetDialect(storage.GooseDialect(cfg.DatabaseDriver)); err != nil {
 		return nil, "", err
 	}
 
@@ -125,5 +125,5 @@ func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
 }
 
 func resolveMigrationDir(driver string) string {
-	return filepath.Join("db", "migrations", protocol.MigrationDirName(driver))
+	return filepath.Join("db", "migrations", storage.MigrationDirName(driver))
 }

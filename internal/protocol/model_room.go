@@ -1,9 +1,7 @@
-package room
+package protocol
 
 import (
 	"time"
-
-	agentmodel "github.com/nexus-research-lab/nexus/internal/model/agent"
 )
 
 const (
@@ -82,7 +80,7 @@ type SessionRecord struct {
 type ConversationContextAggregate struct {
 	Room         RoomRecord         `json:"room"`
 	Members      []MemberRecord     `json:"members"`
-	MemberAgents []agentmodel.Agent `json:"member_agents,omitempty"`
+	MemberAgents []Agent            `json:"member_agents,omitempty"`
 	Conversation ConversationRecord `json:"conversation"`
 	Sessions     []SessionRecord    `json:"sessions"`
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/channels"
 	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -365,10 +364,8 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "Delivery",
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:      map[string]any{},
+		IsActive:     true,
 	}); err != nil {
 		t.Fatalf("准备目标会话失败: %v", err)
 	}
@@ -471,10 +468,8 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "Heartbeat",
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:      map[string]any{},
+		IsActive:     true,
 	}); err != nil {
 		t.Fatalf("准备 heartbeat 目标会话失败: %v", err)
 	}
@@ -959,10 +954,8 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 			CreatedAt:    now,
 			LastActivity: now,
 			Title:        "session",
-			Options: map[string]any{
-				sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-			},
-			IsActive: true,
+			Options:      map[string]any{},
+			IsActive:     true,
 		}); upsertErr != nil {
 			t.Fatalf("准备测试会话失败: %v", upsertErr)
 		}
@@ -1355,7 +1348,7 @@ func (r *testAgentResolver) GetDefaultAgent(_ context.Context) (*agentsvc.Agent,
 	}, nil
 }
 
-func stringFromMessage(message sessionmodel.Message, key string) string {
+func stringFromMessage(message protocol.Message, key string) string {
 	if value, ok := message[key].(string); ok {
 		return strings.TrimSpace(value)
 	}

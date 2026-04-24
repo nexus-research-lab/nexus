@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type historyPageGroup struct {
 	CursorRoundID        string
 	CursorRoundTimestamp int64
-	Items                []sessionmodel.Message
+	Items                []protocol.Message
 }
 
 type roundTerminalStatus string
@@ -24,16 +24,16 @@ const (
 	roundStatusError       roundTerminalStatus = "error"
 )
 
-func normalizeHistoryRows(rows []sessionmodel.Message, activeRoundIDs map[string]struct{}) []sessionmodel.Message {
+func normalizeHistoryRows(rows []protocol.Message, activeRoundIDs map[string]struct{}) []protocol.Message {
 	compacted := compactMessages(filterInternalHistoryRows(rows))
 	return normalizeCompactedHistoryRows(compacted, activeRoundIDs)
 }
 
-func filterInternalHistoryRows(rows []sessionmodel.Message) []sessionmodel.Message {
+func filterInternalHistoryRows(rows []protocol.Message) []protocol.Message {
 	if len(rows) == 0 {
 		return rows
 	}
-	filtered := make([]sessionmodel.Message, 0, len(rows))
+	filtered := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
 		if shouldSkipInternalHistoryRow(row) {
 			continue
@@ -43,7 +43,7 @@ func filterInternalHistoryRows(rows []sessionmodel.Message) []sessionmodel.Messa
 	return filtered
 }
 
-func shouldSkipInternalHistoryRow(row sessionmodel.Message) bool {
+func shouldSkipInternalHistoryRow(row protocol.Message) bool {
 	role := strings.TrimSpace(stringFromAny(row["role"]))
 	switch role {
 	case "system":
@@ -51,16 +51,16 @@ func shouldSkipInternalHistoryRow(row sessionmodel.Message) bool {
 		return strings.TrimSpace(stringFromAny(metadata["subtype"])) == "api_retry"
 	case "user":
 		content := strings.TrimSpace(stringFromAny(row["content"]))
-		return sessionmodel.IsInternalTranscriptInterruptPrompt(content)
+		return protocol.IsInternalTranscriptInterruptPrompt(content)
 	default:
 		return false
 	}
 }
 
 func normalizeCompactedHistoryRows(
-	compacted []sessionmodel.Message,
+	compacted []protocol.Message,
 	activeRoundIDs map[string]struct{},
-) []sessionmodel.Message {
+) []protocol.Message {
 	materialized := materializeUnfinishedRounds(compacted, activeRoundIDs)
 	return mergeRoundResultSummaries(materialized)
 }
@@ -76,15 +76,15 @@ func normalizeRoundPageLimit(limit int) int {
 }
 
 func paginateNormalizedHistoryRows(
-	rows []sessionmodel.Message,
+	rows []protocol.Message,
 	limit int,
 	beforeRoundID string,
 	beforeRoundTimestamp int64,
 	collapseRoomAgentRounds bool,
-) sessionmodel.MessagePage {
+) protocol.MessagePage {
 	if len(rows) == 0 {
-		return sessionmodel.MessagePage{
-			Items:   []sessionmodel.Message{},
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
 			HasMore: false,
 		}
 	}
@@ -97,8 +97,8 @@ func paginateNormalizedHistoryRows(
 		beforeRoundTimestamp,
 	)
 	if endGroupIndex <= 0 {
-		return sessionmodel.MessagePage{
-			Items:   []sessionmodel.Message{},
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
 			HasMore: false,
 		}
 	}
@@ -108,12 +108,12 @@ func paginateNormalizedHistoryRows(
 		startGroupIndex = 0
 	}
 
-	pageItems := make([]sessionmodel.Message, 0)
+	pageItems := make([]protocol.Message, 0)
 	for _, group := range groups[startGroupIndex:endGroupIndex] {
 		pageItems = append(pageItems, group.Items...)
 	}
 
-	page := sessionmodel.MessagePage{
+	page := protocol.MessagePage{
 		Items:   pageItems,
 		HasMore: startGroupIndex > 0,
 	}
@@ -129,7 +129,7 @@ func paginateNormalizedHistoryRows(
 }
 
 func buildHistoryPageGroups(
-	rows []sessionmodel.Message,
+	rows []protocol.Message,
 	collapseRoomAgentRounds bool,
 ) []historyPageGroup {
 	if len(rows) == 0 {
@@ -159,7 +159,7 @@ func buildHistoryPageGroups(
 			currentGroup = historyPageGroup{
 				CursorRoundID:        historyPageCursorRoundID(row, collapseRoomAgentRounds),
 				CursorRoundTimestamp: messageTimestamp(row),
-				Items:                make([]sessionmodel.Message, 0, 1),
+				Items:                make([]protocol.Message, 0, 1),
 			}
 		}
 		currentGroup.Items = append(currentGroup.Items, row)
@@ -168,7 +168,7 @@ func buildHistoryPageGroups(
 	return groups
 }
 
-func historyPageCursorRoundID(row sessionmodel.Message, collapseRoomAgentRounds bool) string {
+func historyPageCursorRoundID(row protocol.Message, collapseRoomAgentRounds bool) string {
 	roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
 	if roundID != "" {
 		if collapseRoomAgentRounds {
@@ -179,7 +179,7 @@ func historyPageCursorRoundID(row sessionmodel.Message, collapseRoomAgentRounds 
 	return strings.TrimSpace(stringFromAny(row["message_id"]))
 }
 
-func historyPageGroupKey(row sessionmodel.Message, collapseRoomAgentRounds bool) string {
+func historyPageGroupKey(row protocol.Message, collapseRoomAgentRounds bool) string {
 	roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
 	if roundID != "" {
 		if collapseRoomAgentRounds {
@@ -250,7 +250,7 @@ func compareHistoryPageGroupCursor(
 	return strings.Compare(group.CursorRoundID, beforeRoundID)
 }
 
-func mergeRoundResultSummaries(rows []sessionmodel.Message) []sessionmodel.Message {
+func mergeRoundResultSummaries(rows []protocol.Message) []protocol.Message {
 	if len(rows) == 0 {
 		return rows
 	}
@@ -260,13 +260,13 @@ func mergeRoundResultSummaries(rows []sessionmodel.Message) []sessionmodel.Messa
 }
 
 type roundResultSummaryMerger struct {
-	rows                        []sessionmodel.Message
+	rows                        []protocol.Message
 	lastAssistantIndexByRoundID map[string]int
 	assistantTextByRoundID      map[string]string
 	mergedResultMessageIDs      map[string]struct{}
 }
 
-func newRoundResultSummaryMerger(rows []sessionmodel.Message) *roundResultSummaryMerger {
+func newRoundResultSummaryMerger(rows []protocol.Message) *roundResultSummaryMerger {
 	merger := &roundResultSummaryMerger{
 		rows:                        cloneHistoryRows(rows),
 		lastAssistantIndexByRoundID: make(map[string]int),
@@ -277,17 +277,17 @@ func newRoundResultSummaryMerger(rows []sessionmodel.Message) *roundResultSummar
 	return merger
 }
 
-func cloneHistoryRows(rows []sessionmodel.Message) []sessionmodel.Message {
-	cloned := make([]sessionmodel.Message, 0, len(rows))
+func cloneHistoryRows(rows []protocol.Message) []protocol.Message {
+	cloned := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
-		cloned = append(cloned, sessionmodel.Clone(row))
+		cloned = append(cloned, protocol.Clone(row))
 	}
 	return cloned
 }
 
 func (m *roundResultSummaryMerger) indexAssistants() {
 	for index, row := range m.rows {
-		if sessionmodel.MessageRole(row) != "assistant" {
+		if protocol.MessageRole(row) != "assistant" {
 			continue
 		}
 		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
@@ -295,7 +295,7 @@ func (m *roundResultSummaryMerger) indexAssistants() {
 			continue
 		}
 		m.lastAssistantIndexByRoundID[roundID] = index
-		if assistantText := sessionmodel.ExtractAssistantDisplayText(row); assistantText != "" {
+		if assistantText := protocol.ExtractAssistantDisplayText(row); assistantText != "" {
 			m.assistantTextByRoundID[roundID] = assistantText
 		}
 	}
@@ -303,7 +303,7 @@ func (m *roundResultSummaryMerger) indexAssistants() {
 
 func (m *roundResultSummaryMerger) attachMatchingResults() {
 	for _, row := range m.rows {
-		if sessionmodel.MessageRole(row) != "result" {
+		if protocol.MessageRole(row) != "result" {
 			continue
 		}
 		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
@@ -312,8 +312,8 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 			continue
 		}
 
-		assistant := sessionmodel.Clone(m.rows[assistantIndex])
-		summary := sessionmodel.BuildAssistantResultSummary(row, m.assistantTextByRoundID[roundID])
+		assistant := protocol.Clone(m.rows[assistantIndex])
+		summary := protocol.BuildAssistantResultSummary(row, m.assistantTextByRoundID[roundID])
 		if len(summary) == 0 {
 			continue
 		}
@@ -325,14 +325,14 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 	}
 }
 
-func (m *roundResultSummaryMerger) buildResultRows() []sessionmodel.Message {
-	result := make([]sessionmodel.Message, 0, len(m.rows))
+func (m *roundResultSummaryMerger) buildResultRows() []protocol.Message {
+	result := make([]protocol.Message, 0, len(m.rows))
 	for _, row := range m.rows {
-		if sessionmodel.MessageRole(row) == "result" {
+		if protocol.MessageRole(row) == "result" {
 			if _, merged := m.mergedResultMessageIDs[strings.TrimSpace(stringFromAny(row["message_id"]))]; merged {
 				continue
 			}
-			result = append(result, sessionmodel.BuildSyntheticAssistantFromResult(row))
+			result = append(result, protocol.BuildSyntheticAssistantFromResult(row))
 			continue
 		}
 		result = append(result, row)
@@ -340,7 +340,7 @@ func (m *roundResultSummaryMerger) buildResultRows() []sessionmodel.Message {
 	return result
 }
 
-func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map[string]struct{}) []sessionmodel.Message {
+func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[string]struct{}) []protocol.Message {
 	if len(rows) == 0 {
 		return rows
 	}
@@ -390,7 +390,7 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 		}
 	}
 
-	result := make([]sessionmodel.Message, 0, len(rows)+len(rounds))
+	result := make([]protocol.Message, 0, len(rows)+len(rounds))
 	result = append(result, rows...)
 	for roundID, snapshot := range rounds {
 		if snapshot == nil || snapshot.HasResult {
@@ -406,7 +406,7 @@ func materializeUnfinishedRounds(rows []sessionmodel.Message, activeRoundIDs map
 		if timestamp <= 0 {
 			timestamp = time.Now().UnixMilli()
 		}
-		payload := sessionmodel.Message{
+		payload := protocol.Message{
 			"message_id":      "assistant_interrupt_" + roundID,
 			"session_key":     snapshot.SessionKey,
 			"room_id":         emptyStringToNil(snapshot.RoomID),
@@ -469,7 +469,7 @@ func normalizeRoundStatusValue(value any) roundTerminalStatus {
 	}
 }
 
-func assistantTerminalStatus(row sessionmodel.Message) roundTerminalStatus {
+func assistantTerminalStatus(row protocol.Message) roundTerminalStatus {
 	if strings.TrimSpace(stringFromAny(row["role"])) != "assistant" {
 		return roundStatusRunning
 	}
@@ -487,13 +487,13 @@ func assistantTerminalStatus(row sessionmodel.Message) roundTerminalStatus {
 	}
 }
 
-func sortHistoryRows(rows []sessionmodel.Message) {
+func sortHistoryRows(rows []protocol.Message) {
 	sort.SliceStable(rows, func(i int, j int) bool {
 		return compareHistoryRowOrder(rows[i], rows[j]) < 0
 	})
 }
 
-func compareHistoryRowOrder(left sessionmodel.Message, right sessionmodel.Message) int {
+func compareHistoryRowOrder(left protocol.Message, right protocol.Message) int {
 	leftTimestamp := messageTimestamp(left)
 	rightTimestamp := messageTimestamp(right)
 	if leftTimestamp != rightTimestamp {
@@ -524,7 +524,7 @@ func compareHistoryRowOrder(left sessionmodel.Message, right sessionmodel.Messag
 	return 0
 }
 
-func historyRoleOrder(row sessionmodel.Message) int {
+func historyRoleOrder(row protocol.Message) int {
 	switch strings.TrimSpace(stringFromAny(row["role"])) {
 	case "user":
 		return 0
@@ -544,6 +544,6 @@ func emptyStringToNil(value string) any {
 	return strings.TrimSpace(value)
 }
 
-func cloneMessage(message sessionmodel.Message) sessionmodel.Message {
-	return sessionmodel.Clone(message)
+func cloneMessage(message protocol.Message) protocol.Message {
+	return protocol.Clone(message)
 }

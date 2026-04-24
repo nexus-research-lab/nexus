@@ -63,11 +63,6 @@ func NewService(cfg config.Config, agents *agent2.Service, repository Repository
 	}
 }
 
-// BuildRoomSessionKey 复用统一协议层构造 room key。
-func (s *Service) BuildRoomSessionKey(conversationID string) string {
-	return "room:group:" + conversationID
-}
-
 func ownerUserIDFromContext(ctx context.Context) string {
 	if userID, ok := authsvc.CurrentUserID(ctx); ok {
 		return userID

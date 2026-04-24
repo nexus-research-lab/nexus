@@ -19,7 +19,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 // Info 表示连接器列表项。
@@ -111,7 +111,7 @@ type Service struct {
 
 // NewService 创建连接器服务。
 func NewService(cfg config.Config, db *sql.DB) *Service {
-	driver := protocol.NormalizeSQLDriver(cfg.DatabaseDriver)
+	driver := storage.NormalizeSQLDriver(cfg.DatabaseDriver)
 	var clients *oauthClientStore
 	if key, err := decodeCredentialKey(cfg.ConnectorCredentialsKey); err == nil {
 		clients = newOAuthClientStore(db, driver, key)

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 type record struct {
@@ -37,7 +37,7 @@ type repository struct {
 func newRepository(cfg config.Config, db *sql.DB) *repository {
 	return &repository{
 		db:         db,
-		isPostgres: protocol.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
+		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 	}
 }
 

@@ -16,8 +16,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/logx"
-	roommodel "github.com/nexus-research-lab/nexus/internal/model/room"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 )
@@ -53,13 +51,13 @@ type providerResolver interface {
 }
 
 type sessionService interface {
-	GetSession(context.Context, string) (*sessionmodel.Session, error)
-	UpdateSessionTitle(context.Context, string, string) (*sessionmodel.Session, error)
+	GetSession(context.Context, string) (*protocol.Session, error)
+	UpdateSessionTitle(context.Context, string, string) (*protocol.Session, error)
 }
 
 type roomService interface {
-	GetConversationContext(context.Context, string) (*roommodel.ConversationContextAggregate, error)
-	UpdateConversationTitle(context.Context, string, string, string) (*roommodel.ConversationContextAggregate, error)
+	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
+	UpdateConversationTitle(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
 }
 
 type eventBroadcaster interface {

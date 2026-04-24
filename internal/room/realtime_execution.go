@@ -11,7 +11,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -21,7 +20,7 @@ import (
 func (s *RealtimeService) runRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
-	history []sessionmodel.Message,
+	history []protocol.Message,
 	latestUserMessage string,
 	agentNameByID map[string]string,
 	agentByID map[string]*agent2.Agent,
@@ -65,7 +64,7 @@ func (s *RealtimeService) runSlot(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
-	history []sessionmodel.Message,
+	history []protocol.Message,
 	latestUserMessage string,
 	agentNameByID map[string]string,
 	agentValue *agent2.Agent,
@@ -180,16 +179,16 @@ func (s *RealtimeService) runSlot(
 		SyncSessionID: func(sessionID string) error {
 			return s.syncSlotSDKSessionID(slotCtx, slot, sessionID)
 		},
-		HandleDurableMessage: func(messageValue sessionmodel.Message) error {
+		HandleDurableMessage: func(messageValue protocol.Message) error {
 			if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
 				return err
 			}
-			if !sessionmodel.IsTranscriptNativeMessage(sessionmodel.Message(messageValue)) {
+			if !protocol.IsTranscriptNativeMessage(protocol.Message(messageValue)) {
 				if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
 					return err
 				}
 			}
-			if sessionmodel.MessageRole(messageValue) == "result" {
+			if protocol.MessageRole(messageValue) == "result" {
 				slot.Status = resultStatus(messageValue["subtype"])
 				s.recordUsage(roundValue, messageValue)
 			}
@@ -224,8 +223,8 @@ func (s *RealtimeService) runSlot(
 	logger.Info("Room slot 结束", "status", slot.Status)
 }
 
-func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message sessionmodel.Message) {
-	if s.usage == nil || roundValue == nil || sessionmodel.MessageRole(message) != "result" {
+func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message protocol.Message) {
+	if s.usage == nil || roundValue == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
@@ -263,7 +262,7 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 		"err", err,
 	)
 	slot.Status = "error"
-	resultMessage := sessionmodel.Message{
+	resultMessage := protocol.Message{
 		"message_id":      "result_" + slot.AgentRoundID,
 		"session_key":     roundValue.SessionKey,
 		"room_id":         roundValue.RoomID,
@@ -282,7 +281,7 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 	}
 	_ = s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage)
 	_ = s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey))
-	projectedMessage := sessionmodel.ProjectResultMessage(nil, resultMessage)
+	projectedMessage := protocol.ProjectResultMessage(nil, resultMessage)
 	if mapper != nil {
 		projectedMessage = mapper.ProjectResultMessage(resultMessage)
 	}
@@ -349,7 +348,7 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 	if roundValue == nil || slot == nil {
 		return
 	}
-	resultMessage := sessionmodel.Message{
+	resultMessage := protocol.Message{
 		"message_id":      "result_" + slot.AgentRoundID,
 		"session_key":     roundValue.SessionKey,
 		"room_id":         roundValue.RoomID,
@@ -384,7 +383,7 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 			"err", err,
 		)
 	} else {
-		projectedMessage := sessionmodel.ProjectResultMessage(nil, resultMessage)
+		projectedMessage := protocol.ProjectResultMessage(nil, resultMessage)
 		if mapper != nil {
 			projectedMessage = mapper.ProjectResultMessage(resultMessage)
 		}
@@ -426,7 +425,7 @@ func (s *RealtimeService) recordPrivateRoundMarker(slot *activeRoomSlot, latestU
 	)
 }
 
-func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, message sessionmodel.Message) error {
+func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, message protocol.Message) error {
 	if s.history == nil {
 		return nil
 	}
@@ -445,7 +444,7 @@ func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, mes
 	return s.history.AppendOverlayMessage(slot.WorkspacePath, slot.RuntimeSessionKey, privateMessage)
 }
 
-func normalizePrivateOverlayMessage(message sessionmodel.Message) sessionmodel.Message {
+func normalizePrivateOverlayMessage(message protocol.Message) protocol.Message {
 	normalized := cloneMessageWithSessionKey(message, anyString(message["session_key"]))
 	delete(normalized, "stream_status")
 	delete(normalized, "is_complete")

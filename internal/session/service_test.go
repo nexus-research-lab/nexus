@@ -16,7 +16,6 @@ import (
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -371,10 +370,8 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 		CreatedAt:      now,
 		LastActivity:   now,
 		Title:          topicContext.Conversation.Title,
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:        map[string]any{},
+		IsActive:       true,
 	}); err != nil {
 		t.Fatalf("回写 room topic session meta 失败: %v", err)
 	}

@@ -12,7 +12,6 @@ import (
 	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -364,18 +363,16 @@ func seedRoomPrivateSession(
 	sessionKey := protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType)
 	now := time.Now().UTC()
 	if _, err := files.UpsertSession(workspacePath, session.Session{
-		SessionKey:   sessionKey,
-		AgentID:      agentID,
-		ChannelType:  "websocket",
-		ChatType:     "group",
-		Status:       "active",
-		CreatedAt:    now,
-		LastActivity: now,
-		Title:        "Room Chat",
-		MessageCount: 0,
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
+		SessionKey:     sessionKey,
+		AgentID:        agentID,
+		ChannelType:    "websocket",
+		ChatType:       "group",
+		Status:         "active",
+		CreatedAt:      now,
+		LastActivity:   now,
+		Title:          "Room Chat",
+		MessageCount:   0,
+		Options:        map[string]any{},
 		IsActive:       true,
 		ConversationID: stringPointer(conversationID),
 	}); err != nil {
@@ -393,7 +390,7 @@ func seedRoomConversationLog(
 	t.Helper()
 
 	roomHistory := workspace2.NewRoomHistoryStore(root)
-	if err := roomHistory.AppendInlineMessage(conversationID, sessionmodel.Message{
+	if err := roomHistory.AppendInlineMessage(conversationID, protocol.Message{
 		"message_id":      "seed_" + conversationID,
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
 		"room_id":         roomID,

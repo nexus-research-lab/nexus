@@ -4,16 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
-
-	roommodel "github.com/nexus-research-lab/nexus/internal/model/room"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 )
 
 var errTestNotFound = errors.New("not found")
@@ -51,7 +48,7 @@ func TestScheduleUpdatesSessionAndConversationTitle(t *testing.T) {
 	defer server.Close()
 
 	sessionStore := &fakeSessionService{
-		sessions: map[string]*sessionmodel.Session{
+		sessions: map[string]*protocol.Session{
 			"agent:a:ws:dm:conv_1": {
 				SessionKey: "agent:a:ws:dm:conv_1",
 				Title:      "New Chat",
@@ -59,13 +56,13 @@ func TestScheduleUpdatesSessionAndConversationTitle(t *testing.T) {
 		},
 	}
 	roomStore := &fakeRoomService{
-		contexts: map[string]*roommodel.ConversationContextAggregate{
+		contexts: map[string]*protocol.ConversationContextAggregate{
 			"conv_1": {
-				Room: roommodel.RoomRecord{
+				Room: protocol.RoomRecord{
 					ID:   "room_1",
 					Name: "Amy",
 				},
-				Conversation: roommodel.ConversationRecord{
+				Conversation: protocol.ConversationRecord{
 					ID:    "conv_1",
 					Title: "Amy",
 				},
@@ -142,7 +139,7 @@ func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	defer server.Close()
 
 	sessionStore := &fakeSessionService{
-		sessions: map[string]*sessionmodel.Session{
+		sessions: map[string]*protocol.Session{
 			"agent:a:ws:dm:conv_1": {
 				SessionKey: "agent:a:ws:dm:conv_1",
 				Title:      "用户自定义标题",
@@ -150,13 +147,13 @@ func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 		},
 	}
 	roomStore := &fakeRoomService{
-		contexts: map[string]*roommodel.ConversationContextAggregate{
+		contexts: map[string]*protocol.ConversationContextAggregate{
 			"conv_1": {
-				Room: roommodel.RoomRecord{
+				Room: protocol.RoomRecord{
 					ID:   "room_1",
 					Name: "Amy",
 				},
-				Conversation: roommodel.ConversationRecord{
+				Conversation: protocol.ConversationRecord{
 					ID:    "conv_1",
 					Title: "用户自定义标题",
 				},
@@ -243,7 +240,7 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 	defer server.Close()
 
 	sessionStore := &fakeSessionService{
-		sessions: map[string]*sessionmodel.Session{
+		sessions: map[string]*protocol.Session{
 			"agent:a:ws:dm:conv_1": {
 				SessionKey: "agent:a:ws:dm:conv_1",
 				Title:      "New Chat",
@@ -289,10 +286,10 @@ func (f *fakeProviderResolver) ResolveRuntimeConfig(_ context.Context, _ string)
 }
 
 type fakeSessionService struct {
-	sessions map[string]*sessionmodel.Session
+	sessions map[string]*protocol.Session
 }
 
-func (f *fakeSessionService) GetSession(_ context.Context, sessionKey string) (*sessionmodel.Session, error) {
+func (f *fakeSessionService) GetSession(_ context.Context, sessionKey string) (*protocol.Session, error) {
 	item := f.sessions[sessionKey]
 	if item == nil {
 		return nil, errTestNotFound
@@ -301,7 +298,7 @@ func (f *fakeSessionService) GetSession(_ context.Context, sessionKey string) (*
 	return &value, nil
 }
 
-func (f *fakeSessionService) UpdateSessionTitle(_ context.Context, sessionKey string, title string) (*sessionmodel.Session, error) {
+func (f *fakeSessionService) UpdateSessionTitle(_ context.Context, sessionKey string, title string) (*protocol.Session, error) {
 	item := f.sessions[sessionKey]
 	if item == nil {
 		return nil, errTestNotFound
@@ -312,10 +309,10 @@ func (f *fakeSessionService) UpdateSessionTitle(_ context.Context, sessionKey st
 }
 
 type fakeRoomService struct {
-	contexts map[string]*roommodel.ConversationContextAggregate
+	contexts map[string]*protocol.ConversationContextAggregate
 }
 
-func (f *fakeRoomService) GetConversationContext(_ context.Context, conversationID string) (*roommodel.ConversationContextAggregate, error) {
+func (f *fakeRoomService) GetConversationContext(_ context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	item := f.contexts[conversationID]
 	if item == nil {
 		return nil, errTestNotFound
@@ -329,7 +326,7 @@ func (f *fakeRoomService) UpdateConversationTitle(
 	_ string,
 	conversationID string,
 	title string,
-) (*roommodel.ConversationContextAggregate, error) {
+) (*protocol.ConversationContextAggregate, error) {
 	item := f.contexts[conversationID]
 	if item == nil {
 		return nil, errTestNotFound

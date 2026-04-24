@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"strings"
 	"time"
 )
@@ -41,8 +41,8 @@ func resultStatus(subtype any) string {
 	}
 }
 
-func cloneMessageWithSessionKey(message sessionmodel.Message, sessionKey string) sessionmodel.Message {
-	result := make(sessionmodel.Message, len(message))
+func cloneMessageWithSessionKey(message protocol.Message, sessionKey string) protocol.Message {
+	result := make(protocol.Message, len(message))
 	for key, value := range message {
 		result[key] = value
 	}

@@ -3,11 +3,11 @@ package room
 import (
 	"testing"
 
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestBuildHistoryLinesFiltersIncompleteAssistant(t *testing.T) {
-	history := []sessionmodel.Message{
+	history := []protocol.Message{
 		{"role": "user", "content": "你好"},
 		{"role": "assistant", "agent_id": "a1", "content": []map[string]any{{"type": "text", "text": "半成品"}}, "is_complete": false},
 		{"role": "assistant", "agent_id": "a1", "content": []map[string]any{{"type": "text", "text": "已完成"}}, "is_complete": true},

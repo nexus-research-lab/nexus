@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SessionFileStore 负责 workspace 侧会话文件读写。
@@ -27,17 +27,17 @@ func NewSessionFileStore(root string) *SessionFileStore {
 }
 
 // ListSessions 读取某个 workspace 下的全部文件会话。
-func (s *SessionFileStore) ListSessions(workspacePath string) ([]sessionmodel.Session, error) {
+func (s *SessionFileStore) ListSessions(workspacePath string) ([]protocol.Session, error) {
 	sessionRoot := filepath.Join(workspacePath, ".agents", "sessions")
 	entries, err := os.ReadDir(sessionRoot)
 	if errors.Is(err, os.ErrNotExist) {
-		return []sessionmodel.Session{}, nil
+		return []protocol.Session{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]sessionmodel.Session, 0, len(entries))
+	result := make([]protocol.Session, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -59,7 +59,7 @@ func (s *SessionFileStore) ListSessions(workspacePath string) ([]sessionmodel.Se
 }
 
 // FindSession 在多个 workspace 中定位单个 session。
-func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey string) (*sessionmodel.Session, string, error) {
+func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey string) (*protocol.Session, string, error) {
 	for _, workspacePath := range workspacePaths {
 		metaPath := s.paths.SessionMetaPath(workspacePath, sessionKey)
 		item, err := s.readSessionMeta(metaPath)
@@ -75,7 +75,7 @@ func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey strin
 }
 
 // UpsertSession 创建或更新 session meta。
-func (s *SessionFileStore) UpsertSession(workspacePath string, item sessionmodel.Session) (*sessionmodel.Session, error) {
+func (s *SessionFileStore) UpsertSession(workspacePath string, item protocol.Session) (*protocol.Session, error) {
 	metaPath := s.paths.SessionMetaPath(workspacePath, item.SessionKey)
 	if err := os.MkdirAll(filepath.Dir(metaPath), 0o755); err != nil {
 		return nil, err
@@ -121,14 +121,14 @@ func (s *SessionFileStore) DeleteRoomConversation(conversationID string) (bool, 
 	return true, nil
 }
 
-func (s *SessionFileStore) readSessionMeta(metaPath string) (sessionmodel.Session, error) {
+func (s *SessionFileStore) readSessionMeta(metaPath string) (protocol.Session, error) {
 	payload, err := os.ReadFile(metaPath)
 	if err != nil {
-		return sessionmodel.Session{}, err
+		return protocol.Session{}, err
 	}
-	var item sessionmodel.Session
+	var item protocol.Session
 	if err = json.Unmarshal(payload, &item); err != nil {
-		return sessionmodel.Session{}, err
+		return protocol.Session{}, err
 	}
 	if item.Options == nil {
 		item.Options = map[string]any{}
@@ -152,18 +152,6 @@ func (s *SessionFileStore) readSessionMeta(metaPath string) (sessionmodel.Sessio
 	return item, nil
 }
 
-func (s *SessionFileStore) readMessagesFromPath(path string) ([]sessionmodel.Message, error) {
-	rows, err := s.readJSONL(path)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]sessionmodel.Message, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, sessionmodel.Message(row))
-	}
-	return result, nil
-}
-
 func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -182,46 +170,6 @@ func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 	if _, err = fmt.Fprintf(file, "%s\n", payload); err != nil {
 		return err
 	}
-	return nil
-}
-
-func (s *SessionFileStore) replaceJSONL(path string, rows []map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tempFile, err := os.CreateTemp(filepath.Dir(path), ".jsonl-*")
-	if err != nil {
-		return err
-	}
-	tempPath := tempFile.Name()
-	cleanupTemp := true
-	defer func() {
-		_ = tempFile.Close()
-		if cleanupTemp {
-			_ = os.Remove(tempPath)
-		}
-	}()
-
-	writer := bufio.NewWriter(tempFile)
-	for _, row := range rows {
-		payload, marshalErr := json.Marshal(row)
-		if marshalErr != nil {
-			return marshalErr
-		}
-		if _, err = fmt.Fprintf(writer, "%s\n", payload); err != nil {
-			return err
-		}
-	}
-	if err = writer.Flush(); err != nil {
-		return err
-	}
-	if err = tempFile.Close(); err != nil {
-		return err
-	}
-	if err = os.Rename(tempPath, path); err != nil {
-		return err
-	}
-	cleanupTemp = false
 	return nil
 }
 
@@ -254,8 +202,8 @@ func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
 	return rows, reader.Err()
 }
 
-func compactMessages(rows []sessionmodel.Message) []sessionmodel.Message {
-	latestByID := make(map[string]sessionmodel.Message, len(rows))
+func compactMessages(rows []protocol.Message) []protocol.Message {
+	latestByID := make(map[string]protocol.Message, len(rows))
 	order := make([]string, 0, len(rows))
 	for _, row := range rows {
 		messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
@@ -272,7 +220,7 @@ func compactMessages(rows []sessionmodel.Message) []sessionmodel.Message {
 		latestByID[messageID] = cloneMessage(row)
 	}
 
-	compacted := make([]sessionmodel.Message, 0, len(order))
+	compacted := make([]protocol.Message, 0, len(order))
 	for _, messageID := range order {
 		compacted = append(compacted, latestByID[messageID])
 	}
@@ -280,14 +228,14 @@ func compactMessages(rows []sessionmodel.Message) []sessionmodel.Message {
 	return compacted
 }
 
-func mergeCompactedMessage(current sessionmodel.Message, next sessionmodel.Message) sessionmodel.Message {
+func mergeCompactedMessage(current protocol.Message, next protocol.Message) protocol.Message {
 	if strings.TrimSpace(stringFromAny(current["role"])) != "assistant" || strings.TrimSpace(stringFromAny(next["role"])) != "assistant" {
 		return next
 	}
 	return mergeAssistantSnapshots(current, next)
 }
 
-func mergeAssistantSnapshots(current sessionmodel.Message, next sessionmodel.Message) sessionmodel.Message {
+func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) protocol.Message {
 	merged := cloneMessage(current)
 
 	// assistant 快照属于同一条消息的增量物化，身份字段一旦建立就不应被后续快照改写。
@@ -332,7 +280,7 @@ func mergeAssistantSnapshots(current sessionmodel.Message, next sessionmodel.Mes
 		merged["timestamp"] = next["timestamp"]
 	}
 
-	// 其它非身份字段以后者为准，避免成本、终止原因、补充元数据被旧快照覆盖。
+	// 其它非身份字段以后者为准，避免成本、终止原因、补充元数据被前序快照覆盖。
 	for key, value := range next {
 		switch key {
 		case "content",
@@ -477,7 +425,7 @@ func boolFromAny(value any) bool {
 	}
 }
 
-func messageTimestamp(row sessionmodel.Message) int64 {
+func messageTimestamp(row protocol.Message) int64 {
 	value := row["timestamp"]
 	switch typed := value.(type) {
 	case float64:

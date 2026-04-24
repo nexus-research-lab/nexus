@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -19,7 +18,7 @@ type slotMessageMapper struct {
 	agentRoundID   string
 	processor      *message.Processor
 
-	lastAssistantMessage sessionmodel.Message
+	lastAssistantMessage protocol.Message
 }
 
 func newSlotMessageMapper(
@@ -51,32 +50,32 @@ func newSlotMessageMapper(
 func (m *slotMessageMapper) Map(
 	incoming sdkprotocol.ReceivedMessage,
 	interruptReason ...string,
-) ([]protocol.EventMessage, []sessionmodel.Message, string, error) {
+) ([]protocol.EventMessage, []protocol.Message, string, error) {
 	output := m.processor.Process(incoming)
 	if output.Err != nil {
 		return nil, nil, "", output.Err
 	}
 	message.NormalizeInterruptedOutput(&output, firstNonEmpty(interruptReason...))
 	events := make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+len(output.EphemeralMessages))
-	messages := make([]sessionmodel.Message, 0, len(output.DurableMessages))
+	messages := make([]protocol.Message, 0, len(output.DurableMessages))
 	for _, streamEvent := range output.StreamEvents {
 		events = append(events, m.wrapEvent(protocol.EventTypeStream, streamEvent.Data, streamEvent.MessageID))
 	}
 	for _, messageValue := range output.DurableMessages {
-		copyValue := sessionmodel.Clone(messageValue)
+		copyValue := protocol.Clone(messageValue)
 		messages = append(messages, copyValue)
 		projectedValue := m.projectDurableMessage(copyValue)
 		events = append(events, m.wrapMessageEvent(projectedValue))
 	}
 	for _, messageValue := range output.EphemeralMessages {
-		events = append(events, m.wrapEphemeralMessage(sessionmodel.Clone(messageValue)))
+		events = append(events, m.wrapEphemeralMessage(protocol.Clone(messageValue)))
 	}
 	return events, messages, output.TerminalStatus, nil
 }
 
-func (m *slotMessageMapper) projectDurableMessage(message sessionmodel.Message) sessionmodel.Message {
+func (m *slotMessageMapper) projectDurableMessage(message protocol.Message) protocol.Message {
 	if message["role"] == "assistant" {
-		m.lastAssistantMessage = sessionmodel.Clone(message)
+		m.lastAssistantMessage = protocol.Clone(message)
 		return message
 	}
 	if message["role"] != "result" {
@@ -93,26 +92,26 @@ func (m *slotMessageMapper) SessionID() string {
 	return m.processor.SessionID()
 }
 
-func (m *slotMessageMapper) LastAssistantMessage() sessionmodel.Message {
+func (m *slotMessageMapper) LastAssistantMessage() protocol.Message {
 	if len(m.lastAssistantMessage) == 0 {
 		return nil
 	}
-	return sessionmodel.Clone(m.lastAssistantMessage)
+	return protocol.Clone(m.lastAssistantMessage)
 }
 
-func (m *slotMessageMapper) ProjectResultMessage(message sessionmodel.Message) sessionmodel.Message {
-	projected := sessionmodel.ProjectResultMessage(m.lastAssistantMessage, message)
-	m.lastAssistantMessage = sessionmodel.Clone(projected)
+func (m *slotMessageMapper) ProjectResultMessage(message protocol.Message) protocol.Message {
+	projected := protocol.ProjectResultMessage(m.lastAssistantMessage, message)
+	m.lastAssistantMessage = protocol.Clone(projected)
 	return projected
 }
 
-func (m *slotMessageMapper) wrapMessageEvent(message sessionmodel.Message) protocol.EventMessage {
+func (m *slotMessageMapper) wrapMessageEvent(message protocol.Message) protocol.EventMessage {
 	event := m.wrapEvent(protocol.EventTypeMessage, message, anyString(message["message_id"]))
 	event.DeliveryMode = "durable"
 	return event
 }
 
-func (m *slotMessageMapper) wrapEphemeralMessage(message sessionmodel.Message) protocol.EventMessage {
+func (m *slotMessageMapper) wrapEphemeralMessage(message protocol.Message) protocol.EventMessage {
 	return m.wrapEvent(protocol.EventTypeMessage, message, anyString(message["message_id"]))
 }
 

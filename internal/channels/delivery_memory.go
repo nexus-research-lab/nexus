@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 type deliveryMemory struct {
@@ -28,7 +28,7 @@ type rememberedRoute struct {
 func newDeliveryMemory(cfg config.Config, db *sql.DB) *deliveryMemory {
 	return &deliveryMemory{
 		db:         db,
-		isPostgres: protocol.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
+		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		idFactory:  newDeliveryID,
 	}
 }

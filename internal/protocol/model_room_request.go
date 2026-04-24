@@ -1,4 +1,4 @@
-package room
+package protocol
 
 // CreateRoomRequest 表示创建房间请求。
 type CreateRoomRequest struct {

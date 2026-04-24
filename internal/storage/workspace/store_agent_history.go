@@ -16,7 +16,7 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 	"github.com/nexus-research-lab/nexus/internal/message"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -36,7 +36,7 @@ type transcriptCacheEntry struct {
 	FileSize      int64
 	ModifiedUnix  int64
 	LastAccessUTC int64
-	Messages      []sessionmodel.Message
+	Messages      []protocol.Message
 }
 
 type transcriptEntry struct {
@@ -116,7 +116,7 @@ func (s *AgentHistoryStore) DeleteTranscriptProject(workspacePath string) (bool,
 }
 
 // AppendOverlayMessage 追加一条 Nexus overlay 消息。
-func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKey string, message sessionmodel.Message) error {
+func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKey string, message protocol.Message) error {
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), message)
 }
 
@@ -139,9 +139,9 @@ func (s *AgentHistoryStore) AppendRoundMarker(
 // ReadMessages 读取 DM 历史。
 func (s *AgentHistoryStore) ReadMessages(
 	workspacePath string,
-	sessionValue sessionmodel.Session,
+	sessionValue protocol.Session,
 	activeRoundIDs []string,
-) ([]sessionmodel.Message, error) {
+) ([]protocol.Message, error) {
 	rows, err := s.readHistoryRows(workspacePath, sessionValue)
 	if err != nil {
 		return nil, err
@@ -152,15 +152,15 @@ func (s *AgentHistoryStore) ReadMessages(
 // ReadMessagesPage 按 round 分页读取 DM 历史。
 func (s *AgentHistoryStore) ReadMessagesPage(
 	workspacePath string,
-	sessionValue sessionmodel.Session,
+	sessionValue protocol.Session,
 	activeRoundIDs []string,
 	limit int,
 	beforeRoundID string,
 	beforeRoundTimestamp int64,
-) (sessionmodel.MessagePage, error) {
+) (protocol.MessagePage, error) {
 	rows, err := s.readHistoryRows(workspacePath, sessionValue)
 	if err != nil {
-		return sessionmodel.MessagePage{}, err
+		return protocol.MessagePage{}, err
 	}
 	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
 	return paginateNormalizedHistoryRows(
@@ -174,11 +174,8 @@ func (s *AgentHistoryStore) ReadMessagesPage(
 
 func (s *AgentHistoryStore) readHistoryRows(
 	workspacePath string,
-	sessionValue sessionmodel.Session,
-) ([]sessionmodel.Message, error) {
-	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
-		return nil, err
-	}
+	sessionValue protocol.Session,
+) ([]protocol.Message, error) {
 	sessionID := strings.TrimSpace(stringPointerValue(sessionValue.SessionID))
 	overlayRows, roundMarkers, err := s.readOverlayRowsAndMarkers(workspacePath, sessionValue.SessionKey)
 	if err != nil {
@@ -219,27 +216,27 @@ func (s *AgentHistoryStore) readHistoryRows(
 func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 	workspacePath string,
 	sessionKey string,
-) ([]sessionmodel.Message, []transcriptRoundMarker, error) {
+) ([]protocol.Message, []transcriptRoundMarker, error) {
 	rows, err := s.files.readJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey))
 	if errors.Is(err, os.ErrNotExist) {
-		return []sessionmodel.Message{}, []transcriptRoundMarker{}, nil
+		return []protocol.Message{}, []transcriptRoundMarker{}, nil
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	messageRows := make([]sessionmodel.Message, 0, len(rows))
+	messageRows := make([]protocol.Message, 0, len(rows))
 	roundMarkers := make([]transcriptRoundMarker, 0)
 	for _, row := range rows {
 		if strings.TrimSpace(stringFromAny(row[overlayKindField])) == overlayKindRoundMarker {
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
 				RoundID:   strings.TrimSpace(stringFromAny(row["round_id"])),
 				Content:   strings.TrimSpace(stringFromAny(row["content"])),
-				Timestamp: messageTimestamp(sessionmodel.Message(row)),
+				Timestamp: messageTimestamp(protocol.Message(row)),
 			})
 			continue
 		}
-		messageRows = append(messageRows, sessionmodel.Message(row))
+		messageRows = append(messageRows, protocol.Message(row))
 	}
 	return messageRows, roundMarkers, nil
 }
@@ -247,21 +244,21 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 func buildOverlayOnlyHistoryRows(
 	sessionKey string,
 	agentID string,
-	overlayRows []sessionmodel.Message,
+	overlayRows []protocol.Message,
 	roundMarkers []transcriptRoundMarker,
-) []sessionmodel.Message {
+) []protocol.Message {
 	markerRows := materializeRoundMarkerMessages(sessionKey, agentID, roundMarkers)
-	combined := make([]sessionmodel.Message, 0, len(markerRows)+len(overlayRows))
+	combined := make([]protocol.Message, 0, len(markerRows)+len(overlayRows))
 	combined = append(combined, markerRows...)
 	combined = append(combined, overlayRows...)
 	return combined
 }
 
 func mergeTranscriptAndOverlayRows(
-	transcriptRows []sessionmodel.Message,
-	overlayRows []sessionmodel.Message,
-) []sessionmodel.Message {
-	combined := make([]sessionmodel.Message, 0, len(transcriptRows)+len(overlayRows))
+	transcriptRows []protocol.Message,
+	overlayRows []protocol.Message,
+) []protocol.Message {
+	combined := make([]protocol.Message, 0, len(transcriptRows)+len(overlayRows))
 	combined = append(combined, transcriptRows...)
 	combined = append(combined, overlayRows...)
 	return combined
@@ -271,18 +268,18 @@ func materializeRoundMarkerMessages(
 	sessionKey string,
 	agentID string,
 	roundMarkers []transcriptRoundMarker,
-) []sessionmodel.Message {
+) []protocol.Message {
 	if len(roundMarkers) == 0 {
-		return []sessionmodel.Message{}
+		return []protocol.Message{}
 	}
 
-	rows := make([]sessionmodel.Message, 0, len(roundMarkers))
+	rows := make([]protocol.Message, 0, len(roundMarkers))
 	for _, marker := range roundMarkers {
 		roundID := strings.TrimSpace(marker.RoundID)
 		if roundID == "" {
 			continue
 		}
-		rows = append(rows, sessionmodel.Message{
+		rows = append(rows, protocol.Message{
 			"message_id":  roundID,
 			"session_key": sessionKey,
 			"agent_id":    strings.TrimSpace(agentID),
@@ -301,7 +298,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	agentID string,
 	sessionID string,
 	roundMarkers []transcriptRoundMarker,
-) ([]sessionmodel.Message, error) {
+) ([]protocol.Message, error) {
 	transcriptPath, err := s.resolveTranscriptPath(workspacePath, sessionID)
 	if err != nil {
 		return nil, err
@@ -358,7 +355,7 @@ func (s *AgentHistoryStore) readTranscriptEntries(path string) ([]transcriptEntr
 }
 
 func normalizeTranscriptEntryShape(entry map[string]any) {
-	// 兼容 transcript 历史里沿用的 camelCase 字段，统一桥接到当前 SDK 解码需要的 snake_case。
+	// Claude transcript 使用 camelCase 字段，这里统一转成 SDK 解码需要的 snake_case。
 	if entry["session_id"] == nil && entry["sessionId"] != nil {
 		entry["session_id"] = entry["sessionId"]
 	}
@@ -404,7 +401,7 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 	return "", os.ErrNotExist
 }
 
-func (s *AgentHistoryStore) readTranscriptCache(path string, fileInfo os.FileInfo) ([]sessionmodel.Message, bool) {
+func (s *AgentHistoryStore) readTranscriptCache(path string, fileInfo os.FileInfo) ([]protocol.Message, bool) {
 	s.cacheMu.RLock()
 	entry, exists := s.messageCache[path]
 	s.cacheMu.RUnlock()
@@ -426,7 +423,7 @@ func (s *AgentHistoryStore) readTranscriptCache(path string, fileInfo os.FileInf
 func (s *AgentHistoryStore) writeTranscriptCache(
 	path string,
 	fileInfo os.FileInfo,
-	rows []sessionmodel.Message,
+	rows []protocol.Message,
 ) {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
@@ -580,8 +577,8 @@ func projectTranscriptChain(
 	agentID string,
 	chain []transcriptEntry,
 	roundMarkers []transcriptRoundMarker,
-) []sessionmodel.Message {
-	projected := make([]sessionmodel.Message, 0, len(chain))
+) []protocol.Message {
+	projected := make([]protocol.Message, 0, len(chain))
 	currentRoundID := ""
 	var processor *message.Processor
 	var lastTimestamp int64
@@ -664,7 +661,7 @@ func alignTranscriptRoundMarkers(
 	}
 	// transcript 只保留当前主链末端的用户轮次，而 overlay 可能保留了更早的 round marker。
 	// 这里必须按尾部对齐，保证最新 transcript user 绑定到最新 round marker，
-	// 不能从头部顺序消费，否则会把旧轮次用户输入错绑到新的 assistant 回复上。
+	// 不能从头部顺序消费，否则会把前序轮次用户输入错绑到新的 assistant 回复上。
 	transcriptUserCount := countTranscriptUserTurns(chain)
 	if transcriptUserCount <= 0 {
 		return nil
@@ -732,12 +729,12 @@ func buildTranscriptUserMessage(
 	entry map[string]any,
 	contentOverride string,
 	timestamp int64,
-) *sessionmodel.Message {
+) *protocol.Message {
 	content := firstNonEmpty(strings.TrimSpace(contentOverride), transcriptUserContent(entry))
 	if content == "" {
 		return nil
 	}
-	payload := sessionmodel.Message{
+	payload := protocol.Message{
 		"message_id":  roundID,
 		"session_key": sessionKey,
 		"agent_id":    agentID,
@@ -774,20 +771,20 @@ func transcriptUserContent(entry map[string]any) string {
 
 func sanitizeTranscriptUserContent(content string) string {
 	trimmed := strings.TrimSpace(content)
-	if sessionmodel.IsInternalTranscriptInterruptPrompt(trimmed) {
+	if protocol.IsInternalTranscriptInterruptPrompt(trimmed) {
 		return ""
 	}
 	return trimmed
 }
 
 func stampTranscriptDurableMessages(
-	rows []sessionmodel.Message,
+	rows []protocol.Message,
 	timestamp int64,
-) []sessionmodel.Message {
+) []protocol.Message {
 	if len(rows) == 0 {
 		return nil
 	}
-	result := make([]sessionmodel.Message, 0, len(rows))
+	result := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
 		stamped := cloneMessage(row)
 		stamped["timestamp"] = timestamp

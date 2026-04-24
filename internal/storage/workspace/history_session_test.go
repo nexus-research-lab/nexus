@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestNormalizeHistoryRowsMergesAssistantSnapshotsByMessageID(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-1",
 			"session_key": "agent:nexus:ws:dm:test",
@@ -96,7 +96,7 @@ func TestNormalizeHistoryRowsMergesAssistantSnapshotsByMessageID(t *testing.T) {
 }
 
 func TestNormalizeHistoryRowsKeepsResultUsageWhenSuppressingDuplicateResultText(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-1",
 			"session_key": "agent:nexus:ws:dm:test",
@@ -165,7 +165,7 @@ func TestNormalizeHistoryRowsKeepsResultUsageWhenSuppressingDuplicateResultText(
 }
 
 func TestNormalizeHistoryRowsBuildsSyntheticAssistantWithoutAssistant(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-1",
 			"session_key": "agent:nexus:ws:dm:test",
@@ -210,7 +210,7 @@ func TestNormalizeHistoryRowsBuildsSyntheticAssistantWithoutAssistant(t *testing
 }
 
 func TestNormalizeHistoryRowsFiltersInternalTransportRows(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "system-retry",
 			"session_key": "agent:nexus:ws:dm:test",
@@ -285,7 +285,7 @@ func TestNormalizeHistoryRowsFiltersInternalTransportRows(t *testing.T) {
 }
 
 func TestPaginateNormalizedHistoryRowsKeepsDMRoundComplete(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id": "user-1",
 			"round_id":   "round-1",
@@ -354,7 +354,7 @@ func TestPaginateNormalizedHistoryRowsKeepsDMRoundComplete(t *testing.T) {
 }
 
 func TestPaginateNormalizedHistoryRowsCollapsesRoomAgentSubRounds(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id": "room-user-1",
 			"round_id":   "room-round-1",
@@ -417,7 +417,7 @@ func TestPaginateNormalizedHistoryRowsCollapsesRoomAgentSubRounds(t *testing.T) 
 }
 
 func TestNormalizeHistoryRowsTreatsCompletedAssistantWithoutResultAsSuccess(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-finished-1",
 			"session_key": "agent:nexus:ws:dm:test-finished",
@@ -456,7 +456,7 @@ func TestNormalizeHistoryRowsTreatsCompletedAssistantWithoutResultAsSuccess(t *t
 }
 
 func TestNormalizeHistoryRowsTreatsAssistantStopReasonAsTerminalTruth(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-stop-1",
 			"session_key": "agent:nexus:ws:dm:test-stop-reason",
@@ -487,7 +487,7 @@ func TestNormalizeHistoryRowsTreatsAssistantStopReasonAsTerminalTruth(t *testing
 }
 
 func TestNormalizeHistoryRowsTreatsCancelledAssistantAsInterrupted(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-cancelled-1",
 			"session_key": "agent:nexus:ws:dm:test-cancelled",
@@ -518,7 +518,7 @@ func TestNormalizeHistoryRowsTreatsCancelledAssistantAsInterrupted(t *testing.T)
 }
 
 func TestNormalizeHistoryRowsMaterializesRunningAssistantWithoutStopReason(t *testing.T) {
-	rows := []sessionmodel.Message{
+	rows := []protocol.Message{
 		{
 			"message_id":  "user-running-1",
 			"session_key": "agent:nexus:ws:dm:test-running",
@@ -565,7 +565,7 @@ func TestNormalizeHistoryRowsMaterializesRunningAssistantWithoutStopReason(t *te
 }
 
 func TestBuildRoomTranscriptReferenceRejectsResultRole(t *testing.T) {
-	row := buildRoomTranscriptReference(sessionmodel.Message{
+	row := buildRoomTranscriptReference(protocol.Message{
 		"message_id": "result-1",
 		"session_id": "sdk-session-1",
 		"agent_id":   "nexus",

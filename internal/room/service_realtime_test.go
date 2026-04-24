@@ -14,7 +14,6 @@ import (
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
@@ -254,7 +253,6 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	assertPathRemoved(t, filepath.Join(workspace2.New(cfg.WorkspacePath).SessionDir(memberAgent.WorkspacePath, privateSessionKey), "messages.jsonl"))
 	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
 	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
@@ -483,7 +481,6 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
-	assertPathRemoved(t, filepath.Join(workspace2.New(cfg.WorkspacePath).SessionDir(memberAgent.WorkspacePath, privateSessionKey), "messages.jsonl"))
 	roomThinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
 	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
@@ -877,7 +874,6 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 
 	for _, agentValue := range []*agentsvc.Agent{agentA, agentB} {
 		privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType)
-		assertPathRemoved(t, filepath.Join(workspace2.New(cfg.WorkspacePath).SessionDir(agentValue.WorkspacePath, privateSessionKey), "messages.jsonl"))
 		writeRoomTranscriptFixture(t, agentValue.WorkspacePath, "room-sdk-session", []map[string]any{
 			{
 				"type":      "user",
@@ -1047,16 +1043,14 @@ func readRoomPrivateHistory(
 	sessionKey string,
 	agentID string,
 	sessionID string,
-) []sessionmodel.Message {
+) []protocol.Message {
 	t.Helper()
 	historyStore := workspace2.NewAgentHistoryStore(root)
 	rows, err := historyStore.ReadMessages(workspacePath, session.Session{
 		SessionKey: sessionKey,
 		AgentID:    agentID,
 		SessionID:  stringPointer(sessionID),
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
+		Options:    map[string]any{},
 	}, nil)
 	if err != nil {
 		t.Fatalf("读取 room transcript 历史失败: %v", err)
@@ -1234,7 +1228,7 @@ func assertRoomStreamBlockIndex(t *testing.T, events []protocol.EventMessage, me
 	t.Fatalf("未找到 Room block_type=%s message_id=%s 的 stream 事件: %+v", blockType, messageID, events)
 }
 
-func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) sessionmodel.Message {
+func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {
 	t.Helper()
 	for _, event := range events {
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
@@ -1243,7 +1237,7 @@ func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessag
 		if event.Data["role"] != "assistant" {
 			continue
 		}
-		return sessionmodel.Message(event.Data)
+		return protocol.Message(event.Data)
 	}
 	t.Fatalf("未找到 Room assistant message_id=%s 的 durable 消息: %+v", messageID, events)
 	return nil

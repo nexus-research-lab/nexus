@@ -3,10 +3,8 @@ package runtime
 import (
 	"context"
 	"errors"
-	"strings"
-
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
@@ -21,7 +19,7 @@ var (
 // RoundMapResult 表示单条 SDK 消息映射后的统一结果。
 type RoundMapResult struct {
 	Events          []protocol.EventMessage
-	DurableMessages []sessionmodel.Message
+	DurableMessages []protocol.Message
 	TerminalStatus  string
 	ResultSubtype   string
 }
@@ -39,7 +37,7 @@ type RoundExecutionRequest struct {
 	Mapper                 RoundMapper
 	InterruptReason        func() string
 	SyncSessionID          func(string) error
-	HandleDurableMessage   func(sessionmodel.Message) error
+	HandleDurableMessage   func(protocol.Message) error
 	EmitEvent              func(protocol.EventMessage) error
 	ObserveIncomingMessage func(sdkprotocol.ReceivedMessage)
 }

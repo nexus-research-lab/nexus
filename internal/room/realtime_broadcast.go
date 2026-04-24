@@ -2,7 +2,6 @@ package room
 
 import (
 	"context"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"strings"
 )
@@ -45,7 +44,7 @@ func (s *RealtimeService) broadcastSharedEvent(ctx context.Context, sessionKey s
 	s.permission.BroadcastEvent(ctx, sessionKey, event)
 }
 
-func wrapRoomMessageEvent(roomID string, conversationID string, message sessionmodel.Message, causedBy string) protocol.EventMessage {
+func wrapRoomMessageEvent(roomID string, conversationID string, message protocol.Message, causedBy string) protocol.EventMessage {
 	event := protocol.NewEvent(protocol.EventTypeMessage, message)
 	event.DeliveryMode = "durable"
 	event.SessionKey = anyString(message["session_key"])

@@ -1,9 +1,9 @@
 package agent
 
-import agentmodel "github.com/nexus-research-lab/nexus/internal/model/agent"
+import "github.com/nexus-research-lab/nexus/internal/protocol"
 
 // ParseJSONStringSlice 解析字符串数组 JSON。
-var ParseJSONStringSlice = agentmodel.ParseJSONStringSlice
+var ParseJSONStringSlice = protocol.ParseJSONStringSlice
 
 // ParseJSONMap 解析 map JSON。
-var ParseJSONMap = agentmodel.ParseJSONMap
+var ParseJSONMap = protocol.ParseJSONMap

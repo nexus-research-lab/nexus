@@ -8,7 +8,6 @@ import (
 	"time"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/session"
@@ -88,7 +87,7 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 
 	now := time.Now().UTC()
 	roundID := c.idFactory("delivery_round")
-	assistantMessage := sessionmodel.Message{
+	assistantMessage := protocol.Message{
 		"message_id":  c.idFactory("assistant"),
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
@@ -104,7 +103,7 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 		},
 		"is_complete": true,
 	}
-	resultMessage := sessionmodel.Message{
+	resultMessage := protocol.Message{
 		"message_id":      c.idFactory("result"),
 		"session_key":     sessionKey,
 		"agent_id":        parsed.AgentID,
@@ -131,14 +130,14 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 		return err
 	}
 
-	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, sessionmodel.ProjectResultMessage(assistantMessage, resultMessage))
+	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, protocol.ProjectResultMessage(assistantMessage, resultMessage))
 	return nil
 }
 
 func (c *sessionDeliveryChannel) persistMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) (session.Session, error) {
 	if err := c.appendHistoryMessage(workspacePath, sessionValue, message); err != nil {
 		return session.Session{}, err
@@ -164,11 +163,8 @@ func (c *sessionDeliveryChannel) persistMessage(
 func (c *sessionDeliveryChannel) appendHistoryMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) error {
-	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
-		return err
-	}
 	return c.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
 }
 
@@ -176,7 +172,7 @@ func (c *sessionDeliveryChannel) broadcastMessage(
 	ctx context.Context,
 	sessionKey string,
 	agentID string,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) {
 	if c.permission == nil {
 		return

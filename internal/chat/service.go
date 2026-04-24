@@ -14,7 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/conversation/titlegen"
 	"github.com/nexus-research-lab/nexus/internal/logx"
-	sessionmodel "github.com/nexus-research-lab/nexus/internal/model/session"
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -416,12 +415,12 @@ func (s *Service) resolveReusableSDKSessionID(
 	}
 	expectedProvider := strings.TrimSpace(provider)
 	expectedModel := strings.TrimSpace(options.Model)
-	actualProvider, _ := sessionItem.Options[sessionmodel.OptionRuntimeProvider].(string)
-	actualModel, _ := sessionItem.Options[sessionmodel.OptionRuntimeModel].(string)
+	actualProvider, _ := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
+	actualModel, _ := sessionItem.Options[protocol.OptionRuntimeModel].(string)
 	if strings.TrimSpace(actualProvider) == expectedProvider && strings.TrimSpace(actualModel) == expectedModel {
 		return resumeID
 	}
-	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过旧 SDK session resume",
+	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过过期 SDK session resume",
 		"session_key", sessionItem.SessionKey,
 		"old_provider", strings.TrimSpace(actualProvider),
 		"new_provider", expectedProvider,
@@ -432,8 +431,8 @@ func (s *Service) resolveReusableSDKSessionID(
 	if sessionItem.Options == nil {
 		sessionItem.Options = map[string]any{}
 	}
-	sessionItem.Options[sessionmodel.OptionRuntimeProvider] = expectedProvider
-	sessionItem.Options[sessionmodel.OptionRuntimeModel] = expectedModel
+	sessionItem.Options[protocol.OptionRuntimeProvider] = expectedProvider
+	sessionItem.Options[protocol.OptionRuntimeModel] = expectedModel
 	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
 		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
 			"session_key", sessionItem.SessionKey,
@@ -488,9 +487,6 @@ func (s *Service) ensureSession(
 				}
 			}
 		}
-		if err := sessionmodel.EnsureTranscriptHistory(item.Options, sessionKey); err != nil {
-			return session.Session{}, err
-		}
 		return *item, nil
 	}
 
@@ -501,9 +497,6 @@ func (s *Service) ensureSession(
 		}
 		if updated == nil {
 			return session.Session{}, fmt.Errorf("创建 room 成员会话失败: %s", sessionKey)
-		}
-		if err := sessionmodel.EnsureTranscriptHistory(updated.Options, sessionKey); err != nil {
-			return session.Session{}, err
 		}
 		return *updated, nil
 	}
@@ -518,10 +511,8 @@ func (s *Service) ensureSession(
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "New Chat",
-		Options: map[string]any{
-			sessionmodel.OptionHistorySource: sessionmodel.HistorySourceTranscript,
-		},
-		IsActive: true,
+		Options:      map[string]any{},
+		IsActive:     true,
 	})
 	if err != nil {
 		return session.Session{}, err
@@ -640,7 +631,7 @@ func (r *roundRunner) executeRound(
 			r.session = updatedSession
 			return nil
 		},
-		HandleDurableMessage: func(message sessionmodel.Message) error {
+		HandleDurableMessage: func(message protocol.Message) error {
 			if err := r.persistMessage(message); err != nil {
 				return err
 			}
@@ -677,7 +668,7 @@ func (r *roundRunner) failRound(err error) {
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
 	}
-	resultMessage := sessionmodel.Message{
+	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
@@ -745,7 +736,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
 	}
-	resultMessage := sessionmodel.Message{
+	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
@@ -796,7 +787,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 }
 
-func (r *roundRunner) persistMessage(message sessionmodel.Message) error {
+func (r *roundRunner) persistMessage(message protocol.Message) error {
 	if err := r.service.appendRuntimeHistoryMessage(r.workspacePath, r.session, message); err != nil {
 		return err
 	}
@@ -811,8 +802,8 @@ func (r *roundRunner) persistMessage(message sessionmodel.Message) error {
 	return nil
 }
 
-func (r *roundRunner) recordUsage(message sessionmodel.Message) {
-	if r.service.usage == nil || sessionmodel.MessageRole(message) != "result" {
+func (r *roundRunner) recordUsage(message protocol.Message) {
+	if r.service.usage == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
@@ -829,12 +820,9 @@ func (r *roundRunner) recordUsage(message sessionmodel.Message) {
 func (s *Service) appendRuntimeHistoryMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) error {
-	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
-		return err
-	}
-	if sessionmodel.IsTranscriptNativeMessage(sessionmodel.Message(message)) {
+	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
 		return nil
 	}
 	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
@@ -843,11 +831,8 @@ func (s *Service) appendRuntimeHistoryMessage(
 func (s *Service) appendSyntheticHistoryMessage(
 	workspacePath string,
 	sessionValue session.Session,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) error {
-	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
-		return err
-	}
 	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
 }
 
@@ -857,24 +842,18 @@ func (s *Service) refreshSessionMetaAfterRoundMarker(
 ) (*session.Session, error) {
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
-	if err := sessionmodel.EnsureTranscriptHistory(current.Options, current.SessionKey); err != nil {
-		return nil, err
-	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterMessage(
 	workspacePath string,
 	current session.Session,
-	message sessionmodel.Message,
+	message protocol.Message,
 ) (*session.Session, error) {
 	current.SessionID = preferSessionID(current.SessionID, normalizeString(message["session_id"]))
 	current.Status = "active"
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
-	if err := sessionmodel.EnsureTranscriptHistory(current.Options, current.SessionKey); err != nil {
-		return nil, err
-	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
@@ -884,9 +863,6 @@ func (s *Service) recordRoundMarker(
 	roundID string,
 	content string,
 ) error {
-	if err := sessionmodel.EnsureTranscriptHistory(sessionValue.Options, sessionValue.SessionKey); err != nil {
-		return err
-	}
 	return s.history.AppendRoundMarker(
 		workspacePath,
 		sessionValue.SessionKey,
@@ -911,8 +887,8 @@ func (s *Service) syncSDKSessionID(
 	}
 	nextProvider := strings.TrimSpace(runtimeProvider)
 	nextModel := strings.TrimSpace(runtimeModel)
-	currentProvider, _ := current.Options[sessionmodel.OptionRuntimeProvider].(string)
-	currentModel, _ := current.Options[sessionmodel.OptionRuntimeModel].(string)
+	currentProvider, _ := current.Options[protocol.OptionRuntimeProvider].(string)
+	currentModel, _ := current.Options[protocol.OptionRuntimeModel].(string)
 	sessionIDChanged := currentSessionID != trimmedSessionID
 	fingerprintChanged := strings.TrimSpace(currentProvider) != nextProvider ||
 		strings.TrimSpace(currentModel) != nextModel
@@ -923,8 +899,8 @@ func (s *Service) syncSDKSessionID(
 	if current.Options == nil {
 		current.Options = map[string]any{}
 	}
-	current.Options[sessionmodel.OptionRuntimeProvider] = nextProvider
-	current.Options[sessionmodel.OptionRuntimeModel] = nextModel
+	current.Options[protocol.OptionRuntimeProvider] = nextProvider
+	current.Options[protocol.OptionRuntimeModel] = nextModel
 	updated, err := s.files.UpsertSession(workspacePath, current)
 	if err != nil {
 		return session.Session{}, err
