@@ -20,8 +20,8 @@ const (
 
 	// AuthMethodPassword 表示密码登录签发的浏览器 Session。
 	AuthMethodPassword = "password"
-	// AuthMethodBearerCompat 表示兼容 ACCESS_TOKEN 的 Bearer 身份。
-	AuthMethodBearerCompat = "bearer"
+	// AuthMethodBearer 表示 ACCESS_TOKEN 的 Bearer 身份。
+	AuthMethodBearer = "bearer"
 )
 
 // User 表示认证域中的用户实体。

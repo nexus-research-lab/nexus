@@ -157,29 +157,29 @@ func TestServiceSetupOwnerLoginLogoutAndResetPassword(t *testing.T) {
 	}
 }
 
-func TestServiceAccessTokenCompat(t *testing.T) {
+func TestServiceAccessTokenBearer(t *testing.T) {
 	cfg, db := newAuthTestDB(t)
-	cfg.AccessToken = "compat-token"
+	cfg.AccessToken = "access-token"
 	service := NewServiceWithDB(cfg, db)
 
 	request := httptest.NewRequest(http.MethodGet, "/agent/v1/auth/status", nil)
-	request.Header.Set("Authorization", "Bearer compat-token")
+	request.Header.Set("Authorization", "Bearer access-token")
 
 	principal, state, err := service.InspectRequest(context.Background(), request)
 	if err != nil {
-		t.Fatalf("解析 ACCESS_TOKEN 兼容身份失败: %v", err)
+		t.Fatalf("解析 ACCESS_TOKEN bearer 身份失败: %v", err)
 	}
-	if principal == nil || principal.AuthMethod != AuthMethodBearerCompat {
-		t.Fatalf("兼容 bearer 身份不正确: %+v", principal)
+	if principal == nil || principal.AuthMethod != AuthMethodBearer {
+		t.Fatalf("bearer 身份不正确: %+v", principal)
 	}
 	if !state.AuthRequired || !state.AccessTokenEnabled {
-		t.Fatalf("兼容 ACCESS_TOKEN 状态不正确: %+v", state)
+		t.Fatalf("ACCESS_TOKEN 状态不正确: %+v", state)
 	}
 }
 
 func TestServiceDisablesAccessTokenAfterOwnerInit(t *testing.T) {
 	cfg, db := newAuthTestDB(t)
-	cfg.AccessToken = "compat-token"
+	cfg.AccessToken = "access-token"
 	service := NewServiceWithDB(cfg, db)
 	ctx := context.Background()
 
@@ -191,7 +191,7 @@ func TestServiceDisablesAccessTokenAfterOwnerInit(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodGet, "/agent/v1/auth/status", nil)
-	request.Header.Set("Authorization", "Bearer compat-token")
+	request.Header.Set("Authorization", "Bearer access-token")
 
 	principal, state, err := service.InspectRequest(ctx, request)
 	if err != nil {

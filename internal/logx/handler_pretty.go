@@ -107,7 +107,7 @@ func (h *prettyHandler) format(
 	builder.WriteString(h.paint(" ]", ansiWhite))
 	builder.WriteByte(' ')
 
-	// LEVEL（紫色，跟 python-main 保持一致；按级别区分时再覆盖）
+	// LEVEL（默认紫色；按级别区分时再覆盖）
 	builder.WriteString(h.paint(formatLevel(level), colorForLevel(level)))
 	builder.WriteByte(' ')
 

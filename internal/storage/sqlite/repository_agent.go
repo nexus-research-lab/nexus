@@ -316,32 +316,6 @@ func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, ownerUserID
 	return count > 0, nil
 }
 
-// PromoteMainAgent 把指定 Agent 提升为主智能体。
-func (r *AgentRepository) PromoteMainAgent(ctx context.Context, agentID string, ownerUserID string) (*protocol.Agent, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	if _, err = tx.ExecContext(ctx, `
-UPDATE agents
-SET is_main = 0, updated_at = CURRENT_TIMESTAMP
-WHERE owner_user_id = ?`, ownerUserID); err != nil {
-		return nil, err
-	}
-	if _, err = tx.ExecContext(ctx, `
-UPDATE agents
-SET is_main = 1, updated_at = CURRENT_TIMESTAMP
-WHERE id = ? AND owner_user_id = ?`, agentID, ownerUserID); err != nil {
-		return nil, err
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return r.GetAgent(ctx, agentID, ownerUserID)
-}
-
 func scanAgent(scanner interface {
 	Scan(dest ...any) error
 }) (protocol.Agent, error) {

@@ -13,5 +13,4 @@ type Repository interface {
 	UpdateAgent(context.Context, UpdateRecord) (*Agent, error)
 	ArchiveAgent(context.Context, string, string) error
 	ExistsActiveAgentName(context.Context, string, string, string) (bool, error)
-	PromoteMainAgent(context.Context, string, string) (*Agent, error)
 }

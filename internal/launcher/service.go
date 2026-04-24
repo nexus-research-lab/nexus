@@ -238,7 +238,7 @@ func buildBootstrapConversations(
 		agentID := strings.TrimSpace(item.AgentID)
 		roomType := normalizeBootstrapConversationRoomType(item.ChatType, roomTypeByID[roomID])
 
-		// Launcher 推荐项必须能稳定打开到具体会话；无法定位的旧残留会话不参与推荐。
+		// Launcher 推荐项必须能稳定打开到具体会话；无法定位的会话不参与推荐。
 		if roomID == "" && conversationID == "" && agentID == "" {
 			continue
 		}

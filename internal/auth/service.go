@@ -487,7 +487,7 @@ func (s *Service) resolveBearerPrincipal(request *http.Request) *Principal {
 		Username:    "access-token",
 		DisplayName: "ACCESS_TOKEN",
 		Role:        RoleOwner,
-		AuthMethod:  AuthMethodBearerCompat,
+		AuthMethod:  AuthMethodBearer,
 	}
 }
 

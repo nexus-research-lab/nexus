@@ -33,7 +33,7 @@ func TestParseRoomSharedSessionKey(t *testing.T) {
 	}
 }
 
-func TestRequireStructuredSessionKeyRejectsLegacyShape(t *testing.T) {
+func TestRequireStructuredSessionKeyRejectsPlainShape(t *testing.T) {
 	if _, err := RequireStructuredSessionKey("plain-session-id"); err == nil {
 		t.Fatal("非结构化 key 不应通过校验")
 	}

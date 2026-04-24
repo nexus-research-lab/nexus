@@ -277,11 +277,11 @@ func TestCreateDailyWithWeekdaysBuildsCron(t *testing.T) {
 	}
 }
 
-func TestCreateRejectsLegacyScheduleKind(t *testing.T) {
+func TestCreateRejectsUnsupportedScheduleKind(t *testing.T) {
 	svc := &stubService{}
 	sctx := ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
 	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "旧参数",
+		"name":           "无效参数",
 		"instruction":    "喝水",
 		"execution_mode": "temporary",
 		"reply_mode":     "none",
@@ -292,7 +292,7 @@ func TestCreateRejectsLegacyScheduleKind(t *testing.T) {
 		},
 	})
 	if !isError {
-		t.Fatalf("expected error for legacy kind=every, got %+v", result)
+		t.Fatalf("expected error for unsupported kind=every, got %+v", result)
 	}
 	if !strings.Contains(extractText(t, result), "single") {
 		t.Fatalf("error should hint at new kinds, got %q", extractText(t, result))

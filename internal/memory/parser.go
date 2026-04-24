@@ -79,7 +79,7 @@ func parseEntry(lines []string, path string) (*Entry, error) {
 		fields = append(fields, Field{Key: key, Value: value})
 	}
 	if entryID == "" {
-		entryID = buildLegacyEntryID(kind, createdAt, title)
+		entryID = deriveEntryID(kind, createdAt, title)
 	}
 	return &Entry{
 		ID:        entryID,
@@ -100,7 +100,7 @@ func splitHeadingBody(kind string, body string) (string, string) {
 	return "", strings.TrimSpace(body)
 }
 
-func buildLegacyEntryID(kind string, createdAt time.Time, title string) string {
+func deriveEntryID(kind string, createdAt time.Time, title string) string {
 	digest := md5.Sum([]byte(title))
 	return fmt.Sprintf("%s-%s-%s", kind, createdAt.Format("20060102-1504"), hex.EncodeToString(digest[:])[:8])
 }

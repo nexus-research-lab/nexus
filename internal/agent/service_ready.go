@@ -27,18 +27,6 @@ func (s *Service) ensureReady(ctx context.Context) error {
 		return err
 	}
 	if agent == nil {
-		legacy, legacyErr := s.repository.GetAgent(ctx, s.config.DefaultAgentID, ownerUserID)
-		if legacyErr != nil {
-			return legacyErr
-		}
-		if legacy != nil && legacy.Status == "active" {
-			agent, err = s.repository.PromoteMainAgent(ctx, legacy.AgentID, ownerUserID)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	if agent == nil {
 		record := BuildDefaultMainAgentRecord(s.config, ownerUserID)
 		if err = os.MkdirAll(record.WorkspacePath, 0o755); err != nil {
 			return err
