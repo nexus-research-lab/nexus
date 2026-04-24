@@ -52,9 +52,6 @@ func buildGooseCommand(cfg config.Config, action string) *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			if err = bootstrapLegacyMigrationVersion(cmd.Context(), db, cfg, dir); err != nil {
-				return err
-			}
 
 			switch action {
 			case "up":
@@ -125,4 +122,8 @@ func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
 
 	dir := resolveMigrationDir(cfg.DatabaseDriver)
 	return db, dir, nil
+}
+
+func resolveMigrationDir(driver string) string {
+	return filepath.Join("db", "migrations", protocol.MigrationDirName(driver))
 }
