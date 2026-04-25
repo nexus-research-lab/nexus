@@ -17,10 +17,15 @@ type authChangePasswordPayload struct {
 	NewPassword     string `json:"new_password"`
 }
 
+type authUpdateProfilePayload struct {
+	Avatar *string `json:"avatar,omitempty"`
+}
+
 type personalProfilePayload struct {
 	User              personalUserPayload `json:"user"`
 	TokenUsage        usagesvc.Summary    `json:"token_usage"`
 	CanChangePassword bool                `json:"can_change_password"`
+	CanUpdateProfile  bool                `json:"can_update_profile"`
 }
 
 type personalUserPayload struct {
@@ -28,6 +33,7 @@ type personalUserPayload struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
+	Avatar      string `json:"avatar"`
 	AuthMethod  string `json:"auth_method"`
 }
 
@@ -48,6 +54,55 @@ func (h *Handlers) HandlePersonalProfile(writer http.ResponseWriter, request *ht
 		User:              buildPersonalUserPayload(principal),
 		TokenUsage:        usage,
 		CanChangePassword: principal != nil && principal.AuthMethod == authsvc.AuthMethodPassword,
+		CanUpdateProfile:  principal != nil && principal.AuthMethod == authsvc.AuthMethodPassword,
+	})
+}
+
+// HandleUpdatePersonalProfile 更新当前用户的个人资料。
+func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, request *http.Request) {
+	if h.auth == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "auth service is not configured")
+		return
+	}
+	principal := authsvc.PrincipalFromContext(request.Context())
+	if principal == nil || principal.AuthMethod != authsvc.AuthMethodPassword {
+		h.api.WriteFailure(writer, http.StatusUnauthorized, "当前登录方式不支持修改个人资料")
+		return
+	}
+
+	var payload authUpdateProfilePayload
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+
+	if payload.Avatar == nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少要更新的个人资料字段")
+		return
+	}
+
+	updatedUser, err := h.auth.UpdateProfile(request.Context(), authsvc.UpdateProfileInput{
+		UserID: principal.UserID,
+		Avatar: payload.Avatar,
+	})
+	if err != nil {
+		if gatewayshared.IsClientMessageError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	usage, err := h.buildTokenUsageSummary(request.Context())
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, personalProfilePayload{
+		User:              buildPersonalUserPayload(buildPrincipalFromUser(updatedUser, authsvc.AuthMethodPassword)),
+		TokenUsage:        usage,
+		CanChangePassword: true,
+		CanUpdateProfile:  true,
 	})
 }
 
@@ -100,6 +155,7 @@ func buildPersonalUserPayload(principal *authsvc.Principal) personalUserPayload 
 			Username:    "local",
 			DisplayName: "Local User",
 			Role:        authsvc.RoleOwner,
+			Avatar:      "",
 			AuthMethod:  "",
 		}
 	}
@@ -108,7 +164,22 @@ func buildPersonalUserPayload(principal *authsvc.Principal) personalUserPayload 
 		Username:    strings.TrimSpace(principal.Username),
 		DisplayName: strings.TrimSpace(principal.DisplayName),
 		Role:        strings.TrimSpace(principal.Role),
+		Avatar:      strings.TrimSpace(principal.Avatar),
 		AuthMethod:  strings.TrimSpace(principal.AuthMethod),
+	}
+}
+
+func buildPrincipalFromUser(user *authsvc.User, authMethod string) *authsvc.Principal {
+	if user == nil {
+		return nil
+	}
+	return &authsvc.Principal{
+		UserID:      strings.TrimSpace(user.UserID),
+		Username:    strings.TrimSpace(user.Username),
+		DisplayName: strings.TrimSpace(user.DisplayName),
+		Role:        strings.TrimSpace(user.Role),
+		Avatar:      strings.TrimSpace(user.Avatar),
+		AuthMethod:  strings.TrimSpace(authMethod),
 	}
 }
 

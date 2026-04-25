@@ -20,6 +20,7 @@ export interface AuthStatus {
   user_id?: string | null;
   display_name?: string | null;
   role?: string | null;
+  avatar?: string | null;
   auth_method?: string | null;
   setup_required?: boolean;
   access_token_enabled?: boolean;
@@ -48,15 +49,21 @@ export interface PersonalProfile {
     username: string;
     display_name: string;
     role: string;
+    avatar: string;
     auth_method: string;
   };
   token_usage: TokenUsageSummary;
   can_change_password: boolean;
+  can_update_profile: boolean;
 }
 
 export interface ChangePasswordParams {
   current_password: string;
   new_password: string;
+}
+
+export interface UpdatePersonalProfileParams {
+  avatar?: string;
 }
 
 export async function get_auth_status(): Promise<AuthStatus> {
@@ -84,6 +91,15 @@ export async function logout_api(): Promise<AuthStatus> {
 export async function get_personal_profile_api(): Promise<PersonalProfile> {
   return request_api<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
     method: "GET",
+  });
+}
+
+export async function update_personal_profile_api(params: UpdatePersonalProfileParams): Promise<PersonalProfile> {
+  return request_api<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
+    method: "PATCH",
+    body: {
+      avatar: params.avatar ?? "",
+    },
   });
 }
 

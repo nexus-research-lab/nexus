@@ -31,6 +31,7 @@ type User struct {
 	DisplayName string     `json:"display_name"`
 	Role        string     `json:"role"`
 	Status      string     `json:"status"`
+	Avatar      string     `json:"avatar,omitempty"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
@@ -42,6 +43,7 @@ type Principal struct {
 	Username    string  `json:"username"`
 	DisplayName string  `json:"display_name,omitempty"`
 	Role        string  `json:"role"`
+	Avatar      string  `json:"avatar,omitempty"`
 	AuthMethod  string  `json:"auth_method"`
 	SessionID   *string `json:"session_id,omitempty"`
 }
@@ -65,6 +67,7 @@ type StatusPayload struct {
 	UserID               *string `json:"user_id,omitempty"`
 	DisplayName          *string `json:"display_name,omitempty"`
 	Role                 *string `json:"role,omitempty"`
+	Avatar               *string `json:"avatar,omitempty"`
 	AuthMethod           *string `json:"auth_method,omitempty"`
 	SetupRequired        bool    `json:"setup_required,omitempty"`
 	AccessTokenEnabled   bool    `json:"access_token_enabled,omitempty"`
@@ -111,6 +114,12 @@ type ChangePasswordInput struct {
 	UserID          string
 	CurrentPassword string
 	NewPassword     string
+}
+
+// UpdateProfileInput 表示当前用户资料更新请求。
+type UpdateProfileInput struct {
+	UserID string
+	Avatar *string
 }
 
 type passwordCredential struct {

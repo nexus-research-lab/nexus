@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 个人设置页新增头像设置，复用 Agent 头像资源，并将头像同步到个人资料与登录状态。
+
 ## [0.1.0] - 2026-04-24
 
 ### Added

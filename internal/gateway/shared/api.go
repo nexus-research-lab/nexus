@@ -187,6 +187,7 @@ func IsClientMessageText(message string) bool {
 		strings.Contains(message, "至少") ||
 		strings.Contains(message, "不支持") ||
 		strings.Contains(message, "不能作为") ||
+		strings.Contains(message, "不能超过") ||
 		strings.Contains(message, " is required") ||
 		strings.Contains(message, " must be ") ||
 		strings.Contains(message, "正在运行中")
