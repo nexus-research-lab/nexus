@@ -134,9 +134,6 @@ func (s *RealtimeService) startPublicMentionRound(
 		return nil
 	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(parentRound.ConversationID)
-	if s.isRoomRoundActive(sessionKey) {
-		return nil
-	}
 	contextValue := parentRound.Context
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue.Members)
 	if err != nil {
@@ -202,6 +199,9 @@ func (s *RealtimeService) startPublicMentionRound(
 	targetAgentIDs := make([]string, 0, len(pendingSlots))
 	for _, pendingSlot := range pendingSlots {
 		targetAgentIDs = append(targetAgentIDs, pendingSlot.targetAgentID)
+	}
+	if err := s.interruptAgentSlots(ctx, sessionKey, targetAgentIDs, "收到新的公区 @ 唤醒，上一轮已停止", true); err != nil {
+		return err
 	}
 
 	pending := make([]map[string]any, 0, len(pendingSlots))

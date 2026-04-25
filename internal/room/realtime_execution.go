@@ -43,7 +43,7 @@ func (s *RealtimeService) runRound(
 	}
 	waitGroup.Wait()
 
-	s.finishRound(roundValue.SessionKey)
+	s.finishRound(roundValue)
 
 	finalStatus := "finished"
 	if roundValue.allSlotsCancelled() {
@@ -204,6 +204,9 @@ func (s *RealtimeService) runSlot(
 		Query:  dispatchPrompt,
 		Client: client,
 		Mapper: roomRoundMapperAdapter{mapper: mapper},
+		InterruptReason: func() string {
+			return roomSlotInterruptReason(slot)
+		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			if logger.Enabled(slotCtx, slog.LevelDebug) {
 				logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
@@ -398,6 +401,7 @@ func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *a
 		"agent_id", slot.AgentID,
 		"round_id", slot.AgentRoundID,
 		"msg_id", slot.MsgID,
+		"reason", roomSlotInterruptReason(slot),
 	)
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
 	s.broadcastSlotCancelled(ctx, roundValue, slot)
