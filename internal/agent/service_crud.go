@@ -93,14 +93,37 @@ func (s *Service) ValidateName(ctx context.Context, name string, excludeAgentID 
 	}
 
 	if _, err = os.Stat(workspacePath); err == nil {
-		response.Reason = "同名工作区目录已存在，请更换名称"
-		return response, nil
+		ownedByExcludedAgent, ownErr := s.workspacePathBelongsToExcludedAgent(ctx, ownerUserID, workspacePath, excludeAgentID)
+		if ownErr != nil {
+			return response, ownErr
+		}
+		if !ownedByExcludedAgent {
+			response.Reason = "同名工作区目录已存在，请更换名称"
+			return response, nil
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return response, err
 	}
 
 	response.IsAvailable = true
 	return response, nil
+}
+
+func (s *Service) workspacePathBelongsToExcludedAgent(
+	ctx context.Context,
+	ownerUserID string,
+	workspacePath string,
+	excludeAgentID string,
+) (bool, error) {
+	excludeAgentID = strings.TrimSpace(excludeAgentID)
+	if excludeAgentID == "" {
+		return false, nil
+	}
+	existing, err := s.repository.GetAgent(ctx, excludeAgentID, ownerUserID)
+	if err != nil || existing == nil {
+		return false, err
+	}
+	return sameWorkspacePath(existing.WorkspacePath, workspacePath)
 }
 
 // CreateAgent 创建普通 Agent。

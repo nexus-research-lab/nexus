@@ -572,6 +572,7 @@ export function GroupChatPanel({
           ) : null}
 
           <ComposerPanel
+            allow_send_while_loading
             compact={is_mobile_layout}
             control_status_text={session_control_text}
             is_loading={is_loading}

@@ -103,6 +103,39 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 }
 
+func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, agentsvc.CreateRequest{Name: "sam"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	validation, err := service.ValidateName(ctx, "Sam", created.AgentID)
+	if err != nil {
+		t.Fatalf("大小写改名校验失败: %v", err)
+	}
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("同一 agent 只改大小写时名称应该可用: %+v", validation)
+	}
+
+	nextName := "Sam"
+	updated, err := service.UpdateAgent(ctx, created.AgentID, agentsvc.UpdateRequest{Name: &nextName})
+	if err != nil {
+		t.Fatalf("大小写改名失败: %v", err)
+	}
+	if updated.Name != "Sam" {
+		t.Fatalf("大小写改名未生效: %+v", updated)
+	}
+}
+
 func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)

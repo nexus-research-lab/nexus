@@ -41,6 +41,7 @@ interface ComposerPanelProps {
   on_stop?: () => void;
   initial_draft?: string | null;
   disabled?: boolean;
+  allow_send_while_loading?: boolean;
   placeholder?: string;
   max_length?: number;
   room_members?: Agent[];
@@ -111,6 +112,7 @@ const ComposerPanelView = memo(({
   on_stop,
   initial_draft = null,
   disabled = false,
+  allow_send_while_loading = false,
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
@@ -151,6 +153,7 @@ const ComposerPanelView = memo(({
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
   const is_dispatching = is_loading && runtime_phase === "sending";
+  const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
@@ -206,10 +209,10 @@ const ComposerPanelView = memo(({
   }, []);
 
   useEffect(() => {
-    if (textarea_ref.current && !disabled) {
+    if (textarea_ref.current && !is_input_locked) {
       textarea_ref.current.focus();
     }
-  }, [disabled]);
+  }, [is_input_locked]);
 
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
@@ -221,7 +224,11 @@ const ComposerPanelView = memo(({
 
   const handle_send = useCallback(async () => {
     const trimmed_input = input.trim();
-    if ((!trimmed_input && attachments.length === 0) || disabled || is_loading || is_preparing_attachments) {
+    if (
+      (!trimmed_input && attachments.length === 0) ||
+      is_input_locked ||
+      is_preparing_attachments
+    ) {
       return;
     }
 
@@ -266,9 +273,8 @@ const ComposerPanelView = memo(({
     }
   }, [
     attachments,
-    disabled,
     input,
-    is_loading,
+    is_input_locked,
     is_preparing_attachments,
     on_prepare_attachments,
     on_send_message,
@@ -412,7 +418,9 @@ const ComposerPanelView = memo(({
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
   const is_send_disabled =
-    is_input_empty || disabled || is_over_limit || is_preparing_attachments;
+    is_input_empty || is_input_locked || is_over_limit || is_preparing_attachments;
+  const should_show_stop_button =
+    can_stop_generation && (!allow_send_while_loading || is_input_empty);
 
   return (
     <section
@@ -432,7 +440,7 @@ const ComposerPanelView = memo(({
         type="file"
       />
 
-      <div className={get_composer_shell_class_name(disabled)} style={get_composer_shell_style(compact)}>
+      <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
         {attachments.length > 0 ? (
           <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
             {attachments.map((attachment) => (
@@ -457,7 +465,7 @@ const ComposerPanelView = memo(({
           <button
             aria-label="添加附件"
             className={COMPOSER_ACTION_BUTTON_CLASS_NAME}
-            disabled={disabled || is_loading}
+            disabled={is_input_locked || is_preparing_attachments}
             onClick={() => file_input_ref.current?.click()}
             type="button"
           >
@@ -488,7 +496,7 @@ const ComposerPanelView = memo(({
               "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
               "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
             )}
-            disabled={disabled || is_loading}
+            disabled={is_input_locked}
             onChange={(event) => handle_input_change(event.target.value)}
             onWheel={(event) => {
               const target = event.currentTarget;
@@ -511,7 +519,7 @@ const ComposerPanelView = memo(({
             value={input}
           />
 
-          {can_stop_generation ? (
+          {should_show_stop_button ? (
             <button
               aria-label="停止生成"
               className={COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME}
