@@ -12,7 +12,6 @@ import (
 const (
 	roomMaxHistoryMessages = 80
 	roomMaxHistoryChars    = 12_000
-	roomMaxToolBlockChars  = 2_000
 
 	roomHistoryTruncatedSuffix = "\n...（已截断）"
 )
@@ -160,12 +159,20 @@ func formatRoomTrigger(trigger roomTrigger, agentNameByID map[string]string) str
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {
 	role := strings.TrimSpace(normalizeAnyString(message["role"]))
-	if role == "assistant" {
+	var content string
+	switch role {
+	case "user":
+		content = extractHistoryText(message)
+	case "assistant":
 		if isComplete, ok := message["is_complete"].(bool); ok && !isComplete {
 			return ""
 		}
+		content = extractAssistantResultText(message)
+	case "result":
+		content = strings.TrimSpace(normalizeAnyString(message["result"]))
+	default:
+		return ""
 	}
-	content := extractHistoryText(message)
 	if content == "" {
 		return ""
 	}
@@ -173,12 +180,22 @@ func formatHistoryLine(message protocol.Message, agentNameByID map[string]string
 	switch role {
 	case "user":
 		return "User: " + content
-	case "assistant":
+	case "assistant", "result":
 		agentID := normalizeAnyString(message["agent_id"])
 		return fmt.Sprintf("Assistant(%s): %s", firstNonEmpty(agentNameByID[agentID], agentID, "Assistant"), content)
 	default:
 		return ""
 	}
+}
+
+func extractAssistantResultText(message protocol.Message) string {
+	if summary, ok := message["result_summary"].(map[string]any); ok {
+		if text := extractHistoryText(message); text != "" {
+			return text
+		}
+		return strings.TrimSpace(normalizeAnyString(summary["result"]))
+	}
+	return ""
 }
 
 func extractHistoryText(message protocol.Message) string {
@@ -195,28 +212,6 @@ func extractHistoryText(message protocol.Message) string {
 	for _, payload := range items {
 		if text := strings.TrimSpace(normalizeAnyString(payload["text"])); text != "" {
 			parts = append(parts, text)
-			continue
-		}
-
-		switch normalizeHistoryBlockType(payload) {
-		case "thinking":
-			continue
-		case "tool_use":
-			if line := formatToolUseHistoryBlock(payload); line != "" {
-				parts = append(parts, line)
-			}
-		case "tool_result":
-			if line := formatToolResultHistoryBlock(payload); line != "" {
-				parts = append(parts, line)
-			}
-		case "task_progress":
-			if line := formatTaskProgressHistoryBlock(payload); line != "" {
-				parts = append(parts, line)
-			}
-		default:
-			if toolName := strings.TrimSpace(normalizeAnyString(payload["name"])); toolName != "" {
-				parts = append(parts, "[tool] "+toolName)
-			}
 		}
 	}
 	return strings.TrimSpace(strings.Join(parts, "\n"))
@@ -236,114 +231,6 @@ func normalizeHistoryContentBlocks(content any) []map[string]any {
 		return append([]map[string]any(nil), typed...)
 	default:
 		return nil
-	}
-}
-
-func normalizeHistoryBlockType(payload map[string]any) string {
-	blockType := strings.TrimSpace(normalizeAnyString(payload["type"]))
-	switch blockType {
-	case "server_tool_use":
-		return "tool_use"
-	case "server_tool_result":
-		return "tool_result"
-	}
-	if blockType != "" {
-		return blockType
-	}
-	if strings.TrimSpace(normalizeAnyString(payload["thinking"])) != "" {
-		return "thinking"
-	}
-	if strings.TrimSpace(normalizeAnyString(payload["name"])) != "" {
-		return "tool_use"
-	}
-	if payload["tool_use_id"] != nil {
-		return "tool_result"
-	}
-	return ""
-}
-
-func formatToolUseHistoryBlock(payload map[string]any) string {
-	toolName := firstNonEmpty(
-		strings.TrimSpace(normalizeAnyString(payload["name"])),
-		strings.TrimSpace(normalizeAnyString(payload["id"])),
-		"unknown",
-	)
-	input := formatHistoryJSONValue(payload["input"])
-	if input == "" {
-		return "[tool_use] " + toolName
-	}
-	return truncateHistoryText(fmt.Sprintf("[tool_use] %s input=%s", toolName, input), roomMaxToolBlockChars)
-}
-
-func formatToolResultHistoryBlock(payload map[string]any) string {
-	content := firstNonEmpty(
-		formatHistoryTextValue(payload["content"]),
-		formatHistoryTextValue(payload["result"]),
-	)
-	if content == "" {
-		return ""
-	}
-	prefix := "[tool_result] "
-	if isError, ok := payload["is_error"].(bool); ok && isError {
-		prefix = "[tool_result:error] "
-	}
-	return truncateHistoryText(prefix+content, roomMaxToolBlockChars)
-}
-
-func formatTaskProgressHistoryBlock(payload map[string]any) string {
-	summary := firstNonEmpty(
-		strings.TrimSpace(normalizeAnyString(payload["summary"])),
-		strings.TrimSpace(normalizeAnyString(payload["message"])),
-		strings.TrimSpace(normalizeAnyString(payload["title"])),
-	)
-	if summary == "" {
-		return ""
-	}
-	return truncateHistoryText("[task_progress] "+summary, roomMaxToolBlockChars)
-}
-
-func formatHistoryJSONValue(value any) string {
-	if value == nil {
-		return ""
-	}
-	if text, ok := value.(string); ok {
-		return strings.TrimSpace(text)
-	}
-	return protocol.MustJSON(value)
-}
-
-func formatHistoryTextValue(value any) string {
-	switch typed := value.(type) {
-	case nil:
-		return ""
-	case string:
-		return strings.TrimSpace(typed)
-	case []any:
-		parts := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if text := formatHistoryTextValue(item); text != "" {
-				parts = append(parts, text)
-			}
-		}
-		return strings.TrimSpace(strings.Join(parts, "\n"))
-	case []map[string]any:
-		parts := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if text := formatHistoryTextValue(item); text != "" {
-				parts = append(parts, text)
-			}
-		}
-		return strings.TrimSpace(strings.Join(parts, "\n"))
-	case map[string]any:
-		if text := strings.TrimSpace(normalizeAnyString(typed["text"])); text != "" {
-			return text
-		}
-		if content := formatHistoryTextValue(typed["content"]); content != "" {
-			return content
-		}
-		return protocol.MustJSON(typed)
-	default:
-		return strings.TrimSpace(fmt.Sprint(value))
 	}
 }
 

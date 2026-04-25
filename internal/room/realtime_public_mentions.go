@@ -24,7 +24,7 @@ func (s *RealtimeService) collectPublicMentionWakes(
 	if !isFinalPublicAssistantMessage(message) {
 		return nil
 	}
-	content := strings.TrimSpace(extractHistoryText(message))
+	content := strings.TrimSpace(extractAssistantResultText(message))
 	if content == "" {
 		return nil
 	}
