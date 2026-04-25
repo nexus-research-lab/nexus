@@ -139,6 +139,7 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		Role:        user.Role,
+		Avatar:      user.Avatar,
 		AuthMethod:  AuthMethodPassword,
 		SessionID:   stringPointer(record.SessionID),
 	})
@@ -359,6 +360,33 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 	return s.repository.getUserByID(ctx, user.UserID)
 }
 
+// UpdateProfile 更新当前用户的个人资料。
+func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (*User, error) {
+	userID := strings.TrimSpace(input.UserID)
+	if userID == "" {
+		return nil, errors.New("user_id 不能为空")
+	}
+
+	user, err := s.repository.getUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || user.Status != UserStatusActive {
+		return nil, ErrUserNotFound
+	}
+
+	if input.Avatar != nil {
+		avatar, avatarErr := normalizeAvatar(*input.Avatar)
+		if avatarErr != nil {
+			return nil, avatarErr
+		}
+		if err = s.repository.updateUserAvatar(ctx, userID, avatar, s.now()); err != nil {
+			return nil, err
+		}
+	}
+	return s.repository.getUserByID(ctx, userID)
+}
+
 // ExtractSessionToken 从请求 Cookie 中提取服务端 Session。
 func (s *Service) ExtractSessionToken(request *http.Request) string {
 	if request == nil {
@@ -419,6 +447,7 @@ func (s *Service) buildStatusPayload(state State, principal *Principal) StatusPa
 	result.UserID = stringPointer(principal.UserID)
 	result.DisplayName = stringPointer(principal.DisplayName)
 	result.Role = stringPointer(principal.Role)
+	result.Avatar = stringPointer(principal.Avatar)
 	result.AuthMethod = stringPointer(principal.AuthMethod)
 	return result
 }
@@ -459,6 +488,7 @@ func (s *Service) resolveSessionPrincipal(ctx context.Context, sessionToken stri
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		Role:        user.Role,
+		Avatar:      user.Avatar,
 		AuthMethod:  AuthMethodPassword,
 		SessionID:   stringPointer(record.SessionID),
 	}, nil
@@ -557,6 +587,14 @@ func validatePassword(password string) error {
 		return errors.New("密码长度至少需要 8 个字符")
 	}
 	return nil
+}
+
+func normalizeAvatar(avatar string) (string, error) {
+	normalized := strings.TrimSpace(avatar)
+	if len(normalized) > 255 {
+		return "", errors.New("头像标识不能超过 255 个字符")
+	}
+	return normalized, nil
 }
 
 func extractBearerToken(rawAuthorization string) string {

@@ -22,6 +22,7 @@ import {
 import {
   Database,
   Gauge,
+  Image,
   KeyRound,
   Loader2,
   LockKeyhole,
@@ -34,11 +35,19 @@ import {
   get_personal_profile_api,
   type PersonalProfile,
   type TokenUsageSummary,
+  update_personal_profile_api,
 } from "@/lib/api/auth-api";
-import { cn, format_tokens } from "@/lib/utils";
+import {
+  AGENT_ICON_ID_END,
+  AGENT_ICON_ID_START,
+  cn,
+  format_tokens,
+  get_icon_avatar_src,
+} from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 
 type FeedbackTone = "success" | "error";
 
@@ -95,6 +104,7 @@ export function PersonalSettingsPanel() {
   const [loading, set_loading] = useState(true);
   const [password_draft, set_password_draft] = useState<PasswordDraft>(EMPTY_PASSWORD_DRAFT);
   const [submitting, set_submitting] = useState(false);
+  const [saving_avatar, set_saving_avatar] = useState(false);
   const [feedback, set_feedback] = useState<FeedbackState | null>(null);
 
   const load_profile = useCallback(async () => {
@@ -144,6 +154,9 @@ export function PersonalSettingsPanel() {
   );
   const can_submit_password = !validation_error && !submitting && !loading;
   const usage = profile?.token_usage;
+  const avatar = profile?.user.avatar ?? "";
+  const avatar_src = get_icon_avatar_src(avatar);
+  const can_update_avatar = Boolean(profile?.can_update_profile) && !saving_avatar;
   const quota_text = usage?.quota_limit_tokens == null
     ? t("settings.personal.quota_unset")
     : `${format_tokens(usage.total_tokens)} / ${format_tokens(usage.quota_limit_tokens)}`;
@@ -185,6 +198,31 @@ export function PersonalSettingsPanel() {
     }
   }, [password_draft, refresh_status, submitting, t, validation_error]);
 
+  const handle_avatar_change = useCallback(async (next_avatar: string) => {
+    if (!profile?.can_update_profile || saving_avatar || next_avatar === (profile.user.avatar ?? "")) {
+      return;
+    }
+    try {
+      set_saving_avatar(true);
+      const result = await update_personal_profile_api({ avatar: next_avatar });
+      set_profile(result);
+      await refresh_status();
+      set_feedback({
+        tone: "success",
+        title: t("settings.personal.profile_save_success_title"),
+        message: t("settings.personal.avatar_save_success_message"),
+      });
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: t("settings.personal.profile_save_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.personal.avatar_save_failed_message"),
+      });
+    } finally {
+      set_saving_avatar(false);
+    }
+  }, [profile, refresh_status, saving_avatar, t]);
+
   return (
     <>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-1 py-3">
@@ -201,27 +239,68 @@ export function PersonalSettingsPanel() {
         ) : (
           <>
             <section className="overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
-              <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-                    <UserRound className="h-3.5 w-3.5" />
+              <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-start">
+                <div className="min-w-0 space-y-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-primary shadow-(--surface-avatar-shadow)">
+                      {avatar_src ? (
+                        <img
+                          alt={t("settings.personal.avatar_alt")}
+                          className="h-full w-full object-cover"
+                          src={avatar_src}
+                        />
+                      ) : (
+                        <UserRound className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
+                        {profile?.user.display_name || profile?.user.username || "--"}
+                      </h3>
+                      <p className="mt-1 truncate text-[12px] leading-5 text-(--text-soft)">
+                        {profile?.user.username || "--"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
-                      {profile?.user.display_name || profile?.user.username || "--"}
-                    </h3>
-                    <p className="mt-1 truncate text-[12px] leading-5 text-(--text-soft)">
-                      {profile?.user.username || "--"}
-                    </p>
+                  <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2">
+                    <span className="rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2">
+                      {t("settings.personal.role")}: {profile?.user.role || "--"}
+                    </span>
+                    <span className="rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2">
+                      {t("settings.personal.auth_method")}: {auth_method_label(profile?.user.auth_method ?? "", t)}
+                    </span>
                   </div>
                 </div>
-                <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2 lg:min-w-[260px]">
-                  <span className="rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2">
-                    {t("settings.personal.role")}: {profile?.user.role || "--"}
-                  </span>
-                  <span className="rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2">
-                    {t("settings.personal.auth_method")}: {auth_method_label(profile?.user.auth_method ?? "", t)}
-                  </span>
+                <div className="min-w-0 lg:min-w-[300px]">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-(--text-muted)">
+                      <Image className="h-3.5 w-3.5" />
+                      <span>{t("settings.personal.avatar_title")}</span>
+                    </div>
+                    {saving_avatar ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-(--text-soft)">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {t("common.saving")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <IconPicker
+                    class_name="min-w-0"
+                    columns={8}
+                    disabled={!can_update_avatar}
+                    icon_size="sm"
+                    layout="row"
+                    max_icons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
+                    on_select={handle_avatar_change}
+                    show_clear
+                    start_icon_id={AGENT_ICON_ID_START}
+                    value={avatar}
+                  />
+                  {!profile?.can_update_profile ? (
+                    <p className="mt-2 text-[11px] text-(--text-soft)">
+                      {t("settings.personal.avatar_disabled")}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </section>

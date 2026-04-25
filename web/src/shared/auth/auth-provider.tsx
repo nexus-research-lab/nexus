@@ -30,6 +30,7 @@ const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {
   user_id: null,
   display_name: null,
   role: null,
+  avatar: null,
   auth_method: null,
 };
 
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user_id: null,
             display_name: null,
             role: null,
+            avatar: null,
             auth_method: null,
           };
         });

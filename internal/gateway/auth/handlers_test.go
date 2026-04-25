@@ -85,11 +85,22 @@ func TestPersonalProfileAndChangePassword(t *testing.T) {
 
 	cookie := loginByHTTP(t, httpServer.URL, "admin", "password123")
 	profile := getPersonalProfile(t, httpServer.URL, cookie)
-	if profile.User.Username != "admin" || !profile.CanChangePassword {
+	if profile.User.Username != "admin" || !profile.CanChangePassword || !profile.CanUpdateProfile {
 		t.Fatalf("个人设置资料不正确: %+v", profile)
+	}
+	if profile.User.Avatar != "" {
+		t.Fatalf("初始头像应为空: %+v", profile.User)
 	}
 	if profile.TokenUsage.QuotaLimitTokens != nil || profile.TokenUsage.TotalTokens != 0 {
 		t.Fatalf("初始 token 用量不正确: %+v", profile.TokenUsage)
+	}
+	updatedProfile := updatePersonalAvatar(t, httpServer.URL, cookie, "12")
+	if updatedProfile.User.Avatar != "12" {
+		t.Fatalf("头像更新未生效: %+v", updatedProfile.User)
+	}
+	statusWithAvatar := getAuthStatus(t, httpServer.URL, []*http.Cookie{cookie})
+	if statusWithAvatar.Avatar == nil || *statusWithAvatar.Avatar != "12" {
+		t.Fatalf("auth status 应返回最新头像: %+v", statusWithAvatar)
 	}
 
 	if status := changePasswordStatus(t, httpServer.URL, cookie, "wrong-password", "password456"); status != http.StatusUnprocessableEntity {
@@ -111,6 +122,7 @@ type authStatusResponse struct {
 	PasswordLoginEnabled bool    `json:"password_login_enabled"`
 	Authenticated        bool    `json:"authenticated"`
 	Username             *string `json:"username"`
+	Avatar               *string `json:"avatar"`
 	SetupRequired        bool    `json:"setup_required"`
 }
 
@@ -120,6 +132,7 @@ type personalProfileResponse struct {
 		Username    string `json:"username"`
 		DisplayName string `json:"display_name"`
 		Role        string `json:"role"`
+		Avatar      string `json:"avatar"`
 		AuthMethod  string `json:"auth_method"`
 	} `json:"user"`
 	TokenUsage struct {
@@ -127,6 +140,7 @@ type personalProfileResponse struct {
 		QuotaLimitTokens *int64 `json:"quota_limit_tokens"`
 	} `json:"token_usage"`
 	CanChangePassword bool `json:"can_change_password"`
+	CanUpdateProfile  bool `json:"can_update_profile"`
 }
 
 type gatewayEnvelope[T any] struct {
@@ -173,6 +187,35 @@ func getPersonalProfile(t *testing.T, baseURL string, cookie *http.Cookie) perso
 	var payload gatewayEnvelope[personalProfileResponse]
 	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatalf("解析个人设置资料失败: %v", err)
+	}
+	return payload.Data
+}
+
+func updatePersonalAvatar(t *testing.T, baseURL string, cookie *http.Cookie, avatar string) personalProfileResponse {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]string{
+		"avatar": avatar,
+	})
+	if err != nil {
+		t.Fatalf("编码头像更新请求失败: %v", err)
+	}
+
+	request, _ := http.NewRequest(http.MethodPatch, baseURL+"/agent/v1/settings/profile", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(cookie)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("头像更新请求失败: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("头像更新状态码不正确: %d", response.StatusCode)
+	}
+
+	var payload gatewayEnvelope[personalProfileResponse]
+	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("解析头像更新响应失败: %v", err)
 	}
 	return payload.Data
 }

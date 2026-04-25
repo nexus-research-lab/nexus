@@ -101,6 +101,7 @@ func (r *repository) getUserWithPassword(
     u.display_name,
     u.role,
     u.status,
+    u.avatar,
     u.last_login_at,
     u.created_at,
     u.updated_at,
@@ -118,6 +119,7 @@ LIMIT 1`,
 	)
 	var (
 		user         User
+		avatar       sql.NullString
 		lastLoginAt  sql.NullTime
 		credentialID sql.NullString
 		passwordHash sql.NullString
@@ -132,6 +134,7 @@ LIMIT 1`,
 		&user.DisplayName,
 		&user.Role,
 		&user.Status,
+		&avatar,
 		&lastLoginAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -147,6 +150,7 @@ LIMIT 1`,
 		}
 		return nil, nil, err
 	}
+	user.Avatar = nullStringValue(avatar)
 	user.LastLoginAt = nullTimePointer(lastLoginAt)
 	if !credentialID.Valid {
 		return &user, nil, nil
@@ -177,7 +181,7 @@ func (r *repository) getUser(ctx context.Context, field string, value string) (*
 	}
 	row := r.db.QueryRowContext(
 		ctx,
-		`SELECT user_id, username, display_name, role, status, last_login_at, created_at, updated_at
+		`SELECT user_id, username, display_name, role, status, avatar, last_login_at, created_at, updated_at
 FROM users
 WHERE `+field+` = `+r.bind(1)+`
 LIMIT 1`,
@@ -185,6 +189,7 @@ LIMIT 1`,
 	)
 	var (
 		user      User
+		avatar    sql.NullString
 		lastLogin sql.NullTime
 	)
 	if err := row.Scan(
@@ -193,6 +198,7 @@ LIMIT 1`,
 		&user.DisplayName,
 		&user.Role,
 		&user.Status,
+		&avatar,
 		&lastLogin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -202,6 +208,7 @@ LIMIT 1`,
 		}
 		return nil, err
 	}
+	user.Avatar = nullStringValue(avatar)
 	user.LastLoginAt = nullTimePointer(lastLogin)
 	user.CreatedAt = user.CreatedAt.UTC()
 	user.UpdatedAt = user.UpdatedAt.UTC()
@@ -211,7 +218,7 @@ LIMIT 1`,
 func (r *repository) listUsers(ctx context.Context) ([]User, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
-		`SELECT user_id, username, display_name, role, status, last_login_at, created_at, updated_at
+		`SELECT user_id, username, display_name, role, status, avatar, last_login_at, created_at, updated_at
 FROM users
 ORDER BY created_at ASC`,
 	)
@@ -224,6 +231,7 @@ ORDER BY created_at ASC`,
 	for rows.Next() {
 		var (
 			user      User
+			avatar    sql.NullString
 			lastLogin sql.NullTime
 		)
 		if err = rows.Scan(
@@ -232,12 +240,14 @@ ORDER BY created_at ASC`,
 			&user.DisplayName,
 			&user.Role,
 			&user.Status,
+			&avatar,
 			&lastLogin,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+		user.Avatar = nullStringValue(avatar)
 		user.LastLoginAt = nullTimePointer(lastLogin)
 		user.CreatedAt = user.CreatedAt.UTC()
 		user.UpdatedAt = user.UpdatedAt.UTC()
@@ -264,13 +274,14 @@ func (r *repository) createUserWithPassword(
 	if _, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO users (
-    user_id, username, display_name, role, status, last_login_at, created_at, updated_at
-) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`)`,
+    user_id, username, display_name, role, status, avatar, last_login_at, created_at, updated_at
+) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`)`,
 		user.UserID,
 		user.Username,
 		user.DisplayName,
 		user.Role,
 		user.Status,
+		nullableString(user.Avatar),
 		nil,
 		user.CreatedAt,
 		user.UpdatedAt,
@@ -398,6 +409,7 @@ func (r *repository) getActiveSessionByTokenHash(
     u.display_name,
     u.role,
     u.status,
+    u.avatar,
     u.last_login_at,
     u.created_at,
     u.updated_at
@@ -417,6 +429,7 @@ LIMIT 1`,
 		sessionAgent sql.NullString
 		revokedAt    sql.NullTime
 		lastLoginAt  sql.NullTime
+		avatar       sql.NullString
 	)
 	if err := row.Scan(
 		&record.SessionID,
@@ -435,6 +448,7 @@ LIMIT 1`,
 		&user.DisplayName,
 		&user.Role,
 		&user.Status,
+		&avatar,
 		&lastLoginAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -451,6 +465,7 @@ LIMIT 1`,
 	record.LastSeenAt = record.LastSeenAt.UTC()
 	record.CreatedAt = record.CreatedAt.UTC()
 	record.UpdatedAt = record.UpdatedAt.UTC()
+	user.Avatar = nullStringValue(avatar)
 	user.LastLoginAt = nullTimePointer(lastLoginAt)
 	user.CreatedAt = user.CreatedAt.UTC()
 	user.UpdatedAt = user.UpdatedAt.UTC()
@@ -490,6 +505,19 @@ func (r *repository) updateUserLastLogin(ctx context.Context, userID string, now
 SET last_login_at = `+r.bind(1)+`, updated_at = `+r.bind(2)+`
 WHERE user_id = `+r.bind(3),
 		now,
+		now,
+		userID,
+	)
+	return err
+}
+
+func (r *repository) updateUserAvatar(ctx context.Context, userID string, avatar string, now time.Time) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		`UPDATE users
+SET avatar = `+r.bind(1)+`, updated_at = `+r.bind(2)+`
+WHERE user_id = `+r.bind(3),
+		nullableString(avatar),
 		now,
 		userID,
 	)
