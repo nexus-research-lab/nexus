@@ -3,7 +3,6 @@
 import { ReactNode, useCallback, useMemo, useRef, useState } from "react";
 
 import {
-  OpenThreadOptions,
   ThreadControlContext,
   ThreadControlState,
   ThreadDataContext,
@@ -51,11 +50,10 @@ export function GroupThreadContextProvider({children}: { children: ReactNode }) 
     [panel_data_version],
   );
 
-  const open_thread = useCallback((round_id: string, agent_id: string, options?: OpenThreadOptions) => {
+  const open_thread = useCallback((round_id: string, agent_id: string) => {
     set_active_thread({
       round_id,
       agent_id,
-      auto_close_on_finish: options?.auto_close_on_finish ?? false,
     });
   }, []);
 

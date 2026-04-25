@@ -233,15 +233,16 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 	}
 	defer os.RemoveAll(tempDir)
 
-	if _, err = s.runCommand(ctx, tempDir, "npm", "init", "-y"); err != nil {
+	packageJSONPath := filepath.Join(tempDir, "package.json")
+	if err = os.WriteFile(packageJSONPath, []byte("{\"private\":true}\n"), 0o644); err != nil {
 		return nil, err
 	}
 	if strings.Contains(packageSpec, "@") {
-		if output, runErr := s.runCommand(ctx, tempDir, "npx", "-y", "skills", "add", packageSpec, "-y", "--copy"); runErr != nil {
+		if output, runErr := s.runPnpmCommand(ctx, tempDir, "dlx", "skills", "add", packageSpec, "-y", "--copy"); runErr != nil {
 			return nil, fmt.Errorf("skills.sh 导入失败: %s", output)
 		}
 	} else {
-		if output, runErr := s.runCommand(ctx, tempDir, "npx", "-y", "skills", "add", packageSpec, "--skill", skillSlug, "-y", "--copy"); runErr != nil {
+		if output, runErr := s.runPnpmCommand(ctx, tempDir, "dlx", "skills", "add", packageSpec, "--skill", skillSlug, "-y", "--copy"); runErr != nil {
 			return nil, fmt.Errorf("skills.sh 导入失败: %s", output)
 		}
 	}
@@ -370,19 +371,25 @@ func (s *Service) runCommand(ctx context.Context, workDir string, command ...str
 		cmd.Dir = workDir
 	}
 	cmd.Env = os.Environ()
-	if strings.TrimSpace(s.config.NpmRegistry) != "" {
-		cmd.Env = append(cmd.Env, "NPM_CONFIG_REGISTRY="+strings.TrimSpace(s.config.NpmRegistry))
-	}
 	if strings.TrimSpace(s.config.SkillsAPIURL) != "" {
 		cmd.Env = append(cmd.Env, "SKILLS_API_URL="+strings.TrimSpace(s.config.SkillsAPIURL))
 	}
-	cacheDir := filepath.Join(strings.TrimSpace(s.config.CacheFileDir), "npm")
-	if cacheDir != "" {
-		_ = os.MkdirAll(cacheDir, 0o755)
-		cmd.Env = append(cmd.Env, "NPM_CONFIG_CACHE="+cacheDir, "NPM_CONFIG_FUND=false", "NPM_CONFIG_AUDIT=false", "NPM_CONFIG_UPDATE_NOTIFIER=false")
-	}
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
+}
+
+func (s *Service) runPnpmCommand(ctx context.Context, workDir string, args ...string) (string, error) {
+	command := []string{"pnpm"}
+	if registry := strings.TrimSpace(s.config.PnpmRegistry); registry != "" {
+		command = append(command, "--registry", registry)
+	}
+	if cacheRoot := strings.TrimSpace(s.config.CacheFileDir); cacheRoot != "" {
+		storeDir := filepath.Join(cacheRoot, "pnpm-store")
+		_ = os.MkdirAll(storeDir, 0o755)
+		command = append(command, "--store-dir", storeDir)
+	}
+	command = append(command, args...)
+	return s.runCommand(ctx, workDir, command...)
 }
 
 func unzipArchive(payload []byte, targetDir string) error {

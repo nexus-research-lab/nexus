@@ -120,7 +120,6 @@ export function GroupChatPanel({
   const is_mobile_layout = layout === "mobile";
   const { active_thread, close_thread } = useGroupThread();
   const { set_thread_panel_data } = useSetGroupThreadPanelData();
-  const thread_loading_ref = useRef(false);
   const consumed_initial_draft_ref = useRef<string | null>(null);
 
   const session_key = conversation_id
@@ -469,25 +468,6 @@ export function GroupChatPanel({
     thread_messages,
     thread_pending_permissions,
   ]);
-
-  useEffect(() => {
-    if (!active_thread) {
-      thread_loading_ref.current = false;
-      return;
-    }
-
-    if (
-      active_thread.auto_close_on_finish &&
-      thread_loading_ref.current &&
-      !thread_is_loading
-    ) {
-      thread_loading_ref.current = false;
-      close_thread();
-      return;
-    }
-
-    thread_loading_ref.current = thread_is_loading;
-  }, [active_thread, close_thread, thread_is_loading]);
 
   useEffect(() => {
     set_thread_panel_data(thread_panel_data);

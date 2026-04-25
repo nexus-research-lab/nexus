@@ -4,8 +4,8 @@ set -euo pipefail
 
 : "${DATABASE_DRIVER:=sqlite}"
 : "${DATABASE_URL:=sqlite:////home/agent/.nexus/data/nexus.db}"
-: "${NPM_REGISTRY:=https://registry.npmmirror.com/}"
-: "${BUN_CONFIG_REGISTRY:=${NPM_REGISTRY}}"
+: "${PNPM_REGISTRY:=https://registry.npmmirror.com/}"
+: "${BUN_CONFIG_REGISTRY:=${PNPM_REGISTRY}}"
 : "${PIP_INDEX_URL:=https://pypi.tuna.tsinghua.edu.cn/simple}"
 : "${PIP_BREAK_SYSTEM_PACKAGES:=1}"
 : "${UV_DEFAULT_INDEX:=${PIP_INDEX_URL}}"
@@ -14,7 +14,7 @@ set -euo pipefail
 : "${AUTH_INIT_OWNER_PASSWORD:=}"
 export DATABASE_DRIVER
 export DATABASE_URL
-export NPM_REGISTRY
+export PNPM_REGISTRY
 export BUN_CONFIG_REGISTRY
 export PIP_INDEX_URL
 export PIP_BREAK_SYSTEM_PACKAGES
@@ -82,7 +82,7 @@ prepare_runtime_toolchain_config() {
         "${HOME}/.cache/pip"
 
     cat > "${HOME}/.npmrc" <<EOF
-registry=${NPM_REGISTRY}
+registry=${PNPM_REGISTRY}
 EOF
 
     cat > "${HOME}/.bunfig.toml" <<EOF

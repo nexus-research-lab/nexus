@@ -30,7 +30,7 @@ help: ## Show this help message
 
 # Development commands
 run-web: ## Run frontend in development mode
-	cd web && npm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
+	cd web && pnpm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
 check-private-sdk-access: ## Check private Go SDK access
 	@if command -v go >/dev/null 2>&1; then \
@@ -126,13 +126,13 @@ install: check-private-sdk-access ## Install all dependencies
 		exit 1; \
 	fi
 	@echo "Installing frontend dependencies..."
-	cd web && npm install
+	cd web && pnpm install
 
 lint-web: ## Run frontend lint
-	cd web && npm run lint
+	cd web && pnpm run lint
 
 typecheck-web: ## Run frontend type check
-	cd web && npx tsc --noEmit
+	cd web && pnpm run typecheck
 
 check-go: check-private-sdk-access ## Run Go build and test checks
 	go test ./...

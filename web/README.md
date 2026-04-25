@@ -46,8 +46,8 @@ VITE_API_URL=/agent/v1
 ## 启动
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 默认地址：`http://localhost:3000`
@@ -55,10 +55,10 @@ npm run dev
 ## 校验
 
 ```bash
-npm run build
-npm run start
-npm run lint
-npx tsc --noEmit
+pnpm run build
+pnpm run start
+pnpm run lint
+pnpm run typecheck
 ```
 
 ## 路由

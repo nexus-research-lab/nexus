@@ -35,7 +35,7 @@ type Config struct {
 	DefaultTimezone                string
 	WorkspacePath                  string
 	CacheFileDir                   string
-	NpmRegistry                    string
+	PnpmRegistry                   string
 	SkillsAPIURL                   string
 	SkillsAPISearchLimit           int
 	DatabaseDriver                 string
@@ -117,7 +117,7 @@ func Load() Config {
 		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
 		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
-		NpmRegistry:                    getEnv("NPM_REGISTRY", ""),
+		PnpmRegistry:                   getEnv("PNPM_REGISTRY", ""),
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsAPISearchLimit:           mustInt(getEnv("SKILLS_API_SEARCH_LIMIT", "20")),
 		DatabaseDriver:                 getEnv("DATABASE_DRIVER", "sqlite"),

@@ -24,7 +24,7 @@
 
 ```bash
 cd /Users/leemysw/Projects/nexus/web
-npm run export:liquid-glass -- \
+pnpm run export:liquid-glass -- \
   --width 146 \
   --height 92 \
   --radius 46 \

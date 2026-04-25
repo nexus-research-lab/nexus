@@ -130,13 +130,13 @@ function GroupRoundCardGroupInner(
     [agent_entries],
   );
 
-  const toggle_thread = useCallback((agent_id: string, auto_close_on_finish = false) => {
+  const toggle_thread = useCallback((agent_id: string) => {
     if (active_thread?.round_id === round_id && active_thread.agent_id === agent_id) {
       close_thread();
       return;
     }
 
-    open_thread(round_id, agent_id, {auto_close_on_finish});
+    open_thread(round_id, agent_id);
   }, [active_thread, close_thread, open_thread, round_id]);
 
   return (
@@ -194,7 +194,7 @@ function GroupRoundCardGroupInner(
                       status={entry.status}
                       pending_permissions={entry_pending_permissions}
                       is_thread_active={is_thread_active}
-                      on_click_thread={() => toggle_thread(entry.agent_id, true)}
+                      on_click_thread={() => toggle_thread(entry.agent_id)}
                       on_permission_response={on_permission_response}
                       can_respond_to_permissions={can_respond_to_permissions}
                       permission_read_only_reason={permission_read_only_reason}

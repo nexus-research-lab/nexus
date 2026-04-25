@@ -12,7 +12,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG GOPROXY=https://goproxy.cn,direct
-ARG NPM_REGISTRY=https://registry.npmmirror.com/
 ARG PRIVATE_SDK_MODULE=github.com/nexus-research-lab/nexus-agent-sdk-go
 
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -63,7 +62,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
-ARG NPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
@@ -95,8 +95,10 @@ RUN --mount=type=cache,target=/var/cache/apt \
 
 ENV HOME=/home/agent \
     NEXUS_APP_ROOT=/opt/app \
-    PATH=/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
-    NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
+    PNPM_HOME=/usr/local/share/pnpm \
+    PATH=/usr/local/share/pnpm:/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
+    COREPACK_NPM_REGISTRY=${PNPM_REGISTRY} \
+    PNPM_REGISTRY=${PNPM_REGISTRY} \
     BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
@@ -104,10 +106,12 @@ ENV HOME=/home/agent \
     UV_DEFAULT_INDEX=${PIP_INDEX_URL} \
     UV_INDEX_URL=${PIP_INDEX_URL}
 
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm config set registry "${NPM_REGISTRY}" && \
-    npm install -g @anthropic-ai/claude-code bun --registry "${NPM_REGISTRY}" && \
-    npm cache clean --force
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
+    corepack enable && \
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    pnpm config set registry "${PNPM_REGISTRY}" && \
+    pnpm config set store-dir /root/.local/share/pnpm/store && \
+    pnpm add -g @anthropic-ai/claude-code bun
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python3 -m pip install --no-cache-dir --break-system-packages \
@@ -115,7 +119,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     uv && \
     (python3 -m pip cache purge || true)
 
-RUN printf 'registry=%s\n' "${NPM_REGISTRY}" > /etc/npmrc && \
+RUN printf 'registry=%s\n' "${PNPM_REGISTRY}" > /etc/npmrc && \
     mkdir -p /etc/uv && \
     printf '[[index]]\nurl = "%s"\ndefault = true\n\n[pip]\nindex-url = "%s"\n' "${PIP_INDEX_URL}" "${PIP_INDEX_URL}" > /etc/uv/uv.toml
 

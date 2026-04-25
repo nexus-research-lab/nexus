@@ -15,11 +15,6 @@ import { PendingPermission, PermissionDecisionPayload } from "@/types/conversati
 interface ThreadTarget {
   round_id: string;
   agent_id: string;
-  auto_close_on_finish?: boolean;
-}
-
-interface OpenThreadOptions {
-  auto_close_on_finish?: boolean;
 }
 
 /** Thread 面板数据，由 GroupChatPanel 设置，由布局层读取后渲染。 */
@@ -38,7 +33,7 @@ export interface ThreadPanelData {
 
 interface ThreadControlState {
   active_thread: ThreadTarget | null;
-  open_thread: (round_id: string, agent_id: string, options?: OpenThreadOptions) => void;
+  open_thread: (round_id: string, agent_id: string) => void;
   close_thread: () => void;
 }
 
@@ -79,7 +74,6 @@ export function useSetGroupThreadPanelData(): ThreadDataDispatchState {
 }
 
 export type {
-  OpenThreadOptions,
   ThreadControlState,
   ThreadDataState,
   ThreadDataDispatchState,
