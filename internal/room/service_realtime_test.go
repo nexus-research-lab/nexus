@@ -1169,6 +1169,212 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "助手甲")
+	agentB := createTestAgent(t, agentService, ctx, "助手乙")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
+		Name:     "并行测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	clientA := newFakeRoomClient()
+	clientA.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	clientB := newFakeRoomClient()
+	clientB.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeAssistantResult(clientB, "assistant-b", "助手乙完成")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{clientA, clientB}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-parallel-agents")
+	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 先处理",
+		RoundID:        "room-round-agent-a",
+		ReqID:          "room-round-agent-a",
+	}); err != nil {
+		t.Fatalf("HandleChat A 失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentA.AgentID
+	})
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手乙 你也处理",
+		RoundID:        "room-round-agent-b",
+		ReqID:          "room-round-agent-b",
+	}); err != nil {
+		t.Fatalf("HandleChat B 失败: %v", err)
+	}
+
+	clientA.mu.Lock()
+	interruptA := clientA.interruptCalls
+	clientA.mu.Unlock()
+	if interruptA != 0 {
+		t.Fatalf("发给助手乙的新消息不应中断助手甲: interruptA=%d", interruptA)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "room-round-agent-b" &&
+			event.Data["status"] == "finished"
+	})
+	if countRoomResultSubtype(events, "success") == 0 {
+		t.Fatalf("助手乙 round 应正常完成: %+v", events)
+	}
+
+	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+		t.Fatalf("清理活跃 Room round 失败: %v", err)
+	}
+}
+
+func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "助手甲")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "中断关流测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	var closeOnce sync.Once
+	client.onInterrupt = func(_ context.Context) {
+		closeOnce.Do(func() {
+			close(client.messages)
+		})
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-interrupt-closed-stream")
+	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 处理一下",
+		RoundID:        "room-round-closed-stream",
+		ReqID:          "room-round-closed-stream",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart
+	})
+
+	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+		t.Fatalf("HandleInterrupt 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			(event.Data["status"] == "interrupted" || event.Data["status"] == "error")
+	})
+	terminalStatus := ""
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeRoundStatus {
+			terminalStatus = anyToString(event.Data["status"])
+		}
+	}
+	if terminalStatus != "interrupted" {
+		t.Fatalf("主动中断后的关流应归类为 interrupted，实际 status=%s events=%+v", terminalStatus, events)
+	}
+	if countRoomResultSubtype(events, "error") > 0 {
+		t.Fatalf("主动中断后的关流不应广播 error result: %+v", events)
+	}
+
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
+	}
+	foundInterrupted := false
+	for _, message := range sharedMessages {
+		summary, ok := message["result_summary"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if summary["subtype"] == "error" {
+			t.Fatalf("主动中断后的共享日志不应落 error summary: %+v", sharedMessages)
+		}
+		if summary["subtype"] == "interrupted" {
+			foundInterrupted = true
+			if strings.Contains(anyToString(summary["result"]), "round stream closed before terminal") {
+				t.Fatalf("interrupted summary 不应暴露底层 stream 错误: %+v", summary)
+			}
+		}
+	}
+	if !foundInterrupted {
+		t.Fatalf("共享日志未落 interrupted summary: %+v", sharedMessages)
+	}
+}
+
 func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

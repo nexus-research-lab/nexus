@@ -27,10 +27,6 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	}
 	roomID := firstNonEmpty(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 
-	if err = s.interruptRound(ctx, sessionKey, "", "收到新的用户消息，上一轮已停止", true); err != nil {
-		return err
-	}
-
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue.Members)
 	if err != nil {
 		return err
@@ -117,6 +113,9 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		)
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "finished", "success"))
 		return nil
+	}
+	if err = s.interruptAgentSlots(ctx, sessionKey, targetAgentIDs, "收到新的用户消息，上一轮已停止", true); err != nil {
+		return err
 	}
 
 	sessionsByAgent := make(map[string]SessionRecord, len(contextValue.Sessions))

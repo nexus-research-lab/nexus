@@ -25,6 +25,7 @@ type activeRoomSlot struct {
 	Index             int
 	TimestampMS       int64
 	Trigger           roomTrigger
+	InterruptReason   string
 	SuppressOutput    bool
 	NoReplyCandidate  bool
 	PendingStream     []protocol.EventMessage
@@ -118,11 +119,18 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	pending := make([]map[string]any, 0)
+	snapshot := &ActiveRoundSnapshot{}
 	for _, roundValue := range s.activeRounds {
 		if roundValue == nil || roundValue.ConversationID != conversationID {
 			continue
 		}
-		pending := make([]map[string]any, 0, len(roundValue.Slots))
+		if snapshot.SessionKey == "" {
+			snapshot.SessionKey = roundValue.SessionKey
+			snapshot.RoomID = roundValue.RoomID
+			snapshot.ConversationID = roundValue.ConversationID
+			snapshot.RoundID = roundValue.RoundID
+		}
 		for _, slot := range roundValue.Slots {
 			if slot == nil || slot.Status == "finished" || slot.Status == "error" || slot.Status == "cancelled" {
 				continue
@@ -140,53 +148,45 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 				"index":     slot.Index,
 			})
 		}
-		if len(pending) == 0 {
-			return nil
-		}
-		sort.Slice(pending, func(i int, j int) bool {
-			return intValue(pending[i]["index"]) < intValue(pending[j]["index"])
-		})
-		for _, item := range pending {
-			delete(item, "index")
-		}
-		return &ActiveRoundSnapshot{
-			SessionKey:     roundValue.SessionKey,
-			RoomID:         roundValue.RoomID,
-			ConversationID: roundValue.ConversationID,
-			RoundID:        roundValue.RoundID,
-			Pending:        pending,
-		}
 	}
-	return nil
+	if len(pending) == 0 {
+		return nil
+	}
+	sort.Slice(pending, func(i int, j int) bool {
+		leftTime := normalizeInt64(pending[i]["timestamp"])
+		rightTime := normalizeInt64(pending[j]["timestamp"])
+		if leftTime != rightTime {
+			return leftTime < rightTime
+		}
+		return intValue(pending[i]["index"]) < intValue(pending[j]["index"])
+	})
+	for _, item := range pending {
+		delete(item, "index")
+	}
+	snapshot.Pending = pending
+	return snapshot
 }
 
 func (s *RealtimeService) registerRound(roundValue *activeRoomRound) {
+	if roundValue == nil {
+		return
+	}
 	s.mu.Lock()
-	s.activeRounds[roundValue.SessionKey] = roundValue
+	s.activeRounds[roomActiveRoundKey(roundValue.SessionKey, roundValue.RoundID)] = roundValue
 	s.mu.Unlock()
 }
 
-func (s *RealtimeService) finishRound(sessionKey string) {
-	var roundValue *activeRoomRound
-	s.runtime.MarkRoundFinished(sessionKey, s.currentRoundID(sessionKey))
+func (s *RealtimeService) finishRound(roundValue *activeRoomRound) {
+	if roundValue == nil {
+		return
+	}
+	s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
 	s.mu.Lock()
-	roundValue = s.activeRounds[sessionKey]
-	delete(s.activeRounds, sessionKey)
+	delete(s.activeRounds, roomActiveRoundKey(roundValue.SessionKey, roundValue.RoundID))
 	s.mu.Unlock()
-	if roundValue != nil {
-		roundValue.doneOnce.Do(func() {
-			close(roundValue.Done)
-		})
-	}
-}
-
-func (s *RealtimeService) currentRoundID(sessionKey string) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if roundValue := s.activeRounds[sessionKey]; roundValue != nil {
-		return roundValue.RoundID
-	}
-	return ""
+	roundValue.doneOnce.Do(func() {
+		close(roundValue.Done)
+	})
 }
 
 func roomRootRoundID(roundValue *activeRoomRound) string {
@@ -199,10 +199,8 @@ func roomRootRoundID(roundValue *activeRoomRound) string {
 	return strings.TrimSpace(roundValue.RoundID)
 }
 
-func (s *RealtimeService) isRoomRoundActive(sessionKey string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.activeRounds[sessionKey] != nil
+func roomActiveRoundKey(sessionKey string, roundID string) string {
+	return strings.TrimSpace(sessionKey) + "::" + strings.TrimSpace(roundID)
 }
 
 func (s *RealtimeService) finishSlot(slot *activeRoomSlot) {
@@ -212,6 +210,28 @@ func (s *RealtimeService) finishSlot(slot *activeRoomSlot) {
 	slot.doneOnce.Do(func() {
 		close(slot.Done)
 	})
+}
+
+func normalizeRoomInterruptReason(reason string) string {
+	reason = strings.TrimSpace(reason)
+	if reason != "" {
+		return reason
+	}
+	return "请求已停止"
+}
+
+func markRoomSlotInterrupted(slot *activeRoomSlot, reason string) {
+	if slot == nil {
+		return
+	}
+	slot.InterruptReason = normalizeRoomInterruptReason(reason)
+}
+
+func roomSlotInterruptReason(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return strings.TrimSpace(slot.InterruptReason)
 }
 
 func (r *activeRoomRound) allSlotsCancelled() bool {
