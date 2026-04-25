@@ -97,7 +97,6 @@ ENV HOME=/home/agent \
     NEXUS_APP_ROOT=/opt/app \
     PNPM_HOME=/usr/local/share/pnpm \
     PATH=/usr/local/share/pnpm:/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
-    COREPACK_NPM_REGISTRY=${PNPM_REGISTRY} \
     PNPM_REGISTRY=${PNPM_REGISTRY} \
     BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
@@ -107,8 +106,7 @@ ENV HOME=/home/agent \
     UV_INDEX_URL=${PIP_INDEX_URL}
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
-    corepack enable && \
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
     pnpm config set store-dir /root/.local/share/pnpm/store && \
     pnpm add -g @anthropic-ai/claude-code bun

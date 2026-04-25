@@ -8,7 +8,6 @@ ARG VITE_API_URL=
 
 ENV VITE_WS_URL=${VITE_WS_URL} \
     VITE_API_URL=${VITE_API_URL} \
-    COREPACK_NPM_REGISTRY=${PNPM_REGISTRY} \
     PNPM_HOME=/pnpm \
     PATH=/pnpm:${PATH}
 
@@ -17,8 +16,7 @@ WORKDIR /app/web
 COPY web/package.json web/pnpm-lock.yaml ./
 COPY web/.npmrc ./
 RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
-    corepack enable && \
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
     pnpm config set store-dir /pnpm/store && \
     pnpm install --frozen-lockfile

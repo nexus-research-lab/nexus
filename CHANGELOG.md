@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 个人设置页新增头像设置，复用 Agent 头像资源，并将头像同步到个人资料与登录状态。
 
 ### Fixed
+- 修复 Docker 构建时 Corepack 通过 npmmirror 拉取 pnpm 元数据返回 404 的问题，改为用 npm 安装固定版本 pnpm。
 - 修复 usage 落账遇到 SDK JSON 数字类型时被判空，导致设置页 token 用量无数据的问题。
 - 修复个人头像未显示在 DM、Room 主消息区和 Room Thread 用户消息上的问题，并确保头像变更会触发消息项重渲染。
 - 修复 Room 中被无需回复标记过滤的轮次没有写入 token usage 台账的问题。
