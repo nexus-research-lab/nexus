@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	systemSkillNames   = map[string]struct{}{"memory-manager": {}}
+	systemSkillNames   = map[string]struct{}{"memory-manager": {}, "room-collaboration": {}}
 	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
 )
 

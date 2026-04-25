@@ -42,6 +42,15 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "room-collaboration", "SKILL.md")); err != nil {
+		t.Fatalf("系统托管 room-collaboration skill 未部署: %v", err)
+	}
+	claudeSkillLink := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "room-collaboration")
+	if info, statErr := os.Lstat(claudeSkillLink); statErr != nil {
+		t.Fatalf("room-collaboration skill 的 Claude 链接未生成: %v", statErr)
+	} else if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("room-collaboration skill 的 Claude 入口应为符号链接: %s", claudeSkillLink)
+	}
 
 	updated, err := workspaceService.UpdateFile(ctx, agentValue.AgentID, "notes/todo.md", "hello workspace")
 	if err != nil {

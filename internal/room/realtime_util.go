@@ -12,7 +12,12 @@ import (
 func reverseAgentNames(agentNameByID map[string]string) map[string]string {
 	result := make(map[string]string, len(agentNameByID))
 	for agentID, name := range agentNameByID {
-		result[name] = agentID
+		normalizedName := strings.TrimSpace(name)
+		if normalizedName == "" {
+			continue
+		}
+		result[normalizedName] = agentID
+		result[strings.ToLower(normalizedName)] = agentID
 	}
 	return result
 }
@@ -39,6 +44,13 @@ func resultStatus(subtype any) string {
 	default:
 		return "finished"
 	}
+}
+
+func roomTargetResolution(targetAgentIDs []string) string {
+	if len(targetAgentIDs) > 0 {
+		return "mention"
+	}
+	return "none"
 }
 
 func cloneMessageWithSessionKey(message protocol.Message, sessionKey string) protocol.Message {

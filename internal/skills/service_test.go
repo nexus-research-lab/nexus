@@ -45,6 +45,12 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if !containsSkill(items, "memory-manager") {
 		t.Fatalf("系统托管 skill 未暴露: %+v", items)
 	}
+	if !containsSkill(items, "room-collaboration") {
+		t.Fatalf("Room 协作系统 skill 未暴露: %+v", items)
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "room-collaboration"); err == nil {
+		t.Fatal("系统托管 room-collaboration skill 不应允许手动安装")
+	}
 
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")
 	if err = os.MkdirAll(localSkillRoot, 0o755); err != nil {

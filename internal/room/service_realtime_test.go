@@ -108,6 +108,33 @@ func (f *fakeRoomFactory) LastOptions() agentclient.Options {
 	return f.options[len(f.options)-1]
 }
 
+func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text string) {
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeAssistant,
+		SessionID: client.sessionID,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:    messageID,
+				Model: "sonnet",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: text},
+				},
+			},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      messageID + "-result",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "success",
+			DurationMS: 1,
+			NumTurns:   1,
+			Result:     "done",
+		},
+	}
+}
+
 type realtimeTestSender struct {
 	key    string
 	events chan protocol.EventMessage
@@ -743,6 +770,191 @@ func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *test
 	}
 }
 
+func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "公区 @ 测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	amyClient := newFakeRoomClient()
+	devinClient := newFakeRoomClient()
+	devinPrompt := make(chan string, 1)
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient}}
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
+
+	amyClient.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeAssistantResult(amyClient, "amy-public-mention-1", "@Devin 请查询天气，并在公区回复。")
+		return nil
+	}
+	devinClient.onQuery = func(_ context.Context, prompt string) error {
+		devinPrompt <- prompt
+		go sendFakeAssistantResult(devinClient, "devin-public-mention-1", "天气查询完成。")
+		return nil
+	}
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-public-mention")
+	permission.BindSession(sharedSessionKey, sender, "client-public-mention", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Amy 让 Devin 查下天气",
+		RoundID:        "room-round-public-mention",
+		ReqID:          "room-round-public-mention",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		roundID, _ := event.Data["round_id"].(string)
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			strings.HasPrefix(roundID, "room_mention_") &&
+			event.Data["status"] == "finished"
+	})
+	select {
+	case prompt := <-devinPrompt:
+		if !strings.Contains(prompt, "public_mention") ||
+			!strings.Contains(prompt, "@Devin 请查询天气") ||
+			!strings.Contains(prompt, "agent_id="+devin.AgentID) {
+			t.Fatalf("Devin prompt 缺少公区 @ 触发上下文: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Devin 未被公区 @ 唤醒")
+	}
+	if !hasChatAckPendingAgent(events, devin.AgentID) {
+		t.Fatalf("事件流缺少 Devin 公区 @ 唤醒 slot: %+v", events)
+	}
+}
+
+func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "Amy")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "无需回复测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_start",
+						"index": 0,
+						"content_block": map[string]any{
+							"type": "text",
+							"text": "",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_delta",
+						"index": 0,
+						"delta": map[string]any{
+							"type": "text_delta",
+							"text": "<nexus_room_no_reply/>",
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeStreamEvent,
+				SessionID: client.sessionID,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: map[string]any{
+						"type":  "content_block_stop",
+						"index": 0,
+					},
+				},
+			}
+			sendFakeAssistantResult(client, "amy-no-reply", "<nexus_room_no_reply/>")
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-no-reply")
+	permission.BindSession(sharedSessionKey, sender, "client-no-reply", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Amy 这条不用你回答",
+		RoundID:        "room-round-no-reply",
+		ReqID:          "room-round-no-reply",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	if hasAgentPublicMessage(events, agentValue.AgentID) {
+		t.Fatalf("无需回复标记不应投影到公区: %+v", events)
+	}
+	if hasStreamText(events, "<nexus_room_no_reply/>") {
+		t.Fatalf("无需回复标记不应以流式文本暴露给前端: %+v", events)
+	}
+}
+
 func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -1201,6 +1413,50 @@ func countRoomResultSubtype(events []protocol.EventMessage, subtype string) int 
 		}
 	}
 	return count
+}
+
+func hasChatAckPendingAgent(events []protocol.EventMessage, agentID string) bool {
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeChatAck {
+			continue
+		}
+		pending, ok := event.Data["pending"].([]map[string]any)
+		if !ok {
+			continue
+		}
+		for _, item := range pending {
+			if item["agent_id"] == agentID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasAgentPublicMessage(events []protocol.EventMessage, agentID string) bool {
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["agent_id"] == agentID &&
+			(event.Data["role"] == "assistant" || event.Data["role"] == "result") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasStreamText(events []protocol.EventMessage, text string) bool {
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeStream {
+			continue
+		}
+		block, _ := event.Data["content_block"].(map[string]any)
+		if strings.Contains(normalizePendingValue(block["text"]), text) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizePendingValue(value any) string {

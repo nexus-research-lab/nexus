@@ -2,10 +2,13 @@ package room
 
 import (
 	"context"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"sort"
+	"strings"
 	"sync"
+
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 type activeRoomSlot struct {
@@ -21,6 +24,10 @@ type activeRoomSlot struct {
 	Status            string
 	Index             int
 	TimestampMS       int64
+	Trigger           roomTrigger
+	SuppressOutput    bool
+	NoReplyCandidate  bool
+	PendingStream     []protocol.EventMessage
 	Done              chan struct{}
 	doneOnce          sync.Once
 }
@@ -30,12 +37,32 @@ type activeRoomRound struct {
 	RoomID         string
 	ConversationID string
 	RoomType       string
+	Context        *ConversationContextAggregate
 	RoundID        string
+	RootRoundID    string
+	HopIndex       int
 	OwnerUserID    string
 	Cancel         context.CancelFunc
 	Slots          map[string]*activeRoomSlot
+	PublicMentions []publicMentionWake
 	Done           chan struct{}
 	doneOnce       sync.Once
+}
+
+type roomTrigger struct {
+	TriggerType   string
+	Content       string
+	MessageID     string
+	SourceAgentID string
+	TargetAgentID string
+	Metadata      map[string]any
+}
+
+type publicMentionWake struct {
+	SourceAgentID string
+	TargetAgentID string
+	Content       string
+	MessageID     string
 }
 
 type roomRoundMapperAdapter struct {
@@ -162,6 +189,22 @@ func (s *RealtimeService) currentRoundID(sessionKey string) string {
 	return ""
 }
 
+func roomRootRoundID(roundValue *activeRoomRound) string {
+	if roundValue == nil {
+		return ""
+	}
+	if strings.TrimSpace(roundValue.RootRoundID) != "" {
+		return strings.TrimSpace(roundValue.RootRoundID)
+	}
+	return strings.TrimSpace(roundValue.RoundID)
+}
+
+func (s *RealtimeService) isRoomRoundActive(sessionKey string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.activeRounds[sessionKey] != nil
+}
+
 func (s *RealtimeService) finishSlot(slot *activeRoomSlot) {
 	if slot == nil {
 		return
@@ -181,4 +224,16 @@ func (r *activeRoomRound) allSlotsCancelled() bool {
 		}
 	}
 	return true
+}
+
+func (r *activeRoomRound) hasSlotError() bool {
+	if r == nil {
+		return false
+	}
+	for _, slot := range r.Slots {
+		if slot != nil && slot.Status == "error" {
+			return true
+		}
+	}
+	return false
 }

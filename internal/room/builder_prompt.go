@@ -13,41 +13,51 @@ const (
 	roomMaxHistoryChars    = 12_000
 )
 
-// BuildDispatchPrompt 为 Room 成员构建共享快照 prompt。
-func BuildDispatchPrompt(
-	history []protocol.Message,
-	latestUserMessage string,
-	agentNameByID map[string]string,
-	targetAgentID string,
-) string {
-	lines := buildHistoryLines(history, agentNameByID)
+type roomVisibleContextInput struct {
+	PublicHistory []protocol.Message
+	LatestTrigger roomTrigger
+	AgentNameByID map[string]string
+	TargetAgentID string
+}
+
+func buildRoomVisibleContext(input roomVisibleContextInput) string {
+	lines := buildHistoryLines(input.PublicHistory, input.AgentNameByID)
 	if len(lines) == 0 {
-		return latestUserMessage
+		lines = []string{"（暂无公共历史）"}
 	}
 
-	memberNames := make([]string, 0, len(agentNameByID))
-	for _, name := range agentNameByID {
+	memberNames := make([]string, 0, len(input.AgentNameByID))
+	for _, name := range input.AgentNameByID {
 		if strings.TrimSpace(name) != "" {
 			memberNames = append(memberNames, name)
 		}
 	}
 	sort.Strings(memberNames)
-	targetName := firstNonEmpty(agentNameByID[targetAgentID], targetAgentID)
+	targetName := firstNonEmpty(input.AgentNameByID[input.TargetAgentID], input.TargetAgentID)
 
 	return fmt.Sprintf(
 		"你正在 Nexus 的多人协作 Room 中，以成员 %s 的身份响应新消息。\n"+
-			"以下 <shared_history> 是当前轮次开始前已经完成的共享上下文快照。\n"+
+			"以下上下文只包含 Room 公共区：public_feed 是所有成员可见的公共历史，latest_trigger 是这次唤醒你的直接原因。\n"+
 			"规则：\n"+
-			"1. 只把 <shared_history> 里的内容当作权威公共历史。\n"+
+			"1. 只把 <public_feed> 里的内容当作权威公共历史。\n"+
 			"2. 不要把未完成、被取消或报错的回复当作事实。\n"+
-			"3. 你自己的 workspace 和记忆仍可使用，但公共协作上下文以当前快照为准。\n"+
+			"3. 正常公开交流直接用最终 assistant 回复，不要为公区消息调用工具或 CLI。\n"+
+			"4. @ 是执行触发，不是普通提及；公开回复里的 @成员名 会在当前 round 结束后唤醒对方。\n"+
+			"5. 只有明确转交任务、请求对方行动或要求对方公开回复时才 @；回报结果、确认收到、总结状态时不要 @ 发起者。\n"+
+			"6. 区分真实唤醒和流程提及：已经轮到对方马上行动时才 @；只是描述后续流程、计划、顺序或未来会轮到某成员时，用成员名但不要加 @。\n"+
+			"7. 候选邀请不要多 @：遇到“谁先来、谁来、任选一个、想要成员、你们可以让成员来”等场景，先选定一个下一位成员，只 @ 这一个人；如果暂时不需要立刻唤醒任何人，就不用 @。\n"+
+			"8. 如果 latest_trigger 是 public_mention 且 metadata 显示多个目标，只有来源明确要求“分别、各自、同时、都回答”时才并行回答；若语义是候选抢答或选一个人，排在第一位的目标回答，其他目标输出 <nexus_room_no_reply/>。\n"+
+			"9. 多轮任务要自己维护轻量进度：目标轮数、当前轮次、下一位成员、停止条件；达到目标后直接总结并停止，最终总结不要 @ 任何成员。\n"+
+			"10. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。\n"+
 			"Room 成员：%s\n\n"+
-			"<shared_history>\n%s\n</shared_history>\n\n"+
-			"<latest_user_message>\n%s\n</latest_user_message>",
+			"<room_member_directory>\n%s\n</room_member_directory>\n\n"+
+			"<public_feed>\n%s\n</public_feed>\n\n"+
+			"<latest_trigger>\n%s\n</latest_trigger>",
 		targetName,
 		firstNonEmpty(strings.Join(memberNames, "、"), "未知成员"),
+		formatMemberDirectory(input.AgentNameByID, input.TargetAgentID),
 		strings.Join(lines, "\n"),
-		strings.TrimSpace(latestUserMessage),
+		formatRoomTrigger(input.LatestTrigger, input.AgentNameByID),
 	)
 }
 
@@ -76,6 +86,55 @@ func buildHistoryLines(history []protocol.Message, agentNameByID map[string]stri
 		totalChars = nextChars
 	}
 	return lines
+}
+
+func formatMemberDirectory(agentNameByID map[string]string, targetAgentID string) string {
+	if len(agentNameByID) == 0 {
+		return "（暂无成员目录）"
+	}
+	type memberLine struct {
+		agentID string
+		name    string
+	}
+	members := make([]memberLine, 0, len(agentNameByID))
+	for agentID, name := range agentNameByID {
+		normalizedAgentID := strings.TrimSpace(agentID)
+		if normalizedAgentID == "" {
+			continue
+		}
+		members = append(members, memberLine{
+			agentID: normalizedAgentID,
+			name:    firstNonEmpty(strings.TrimSpace(name), normalizedAgentID),
+		})
+	}
+	sort.Slice(members, func(i int, j int) bool {
+		if members[i].name != members[j].name {
+			return members[i].name < members[j].name
+		}
+		return members[i].agentID < members[j].agentID
+	})
+	lines := make([]string, 0, len(members)+1)
+	if strings.TrimSpace(targetAgentID) != "" {
+		lines = append(lines, fmt.Sprintf("当前成员 agent_id=%s name=%s", strings.TrimSpace(targetAgentID), firstNonEmpty(agentNameByID[targetAgentID], targetAgentID)))
+	}
+	for _, member := range members {
+		lines = append(lines, fmt.Sprintf("- name=%s agent_id=%s", member.name, member.agentID))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatRoomTrigger(trigger roomTrigger, agentNameByID map[string]string) string {
+	if strings.TrimSpace(trigger.TriggerType) == "" && strings.TrimSpace(trigger.Content) == "" {
+		return "（无触发消息）"
+	}
+	return protocol.MustJSON(map[string]any{
+		"trigger_type": trigger.TriggerType,
+		"content":      trigger.Content,
+		"message_id":   trigger.MessageID,
+		"source_agent": firstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID),
+		"target_agent": firstNonEmpty(agentNameByID[trigger.TargetAgentID], trigger.TargetAgentID),
+		"metadata":     trigger.Metadata,
+	})
 }
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {

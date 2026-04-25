@@ -3,10 +3,11 @@ package runtime
 import (
 	"context"
 	"errors"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"fmt"
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 var (
@@ -15,6 +16,37 @@ var (
 	// ErrRoundStreamClosedBeforeTerminal 表示 SDK 在产出终态前提前结束消息流。
 	ErrRoundStreamClosedBeforeTerminal = errors.New("round stream closed before terminal")
 )
+
+// RoundStreamClosedError 携带 SDK 流提前关闭时的定位信息。
+type RoundStreamClosedError struct {
+	MessagesSeen    int
+	LastMessageType string
+	LastSessionID   string
+	LastMessageID   string
+	WaitError       string
+}
+
+func (e *RoundStreamClosedError) Error() string {
+	if e == nil {
+		return ErrRoundStreamClosedBeforeTerminal.Error()
+	}
+	detail := fmt.Sprintf(
+		"%s: messages_seen=%d last_type=%s last_session_id=%s last_message_id=%s",
+		ErrRoundStreamClosedBeforeTerminal,
+		e.MessagesSeen,
+		e.LastMessageType,
+		e.LastSessionID,
+		e.LastMessageID,
+	)
+	if strings.TrimSpace(e.WaitError) != "" {
+		detail += " wait_error=" + strings.TrimSpace(e.WaitError)
+	}
+	return detail
+}
+
+func (e *RoundStreamClosedError) Unwrap() error {
+	return ErrRoundStreamClosedBeforeTerminal
+}
 
 // RoundMapResult 表示单条 SDK 消息映射后的统一结果。
 type RoundMapResult struct {
@@ -68,6 +100,8 @@ func ExecuteRound(
 	}
 
 	messageCh := request.Client.ReceiveMessages(ctx)
+	messagesSeen := 0
+	lastMessage := sdkprotocol.ReceivedMessage{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -77,8 +111,10 @@ func ExecuteRound(
 				if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
 					return RoundExecutionResult{}, ErrRoundInterrupted
 				}
-				return RoundExecutionResult{}, ErrRoundStreamClosedBeforeTerminal
+				return RoundExecutionResult{}, buildRoundStreamClosedError(request.Client, messagesSeen, lastMessage)
 			}
+			messagesSeen++
+			lastMessage = incoming
 			if request.ObserveIncomingMessage != nil {
 				request.ObserveIncomingMessage(incoming)
 			}
@@ -129,6 +165,45 @@ func ExecuteRound(
 			}
 		}
 	}
+}
+
+type clientWaiter interface {
+	Wait() error
+}
+
+func buildRoundStreamClosedError(client Client, messagesSeen int, lastMessage sdkprotocol.ReceivedMessage) error {
+	result := &RoundStreamClosedError{
+		MessagesSeen:    messagesSeen,
+		LastMessageType: strings.TrimSpace(string(lastMessage.Type)),
+		LastSessionID:   strings.TrimSpace(lastMessage.SessionID),
+		LastMessageID:   strings.TrimSpace(receivedMessageID(lastMessage)),
+	}
+	if waiter, ok := client.(clientWaiter); ok {
+		if err := waiter.Wait(); err != nil {
+			result.WaitError = err.Error()
+		}
+	}
+	return result
+}
+
+func receivedMessageID(message sdkprotocol.ReceivedMessage) string {
+	if strings.TrimSpace(message.UUID) != "" {
+		return strings.TrimSpace(message.UUID)
+	}
+	if message.Assistant != nil && strings.TrimSpace(message.Assistant.Message.ID) != "" {
+		return strings.TrimSpace(message.Assistant.Message.ID)
+	}
+	if message.Stream != nil {
+		if payload, ok := message.Stream.Event.(map[string]any); ok {
+			if messagePayload, ok := payload["message"].(map[string]any); ok {
+				return strings.TrimSpace(messageString(messagePayload["id"]))
+			}
+		}
+		if messagePayload, ok := message.Stream.Data["message"].(map[string]any); ok {
+			return strings.TrimSpace(messageString(messagePayload["id"]))
+		}
+	}
+	return ""
 }
 
 func shouldTreatAsInterrupted(ctx context.Context, interruptReason func() string) bool {

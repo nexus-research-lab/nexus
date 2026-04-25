@@ -36,12 +36,14 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		return err
 	}
 	targetAgentIDs := ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
+	targetResolution := roomTargetResolution(targetAgentIDs)
 	if len(targetAgentIDs) == 0 && len(agentNameByID) == 1 {
 		// 单成员直聊 Room 再强制 @mention 只会制造额外交互噪音，
 		// 这里直接把唯一成员当作默认目标，保持与 DM 直觉一致。
 		for agentID := range agentNameByID {
 			targetAgentIDs = []string{agentID}
 		}
+		targetResolution = "single_member_default"
 	}
 	s.loggerFor(ctx).Info("受理 Room 会话消息",
 		"session_key", sessionKey,
@@ -50,6 +52,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		"round_id", request.RoundID,
 		"target_agent_count", len(targetAgentIDs),
 		"target_agents", append([]string(nil), targetAgentIDs...),
+		"target_resolution", targetResolution,
 		"content_chars", utf8.RuneCountInString(strings.TrimSpace(request.Content)),
 	)
 
@@ -121,12 +124,19 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		sessionsByAgent[item.AgentID] = item
 	}
 
+	initialTrigger := roomTrigger{
+		TriggerType: "public_chat",
+		Content:     strings.TrimSpace(request.Content),
+		MessageID:   request.RoundID,
+	}
 	activeRound := &activeRoomRound{
 		SessionKey:     sessionKey,
 		RoomID:         roomID,
 		ConversationID: conversationID,
 		RoomType:       contextValue.Room.RoomType,
+		Context:        contextValue,
 		RoundID:        request.RoundID,
+		RootRoundID:    request.RoundID,
 		OwnerUserID:    usagesvc.OwnerUserIDFromContext(ctx),
 		Slots:          make(map[string]*activeRoomSlot),
 		Done:           make(chan struct{}),
@@ -158,6 +168,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			Status:            "pending",
 			Index:             index,
 			TimestampMS:       normalizeInt64(userMessage["timestamp"]),
+			Trigger:           initialTrigger,
 			Done:              make(chan struct{}),
 		}
 		_ = sessionRecord

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 type fakeRoundExecutionClient struct {
 	sessionID string
 	queryErr  error
+	waitErr   error
 	messages  chan sdkprotocol.ReceivedMessage
 }
 
@@ -31,6 +33,8 @@ func (c *fakeRoundExecutionClient) ReceiveMessages(context.Context) <-chan sdkpr
 func (c *fakeRoundExecutionClient) Interrupt(context.Context) error { return nil }
 
 func (c *fakeRoundExecutionClient) Disconnect(context.Context) error { return nil }
+
+func (c *fakeRoundExecutionClient) Wait() error { return c.waitErr }
 
 func (c *fakeRoundExecutionClient) Reconfigure(context.Context, agentclient.Options) error {
 	return nil
@@ -176,6 +180,46 @@ func TestExecuteRoundReturnsInterruptedWhenContextCancelled(t *testing.T) {
 	})
 	if !errors.Is(err, ErrRoundInterrupted) {
 		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
+	}
+}
+
+func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		waitErr:   errors.New("exit status 1"),
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeAssistant,
+		SessionID: "sdk-session-1",
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{ID: "assistant-1"},
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{}},
+		},
+	})
+	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
+		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
+	}
+	var streamErr *RoundStreamClosedError
+	if !errors.As(err, &streamErr) {
+		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
+	}
+	if streamErr.MessagesSeen != 1 ||
+		streamErr.LastMessageType != string(sdkprotocol.MessageTypeAssistant) ||
+		streamErr.LastSessionID != "sdk-session-1" ||
+		streamErr.LastMessageID != "assistant-1" {
+		t.Fatalf("stream close 诊断字段不正确: %+v", streamErr)
+	}
+	if !strings.Contains(streamErr.WaitError, "exit status 1") {
+		t.Fatalf("stream close 缺少 wait error: %+v", streamErr)
 	}
 }
 
