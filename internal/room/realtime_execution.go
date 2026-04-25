@@ -214,6 +214,10 @@ func (s *RealtimeService) runSlot(
 		},
 		HandleDurableMessage: func(messageValue protocol.Message) error {
 			messageRole := protocol.MessageRole(messageValue)
+			if messageRole == "result" {
+				slot.Status = resultStatus(messageValue["subtype"])
+				s.recordUsage(roundValue, messageValue)
+			}
 			if messageRole == "assistant" && isRoomNoReplyAssistantMessage(messageValue) {
 				slot.SuppressOutput = true
 				return nil
@@ -228,10 +232,6 @@ func (s *RealtimeService) runSlot(
 				if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
 					return err
 				}
-			}
-			if messageRole == "result" {
-				slot.Status = resultStatus(messageValue["subtype"])
-				s.recordUsage(roundValue, messageValue)
 			}
 			return nil
 		},

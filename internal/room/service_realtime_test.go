@@ -13,6 +13,7 @@ import (
 	"time"
 
 	agentsvc "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -21,6 +22,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
 	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 
 	_ "github.com/mattn/go-sqlite3"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
@@ -109,6 +111,10 @@ func (f *fakeRoomFactory) LastOptions() agentclient.Options {
 }
 
 func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text string) {
+	sendFakeAssistantResultWithUsage(client, messageID, text, nil)
+}
+
+func sendFakeAssistantResultWithUsage(client *fakeRoomClient, messageID string, text string, usage map[string]any) {
 	client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeAssistant,
 		SessionID: client.sessionID,
@@ -131,6 +137,7 @@ func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text stri
 			DurationMS: 1,
 			NumTurns:   1,
 			Result:     "done",
+			Usage:      usage,
 		},
 	}
 }
@@ -167,7 +174,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-usage",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
 	memberAgent := createTestAgent(t, agentService, ctx, "单聊助手")
 	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
 	if err != nil {
@@ -221,6 +232,8 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		permission,
 		factory,
 	)
+	usageService := usagesvc.NewServiceWithDB(cfg, db)
+	service.SetUsageRecorder(usageService)
 	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
@@ -347,6 +360,16 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	privateSummary, ok := privateMessages[1]["result_summary"].(map[string]any)
 	if !ok || anyToInt(privateSummary["duration_ms"]) != 15 || anyToString(privateSummary["result"]) != "done" {
 		t.Fatalf("私有 result 应保留 runtime 摘要: %+v", privateMessages[1])
+	}
+	usageSummary, err := usageService.Summary(ctx, "user-room-usage")
+	if err != nil {
+		t.Fatalf("读取 room token usage 失败: %v", err)
+	}
+	if usageSummary.InputTokens != 3 || usageSummary.OutputTokens != 5 || usageSummary.TotalTokens != 8 {
+		t.Fatalf("room result usage 未写入 ledger: %+v", usageSummary)
+	}
+	if usageSummary.SessionCount != 1 || usageSummary.MessageCount != 1 {
+		t.Fatalf("room usage 计数不正确: %+v", usageSummary)
 	}
 }
 
@@ -872,7 +895,11 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-no-reply",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
 	agentValue := createTestAgent(t, agentService, ctx, "Amy")
 	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
 		AgentIDs: []string{agentValue.AgentID},
@@ -924,7 +951,10 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 					},
 				},
 			}
-			sendFakeAssistantResult(client, "amy-no-reply", "<nexus_room_no_reply/>")
+			sendFakeAssistantResultWithUsage(client, "amy-no-reply", "<nexus_room_no_reply/>", map[string]any{
+				"input_tokens":  7,
+				"output_tokens": 2,
+			})
 		}()
 		return nil
 	}
@@ -939,6 +969,8 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
 	)
+	usageService := usagesvc.NewServiceWithDB(cfg, db)
+	service.SetUsageRecorder(usageService)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-reply")
 	permission.BindSession(sharedSessionKey, sender, "client-no-reply", true)
@@ -962,6 +994,13 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	}
 	if hasStreamText(events, "<nexus_room_no_reply/>") {
 		t.Fatalf("无需回复标记不应以流式文本暴露给前端: %+v", events)
+	}
+	usageSummary, err := usageService.Summary(ctx, "user-room-no-reply")
+	if err != nil {
+		t.Fatalf("读取 no-reply token usage 失败: %v", err)
+	}
+	if usageSummary.TotalTokens != 9 {
+		t.Fatalf("no-reply result usage 也应写入 ledger: %+v", usageSummary)
 	}
 }
 
