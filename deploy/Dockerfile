@@ -14,7 +14,7 @@ ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG GOPROXY=https://goproxy.cn,direct
 ARG PRIVATE_SDK_MODULE=github.com/nexus-research-lab/nexus-agent-sdk-go
 
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
         sed -i -E "s#^URIs: https?://deb.debian.org/debian\$#URIs: ${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
         sed -i -E "s#^URIs: https?://deb.debian.org/debian-security\$#URIs: ${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
@@ -67,7 +67,7 @@ ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
         sed -i -E "s#^URIs: https?://deb.debian.org/debian\$#URIs: ${APT_MIRROR}/debian#g" /etc/apt/sources.list.d/debian.sources && \
         sed -i -E "s#^URIs: https?://deb.debian.org/debian-security\$#URIs: ${DEBIAN_SECURITY_MIRROR}#g" /etc/apt/sources.list.d/debian.sources; \
