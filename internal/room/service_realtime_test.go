@@ -334,6 +334,16 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	if privateMessages[0]["role"] != "user" || privateMessages[1]["role"] != "assistant" {
 		t.Fatalf("私有 runtime 消息顺序不正确: %+v", privateMessages)
 	}
+	privateUserContent := anyToString(privateMessages[0]["content"])
+	for _, expected := range []string{
+		"<public_feed>",
+		"\"content\":\"你好\"",
+		"\"trigger_type\":\"public_chat\"",
+	} {
+		if !strings.Contains(privateUserContent, expected) {
+			t.Fatalf("私有 round marker 应记录实际 Room dispatch prompt，缺少 %q:\n%s", expected, privateUserContent)
+		}
+	}
 	privateSummary, ok := privateMessages[1]["result_summary"].(map[string]any)
 	if !ok || anyToInt(privateSummary["duration_ms"]) != 15 || anyToString(privateSummary["result"]) != "done" {
 		t.Fatalf("私有 result 应保留 runtime 摘要: %+v", privateMessages[1])

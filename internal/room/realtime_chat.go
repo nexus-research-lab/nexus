@@ -202,7 +202,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
-	go s.runRound(roundCtx, activeRound, history, request.Content, agentNameByID, agentByID)
+	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)
 	return nil
 }
 

@@ -23,7 +23,6 @@ func (s *RealtimeService) runRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 	history []protocol.Message,
-	latestUserMessage string,
 	agentNameByID map[string]string,
 	agentByID map[string]*agent2.Agent,
 ) {
@@ -39,7 +38,7 @@ func (s *RealtimeService) runRound(
 		waitGroup.Add(1)
 		go func(currentSlot *activeRoomSlot) {
 			defer waitGroup.Done()
-			s.runSlot(ctx, roundValue, currentSlot, history, latestUserMessage, agentNameByID, agentByID[currentSlot.AgentID])
+			s.runSlot(ctx, roundValue, currentSlot, history, agentNameByID, agentByID[currentSlot.AgentID])
 		}(slot)
 	}
 	waitGroup.Wait()
@@ -72,7 +71,6 @@ func (s *RealtimeService) runSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 	history []protocol.Message,
-	latestUserMessage string,
 	agentNameByID map[string]string,
 	agentValue *agent2.Agent,
 ) {
@@ -103,11 +101,6 @@ func (s *RealtimeService) runSlot(
 	slot.Status = "running"
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
-
-	if err := s.recordPrivateRoundMarker(slot, latestUserMessage); err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-		return
-	}
 
 	s.permission.BindSessionRoute(slot.RuntimeSessionKey, permission3.RouteContext{
 		DispatchSessionKey: roundValue.SessionKey,
@@ -202,6 +195,10 @@ func (s *RealtimeService) runSlot(
 		AgentNameByID: agentNameByID,
 		TargetAgentID: slot.AgentID,
 	})
+	if err := s.recordPrivateRoundMarker(slot, dispatchPrompt); err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
 	slot.NoReplyCandidate = true
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
 		Query:  dispatchPrompt,
@@ -494,7 +491,7 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 	}
 }
 
-func (s *RealtimeService) recordPrivateRoundMarker(slot *activeRoomSlot, latestUserMessage string) error {
+func (s *RealtimeService) recordPrivateRoundMarker(slot *activeRoomSlot, dispatchPrompt string) error {
 	if s.history == nil {
 		return nil
 	}
@@ -502,7 +499,7 @@ func (s *RealtimeService) recordPrivateRoundMarker(slot *activeRoomSlot, latestU
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		slot.AgentRoundID,
-		strings.TrimSpace(latestUserMessage),
+		strings.TrimSpace(dispatchPrompt),
 		time.Now().UnixMilli(),
 	)
 }
