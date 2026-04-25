@@ -149,7 +149,6 @@ func (s *RealtimeService) startPublicMentionRound(
 
 	roundID := "room_mention_" + newRealtimeID()
 	rootRoundID := firstNonEmpty(roomRootRoundID(parentRound), roundID)
-	triggerContent := formatPublicMentionContent(wakes, agentNameByID)
 	activeRound := &activeRoomRound{
 		SessionKey:     sessionKey,
 		RoomID:         contextValue.Room.ID,
@@ -241,7 +240,7 @@ func (s *RealtimeService) startPublicMentionRound(
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, wrapRoomRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, wrapRoomChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, roundID, pending))
 	s.broadcastSessionStatus(ctx, sessionKey)
-	go s.runRound(roundCtx, activeRound, publicHistory, triggerContent, agentNameByID, agentByID)
+	go s.runRound(roundCtx, activeRound, publicHistory, agentNameByID, agentByID)
 	return nil
 }
 
@@ -355,23 +354,4 @@ func buildRoomMentionAliases(contextValue *ConversationContextAggregate) map[str
 		}
 	}
 	return aliases
-}
-
-func formatPublicMentionContent(wakes []publicMentionWake, agentNameByID map[string]string) string {
-	lines := make([]string, 0, len(wakes))
-	seen := make(map[string]struct{}, len(wakes))
-	for _, wake := range wakes {
-		content := strings.TrimSpace(wake.Content)
-		if content == "" {
-			continue
-		}
-		key := wake.SourceAgentID + "\n" + content
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		sourceName := firstNonEmpty(agentNameByID[wake.SourceAgentID], wake.SourceAgentID, "Agent")
-		lines = append(lines, sourceName+": "+content)
-	}
-	return strings.Join(lines, "\n")
 }

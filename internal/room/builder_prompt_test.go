@@ -25,6 +25,72 @@ func TestBuildHistoryLinesFiltersIncompleteAssistant(t *testing.T) {
 	}
 }
 
+func TestBuildHistoryLinesKeepsNewestMessagesWithinBudget(t *testing.T) {
+	history := []protocol.Message{
+		{"role": "user", "content": "@Amy 先开始"},
+		{"role": "assistant", "agent_id": "agent-amy", "content": strings.Repeat("旧消息", roomMaxHistoryChars), "is_complete": true},
+		{"role": "user", "content": "@Amy 李家村，有一娃"},
+		{"role": "assistant", "agent_id": "agent-amy", "content": "罗家巷，有一郎，磨磨唧唧，又啰又怂", "is_complete": true},
+		{"role": "user", "content": "@sam 你觉得呢"},
+	}
+
+	lines := buildHistoryLines(history, map[string]string{
+		"agent-amy": "Amy",
+	})
+	got := strings.Join(lines, "\n")
+
+	for _, expected := range []string{
+		"User: @Amy 李家村，有一娃",
+		"Assistant(Amy): 罗家巷，有一郎",
+		"User: @sam 你觉得呢",
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("公区历史应优先保留最新消息 %q:\n%s", expected, got)
+		}
+	}
+	if strings.Contains(got, "旧消息") {
+		t.Fatalf("公区历史预算不足时不应让旧长消息挤掉新消息:\n%s", got)
+	}
+}
+
+func TestExtractHistoryTextSkipsThinkingAndKeepsToolContext(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "thinking", "thinking": "这里是内部思考，不应进入 Room 公区上下文"},
+			{
+				"type": "tool_use",
+				"name": "Skill",
+				"input": map[string]any{
+					"skill": "room-collaboration",
+					"args":  "@Devin 查天气",
+				},
+			},
+			{
+				"type":    "tool_result",
+				"content": "Launching skill: room-collaboration",
+			},
+			{"type": "text", "text": "最终公开回复"},
+		},
+	}
+
+	got := extractHistoryText(message)
+	for _, expected := range []string{
+		"[tool_use] Skill",
+		"room-collaboration",
+		"@Devin 查天气",
+		"[tool_result] Launching skill: room-collaboration",
+		"最终公开回复",
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("历史文本应保留工具上下文 %q:\n%s", expected, got)
+		}
+	}
+	if strings.Contains(got, "内部思考") {
+		t.Fatalf("历史文本不应泄露 thinking:\n%s", got)
+	}
+}
+
 func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	contextValue := buildRoomVisibleContext(roomVisibleContextInput{
 		PublicHistory: []protocol.Message{
