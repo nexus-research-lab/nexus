@@ -8,6 +8,7 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { build_room_shared_session_key } from "@/lib/conversation/session-key";
+import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
   get_session_control_status_text,
@@ -120,6 +121,8 @@ export function GroupChatPanel({
   const is_mobile_layout = layout === "mobile";
   const { active_thread, close_thread } = useGroupThread();
   const { set_thread_panel_data } = useSetGroupThreadPanelData();
+  const { status: auth_status } = useAuth();
+  const current_user_avatar = auth_status?.avatar ?? null;
   const consumed_initial_draft_ref = useRef<string | null>(null);
 
   const session_key = conversation_id
@@ -447,6 +450,7 @@ export function GroupChatPanel({
       messages: thread_messages,
       agent_name: thread_agent_name,
       agent_avatar: thread_agent_avatar,
+      user_avatar: current_user_avatar,
       is_loading: thread_is_loading,
       pending_permissions: thread_pending_permissions,
       on_permission_response: send_permission_response,
@@ -462,6 +466,7 @@ export function GroupChatPanel({
     on_open_workspace_file,
     observer_read_only_reason,
     thread_agent_avatar,
+    current_user_avatar,
     send_permission_response,
     thread_agent_name,
     thread_is_loading,
@@ -510,6 +515,7 @@ export function GroupChatPanel({
               scroll_ref={scroll_ref}
               current_agent_name={current_agent_name ?? null}
               current_agent_avatar={current_agent_avatar ?? null}
+              current_user_avatar={current_user_avatar}
               is_last_round_pending_permissions={pending_permissions}
               is_loading={is_loading}
               runtime_phase={runtime_phase}

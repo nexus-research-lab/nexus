@@ -27,6 +27,7 @@ export interface MessageItemProps {
   compact?: boolean;
   current_agent_name?: string | null;
   current_agent_avatar?: string | null;
+  current_user_avatar?: string | null;
   round_id: string;
   messages: Message[];
   is_last_round?: boolean;

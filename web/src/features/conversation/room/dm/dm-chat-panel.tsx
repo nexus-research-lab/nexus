@@ -7,6 +7,7 @@ import { useProviderAvailability } from "@/hooks/capability/use-provider-availab
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
+import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
   get_session_control_status_text,
@@ -60,6 +61,8 @@ export function DmChatPanel({
 }: DmChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
   const session_key = session_identity?.session_key ?? null;
+  const { status: auth_status } = useAuth();
+  const current_user_avatar = auth_status?.avatar ?? null;
 
   const {
     error,
@@ -306,6 +309,7 @@ export function DmChatPanel({
           scroll_ref={scroll_ref}
           current_agent_name={current_agent_name ?? null}
           current_agent_avatar={current_agent_avatar ?? null}
+          current_user_avatar={current_user_avatar}
           is_last_round_pending_permissions={pending_permissions}
           is_loading={is_loading}
           runtime_phase={runtime_phase}

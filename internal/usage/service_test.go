@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -53,6 +54,40 @@ func TestServiceRecordsAndDeduplicatesMessageUsage(t *testing.T) {
 	}
 	if summary.CacheCreationInputTokens != 3 || summary.CacheReadInputTokens != 7 || summary.TotalTokens != 130 {
 		t.Fatalf("总 token 不正确: %+v", summary)
+	}
+}
+
+func TestServiceRecordsJSONNumberUsage(t *testing.T) {
+	cfg, db := newUsageTestDB(t)
+	service := NewServiceWithDB(cfg, db)
+	ctx := context.Background()
+
+	input := MessageRecordInput("user-json-number", "room_runtime", map[string]any{
+		"session_key": "room:group:conversation-1",
+		"message_id":  "result-1",
+		"round_id":    "round-1",
+		"role":        "result",
+		"timestamp":   json.Number("1777106383751"),
+		"usage": map[string]any{
+			"input_tokens":                json.Number("24777"),
+			"output_tokens":               json.Number("727"),
+			"cache_creation_input_tokens": json.Number("0"),
+			"cache_read_input_tokens":     json.Number("15296"),
+		},
+	})
+	if err := service.RecordMessageUsage(ctx, input); err != nil {
+		t.Fatalf("写入 json.Number token usage 失败: %v", err)
+	}
+
+	summary, err := service.Summary(ctx, "user-json-number")
+	if err != nil {
+		t.Fatalf("汇总 json.Number token usage 失败: %v", err)
+	}
+	if summary.InputTokens != 24777 || summary.OutputTokens != 727 || summary.CacheReadInputTokens != 15296 {
+		t.Fatalf("json.Number token 解析不正确: %+v", summary)
+	}
+	if summary.TotalTokens != 40800 {
+		t.Fatalf("json.Number 总 token 不正确: %+v", summary)
 	}
 }
 

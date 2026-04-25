@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -133,6 +134,13 @@ func int64FromAny(value any) int64 {
 		return int64(typed)
 	case float64:
 		return int64(typed)
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil {
+			return parsed
+		}
+		if parsed, err := strconv.ParseFloat(typed.String(), 64); err == nil {
+			return int64(parsed)
+		}
 	case string:
 		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
 		if err == nil {
@@ -158,6 +166,10 @@ func timestampFromAny(value any) time.Time {
 		return time.UnixMilli(int64(typed)).UTC()
 	case float64:
 		return time.UnixMilli(int64(typed)).UTC()
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil {
+			return time.UnixMilli(parsed).UTC()
+		}
 	case string:
 		if parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64); err == nil {
 			return time.UnixMilli(parsed).UTC()

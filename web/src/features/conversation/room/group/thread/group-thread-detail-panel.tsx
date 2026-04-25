@@ -17,6 +17,7 @@ interface GroupThreadDetailPanelProps {
   agent_id: string;
   agent_name: string;
   agent_avatar?: string | null;
+  user_avatar?: string | null;
   /** 已过滤好的 Thread 消息。 */
   messages: Message[];
   pending_permissions?: PendingPermission[];
@@ -40,6 +41,7 @@ export function GroupThreadDetailPanel({
   agent_id,
   agent_name,
   agent_avatar,
+  user_avatar,
   messages,
   pending_permissions = [],
   on_permission_response,
@@ -139,6 +141,7 @@ export function GroupThreadDetailPanel({
             compact
             current_agent_name={agent_name}
             current_agent_avatar={agent_avatar ?? null}
+            current_user_avatar={user_avatar ?? null}
             round_id={round_id}
             messages={messages}
             pending_permissions={pending_permissions}

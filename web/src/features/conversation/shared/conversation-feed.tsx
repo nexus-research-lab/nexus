@@ -16,6 +16,7 @@ interface ConversationFeedProps {
   compact?: boolean;
   current_agent_name: string | null;
   current_agent_avatar?: string | null;
+  current_user_avatar?: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
   /** Room 模式下的 agent_id → avatar 映射 */
@@ -76,6 +77,7 @@ export const ConversationFeed = memo(function ConversationFeed({
   compact = false,
   current_agent_name,
   current_agent_avatar,
+  current_user_avatar,
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
@@ -102,6 +104,7 @@ export const ConversationFeed = memo(function ConversationFeed({
         compact={compact}
         current_agent_name={current_agent_name}
         current_agent_avatar={current_agent_avatar}
+        current_user_avatar={current_user_avatar}
         agent_name_map={agent_name_map}
         agent_avatar_map={agent_avatar_map}
         is_last_round_pending_permissions={is_last_round_pending_permissions}
@@ -138,6 +141,7 @@ export const ConversationFeed = memo(function ConversationFeed({
             compact={compact}
             current_agent_name={round_agent_name}
             current_agent_avatar={round_agent_avatar}
+            current_user_avatar={current_user_avatar}
             round_id={roundId}
             messages={roundMessages}
             assistant_content_mode={is_last_round_live ? "dm_live" : "dm_archived"}
@@ -167,6 +171,7 @@ function VirtualFeed({
   compact,
   current_agent_name,
   current_agent_avatar,
+  current_user_avatar,
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
@@ -253,6 +258,7 @@ function VirtualFeed({
                 compact={compact}
                 current_agent_name={round_agent_name}
                 current_agent_avatar={round_agent_avatar}
+                current_user_avatar={current_user_avatar}
                 round_id={roundId}
                 messages={roundMessages}
                 assistant_content_mode={is_last_round_live ? "dm_live" : "dm_archived"}

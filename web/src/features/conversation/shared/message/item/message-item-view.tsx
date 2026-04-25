@@ -44,6 +44,7 @@ interface MessageUserSectionProps {
   compact: boolean;
   user_message: MessageItemState["user_message"];
   user_content: string;
+  current_user_avatar?: string | null;
   copied_user: boolean;
   on_copy_user: () => Promise<void>;
   on_edit_user_message?: (message_id: string, new_content: string) => void;
@@ -54,6 +55,7 @@ export function MessageUserSection({
   compact,
   user_message,
   user_content,
+  current_user_avatar,
   copied_user,
   on_copy_user,
   on_edit_user_message,
@@ -113,8 +115,11 @@ export function MessageUserSection({
               <MessageAvatar
                 class_name="shrink-0"
                 size={compact ? "compact" : "full"}
+                avatar_url={current_user_avatar}
               >
-                <User className={compact ? "h-3 w-3" : "h-4 w-4"} />
+                {!current_user_avatar && (
+                  <User className={compact ? "h-3 w-3" : "h-4 w-4"} />
+                )}
               </MessageAvatar>
             </div>
 

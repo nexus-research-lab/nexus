@@ -348,6 +348,7 @@ function GroupThreadInlinePanel({
         agent_id={active_thread.agent_id}
         agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
         agent_avatar={thread_panel_data.agent_avatar}
+        user_avatar={thread_panel_data.user_avatar}
         messages={thread_panel_data.messages}
         pending_permissions={thread_panel_data.pending_permissions}
         on_permission_response={thread_panel_data.on_permission_response}

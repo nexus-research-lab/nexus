@@ -18,6 +18,7 @@ interface GroupConversationFeedProps {
   compact?: boolean;
   current_agent_name: string | null;
   current_agent_avatar?: string | null;
+  current_user_avatar?: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
   /** Room 模式下的 agent_id → avatar 映射（用于多 Agent 显示） */
@@ -80,6 +81,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
   compact = false,
   current_agent_name,
   current_agent_avatar,
+  current_user_avatar,
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
@@ -108,6 +110,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         compact={compact}
         current_agent_name={current_agent_name}
         current_agent_avatar={current_agent_avatar}
+        current_user_avatar={current_user_avatar}
         agent_name_map={agent_name_map}
         agent_avatar_map={agent_avatar_map}
         is_last_round_pending_permissions={is_last_round_pending_permissions}
@@ -152,6 +155,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
               pending_slots={round_pending_slots}
               agent_name_map={agent_name_map}
               agent_avatar_map={agent_avatar_map}
+              current_user_avatar={current_user_avatar}
               is_last_round={isLastRound}
               is_loading={is_last_round_live}
               on_permission_response={on_permission_response}
@@ -172,6 +176,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
             compact={compact}
             current_agent_name={round_agent_name}
             current_agent_avatar={round_agent_avatar}
+            current_user_avatar={current_user_avatar}
             round_id={roundId}
             messages={roundMessages}
             is_last_round={isLastRound}
@@ -200,6 +205,7 @@ function VirtualFeed({
   compact,
   current_agent_name,
   current_agent_avatar,
+  current_user_avatar,
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
@@ -293,6 +299,7 @@ function VirtualFeed({
                   pending_slots={round_pending_slots}
                   agent_name_map={agent_name_map}
                   agent_avatar_map={agent_avatar_map}
+                  current_user_avatar={current_user_avatar}
                   is_last_round={isLastRound}
                   is_loading={is_last_round_live}
                   on_permission_response={on_permission_response}
@@ -306,6 +313,7 @@ function VirtualFeed({
                   compact={compact}
                   current_agent_name={resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name}
                   current_agent_avatar={resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar}
+                  current_user_avatar={current_user_avatar}
                   round_id={roundId}
                   messages={roundMessages}
                   is_last_round={isLastRound}

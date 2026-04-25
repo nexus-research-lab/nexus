@@ -17,6 +17,7 @@ interface GroupRoundCardGroupProps {
   pending_slots?: RoomPendingAgentSlotState[];
   agent_name_map?: Record<string, string>;
   agent_avatar_map?: Record<string, string | null>;
+  current_user_avatar?: string | null;
   is_last_round: boolean;
   is_loading: boolean;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
@@ -97,6 +98,7 @@ function GroupRoundCardGroupInner(
     pending_slots = [],
     agent_name_map,
     agent_avatar_map,
+    current_user_avatar,
     on_permission_response,
     can_respond_to_permissions = true,
     permission_read_only_reason,
@@ -147,6 +149,7 @@ function GroupRoundCardGroupInner(
           <MessageItem
             round_id={round_id}
             messages={[user_message]}
+            current_user_avatar={current_user_avatar}
             is_last_round={false}
             is_loading
             class_name="border-b-0"
