@@ -7,10 +7,21 @@
 
 import { request_api } from "@/lib/api/http";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
+import type { AgentConversationDeliveryPolicy } from "@/types/agent/agent-conversation";
+import type { UserPreferences } from "@/types/settings/preferences";
+import { DEFAULT_AGENT_ALLOWED_TOOLS } from "@/features/agents/options/agent-options-constants";
 
 export let DEFAULT_AGENT_ID = "";
 export let DEFAULT_AGENT_AVATAR = "";
 export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
+export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
+let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDeliveryPolicy = "queue";
+let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
+  permission_mode: "bypassPermissions",
+  allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
+  disallowed_tools: [],
+  setting_sources: ["project"],
+};
 
 const DEFAULT_API_PATH = "/agent/v1";
 const DEFAULT_WS_PATH = "/agent/v1/chat/ws";
@@ -87,9 +98,27 @@ export function set_default_agent_provider(provider?: string | null): void {
 }
 
 export function get_initial_agent_options(): Partial<AgentOptions> {
+  return clone_agent_options(DEFAULT_AGENT_OPTIONS);
+}
+
+export function get_default_chat_delivery_policy(): AgentConversationDeliveryPolicy {
+  return DEFAULT_CHAT_DELIVERY_POLICY;
+}
+
+export function get_user_preferences(): UserPreferences {
   return {
-    permission_mode: "default",
+    chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
+    default_agent_options: get_initial_agent_options(),
   };
+}
+
+export function set_user_preferences(preferences?: Partial<UserPreferences> | null): void {
+  const policy = preferences?.chat_default_delivery_policy;
+  if (policy === "queue" || policy === "guide" || policy === "interrupt" || policy === "auto") {
+    DEFAULT_CHAT_DELIVERY_POLICY = policy;
+  }
+  DEFAULT_AGENT_OPTIONS = normalize_agent_options(preferences?.default_agent_options);
+  notify_user_preferences_changed();
 }
 
 export function is_main_agent(agent_id?: string | null): boolean {
@@ -105,6 +134,7 @@ export async function hydrate_runtime_options(): Promise<void> {
     default_agent_id: string;
     default_agent_avatar?: string | null;
     default_agent_provider?: string | null;
+    preferences?: UserPreferences | null;
   }>(
     `${get_agent_api_base_url()}/runtime/options`,
     {
@@ -120,4 +150,35 @@ export async function hydrate_runtime_options(): Promise<void> {
   DEFAULT_AGENT_ID = next_default_agent_id;
   set_default_agent_avatar(payload?.default_agent_avatar);
   set_default_agent_provider(payload?.default_agent_provider);
+  set_user_preferences(payload?.preferences);
+}
+
+function clone_agent_options(options: Partial<AgentOptions>): Partial<AgentOptions> {
+  return {
+    ...options,
+    allowed_tools: [...(options.allowed_tools ?? [])],
+    disallowed_tools: [...(options.disallowed_tools ?? [])],
+    setting_sources: [...(options.setting_sources ?? ["project"])],
+  };
+}
+
+function normalize_agent_options(options?: Partial<AgentOptions> | null): Partial<AgentOptions> {
+  const source = options ?? {};
+  return {
+    ...source,
+    permission_mode: source.permission_mode?.trim() || "bypassPermissions",
+    allowed_tools: [...(source.allowed_tools ?? DEFAULT_AGENT_ALLOWED_TOOLS)],
+    disallowed_tools: [...(source.disallowed_tools ?? [])],
+    setting_sources: [...(source.setting_sources ?? ["project"])],
+  };
+}
+
+function notify_user_preferences_changed(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent<UserPreferences>(
+    USER_PREFERENCES_CHANGED_EVENT,
+    { detail: get_user_preferences() },
+  ));
 }

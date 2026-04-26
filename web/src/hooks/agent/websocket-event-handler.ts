@@ -9,6 +9,7 @@ import {
 } from "@/types";
 import {
   HandleAgentConversationWebSocketMessageParams,
+  InputQueueEventPayload,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import { WorkspaceEventPayload } from "@/types/app/workspace-live";
@@ -28,6 +29,7 @@ export function handle_agent_conversation_web_socket_message({
   is_current_session_event,
   set_error,
   set_messages,
+  set_input_queue_items,
   set_pending_permissions,
   enqueue_stream_payload,
   on_background_message,
@@ -129,6 +131,16 @@ export function handle_agent_conversation_web_socket_message({
     }
     const payload = (event.data ?? {}) as SessionStatusEventPayload;
     sync_session_status?.(payload);
+    return;
+  }
+
+  if (event.event_type === "input_queue") {
+    if (!is_current_session_event(incoming_session_key)) {
+      return;
+    }
+    const payload = (event.data ?? {}) as InputQueueEventPayload;
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    set_input_queue_items?.(items);
     return;
   }
 

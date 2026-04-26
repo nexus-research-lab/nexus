@@ -16,6 +16,7 @@ export function reset_session_view(
 ): void {
   context.set_messages([]);
   context.set_pending_agent_slots([]);
+  context.set_input_queue_items?.([]);
   context.set_pending_permissions([]);
   context.set_error(next_error);
 }

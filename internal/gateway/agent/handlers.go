@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/preferences"
 	roompkg "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/session"
@@ -21,6 +23,7 @@ type Handlers struct {
 	sessions     *sessionpkg.Service
 	runtime      *runtimectx.Manager
 	roomRealtime *roompkg.RealtimeService
+	prefs        *preferencessvc.Service
 }
 
 // New 创建 Agent / Session 域 handlers。
@@ -30,13 +33,19 @@ func New(
 	sessions *sessionpkg.Service,
 	runtime *runtimectx.Manager,
 	roomRealtime *roompkg.RealtimeService,
+	prefs ...*preferencessvc.Service,
 ) *Handlers {
+	var prefService *preferencessvc.Service
+	if len(prefs) > 0 {
+		prefService = prefs[0]
+	}
 	return &Handlers{
 		api:          api,
 		agents:       agents,
 		sessions:     sessions,
 		runtime:      runtime,
 		roomRealtime: roomRealtime,
+		prefs:        prefService,
 	}
 }
 
@@ -112,6 +121,14 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
+	if payload.Options == nil && h.prefs != nil {
+		prefs, prefErr := h.prefs.Get(request.Context(), currentOwnerUserID(request))
+		if prefErr != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, prefErr.Error())
+			return
+		}
+		payload.Options = &prefs.DefaultAgentOptions
+	}
 
 	created, err := h.agents.CreateAgent(request.Context(), payload)
 	if err != nil {
@@ -123,6 +140,13 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 		return
 	}
 	h.api.WriteSuccess(writer, created)
+}
+
+func currentOwnerUserID(request *http.Request) string {
+	if userID, ok := authsvc.CurrentUserID(request.Context()); ok {
+		return userID
+	}
+	return authsvc.SystemUserID
 }
 
 // HandleUpdateAgent 更新 agent。

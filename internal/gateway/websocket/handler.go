@@ -195,7 +195,7 @@ func (h *Handler) dispatchWebSocketMessage(
 		h.handleBindSession(ctx, sender, inbound)
 	case "unbind_session":
 		h.handleUnbindSession(ctx, sender, inbound)
-	case "chat", "interrupt", "permission_response":
+	case "chat", "interrupt", "permission_response", "input_queue":
 		h.handleControlMessage(ctx, sender, inbound)
 	default:
 		_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(
@@ -244,6 +244,18 @@ func (h *Handler) handleSubscribeRoom(
 			return
 		}
 	}
+	if h.roomRealtime != nil && strings.TrimSpace(conversationID) != "" {
+		event, err := h.roomRealtime.InputQueueSnapshotEvent(ctx, roomID, conversationID)
+		if err != nil {
+			h.sendGatewayError(ctx, sender, "", "input_queue_error", err, map[string]any{
+				"type":            "subscribe_room",
+				"room_id":         roomID,
+				"conversation_id": conversationID,
+			})
+			return
+		}
+		_ = sender.SendEvent(ctx, event)
+	}
 }
 
 func (h *Handler) handleUnsubscribeRoom(sender *gatewayshared.WebSocketSender, inbound map[string]any) {
@@ -279,6 +291,11 @@ func (h *Handler) handleBindSession(
 		_ = h.channels.RememberWebSocketRoute(ctx, sessionKey)
 	}
 	h.broadcastSessionStatus(ctx, sessionKey)
+	if parsed.Kind == protocol.SessionKeyKindAgent && h.chat != nil {
+		if err := h.chat.SendInputQueueSnapshot(ctx, sessionKey, gatewayshared.StringValue(inbound["agent_id"])); err != nil {
+			h.sendGatewayError(ctx, sender, sessionKey, "input_queue_error", err, map[string]any{"type": "bind_session"})
+		}
+	}
 }
 
 func (h *Handler) validateRoomSubscription(ctx context.Context, roomID string, conversationID string) error {
@@ -364,14 +381,16 @@ func (h *Handler) handleControlMessage(
 				Content:        gatewayshared.StringValue(inbound["content"]),
 				RoundID:        gatewayshared.StringValue(inbound["round_id"]),
 				ReqID:          gatewayshared.StringValue(inbound["req_id"]),
+				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(gatewayshared.StringValue(inbound["delivery_policy"])),
 			})
 		} else {
 			err = h.chat.HandleChat(ctx, chatsvc.Request{
-				SessionKey: sessionKey,
-				AgentID:    gatewayshared.StringValue(inbound["agent_id"]),
-				Content:    gatewayshared.StringValue(inbound["content"]),
-				RoundID:    gatewayshared.StringValue(inbound["round_id"]),
-				ReqID:      gatewayshared.StringValue(inbound["req_id"]),
+				SessionKey:     sessionKey,
+				AgentID:        gatewayshared.StringValue(inbound["agent_id"]),
+				Content:        gatewayshared.StringValue(inbound["content"]),
+				RoundID:        gatewayshared.StringValue(inbound["round_id"]),
+				ReqID:          gatewayshared.StringValue(inbound["req_id"]),
+				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(gatewayshared.StringValue(inbound["delivery_policy"])),
 			})
 		}
 		if err != nil {
@@ -404,6 +423,37 @@ func (h *Handler) handleControlMessage(
 		}
 		if err != nil {
 			h.sendGatewayError(ctx, sender, sessionKey, "interrupt_error", err, map[string]any{"type": msgType})
+		}
+	case "input_queue":
+		action := firstStringValue(inbound["action"], inbound["action_type"])
+		var err error
+		if parsed.Kind == protocol.SessionKeyKindRoom && h.roomRealtime != nil {
+			err = h.roomRealtime.HandleInputQueue(ctx, roompkg.InputQueueRequest{
+				SessionKey:     sessionKey,
+				RoomID:         gatewayshared.StringValue(inbound["room_id"]),
+				ConversationID: gatewayshared.StringValue(inbound["conversation_id"]),
+				Action:         action,
+				ItemID:         gatewayshared.StringValue(inbound["item_id"]),
+				Content:        gatewayshared.StringValue(inbound["content"]),
+				OrderedIDs:     stringSliceValue(inbound["ordered_ids"]),
+				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(gatewayshared.StringValue(inbound["delivery_policy"])),
+			})
+		} else {
+			err = h.chat.HandleInputQueue(ctx, chatsvc.InputQueueRequest{
+				SessionKey:     sessionKey,
+				AgentID:        gatewayshared.StringValue(inbound["agent_id"]),
+				Action:         action,
+				ItemID:         gatewayshared.StringValue(inbound["item_id"]),
+				Content:        gatewayshared.StringValue(inbound["content"]),
+				OrderedIDs:     stringSliceValue(inbound["ordered_ids"]),
+				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(gatewayshared.StringValue(inbound["delivery_policy"])),
+			})
+		}
+		if err != nil {
+			h.sendGatewayError(ctx, sender, sessionKey, "input_queue_error", err, map[string]any{
+				"type":   msgType,
+				"action": action,
+			})
 		}
 	case "permission_response":
 		if !h.permission.HandlePermissionResponse(inbound) {
@@ -457,6 +507,7 @@ func (h *Handler) rejectControlMessageFromObserver(
 	}
 	actionLabel := map[string]string{
 		"chat":                "发送消息",
+		"input_queue":         "更新待发送队列",
 		"interrupt":           "停止生成",
 		"permission_response": "确认权限",
 	}[gatewayshared.StringValue(inbound["type"])]
@@ -552,4 +603,31 @@ func (h *Handler) broadcastSessionStatus(ctx context.Context, sessionKeys ...str
 		}
 		_ = h.permission.BroadcastSessionStatus(ctx, sessionKey, h.runtime.GetRunningRoundIDs(sessionKey))
 	}
+}
+
+func firstStringValue(values ...any) string {
+	for _, value := range values {
+		if text := gatewayshared.StringValue(value); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func stringSliceValue(value any) []string {
+	rawItems, ok := value.([]any)
+	if !ok {
+		if typed, ok := value.([]string); ok {
+			return typed
+		}
+		return nil
+	}
+	result := make([]string, 0, len(rawItems))
+	for _, item := range rawItems {
+		text := gatewayshared.StringValue(item)
+		if text != "" {
+			result = append(result, text)
+		}
+	}
+	return result
 }

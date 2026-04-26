@@ -18,6 +18,7 @@ const (
 	EventTypeMessage                   EventType = "message"
 	EventTypeStream                    EventType = "stream"
 	EventTypeChatAck                   EventType = "chat_ack"
+	EventTypeInputQueue                EventType = "input_queue"
 	EventTypeRoundStatus               EventType = "round_status"
 	EventTypeSessionStatus             EventType = "session_status"
 	EventTypePermissionRequest         EventType = "permission_request"
@@ -116,6 +117,7 @@ export type EventType =
   | 'message'
   | 'stream'
   | 'chat_ack'
+  | 'input_queue'
   | 'round_status'
   | 'session_status'
   | 'permission_request'

@@ -26,10 +26,13 @@ type activeRoomSlot struct {
 	TimestampMS       int64
 	Trigger           roomTrigger
 	InterruptReason   string
+	QueuedInputs      []roomQueuedInput
+	GuidedInputs      []roomQueuedInput
 	SuppressOutput    bool
 	NoReplyCandidate  bool
 	PendingStream     []protocol.EventMessage
 	Done              chan struct{}
+	inputMu           sync.Mutex
 	doneOnce          sync.Once
 }
 
@@ -64,6 +67,11 @@ type publicMentionWake struct {
 	TargetAgentID string
 	Content       string
 	MessageID     string
+}
+
+type roomQueuedInput struct {
+	RoundID string
+	Content string
 }
 
 type roomRoundMapperAdapter struct {
@@ -210,6 +218,58 @@ func (s *RealtimeService) finishSlot(slot *activeRoomSlot) {
 	slot.doneOnce.Do(func() {
 		close(slot.Done)
 	})
+}
+
+func (slot *activeRoomSlot) enqueueQueuedInput(roundID string, content string) {
+	if slot == nil || strings.TrimSpace(content) == "" {
+		return
+	}
+	slot.inputMu.Lock()
+	defer slot.inputMu.Unlock()
+	slot.QueuedInputs = append(slot.QueuedInputs, roomQueuedInput{
+		RoundID: strings.TrimSpace(roundID),
+		Content: strings.TrimSpace(content),
+	})
+}
+
+func (slot *activeRoomSlot) drainQueuedInputs() []roomQueuedInput {
+	if slot == nil {
+		return nil
+	}
+	slot.inputMu.Lock()
+	defer slot.inputMu.Unlock()
+	if len(slot.QueuedInputs) == 0 {
+		return nil
+	}
+	inputs := append([]roomQueuedInput(nil), slot.QueuedInputs...)
+	slot.QueuedInputs = nil
+	return inputs
+}
+
+func (slot *activeRoomSlot) enqueueGuidedInput(roundID string, content string) {
+	if slot == nil || strings.TrimSpace(content) == "" {
+		return
+	}
+	slot.inputMu.Lock()
+	defer slot.inputMu.Unlock()
+	slot.GuidedInputs = append(slot.GuidedInputs, roomQueuedInput{
+		RoundID: strings.TrimSpace(roundID),
+		Content: strings.TrimSpace(content),
+	})
+}
+
+func (slot *activeRoomSlot) drainGuidedInputs() []roomQueuedInput {
+	if slot == nil {
+		return nil
+	}
+	slot.inputMu.Lock()
+	defer slot.inputMu.Unlock()
+	if len(slot.GuidedInputs) == 0 {
+		return nil
+	}
+	inputs := append([]roomQueuedInput(nil), slot.GuidedInputs...)
+	slot.GuidedInputs = nil
+	return inputs
 }
 
 func normalizeRoomInterruptReason(reason string) string {

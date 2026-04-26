@@ -34,8 +34,11 @@ import {
 } from "@/types/conversation/permission";
 import {
   AgentConversationActionContext,
+  AgentConversationDeliveryPolicy,
   AgentConversationLifecycleContext,
+  AgentConversationSendOptions,
   AgentConversationSessionControlState,
+  InputQueueItem,
   RoomEventPayload,
   UseAgentConversationOptions,
   UseAgentConversationReturn,
@@ -61,6 +64,10 @@ import {
 } from "./message-helpers";
 import { handle_agent_conversation_web_socket_message } from "./websocket-event-handler";
 import {
+  delete_input_queue_message as send_delete_input_queue_message,
+  enqueue_input_queue_message as send_enqueue_input_queue_message,
+  guide_input_queue_message as send_guide_input_queue_message,
+  reorder_input_queue_messages as send_reorder_input_queue_messages,
   send_session_message,
   send_session_permission_response,
   stop_session_generation,
@@ -471,6 +478,9 @@ export function useAgentConversation(
   const [pending_agent_slots, set_pending_agent_slots_state] = useState<
     RoomPendingAgentSlotState[]
   >([]);
+  const [input_queue_items, set_input_queue_items_state] = useState<
+    InputQueueItem[]
+  >([]);
   const [pending_permissions, set_pending_permissions_state] = useState<
     UseAgentConversationReturn["pending_permissions"]
   >([]);
@@ -598,6 +608,17 @@ export function useAgentConversation(
           : next_state;
       pending_agent_slots_ref.current = next;
       set_pending_agent_slots_state(next);
+    },
+    [],
+  );
+
+  const set_input_queue_items = useCallback(
+    (next_state: SetStateAction<InputQueueItem[]>) => {
+      set_input_queue_items_state((current_items) =>
+        typeof next_state === "function"
+          ? next_state(current_items)
+          : next_state,
+      );
     },
     [],
   );
@@ -775,6 +796,7 @@ export function useAgentConversation(
       set_is_session_loading,
       set_messages,
       set_pending_agent_slots,
+      set_input_queue_items,
       set_pending_permissions,
       set_error,
       bg_message_cache_ref,
@@ -825,6 +847,7 @@ export function useAgentConversation(
       set_is_session_loading,
       set_messages,
       set_pending_agent_slots,
+      set_input_queue_items,
       set_pending_permissions,
       set_error,
       bg_message_cache_ref,
@@ -1351,6 +1374,7 @@ export function useAgentConversation(
         set_error,
         set_messages,
         set_pending_agent_slots,
+        set_input_queue_items,
         set_pending_permissions,
         enqueue_stream_payload,
         on_background_message,
@@ -1376,6 +1400,7 @@ export function useAgentConversation(
       reload_current_session,
       apply_round_status,
       set_pending_agent_slots,
+      set_input_queue_items,
       set_messages,
       set_pending_permissions,
       sync_session_status,
@@ -1407,6 +1432,9 @@ export function useAgentConversation(
     set_pending_agent_slots((current_slots) =>
       current_slots.length ? [] : current_slots,
     );
+    set_input_queue_items((current_items) =>
+      current_items.length ? [] : current_items,
+    );
     set_pending_permissions((current_permissions) =>
       current_permissions.length ? [] : current_permissions,
     );
@@ -1417,6 +1445,7 @@ export function useAgentConversation(
     reset_runtime_machine,
     reset_session_control,
     set_pending_agent_slots,
+    set_input_queue_items,
     set_pending_permissions,
   ]);
 
@@ -1568,10 +1597,12 @@ export function useAgentConversation(
       active_session_key_ref,
       pending_permissions,
       pending_agent_slots,
+      input_queue_items,
       messages,
       set_error,
       set_messages,
       set_pending_agent_slots,
+      set_input_queue_items,
       set_pending_permissions,
     }),
     [
@@ -1582,17 +1613,19 @@ export function useAgentConversation(
       ws_send,
       pending_permissions,
       pending_agent_slots,
+      input_queue_items,
       messages,
       set_error,
       set_messages,
       set_pending_agent_slots,
+      set_input_queue_items,
       set_pending_permissions,
     ],
   );
 
   const send_message = useCallback(
-    async (content: string) => {
-      const round_id = await send_session_message(content, action_context);
+    async (content: string, options: AgentConversationSendOptions = {}) => {
+      const round_id = await send_session_message(content, action_context, options);
       if (!round_id) {
         return;
       }
@@ -1613,6 +1646,37 @@ export function useAgentConversation(
       });
     },
     [action_context, apply_runtime_transition, fail_pending_chat_ack],
+  );
+
+  const enqueue_input_queue_message = useCallback(
+    async (
+      content: string,
+      delivery_policy: AgentConversationDeliveryPolicy = "queue",
+    ) => {
+      send_enqueue_input_queue_message(content, action_context, delivery_policy);
+    },
+    [action_context],
+  );
+
+  const delete_input_queue_message = useCallback(
+    async (item_id: string) => {
+      send_delete_input_queue_message(item_id, action_context);
+    },
+    [action_context],
+  );
+
+  const guide_input_queue_message = useCallback(
+    async (item_id: string) => {
+      send_guide_input_queue_message(item_id, action_context);
+    },
+    [action_context],
+  );
+
+  const reorder_input_queue_messages = useCallback(
+    async (ordered_ids: string[]) => {
+      send_reorder_input_queue_messages(ordered_ids, action_context);
+    },
+    [action_context],
   );
 
   const stop_generation = useCallback(
@@ -1699,6 +1763,9 @@ export function useAgentConversation(
         set_pending_agent_slots((current_slots) =>
           current_slots.length ? [] : current_slots,
         );
+        set_input_queue_items((current_items) =>
+          current_items.length ? [] : current_items,
+        );
         set_pending_permissions((current_permissions) =>
           current_permissions.length ? [] : current_permissions,
         );
@@ -1711,6 +1778,7 @@ export function useAgentConversation(
       reset_session_control,
       set_is_session_loading,
       set_pending_agent_slots,
+      set_input_queue_items,
       set_pending_permissions,
     ],
   );
@@ -1745,8 +1813,13 @@ export function useAgentConversation(
     session_controller_client_id,
     session_observer_count,
     pending_agent_slots,
+    input_queue_items,
     pending_permissions,
     send_message,
+    enqueue_input_queue_message,
+    delete_input_queue_message,
+    guide_input_queue_message,
+    reorder_input_queue_messages,
     bind_session_key,
     start_session,
     load_session,

@@ -3,7 +3,11 @@ import { WebSocketMessage } from '@/types/system/websocket';
 import { is_structured_session_key } from '@/lib/conversation/session-key';
 import { generate_uuid } from '@/lib/uuid';
 import { Message } from '@/types';
-import { AgentConversationActionContext } from '@/types/agent/agent-conversation';
+import {
+  AgentConversationActionContext,
+  AgentConversationDeliveryPolicy,
+  AgentConversationSendOptions,
+} from '@/types/agent/agent-conversation';
 import { PermissionDecisionPayload } from '@/types/conversation/permission';
 
 import { upsert_message } from './message-helpers';
@@ -19,6 +23,7 @@ function fail_send(set_error: AgentConversationActionContext["set_error"], messa
 export async function send_session_message(
   content: string,
   context: AgentConversationActionContext,
+  options: AgentConversationSendOptions = {},
 ): Promise<string | null> {
   const {
     identity,
@@ -54,6 +59,7 @@ export async function send_session_message(
   }
 
   const round_id = generate_uuid();
+  const delivery_policy = options.delivery_policy ?? 'queue';
   active_session_key_ref.current = resolved_session_key;
   const userMessage: Message = {
     message_id: round_id,
@@ -63,6 +69,7 @@ export async function send_session_message(
     role: 'user',
     content,
     timestamp: Date.now(),
+    delivery_policy,
     ...(chat_type === 'group' ? { room_id: room_id ?? undefined, conversation_id: conversation_id ?? undefined } : {}),
   };
 
@@ -73,6 +80,7 @@ export async function send_session_message(
     agent_id: resolve_agent_id(agent_id),
     round_id,
     req_id: round_id,  // echo'd back in chat_ack for correlation
+    delivery_policy,
   };
 
   // Room 消息附加 room 上下文
@@ -91,6 +99,108 @@ export async function send_session_message(
   set_pending_permissions([]);
   set_error(null);
   return round_id;
+}
+
+function build_input_queue_base_payload(
+  context: AgentConversationActionContext,
+): Record<string, unknown> {
+  const { identity, session_key, active_session_key_ref } = context;
+  const resolved_session_key = session_key || active_session_key_ref.current;
+  const agent_id = identity?.agent_id;
+  const room_id = identity?.room_id;
+  const conversation_id = identity?.conversation_id;
+  const chat_type = identity?.chat_type;
+
+  if (!resolved_session_key) {
+    fail_send(context.set_error, '请先选择或创建会话');
+  }
+  if (!is_structured_session_key(resolved_session_key)) {
+    fail_send(context.set_error, '当前会话的 session_key 非法，请刷新后重试');
+  }
+  if (context.ws_state !== 'connected') {
+    fail_send(context.set_error, 'WebSocket未连接，请稍候重试');
+  }
+  if (context.session_control_state === 'observer') {
+    fail_send(context.set_error, '当前窗口是观察视图，无法更新待发送队列');
+  }
+
+  const payload: Record<string, unknown> = {
+    type: 'input_queue',
+    session_key: resolved_session_key,
+    agent_id: resolve_agent_id(agent_id),
+  };
+  if (chat_type === 'group') {
+    payload.chat_type = 'group';
+    if (room_id) payload.room_id = room_id;
+    if (conversation_id) payload.conversation_id = conversation_id;
+  }
+  return payload;
+}
+
+function send_input_queue_payload(
+  context: AgentConversationActionContext,
+  payload: Record<string, unknown>,
+): void {
+  const send_result = context.ws_send(payload as WebSocketMessage);
+  if (send_result.disposition !== 'sent') {
+    fail_send(context.set_error, '队列请求未发送到后端，请检查连接后重试');
+  }
+  context.set_error(null);
+}
+
+export function enqueue_input_queue_message(
+  content: string,
+  context: AgentConversationActionContext,
+  delivery_policy: AgentConversationDeliveryPolicy = 'queue',
+): void {
+  if (!content.trim()) {
+    return;
+  }
+  send_input_queue_payload(context, {
+    ...build_input_queue_base_payload(context),
+    action: 'enqueue',
+    content,
+    delivery_policy,
+  });
+}
+
+export function delete_input_queue_message(
+  item_id: string,
+  context: AgentConversationActionContext,
+): void {
+  if (!item_id.trim()) {
+    return;
+  }
+  send_input_queue_payload(context, {
+    ...build_input_queue_base_payload(context),
+    action: 'delete',
+    item_id,
+  });
+}
+
+export function guide_input_queue_message(
+  item_id: string,
+  context: AgentConversationActionContext,
+): void {
+  if (!item_id.trim()) {
+    return;
+  }
+  send_input_queue_payload(context, {
+    ...build_input_queue_base_payload(context),
+    action: 'guide',
+    item_id,
+  });
+}
+
+export function reorder_input_queue_messages(
+  ordered_ids: string[],
+  context: AgentConversationActionContext,
+): void {
+  send_input_queue_payload(context, {
+    ...build_input_queue_base_payload(context),
+    action: 'reorder',
+    ordered_ids,
+  });
 }
 
 /**

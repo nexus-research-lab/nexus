@@ -91,6 +91,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
 }
 
 func (r *roundRunner) executeRound(
@@ -213,6 +214,7 @@ func (r *roundRunner) failRound(err error) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "error", "error"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
 }
 
 func (r *roundRunner) finishInterrupted(resultText string) {
@@ -276,6 +278,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
 }
 
 func (r *roundRunner) persistMessage(message protocol.Message) error {

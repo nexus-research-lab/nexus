@@ -8,63 +8,8 @@
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
-
-/** 权限模式选项 */
-const PERMISSION_MODES: ReadonlyArray<{
-  value: string;
-  label_key: TranslationKey;
-  description_key: TranslationKey;
-}> = [
-  {
-    value: "default",
-    label_key: "agent_options.advanced.permission.default.label",
-    description_key: "agent_options.advanced.permission.default.description",
-  },
-  {
-    value: "plan",
-    label_key: "agent_options.advanced.permission.plan.label",
-    description_key: "agent_options.advanced.permission.plan.description",
-  },
-  {
-    value: "acceptEdits",
-    label_key: "agent_options.advanced.permission.accept_edits.label",
-    description_key: "agent_options.advanced.permission.accept_edits.description",
-  },
-  {
-    value: "bypassPermissions",
-    label_key: "agent_options.advanced.permission.bypass.label",
-    description_key: "agent_options.advanced.permission.bypass.description",
-  },
-] as const;
-
-/** 常用工具列表 */
-const AVAILABLE_TOOLS: ReadonlyArray<{
-  name: string;
-  description_key: TranslationKey;
-}> = [
-    { name: "Task", description_key: "agent_options.advanced.tool.task" },
-    { name: "TaskOutput", description_key: "agent_options.advanced.tool.task_output" },
-    { name: "Bash", description_key: "agent_options.advanced.tool.bash" },
-    { name: "Glob", description_key: "agent_options.advanced.tool.glob" },
-    { name: "Grep", description_key: "agent_options.advanced.tool.grep" },
-    { name: "ExitPlanMode", description_key: "agent_options.advanced.tool.exit_plan_mode" },
-    { name: "Read", description_key: "agent_options.advanced.tool.read" },
-    { name: "Edit", description_key: "agent_options.advanced.tool.edit" },
-    { name: "Write", description_key: "agent_options.advanced.tool.write" },
-    { name: "NotebookEdit", description_key: "agent_options.advanced.tool.notebook_edit" },
-    { name: "WebFetch", description_key: "agent_options.advanced.tool.web_fetch" },
-    { name: "TodoWrite", description_key: "agent_options.advanced.tool.todo_write" },
-    {
-      name: "WebSearch",
-      description_key: "agent_options.advanced.tool.web_search",
-    },
-    { name: "KillShell", description_key: "agent_options.advanced.tool.kill_shell" },
-    { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
-    { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
-    { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
-  ];
+import { AGENT_PERMISSION_MODES, AVAILABLE_AGENT_TOOLS } from "../agent-options-constants";
 
 interface AgentOptionsAdvancedTabProps {
   permission_mode: string;
@@ -100,7 +45,7 @@ export function AgentOptionsAdvancedTab({
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {PERMISSION_MODES.map((pm) => (
+          {AGENT_PERMISSION_MODES.map((pm) => (
             <button
               key={pm.value}
               onClick={() => on_permission_mode_change(pm.value)}
@@ -192,7 +137,7 @@ export function AgentOptionsAdvancedTab({
 
         {/* 工具列表 */}
         <div className="grid grid-cols-1 gap-1.5">
-          {AVAILABLE_TOOLS.map((tool) => {
+          {AVAILABLE_AGENT_TOOLS.map((tool) => {
             const isChecked = allowed_tools.includes(tool.name);
             return (
               <div

@@ -89,6 +89,7 @@ export interface BaseMessage {
 export interface UserMessage extends BaseMessage {
   role: "user";
   content: string;
+  delivery_policy?: "queue" | "guide" | "interrupt" | "auto";
 }
 
 export interface AgentMessage {
@@ -227,6 +228,7 @@ export interface EventMessage {
     | "room_resync_required"
     | "session_resync_required"
     | "chat_ack"
+    | "input_queue"
     | "round_status"
     | "stream_start"
     | "stream_end"

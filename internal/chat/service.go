@@ -27,13 +27,15 @@ var (
 
 // Request 表示一次 DM 会话写入请求。
 type Request struct {
-	SessionKey        string
-	AgentID           string
-	Content           string
-	RoundID           string
-	ReqID             string
-	PermissionMode    sdkprotocol.PermissionMode
-	PermissionHandler agentclient.PermissionHandler
+	SessionKey           string
+	AgentID              string
+	Content              string
+	RoundID              string
+	ReqID                string
+	DeliveryPolicy       protocol.ChatDeliveryPolicy
+	BroadcastUserMessage bool
+	PermissionMode       sdkprotocol.PermissionMode
+	PermissionHandler    agentclient.PermissionHandler
 }
 
 // InterruptRequest 表示一次中断请求。
@@ -56,6 +58,7 @@ type Service struct {
 	providers  runtimectx.RuntimeConfigResolver
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
+	inputQueue *workspacestore.InputQueueStore
 	usage      usageRecorder
 	logger     *slog.Logger
 	mcpServers MCPServerBuilder
@@ -89,6 +92,7 @@ func NewService(
 		permission: permission,
 		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
 		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		inputQueue: workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		logger:     logx.NewDiscardLogger(),
 	}
 }

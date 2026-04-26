@@ -7,9 +7,11 @@ import { useProviderAvailability } from "@/hooks/capability/use-provider-availab
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
+import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
+  AgentConversationDeliveryPolicy,
   get_session_control_status_text,
 } from "@/types/agent/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation/conversation";
@@ -61,6 +63,7 @@ export function DmChatPanel({
 }: DmChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
   const session_key = session_identity?.session_key ?? null;
+  const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
 
@@ -81,6 +84,11 @@ export function DmChatPanel({
     send_permission_response,
     runtime_phase,
     live_round_ids,
+    input_queue_items,
+    enqueue_input_queue_message,
+    delete_input_queue_message,
+    guide_input_queue_message,
+    reorder_input_queue_messages,
   } = useAgentConversation({
     identity: session_identity,
     on_error: (err) => {
@@ -228,10 +236,13 @@ export function DmChatPanel({
     scroll_ref,
   ]);
 
-  const handle_send_message = async (content: string) => {
-    if (!content.trim() || is_loading) return;
+  const handle_send_message = async (
+    content: string,
+    delivery_policy: AgentConversationDeliveryPolicy,
+  ) => {
+    if (!content.trim()) return;
     scroll_to_bottom("auto");
-    await send_message(content);
+    await send_message(content, { delivery_policy });
   };
 
   const handle_stop = () => stop_generation();
@@ -347,11 +358,18 @@ export function DmChatPanel({
       ) : null}
 
       <ComposerPanel
+        allow_send_while_loading
         compact={is_mobile_layout}
         control_status_text={session_control_text}
+        default_delivery_policy={default_delivery_policy}
+        input_queue_items={input_queue_items}
         is_loading={is_loading}
         runtime_phase={runtime_phase}
+        on_delete_queued_message={delete_input_queue_message}
+        on_enqueue_message={enqueue_input_queue_message}
+        on_guide_queued_message={guide_input_queue_message}
         on_prepare_attachments={handle_prepare_attachments}
+        on_reorder_queue_messages={reorder_input_queue_messages}
         on_send_message={handle_send_message}
         on_stop={handle_stop}
         tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}

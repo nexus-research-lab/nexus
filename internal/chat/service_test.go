@@ -39,6 +39,7 @@ type fakeChatClient struct {
 	disconnectErrs  []error
 	connectErrors   []error
 	queryErrors     []error
+	sentContents    []string
 	reconfigureOps  []agentclient.Options
 	onQuery         func(context.Context, string)
 	onInterrupt     func(context.Context)
@@ -80,6 +81,13 @@ func (c *fakeChatClient) ReceiveMessages(context.Context) <-chan sdkprotocol.Rec
 	return c.messages
 }
 
+func (c *fakeChatClient) SendContent(_ context.Context, content any, _ *string, _ string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sentContents = append(c.sentContents, normalizeTestString(content))
+	return nil
+}
+
 func (c *fakeChatClient) Interrupt(ctx context.Context) error {
 	c.mu.Lock()
 	c.interruptCalls++
@@ -111,6 +119,15 @@ func (c *fakeChatClient) Reconfigure(_ context.Context, options agentclient.Opti
 }
 
 func (c *fakeChatClient) SessionID() string { return c.sessionID }
+
+func normalizeTestString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	default:
+		return ""
+	}
+}
 
 type fakeChatFactory struct {
 	mu      sync.Mutex
@@ -1052,6 +1069,240 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	summary, ok := messages[1]["result_summary"].(map[string]any)
 	if !ok || summary["subtype"] != "interrupted" {
 		t.Fatalf("中断后未挂载 interrupted result_summary: %+v", messages)
+	}
+}
+
+func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-queue-cleanup",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-queue")
+	sessionKey := "agent:nexus:ws:dm:test-queue"
+	permission.BindSession(sessionKey, sender, "client-queue", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "先做一个长任务",
+		RoundID:    "round-queue-1",
+		ReqID:      "round-queue-1",
+	}); err != nil {
+		t.Fatalf("第一轮 HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "这是补充要求",
+		RoundID:    "round-queue-2",
+		ReqID:      "round-queue-2",
+	}); err != nil {
+		t.Fatalf("第二条排队消息 HandleChat 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "round-queue-2"
+	})
+
+	client.mu.Lock()
+	interruptCalls := client.interruptCalls
+	sentContents := append([]string(nil), client.sentContents...)
+	client.mu.Unlock()
+	if interruptCalls != 0 {
+		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
+	}
+	if len(sentContents) != 1 || sentContents[0] != "这是补充要求" {
+		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
+	}
+	if len(factory.options) != 1 {
+		t.Fatalf("排队输入不应创建新 runtime client: got=%d want=1", len(factory.options))
+	}
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("清理运行中 round 失败: %v", err)
+	}
+}
+
+func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-guide-cleanup",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-guide")
+	sessionKey := "agent:nexus:ws:dm:test-guide"
+	permission.BindSession(sessionKey, sender, "client-guide", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "先查一下项目结构",
+		RoundID:    "round-guide-1",
+		ReqID:      "round-guide-1",
+	}); err != nil {
+		t.Fatalf("第一轮 HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:     sessionKey,
+		Content:        "等工具结果回来后优先看错误日志",
+		RoundID:        "round-guide-2",
+		ReqID:          "round-guide-2",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+	}); err != nil {
+		t.Fatalf("引导消息 HandleChat 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "round-guide-2"
+	})
+
+	client.mu.Lock()
+	interruptCalls := client.interruptCalls
+	sentContents := append([]string(nil), client.sentContents...)
+	client.mu.Unlock()
+	if interruptCalls != 0 {
+		t.Fatalf("引导不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
+	}
+	if len(sentContents) != 0 {
+		t.Fatalf("引导不应走普通 streaming input: %+v", sentContents)
+	}
+	if count := runtimeManager.PendingGuidanceCount(sessionKey); count != 1 {
+		t.Fatalf("引导输入未登记到运行时队列: count=%d", count)
+	}
+	if len(factory.options) != 1 {
+		t.Fatalf("引导不应创建新 runtime client: got=%d want=1", len(factory.options))
+	}
+	if matchers := factory.options[0].Hooks[sdkprotocol.HookEventPostToolUse]; len(matchers) == 0 {
+		t.Fatalf("runtime options 未挂载 PostToolUse 引导 hook: %+v", factory.options[0].Hooks)
+	}
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("清理运行中 round 失败: %v", err)
+	}
+}
+
+func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
+	cfg := newChatTestConfig(t)
+	migrateChatSQLite(t, cfg.DatabaseURL)
+
+	agentService := newChatAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeChatClient()
+	client.onQuery = func(_ context.Context, prompt string) {
+		if strings.Contains(prompt, "第二轮") {
+			go func() {
+				client.messages <- sdkprotocol.ReceivedMessage{
+					Type:      sdkprotocol.MessageTypeResult,
+					SessionID: client.sessionID,
+					UUID:      "result-interrupt-policy",
+					Result: &sdkprotocol.ResultMessage{
+						Subtype:    "success",
+						DurationMS: 1,
+						NumTurns:   1,
+						Result:     "ok",
+					},
+				}
+			}()
+		}
+	}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-interrupt-policy-old",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+
+	factory := &fakeChatFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newChatTestSender("sender-interrupt-policy")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-policy"
+	permission.BindSession(sessionKey, sender, "client-interrupt-policy", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "第一轮",
+		RoundID:    "round-interrupt-policy-1",
+		ReqID:      "round-interrupt-policy-1",
+	}); err != nil {
+		t.Fatalf("第一轮 HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:     sessionKey,
+		Content:        "第二轮",
+		RoundID:        "round-interrupt-policy-2",
+		ReqID:          "round-interrupt-policy-2",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyInterrupt,
+	}); err != nil {
+		t.Fatalf("打断策略 HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "round-interrupt-policy-2" &&
+			event.Data["status"] == "finished"
+	})
+	assertContainsRoundStatus(t, events, "finished")
+
+	client.mu.Lock()
+	interruptCalls := client.interruptCalls
+	sentContents := append([]string(nil), client.sentContents...)
+	client.mu.Unlock()
+	if interruptCalls == 0 {
+		t.Fatal("打断策略应中断运行中 DM round")
+	}
+	if len(sentContents) != 0 {
+		t.Fatalf("打断策略不应走 streaming input: %+v", sentContents)
 	}
 }
 

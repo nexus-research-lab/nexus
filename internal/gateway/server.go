@@ -116,13 +116,14 @@ func NewServerWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error
 		api:    api,
 		router: chi.NewRouter(),
 		auth:   authgateway.New(api, appServices.Auth, appServices.Usage),
-		core:   coregateway.New(api, appServices.Core.Agent, appServices.Provider),
+		core:   coregateway.New(api, appServices.Core.Agent, appServices.Provider, appServices.Preferences),
 		agent: agentgateway.New(
 			api,
 			appServices.Core.Agent,
 			appServices.Core.Session,
 			appServices.Runtime,
 			appServices.RoomRealtime,
+			appServices.Preferences,
 		),
 		room: roomgateway.New(
 			api,

@@ -47,6 +47,11 @@ func (s *Store) SessionOverlayPath(workspacePath string, sessionKey string) stri
 	return filepath.Join(s.SessionDir(workspacePath, sessionKey), "overlay.jsonl")
 }
 
+// SessionInputQueuePath 返回 DM/agent 会话待发送队列路径。
+func (s *Store) SessionInputQueuePath(workspacePath string, sessionKey string) string {
+	return filepath.Join(s.SessionDir(workspacePath, sessionKey), "input_queue.jsonl")
+}
+
 // RoomConversationDir 返回 Room 对话目录。
 func (s *Store) RoomConversationDir(conversationID string) string {
 	return filepath.Join(s.HomeRoot, "rooms", encodeConversationDirName(conversationID))

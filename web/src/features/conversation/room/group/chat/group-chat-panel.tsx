@@ -7,9 +7,11 @@ import { useProviderAvailability } from "@/hooks/capability/use-provider-availab
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
+import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { build_room_shared_session_key } from "@/lib/conversation/session-key";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
+  AgentConversationDeliveryPolicy,
   AgentConversationIdentity,
   get_session_control_status_text,
 } from "@/types/agent/agent-conversation";
@@ -24,7 +26,6 @@ import { prepare_workspace_text_attachments } from "@/features/conversation/shar
 import { ConversationErrorBubble, is_provider_error } from "@/features/conversation/shared/conversation-error-bubble";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import {
-  build_room_agent_round_entries,
   get_room_agent_round_entry,
   get_room_base_round_id,
   get_room_thread_messages,
@@ -128,6 +129,7 @@ export function GroupChatPanel({
   const session_key = conversation_id
     ? build_room_shared_session_key(conversation_id)
     : null;
+  const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const session_identity = useMemo<AgentConversationIdentity | null>(() => {
     if (!conversation_id) {
       return null;
@@ -178,6 +180,11 @@ export function GroupChatPanel({
     send_permission_response,
     runtime_phase,
     live_round_ids,
+    input_queue_items,
+    enqueue_input_queue_message,
+    delete_input_queue_message,
+    guide_input_queue_message,
+    reorder_input_queue_messages,
   } = useAgentConversation({
     identity: session_identity,
     on_error: (err) => {
@@ -267,23 +274,6 @@ export function GroupChatPanel({
     [pending_permissions],
   );
   const round_ids = Array.from(message_groups.keys());
-  const mention_unavailable_agent_ids = useMemo(() => {
-    const next_ids = new Set<string>();
-    for (const round_id of round_ids) {
-      const round_messages = message_groups.get(round_id) ?? [];
-      const round_pending_slots = pending_slot_groups.get(round_id) ?? [];
-      for (const entry of build_room_agent_round_entries(
-        round_messages,
-        round_pending_slots,
-      )) {
-        if (is_agent_round_active(entry.status)) {
-          next_ids.add(entry.agent_id);
-        }
-      }
-    }
-    return Array.from(next_ids);
-  }, [message_groups, pending_slot_groups, round_ids]);
-
   const maybe_load_older_messages = useCallback(async () => {
     const container = scroll_ref.current;
     if (
@@ -335,10 +325,13 @@ export function GroupChatPanel({
     scroll_ref,
   ]);
 
-  const handle_send_message = async (content: string) => {
+  const handle_send_message = async (
+    content: string,
+    delivery_policy: AgentConversationDeliveryPolicy,
+  ) => {
     if (!content.trim()) return;
     scroll_to_bottom("auto");
-    await send_message(content);
+    await send_message(content, { delivery_policy });
   };
 
   const handle_stop_message = useCallback(
@@ -561,10 +554,15 @@ export function GroupChatPanel({
             allow_send_while_loading
             compact={is_mobile_layout}
             control_status_text={session_control_text}
+            default_delivery_policy={default_delivery_policy}
+            input_queue_items={input_queue_items}
             is_loading={is_loading}
             runtime_phase={runtime_phase}
-            mention_unavailable_agent_ids={mention_unavailable_agent_ids}
+            on_delete_queued_message={delete_input_queue_message}
+            on_enqueue_message={enqueue_input_queue_message}
+            on_guide_queued_message={guide_input_queue_message}
             on_prepare_attachments={handle_prepare_attachments}
+            on_reorder_queue_messages={reorder_input_queue_messages}
             on_send_message={handle_send_message}
             on_stop={can_control_session ? () => stop_generation() : undefined}
             room_members={room_members}

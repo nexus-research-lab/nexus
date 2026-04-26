@@ -39,6 +39,7 @@ type fakeRoomClient struct {
 	sessionID      string
 	messages       chan sdkprotocol.ReceivedMessage
 	interruptCalls int
+	sentContents   []string
 	onQuery        func(context.Context, string) error
 	onInterrupt    func(context.Context)
 }
@@ -61,6 +62,15 @@ func (c *fakeRoomClient) Query(ctx context.Context, prompt string) error {
 
 func (c *fakeRoomClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
 	return c.messages
+}
+
+func (c *fakeRoomClient) SendContent(_ context.Context, content any, _ *string, _ string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if text, ok := content.(string); ok {
+		c.sentContents = append(c.sentContents, text)
+	}
+	return nil
 }
 
 func (c *fakeRoomClient) Interrupt(ctx context.Context) error {
@@ -882,6 +892,203 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	}
 }
 
+func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "公区 @ 排队房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	devinCurrentClient := newFakeRoomClient()
+	amyClient := newFakeRoomClient()
+	devinQueuedClient := newFakeRoomClient()
+	devinQueuedPrompt := make(chan string, 1)
+	devinCurrentClient.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	amyClient.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeAssistantResult(amyClient, "amy-public-mention-busy", "@Devin 当前天气任务交给你。")
+		return nil
+	}
+	devinQueuedClient.onQuery = func(_ context.Context, prompt string) error {
+		devinQueuedPrompt <- prompt
+		go sendFakeAssistantResult(devinQueuedClient, "devin-public-mention-after-busy", "天气任务已处理。")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, amyClient, devinQueuedClient}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-public-mention-queue")
+	permission.BindSession(sharedSessionKey, sender, "client-public-mention-queue", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Devin 先处理一个长任务",
+		RoundID:        "room-round-devin-busy",
+		ReqID:          "room-round-devin-busy",
+	}); err != nil {
+		t.Fatalf("启动 Devin 长任务失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID
+	})
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Amy 让 Devin 查下天气",
+		RoundID:        "room-round-amy-mentions-busy-devin",
+		ReqID:          "room-round-amy-mentions-busy-devin",
+	}); err != nil {
+		t.Fatalf("启动 Amy 公区 @ 失败: %v", err)
+	}
+
+	var queuedItem protocol.InputQueueItem
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType != protocol.EventTypeInputQueue {
+			return false
+		}
+		for _, item := range inputQueueItemsFromEvent(event) {
+			if item.Source == protocol.InputQueueSourceAgentPublicMention && item.AgentID == devin.AgentID {
+				queuedItem = item
+				return true
+			}
+		}
+		return false
+	})
+	if queuedItem.SourceMessageID != "amy-public-mention-busy" ||
+		queuedItem.SourceAgentID != amy.AgentID ||
+		len(queuedItem.TargetAgentIDs) != 1 ||
+		queuedItem.TargetAgentIDs[0] != devin.AgentID {
+		t.Fatalf("公区 @ 队列项缺少来源或目标: %+v", queuedItem)
+	}
+	targetQueueLocation := workspace2.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  devin.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, devin.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	targetQueueItems, err := workspace2.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
+	if err != nil {
+		t.Fatalf("读取目标 agent session 队列失败: %v", err)
+	}
+	if len(targetQueueItems) != 1 || targetQueueItems[0].ID != queuedItem.ID {
+		t.Fatalf("Room 队列未落到目标 agent session: event=%+v stored=%+v", queuedItem, targetQueueItems)
+	}
+
+	devinCurrentClient.mu.Lock()
+	interruptCalls := devinCurrentClient.interruptCalls
+	devinCurrentClient.mu.Unlock()
+	if interruptCalls != 0 {
+		t.Fatalf("公区 @ 不应中断正在工作的目标 agent: interruptCalls=%d", interruptCalls)
+	}
+	select {
+	case prompt := <-devinQueuedPrompt:
+		t.Fatalf("目标 agent 尚未空闲前不应启动 queued mention: %s", prompt)
+	default:
+	}
+
+	go sendFakeAssistantResult(devinCurrentClient, "devin-current-task-done", "当前长任务完成。")
+	select {
+	case prompt := <-devinQueuedPrompt:
+		if !strings.Contains(prompt, "public_mention") ||
+			!strings.Contains(prompt, "@Devin 当前天气任务交给你。") {
+			t.Fatalf("queued mention prompt 缺少公区 @ 触发上下文: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("目标 agent 空闲后未派发 queued mention")
+	}
+}
+
+func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "公区无 @ 测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		&fakeRoomFactory{},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-no-mention")
+	permission.BindSession(sharedSessionKey, sender, "client-no-mention", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "先记一下这个背景",
+		RoundID:        "room-round-no-mention",
+		ReqID:          "room-round-no-mention",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	if countEventType(events, protocol.EventTypeChatAck) != 1 {
+		t.Fatalf("公区无 @ 消息也必须 ack，否则前端发送队列会卡住: %+v", events)
+	}
+}
+
 func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -1257,6 +1464,107 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 	})
 	if countRoomResultSubtype(events, "success") == 0 {
 		t.Fatalf("助手乙 round 应正常完成: %+v", events)
+	}
+
+	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+		t.Fatalf("清理活跃 Room round 失败: %v", err)
+	}
+}
+
+func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "助手甲")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "排队测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-room-queue-cleanup",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-queue-running")
+	permission.BindSession(sharedSessionKey, sender, "client-queue-running", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 先处理",
+		RoundID:        "room-round-queue-1",
+		ReqID:          "room-round-queue-1",
+	}); err != nil {
+		t.Fatalf("第一条 Room 消息失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID
+	})
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 这是补充要求",
+		RoundID:        "room-round-queue-2",
+		ReqID:          "room-round-queue-2",
+	}); err != nil {
+		t.Fatalf("第二条 Room 排队消息失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "room-round-queue-2"
+	})
+
+	client.mu.Lock()
+	interruptCalls := client.interruptCalls
+	sentContents := append([]string(nil), client.sentContents...)
+	client.mu.Unlock()
+	if interruptCalls != 0 {
+		t.Fatalf("默认排队不应中断同一个 Room agent: interruptCalls=%d", interruptCalls)
+	}
+	if len(sentContents) != 1 || sentContents[0] != "@助手甲 这是补充要求" {
+		t.Fatalf("Room 运行中 slot 未收到排队输入: %+v", sentContents)
 	}
 
 	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
@@ -1686,6 +1994,29 @@ func hasChatAckPendingAgent(events []protocol.EventMessage, agentID string) bool
 		}
 	}
 	return false
+}
+
+func inputQueueItemsFromEvent(event protocol.EventMessage) []protocol.InputQueueItem {
+	switch items := event.Data["items"].(type) {
+	case []protocol.InputQueueItem:
+		return items
+	case []any:
+		result := make([]protocol.InputQueueItem, 0, len(items))
+		for _, item := range items {
+			payload, err := json.Marshal(item)
+			if err != nil {
+				continue
+			}
+			var parsed protocol.InputQueueItem
+			if err = json.Unmarshal(payload, &parsed); err != nil {
+				continue
+			}
+			result = append(result, parsed)
+		}
+		return result
+	default:
+		return nil
+	}
 }
 
 func hasAgentPublicMessage(events []protocol.EventMessage, agentID string) bool {

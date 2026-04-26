@@ -1,13 +1,28 @@
 "use client";
 
 import { ChangeEvent, KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Paperclip, Send, StopCircle, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  CornerDownRight,
+  FileText,
+  GripVertical,
+  Paperclip,
+  Send,
+  StopCircle,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
+import {
+  AgentConversationDeliveryPolicy,
+  AgentConversationRuntimePhase,
+  InputQueueItem,
+} from "@/types/agent/agent-conversation";
 import { Agent } from "@/types/agent/agent";
 
 import {
@@ -37,8 +52,20 @@ interface ComposerPanelProps {
   compact: boolean;
   is_loading?: boolean;
   runtime_phase?: AgentConversationRuntimePhase | null;
-  on_send_message: (content: string) => void | Promise<void>;
+  on_send_message: (
+    content: string,
+    delivery_policy: AgentConversationDeliveryPolicy,
+  ) => void | Promise<void>;
+  input_queue_items?: InputQueueItem[];
+  on_enqueue_message?: (
+    content: string,
+    delivery_policy: AgentConversationDeliveryPolicy,
+  ) => void | Promise<void>;
+  on_delete_queued_message?: (item_id: string) => void | Promise<void>;
+  on_guide_queued_message?: (item_id: string) => void | Promise<void>;
+  on_reorder_queue_messages?: (ordered_ids: string[]) => void | Promise<void>;
   on_stop?: () => void;
+  default_delivery_policy?: AgentConversationDeliveryPolicy;
   initial_draft?: string | null;
   disabled?: boolean;
   allow_send_while_loading?: boolean;
@@ -58,6 +85,8 @@ type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
 
 const IME_COMPOSITION_KEY_CODE = 229;
 const COMPOSITION_END_ENTER_GUARD_MS = 80;
+const PENDING_QUEUE_AUTO_SCROLL_ZONE_PX = 28;
+const PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX = 10;
 
 function is_caret_on_first_line(target: HTMLTextAreaElement) {
   const selection_start = target.selectionStart ?? 0;
@@ -104,12 +133,34 @@ function build_message_with_attachments(
   ].filter(Boolean).join("\n\n");
 }
 
+function reorder_pending_messages(
+  messages: InputQueueItem[],
+  source_id: string,
+  target_id: string,
+): InputQueueItem[] {
+  const source_index = messages.findIndex((item) => item.id === source_id);
+  const target_index = messages.findIndex((item) => item.id === target_id);
+  if (source_index < 0 || target_index < 0 || source_index === target_index) {
+    return messages;
+  }
+  const next = [...messages];
+  const [source] = next.splice(source_index, 1);
+  next.splice(target_index, 0, source);
+  return next;
+}
+
 const ComposerPanelView = memo(({
   compact,
   is_loading = false,
   runtime_phase = null,
   on_send_message,
+  input_queue_items = [],
+  on_enqueue_message,
+  on_delete_queued_message,
+  on_guide_queued_message,
+  on_reorder_queue_messages,
   on_stop,
+  default_delivery_policy = "queue",
   initial_draft = null,
   disabled = false,
   allow_send_while_loading = false,
@@ -129,6 +180,10 @@ const ComposerPanelView = memo(({
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [attachment_error, setAttachmentError] = useState<string | null>(null);
   const [is_preparing_attachments, setIsPreparingAttachments] = useState(false);
+  const [dragging_message_id, set_dragging_message_id] = useState<string | null>(null);
+  const [drag_over_message_id, set_drag_over_message_id] = useState<string | null>(null);
+  const [is_pending_queue_collapsed, set_is_pending_queue_collapsed] = useState(false);
+  const [is_queue_action_running, set_is_queue_action_running] = useState(false);
 
   // 共享 Composer 同时服务 DM 和 Room，这里统一在共享层过滤不可提及成员，
   // 避免再保留第二套几乎相同的输入区实现。
@@ -152,11 +207,59 @@ const ComposerPanelView = memo(({
   const last_composition_end_at_ref = useRef(0);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
+  const pending_queue_scroll_ref = useRef<HTMLDivElement>(null);
+  const pending_queue_drag_y_ref = useRef<number | null>(null);
+  const pending_queue_scroll_frame_ref = useRef<number | null>(null);
+  const dragging_message_id_ref = useRef<string | null>(null);
   const is_dispatching = is_loading && runtime_phase === "sending";
   const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
+
+  const stop_pending_queue_auto_scroll = useCallback(() => {
+    if (pending_queue_scroll_frame_ref.current !== null) {
+      cancelAnimationFrame(pending_queue_scroll_frame_ref.current);
+      pending_queue_scroll_frame_ref.current = null;
+    }
+    pending_queue_drag_y_ref.current = null;
+  }, []);
+
+  const run_pending_queue_auto_scroll = useCallback(() => {
+    const container = pending_queue_scroll_ref.current;
+    const pointer_y = pending_queue_drag_y_ref.current;
+    if (!container || pointer_y === null || !dragging_message_id_ref.current) {
+      pending_queue_scroll_frame_ref.current = null;
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const distance_to_top = pointer_y - rect.top;
+    const distance_to_bottom = rect.bottom - pointer_y;
+    let delta = 0;
+
+    if (distance_to_top < PENDING_QUEUE_AUTO_SCROLL_ZONE_PX) {
+      const ratio = (PENDING_QUEUE_AUTO_SCROLL_ZONE_PX - Math.max(distance_to_top, 0)) / PENDING_QUEUE_AUTO_SCROLL_ZONE_PX;
+      delta = -Math.ceil(ratio * PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX);
+    } else if (distance_to_bottom < PENDING_QUEUE_AUTO_SCROLL_ZONE_PX) {
+      const ratio = (PENDING_QUEUE_AUTO_SCROLL_ZONE_PX - Math.max(distance_to_bottom, 0)) / PENDING_QUEUE_AUTO_SCROLL_ZONE_PX;
+      delta = Math.ceil(ratio * PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX);
+    }
+
+    if (delta !== 0) {
+      container.scrollTop += delta;
+    }
+    pending_queue_scroll_frame_ref.current = requestAnimationFrame(run_pending_queue_auto_scroll);
+  }, []);
+
+  const start_pending_queue_auto_scroll = useCallback((client_y: number) => {
+    pending_queue_drag_y_ref.current = client_y;
+    if (pending_queue_scroll_frame_ref.current === null) {
+      pending_queue_scroll_frame_ref.current = requestAnimationFrame(run_pending_queue_auto_scroll);
+    }
+  }, [run_pending_queue_auto_scroll]);
+
+  useEffect(() => stop_pending_queue_auto_scroll, [stop_pending_queue_auto_scroll]);
 
   const handle_input_change = useCallback((value: string) => {
     setInput(value);
@@ -222,6 +325,13 @@ const ComposerPanelView = memo(({
     setInput((current_value) => current_value || normalized_draft);
   }, [initial_draft]);
 
+  const dispatch_message = useCallback(async (
+    content: string,
+    policy: AgentConversationDeliveryPolicy,
+  ) => {
+    await on_send_message(content, policy);
+  }, [on_send_message]);
+
   const handle_send = useCallback(async () => {
     const trimmed_input = input.trim();
     if (
@@ -259,7 +369,14 @@ const ComposerPanelView = memo(({
     setHistoryDraft("");
 
     try {
-      await on_send_message(next_message);
+      if (is_loading || input_queue_items.length > 0) {
+        if (!on_enqueue_message) {
+          return;
+        }
+        await on_enqueue_message?.(next_message, default_delivery_policy);
+      } else {
+        await dispatch_message(next_message, default_delivery_policy);
+      }
       setInput("");
       setAttachments([]);
       setAttachmentError(null);
@@ -273,11 +390,37 @@ const ComposerPanelView = memo(({
     }
   }, [
     attachments,
+    default_delivery_policy,
+    dispatch_message,
+    input_queue_items.length,
     input,
     is_input_locked,
+    is_loading,
     is_preparing_attachments,
+    on_enqueue_message,
     on_prepare_attachments,
-    on_send_message,
+  ]);
+
+  const remove_pending_message = useCallback(async (id: string) => {
+    await on_delete_queued_message?.(id);
+  }, [on_delete_queued_message]);
+
+  const guide_pending_message = useCallback(async (message: InputQueueItem) => {
+    if (disabled || is_queue_action_running) {
+      return;
+    }
+    try {
+      set_is_queue_action_running(true);
+      await on_guide_queued_message?.(message.id);
+    } catch (error) {
+      console.error("引导队列消息失败:", error);
+    } finally {
+      set_is_queue_action_running(false);
+    }
+  }, [
+    disabled,
+    is_queue_action_running,
+    on_guide_queued_message,
   ]);
 
   const recall_previous_history = useCallback(() => {
@@ -441,6 +584,124 @@ const ComposerPanelView = memo(({
       />
 
       <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
+        {input_queue_items.length > 0 ? (
+          <div className={cn("border-b border-(--surface-canvas-border)", compact ? "px-2 py-1" : "px-3 py-1.5")}>
+            <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-(--text-soft)">
+              <span className="inline-flex items-center gap-1.5">
+                待发送队列
+                <span className="tabular-nums">{input_queue_items.length}</span>
+              </span>
+              <button
+                aria-label={is_pending_queue_collapsed ? "展开待发送队列" : "收起待发送队列"}
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                onClick={() => set_is_pending_queue_collapsed((current) => !current)}
+                type="button"
+              >
+                {is_pending_queue_collapsed ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronUp className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+            <div className={cn(
+              "soft-scrollbar flex max-h-[112px] flex-col divide-y divide-(--divider-subtle-color) overflow-y-auto pr-1",
+              is_pending_queue_collapsed ? "hidden" : "mt-0.5",
+            )}
+              onDragOver={(event) => {
+                event.preventDefault();
+                start_pending_queue_auto_scroll(event.clientY);
+              }}
+              ref={pending_queue_scroll_ref}
+            >
+              {input_queue_items.map((message) => {
+                const is_dragging = dragging_message_id === message.id;
+                const is_drag_target = Boolean(
+                  dragging_message_id
+                    && dragging_message_id !== message.id
+                    && drag_over_message_id === message.id,
+                );
+                return (
+                  <div
+                    key={message.id}
+                    draggable
+                    className={cn(
+                      "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-1 text-(--text-default) transition-[background,box-shadow,opacity]",
+                      is_dragging && "opacity-60",
+                      is_drag_target && "bg-(--surface-interactive-hover-background) shadow-[inset_3px_0_0_var(--primary)]",
+                    )}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      start_pending_queue_auto_scroll(event.clientY);
+                      if (drag_over_message_id !== message.id) {
+                        set_drag_over_message_id(message.id);
+                      }
+                    }}
+                    onDragStart={() => {
+                      dragging_message_id_ref.current = message.id;
+                      set_dragging_message_id(message.id);
+                    }}
+                    onDragEnd={() => {
+                      dragging_message_id_ref.current = null;
+                      stop_pending_queue_auto_scroll();
+                      set_dragging_message_id(null);
+                      set_drag_over_message_id(null);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (!dragging_message_id) {
+                        return;
+                      }
+                      const next_items = reorder_pending_messages(
+                        input_queue_items,
+                        dragging_message_id,
+                        message.id,
+                      );
+                      void on_reorder_queue_messages?.(next_items.map((item) => item.id));
+                      dragging_message_id_ref.current = null;
+                      stop_pending_queue_auto_scroll();
+                      set_dragging_message_id(null);
+                      set_drag_over_message_id(null);
+                    }}
+                  >
+                    <span
+                      aria-label="拖动调整顺序"
+                      className="inline-flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-(--text-soft) active:cursor-grabbing"
+                    >
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </span>
+                    <p className="line-clamp-1 min-w-0 flex-1 text-[12px] leading-5 text-(--text-strong)">
+                      {message.content}
+                    </p>
+                    <button
+                      aria-label="引导当前 round"
+                      className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                      disabled={disabled || is_queue_action_running}
+                      onClick={() => {
+                        void guide_pending_message(message);
+                      }}
+                      type="button"
+                    >
+                      <CornerDownRight className="h-3 w-3" />
+                      引导
+                    </button>
+                    <button
+                      aria-label="删除待发送消息"
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:text-(--destructive)"
+                      onClick={() => {
+                        void remove_pending_message(message.id);
+                      }}
+                      type="button"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         {attachments.length > 0 ? (
           <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
             {attachments.map((attachment) => (
@@ -573,7 +834,7 @@ const ComposerPanelView = memo(({
               <>
                 <span className="flex items-center gap-1">
                   <kbd>Enter</kbd>
-                  <span>发送</span>
+                  <span>{is_loading || input_queue_items.length > 0 ? "入队" : "发送"}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <kbd>Shift</kbd>

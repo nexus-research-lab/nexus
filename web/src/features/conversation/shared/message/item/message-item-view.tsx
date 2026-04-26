@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  CornerDownRight,
   Edit2,
   Square,
   User,
@@ -66,6 +67,8 @@ export function MessageUserSection({
   if (!user_message) {
     return null;
   }
+  const is_guided_user_message =
+    user_message.role === "user" && user_message.delivery_policy === "guide";
 
   return (
     <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
@@ -109,6 +112,12 @@ export function MessageUserSection({
               <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
                 {format_message_time(user_message.timestamp)}
               </span>
+              {is_guided_user_message ? (
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--text-muted)">
+                  <CornerDownRight className="h-3.5 w-3.5" />
+                  已引导对话
+                </span>
+              ) : null}
               <span className="shrink-0 text-sm font-bold text-(--text-strong)">
                 你
               </span>
@@ -123,7 +132,14 @@ export function MessageUserSection({
               </MessageAvatar>
             </div>
 
-            <div className="ml-auto w-fit max-w-full rounded-2xl bg-[color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))] px-4 py-3">
+            <div
+              className={cn(
+                "ml-auto w-fit max-w-full rounded-2xl px-4 py-3",
+                is_guided_user_message
+                  ? "border border-(--divider-subtle-color) bg-(--surface-inset-background)"
+                  : "bg-[color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))]",
+              )}
+            >
               <ContentRenderer
                 content={user_content}
                 on_open_workspace_file={on_open_workspace_file}

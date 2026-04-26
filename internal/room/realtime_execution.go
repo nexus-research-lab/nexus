@@ -64,6 +64,12 @@ func (s *RealtimeService) runRound(
 	if finalStatus == "finished" {
 		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
 	}
+	go s.dispatchNextInputQueueItem(
+		contextWithQueueOwner(context.Background(), roundValue.OwnerUserID),
+		roundValue.SessionKey,
+		roundValue.RoomID,
+		roundValue.ConversationID,
+	)
 }
 
 func (s *RealtimeService) runSlot(
@@ -154,6 +160,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	options = runtimectx.WithPostToolUseGuidanceHook(options, roomSlotGuidanceHook(slot))
 	previousStderr := options.Stderr
 	options.Stderr = func(line string) {
 		if previousStderr != nil {
@@ -206,6 +213,18 @@ func (s *RealtimeService) runSlot(
 		Mapper: roomRoundMapperAdapter{mapper: mapper},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
+		},
+		AfterQuery: func() error {
+			for _, input := range slot.drainQueuedInputs() {
+				if err := runtimectx.SendClientContent(slotCtx, client, input.Content); err != nil {
+					return err
+				}
+				logger.Info("发送已排队的 Room 消息",
+					"queued_round_id", input.RoundID,
+					"content_chars", utf8.RuneCountInString(input.Content),
+				)
+			}
+			return nil
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			if logger.Enabled(slotCtx, slog.LevelDebug) {

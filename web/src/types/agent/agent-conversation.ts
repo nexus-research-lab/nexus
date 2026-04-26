@@ -105,7 +105,18 @@ export interface UseAgentConversationReturn {
   session_observer_count: number;
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];
-  send_message: (content: string) => Promise<void>;
+  input_queue_items: InputQueueItem[];
+  send_message: (
+    content: string,
+    options?: AgentConversationSendOptions,
+  ) => Promise<void>;
+  enqueue_input_queue_message: (
+    content: string,
+    delivery_policy?: AgentConversationDeliveryPolicy,
+  ) => Promise<void>;
+  delete_input_queue_message: (item_id: string) => Promise<void>;
+  guide_input_queue_message: (item_id: string) => Promise<void>;
+  reorder_input_queue_messages: (ordered_ids: string[]) => Promise<void>;
   bind_session_key: (key: string | null) => void;
   start_session: () => void;
   load_session: (key: string) => Promise<void>;
@@ -115,6 +126,40 @@ export interface UseAgentConversationReturn {
   stop_generation: (msg_id?: string) => void;
   pending_permissions: PendingPermission[];
   send_permission_response: (payload: PermissionDecisionPayload) => boolean;
+}
+
+export type AgentConversationDeliveryPolicy = 'queue' | 'guide' | 'interrupt' | 'auto';
+
+export type InputQueueScope = 'dm' | 'room';
+export type InputQueueSource = 'user' | 'agent_public_mention';
+
+export interface InputQueueItem {
+  id: string;
+  scope: InputQueueScope;
+  session_key: string;
+  room_id?: string;
+  conversation_id?: string;
+  agent_id?: string;
+  source_agent_id?: string;
+  source_message_id?: string;
+  target_agent_ids?: string[];
+  source: InputQueueSource;
+  content: string;
+  delivery_policy: AgentConversationDeliveryPolicy;
+  owner_user_id?: string;
+  root_round_id?: string;
+  hop_index?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface InputQueueEventPayload {
+  scope: InputQueueScope;
+  items: InputQueueItem[];
+}
+
+export interface AgentConversationSendOptions {
+  delivery_policy?: AgentConversationDeliveryPolicy;
 }
 
 export interface ConversationSnapshot {
@@ -133,10 +178,12 @@ export interface AgentConversationActionContext {
   active_session_key_ref: RefObject<string | null>;
   pending_permissions: PendingPermission[];
   pending_agent_slots: RoomPendingAgentSlotState[];
+  input_queue_items: InputQueueItem[];
   messages: Message[];
   set_error: Dispatch<SetStateAction<string | null>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
   set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
+  set_input_queue_items: Dispatch<SetStateAction<InputQueueItem[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
 }
 
@@ -148,6 +195,7 @@ export interface AgentConversationLifecycleContext {
   set_is_session_loading: Dispatch<SetStateAction<boolean>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
   set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
+  set_input_queue_items?: Dispatch<SetStateAction<InputQueueItem[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
   set_error: Dispatch<SetStateAction<string | null>>;
   /** Cache of background messages received for non-active sessions */
@@ -185,6 +233,7 @@ export interface HandleAgentConversationWebSocketMessageParams {
   set_error: Dispatch<SetStateAction<string | null>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
   set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
+  set_input_queue_items: Dispatch<SetStateAction<InputQueueItem[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
   /** Enqueue a stream payload into the rAF batch buffer instead of calling set_messages directly */
   enqueue_stream_payload?: (payload: StreamMessage) => void;

@@ -140,13 +140,19 @@ func (s *Service) recordRoundMarker(
 	sessionValue session.Session,
 	roundID string,
 	content string,
+	deliveryPolicies ...protocol.ChatDeliveryPolicy,
 ) error {
+	var deliveryPolicy string
+	if len(deliveryPolicies) > 0 {
+		deliveryPolicy = string(deliveryPolicies[0])
+	}
 	return s.history.AppendRoundMarker(
 		workspacePath,
 		sessionValue.SessionKey,
 		roundID,
 		content,
 		time.Now().UnixMilli(),
+		deliveryPolicy,
 	)
 }
 

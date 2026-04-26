@@ -69,6 +69,7 @@ type RoundExecutionRequest struct {
 	Mapper                 RoundMapper
 	InterruptReason        func() string
 	SyncSessionID          func(string) error
+	AfterQuery             func() error
 	HandleDurableMessage   func(protocol.Message) error
 	EmitEvent              func(protocol.EventMessage) error
 	ObserveIncomingMessage func(sdkprotocol.ReceivedMessage)
@@ -97,6 +98,11 @@ func ExecuteRound(
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		}
 		return RoundExecutionResult{}, err
+	}
+	if request.AfterQuery != nil {
+		if err := request.AfterQuery(); err != nil {
+			return RoundExecutionResult{}, err
+		}
 	}
 
 	messageCh := request.Client.ReceiveMessages(ctx)

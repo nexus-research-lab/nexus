@@ -111,7 +111,7 @@ export function AgentOptionsEditor({
 
   // ---- Advanced 状态 ----
   const [permissionMode, setPermissionMode] = useState(
-    sourceOptions.permission_mode || "default"
+    sourceOptions.permission_mode || "bypassPermissions"
   );
   const [allowedTools, setAllowedTools] = useState<string[]>(
     sourceOptions.allowed_tools || []
@@ -140,7 +140,7 @@ export function AgentOptionsEditor({
     setProvider(normalize_agent_option_provider(opts.provider));
     setDefaultProvider("");
     setProviderOptionsError(null);
-    setPermissionMode(opts.permission_mode || "default");
+    setPermissionMode(opts.permission_mode || "bypassPermissions");
     setAllowedTools(opts.allowed_tools || []);
     setDisallowedTools(opts.disallowed_tools || []);
     setNameValidation(null);

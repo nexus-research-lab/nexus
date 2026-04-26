@@ -21,6 +21,8 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get("/agent/v1/settings/profile", s.auth.HandlePersonalProfile)
 	s.router.Patch("/agent/v1/settings/profile", s.auth.HandleUpdatePersonalProfile)
 	s.router.Post("/agent/v1/settings/profile/password", s.auth.HandleChangePassword)
+	s.router.Get("/agent/v1/settings/preferences", s.core.HandleGetPreferences)
+	s.router.Patch("/agent/v1/settings/preferences", s.core.HandleUpdatePreferences)
 	s.router.Get("/agent/v1/settings/providers", s.core.HandleListProviderConfigs)
 	s.router.Get("/agent/v1/settings/providers/options", s.core.HandleListProviderOptions)
 	s.router.Post("/agent/v1/settings/providers", s.core.HandleCreateProviderConfig)

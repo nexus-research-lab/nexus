@@ -6,6 +6,7 @@ export type EventType =
   | "message"
   | "stream"
   | "chat_ack"
+  | "input_queue"
   | "round_status"
   | "session_status"
   | "permission_request"

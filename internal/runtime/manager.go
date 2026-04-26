@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +14,13 @@ import (
 
 const interruptForceCancelDelay = 150 * time.Millisecond
 
+var (
+	// ErrNoRunningRound 表示当前 session 没有可接收排队输入的运行中 round。
+	ErrNoRunningRound = errors.New("runtime session has no running round")
+	// ErrStreamingInputUnsupported 表示底层 client 不支持流式排队输入。
+	ErrStreamingInputUnsupported = errors.New("runtime client does not support streaming input")
+)
+
 // Client 抽象出运行时需要的最小 SDK 能力，便于测试替身接入。
 type Client interface {
 	Connect(context.Context) error
@@ -22,6 +30,10 @@ type Client interface {
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
 	SessionID() string
+}
+
+type streamingInputClient interface {
+	SendContent(context.Context, any, *string, string) error
 }
 
 // Factory 负责创建 SDK client。
@@ -59,6 +71,7 @@ type sessionState struct {
 	RoundCancels  map[string]context.CancelFunc
 	RoundDone     map[string]chan struct{}
 	Interruptions map[string]string
+	GuidedInputs  []GuidedInput
 }
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
@@ -143,6 +156,9 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	delete(state.RunningRounds, roundID)
 	delete(state.RoundCancels, roundID)
 	delete(state.Interruptions, roundID)
+	if len(state.RunningRounds) == 0 {
+		state.GuidedInputs = nil
+	}
 	if done, ok := state.RoundDone[roundID]; ok {
 		close(done)
 		delete(state.RoundDone, roundID)
@@ -247,6 +263,40 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 		return roundIDs, err
 	}
 	return roundIDs, nil
+}
+
+// SendContentToRunningRound 把新输入排入当前运行中的 SDK 流。
+func (m *Manager) SendContentToRunningRound(ctx context.Context, sessionKey string, content any) ([]string, error) {
+	m.mu.RLock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || state.Client == nil || len(state.RunningRounds) == 0 {
+		m.mu.RUnlock()
+		return nil, ErrNoRunningRound
+	}
+	roundIDs := make([]string, 0, len(state.RunningRounds))
+	for roundID := range state.RunningRounds {
+		roundIDs = append(roundIDs, roundID)
+	}
+	client := state.Client
+	m.mu.RUnlock()
+
+	sort.Strings(roundIDs)
+	if err := SendClientContent(ctx, client, content); err != nil {
+		return roundIDs, err
+	}
+	return roundIDs, nil
+}
+
+// SendClientContent 通过 SDK streaming input 向活动 client 投递用户输入。
+func SendClientContent(ctx context.Context, client Client, content any) error {
+	if client == nil {
+		return ErrNoRunningRound
+	}
+	sender, ok := client.(streamingInputClient)
+	if !ok {
+		return ErrStreamingInputUnsupported
+	}
+	return sender.SendContent(ctx, content, nil, "")
 }
 
 // GetInterruptReason 返回 round 是否已收到显式中断请求。

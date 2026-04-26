@@ -43,9 +43,32 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 	initialMessageCount := sessionItem.MessageCount
+	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 
-	if err = s.interruptSession(ctx, sessionKey, "收到新的用户消息，上一轮已停止"); err != nil {
-		return err
+	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
+		delivered, guideErr := s.guideRunningInput(ctx, sessionKey, agentValue, sessionItem, request, initialMessageCount)
+		if guideErr != nil && !errors.Is(guideErr, runtimectx.ErrNoRunningRound) {
+			return guideErr
+		}
+		if delivered {
+			return nil
+		}
+	}
+
+	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
+		delivered, queueErr := s.queueRunningInput(ctx, sessionKey, agentValue, sessionItem, request, initialMessageCount)
+		if queueErr != nil && !errors.Is(queueErr, runtimectx.ErrNoRunningRound) {
+			return queueErr
+		}
+		if delivered {
+			return nil
+		}
+	}
+
+	if deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
+		if err = s.interruptSession(ctx, sessionKey, "收到新的用户消息，上一轮已停止"); err != nil {
+			return err
+		}
 	}
 
 	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
@@ -98,7 +121,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"content_chars", utf8.RuneCountInString(runner.content),
 	)
 
-	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content); err != nil {
+	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy); err != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
 		s.permission.CancelRequestsForSession(sessionKey, "轮次标记持久化失败")
 		s.loggerFor(ctx).Error("DM 轮次标记持久化失败",
@@ -127,11 +150,109 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
 
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+	if request.BroadcastUserMessage {
+		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy)
+	}
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, request.RoundID, "running", ""))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go runner.run(roundCtx)
 	return nil
+}
+
+func (s *Service) queueRunningInput(
+	ctx context.Context,
+	sessionKey string,
+	agentValue *agent3.Agent,
+	sessionItem session.Session,
+	request Request,
+	initialMessageCount int,
+) (bool, error) {
+	content := strings.TrimSpace(request.Content)
+	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+	if len(runningRoundIDs) == 0 {
+		return false, runtimectx.ErrNoRunningRound
+	}
+	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, content); err != nil {
+		return false, err
+	}
+	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue); err != nil {
+		s.loggerFor(ctx).Error("DM 排队消息持久化失败",
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"round_id", request.RoundID,
+			"err", err,
+		)
+		return false, err
+	}
+	if _, err := s.refreshSessionMetaAfterRoundMarker(agentValue.WorkspacePath, sessionItem); err != nil {
+		s.loggerFor(ctx).Error("DM 排队消息刷新 session meta 失败",
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"round_id", request.RoundID,
+			"err", err,
+		)
+		return false, err
+	}
+	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
+	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
+	if request.BroadcastUserMessage {
+		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue)
+	}
+	s.broadcastSessionStatus(ctx, sessionKey)
+	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
+		"session_key", sessionKey,
+		"agent_id", agentValue.AgentID,
+		"round_id", request.RoundID,
+		"running_round_ids", runningRoundIDs,
+	)
+	return true, nil
+}
+
+func (s *Service) guideRunningInput(
+	ctx context.Context,
+	sessionKey string,
+	agentValue *agent3.Agent,
+	sessionItem session.Session,
+	request Request,
+	initialMessageCount int,
+) (bool, error) {
+	content := strings.TrimSpace(request.Content)
+	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, content)
+	if err != nil {
+		return false, err
+	}
+	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyGuide); err != nil {
+		s.loggerFor(ctx).Error("DM 引导消息持久化失败",
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"round_id", request.RoundID,
+			"err", err,
+		)
+		return false, err
+	}
+	if _, err := s.refreshSessionMetaAfterRoundMarker(agentValue.WorkspacePath, sessionItem); err != nil {
+		s.loggerFor(ctx).Error("DM 引导消息刷新 session meta 失败",
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"round_id", request.RoundID,
+			"err", err,
+		)
+		return false, err
+	}
+	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
+	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
+	if request.BroadcastUserMessage {
+		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyGuide)
+	}
+	s.broadcastSessionStatus(ctx, sessionKey)
+	s.loggerFor(ctx).Info("登记 DM 引导消息等待 PostToolUse 注入",
+		"session_key", sessionKey,
+		"agent_id", agentValue.AgentID,
+		"round_id", request.RoundID,
+		"running_round_ids", runningRoundIDs,
+	)
+	return true, nil
 }
 
 func (s *Service) scheduleTitleGeneration(
@@ -237,6 +358,7 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", err
 	}
+	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options.Resume = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, agentValue.Options.Provider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {

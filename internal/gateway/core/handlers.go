@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
 
 	"github.com/go-chi/chi/v5"
@@ -16,6 +18,7 @@ type Handlers struct {
 	api       *gatewayshared.API
 	agents    *agentpkg.Service
 	providers *providercfg.Service
+	prefs     *preferencessvc.Service
 }
 
 // New 创建核心 handlers。
@@ -23,11 +26,17 @@ func New(
 	api *gatewayshared.API,
 	agents *agentpkg.Service,
 	providers *providercfg.Service,
+	prefs ...*preferencessvc.Service,
 ) *Handlers {
+	var prefService *preferencessvc.Service
+	if len(prefs) > 0 {
+		prefService = prefs[0]
+	}
 	return &Handlers{
 		api:       api,
 		agents:    agents,
 		providers: providers,
+		prefs:     prefService,
 	}
 }
 
@@ -54,6 +63,11 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	prefs, err := h.currentPreferences(request)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
 	h.api.WriteJSON(writer, http.StatusOK, map[string]any{
 		"code":    "0000",
 		"message": "success",
@@ -62,8 +76,51 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 			"default_agent_id":       defaultAgent.AgentID,
 			"default_agent_avatar":   defaultAgent.Avatar,
 			"default_agent_provider": defaultProvider,
+			"preferences":            prefs,
 		},
 	})
+}
+
+// HandleGetPreferences 返回当前用户偏好。
+func (h *Handlers) HandleGetPreferences(writer http.ResponseWriter, request *http.Request) {
+	prefs, err := h.currentPreferences(request)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, prefs)
+}
+
+// HandleUpdatePreferences 更新当前用户偏好。
+func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *http.Request) {
+	if h.prefs == nil {
+		h.api.WriteSuccess(writer, preferencessvc.DefaultPreferences())
+		return
+	}
+	var payload preferencessvc.UpdateRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.prefs.Update(request.Context(), currentOwnerUserID(request), payload)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Preferences, error) {
+	if h.prefs == nil {
+		return preferencessvc.DefaultPreferences(), nil
+	}
+	return h.prefs.Get(request.Context(), currentOwnerUserID(request))
+}
+
+func currentOwnerUserID(request *http.Request) string {
+	if userID, ok := authsvc.CurrentUserID(request.Context()); ok {
+		return userID
+	}
+	return authsvc.SystemUserID
 }
 
 // HandleListProviderConfigs 返回 provider 配置列表。

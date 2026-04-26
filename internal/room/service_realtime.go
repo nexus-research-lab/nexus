@@ -47,6 +47,7 @@ type ChatRequest struct {
 	Content        string
 	RoundID        string
 	ReqID          string
+	DeliveryPolicy protocol.ChatDeliveryPolicy
 }
 
 // InterruptRequest 表示 Room 会话中断请求。
@@ -69,6 +70,7 @@ type RealtimeService struct {
 	providers   runtimectx.RuntimeConfigResolver
 	history     *workspacestore.AgentHistoryStore
 	roomHistory *workspacestore.RoomHistoryStore
+	inputQueue  *workspacestore.InputQueueStore
 	usage       usageRecorder
 	factory     roomClientFactory
 	broadcaster RoomBroadcaster
@@ -119,6 +121,7 @@ func NewRealtimeServiceWithFactory(
 		permission:   permission,
 		history:      workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:  workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
+		inputQueue:   workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:      factory,
 		logger:       logx.NewDiscardLogger(),
 		activeRounds: make(map[string]*activeRoomRound),

@@ -45,9 +45,10 @@ type transcriptEntry struct {
 }
 
 type transcriptRoundMarker struct {
-	RoundID   string
-	Content   string
-	Timestamp int64
+	RoundID        string
+	Content        string
+	Timestamp      int64
+	DeliveryPolicy string
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
@@ -127,13 +128,21 @@ func (s *AgentHistoryStore) AppendRoundMarker(
 	roundID string,
 	content string,
 	timestamp int64,
+	deliveryPolicies ...string,
 ) error {
-	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), map[string]any{
+	row := map[string]any{
 		overlayKindField: overlayKindRoundMarker,
 		"round_id":       strings.TrimSpace(roundID),
 		"content":        strings.TrimSpace(content),
 		"timestamp":      timestamp,
-	})
+	}
+	if len(deliveryPolicies) > 0 {
+		deliveryPolicy := strings.TrimSpace(deliveryPolicies[0])
+		if deliveryPolicy != "" {
+			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
+		}
+	}
+	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
 
 // ReadMessages 读取 DM 历史。
@@ -230,9 +239,10 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 	for _, row := range rows {
 		if strings.TrimSpace(stringFromAny(row[overlayKindField])) == overlayKindRoundMarker {
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
-				RoundID:   strings.TrimSpace(stringFromAny(row["round_id"])),
-				Content:   strings.TrimSpace(stringFromAny(row["content"])),
-				Timestamp: messageTimestamp(protocol.Message(row)),
+				RoundID:        strings.TrimSpace(stringFromAny(row["round_id"])),
+				Content:        strings.TrimSpace(stringFromAny(row["content"])),
+				Timestamp:      messageTimestamp(protocol.Message(row)),
+				DeliveryPolicy: strings.TrimSpace(stringFromAny(row["delivery_policy"])),
 			})
 			continue
 		}
@@ -279,7 +289,7 @@ func materializeRoundMarkerMessages(
 		if roundID == "" {
 			continue
 		}
-		rows = append(rows, protocol.Message{
+		row := protocol.Message{
 			"message_id":  roundID,
 			"session_key": sessionKey,
 			"agent_id":    strings.TrimSpace(agentID),
@@ -287,7 +297,11 @@ func materializeRoundMarkerMessages(
 			"role":        "user",
 			"content":     strings.TrimSpace(marker.Content),
 			"timestamp":   marker.Timestamp,
-		})
+		}
+		if strings.TrimSpace(marker.DeliveryPolicy) != "" {
+			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
@@ -624,6 +638,7 @@ func projectTranscriptChain(
 				decoded.SessionID,
 				entry.Data,
 				marker.Content,
+				marker.DeliveryPolicy,
 				entryTimestamp,
 			)
 			if userMessage == nil {
@@ -728,6 +743,7 @@ func buildTranscriptUserMessage(
 	sessionID string,
 	entry map[string]any,
 	contentOverride string,
+	deliveryPolicy string,
 	timestamp int64,
 ) *protocol.Message {
 	content := firstNonEmpty(strings.TrimSpace(contentOverride), transcriptUserContent(entry))
@@ -745,6 +761,9 @@ func buildTranscriptUserMessage(
 	}
 	if strings.TrimSpace(sessionID) != "" {
 		payload["session_id"] = strings.TrimSpace(sessionID)
+	}
+	if strings.TrimSpace(deliveryPolicy) != "" {
+		payload["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
 	}
 	return &payload
 }
