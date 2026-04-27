@@ -92,7 +92,15 @@ class HeartbeatService:
 
     async def start(self) -> None:
         """启动 heartbeat 运行态。"""
-        rows = await self._state_store.list_enabled_states()
+        try:
+            rows = await self._state_store.list_enabled_states()
+        except Exception as exc:
+            # 未迁移数据库时表不存在，降级为空列表启动，避免拖垮整个 app lifespan
+            from sqlalchemy.exc import OperationalError
+            if isinstance(exc, OperationalError) and "no such table" in str(exc).lower():
+                rows = []
+            else:
+                raise
         for row in rows:
             config, _delivery_error = self._config_from_row(row)
             await self._scheduler.sync_agent(config.agent_id, config)
