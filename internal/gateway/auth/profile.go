@@ -154,7 +154,7 @@ func buildPersonalUserPayload(principal *authsvc.Principal) personalUserPayload 
 			UserID:      authsvc.SystemUserID,
 			Username:    "local",
 			DisplayName: "Local User",
-			Role:        authsvc.RoleOwner,
+			Role:        authsvc.RoleMember,
 			Avatar:      "",
 			AuthMethod:  "",
 		}

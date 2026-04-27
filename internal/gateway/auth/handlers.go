@@ -132,7 +132,7 @@ func (h *Handlers) HandleAuthLogout(writer http.ResponseWriter, request *http.Re
 	h.api.WriteSuccess(writer, authsvc.StatusPayload{
 		AuthRequired:         state.AuthRequired,
 		PasswordLoginEnabled: state.PasswordLoginEnabled,
-		Authenticated:        !state.AuthRequired,
+		Authenticated:        !state.AuthRequired && !state.SetupRequired,
 		Username:             nil,
 		SetupRequired:        state.SetupRequired,
 		AccessTokenEnabled:   state.AccessTokenEnabled,
