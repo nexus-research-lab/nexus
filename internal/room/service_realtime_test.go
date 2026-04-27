@@ -31,6 +31,7 @@ import (
 
 type ChatRequest = roomsvc.ChatRequest
 type InterruptRequest = roomsvc.InterruptRequest
+type InputQueueRequest = roomsvc.InputQueueRequest
 
 var NewRealtimeServiceWithFactory = roomsvc.NewRealtimeServiceWithFactory
 
@@ -1031,6 +1032,110 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRuns(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "用户队列按目标派发房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	amyClient := newFakeRoomClient()
+	amyClient.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	devinClient := newFakeRoomClient()
+	devinPrompt := make(chan string, 1)
+	devinClient.onQuery = func(_ context.Context, prompt string) error {
+		devinPrompt <- prompt
+		go sendFakeAssistantResult(devinClient, "devin-user-queue-idle", "收到。")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-user-queue-idle-target")
+	permission.BindSession(sharedSessionKey, sender, "client-user-queue-idle-target", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Amy 先处理一个长任务",
+		RoundID:        "room-round-amy-busy",
+		ReqID:          "room-round-amy-busy",
+	}); err != nil {
+		t.Fatalf("启动 Amy 长任务失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == amy.AgentID
+	})
+
+	if err = service.HandleInputQueue(ctx, InputQueueRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Action:         "enqueue",
+		Content:        "@Devin 好的",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+	}); err != nil {
+		t.Fatalf("写入 Room 用户队列失败: %v", err)
+	}
+
+	select {
+	case prompt := <-devinPrompt:
+		if !strings.Contains(prompt, "@Devin 好的") {
+			t.Fatalf("Devin prompt 缺少队列触发内容: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Amy 运行时，空闲 Devin 的用户队列项未被派发")
+	}
+
+	if service.CountRunningTasks(amy.AgentID) == 0 {
+		t.Fatal("测试前提失效：Amy 应仍处于运行状态")
+	}
+	targetQueueLocation := workspace2.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  devin.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, devin.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	targetQueueItems, err := workspace2.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
+	if err != nil {
+		t.Fatalf("读取 Devin 队列失败: %v", err)
+	}
+	if len(targetQueueItems) != 0 {
+		t.Fatalf("空闲目标派发后不应残留队列项: %+v", targetQueueItems)
+	}
+}
+
 func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -1565,6 +1670,133 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	}
 	if len(sentContents) != 1 || sentContents[0] != "@助手甲 这是补充要求" {
 		t.Fatalf("Room 运行中 slot 未收到排队输入: %+v", sentContents)
+	}
+
+	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+		t.Fatalf("清理活跃 Room round 失败: %v", err)
+	}
+}
+
+func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := bootstrap.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "助手甲")
+	roomContext, err := roomService.CreateRoom(ctx, CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "引导测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		return nil
+	}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-room-guide-cleanup",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-guide-running")
+	permission.BindSession(sharedSessionKey, sender, "client-guide-running", true)
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 先处理",
+		RoundID:        "room-round-guide-1",
+		ReqID:          "room-round-guide-1",
+	}); err != nil {
+		t.Fatalf("第一条 Room 消息失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID
+	})
+
+	if err = service.HandleChat(ctx, ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 等工具结果回来后优先看错误日志",
+		RoundID:        "room-round-guide-2",
+		ReqID:          "room-round-guide-2",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+	}); err != nil {
+		t.Fatalf("Room 引导消息失败: %v", err)
+	}
+	guidanceEvents := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeMessage && event.Data["role"] == "system"
+	})
+	guidanceEvent := guidanceEvents[len(guidanceEvents)-1]
+	if guidanceEvent.Data["round_id"] != "room-round-guide-1" || guidanceEvent.Data["message_id"] != "room-round-guide-2" {
+		t.Fatalf("Room 引导消息应归入运行中的 agent round: %+v", guidanceEvent.Data)
+	}
+	if guidanceEvent.DeliveryMode != "ephemeral" {
+		t.Fatalf("Room 引导消息只应作为实时展示事件广播: %+v", guidanceEvent)
+	}
+	if guidanceEvent.Data["agent_id"] != agentValue.AgentID {
+		t.Fatalf("Room 引导消息缺少目标 agent: %+v", guidanceEvent.Data)
+	}
+	metadata, _ := guidanceEvent.Data["metadata"].(map[string]any)
+	if metadata["subtype"] != protocol.SystemMessageSubtypeGuidedInput {
+		t.Fatalf("Room 引导消息缺少 typed metadata: %+v", guidanceEvent.Data)
+	}
+
+	client.mu.Lock()
+	sentContents := append([]string(nil), client.sentContents...)
+	interruptCalls := client.interruptCalls
+	client.mu.Unlock()
+	if interruptCalls != 0 {
+		t.Fatalf("Room 引导不应中断运行中 slot: interruptCalls=%d", interruptCalls)
+	}
+	if len(sentContents) != 0 {
+		t.Fatalf("Room 引导不应走普通 streaming input: %+v", sentContents)
+	}
+
+	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取 Room 公区历史失败: %v", err)
+	}
+	for _, message := range sharedMessages {
+		if message["message_id"] == "room-round-guide-2" && message["role"] == "user" {
+			t.Fatalf("Room 引导不应进入公区用户消息: %+v", message)
+		}
 	}
 
 	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {

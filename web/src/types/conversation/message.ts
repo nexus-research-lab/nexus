@@ -48,7 +48,7 @@ export interface TaskProgressContent {
 }
 
 export type SystemEventTone = "neutral" | "warning";
-export type SystemEventIcon = "retry" | "progress" | "status";
+export type SystemEventIcon = "retry" | "progress" | "status" | "guide";
 
 export interface SystemEventContent {
   type: "system_event";
@@ -287,7 +287,7 @@ export interface RoomCollaborationEvent {
 export interface SystemMessageDisplayMeta {
   label: string;
   tone: "neutral" | "warning";
-  icon: "retry" | "progress" | "status";
+  icon: SystemEventIcon;
 }
 
 export function get_system_message_display_meta(
@@ -315,6 +315,14 @@ export function get_system_message_display_meta(
       label: "状态更新",
       tone: "neutral",
       icon: "status",
+    };
+  }
+
+  if (subtype === "guided_input") {
+    return {
+      label: "已引导对话",
+      tone: "neutral",
+      icon: "guide",
     };
   }
 

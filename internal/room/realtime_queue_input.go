@@ -121,6 +121,7 @@ func filterQueuedAgentIDs(agentIDs []string, queued map[string]struct{}) []strin
 func (s *RealtimeService) guideActiveAgentSlots(
 	ctx context.Context,
 	sessionKey string,
+	roomID string,
 	conversationID string,
 	targetAgentIDs []string,
 	content string,
@@ -133,9 +134,12 @@ func (s *RealtimeService) guideActiveAgentSlots(
 			continue
 		}
 		slot.enqueueGuidedInput(roundID, content)
+		guidanceMessage := buildRoomGuidanceMessage(sessionKey, roomID, conversationID, slot, roundID, content)
+		s.broadcastSlotGuidanceMessage(ctx, sessionKey, roomID, conversationID, roundID, guidanceMessage)
 		guidedAgentIDs[agentID] = struct{}{}
 		s.loggerFor(ctx).Info("登记 Room 引导消息等待 PostToolUse 注入",
 			"session_key", sessionKey,
+			"room_id", roomID,
 			"runtime_session_key", slot.RuntimeSessionKey,
 			"conversation_id", conversationID,
 			"agent_id", agentID,

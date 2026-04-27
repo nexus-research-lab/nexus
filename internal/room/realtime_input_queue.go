@@ -123,31 +123,14 @@ func (s *RealtimeService) guideInputQueueItem(
 	if !ok {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
-	if _, err = s.inputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
+	activeSlot := s.inputQueueGuidanceTargetSlot(sessionKey, contextValue.Conversation.ID, entry)
+	if activeSlot == nil {
+		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+	}
+	if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyGuide, activeSlot.AgentRoundID); err != nil {
 		return err
 	}
-	if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
-		return err
-	}
-	if entry.Item.Source == protocol.InputQueueSourceAgentPublicMention {
-		return s.dispatchAgentPublicMentionQueueItem(
-			contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
-			sessionKey,
-			contextValue.Room.ID,
-			contextValue.Conversation.ID,
-			entry.Item,
-			protocol.ChatDeliveryPolicyGuide,
-		)
-	}
-	return s.HandleChat(contextWithQueueOwner(ctx, entry.Item.OwnerUserID), ChatRequest{
-		SessionKey:     sessionKey,
-		RoomID:         contextValue.Room.ID,
-		ConversationID: contextValue.Conversation.ID,
-		Content:        entry.Item.Content,
-		RoundID:        "queue_" + entry.Item.ID,
-		ReqID:          "queue_" + entry.Item.ID,
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-	})
+	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 }
 
 func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessionKey string, roomID string, conversationID string) {
@@ -166,10 +149,10 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 		s.loggerFor(ctx).Error("读取 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
-	if len(entries) == 0 || !s.canDispatchInputQueueItem(sessionKey, conversationID, entries[0].Item) {
+	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
+	if len(entries) == 0 || !ok {
 		return
 	}
-	entry := entries[0]
 	if _, err = s.inputQueue.Dispatch(entry.Location, entry.Item.ID); err != nil {
 		s.loggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
@@ -248,7 +231,7 @@ func (s *RealtimeService) dispatchAgentPublicMentionQueueItem(
 		return errors.New("content is required")
 	}
 	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
-		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, conversationID, targetAgentIDs, content, "queue_"+item.ID)
+		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, roomID, conversationID, targetAgentIDs, content, "queue_"+item.ID)
 		if err != nil {
 			return err
 		}
@@ -285,10 +268,30 @@ func (s *RealtimeService) dispatchAgentPublicMentionQueueItem(
 }
 
 func (s *RealtimeService) canDispatchInputQueueItem(sessionKey string, conversationID string, item protocol.InputQueueItem) bool {
-	if item.Source == protocol.InputQueueSourceAgentPublicMention {
-		return len(s.findQueueSlots(sessionKey, conversationID, inputQueueTargetAgentIDs(item))) == 0
+	if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
+		return false
+	}
+	targetAgentIDs := inputQueueTargetAgentIDs(item)
+	if len(targetAgentIDs) > 0 {
+		return len(s.findQueueSlots(sessionKey, conversationID, targetAgentIDs)) == 0
 	}
 	return len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0
+}
+
+func (s *RealtimeService) findDispatchableInputQueueEntry(
+	sessionKey string,
+	conversationID string,
+	entries []roomInputQueueEntry,
+) (roomInputQueueEntry, bool) {
+	for _, entry := range entries {
+		if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
+			continue
+		}
+		if s.canDispatchInputQueueItem(sessionKey, conversationID, entry.Item) {
+			return entry, true
+		}
+	}
+	return roomInputQueueEntry{}, false
 }
 
 func (s *RealtimeService) canDispatchMoreInputQueueItems(ctx context.Context, sessionKey string, conversationID string) bool {
@@ -300,7 +303,28 @@ func (s *RealtimeService) canDispatchMoreInputQueueItems(ctx context.Context, se
 	if err != nil || len(entries) == 0 {
 		return false
 	}
-	return s.canDispatchInputQueueItem(sessionKey, conversationID, entries[0].Item)
+	_, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
+	return ok
+}
+
+func (s *RealtimeService) inputQueueGuidanceTargetSlot(
+	sessionKey string,
+	conversationID string,
+	entry roomInputQueueEntry,
+) *activeRoomSlot {
+	slotsByAgentID := s.findQueueSlots(sessionKey, conversationID, inputQueueTargetAgentIDs(entry.Item))
+	if len(slotsByAgentID) == 0 {
+		return nil
+	}
+	if slot := slotsByAgentID[inputQueueLocationAgentID(entry.Location)]; slot != nil {
+		return slot
+	}
+	for _, slot := range slotsByAgentID {
+		if slot != nil {
+			return slot
+		}
+	}
+	return nil
 }
 
 func (s *RealtimeService) resolveInputQueueContext(

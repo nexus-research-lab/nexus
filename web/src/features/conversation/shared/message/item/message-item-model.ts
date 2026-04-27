@@ -118,15 +118,15 @@ export function useMessageItemState({
   });
 
   const system_messages = useMemo(() => {
-    if (!is_last_round || !is_loading) {
-      return [];
-    }
-
     return messages.filter(
       (message): message is SystemMessage =>
         message.role === "system" &&
         typeof message.content === "string" &&
-        Boolean(message.content.trim()),
+        Boolean(message.content.trim()) &&
+        (
+          (is_last_round && is_loading) ||
+          message.metadata?.subtype === "guided_input"
+        ),
     );
   }, [is_last_round, is_loading, messages]);
   const system_event_blocks = useMemo<SystemEventContent[]>(
@@ -804,6 +804,7 @@ export function useMessageItemState({
     let thinking_count = 0;
     let error_count = 0;
     let progress_count = 0;
+    let guidance_count = 0;
 
     for (const block of process_projection.content) {
       if (block.type === "thinking") {
@@ -820,6 +821,13 @@ export function useMessageItemState({
       }
       if (block.type === "task_progress") {
         progress_count += 1;
+        continue;
+      }
+      if (
+        block.type === "system_event" &&
+        block.subtype === "guided_input"
+      ) {
+        guidance_count += 1;
       }
     }
 
@@ -839,6 +847,9 @@ export function useMessageItemState({
     }
     if (progress_count > 0) {
       summary_parts.push(`${progress_count} 条进度`);
+    }
+    if (guidance_count > 0) {
+      summary_parts.push(`${guidance_count} 次引导`);
     }
 
     return summary_parts.length > 0 ? summary_parts.join(" · ") : "查看过程";

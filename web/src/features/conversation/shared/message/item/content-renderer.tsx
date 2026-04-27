@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Info, LoaderCircle, RotateCcw } from "lucide-react";
+import { CornerDownRight, Info, LoaderCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -63,6 +63,9 @@ function SystemEventIcon({
   }
   if (icon === "progress") {
     return <LoaderCircle className={class_name} />;
+  }
+  if (icon === "guide") {
+    return <CornerDownRight className={class_name} />;
   }
   return <Info className={class_name} />;
 }

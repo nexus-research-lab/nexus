@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/session"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
@@ -46,13 +47,15 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 
 	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
-		delivered, guideErr := s.guideRunningInput(ctx, sessionKey, agentValue, sessionItem, request, initialMessageCount)
+		delivered, guideErr := s.guideRunningInput(ctx, sessionKey, agentValue, sessionItem, request)
 		if guideErr != nil && !errors.Is(guideErr, runtimectx.ErrNoRunningRound) {
 			return guideErr
 		}
 		if delivered {
 			return nil
 		}
+		// 引导只对已运行的 round 有意义；空闲时退化为普通新一轮，避免历史里出现假“已引导”用户消息。
+		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
 
 	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
@@ -215,35 +218,17 @@ func (s *Service) guideRunningInput(
 	agentValue *agent3.Agent,
 	sessionItem session.Session,
 	request Request,
-	initialMessageCount int,
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
 	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, content)
 	if err != nil {
 		return false, err
 	}
-	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyGuide); err != nil {
-		s.loggerFor(ctx).Error("DM 引导消息持久化失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	if _, err := s.refreshSessionMetaAfterRoundMarker(agentValue.WorkspacePath, sessionItem); err != nil {
-		s.loggerFor(ctx).Error("DM 引导消息刷新 session meta 失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
 	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyGuide)
+		for _, targetRoundID := range runningRoundIDs {
+			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, request.RoundID, content)
+		}
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	s.loggerFor(ctx).Info("登记 DM 引导消息等待 PostToolUse 注入",
@@ -359,6 +344,11 @@ func (s *Service) ensureClient(
 		return nil, "", "", err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
+	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    sessionKey,
+	}, sessionItem)
 	options.Resume = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, agentValue.Options.Provider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {

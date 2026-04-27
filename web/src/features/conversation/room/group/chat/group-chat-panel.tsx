@@ -557,6 +557,7 @@ export function GroupChatPanel({
             default_delivery_policy={default_delivery_policy}
             input_queue_items={input_queue_items}
             is_loading={is_loading}
+            queue_when_session_busy={false}
             runtime_phase={runtime_phase}
             on_delete_queued_message={delete_input_queue_message}
             on_enqueue_message={enqueue_input_queue_message}

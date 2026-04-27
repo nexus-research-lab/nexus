@@ -10,6 +10,9 @@ import { PendingPermission } from "@/types/conversation/permission";
 export function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
   const groups = new Map<string, Message[]>();
   for (const message of messages) {
+    if (is_legacy_queue_guidance_user_message(message)) {
+      continue;
+    }
     const round_id = message.round_id || message.message_id;
     if (!groups.has(round_id)) {
       groups.set(round_id, []);
@@ -43,6 +46,9 @@ export function group_room_messages_by_round(messages: Message[]): Map<string, M
   const groups = new Map<string, Message[]>();
 
   for (const message of messages) {
+    if (is_legacy_queue_guidance_user_message(message)) {
+      continue;
+    }
     const round_id = get_room_base_round_id(message.round_id || message.message_id, message.agent_id);
     if (!groups.has(round_id)) {
       groups.set(round_id, []);
@@ -71,6 +77,14 @@ export function group_room_pending_permissions_by_round(
   }
 
   return groups;
+}
+
+function is_legacy_queue_guidance_user_message(message: Message): boolean {
+  return (
+    message.role === "user" &&
+    message.delivery_policy === "guide" &&
+    (message.round_id || message.message_id || "").startsWith("queue_")
+  );
 }
 
 // ── 多 Agent 轮次工具函数 ──────────────────────────────────────────────
@@ -318,6 +332,11 @@ export function group_room_pending_slots_by_round(
 export function get_room_thread_messages(messages: Message[], agent_id: string): Message[] {
   return messages.filter((message) => (
     message.role === "user" ||
+    (
+      message.role === "system" &&
+      message.agent_id === agent_id &&
+      message.metadata?.subtype === "guided_input"
+    ) ||
     // Thread 只看过程，不展示 result。
     // 最终结果只留在 Room 主时间线，避免中间 assistant 被误当成最终回答。
     (message.agent_id === agent_id && message.role === "assistant")
