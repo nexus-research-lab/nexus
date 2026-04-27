@@ -435,7 +435,7 @@ func (s *Service) buildStatusPayload(state State, principal *Principal) StatusPa
 	result := StatusPayload{
 		AuthRequired:         state.AuthRequired,
 		PasswordLoginEnabled: state.PasswordLoginEnabled,
-		Authenticated:        !state.AuthRequired,
+		Authenticated:        !state.AuthRequired && !state.SetupRequired,
 		SetupRequired:        state.SetupRequired,
 		AccessTokenEnabled:   state.AccessTokenEnabled,
 	}
