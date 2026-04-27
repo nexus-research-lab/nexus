@@ -15,6 +15,7 @@ import (
 	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 )
@@ -160,7 +161,13 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	options = runtimectx.WithPostToolUseGuidanceHook(options, roomSlotGuidanceHook(slot))
+	options = runtimectx.WithPostToolUseGuidanceHook(options, s.roomSlotGuidanceHook(roundValue, slot, workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  agentValue.WorkspacePath,
+		SessionKey:     slot.RuntimeSessionKey,
+		RoomID:         roundValue.RoomID,
+		ConversationID: roundValue.ConversationID,
+	}))
 	previousStderr := options.Stderr
 	options.Stderr = func(line string) {
 		if previousStderr != nil {

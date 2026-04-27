@@ -69,6 +69,7 @@ interface ComposerPanelProps {
   initial_draft?: string | null;
   disabled?: boolean;
   allow_send_while_loading?: boolean;
+  queue_when_session_busy?: boolean;
   placeholder?: string;
   max_length?: number;
   room_members?: Agent[];
@@ -164,6 +165,7 @@ const ComposerPanelView = memo(({
   initial_draft = null,
   disabled = false,
   allow_send_while_loading = false,
+  queue_when_session_busy = true,
   placeholder = "继续描述目标、补充上下文，或直接开始协作…",
   max_length = 10000,
   room_members = [],
@@ -369,7 +371,8 @@ const ComposerPanelView = memo(({
     setHistoryDraft("");
 
     try {
-      if (is_loading || input_queue_items.length > 0) {
+      const should_enqueue_message = queue_when_session_busy && (is_loading || input_queue_items.length > 0);
+      if (should_enqueue_message) {
         if (!on_enqueue_message) {
           return;
         }
@@ -399,6 +402,7 @@ const ComposerPanelView = memo(({
     is_preparing_attachments,
     on_enqueue_message,
     on_prepare_attachments,
+    queue_when_session_busy,
   ]);
 
   const remove_pending_message = useCallback(async (id: string) => {
@@ -564,6 +568,11 @@ const ComposerPanelView = memo(({
     is_input_empty || is_input_locked || is_over_limit || is_preparing_attachments;
   const should_show_stop_button =
     can_stop_generation && (!allow_send_while_loading || is_input_empty);
+  const has_pending_queue = input_queue_items.length > 0;
+  let composer_input_row_padding_class = compact ? "px-2 py-2" : "px-3 py-3";
+  if (has_pending_queue) {
+    composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1" : "px-3 pb-3 pt-1.5";
+  }
 
   return (
     <section
@@ -584,8 +593,13 @@ const ComposerPanelView = memo(({
       />
 
       <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
-        {input_queue_items.length > 0 ? (
-          <div className={cn("border-b border-(--surface-canvas-border)", compact ? "px-2 py-1" : "px-3 py-1.5")}>
+        {has_pending_queue ? (
+          <div
+            className={cn(
+              "border-b border-(--surface-canvas-border)",
+              compact ? "px-2 pb-0.5 pt-1" : "px-3 pb-1 pt-1",
+            )}
+          >
             <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-(--text-soft)">
               <span className="inline-flex items-center gap-1.5">
                 待发送队列
@@ -616,6 +630,7 @@ const ComposerPanelView = memo(({
             >
               {input_queue_items.map((message) => {
                 const is_dragging = dragging_message_id === message.id;
+                const is_guidance_waiting = message.delivery_policy === "guide";
                 const is_drag_target = Boolean(
                   dragging_message_id
                     && dragging_message_id !== message.id
@@ -626,7 +641,7 @@ const ComposerPanelView = memo(({
                     key={message.id}
                     draggable
                     className={cn(
-                      "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-1 text-(--text-default) transition-[background,box-shadow,opacity]",
+                      "group -mx-1 flex min-h-7 items-center gap-2 px-1 py-0.5 text-(--text-default) transition-[background,box-shadow,opacity]",
                       is_dragging && "opacity-60",
                       is_drag_target && "bg-(--surface-interactive-hover-background) shadow-[inset_3px_0_0_var(--primary)]",
                     )}
@@ -674,16 +689,16 @@ const ComposerPanelView = memo(({
                       {message.content}
                     </p>
                     <button
-                      aria-label="引导当前 round"
+                      aria-label={is_guidance_waiting ? "等待引导注入" : "引导当前 round"}
                       className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                      disabled={disabled || is_queue_action_running}
+                      disabled={disabled || is_queue_action_running || is_guidance_waiting}
                       onClick={() => {
                         void guide_pending_message(message);
                       }}
                       type="button"
                     >
                       <CornerDownRight className="h-3 w-3" />
-                      引导
+                      {is_guidance_waiting ? "等待引导" : "引导"}
                     </button>
                     <button
                       aria-label="删除待发送消息"
@@ -722,7 +737,7 @@ const ComposerPanelView = memo(({
           </div>
         ) : null}
 
-        <div className={cn("flex items-end gap-2", compact ? "px-2 py-2" : "px-3 py-3")}>
+        <div className={cn("flex items-end gap-2", composer_input_row_padding_class)}>
           <button
             aria-label="添加附件"
             className={COMPOSER_ACTION_BUTTON_CLASS_NAME}
@@ -834,7 +849,7 @@ const ComposerPanelView = memo(({
               <>
                 <span className="flex items-center gap-1">
                   <kbd>Enter</kbd>
-                  <span>{is_loading || input_queue_items.length > 0 ? "入队" : "发送"}</span>
+                  <span>{queue_when_session_busy && (is_loading || input_queue_items.length > 0) ? "入队" : "发送"}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <kbd>Shift</kbd>

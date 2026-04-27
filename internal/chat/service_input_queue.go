@@ -109,20 +109,17 @@ func (s *Service) guideInputQueueItem(
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
-	items, err = s.inputQueue.Delete(location, selected.ID)
+	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+	if len(runningRoundIDs) == 0 {
+		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+		return nil
+	}
+	items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide, runningRoundIDs[0])
 	if err != nil {
 		return err
 	}
 	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-	return s.HandleChat(contextWithQueueOwner(ctx, selected.OwnerUserID), Request{
-		SessionKey:           sessionKey,
-		AgentID:              firstNonEmpty(selected.AgentID, inputQueueLocationAgentID(location)),
-		Content:              selected.Content,
-		RoundID:              "queue_" + selected.ID,
-		ReqID:                "queue_" + selected.ID,
-		DeliveryPolicy:       protocol.ChatDeliveryPolicyGuide,
-		BroadcastUserMessage: true,
-	})
+	return nil
 }
 
 func (s *Service) dispatchNextInputQueueItem(ctx context.Context, sessionKey string, agentID string) {
@@ -134,7 +131,7 @@ func (s *Service) dispatchNextInputQueueItem(ctx context.Context, sessionKey str
 		s.loggerFor(ctx).Warn("解析 DM 待发送队列位置失败", "session_key", sessionKey, "err", err)
 		return
 	}
-	item, items, err := s.inputQueue.DispatchNext(location)
+	item, items, err := s.inputQueue.DispatchFirstDispatchable(location)
 	if err != nil {
 		s.loggerFor(ctx).Error("弹出 DM 待发送队列失败", "session_key", normalizedSessionKey, "err", err)
 		return

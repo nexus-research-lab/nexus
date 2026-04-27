@@ -150,6 +150,108 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	}
 }
 
+func TestAgentHistoryStoreSkipsLegacyQueueGuidanceRoundMarkers(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "queue_guide_1", "补充要求", 1000, "guide"); err != nil {
+		t.Fatalf("写入旧引导 marker 失败: %v", err)
+	}
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("旧 queue guide marker 不应物化成用户消息: %+v", rows)
+	}
+}
+
+func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "4035f197-ca97-43fc-b9ae-06ac04903213"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-1", "写一个五子棋游戏", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-1",
+			"sessionId": sessionID,
+			"timestamp": "2026-04-27T11:40:00.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "写一个五子棋游戏",
+			},
+		},
+		{
+			"type":       "attachment",
+			"uuid":       "transcript-guidance-1",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-1",
+			"timestamp":  "2026-04-27T11:41:00.000Z",
+			"attachment": map[string]any{
+				"type": "hook_additional_context",
+				"content": []string{
+					"<nexus_guidance>\n用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准。\n1. round_id=queue_guide_1: 需要可以与 bot 对战\n</nexus_guidance>",
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	var guidance *protocol.Message
+	for index := range rows {
+		if rows[index]["message_id"] == "queue_guide_1" {
+			guidance = &rows[index]
+			break
+		}
+	}
+	if guidance == nil {
+		t.Fatalf("Claude hook additionalContext 应投影成引导系统消息: %+v", rows)
+	}
+	if (*guidance)["role"] != "system" || (*guidance)["round_id"] != "round-1" {
+		t.Fatalf("引导系统消息应归入当前 round: %+v", *guidance)
+	}
+	if strings.TrimSpace(stringFromAny((*guidance)["content"])) != "需要可以与 bot 对战" {
+		t.Fatalf("引导内容解析错误: %+v", *guidance)
+	}
+	metadata, _ := (*guidance)["metadata"].(map[string]any)
+	if metadata["subtype"] != protocol.SystemMessageSubtypeGuidedInput ||
+		metadata["source_round_id"] != "queue_guide_1" {
+		t.Fatalf("引导 metadata 不正确: %+v", *guidance)
+	}
+}
+
 func writeAgentTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {
 	t.Helper()
 

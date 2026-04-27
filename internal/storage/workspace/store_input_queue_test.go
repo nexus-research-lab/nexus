@@ -80,6 +80,66 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreGuidanceWaitsForMatchingRound(t *testing.T) {
+	root := t.TempDir()
+	workspacePath := filepath.Join(root, "agent")
+	sessionKey := "agent:alpha:ws:dm:test"
+	store := NewInputQueueStore(root)
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: workspacePath,
+		SessionKey:    sessionKey,
+	}
+
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:             "item-a",
+		Content:        "普通消息",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		Source:         protocol.InputQueueSourceUser,
+	}); err != nil {
+		t.Fatalf("写入普通队列失败: %v", err)
+	}
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:             "item-b",
+		Content:        "引导消息",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		Source:         protocol.InputQueueSourceUser,
+	}); err != nil {
+		t.Fatalf("写入引导队列失败: %v", err)
+	}
+	items, err := store.UpdateDeliveryPolicy(location, "item-b", protocol.ChatDeliveryPolicyGuide, "round-running")
+	if err != nil {
+		t.Fatalf("标记引导队列失败: %v", err)
+	}
+	if len(items) != 2 || items[1].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide || items[1].RootRoundID != "round-running" {
+		t.Fatalf("引导队列标记不正确: %+v", items)
+	}
+
+	dispatched, items, err := store.DispatchFirstDispatchable(location)
+	if err != nil {
+		t.Fatalf("派发普通队列失败: %v", err)
+	}
+	if dispatched == nil || dispatched.ID != "item-a" || len(items) != 1 || items[0].ID != "item-b" {
+		t.Fatalf("普通派发应跳过等待引导的队列项: dispatched=%+v items=%+v", dispatched, items)
+	}
+
+	guidanceItems, items, err := store.DispatchGuidance(location, "other-round")
+	if err != nil {
+		t.Fatalf("非匹配 round 派发引导失败: %v", err)
+	}
+	if len(guidanceItems) != 0 || len(items) != 1 {
+		t.Fatalf("非匹配 round 不应消费引导: guidance=%+v items=%+v", guidanceItems, items)
+	}
+
+	guidanceItems, items, err = store.DispatchGuidance(location, "round-running")
+	if err != nil {
+		t.Fatalf("匹配 round 派发引导失败: %v", err)
+	}
+	if len(guidanceItems) != 1 || guidanceItems[0].ID != "item-b" || len(items) != 0 {
+		t.Fatalf("匹配 round 应消费引导: guidance=%+v items=%+v", guidanceItems, items)
+	}
+}
+
 func TestInputQueueStoreRoomScopeUsesAgentSessionPath(t *testing.T) {
 	root := t.TempDir()
 	store := NewInputQueueStore(root)

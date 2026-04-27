@@ -156,6 +156,24 @@ func (s *Service) recordRoundMarker(
 	)
 }
 
+func buildGuidanceMessage(
+	sessionValue session.Session,
+	targetRoundID string,
+	sourceRoundID string,
+	content string,
+	timestamp int64,
+) protocol.Message {
+	return protocol.NewGuidedInputMessage(protocol.GuidedInputMessageInput{
+		SessionKey:    sessionValue.SessionKey,
+		AgentID:       sessionValue.AgentID,
+		RoundID:       targetRoundID,
+		SourceRoundID: sourceRoundID,
+		Content:       content,
+		SessionID:     stringPointerValue(sessionValue.SessionID),
+		Timestamp:     timestamp,
+	})
+}
+
 func (s *Service) syncSDKSessionID(
 	ctx context.Context,
 	workspacePath string,

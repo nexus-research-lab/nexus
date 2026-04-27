@@ -20,6 +20,7 @@ const (
 	inputQueueActionDelete   = "delete"
 	inputQueueActionDispatch = "dispatch"
 	inputQueueActionReorder  = "reorder"
+	inputQueueActionUpdate   = "update"
 )
 
 // InputQueueLocation 描述待发送队列的物理位置。
@@ -96,6 +97,53 @@ func (s *InputQueueStore) Delete(location InputQueueLocation, itemID string) ([]
 	return s.removeLocked(location, itemID, inputQueueActionDelete)
 }
 
+// UpdateDeliveryPolicy 更新队列项投递策略，并返回最新快照。
+func (s *InputQueueStore) UpdateDeliveryPolicy(
+	location InputQueueLocation,
+	itemID string,
+	deliveryPolicy protocol.ChatDeliveryPolicy,
+	rootRoundIDs ...string,
+) ([]protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, err
+	}
+	itemID = strings.TrimSpace(itemID)
+	if itemID == "" {
+		return items, nil
+	}
+	var selected *protocol.InputQueueItem
+	for _, item := range items {
+		if item.ID != itemID {
+			continue
+		}
+		copyItem := item
+		selected = &copyItem
+		break
+	}
+	if selected == nil {
+		return items, nil
+	}
+
+	now := time.Now().UnixMilli()
+	selected.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(deliveryPolicy))
+	if len(rootRoundIDs) > 0 {
+		selected.RootRoundID = strings.TrimSpace(rootRoundIDs[0])
+	}
+	selected.UpdatedAt = now
+	if err = s.appendActionLocked(location, map[string]any{
+		"action":    inputQueueActionUpdate,
+		"item":      *selected,
+		"timestamp": now,
+	}); err != nil {
+		return nil, err
+	}
+	return s.snapshotLocked(location)
+}
+
 // DispatchNext 弹出队首项，追加派发事件，并返回队首项与最新快照。
 func (s *InputQueueStore) DispatchNext(
 	location InputQueueLocation,
@@ -118,6 +166,31 @@ func (s *InputQueueStore) DispatchNext(
 	return &item, next, nil
 }
 
+// DispatchFirstDispatchable 弹出第一条普通待发送项，guide 项只等待 hook 消费。
+func (s *InputQueueStore) DispatchFirstDispatchable(
+	location InputQueueLocation,
+) (*protocol.InputQueueItem, []protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, item := range items {
+		if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
+			continue
+		}
+		next, err := s.removeLocked(location, item.ID, inputQueueActionDispatch)
+		if err != nil {
+			return nil, nil, err
+		}
+		copyItem := item
+		return &copyItem, next, nil
+	}
+	return nil, items, nil
+}
+
 // Dispatch 删除指定待发送项，追加派发事件，并返回最新快照。
 func (s *InputQueueStore) Dispatch(
 	location InputQueueLocation,
@@ -126,6 +199,60 @@ func (s *InputQueueStore) Dispatch(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.removeLocked(location, itemID, inputQueueActionDispatch)
+}
+
+// DispatchGuidance 弹出所有等待 hook 引导的队列项。
+func (s *InputQueueStore) DispatchGuidance(
+	location InputQueueLocation,
+	rootRoundIDs ...string,
+) ([]protocol.InputQueueItem, []protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, nil, err
+	}
+	guidanceItems := make([]protocol.InputQueueItem, 0)
+	for _, item := range items {
+		if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && matchesInputQueueGuidanceTarget(item, rootRoundIDs) {
+			guidanceItems = append(guidanceItems, item)
+		}
+	}
+	if len(guidanceItems) == 0 {
+		return nil, items, nil
+	}
+	now := time.Now().UnixMilli()
+	for _, item := range guidanceItems {
+		if err = s.appendActionLocked(location, map[string]any{
+			"action":    inputQueueActionDispatch,
+			"item_id":   item.ID,
+			"timestamp": now,
+		}); err != nil {
+			return nil, nil, err
+		}
+	}
+	next, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, nil, err
+	}
+	return guidanceItems, next, nil
+}
+
+func matchesInputQueueGuidanceTarget(item protocol.InputQueueItem, rootRoundIDs []string) bool {
+	if len(rootRoundIDs) == 0 {
+		return true
+	}
+	itemRootRoundID := strings.TrimSpace(item.RootRoundID)
+	if itemRootRoundID == "" {
+		return true
+	}
+	for _, rootRoundID := range rootRoundIDs {
+		if itemRootRoundID == strings.TrimSpace(rootRoundID) {
+			return true
+		}
+	}
+	return false
 }
 
 // Reorder 根据 orderedIDs 重排队列，并返回最新快照。
@@ -247,6 +374,23 @@ func replayInputQueueRows(
 			orderedIDs := stringSliceFromAny(row["ordered_ids"])
 			order = reorderInputQueueIDs(order, itemsByID, orderedIDs)
 			applyInputQueueOrder(itemsByID, orderedIDs, normalizeInputQueueTimestamp(row["timestamp"]))
+		case inputQueueActionUpdate:
+			item, ok := inputQueueItemFromAny(row["item"])
+			if !ok || strings.TrimSpace(item.ID) == "" {
+				continue
+			}
+			if _, exists := itemsByID[item.ID]; !exists {
+				continue
+			}
+			previous := itemsByID[item.ID]
+			item = normalizeInputQueueItem(location, item, normalizeInputQueueTimestamp(row["timestamp"]))
+			if item.QueueOrder == 0 {
+				item.QueueOrder = previous.QueueOrder
+			}
+			if item.CreatedAt == 0 {
+				item.CreatedAt = previous.CreatedAt
+			}
+			itemsByID[item.ID] = item
 		}
 	}
 

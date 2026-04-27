@@ -35,3 +35,20 @@ func (s *Service) broadcastUserRoundMarker(
 	event.MessageID = strings.TrimSpace(roundID)
 	s.permission.BroadcastEvent(ctx, sessionValue.SessionKey, event)
 }
+
+func (s *Service) broadcastGuidanceMessage(
+	ctx context.Context,
+	sessionValue session.Session,
+	targetRoundID string,
+	sourceRoundID string,
+	content string,
+) {
+	message := buildGuidanceMessage(sessionValue, targetRoundID, sourceRoundID, content, time.Now().UnixMilli())
+	event := protocol.NewEvent(protocol.EventTypeMessage, message)
+	event.DeliveryMode = "ephemeral"
+	event.SessionKey = sessionValue.SessionKey
+	event.AgentID = sessionValue.AgentID
+	event.MessageID = normalizeString(message["message_id"])
+	event.CausedBy = strings.TrimSpace(sourceRoundID)
+	s.permission.BroadcastEvent(ctx, sessionValue.SessionKey, event)
+}

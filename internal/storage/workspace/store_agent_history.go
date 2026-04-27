@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ const (
 )
 
 var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
+var transcriptGuidanceLinePattern = regexp.MustCompile(`^\s*\d+\.\s+(?:round_id=([^:]+):\s*)?(.+?)\s*$`)
 
 type transcriptCacheEntry struct {
 	FileSize      int64
@@ -289,6 +291,9 @@ func materializeRoundMarkerMessages(
 		if roundID == "" {
 			continue
 		}
+		if isQueueGuidanceRoundMarker(marker) {
+			continue
+		}
 		row := protocol.Message{
 			"message_id":  roundID,
 			"session_key": sessionKey,
@@ -304,6 +309,13 @@ func materializeRoundMarkerMessages(
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+func isQueueGuidanceRoundMarker(marker transcriptRoundMarker) bool {
+	if protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy) != protocol.ChatDeliveryPolicyGuide {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(marker.RoundID), "queue_")
 }
 
 func (s *AgentHistoryStore) readTranscriptMessages(
@@ -604,12 +616,24 @@ func projectTranscriptChain(
 			continue
 		}
 
+		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
+		lastTimestamp = entryTimestamp
+
+		if guidanceRows := buildTranscriptGuidanceMessages(
+			sessionKey,
+			agentID,
+			currentRoundID,
+			entry.Data,
+			entryTimestamp,
+		); len(guidanceRows) > 0 {
+			projected = append(projected, guidanceRows...)
+			continue
+		}
+
 		decoded, err := sdkprotocol.DecodeMessage(entry.Data)
 		if err != nil {
 			continue
 		}
-		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
-		lastTimestamp = entryTimestamp
 
 		switch decoded.Type {
 		case sdkprotocol.MessageTypeUser:
@@ -665,6 +689,114 @@ func projectTranscriptChain(
 	}
 
 	return projected
+}
+
+func buildTranscriptGuidanceMessages(
+	sessionKey string,
+	agentID string,
+	currentRoundID string,
+	entry map[string]any,
+	timestamp int64,
+) []protocol.Message {
+	content := transcriptGuidanceAttachmentContent(entry)
+	if content == "" {
+		return nil
+	}
+	items := parseTranscriptGuidanceInputs(content)
+	if len(items) == 0 {
+		return nil
+	}
+
+	roundID := strings.TrimSpace(currentRoundID)
+	if roundID == "" {
+		roundID = buildTranscriptRoundID(firstNonEmpty(
+			strings.TrimSpace(stringFromAny(entry["parentUuid"])),
+			strings.TrimSpace(stringFromAny(entry["uuid"])),
+		))
+	}
+	sessionID := strings.TrimSpace(stringFromAny(entry["session_id"]))
+	entryUUID := strings.TrimSpace(stringFromAny(entry["uuid"]))
+	rows := make([]protocol.Message, 0, len(items))
+	for index, item := range items {
+		sourceRoundID := strings.TrimSpace(item.RoundID)
+		messageID := sourceRoundID
+		if messageID == "" {
+			messageID = firstNonEmpty(entryUUID, roundID) + ":guidance:" + strconv.Itoa(index+1)
+		}
+		rows = append(rows, protocol.NewGuidedInputMessage(protocol.GuidedInputMessageInput{
+			MessageID:     messageID,
+			SessionKey:    sessionKey,
+			AgentID:       agentID,
+			RoundID:       roundID,
+			SourceRoundID: sourceRoundID,
+			Content:       item.Content,
+			SessionID:     sessionID,
+			Timestamp:     timestamp + int64(index),
+		}))
+	}
+	return rows
+}
+
+type transcriptGuidanceInput struct {
+	RoundID string
+	Content string
+}
+
+func transcriptGuidanceAttachmentContent(entry map[string]any) string {
+	attachment, ok := entry["attachment"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	if strings.TrimSpace(stringFromAny(attachment["type"])) != "hook_additional_context" {
+		return ""
+	}
+
+	content := strings.TrimSpace(joinTranscriptGuidanceContent(attachment["content"]))
+	if !strings.Contains(content, "<nexus_guidance>") {
+		return ""
+	}
+	return content
+}
+
+func joinTranscriptGuidanceContent(value any) string {
+	if text := strings.TrimSpace(stringFromAny(value)); text != "" {
+		return text
+	}
+	items, ok := value.([]any)
+	if !ok {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if text := strings.TrimSpace(stringFromAny(item)); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+func parseTranscriptGuidanceInputs(content string) []transcriptGuidanceInput {
+	lines := strings.Split(content, "\n")
+	items := make([]transcriptGuidanceInput, 0)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "<nexus_guidance>" || line == "</nexus_guidance>" {
+			continue
+		}
+		matches := transcriptGuidanceLinePattern.FindStringSubmatch(line)
+		if len(matches) != 3 {
+			continue
+		}
+		itemContent := strings.TrimSpace(matches[2])
+		if itemContent == "" {
+			continue
+		}
+		items = append(items, transcriptGuidanceInput{
+			RoundID: strings.TrimSpace(matches[1]),
+			Content: itemContent,
+		})
+	}
+	return items
 }
 
 func alignTranscriptRoundMarkers(
