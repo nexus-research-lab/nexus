@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
@@ -90,7 +90,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 	roundCtx, cancel := context.WithCancel(context.Background())
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
-	s.permission.BindSessionRoute(sessionKey, permission3.RouteContext{
+	s.permission.BindSessionRoute(sessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: sessionKey,
 		AgentID:            agentID,
 		CausedBy:           request.RoundID,

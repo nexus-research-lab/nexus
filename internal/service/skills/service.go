@@ -15,8 +15,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/appfs"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
-	workspace2 "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 const (
@@ -105,12 +105,12 @@ type catalogRecord struct {
 // Service 提供技能目录、安装与卸载能力。
 type Service struct {
 	config     config.Config
-	agents     *agent2.Service
-	workspaces *workspace2.Service
+	agents     *agentsvc.Service
+	workspaces *workspacesvc.Service
 }
 
 // NewService 创建技能服务。
-func NewService(cfg config.Config, agents *agent2.Service, workspaces *workspace2.Service) *Service {
+func NewService(cfg config.Config, agents *agentsvc.Service, workspaces *workspacesvc.Service) *Service {
 	return &Service{
 		config:     cfg,
 		agents:     agents,
@@ -250,7 +250,7 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 	if record.Detail.SourceType == sourceTypeSystem {
 		return errors.New("系统托管 skill 不能手动卸载")
 	}
-	return workspace2.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
+	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
 }
 
 // ImportLocalPath 从本地目录导入外部 skill。
@@ -316,7 +316,7 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 		return err
 	}
 	for _, agentValue := range agents {
-		if err = workspace2.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name); err != nil && !os.IsNotExist(err) {
+		if err = workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
@@ -336,7 +336,7 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 			return nil, nil, false, err
 		}
 		isMainAgent = agentValue.IsMain
-		names, err := workspace2.ListDeployedSkills(agentValue.WorkspacePath)
+		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -352,7 +352,7 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 	if err != nil {
 		return nil, err
 	}
-	if err = workspace2.EnsureInitialized(
+	if err = workspacesvc.EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,
 		agentValue.WorkspacePath,
@@ -365,8 +365,8 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 }
 
 func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record catalogRecord) error {
-	context := workspace2.BuildSkillRenderContext(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt)
-	return workspace2.DeploySkill(record.Detail.Name, record.SourcePath, agentValue.WorkspacePath, context)
+	context := workspacesvc.BuildSkillRenderContext(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt)
+	return workspacesvc.DeploySkill(record.Detail.Name, record.SourcePath, agentValue.WorkspacePath, context)
 }
 
 func (s *Service) loadCatalogRecords() (map[string]catalogRecord, error) {

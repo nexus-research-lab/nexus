@@ -7,10 +7,10 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/logx"
-	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	agent3 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -50,9 +50,9 @@ type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[st
 // Service 负责编排 DM 实时链路。
 type Service struct {
 	config     config.Config
-	agents     *agent3.Service
+	agents     *agentsvc.Service
 	runtime    *runtimectx.Manager
-	permission *permission3.Context
+	permission *permissionctx.Context
 	roomStore  roomSessionStore
 	providers  runtimectx.RuntimeConfigResolver
 	files      *workspacestore.SessionFileStore
@@ -80,9 +80,9 @@ type usageRecorder interface {
 // NewService 创建 DM 会话编排服务。
 func NewService(
 	cfg config.Config,
-	agentService *agent3.Service,
+	agentService *agentsvc.Service,
 	runtimeManager *runtimectx.Manager,
-	permission *permission3.Context,
+	permission *permissionctx.Context,
 ) *Service {
 	return &Service{
 		config:     cfg,

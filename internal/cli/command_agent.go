@@ -4,10 +4,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
-func newAgentCommand(service *agent2.Service) *cobra.Command {
+func newAgentCommand(service *agentsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "agent",
 		Short: "agent 领域命令",

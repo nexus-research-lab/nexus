@@ -21,7 +21,7 @@ import (
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
-	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
@@ -244,7 +244,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	)
 	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	service.SetUsageRecorder(usageService)
-	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-1")
@@ -514,7 +514,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
 	)
-	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-think-stream")
@@ -992,14 +992,14 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		queuedItem.TargetAgentIDs[0] != devin.AgentID {
 		t.Fatalf("公区 @ 队列项缺少来源或目标: %+v", queuedItem)
 	}
-	targetQueueLocation := workspace2.InputQueueLocation{
+	targetQueueLocation := workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  devin.WorkspacePath,
 		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, devin.AgentID, roomContext.Room.RoomType),
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
 	}
-	targetQueueItems, err := workspace2.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
+	targetQueueItems, err := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
 	if err != nil {
 		t.Fatalf("读取目标 agent session 队列失败: %v", err)
 	}
@@ -1119,14 +1119,14 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	if service.CountRunningTasks(amy.AgentID) == 0 {
 		t.Fatal("测试前提失效：Amy 应仍处于运行状态")
 	}
-	targetQueueLocation := workspace2.InputQueueLocation{
+	targetQueueLocation := workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  devin.WorkspacePath,
 		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, devin.AgentID, roomContext.Room.RoomType),
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
 	}
-	targetQueueItems, err := workspace2.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
+	targetQueueItems, err := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
 	if err != nil {
 		t.Fatalf("读取 Devin 队列失败: %v", err)
 	}
@@ -1387,7 +1387,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{clientA, clientB}},
 	)
-	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-2")
@@ -1787,7 +1787,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		t.Fatalf("Room 引导不应走普通 streaming input: %+v", sentContents)
 	}
 
-	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
@@ -1847,7 +1847,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
 	)
-	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-interrupt-closed-stream")
@@ -2051,7 +2051,7 @@ func readRoomPrivateHistory(
 	sessionID string,
 ) []protocol.Message {
 	t.Helper()
-	historyStore := workspace2.NewAgentHistoryStore(root)
+	historyStore := workspacestore.NewAgentHistoryStore(root)
 	rows, err := historyStore.ReadMessages(workspacePath, protocol.Session{
 		SessionKey: sessionKey,
 		AgentID:    agentID,

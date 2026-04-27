@@ -12,7 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -28,7 +28,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer db.Close()
-	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	workspaceService := NewService(cfg, agentService)
 	ctx := context.Background()
 
@@ -102,7 +102,7 @@ func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer db.Close()
-	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	workspaceService := NewService(cfg, agentService)
 	ctx := context.Background()
 

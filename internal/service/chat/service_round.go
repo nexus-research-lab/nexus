@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -126,7 +126,7 @@ func (r *roundRunner) executeRound(
 				return err
 			}
 			if message["role"] == "assistant" {
-				r.service.permission.BindSessionRoute(r.sessionKey, permission3.RouteContext{
+				r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
 					DispatchSessionKey: r.sessionKey,
 					AgentID:            r.agent.AgentID,
 					MessageID:          normalizeString(message["message_id"]),

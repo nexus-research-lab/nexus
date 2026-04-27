@@ -4,12 +4,12 @@ import (
 	"io"
 	"strings"
 
-	auth2 "github.com/nexus-research-lab/nexus/internal/service/auth"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	"github.com/spf13/cobra"
 )
 
-func newAuthCommand(service *auth2.Service) *cobra.Command {
+func newAuthCommand(service *authsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "auth",
 		Short: "auth 领域命令",
@@ -46,7 +46,7 @@ func newAuthCommand(service *auth2.Service) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				item, err := service.InitOwner(commandContext(cmd), auth2.InitOwnerInput{
+				item, err := service.InitOwner(commandContext(cmd), authsvc.InitOwnerInput{
 					Username:    username,
 					DisplayName: displayName,
 					Password:    resolvedPassword,
@@ -71,7 +71,7 @@ func newAuthCommand(service *auth2.Service) *cobra.Command {
 	return command
 }
 
-func newUserCommand(service *auth2.Service) *cobra.Command {
+func newUserCommand(service *authsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "user",
 		Short: "user 领域命令",
@@ -109,7 +109,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				item, err := service.CreateUser(commandContext(cmd), auth2.CreateUserInput{
+				item, err := service.CreateUser(commandContext(cmd), authsvc.CreateUserInput{
 					Username:    username,
 					DisplayName: displayName,
 					Password:    resolvedPassword,
@@ -129,7 +129,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 		createUser.Flags().StringVar(&displayName, "display-name", "", "target display name")
 		createUser.Flags().StringVar(&password, "password", "", "initial password")
 		createUser.Flags().BoolVar(&passwordStdin, "password-stdin", false, "从标准输入读取 initial password")
-		createUser.Flags().StringVar(&role, "role", auth2.RoleMember, "user role")
+		createUser.Flags().StringVar(&role, "role", authsvc.RoleMember, "user role")
 		_ = createUser.MarkFlagRequired("username")
 		return createUser
 	}())
@@ -149,7 +149,7 @@ func newUserCommand(service *auth2.Service) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				item, err := service.ResetPassword(commandContext(cmd), auth2.ResetPasswordInput{
+				item, err := service.ResetPassword(commandContext(cmd), authsvc.ResetPasswordInput{
 					UserID:   userID,
 					Username: username,
 					Password: resolvedPassword,

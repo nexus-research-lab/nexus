@@ -13,7 +13,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
-	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -110,7 +110,7 @@ func (s *RealtimeService) runSlot(
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
-	s.permission.BindSessionRoute(slot.RuntimeSessionKey, permission3.RouteContext{
+	s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: roundValue.SessionKey,
 		RoomID:             roundValue.RoomID,
 		ConversationID:     roundValue.ConversationID,

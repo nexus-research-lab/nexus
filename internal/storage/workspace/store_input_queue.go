@@ -351,7 +351,7 @@ func replayInputQueueRows(
 	order := make([]string, 0)
 
 	for _, row := range rows {
-		action := strings.TrimSpace(stringFromAny(row["action"]))
+		action := stringFromAny(row["action"])
 		switch action {
 		case inputQueueActionEnqueue:
 			item, ok := inputQueueItemFromAny(row["item"])
@@ -364,7 +364,7 @@ func replayInputQueueRows(
 			}
 			itemsByID[item.ID] = item
 		case inputQueueActionDelete, inputQueueActionDispatch:
-			itemID := strings.TrimSpace(stringFromAny(row["item_id"]))
+			itemID := stringFromAny(row["item_id"])
 			if itemID == "" {
 				continue
 			}
@@ -494,7 +494,7 @@ func stringSliceFromAny(value any) []string {
 	}
 	result := make([]string, 0, len(rawItems))
 	for _, item := range rawItems {
-		text := strings.TrimSpace(stringFromAny(item))
+		text := stringFromAny(item)
 		if text != "" {
 			result = append(result, text)
 		}

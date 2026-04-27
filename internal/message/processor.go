@@ -272,19 +272,19 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([
 	if subtype == "task_progress" {
 		progressMessage := p.buildTaskProgressMessage(
 			firstNonEmpty(
-				stringValue(message.System.Data["task_id"]),
+				normalizeString(message.System.Data["task_id"]),
 				firstTaskProgressTaskID(message.System),
 			),
 			firstNonEmpty(
-				stringValue(message.System.Data["description"]),
+				normalizeString(message.System.Data["description"]),
 				firstTaskProgressDescription(message.System),
 			),
 			firstNonEmpty(
-				stringValue(message.System.Data["tool_use_id"]),
+				normalizeString(message.System.Data["tool_use_id"]),
 				firstTaskProgressToolUseID(message.System),
 			),
 			firstNonEmpty(
-				stringValue(message.System.Data["last_tool_name"]),
+				normalizeString(message.System.Data["last_tool_name"]),
 				firstTaskProgressToolName(message.System),
 			),
 			firstNonNilMap(
@@ -395,19 +395,19 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	switch subtype {
 	case "task_started":
 		content = firstNonEmpty(
-			stringValue(message.Data["description"]),
-			stringValue(message.Data["prompt"]),
+			normalizeString(message.Data["description"]),
+			normalizeString(message.Data["prompt"]),
 			firstTaskStartedDescription(message),
 			"任务已开始",
 		)
 		metadata = map[string]any{
 			"subtype":     "task_started",
-			"task_id":     firstNonEmpty(stringValue(message.Data["task_id"]), firstTaskStartedTaskID(message)),
-			"task_type":   firstNonEmpty(stringValue(message.Data["task_type"]), firstTaskStartedTaskType(message)),
-			"tool_use_id": firstNonEmpty(stringValue(message.Data["tool_use_id"]), firstTaskStartedToolUseID(message)),
+			"task_id":     firstNonEmpty(normalizeString(message.Data["task_id"]), firstTaskStartedTaskID(message)),
+			"task_type":   firstNonEmpty(normalizeString(message.Data["task_type"]), firstTaskStartedTaskType(message)),
+			"tool_use_id": firstNonEmpty(normalizeString(message.Data["tool_use_id"]), firstTaskStartedToolUseID(message)),
 		}
 	case "api_retry":
-		content = firstNonEmpty(stringValue(message.Data["message"]), "API 正在重试")
+		content = firstNonEmpty(normalizeString(message.Data["message"]), "API 正在重试")
 		metadata = cloneMap(message.Data)
 		if metadata == nil {
 			metadata = map[string]any{}
@@ -471,7 +471,7 @@ func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) (stri
 	currentSessionID := strings.TrimSpace(p.sessionID)
 	candidates := []string{strings.TrimSpace(message.SessionID)}
 	if message.Type == sdkprotocol.MessageTypeSystem && message.System != nil {
-		candidates = append(candidates, strings.TrimSpace(stringValue(message.System.Data["session_id"])))
+		candidates = append(candidates, normalizeString(message.System.Data["session_id"]))
 	}
 
 	for _, candidate := range candidates {
@@ -597,18 +597,14 @@ func assistantMessagesEqual(previous protocol.Message, current protocol.Message)
 	if len(previous) == 0 || len(current) == 0 {
 		return false
 	}
-	return stringValue(previous["message_id"]) == stringValue(current["message_id"]) &&
-		stringValue(previous["parent_id"]) == stringValue(current["parent_id"]) &&
-		stringValue(previous["model"]) == stringValue(current["model"]) &&
-		stringValue(previous["stop_reason"]) == stringValue(current["stop_reason"]) &&
-		stringValue(previous["session_id"]) == stringValue(current["session_id"]) &&
-		stringValue(previous["round_id"]) == stringValue(current["round_id"]) &&
+	return normalizeString(previous["message_id"]) == normalizeString(current["message_id"]) &&
+		normalizeString(previous["parent_id"]) == normalizeString(current["parent_id"]) &&
+		normalizeString(previous["model"]) == normalizeString(current["model"]) &&
+		normalizeString(previous["stop_reason"]) == normalizeString(current["stop_reason"]) &&
+		normalizeString(previous["session_id"]) == normalizeString(current["session_id"]) &&
+		normalizeString(previous["round_id"]) == normalizeString(current["round_id"]) &&
 		boolValue(previous["is_complete"]) == boolValue(current["is_complete"]) &&
 		reflect.DeepEqual(previous["content"], current["content"])
-}
-
-func stringValue(value any) string {
-	return normalizeString(value)
 }
 
 func normalizeAnyString(value any) string {

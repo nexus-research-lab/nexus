@@ -45,13 +45,13 @@ func filterInternalHistoryRows(rows []protocol.Message) []protocol.Message {
 }
 
 func shouldSkipInternalHistoryRow(row protocol.Message) bool {
-	role := strings.TrimSpace(stringFromAny(row["role"]))
+	role := stringFromAny(row["role"])
 	switch role {
 	case "system":
 		metadata, _ := row["metadata"].(map[string]any)
-		return strings.TrimSpace(stringFromAny(metadata["subtype"])) == "api_retry"
+		return stringFromAny(metadata["subtype"]) == "api_retry"
 	case "user":
-		content := strings.TrimSpace(stringFromAny(row["content"]))
+		content := stringFromAny(row["content"])
 		return message.IsInternalTranscriptInterruptPrompt(content)
 	default:
 		return false
@@ -170,18 +170,18 @@ func buildHistoryPageGroups(
 }
 
 func historyPageCursorRoundID(row protocol.Message, collapseRoomAgentRounds bool) string {
-	roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
+	roundID := stringFromAny(row["round_id"])
 	if roundID != "" {
 		if collapseRoomAgentRounds {
 			return normalizeRoomHistoryRoundID(roundID, stringFromAny(row["agent_id"]))
 		}
 		return roundID
 	}
-	return strings.TrimSpace(stringFromAny(row["message_id"]))
+	return stringFromAny(row["message_id"])
 }
 
 func historyPageGroupKey(row protocol.Message, collapseRoomAgentRounds bool) string {
-	roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
+	roundID := stringFromAny(row["round_id"])
 	if roundID != "" {
 		if collapseRoomAgentRounds {
 			return "round:" + normalizeRoomHistoryRoundID(roundID, stringFromAny(row["agent_id"]))
@@ -189,7 +189,7 @@ func historyPageGroupKey(row protocol.Message, collapseRoomAgentRounds bool) str
 		return "round:" + roundID
 	}
 
-	messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
+	messageID := stringFromAny(row["message_id"])
 	if messageID != "" {
 		return "message:" + messageID
 	}
@@ -291,7 +291,7 @@ func (m *roundResultSummaryMerger) indexAssistants() {
 		if protocol.MessageRole(row) != "assistant" {
 			continue
 		}
-		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
+		roundID := stringFromAny(row["round_id"])
 		if roundID == "" {
 			continue
 		}
@@ -307,7 +307,7 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 		if protocol.MessageRole(row) != "result" {
 			continue
 		}
-		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
+		roundID := stringFromAny(row["round_id"])
 		assistantIndex, hasAssistant := m.lastAssistantIndexByRoundID[roundID]
 		if !hasAssistant {
 			continue
@@ -320,7 +320,7 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 		}
 		assistant["result_summary"] = summary
 		m.rows[assistantIndex] = assistant
-		if messageID := strings.TrimSpace(stringFromAny(row["message_id"])); messageID != "" {
+		if messageID := stringFromAny(row["message_id"]); messageID != "" {
 			m.mergedResultMessageIDs[messageID] = struct{}{}
 		}
 	}
@@ -330,7 +330,7 @@ func (m *roundResultSummaryMerger) buildResultRows() []protocol.Message {
 	result := make([]protocol.Message, 0, len(m.rows))
 	for _, row := range m.rows {
 		if protocol.MessageRole(row) == "result" {
-			if _, merged := m.mergedResultMessageIDs[strings.TrimSpace(stringFromAny(row["message_id"]))]; merged {
+			if _, merged := m.mergedResultMessageIDs[stringFromAny(row["message_id"])]; merged {
 				continue
 			}
 			result = append(result, message.BuildSyntheticAssistantFromResult(row))
@@ -360,7 +360,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 
 	rounds := make(map[string]*roundSnapshot)
 	for _, row := range rows {
-		roundID := strings.TrimSpace(stringFromAny(row["round_id"]))
+		roundID := stringFromAny(row["round_id"])
 		if roundID == "" {
 			continue
 		}
@@ -381,7 +381,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 		if ts := messageTimestamp(row); ts > snapshot.LastTimestampMS {
 			snapshot.LastTimestampMS = ts
 		}
-		if strings.TrimSpace(stringFromAny(row["role"])) == "result" {
+		if stringFromAny(row["role"]) == "result" {
 			snapshot.HasResult = true
 			snapshot.TerminalStatus = normalizeRoundStatusValue(row["subtype"])
 			continue
@@ -457,7 +457,7 @@ func normalizeActiveRoundIDs(values []string) map[string]struct{} {
 }
 
 func normalizeRoundStatusValue(value any) roundTerminalStatus {
-	normalized := strings.ToLower(strings.TrimSpace(stringFromAny(value)))
+	normalized := strings.ToLower(stringFromAny(value))
 	switch normalized {
 	case "", "running":
 		return roundStatusRunning
@@ -471,10 +471,10 @@ func normalizeRoundStatusValue(value any) roundTerminalStatus {
 }
 
 func assistantTerminalStatus(row protocol.Message) roundTerminalStatus {
-	if strings.TrimSpace(stringFromAny(row["role"])) != "assistant" {
+	if stringFromAny(row["role"]) != "assistant" {
 		return roundStatusRunning
 	}
-	stopReason := strings.ToLower(strings.TrimSpace(stringFromAny(row["stop_reason"])))
+	stopReason := strings.ToLower(stringFromAny(row["stop_reason"]))
 	if stopReason == "" {
 		return roundStatusRunning
 	}
@@ -504,8 +504,8 @@ func compareHistoryRowOrder(left protocol.Message, right protocol.Message) int {
 		return 1
 	}
 
-	leftRoundID := strings.TrimSpace(stringFromAny(left["round_id"]))
-	rightRoundID := strings.TrimSpace(stringFromAny(right["round_id"]))
+	leftRoundID := stringFromAny(left["round_id"])
+	rightRoundID := stringFromAny(right["round_id"])
 	if leftRoundID != "" && leftRoundID == rightRoundID {
 		leftOrder := historyRoleOrder(left)
 		rightOrder := historyRoleOrder(right)
@@ -517,8 +517,8 @@ func compareHistoryRowOrder(left protocol.Message, right protocol.Message) int {
 		}
 	}
 
-	leftMessageID := strings.TrimSpace(stringFromAny(left["message_id"]))
-	rightMessageID := strings.TrimSpace(stringFromAny(right["message_id"]))
+	leftMessageID := stringFromAny(left["message_id"])
+	rightMessageID := stringFromAny(right["message_id"])
 	if leftMessageID != rightMessageID {
 		return strings.Compare(leftMessageID, rightMessageID)
 	}
@@ -526,7 +526,7 @@ func compareHistoryRowOrder(left protocol.Message, right protocol.Message) int {
 }
 
 func historyRoleOrder(row protocol.Message) int {
-	switch strings.TrimSpace(stringFromAny(row["role"])) {
+	switch stringFromAny(row["role"]) {
 	case "user":
 		return 0
 	case "assistant", "system", "task_progress":

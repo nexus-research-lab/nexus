@@ -240,12 +240,12 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 	messageRows := make([]protocol.Message, 0, len(rows))
 	roundMarkers := make([]transcriptRoundMarker, 0)
 	for _, row := range rows {
-		if strings.TrimSpace(stringFromAny(row[overlayKindField])) == overlayKindRoundMarker {
+		if stringFromAny(row[overlayKindField]) == overlayKindRoundMarker {
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
-				RoundID:        strings.TrimSpace(stringFromAny(row["round_id"])),
-				Content:        strings.TrimSpace(stringFromAny(row["content"])),
+				RoundID:        stringFromAny(row["round_id"]),
+				Content:        stringFromAny(row["content"]),
 				Timestamp:      messageTimestamp(protocol.Message(row)),
-				DeliveryPolicy: strings.TrimSpace(stringFromAny(row["delivery_policy"])),
+				DeliveryPolicy: stringFromAny(row["delivery_policy"]),
 			})
 			continue
 		}
@@ -370,7 +370,7 @@ func (s *AgentHistoryStore) readTranscriptEntries(path string) ([]transcriptEntr
 			continue
 		}
 		normalizeTranscriptEntryShape(entry)
-		if strings.TrimSpace(stringFromAny(entry["uuid"])) == "" {
+		if stringFromAny(entry["uuid"]) == "" {
 			continue
 		}
 		results = append(results, transcriptEntry{
@@ -387,17 +387,17 @@ func normalizeTranscriptEntryShape(entry map[string]any) {
 		entry["session_id"] = entry["sessionId"]
 	}
 
-	if strings.TrimSpace(stringFromAny(entry["type"])) != "assistant" {
+	if stringFromAny(entry["type"]) != "assistant" {
 		return
 	}
 	messageValue, ok := entry["message"].(map[string]any)
 	if !ok {
 		return
 	}
-	if strings.TrimSpace(stringFromAny(messageValue["id"])) != "" {
+	if stringFromAny(messageValue["id"]) != "" {
 		return
 	}
-	if uuid := strings.TrimSpace(stringFromAny(entry["uuid"])); uuid != "" {
+	if uuid := stringFromAny(entry["uuid"]); uuid != "" {
 		messageValue["id"] = uuid
 	}
 }
@@ -528,12 +528,12 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 	byUUID := make(map[string]transcriptEntry, len(entries))
 	parentUUIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
-		uuid := strings.TrimSpace(stringFromAny(entry.Data["uuid"]))
+		uuid := stringFromAny(entry.Data["uuid"])
 		if uuid == "" {
 			continue
 		}
 		byUUID[uuid] = entry
-		parentUUID := strings.TrimSpace(stringFromAny(entry.Data["parentUuid"]))
+		parentUUID := stringFromAny(entry.Data["parentUuid"])
 		if parentUUID != "" {
 			parentUUIDs[parentUUID] = struct{}{}
 		}
@@ -541,7 +541,7 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 
 	terminals := make([]transcriptEntry, 0)
 	for _, entry := range entries {
-		uuid := strings.TrimSpace(stringFromAny(entry.Data["uuid"]))
+		uuid := stringFromAny(entry.Data["uuid"])
 		if uuid == "" {
 			continue
 		}
@@ -566,7 +566,7 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 	seen := make(map[string]struct{}, len(entries))
 	current := leaf
 	for {
-		uuid := strings.TrimSpace(stringFromAny(current.Data["uuid"]))
+		uuid := stringFromAny(current.Data["uuid"])
 		if uuid == "" {
 			break
 		}
@@ -575,7 +575,7 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 		}
 		seen[uuid] = struct{}{}
 		chain = append(chain, current)
-		parentUUID := strings.TrimSpace(stringFromAny(current.Data["parentUuid"]))
+		parentUUID := stringFromAny(current.Data["parentUuid"])
 		if parentUUID == "" {
 			break
 		}
@@ -596,7 +596,7 @@ func shouldSkipTranscriptEntry(entry map[string]any) bool {
 	if boolValueAny(entry["isSidechain"]) || boolValueAny(entry["isMeta"]) {
 		return true
 	}
-	return strings.TrimSpace(stringFromAny(entry["teamName"])) != ""
+	return stringFromAny(entry["teamName"]) != ""
 }
 
 func projectTranscriptChain(
@@ -640,7 +640,7 @@ func projectTranscriptChain(
 		case sdkprotocol.MessageTypeUser:
 			if isTranscriptToolResult(decoded) {
 				if processor == nil {
-					currentRoundID = firstNonEmpty(strings.TrimSpace(stringFromAny(entry.Data["parentUuid"])), strings.TrimSpace(decoded.UUID))
+					currentRoundID = firstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
 					processor = newTranscriptProcessor(sessionKey, agentID, currentRoundID, decoded.SessionID)
 				}
 				output := processor.Process(decoded)
@@ -711,12 +711,12 @@ func buildTranscriptGuidanceMessages(
 	roundID := strings.TrimSpace(currentRoundID)
 	if roundID == "" {
 		roundID = buildTranscriptRoundID(firstNonEmpty(
-			strings.TrimSpace(stringFromAny(entry["parentUuid"])),
-			strings.TrimSpace(stringFromAny(entry["uuid"])),
+			stringFromAny(entry["parentUuid"]),
+			stringFromAny(entry["uuid"]),
 		))
 	}
-	sessionID := strings.TrimSpace(stringFromAny(entry["session_id"]))
-	entryUUID := strings.TrimSpace(stringFromAny(entry["uuid"]))
+	sessionID := stringFromAny(entry["session_id"])
+	entryUUID := stringFromAny(entry["uuid"])
 	rows := make([]protocol.Message, 0, len(items))
 	for index, item := range items {
 		sourceRoundID := strings.TrimSpace(item.RoundID)
@@ -748,7 +748,7 @@ func transcriptGuidanceAttachmentContent(entry map[string]any) string {
 	if !ok {
 		return ""
 	}
-	if strings.TrimSpace(stringFromAny(attachment["type"])) != "hook_additional_context" {
+	if stringFromAny(attachment["type"]) != "hook_additional_context" {
 		return ""
 	}
 
@@ -760,7 +760,7 @@ func transcriptGuidanceAttachmentContent(entry map[string]any) string {
 }
 
 func joinTranscriptGuidanceContent(value any) string {
-	if text := strings.TrimSpace(stringFromAny(value)); text != "" {
+	if text := stringFromAny(value); text != "" {
 		return text
 	}
 	items, ok := value.([]any)
@@ -769,7 +769,7 @@ func joinTranscriptGuidanceContent(value any) string {
 	}
 	parts := make([]string, 0, len(items))
 	for _, item := range items {
-		if text := strings.TrimSpace(stringFromAny(item)); text != "" {
+		if text := stringFromAny(item); text != "" {
 			parts = append(parts, text)
 		}
 	}
@@ -904,7 +904,7 @@ func buildTranscriptUserMessage(
 func transcriptUserContent(entry map[string]any) string {
 	messageValue, _ := entry["message"].(map[string]any)
 	contentValue := messageValue["content"]
-	if text := sanitizeTranscriptUserContent(strings.TrimSpace(stringFromAny(contentValue))); text != "" {
+	if text := sanitizeTranscriptUserContent(stringFromAny(contentValue)); text != "" {
 		return text
 	}
 	items, _ := contentValue.([]any)
@@ -914,7 +914,7 @@ func transcriptUserContent(entry map[string]any) string {
 		if !ok {
 			continue
 		}
-		if text := sanitizeTranscriptUserContent(strings.TrimSpace(stringFromAny(payload["text"]))); text != "" {
+		if text := sanitizeTranscriptUserContent(stringFromAny(payload["text"])); text != "" {
 			parts = append(parts, text)
 		}
 	}
@@ -970,7 +970,7 @@ func buildTranscriptRoundID(uuid string) string {
 }
 
 func transcriptEntryTimestamp(entry map[string]any, index int, lastTimestamp int64) int64 {
-	value := strings.TrimSpace(stringFromAny(entry["timestamp"]))
+	value := stringFromAny(entry["timestamp"])
 	if value != "" {
 		if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
 			return parsed.UnixMilli()

@@ -13,7 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
@@ -30,7 +30,7 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer db.Close()
-	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
 	ctx := context.Background()

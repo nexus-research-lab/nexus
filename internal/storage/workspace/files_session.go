@@ -206,7 +206,7 @@ func compactMessages(rows []protocol.Message) []protocol.Message {
 	latestByID := make(map[string]protocol.Message, len(rows))
 	order := make([]string, 0, len(rows))
 	for _, row := range rows {
-		messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
+		messageID := stringFromAny(row["message_id"])
 		if messageID == "" {
 			continue
 		}
@@ -229,7 +229,7 @@ func compactMessages(rows []protocol.Message) []protocol.Message {
 }
 
 func mergeCompactedMessage(current protocol.Message, next protocol.Message) protocol.Message {
-	if strings.TrimSpace(stringFromAny(current["role"])) != "assistant" || strings.TrimSpace(stringFromAny(next["role"])) != "assistant" {
+	if stringFromAny(current["role"]) != "assistant" || stringFromAny(next["role"]) != "assistant" {
 		return next
 	}
 	return mergeAssistantSnapshots(current, next)
@@ -251,7 +251,7 @@ func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) pr
 		"role",
 	}
 	for _, key := range identityKeys {
-		if strings.TrimSpace(stringFromAny(merged[key])) == "" && strings.TrimSpace(stringFromAny(next[key])) != "" {
+		if stringFromAny(merged[key]) == "" && stringFromAny(next[key]) != "" {
 			merged[key] = next[key]
 		}
 	}
@@ -261,10 +261,10 @@ func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) pr
 	} else if next["content"] != nil {
 		merged["content"] = next["content"]
 	}
-	if value := strings.TrimSpace(stringFromAny(next["model"])); value != "" {
+	if value := stringFromAny(next["model"]); value != "" {
 		merged["model"] = value
 	}
-	if value := strings.TrimSpace(stringFromAny(next["stop_reason"])); value != "" {
+	if value := stringFromAny(next["stop_reason"]); value != "" {
 		merged["stop_reason"] = value
 	}
 	if usage := normalizeMapValue(next["usage"]); len(usage) > 0 {
@@ -273,7 +273,7 @@ func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) pr
 	if boolFromAny(current["is_complete"]) || boolFromAny(next["is_complete"]) {
 		merged["is_complete"] = true
 	}
-	if status := strings.TrimSpace(stringFromAny(next["stream_status"])); status != "" {
+	if status := stringFromAny(next["stream_status"]); status != "" {
 		merged["stream_status"] = status
 	}
 	if ts := messageTimestamp(next); ts >= messageTimestamp(current) {
@@ -371,9 +371,9 @@ func upsertAssistantContentBlock(blocks []map[string]any, incoming map[string]an
 	if len(block) == 0 {
 		return blocks
 	}
-	incomingType := strings.TrimSpace(stringFromAny(block["type"]))
+	incomingType := stringFromAny(block["type"])
 	for index, current := range blocks {
-		currentType := strings.TrimSpace(stringFromAny(current["type"]))
+		currentType := stringFromAny(current["type"])
 		if currentType != incomingType {
 			continue
 		}
@@ -385,17 +385,17 @@ func upsertAssistantContentBlock(blocks []map[string]any, incoming map[string]an
 			blocks[index] = block
 			return blocks
 		case "tool_use":
-			if strings.TrimSpace(stringFromAny(current["id"])) == strings.TrimSpace(stringFromAny(block["id"])) {
+			if stringFromAny(current["id"]) == stringFromAny(block["id"]) {
 				blocks[index] = block
 				return blocks
 			}
 		case "tool_result":
-			if strings.TrimSpace(stringFromAny(current["tool_use_id"])) == strings.TrimSpace(stringFromAny(block["tool_use_id"])) {
+			if stringFromAny(current["tool_use_id"]) == stringFromAny(block["tool_use_id"]) {
 				blocks[index] = block
 				return blocks
 			}
 		case "task_progress":
-			if strings.TrimSpace(stringFromAny(current["task_id"])) == strings.TrimSpace(stringFromAny(block["task_id"])) {
+			if stringFromAny(current["task_id"]) == stringFromAny(block["task_id"]) {
 				blocks[index] = block
 				return blocks
 			}

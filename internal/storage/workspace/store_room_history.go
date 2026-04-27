@@ -95,7 +95,7 @@ func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.M
 	transcriptRowsByMessageID := make(map[string]map[string]protocol.Message)
 	resolved := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
-		if strings.TrimSpace(stringFromAny(row[overlayKindField])) != overlayKindTranscriptRef {
+		if stringFromAny(row[overlayKindField]) != overlayKindTranscriptRef {
 			resolved = append(resolved, protocol.Message(row))
 			continue
 		}
@@ -117,11 +117,11 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 	row protocol.Message,
 	cache map[string]map[string]protocol.Message,
 ) (protocol.Message, bool, error) {
-	workspacePath := strings.TrimSpace(stringFromAny(row["workspace_path"]))
-	privateSessionKey := strings.TrimSpace(stringFromAny(row["private_session_key"]))
-	agentID := strings.TrimSpace(stringFromAny(row["agent_id"]))
-	sessionID := strings.TrimSpace(stringFromAny(row["session_id"]))
-	messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
+	workspacePath := stringFromAny(row["workspace_path"])
+	privateSessionKey := stringFromAny(row["private_session_key"])
+	agentID := stringFromAny(row["agent_id"])
+	sessionID := stringFromAny(row["session_id"])
+	messageID := stringFromAny(row["message_id"])
 	if workspacePath == "" || privateSessionKey == "" || agentID == "" || sessionID == "" || messageID == "" {
 		return nil, false, nil
 	}
@@ -169,8 +169,8 @@ func buildRoomTranscriptReference(
 	if protocol.MessageRole(message) != "assistant" {
 		return nil
 	}
-	sessionID := strings.TrimSpace(stringFromAny(message["session_id"]))
-	messageID := strings.TrimSpace(stringFromAny(message["message_id"]))
+	sessionID := stringFromAny(message["session_id"])
+	messageID := stringFromAny(message["message_id"])
 	if sessionID == "" || messageID == "" || strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(privateSessionKey) == "" {
 		return nil
 	}
@@ -178,9 +178,9 @@ func buildRoomTranscriptReference(
 	row := map[string]any{
 		overlayKindField:      overlayKindTranscriptRef,
 		"message_id":          messageID,
-		"conversation_id":     strings.TrimSpace(stringFromAny(message["conversation_id"])),
-		"agent_id":            strings.TrimSpace(stringFromAny(message["agent_id"])),
-		"round_id":            strings.TrimSpace(stringFromAny(message["round_id"])),
+		"conversation_id":     stringFromAny(message["conversation_id"]),
+		"agent_id":            stringFromAny(message["agent_id"]),
+		"round_id":            stringFromAny(message["round_id"]),
 		"session_id":          sessionID,
 		"timestamp":           messageTimestamp(message),
 		"workspace_path":      strings.TrimSpace(workspacePath),
@@ -201,7 +201,7 @@ func buildRoomTranscriptCacheKey(
 func indexRoomTranscriptMessages(rows []protocol.Message) map[string]protocol.Message {
 	result := make(map[string]protocol.Message, len(rows))
 	for _, row := range rows {
-		messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
+		messageID := stringFromAny(row["message_id"])
 		if messageID == "" {
 			continue
 		}
@@ -217,14 +217,14 @@ func overrideRoomTranscriptFields(target protocol.Message, source protocol.Messa
 		"agent_id",
 		"round_id",
 	} {
-		if value := strings.TrimSpace(stringFromAny(source[key])); value != "" {
+		if value := stringFromAny(source[key]); value != "" {
 			target[key] = value
 		}
 	}
 	if timestamp := messageTimestamp(source); timestamp > 0 {
 		target["timestamp"] = timestamp
 	}
-	if sessionID := strings.TrimSpace(stringFromAny(source["session_id"])); sessionID != "" {
+	if sessionID := stringFromAny(source["session_id"]); sessionID != "" {
 		target["session_id"] = sessionID
 	}
 }

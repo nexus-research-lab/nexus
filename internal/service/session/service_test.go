@@ -18,7 +18,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
-	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -251,12 +251,12 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
 	created.SessionID = &sessionID
-	store := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
 	if _, err := store.UpsertSession(agentA.WorkspacePath, *created); err != nil {
 		t.Fatalf("回写 session_id 失败: %v", err)
 	}
 
-	history := workspace2.NewAgentHistoryStore(cfg.WorkspacePath)
+	history := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
 	if err := history.AppendRoundMarker(agentA.WorkspacePath, dmKey, "round_transcript_1", "请总结这个仓库", time.Now().Add(-2*time.Second).UnixMilli()); err != nil {
 		t.Fatalf("写入 round marker 失败: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	)
 	sessionID := "2944aa53-db7c-4b9f-a3e6-74401402abc5"
 	now := time.Now().UTC()
-	store := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
 	if _, err := store.UpsertSession(agentA.WorkspacePath, protocol.Session{
 		SessionKey:     sessionKey,
 		AgentID:        agentA.AgentID,
@@ -374,7 +374,7 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 		t.Fatalf("回写 room topic session meta 失败: %v", err)
 	}
 
-	history := workspace2.NewAgentHistoryStore(cfg.WorkspacePath)
+	history := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
 	if err := history.AppendRoundMarker(agentA.WorkspacePath, sessionKey, "round_room_topic_1", "啥意思", now.Add(-2*time.Second).UnixMilli()); err != nil {
 		t.Fatalf("写入 room topic round marker 失败: %v", err)
 	}
@@ -457,7 +457,7 @@ func seedWorkspaceSessionArtifacts(
 ) {
 	t.Helper()
 
-	history := workspace2.NewAgentHistoryStore(cfg.WorkspacePath)
+	history := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
 	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round_1", "你好", 1000); err != nil {
 		t.Fatalf("写入 round marker 失败: %v", err)
 	}
@@ -490,7 +490,7 @@ func seedWorkspaceSessionArtifacts(
 func seedRoomConversationMessages(t *testing.T, cfg config.Config, conversationID string) {
 	t.Helper()
 
-	roomHistory := workspace2.NewRoomHistoryStore(cfg.WorkspacePath)
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 	if err := roomHistory.AppendInlineMessage(conversationID, map[string]any{
 		"message_id":      "room_msg_1",
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
@@ -515,7 +515,7 @@ func bindTranscriptSessionID(
 
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
 	item.SessionID = &sessionID
-	store := workspace2.NewSessionFileStore(cfg.WorkspacePath)
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
 	if _, err := store.UpsertSession(workspacePath, *item); err != nil {
 		t.Fatalf("回写 session_id 失败: %v", err)
 	}

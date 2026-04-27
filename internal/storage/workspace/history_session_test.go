@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -197,11 +196,11 @@ func TestNormalizeHistoryRowsBuildsSyntheticAssistantWithoutAssistant(t *testing
 	if normalized[1]["role"] != "assistant" {
 		t.Fatalf("第二条消息应改写为 assistant: %+v", normalized[1])
 	}
-	if strings.TrimSpace(stringFromAny(normalized[1]["stop_reason"])) != "cancelled" {
+	if stringFromAny(normalized[1]["stop_reason"]) != "cancelled" {
 		t.Fatalf("合成 assistant 应补 stop_reason=cancelled: %+v", normalized[1])
 	}
 	summary, ok := normalized[1]["result_summary"].(map[string]any)
-	if !ok || strings.TrimSpace(stringFromAny(summary["subtype"])) != "interrupted" {
+	if !ok || stringFromAny(summary["subtype"]) != "interrupted" {
 		t.Fatalf("合成 assistant 应携带 interrupted result_summary: %+v", normalized[1])
 	}
 	if _, exists := summary["result"]; exists {
@@ -276,7 +275,7 @@ func TestNormalizeHistoryRowsFiltersInternalTransportRows(t *testing.T) {
 	if len(normalized) != 2 {
 		t.Fatalf("内部 transport 行应被过滤: got=%d want=2 rows=%+v", len(normalized), normalized)
 	}
-	if normalized[0]["role"] != "user" || strings.TrimSpace(stringFromAny(normalized[0]["content"])) != "继续" {
+	if normalized[0]["role"] != "user" || stringFromAny(normalized[0]["content"]) != "继续" {
 		t.Fatalf("内部 user prompt 未被过滤: %+v", normalized)
 	}
 	if normalized[1]["role"] != "assistant" {
@@ -545,18 +544,18 @@ func TestNormalizeHistoryRowsMaterializesRunningAssistantWithoutStopReason(t *te
 	if len(normalized) != 3 {
 		t.Fatalf("running assistant 应保留 partial assistant 并追加终态 assistant: got=%d want=3 rows=%+v", len(normalized), normalized)
 	}
-	if strings.TrimSpace(stringFromAny(normalized[1]["stop_reason"])) != "" {
+	if stringFromAny(normalized[1]["stop_reason"]) != "" {
 		t.Fatalf("partial assistant 不应被提前写成终态: %+v", normalized[1])
 	}
 	assistant := normalized[2]
 	if assistant["role"] != "assistant" {
 		t.Fatalf("物化结果应为 assistant: %+v", assistant)
 	}
-	if strings.TrimSpace(stringFromAny(assistant["stop_reason"])) != "cancelled" {
+	if stringFromAny(assistant["stop_reason"]) != "cancelled" {
 		t.Fatalf("未完成 round 物化后 stop_reason 应为 cancelled: %+v", assistant)
 	}
 	summary, ok := assistant["result_summary"].(map[string]any)
-	if !ok || strings.TrimSpace(stringFromAny(summary["subtype"])) != "interrupted" {
+	if !ok || stringFromAny(summary["subtype"]) != "interrupted" {
 		t.Fatalf("未完成 round 物化后应挂 interrupted result_summary: %+v", assistant)
 	}
 	if _, exists := summary["result"]; exists {

@@ -1,12 +1,12 @@
 package cli
 
 import (
-	automation2 "github.com/nexus-research-lab/nexus/internal/service/automation"
+	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 
 	"github.com/spf13/cobra"
 )
 
-func newAutomationCommand(service *automation2.Service) *cobra.Command {
+func newAutomationCommand(service *automationsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "automation",
 		Short: "automation 领域命令",
@@ -16,7 +16,7 @@ func newAutomationCommand(service *automation2.Service) *cobra.Command {
 	return command
 }
 
-func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
+func newScheduledTaskCommand(service *automationsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "task",
 		Short: "scheduled task 命令",
@@ -64,21 +64,21 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建定时任务",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				payload := automation2.CreateJobInput{
+				payload := automationsvc.CreateJobInput{
 					Name:        name,
 					AgentID:     agentID,
 					Instruction: instruction,
-					Schedule: automation2.Schedule{
+					Schedule: automationsvc.Schedule{
 						Kind:     scheduleKind,
 						Timezone: timezone,
 					},
-					SessionTarget: automation2.SessionTarget{
+					SessionTarget: automationsvc.SessionTarget{
 						Kind:            targetKind,
 						BoundSessionKey: boundSessionKey,
 						NamedSessionKey: namedSessionKey,
 						WakeMode:        wakeMode,
 					},
-					Delivery: automation2.DeliveryTarget{
+					Delivery: automationsvc.DeliveryTarget{
 						Mode: deliveryMode,
 					},
 					Enabled: enabled,
@@ -106,16 +106,16 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		createCommand.Flags().StringVar(&name, "name", "", "task name")
 		createCommand.Flags().StringVar(&agentID, "agent-id", "", "agent id")
 		createCommand.Flags().StringVar(&instruction, "instruction", "", "task instruction")
-		createCommand.Flags().StringVar(&scheduleKind, "schedule-kind", automation2.ScheduleKindEvery, "every|cron|at")
+		createCommand.Flags().StringVar(&scheduleKind, "schedule-kind", automationsvc.ScheduleKindEvery, "every|cron|at")
 		createCommand.Flags().StringVar(&runAt, "run-at", "", "run at")
 		createCommand.Flags().IntVar(&intervalSeconds, "interval-seconds", 0, "interval seconds")
 		createCommand.Flags().StringVar(&cronExpression, "cron-expression", "", "cron expression")
 		createCommand.Flags().StringVar(&timezone, "timezone", "Asia/Shanghai", "timezone")
-		createCommand.Flags().StringVar(&targetKind, "target-kind", automation2.SessionTargetIsolated, "isolated|main|bound|named")
+		createCommand.Flags().StringVar(&targetKind, "target-kind", automationsvc.SessionTargetIsolated, "isolated|main|bound|named")
 		createCommand.Flags().StringVar(&boundSessionKey, "bound-session-key", "", "bound session key")
 		createCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
-		createCommand.Flags().StringVar(&wakeMode, "wake-mode", automation2.WakeModeNextHeartbeat, "now|next-heartbeat")
-		createCommand.Flags().StringVar(&deliveryMode, "delivery-mode", automation2.DeliveryModeNone, "none|last|explicit")
+		createCommand.Flags().StringVar(&wakeMode, "wake-mode", automationsvc.WakeModeNextHeartbeat, "now|next-heartbeat")
+		createCommand.Flags().StringVar(&deliveryMode, "delivery-mode", automationsvc.DeliveryModeNone, "none|last|explicit")
 		createCommand.Flags().BoolVar(&enabled, "enabled", true, "enabled")
 		_ = createCommand.MarkFlagRequired("name")
 		_ = createCommand.MarkFlagRequired("agent-id")
@@ -143,7 +143,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 			Short: "更新定时任务",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				payload := automation2.UpdateJobInput{}
+				payload := automationsvc.UpdateJobInput{}
 				if name != "" {
 					payload.Name = stringRef(name)
 				}
@@ -151,7 +151,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 					payload.Instruction = stringRef(instruction)
 				}
 				if scheduleKind != "" {
-					schedule := automation2.Schedule{
+					schedule := automationsvc.Schedule{
 						Kind:     scheduleKind,
 						Timezone: timezone,
 					}
@@ -167,7 +167,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 					payload.Schedule = &schedule
 				}
 				if targetKind != "" {
-					target := automation2.SessionTarget{
+					target := automationsvc.SessionTarget{
 						Kind:            targetKind,
 						BoundSessionKey: boundSessionKey,
 						NamedSessionKey: namedSessionKey,
@@ -176,7 +176,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 					payload.SessionTarget = &target
 				}
 				if deliveryMode != "" {
-					payload.Delivery = &automation2.DeliveryTarget{Mode: deliveryMode}
+					payload.Delivery = &automationsvc.DeliveryTarget{Mode: deliveryMode}
 				}
 				if cmd.Flags().Changed("enabled") {
 					payload.Enabled = &enabled
@@ -202,7 +202,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 		updateCommand.Flags().StringVar(&targetKind, "target-kind", "", "isolated|main|bound|named")
 		updateCommand.Flags().StringVar(&boundSessionKey, "bound-session-key", "", "bound session key")
 		updateCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
-		updateCommand.Flags().StringVar(&wakeMode, "wake-mode", automation2.WakeModeNextHeartbeat, "now|next-heartbeat")
+		updateCommand.Flags().StringVar(&wakeMode, "wake-mode", automationsvc.WakeModeNextHeartbeat, "now|next-heartbeat")
 		updateCommand.Flags().StringVar(&deliveryMode, "delivery-mode", "", "none|last|explicit")
 		updateCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")
 		return updateCommand
@@ -285,7 +285,7 @@ func newScheduledTaskCommand(service *automation2.Service) *cobra.Command {
 	return command
 }
 
-func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
+func newHeartbeatCommand(service *automationsvc.Service) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "heartbeat",
 		Short: "heartbeat 自动化命令",
@@ -318,7 +318,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 			Short: "更新 heartbeat 配置",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], automation2.HeartbeatUpdateInput{
+				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], automationsvc.HeartbeatUpdateInput{
 					Enabled:      enabled,
 					EverySeconds: everySeconds,
 					TargetMode:   targetMode,
@@ -336,7 +336,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 		}
 		setCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")
 		setCommand.Flags().IntVar(&everySeconds, "every-seconds", 1800, "every seconds")
-		setCommand.Flags().StringVar(&targetMode, "target-mode", automation2.HeartbeatTargetNone, "none|last")
+		setCommand.Flags().StringVar(&targetMode, "target-mode", automationsvc.HeartbeatTargetNone, "none|last")
 		setCommand.Flags().IntVar(&ackMaxChars, "ack-max-chars", 300, "ack max chars")
 		return setCommand
 	}())
@@ -349,7 +349,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 			Short: "手动唤醒 heartbeat",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				request := automation2.HeartbeatWakeRequest{Mode: mode}
+				request := automationsvc.HeartbeatWakeRequest{Mode: mode}
 				if text != "" {
 					request.Text = stringRef(text)
 				}
@@ -364,7 +364,7 @@ func newHeartbeatCommand(service *automation2.Service) *cobra.Command {
 				})
 			},
 		}
-		wakeCommand.Flags().StringVar(&mode, "mode", automation2.WakeModeNow, "now|next-heartbeat")
+		wakeCommand.Flags().StringVar(&mode, "mode", automationsvc.WakeModeNow, "now|next-heartbeat")
 		wakeCommand.Flags().StringVar(&text, "text", "", "wake text")
 		return wakeCommand
 	}())

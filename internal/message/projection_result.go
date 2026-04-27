@@ -37,10 +37,13 @@ func ProjectResultMessage(assistant protocol.Message, result protocol.Message) p
 
 // BuildAssistantResultSummary 只保留 assistant 终态需要的结果摘要。
 func BuildAssistantResultSummary(result protocol.Message, assistantText string) map[string]any {
+	resultMessageID := normalizeString(result["message_id"])
+	resultSubtype := normalizeString(result["subtype"])
+	resultValue := normalizeString(result["result"])
 	summary := map[string]any{
-		"message_id":      stringFromAny(result["message_id"]),
+		"message_id":      resultMessageID,
 		"timestamp":       messageTimestamp(result),
-		"subtype":         stringFromAny(result["subtype"]),
+		"subtype":         resultSubtype,
 		"duration_ms":     intFromAny(result["duration_ms"]),
 		"duration_api_ms": intFromAny(result["duration_api_ms"]),
 		"num_turns":       intFromAny(result["num_turns"]),
@@ -54,10 +57,10 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 		summary["usage"] = usage
 	}
 
-	resultText := NormalizeDisplayText(stringFromAny(result["result"]))
+	resultText := NormalizeDisplayText(resultValue)
 	if resultText != "" {
-		if NormalizeResultSubtype(stringFromAny(result["subtype"])) != "success" || resultText != assistantText {
-			summary["result"] = stringFromAny(result["result"])
+		if NormalizeResultSubtype(resultSubtype) != "success" || resultText != assistantText {
+			summary["result"] = resultValue
 		}
 	}
 	return summary
@@ -72,10 +75,10 @@ func ExtractAssistantDisplayText(message protocol.Message) string {
 
 	texts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		if strings.TrimSpace(stringFromAny(block["type"])) != "text" {
+		if normalizeString(block["type"]) != "text" {
 			continue
 		}
-		text := strings.TrimSpace(stringFromAny(block["text"]))
+		text := normalizeString(block["text"])
 		if text == "" {
 			continue
 		}
@@ -92,9 +95,10 @@ func NormalizeDisplayText(value string) string {
 
 // NormalizeResultSubtype 统一 result subtype。
 func NormalizeResultSubtype(subtype string) string {
-	switch strings.TrimSpace(subtype) {
+	normalized := strings.TrimSpace(subtype)
+	switch normalized {
 	case "success", "error", "interrupted":
-		return strings.TrimSpace(subtype)
+		return normalized
 	default:
 		return ""
 	}
@@ -111,26 +115,26 @@ func IsInternalTranscriptInterruptPrompt(content string) bool {
 func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message {
 	synthetic := protocol.Message{
 		"message_id":  buildSyntheticAssistantMessageID(result),
-		"session_key": stringFromAny(result["session_key"]),
-		"agent_id":    stringFromAny(result["agent_id"]),
-		"round_id":    stringFromAny(result["round_id"]),
+		"session_key": normalizeString(result["session_key"]),
+		"agent_id":    normalizeString(result["agent_id"]),
+		"round_id":    normalizeString(result["round_id"]),
 		"role":        "assistant",
 		"timestamp":   messageTimestamp(result),
 		"is_complete": true,
 	}
-	if roomID := stringFromAny(result["room_id"]); roomID != "" {
+	if roomID := normalizeString(result["room_id"]); roomID != "" {
 		synthetic["room_id"] = roomID
 	}
-	if conversationID := stringFromAny(result["conversation_id"]); conversationID != "" {
+	if conversationID := normalizeString(result["conversation_id"]); conversationID != "" {
 		synthetic["conversation_id"] = conversationID
 	}
-	if sessionID := stringFromAny(result["session_id"]); sessionID != "" {
+	if sessionID := normalizeString(result["session_id"]); sessionID != "" {
 		synthetic["session_id"] = sessionID
 	}
-	if parentID := stringFromAny(result["parent_id"]); parentID != "" {
+	if parentID := normalizeString(result["parent_id"]); parentID != "" {
 		synthetic["parent_id"] = parentID
 	}
-	switch NormalizeResultSubtype(stringFromAny(result["subtype"])) {
+	switch NormalizeResultSubtype(normalizeString(result["subtype"])) {
 	case "interrupted":
 		synthetic["stop_reason"] = "cancelled"
 	case "error":
@@ -138,7 +142,7 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 	default:
 		synthetic["stop_reason"] = "end_turn"
 	}
-	if resultText := stringFromAny(result["result"]); resultText != "" {
+	if resultText := normalizeString(result["result"]); resultText != "" {
 		synthetic["content"] = []map[string]any{{
 			"type": "text",
 			"text": resultText,
@@ -150,14 +154,6 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 		return summary
 	}
 	return synthetic
-}
-
-func stringFromAny(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(typed)
 }
 
 func intFromAny(value any) int {
@@ -243,10 +239,10 @@ func normalizeMessageContentBlocks(raw any) []map[string]any {
 }
 
 func buildSyntheticAssistantMessageID(result protocol.Message) string {
-	if messageID := stringFromAny(result["message_id"]); messageID != "" {
+	if messageID := normalizeString(result["message_id"]); messageID != "" {
 		return "assistant_" + messageID
 	}
-	if roundID := stringFromAny(result["round_id"]); roundID != "" {
+	if roundID := normalizeString(result["round_id"]); roundID != "" {
 		return "assistant_result_" + roundID
 	}
 	return "assistant_result"

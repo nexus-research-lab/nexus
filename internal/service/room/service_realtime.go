@@ -8,10 +8,10 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/logx"
-	permission3 "github.com/nexus-research-lab/nexus/internal/permission"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -64,9 +64,9 @@ type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[st
 type RealtimeService struct {
 	config      config.Config
 	rooms       *Service
-	agents      *agent2.Service
+	agents      *agentsvc.Service
 	runtime     *runtimectx.Manager
-	permission  *permission3.Context
+	permission  *permissionctx.Context
 	providers   runtimectx.RuntimeConfigResolver
 	history     *workspacestore.AgentHistoryStore
 	roomHistory *workspacestore.RoomHistoryStore
@@ -94,9 +94,9 @@ type usageRecorder interface {
 func NewRealtimeService(
 	cfg config.Config,
 	roomService *Service,
-	agentService *agent2.Service,
+	agentService *agentsvc.Service,
 	runtimeManager *runtimectx.Manager,
-	permission *permission3.Context,
+	permission *permissionctx.Context,
 ) *RealtimeService {
 	return NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, defaultRoomClientFactory{})
 }
@@ -105,9 +105,9 @@ func NewRealtimeService(
 func NewRealtimeServiceWithFactory(
 	cfg config.Config,
 	roomService *Service,
-	agentService *agent2.Service,
+	agentService *agentsvc.Service,
 	runtimeManager *runtimectx.Manager,
-	permission *permission3.Context,
+	permission *permissionctx.Context,
 	factory roomClientFactory,
 ) *RealtimeService {
 	if factory == nil {

@@ -7,7 +7,7 @@ import (
 
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	workspace2 "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 // RuntimeSnapshot 描述某个 agent 当前的运行态快照。
@@ -21,7 +21,7 @@ type runtimeSnapshotProvider func(string) RuntimeSnapshot
 
 type workspaceSubscriptionRegistry struct {
 	mu              sync.Mutex
-	workspace       *workspace2.Service
+	workspace       *workspacesvc.Service
 	runtimeProvider runtimeSnapshotProvider
 	senderTokens    map[string]map[string]string
 	agentSenders    map[string]map[string]*gatewayshared.WebSocketSender
@@ -30,7 +30,7 @@ type workspaceSubscriptionRegistry struct {
 }
 
 func newWorkspaceSubscriptionRegistry(
-	workspaceService *workspace2.Service,
+	workspaceService *workspacesvc.Service,
 	runtimeProvider runtimeSnapshotProvider,
 ) *workspaceSubscriptionRegistry {
 	return &workspaceSubscriptionRegistry{
@@ -55,7 +55,7 @@ func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender *g
 	}
 	r.mu.Unlock()
 
-	token, err := r.workspace.SubscribeLive(ctx, agentID, func(event workspace2.LiveEvent) {
+	token, err := r.workspace.SubscribeLive(ctx, agentID, func(event workspacesvc.LiveEvent) {
 		_ = sender.SendEvent(context.Background(), workspaceEventMessage(event))
 	})
 	if err != nil {
@@ -219,7 +219,7 @@ func runtimeSnapshotEvent(snapshot RuntimeSnapshot) protocol.EventMessage {
 	return event
 }
 
-func workspaceEventMessage(event workspace2.LiveEvent) protocol.EventMessage {
+func workspaceEventMessage(event workspacesvc.LiveEvent) protocol.EventMessage {
 	data := map[string]any{
 		"type":      event.Type,
 		"agent_id":  event.AgentID,

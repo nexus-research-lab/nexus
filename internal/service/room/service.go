@@ -10,7 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -47,14 +47,14 @@ type Repository interface {
 // Service 提供 Room 编排能力。
 type Service struct {
 	config     config.Config
-	agents     *agent2.Service
+	agents     *agentsvc.Service
 	repository Repository
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 }
 
 // NewService 创建 Room 服务。
-func NewService(cfg config.Config, agents *agent2.Service, repository Repository) *Service {
+func NewService(cfg config.Config, agents *agentsvc.Service, repository Repository) *Service {
 	return &Service{
 		config:     cfg,
 		agents:     agents,
@@ -539,7 +539,7 @@ func (s *Service) resolveAgentWorkspacePath(ctx context.Context, agentID string)
 	if strings.TrimSpace(agentValue.WorkspacePath) != "" {
 		return strings.TrimSpace(agentValue.WorkspacePath), nil
 	}
-	return agent2.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name), nil
+	return agentsvc.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name), nil
 }
 
 func (s *Service) normalizeDirectAgentIDs(ctx context.Context, agentIDs []string) ([]string, error) {
@@ -593,7 +593,7 @@ func (s *Service) loadAgentRefs(ctx context.Context, agentIDs []string) ([]roomr
 	for _, agentID := range agentIDs {
 		ref, ok := refByID[agentID]
 		if !ok || ref.Status != "active" || strings.TrimSpace(ref.RuntimeID) == "" {
-			return nil, fmt.Errorf("%w: %s", agent2.ErrAgentNotFound, agentID)
+			return nil, fmt.Errorf("%w: %s", agentsvc.ErrAgentNotFound, agentID)
 		}
 		result = append(result, ref)
 	}
@@ -610,7 +610,7 @@ func (s *Service) resolveRoomAgent(ctx context.Context, agentID string) (*protoc
 		if err == nil {
 			return agentValue, nil
 		}
-		if !errors.Is(err, agent2.ErrAgentNotFound) {
+		if !errors.Is(err, agentsvc.ErrAgentNotFound) {
 			return nil, err
 		}
 	}

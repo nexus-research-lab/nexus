@@ -31,8 +31,8 @@ func NewGuidedInputMessage(input GuidedInputMessageInput) protocol.Message {
 	}
 	roundID := strings.TrimSpace(input.RoundID)
 	sourceRoundID := strings.TrimSpace(input.SourceRoundID)
-	messageID := firstGuidanceValue(
-		strings.TrimSpace(input.MessageID),
+	messageID := firstNonEmpty(
+		input.MessageID,
 		sourceRoundID,
 		"guidance_"+roundID,
 	)
@@ -60,13 +60,4 @@ func NewGuidedInputMessage(input GuidedInputMessageInput) protocol.Message {
 		message["session_id"] = sessionID
 	}
 	return message
-}
-
-func firstGuidanceValue(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return "guidance"
 }

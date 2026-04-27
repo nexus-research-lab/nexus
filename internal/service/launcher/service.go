@@ -7,7 +7,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
@@ -21,7 +21,7 @@ const (
 // Service 提供 Launcher 查询和推荐能力。
 type Service struct {
 	config       config.Config
-	agentService *agent2.Service
+	agentService *agentsvc.Service
 	roomService  *roomsvc.Service
 	session      *sessionsvc.Service
 }
@@ -29,7 +29,7 @@ type Service struct {
 // NewService 创建 Launcher 服务。
 func NewService(
 	cfg config.Config,
-	agentService *agent2.Service,
+	agentService *agentsvc.Service,
 	roomService *roomsvc.Service,
 	sessionService *sessionsvc.Service,
 ) *Service {

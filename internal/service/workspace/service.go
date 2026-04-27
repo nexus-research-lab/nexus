@@ -13,7 +13,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
 var (
@@ -68,12 +68,12 @@ type UploadResult struct {
 // Service 提供 workspace 文件读写能力。
 type Service struct {
 	config config.Config
-	agents *agent2.Service
+	agents *agentsvc.Service
 	live   *liveManager
 }
 
 // NewService 创建 workspace 服务。
-func NewService(cfg config.Config, agents *agent2.Service) *Service {
+func NewService(cfg config.Config, agents *agentsvc.Service) *Service {
 	return &Service{
 		config: cfg,
 		agents: agents,

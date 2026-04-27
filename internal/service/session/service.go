@@ -12,7 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -46,7 +46,7 @@ type MessagePageRequest struct {
 // Service 负责编排文件会话与 Room SQL 会话视图。
 type Service struct {
 	config       config.Config
-	agentService *agent2.Service
+	agentService *agentsvc.Service
 	repository   SQLRepository
 	files        *workspacestore.SessionFileStore
 	history      *workspacestore.AgentHistoryStore
@@ -60,7 +60,7 @@ func (s *Service) SetRuntimeManager(runtimeManager *runtimectx.Manager) {
 }
 
 // NewService 使用已注入的依赖创建 Session 服务。
-func NewService(cfg config.Config, agentService *agent2.Service, repository SQLRepository) *Service {
+func NewService(cfg config.Config, agentService *agentsvc.Service, repository SQLRepository) *Service {
 	return &Service{
 		config:       cfg,
 		agentService: agentService,
@@ -481,7 +481,7 @@ func (s *Service) resolveWorkspacePaths(ctx context.Context, agentID string) ([]
 	for _, agentValue := range agents {
 		workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
 		if workspacePath == "" {
-			workspacePath = agent2.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name)
+			workspacePath = agentsvc.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name)
 		}
 		if _, exists := seen[workspacePath]; exists {
 			continue

@@ -13,7 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/logx"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -44,7 +44,7 @@ type runtimeSessionCloser interface {
 type Service struct {
 	config        config.Config
 	repository    *sqlRepository
-	agents        *agent2.Service
+	agents        *agentsvc.Service
 	chat          chatRunner
 	room          roomRunner
 	permission    *permissionctx.Context
@@ -69,7 +69,7 @@ type Service struct {
 func NewService(
 	cfg config.Config,
 	db *sql.DB,
-	agents *agent2.Service,
+	agents *agentsvc.Service,
 	chat chatRunner,
 	room roomRunner,
 	permission *permissionctx.Context,

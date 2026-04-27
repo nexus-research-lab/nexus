@@ -12,8 +12,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
-	workspace2 "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -262,8 +262,8 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 		t.Fatalf("未找到 topic 上下文")
 	}
 
-	files := workspace2.NewSessionFileStore(cfg.WorkspacePath)
-	paths := workspace2.New(cfg.WorkspacePath)
+	files := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	paths := workspacestore.New(cfg.WorkspacePath)
 
 	mainAgentASession := seedRoomPrivateSession(t, files, agentA.WorkspacePath, mainContextAfterAdd.Room.RoomType, mainContextAfterAdd.Conversation.ID, agentA.AgentID)
 	mainAgentBSession := seedRoomPrivateSession(t, files, agentB.WorkspacePath, mainContextAfterAdd.Room.RoomType, mainContextAfterAdd.Conversation.ID, agentB.AgentID)
@@ -304,7 +304,7 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 
 func createTestAgent(
 	t *testing.T,
-	service *agent2.Service,
+	service *agentsvc.Service,
 	ctx context.Context,
 	name string,
 ) *protocol.Agent {
@@ -338,7 +338,7 @@ func newRoomTestConfig(t *testing.T) config.Config {
 
 func seedRoomPrivateSession(
 	t *testing.T,
-	files *workspace2.SessionFileStore,
+	files *workspacestore.SessionFileStore,
 	workspacePath string,
 	roomType string,
 	conversationID string,
@@ -375,7 +375,7 @@ func seedRoomConversationLog(
 ) {
 	t.Helper()
 
-	roomHistory := workspace2.NewRoomHistoryStore(root)
+	roomHistory := workspacestore.NewRoomHistoryStore(root)
 	if err := roomHistory.AppendInlineMessage(conversationID, protocol.Message{
 		"message_id":      "seed_" + conversationID,
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),

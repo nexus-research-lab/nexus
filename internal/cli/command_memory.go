@@ -3,7 +3,7 @@ package cli
 import (
 	"strings"
 
-	memory2 "github.com/nexus-research-lab/nexus/internal/memory"
+	memorysvc "github.com/nexus-research-lab/nexus/internal/memory"
 
 	"github.com/spf13/cobra"
 )
@@ -17,8 +17,8 @@ func newMemoryCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&workspacePath, "workspace", "", "workspace absolute path")
 	_ = command.MarkPersistentFlagRequired("workspace")
 
-	serviceFromFlags := func() *memory2.Service {
-		return memory2.NewService(workspacePath)
+	serviceFromFlags := func() *memorysvc.Service {
+		return memorysvc.NewService(workspacePath)
 	}
 
 	command.AddCommand(func() *cobra.Command {
@@ -215,14 +215,14 @@ func newMemoryCommand() *cobra.Command {
 	return command
 }
 
-func parseMemoryFields(values []string) ([]memory2.Field, error) {
-	items := make([]memory2.Field, 0, len(values))
+func parseMemoryFields(values []string) ([]memorysvc.Field, error) {
+	items := make([]memorysvc.Field, 0, len(values))
 	for _, value := range values {
 		parts := strings.SplitN(value, "=", 2)
 		if len(parts) != 2 {
 			return nil, usageErrorf("field 格式错误: %s", value)
 		}
-		items = append(items, memory2.Field{
+		items = append(items, memorysvc.Field{
 			Key:   strings.TrimSpace(parts[0]),
 			Value: strings.TrimSpace(parts[1]),
 		})

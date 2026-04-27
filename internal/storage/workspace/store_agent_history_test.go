@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
@@ -127,21 +126,21 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 
 	roundTwoAssistants := 0
 	for _, row := range rows {
-		if strings.TrimSpace(stringFromAny(row["round_id"])) != "round-2" {
+		if stringFromAny(row["round_id"]) != "round-2" {
 			continue
 		}
-		if strings.TrimSpace(stringFromAny(row["role"])) != "assistant" {
+		if stringFromAny(row["role"]) != "assistant" {
 			continue
 		}
 		roundTwoAssistants++
-		if got := strings.TrimSpace(stringFromAny(row["message_id"])); got != "transcript-assistant-2" {
+		if got := stringFromAny(row["message_id"]); got != "transcript-assistant-2" {
 			t.Fatalf("第二轮 assistant 不应退化为 synthetic assistant: %+v", row)
 		}
 		summary, ok := row["result_summary"].(map[string]any)
 		if !ok {
 			t.Fatalf("第二轮 assistant 应挂载 result_summary: %+v", row)
 		}
-		if strings.TrimSpace(stringFromAny(summary["subtype"])) != "success" {
+		if stringFromAny(summary["subtype"]) != "success" {
 			t.Fatalf("第二轮 result_summary subtype 不正确: %+v", summary)
 		}
 	}
@@ -243,7 +242,7 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	if (*guidance)["role"] != "system" || (*guidance)["round_id"] != "round-1" {
 		t.Fatalf("引导系统消息应归入当前 round: %+v", *guidance)
 	}
-	if strings.TrimSpace(stringFromAny((*guidance)["content"])) != "需要可以与 bot 对战" {
+	if stringFromAny((*guidance)["content"]) != "需要可以与 bot 对战" {
 		t.Fatalf("引导内容解析错误: %+v", *guidance)
 	}
 	metadata, _ := (*guidance)["metadata"].(map[string]any)

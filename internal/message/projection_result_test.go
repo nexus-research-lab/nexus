@@ -45,7 +45,7 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 				"is_error":        testCase.subtype == "error",
 			})
 
-			if stringFromAny(synthetic["stop_reason"]) != testCase.expectedStopReason {
+			if normalizeString(synthetic["stop_reason"]) != testCase.expectedStopReason {
 				t.Fatalf("stop_reason 不正确: got=%q want=%q synthetic=%+v", synthetic["stop_reason"], testCase.expectedStopReason, synthetic)
 			}
 			if !boolFromAny(synthetic["is_complete"]) {
@@ -56,7 +56,7 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 			if !ok {
 				t.Fatalf("synthetic assistant 应挂载 result_summary: %+v", synthetic)
 			}
-			if stringFromAny(summary["subtype"]) != testCase.subtype {
+			if normalizeString(summary["subtype"]) != testCase.subtype {
 				t.Fatalf("result_summary.subtype 不正确: got=%q want=%q summary=%+v", summary["subtype"], testCase.subtype, summary)
 			}
 		})

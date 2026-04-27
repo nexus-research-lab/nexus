@@ -10,7 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
@@ -28,7 +28,7 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer db.Close()
-	agentService := agent2.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	roomService := roomsvc.NewService(cfg, agentService, sqliterepo.NewRoomRepository(db))
 	sessionService := sessionsvc.NewService(cfg, agentService, sqliterepo.NewSessionRepository(db))
 	service := NewService(cfg, agentService, roomService, sessionService)
@@ -128,7 +128,7 @@ func assertContainsConversationTitle(
 
 func createLauncherAgent(
 	t *testing.T,
-	service *agent2.Service,
+	service *agentsvc.Service,
 	ctx context.Context,
 	name string,
 ) *protocol.Agent {
