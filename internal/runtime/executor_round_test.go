@@ -71,12 +71,16 @@ func (m *fakeRoundExecutionMapper) SessionID() string {
 type fakeRuntimeConfigResolver struct {
 	config *providercfg.RuntimeConfig
 	err    error
+	calls  *int
 }
 
 func (r fakeRuntimeConfigResolver) ResolveRuntimeConfig(
 	context.Context,
 	string,
 ) (*providercfg.RuntimeConfig, error) {
+	if r.calls != nil {
+		*r.calls = *r.calls + 1
+	}
 	return r.config, r.err
 }
 
@@ -226,12 +230,14 @@ func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	thinkingTokens := 2048
 	maxTurns := 8
+	resolveCalls := 0
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &providercfg.RuntimeConfig{
 			AuthToken: "token-1",
 			BaseURL:   "https://provider.example.com",
 			Model:     "kimi-k2",
 		},
+		calls: &resolveCalls,
 	}, AgentClientOptionsInput{
 		WorkspacePath:      "/tmp/workspace",
 		Provider:           "kimi",
@@ -263,6 +269,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if options.MaxThinkingTokens != 2048 || options.MaxTurns != 8 {
 		t.Fatalf("思考/轮次限制未透传: %+v", options)
+	}
+	if resolveCalls != 1 {
+		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
 	}
 }
 

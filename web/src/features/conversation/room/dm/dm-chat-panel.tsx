@@ -19,7 +19,8 @@ import { TodoItem } from "@/types/conversation/todo";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
-import { ConversationErrorBubble, is_provider_error } from "@/features/conversation/shared/conversation-error-bubble";
+import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
+import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";

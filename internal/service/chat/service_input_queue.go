@@ -35,6 +35,7 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 		if content == "" {
 			return errors.New("content is required")
 		}
+		ownerUserID := authsvc.OwnerUserID(ctx)
 		items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
 			Scope:          protocol.InputQueueScopeDM,
 			SessionKey:     sessionKey,
@@ -42,13 +43,13 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 			Source:         protocol.InputQueueSourceUser,
 			Content:        content,
 			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
-			OwnerUserID:    ownerUserIDFromContext(ctx),
+			OwnerUserID:    ownerUserID,
 		})
 		if err != nil {
 			return err
 		}
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserIDFromContext(ctx)), sessionKey, request.AgentID)
+		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, request.AgentID)
 		return nil
 	case "delete":
 		items, err := s.inputQueue.Delete(location, request.ItemID)

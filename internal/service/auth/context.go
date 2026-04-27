@@ -35,6 +35,14 @@ func CurrentUserID(ctx context.Context) (string, bool) {
 	return userID, true
 }
 
+// OwnerUserID 返回当前请求的 owner 用户标识，未绑定认证主体时回落到本地单用户主体。
+func OwnerUserID(ctx context.Context) string {
+	if userID, ok := CurrentUserID(ctx); ok {
+		return userID
+	}
+	return SystemUserID
+}
+
 // WithState 把认证系统状态写入请求上下文。
 func WithState(ctx context.Context, state State) context.Context {
 	return context.WithValue(ctx, stateContextKey{}, state)

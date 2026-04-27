@@ -18,10 +18,6 @@ interface ErrorPresentation {
   detail: string;
 }
 
-export function is_provider_error(error: string): boolean {
-  return error.toLowerCase().includes("provider");
-}
-
 function resolve_error_presentation(error: string): ErrorPresentation {
   if (error.includes("服务器")) {
     return {

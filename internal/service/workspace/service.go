@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -259,7 +260,8 @@ func (s *Service) RenameEntry(ctx context.Context, agentID string, relativePath 
 	if normalizedSource == normalizedTarget {
 		return nil, errors.New("新旧路径不能相同")
 	}
-	if _, err = os.Stat(sourcePath); os.IsNotExist(err) {
+	sourceInfo, err := os.Stat(sourcePath)
+	if os.IsNotExist(err) {
 		return nil, ErrFileNotFound
 	} else if err != nil {
 		return nil, err
@@ -267,13 +269,6 @@ func (s *Service) RenameEntry(ctx context.Context, agentID string, relativePath 
 	if _, err = os.Stat(targetPath); err == nil {
 		return nil, errors.New("目标已存在")
 	} else if !os.IsNotExist(err) {
-		return nil, err
-	}
-	sourceInfo, err := os.Stat(sourcePath)
-	if os.IsNotExist(err) {
-		return nil, ErrFileNotFound
-	}
-	if err != nil {
 		return nil, err
 	}
 	var fileContent *string
@@ -504,12 +499,24 @@ func ensureUniqueWorkspaceFile(targetPath string, normalizedPath string) (string
 	base := strings.TrimSuffix(filepath.Base(normalizedPath), extension)
 	parent := filepath.ToSlash(filepath.Dir(normalizedPath))
 	timestamp := time.Now().Format("20060102-150405")
-	nextName := base + "-" + timestamp + extension
-	if parent == "." || parent == "" {
-		return nextName, filepath.Join(filepath.Dir(targetPath), nextName), nil
+	for index := 1; index <= 100; index++ {
+		suffix := timestamp
+		if index > 1 {
+			suffix = timestamp + "-" + strconv.Itoa(index)
+		}
+		nextName := base + "-" + suffix + extension
+		nextPath := nextName
+		if parent != "." && parent != "" {
+			nextPath = parent + "/" + nextName
+		}
+		nextTargetPath := filepath.Join(filepath.Dir(targetPath), nextName)
+		if _, err := os.Stat(nextTargetPath); os.IsNotExist(err) {
+			return nextPath, nextTargetPath, nil
+		} else if err != nil {
+			return "", "", err
+		}
 	}
-	nextPath := parent + "/" + nextName
-	return nextPath, filepath.Join(filepath.Dir(targetPath), nextName), nil
+	return "", "", errors.New("无法生成唯一文件名")
 }
 
 func tryDecodeTextSnapshot(path string, content []byte) (string, bool) {

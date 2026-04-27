@@ -51,6 +51,7 @@ interface CreateRoomDialogProps {
 
 const MAX_MEMBERS = 10;
 const EMPTY_AGENT_IDS: string[] = [];
+const AGENT_ID_SIGNATURE_SEPARATOR = "\x1f";
 
 export function CreateRoomDialog({
   agents,
@@ -72,14 +73,17 @@ export function CreateRoomDialog({
   const [room_name, set_room_name] = useState("");
   const [selected_avatar, set_selected_avatar] = useState("");
   const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_AGENT_IDS;
-  // 数组 props 往往每次 render 都是新引用，依赖序列化后的稳定签名，
+  // 数组 props 往往每次 render 都是新引用，依赖内容签名，
   // 避免弹窗打开时因默认空数组或父层重建数组而反复 setState。
   const initial_selected_ids_signature = useMemo(
-    () => JSON.stringify(normalized_initial_selected_ids),
+    () => normalized_initial_selected_ids.join(AGENT_ID_SIGNATURE_SEPARATOR),
     [normalized_initial_selected_ids],
   );
   const stable_initial_selected_ids = useMemo(
-    () => JSON.parse(initial_selected_ids_signature) as string[],
+    () =>
+      initial_selected_ids_signature === ""
+        ? []
+        : initial_selected_ids_signature.split(AGENT_ID_SIGNATURE_SEPARATOR),
     [initial_selected_ids_signature],
   );
 
@@ -111,9 +115,10 @@ export function CreateRoomDialog({
   }, [agents, search_query]);
 
   // 已选中的 Agent 对象列表
+  const selected_id_set = useMemo(() => new Set(selected_ids), [selected_ids]);
   const selected_agents = useMemo(
-    () => agents.filter((a) => selected_ids.includes(a.agent_id)),
-    [agents, selected_ids],
+    () => agents.filter((a) => selected_id_set.has(a.agent_id)),
+    [agents, selected_id_set],
   );
 
   const toggle_agent = useCallback((agent_id: string) => {
@@ -311,7 +316,7 @@ export function CreateRoomDialog({
               <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-(--divider-subtle-color) p-2.5">
                 <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
                   {filtered_agents.map((agent) => {
-                    const is_selected = selected_ids.includes(agent.agent_id);
+                    const is_selected = selected_id_set.has(agent.agent_id);
                     return (
                       <button
                         key={agent.agent_id}

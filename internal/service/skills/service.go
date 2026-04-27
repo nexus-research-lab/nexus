@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -30,6 +31,9 @@ const (
 var (
 	systemSkillNames   = map[string]struct{}{"memory-manager": {}, "room-collaboration": {}}
 	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
+	curatedEntriesOnce sync.Once
+	curatedEntriesData map[string]map[string]string
+	curatedEntriesErr  error
 )
 
 // 中文注释：catalog 元数据直接编进二进制，避免运行时容器再依赖源码目录。
@@ -311,7 +315,7 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if record.Detail.SourceType != sourceTypeExternal || !record.Detail.Deletable {
 		return errors.New("该 skill 不允许删除")
 	}
-	agents, err := s.agents.ListAgents(ctx)
+	agents, err := s.agents.ListAgentRecords(ctx)
 	if err != nil {
 		return err
 	}
@@ -525,19 +529,37 @@ func (s *Service) loadExternalRecords() (map[string]catalogRecord, error) {
 }
 
 func (s *Service) loadCuratedEntries() (map[string]map[string]string, error) {
-	var catalog curatedCatalog
-	if err := json.Unmarshal(curatedCatalogPayload, &catalog); err != nil {
-		return nil, err
-	}
-	result := make(map[string]map[string]string, len(catalog.Skills))
-	for _, item := range catalog.Skills {
-		result[item.Name] = map[string]string{
-			"category_key":   item.CategoryKey,
-			"category_name":  item.CategoryName,
-			"recommendation": item.Recommendation,
+	curatedEntriesOnce.Do(func() {
+		var catalog curatedCatalog
+		if err := json.Unmarshal(curatedCatalogPayload, &catalog); err != nil {
+			curatedEntriesErr = err
+			return
 		}
+		curatedEntriesData = make(map[string]map[string]string, len(catalog.Skills))
+		for _, item := range catalog.Skills {
+			curatedEntriesData[item.Name] = map[string]string{
+				"category_key":   item.CategoryKey,
+				"category_name":  item.CategoryName,
+				"recommendation": item.Recommendation,
+			}
+		}
+	})
+	if curatedEntriesErr != nil {
+		return nil, curatedEntriesErr
 	}
-	return result, nil
+	return cloneCuratedEntries(curatedEntriesData), nil
+}
+
+func cloneCuratedEntries(source map[string]map[string]string) map[string]map[string]string {
+	result := make(map[string]map[string]string, len(source))
+	for name, metadata := range source {
+		copied := make(map[string]string, len(metadata))
+		for key, value := range metadata {
+			copied[key] = value
+		}
+		result[name] = copied
+	}
+	return result
 }
 
 func (s *Service) registryRoot() string {
@@ -600,16 +622,21 @@ func copyDirectory(sourceDir string, targetDir string) error {
 		if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 			return err
 		}
-		sourceFile, err := os.Open(path)
-		if err != nil {
-			return err
+		sourceFile, openErr := os.Open(path)
+		if openErr != nil {
+			return openErr
 		}
-		defer sourceFile.Close()
-		targetFile, err := os.Create(targetPath)
-		if err != nil {
-			return err
+		targetFile, createErr := os.Create(targetPath)
+		if createErr != nil {
+			_ = sourceFile.Close()
+			return createErr
 		}
 		if _, err = io.Copy(targetFile, sourceFile); err != nil {
+			_ = sourceFile.Close()
+			_ = targetFile.Close()
+			return err
+		}
+		if err = sourceFile.Close(); err != nil {
 			_ = targetFile.Close()
 			return err
 		}

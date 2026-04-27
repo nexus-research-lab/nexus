@@ -5,7 +5,7 @@ import { Compass, Hash, Puzzle, Users2, X } from "lucide-react";
 import { useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
+import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { SIDEBAR_NAVIGATION_TOUR_ID } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 
 export const SIDEBAR_ONBOARDING_HINT_DISMISSED_KEY =

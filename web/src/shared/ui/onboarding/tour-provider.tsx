@@ -1,10 +1,8 @@
 "use client";
 
 import {
-  createContext,
   type ReactNode,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -17,6 +15,7 @@ import { Bot, Hash, Puzzle, Users2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { ONBOARDING_TOUR_CONTEXT } from "@/shared/ui/onboarding/tour-context";
 import {
   read_completed_tours,
   reset_all_tour_state,
@@ -56,7 +55,7 @@ interface ActiveTourState {
   step_index: number;
 }
 
-interface OnboardingTourContextValue {
+export interface OnboardingTourContextValue {
   register_tour: (tour: OnboardingTourDefinition) => void;
   unregister_tour: (tour_id: string) => void;
   start_tour: (tour_id: string) => void;
@@ -70,7 +69,6 @@ interface OnboardingTourContextValue {
   reset_version: number;
 }
 
-const ONBOARDING_TOUR_CONTEXT = createContext<OnboardingTourContextValue | null>(null);
 const TOUR_STICKERS: TourStickerAsset[] = [
   { src: "/nexus/stickers/card-top.png", placement: "perch" },
   { src: "/nexus/stickers/hanging.png", placement: "hang" },
@@ -654,12 +652,4 @@ function TourItemIcon({ name }: { name: OnboardingTourStepItem["icon"] }) {
   if (name === "users") return <Users2 className={className} />;
   if (name === "hash") return <Hash className={className} />;
   return <Puzzle className={className} />;
-}
-
-export function useOnboardingTour() {
-  const context = useContext(ONBOARDING_TOUR_CONTEXT);
-  if (!context) {
-    throw new Error("useOnboardingTour 必须在 OnboardingTourProvider 内部使用");
-  }
-  return context;
 }

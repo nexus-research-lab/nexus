@@ -93,21 +93,40 @@ func (r *RoomRepository) ListRecentRooms(ctx context.Context, ownerUserID string
 	}
 	defer rows.Close()
 
-	result := make([]protocol.RoomAggregate, 0)
+	roomIDs := make([]string, 0)
 	for rows.Next() {
 		var roomID string
 		if err = rows.Scan(&roomID); err != nil {
 			return nil, err
 		}
-		item, getErr := r.GetRoom(ctx, ownerUserID, roomID)
-		if getErr != nil {
-			return nil, getErr
-		}
-		if item != nil {
-			result = append(result, *item)
-		}
+		roomIDs = append(roomIDs, roomID)
 	}
-	return result, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(roomIDs) == 0 {
+		return nil, nil
+	}
+	roomByID, err := r.loadRoomsByIDs(ctx, r.db, ownerUserID, roomIDs)
+	if err != nil {
+		return nil, err
+	}
+	membersByRoomID, err := r.listMembersByRoomIDs(ctx, r.db, roomIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]protocol.RoomAggregate, 0, len(roomIDs))
+	for _, roomID := range roomIDs {
+		roomValue, ok := roomByID[roomID]
+		if !ok {
+			continue
+		}
+		result = append(result, protocol.RoomAggregate{
+			Room:    roomValue,
+			Members: membersByRoomID[roomID],
+		})
+	}
+	return result, nil
 }
 
 // GetRoom 读取单个房间。
@@ -185,11 +204,20 @@ func (r *RoomRepository) FindDMRoomContext(ctx context.Context, ownerUserID stri
 	err := r.db.QueryRowContext(ctx, `
 SELECT r.id
 FROM rooms r
-JOIN members m ON m.room_id = r.id
-WHERE r.room_type = 'dm' AND r.owner_user_id = ?
-GROUP BY r.id
-HAVING SUM(CASE WHEN m.member_type = 'agent' AND m.member_agent_id = ? THEN 1 ELSE 0 END) = 1
-   AND SUM(CASE WHEN m.member_type = 'agent' THEN 1 ELSE 0 END) = 1
+WHERE r.room_type = 'dm'
+  AND r.owner_user_id = ?
+  AND EXISTS (
+      SELECT 1
+      FROM members m
+      WHERE m.room_id = r.id
+        AND m.member_type = 'agent'
+        AND m.member_agent_id = ?
+  )
+  AND (
+      SELECT COUNT(1)
+      FROM members m
+      WHERE m.room_id = r.id AND m.member_type = 'agent'
+  ) = 1
 LIMIT 1`, ownerUserID, agentID).Scan(&roomID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -378,22 +406,11 @@ VALUES (?, ?, 'agent', NULL, ?)`,
 		return nil, err
 	}
 	for _, conversation := range conversations {
-		var existingID string
-		queryErr := tx.QueryRowContext(ctx, `
-SELECT id FROM sessions
-WHERE conversation_id = ? AND agent_id = ? AND is_primary = 1
-LIMIT 1`, conversation.ID, agent.AgentID).Scan(&existingID)
-		if queryErr != nil && !errors.Is(queryErr, sql.ErrNoRows) {
-			return nil, queryErr
-		}
-		if existingID != "" {
-			continue
-		}
 		if _, err = tx.ExecContext(ctx, `
-INSERT INTO sessions (
-    id, conversation_id, agent_id, runtime_id, version_no, branch_key,
-    is_primary, sdk_session_id, status
-) VALUES (?, ?, ?, ?, 1, 'main', 1, NULL, 'active')`,
+	INSERT OR IGNORE INTO sessions (
+	    id, conversation_id, agent_id, runtime_id, version_no, branch_key,
+	    is_primary, sdk_session_id, status
+	) VALUES (?, ?, ?, ?, 1, 'main', 1, NULL, 'active')`,
 			newRoomEntityID(),
 			conversation.ID,
 			agent.AgentID,
@@ -729,6 +746,83 @@ ORDER BY joined_at ASC`, roomID)
 	return result, rows.Err()
 }
 
+func (r *RoomRepository) loadRoomsByIDs(
+	ctx context.Context,
+	querier roomQueryer,
+	ownerUserID string,
+	roomIDs []string,
+) (map[string]protocol.RoomRecord, error) {
+	if len(roomIDs) == 0 {
+		return map[string]protocol.RoomRecord{}, nil
+	}
+	query := fmt.Sprintf(`
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
+FROM rooms
+WHERE id IN (%s) AND owner_user_id = ?`, joinPlaceholders("?", len(roomIDs)))
+	args := make([]any, 0, len(roomIDs)+1)
+	for _, roomID := range roomIDs {
+		args = append(args, roomID)
+	}
+	args = append(args, ownerUserID)
+	rows, err := querier.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]protocol.RoomRecord, len(roomIDs))
+	for rows.Next() {
+		item, scanErr := scanRoomRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[item.ID] = item
+	}
+	return result, rows.Err()
+}
+
+func (r *RoomRepository) listMembersByRoomIDs(
+	ctx context.Context,
+	querier roomQueryer,
+	roomIDs []string,
+) (map[string][]protocol.MemberRecord, error) {
+	if len(roomIDs) == 0 {
+		return map[string][]protocol.MemberRecord{}, nil
+	}
+	query := fmt.Sprintf(`
+SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), joined_at
+FROM members
+WHERE room_id IN (%s)
+ORDER BY joined_at ASC`, joinPlaceholders("?", len(roomIDs)))
+	args := make([]any, 0, len(roomIDs))
+	for _, roomID := range roomIDs {
+		args = append(args, roomID)
+	}
+	rows, err := querier.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]protocol.MemberRecord, len(roomIDs))
+	for rows.Next() {
+		item, scanErr := scanMemberRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[item.RoomID] = append(result[item.RoomID], item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, roomID := range roomIDs {
+		if _, exists := result[roomID]; !exists {
+			result[roomID] = []protocol.MemberRecord{}
+		}
+	}
+	return result, nil
+}
+
 func (r *RoomRepository) listMemberAgents(
 	ctx context.Context,
 	querier roomQueryer,
@@ -782,15 +876,14 @@ SELECT
     c.room_id,
     c.conversation_type,
     COALESCE(c.title, ''),
-    COALESCE(mc.message_count, 0),
+    (
+        SELECT COUNT(1)
+        FROM messages m
+        WHERE m.conversation_id = c.id
+    ),
     c.created_at,
     c.updated_at
 FROM conversations c
-LEFT JOIN (
-    SELECT conversation_id, COUNT(id) AS message_count
-    FROM messages
-    GROUP BY conversation_id
-) mc ON mc.conversation_id = c.id
 WHERE room_id = ?
 ORDER BY created_at ASC`, roomID)
 	if err != nil {

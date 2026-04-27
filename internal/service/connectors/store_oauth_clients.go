@@ -59,6 +59,41 @@ func (s *oauthClientStore) Get(ctx context.Context, ownerUserID, connectorID str
 	return &record, nil
 }
 
+func (s *oauthClientStore) ListByOwner(ctx context.Context, ownerUserID string) (map[string]OAuthClient, error) {
+	query := fmt.Sprintf(
+		"SELECT owner_user_id, connector_id, client_id, client_secret_encrypted, created_at, updated_at FROM connector_oauth_clients WHERE owner_user_id = %s",
+		s.bind(1),
+	)
+	rows, err := s.db.QueryContext(ctx, query, strings.TrimSpace(ownerUserID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := map[string]OAuthClient{}
+	for rows.Next() {
+		var record OAuthClient
+		var encryptedSecret string
+		if err = rows.Scan(
+			&record.OwnerUserID,
+			&record.ConnectorID,
+			&record.ClientID,
+			&encryptedSecret,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		secret, decryptErr := s.decryptSecret(encryptedSecret)
+		if decryptErr != nil {
+			return nil, decryptErr
+		}
+		record.ClientSecret = string(secret)
+		result[record.ConnectorID] = record
+	}
+	return result, rows.Err()
+}
+
 func (s *oauthClientStore) Upsert(ctx context.Context, record OAuthClient) error {
 	if len(s.key) == 0 {
 		return errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 OAuth 应用凭据")

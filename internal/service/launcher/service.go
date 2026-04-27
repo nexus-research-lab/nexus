@@ -120,7 +120,7 @@ func (s *Service) Query(ctx context.Context, query string) (QueryResponse, error
 
 // Suggestions 返回 Launcher 推荐项。
 func (s *Service) Suggestions(ctx context.Context) (SuggestionsResponse, error) {
-	agents, err := s.agentService.ListAgents(ctx)
+	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
 		return SuggestionsResponse{}, err
 	}
@@ -177,7 +177,7 @@ func (s *Service) Suggestions(ctx context.Context) (SuggestionsResponse, error) 
 
 // Bootstrap 返回 Launcher 首屏最小必要数据。
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
-	agents, err := s.agentService.ListAgents(ctx)
+	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
 		return BootstrapResponse{}, err
 	}
@@ -288,7 +288,7 @@ func normalizeBootstrapConversationTitle(title string, roomType string) string {
 }
 
 func (s *Service) findAgentByKeyword(ctx context.Context, keyword string) (*protocol.Agent, error) {
-	agents, err := s.agentService.ListAgents(ctx)
+	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
 		return nil, err
 	}

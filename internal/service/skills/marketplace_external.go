@@ -16,6 +16,30 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	maxExternalPreviewBytes       = 2 * 1024 * 1024
+	maxExternalPreviewConcurrency = 4
+)
+
+var (
+	externalSkillsHTTPClient = &http.Client{Timeout: 20 * time.Second}
+	previewMarkdownRules     = []struct {
+		pattern *regexp.Regexp
+		replace string
+	}{
+		{regexp.MustCompile(`<pre.*?><code.*?>`), "```text\n"},
+		{regexp.MustCompile(`</code></pre>`), "\n```"},
+		{regexp.MustCompile(`<h1>(.*?)</h1>`), "# $1\n"},
+		{regexp.MustCompile(`<h2>(.*?)</h2>`), "## $1\n"},
+		{regexp.MustCompile(`<h3>(.*?)</h3>`), "### $1\n"},
+		{regexp.MustCompile(`<li>(.*?)</li>`), "- $1"},
+		{regexp.MustCompile(`<p>(.*?)</p>`), "$1\n"},
+		{regexp.MustCompile(`<[^>]+>`), ""},
+	}
 )
 
 // ExternalSkillSearchItem 表示外部技能搜索结果。
@@ -133,7 +157,7 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 	if err != nil {
 		return nil, err
 	}
-	response, err := http.DefaultClient.Do(request)
+	response, err := externalSkillsHTTPClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -172,12 +196,6 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 			DetailURL:      detailURL,
 			ReadmeMarkdown: "",
 		}
-		if includeReadme {
-			preview, previewErr := s.GetExternalSkillPreview(ctx, detailURL)
-			if previewErr == nil {
-				item.ReadmeMarkdown = preview.ReadmeMarkdown
-			}
-		}
 		items = append(items, item)
 	}
 	sort.Slice(items, func(i int, j int) bool {
@@ -186,7 +204,11 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 		}
 		return items[i].Name < items[j].Name
 	})
-	return &SearchExternalSkillsResponse{Query: needle, Results: dedupeExternalItems(items)}, nil
+	items = dedupeExternalItems(items)
+	if includeReadme {
+		s.attachExternalReadmes(ctx, items)
+	}
+	return &SearchExternalSkillsResponse{Query: needle, Results: items}, nil
 }
 
 // GetExternalSkillPreview 获取 skills.sh 详情页的预览。
@@ -199,7 +221,7 @@ func (s *Service) GetExternalSkillPreview(ctx context.Context, detailURL string)
 	if err != nil {
 		return nil, err
 	}
-	response, err := http.DefaultClient.Do(request)
+	response, err := externalSkillsHTTPClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -207,14 +229,43 @@ func (s *Service) GetExternalSkillPreview(ctx context.Context, detailURL string)
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("skills 预览加载失败: HTTP %d", response.StatusCode)
 	}
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxExternalPreviewBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(body) > maxExternalPreviewBytes {
+		body = body[:maxExternalPreviewBytes]
 	}
 	return &ExternalSkillPreviewResponse{
 		DetailURL:      targetURL,
 		ReadmeMarkdown: extractPreviewMarkdown(string(body)),
 	}, nil
+}
+
+func (s *Service) attachExternalReadmes(ctx context.Context, items []ExternalSkillSearchItem) {
+	if len(items) == 0 {
+		return
+	}
+	semaphore := make(chan struct{}, maxExternalPreviewConcurrency)
+	var wg sync.WaitGroup
+	for index := range items {
+		index := index
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				return
+			}
+			preview, err := s.GetExternalSkillPreview(ctx, items[index].DetailURL)
+			if err == nil && preview != nil {
+				items[index].ReadmeMarkdown = preview.ReadmeMarkdown
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // ImportSkillsSh 从 skills.sh 搜索结果导入技能。
@@ -275,7 +326,7 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		if _, updateErr := s.UpdateSingleSkill(ctx, name); updateErr != nil {
+		if _, updateErr := s.updateSingleSkillRecord(ctx, records[name]); updateErr != nil {
 			if strings.Contains(updateErr.Error(), "不支持更新") {
 				result.SkippedSkills = append(result.SkippedSkills, name)
 				continue
@@ -301,6 +352,10 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 	if !ok {
 		return nil, errors.New("skill not found")
 	}
+	return s.updateSingleSkillRecord(ctx, record)
+}
+
+func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRecord) (*Detail, error) {
 	manifest, err := s.readManifest(record.SourcePath)
 	if err != nil {
 		return nil, err
@@ -416,12 +471,21 @@ func unzipArchive(payload []byte, targetDir string) error {
 		if openErr != nil {
 			return openErr
 		}
-		data, readErr := io.ReadAll(readerHandle)
-		_ = readerHandle.Close()
-		if readErr != nil {
-			return readErr
+		writer, createErr := os.OpenFile(cleanTarget, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if createErr != nil {
+			_ = readerHandle.Close()
+			return createErr
 		}
-		if err = os.WriteFile(cleanTarget, data, 0o644); err != nil {
+		if _, err = io.Copy(writer, readerHandle); err != nil {
+			_ = readerHandle.Close()
+			_ = writer.Close()
+			return err
+		}
+		if err = readerHandle.Close(); err != nil {
+			_ = writer.Close()
+			return err
+		}
+		if err = writer.Close(); err != nil {
 			return err
 		}
 	}
@@ -429,7 +493,7 @@ func unzipArchive(payload []byte, targetDir string) error {
 }
 
 func findSkillSourceDir(root string) (string, error) {
-	var matches []string
+	bestMatch := ""
 	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -440,19 +504,19 @@ func findSkillSourceDir(root string) (string, error) {
 		if info.Name() != "SKILL.md" {
 			return nil
 		}
-		matches = append(matches, filepath.Dir(path))
+		sourceDir := filepath.Dir(path)
+		if bestMatch == "" || len(sourceDir) < len(bestMatch) {
+			bestMatch = sourceDir
+		}
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
-	if len(matches) == 0 {
+	if bestMatch == "" {
 		return "", errors.New("未找到 SKILL.md")
 	}
-	sort.Slice(matches, func(i int, j int) bool {
-		return len(matches[i]) < len(matches[j])
-	})
-	return matches[0], nil
+	return bestMatch, nil
 }
 
 func buildSkillsPackageSpec(source string, slug string, name string) string {
@@ -489,26 +553,13 @@ func extractPreviewMarkdown(html string) string {
 	if !strings.Contains(html, marker) {
 		return ""
 	}
-	fragment := strings.SplitN(html, marker, 2)[1]
-	fragment = strings.SplitN(fragment, `"}}`, 2)[0]
+	_, fragment, _ := strings.Cut(html, marker)
+	fragment, _, _ = strings.Cut(fragment, `"}}`)
 	decoded := strings.ReplaceAll(fragment, `\n`, "\n")
 	decoded = strings.ReplaceAll(decoded, `\"`, `"`)
-	replacements := []struct {
-		pattern string
-		replace string
-	}{
-		{`<pre.*?><code.*?>`, "```text\n"},
-		{`</code></pre>`, "\n```"},
-		{`<h1>(.*?)</h1>`, "# $1\n"},
-		{`<h2>(.*?)</h2>`, "## $1\n"},
-		{`<h3>(.*?)</h3>`, "### $1\n"},
-		{`<li>(.*?)</li>`, "- $1"},
-		{`<p>(.*?)</p>`, "$1\n"},
-		{`<[^>]+>`, ""},
-	}
 	result := decoded
-	for _, item := range replacements {
-		result = regexp.MustCompile(item.pattern).ReplaceAllString(result, item.replace)
+	for _, item := range previewMarkdownRules {
+		result = item.pattern.ReplaceAllString(result, item.replace)
 	}
 	result = strings.ReplaceAll(result, "&#x3C;", "<")
 	result = strings.ReplaceAll(result, "&quot;", `"`)

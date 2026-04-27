@@ -35,7 +35,7 @@ import {
   AGENT_PERMISSION_MODES,
 } from "@/features/agents/options/agent-options-constants";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
+import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";

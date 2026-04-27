@@ -20,6 +20,8 @@ import (
 
 const maxResponseBytes = 256 * 1024
 
+var connectorCallHTTPClient = &http.Client{Timeout: 20 * time.Second}
+
 func call(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
 	return agentclient.MCPTool{
 		Name:        "connector_call",
@@ -126,7 +128,7 @@ func executeCall(ctx context.Context, apiBaseURL, accessToken, shopDomain string
 		req.Header.Set(key, value)
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := connectorCallHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

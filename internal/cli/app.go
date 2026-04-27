@@ -92,10 +92,7 @@ func commandContext(cmd *cobra.Command) context.Context {
 }
 
 func currentCLIUserID(cmd *cobra.Command) string {
-	if userID, ok := authsvc.CurrentUserID(commandContext(cmd)); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
+	return authsvc.OwnerUserID(commandContext(cmd))
 }
 
 func buildScopedCLIContext(

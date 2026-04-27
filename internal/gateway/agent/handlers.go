@@ -63,7 +63,7 @@ func (h *Handlers) HandleListAgents(writer http.ResponseWriter, request *http.Re
 
 // HandleAgentRuntimeStatuses 返回 agent 运行态列表。
 func (h *Handlers) HandleAgentRuntimeStatuses(writer http.ResponseWriter, request *http.Request) {
-	agents, err := h.agents.ListAgents(request.Context())
+	agents, err := h.agents.ListAgentRecords(request.Context())
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
@@ -145,10 +145,7 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 }
 
 func currentOwnerUserID(request *http.Request) string {
-	if userID, ok := authsvc.CurrentUserID(request.Context()); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
+	return authsvc.OwnerUserID(request.Context())
 }
 
 // HandleUpdateAgent 更新 agent。

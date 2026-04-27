@@ -122,7 +122,6 @@ export const useAgentStore = create<AgentStoreState>()(
             error: null,
           }));
           dispatch_agent_list_updated();
-          console.debug("[AgentStore] Agent created:", agent.agent_id);
           return agent.agent_id;
         } catch (error) {
           console.error("[AgentStore] Failed to create agent:", error);
@@ -179,7 +178,6 @@ export const useAgentStore = create<AgentStoreState>()(
             error: null,
           }));
           dispatch_agent_list_updated();
-          console.debug("[AgentStore] Agent updated:", agent_id);
         } catch (error) {
           console.error("[AgentStore] Failed to update agent:", error);
           set({ error: "Failed to update agent" });
@@ -214,9 +212,6 @@ export const useAgentStore = create<AgentStoreState>()(
             loading: false,
             error: null,
           }));
-          console.debug(
-            `[AgentStore] Loaded ${agents.length} agents from server`,
-          );
         } catch (err) {
           console.error("[AgentStore] Failed to load agents:", err);
           set({

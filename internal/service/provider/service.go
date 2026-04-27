@@ -162,12 +162,12 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	if current == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	usageCounts, err := s.repository.listUsageCounts(ctx)
+	usageCount, err := s.repository.usageCount(ctx, normalizedProvider)
 	if err != nil {
 		return nil, err
 	}
-	if usageCounts[normalizedProvider] > 0 && !input.Enabled {
-		return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能禁用", normalizedProvider, usageCounts[normalizedProvider])
+	if usageCount > 0 && !input.Enabled {
+		return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能禁用", normalizedProvider, usageCount)
 	}
 	updated, err := normalizeUpdateInput(*current, input)
 	if err != nil {
@@ -196,12 +196,12 @@ func (s *Service) Delete(ctx context.Context, provider string) error {
 	if current == nil {
 		return fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	usageCounts, err := s.repository.listUsageCounts(ctx)
+	usageCount, err := s.repository.usageCount(ctx, normalizedProvider)
 	if err != nil {
 		return err
 	}
-	if usageCounts[normalizedProvider] > 0 {
-		return fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCounts[normalizedProvider])
+	if usageCount > 0 {
+		return fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
 	}
 	if err = s.repository.delete(ctx, normalizedProvider); err != nil {
 		return err
@@ -215,17 +215,22 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.List(ctx)
+	if _, err = s.listAndNormalize(ctx); err != nil {
+		return nil, err
+	}
+	item, err := s.repository.getByProvider(ctx, normalizedProvider)
 	if err != nil {
 		return nil, err
 	}
-	for _, item := range items {
-		if item.Provider == normalizedProvider {
-			value := item
-			return &value, nil
-		}
+	if item == nil {
+		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
+	usageCount, err := s.repository.usageCount(ctx, item.Provider)
+	if err != nil {
+		return nil, err
+	}
+	record := toRecord(*item, usageCount)
+	return &record, nil
 }
 
 // ResolveRuntimeConfig 解析 Agent 最终运行时要使用的 Provider 配置。
@@ -304,10 +309,18 @@ func NormalizeProvider(provider string, allowEmpty bool) (string, error) {
 }
 
 func (s *Service) listAndNormalize(ctx context.Context) ([]entity, error) {
-	if err := s.ensureDefault(ctx, ""); err != nil {
+	items, err := s.repository.list(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return s.repository.list(ctx)
+	changed, err := s.ensureDefaultFromItems(ctx, items, "")
+	if err != nil {
+		return nil, err
+	}
+	if changed {
+		return s.repository.list(ctx)
+	}
+	return items, nil
 }
 
 func (s *Service) ensureDefault(ctx context.Context, preferred string) error {
@@ -315,6 +328,11 @@ func (s *Service) ensureDefault(ctx context.Context, preferred string) error {
 	if err != nil {
 		return err
 	}
+	_, err = s.ensureDefaultFromItems(ctx, items, preferred)
+	return err
+}
+
+func (s *Service) ensureDefaultFromItems(ctx context.Context, items []entity, preferred string) (bool, error) {
 	target := strings.TrimSpace(preferred)
 	if target == "" {
 		for _, item := range items {
@@ -332,7 +350,27 @@ func (s *Service) ensureDefault(ctx context.Context, preferred string) error {
 			}
 		}
 	}
-	return s.repository.updateDefaultFlags(ctx, target)
+	currentDefaultCount := 0
+	currentTargetIsDefault := false
+	for _, item := range items {
+		if !item.IsDefault {
+			continue
+		}
+		currentDefaultCount++
+		if item.Enabled && item.Provider == target {
+			currentTargetIsDefault = true
+		}
+	}
+	if target == "" {
+		if currentDefaultCount == 0 {
+			return false, nil
+		}
+		return true, s.repository.updateDefaultFlags(ctx, "")
+	}
+	if currentTargetIsDefault && currentDefaultCount == 1 {
+		return false, nil
+	}
+	return true, s.repository.updateDefaultFlags(ctx, target)
 }
 
 func normalizeCreateInput(input CreateInput) (CreateInput, error) {

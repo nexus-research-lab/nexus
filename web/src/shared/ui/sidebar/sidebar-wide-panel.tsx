@@ -27,7 +27,7 @@ import {
   OnboardingGuideCenter,
   type OnboardingGuideCenterItem,
 } from "@/shared/ui/onboarding/onboarding-guide-center";
-import { useOnboardingTour } from "@/shared/ui/onboarding/tour-provider";
+import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { set_requested_tour_id } from "@/shared/ui/onboarding/tour-state";
 import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import {
@@ -237,7 +237,7 @@ export function SidebarWidePanel() {
     return () => {
       window.clearTimeout(timeout_id);
     };
-  }, [has_completed_tour, start_tour]);
+  }, [active_tour_id, has_completed_tour, start_tour]);
 
   useEffect(() => {
     has_auto_started_tour_ref.current = false;

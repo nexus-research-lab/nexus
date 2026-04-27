@@ -71,20 +71,13 @@ func NewService(cfg config.Config, agentService *agentsvc.Service, repository SQ
 	}
 }
 
-func ownerUserIDFromContext(ctx context.Context) string {
-	if userID, ok := authsvc.CurrentUserID(ctx); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
-}
-
 // ListSessions 列出全部会话视图。
 func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) {
 	fileSessions, err := s.listWorkspaceSessions(ctx, "")
 	if err != nil {
 		return nil, err
 	}
-	roomSessions, err := s.repository.ListRoomSessions(ctx, ownerUserIDFromContext(ctx))
+	roomSessions, err := s.repository.ListRoomSessions(ctx, authsvc.OwnerUserID(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +123,7 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 		return nil, ErrSessionNotFound
 	}
 
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +322,7 @@ func (s *Service) loadHistorySession(
 	parsed protocol.SessionKey,
 	sessionKey string,
 ) (*protocol.Session, string, error) {
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
 	if err != nil {
 		return nil, "", err
 	}
@@ -406,7 +399,7 @@ func (s *Service) loadMutableWorkspaceSession(ctx context.Context, rawSessionKey
 		return nil, "", parsed, fmt.Errorf("%w: 共享 room session 不支持通过 Session API 修改", ErrSessionMutationUnsupported)
 	}
 
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
 	if err != nil {
 		return nil, "", parsed, err
 	}
@@ -458,7 +451,7 @@ func (s *Service) listAgents(ctx context.Context, agentID string) ([]*protocol.A
 		return []*protocol.Agent{agentValue}, nil
 	}
 
-	items, err := s.agentService.ListAgents(ctx)
+	items, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
 		return nil, err
 	}

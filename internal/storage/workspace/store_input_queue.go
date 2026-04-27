@@ -3,7 +3,6 @@ package workspace
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -440,15 +439,33 @@ func normalizeInputQueueItem(
 }
 
 func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
-	payload, err := json.Marshal(value)
-	if err != nil {
+	switch typed := value.(type) {
+	case protocol.InputQueueItem:
+		return typed, true
+	case map[string]any:
+		return protocol.InputQueueItem{
+			ID:              stringFromAny(typed["id"]),
+			Scope:           protocol.InputQueueScope(stringFromAny(typed["scope"])),
+			SessionKey:      stringFromAny(typed["session_key"]),
+			RoomID:          stringFromAny(typed["room_id"]),
+			ConversationID:  stringFromAny(typed["conversation_id"]),
+			AgentID:         stringFromAny(typed["agent_id"]),
+			SourceAgentID:   stringFromAny(typed["source_agent_id"]),
+			SourceMessageID: stringFromAny(typed["source_message_id"]),
+			TargetAgentIDs:  stringSliceFromAny(typed["target_agent_ids"]),
+			Source:          protocol.InputQueueSource(stringFromAny(typed["source"])),
+			Content:         stringFromAny(typed["content"]),
+			DeliveryPolicy:  protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
+			OwnerUserID:     stringFromAny(typed["owner_user_id"]),
+			RootRoundID:     stringFromAny(typed["root_round_id"]),
+			HopIndex:        intFromAny(typed["hop_index"]),
+			QueueOrder:      int64FromAny(typed["queue_order"]),
+			CreatedAt:       int64FromAny(typed["created_at"]),
+			UpdatedAt:       int64FromAny(typed["updated_at"]),
+		}, true
+	default:
 		return protocol.InputQueueItem{}, false
 	}
-	var item protocol.InputQueueItem
-	if err = json.Unmarshal(payload, &item); err != nil {
-		return protocol.InputQueueItem{}, false
-	}
-	return item, true
 }
 
 func normalizeInputQueueTargets(values []string) []string {
@@ -472,6 +489,14 @@ func normalizeInputQueueTargets(values []string) []string {
 }
 
 func normalizeInputQueueTimestamp(value any) int64 {
+	timestamp := int64FromAny(value)
+	if timestamp > 0 {
+		return timestamp
+	}
+	return time.Now().UnixMilli()
+}
+
+func int64FromAny(value any) int64 {
 	switch typed := value.(type) {
 	case int64:
 		return typed
@@ -480,7 +505,7 @@ func normalizeInputQueueTimestamp(value any) int64 {
 	case float64:
 		return int64(typed)
 	default:
-		return time.Now().UnixMilli()
+		return 0
 	}
 }
 

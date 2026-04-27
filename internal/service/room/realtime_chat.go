@@ -10,8 +10,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
 // HandleChat 处理 Room 主对话消息。
@@ -27,7 +27,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	}
 	roomID := firstNonEmpty(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 
-	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue.Members)
+	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		Context:        contextValue,
 		RoundID:        request.RoundID,
 		RootRoundID:    request.RoundID,
-		OwnerUserID:    usagesvc.OwnerUserIDFromContext(ctx),
+		OwnerUserID:    authsvc.OwnerUserID(ctx),
 		Slots:          make(map[string]*activeRoomSlot),
 		Done:           make(chan struct{}),
 	}
@@ -335,15 +335,33 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 
 func (s *RealtimeService) buildAgentDirectory(
 	ctx context.Context,
-	members []protocol.MemberRecord,
+	contextValue *protocol.ConversationContextAggregate,
 ) (map[string]string, map[string]*protocol.Agent, error) {
 	agentNameByID := make(map[string]string)
 	agentByID := make(map[string]*protocol.Agent)
-	for _, member := range members {
-		if member.MemberType != "agent" || strings.TrimSpace(member.MemberAgentID) == "" {
+	if contextValue == nil {
+		return agentNameByID, agentByID, nil
+	}
+	memberIDs := make(map[string]struct{})
+	for _, member := range contextValue.Members {
+		if member.MemberType != protocol.MemberTypeAgent || strings.TrimSpace(member.MemberAgentID) == "" {
 			continue
 		}
-		agentValue, err := s.agents.GetAgent(ctx, member.MemberAgentID)
+		memberIDs[strings.TrimSpace(member.MemberAgentID)] = struct{}{}
+	}
+	for _, agentValue := range contextValue.MemberAgents {
+		if _, ok := memberIDs[agentValue.AgentID]; !ok {
+			continue
+		}
+		item := agentValue
+		agentNameByID[item.AgentID] = item.Name
+		agentByID[item.AgentID] = &item
+	}
+	for agentID := range memberIDs {
+		if _, ok := agentByID[agentID]; ok {
+			continue
+		}
+		agentValue, err := s.agents.GetAgent(ctx, agentID)
 		if err != nil {
 			return nil, nil, err
 		}

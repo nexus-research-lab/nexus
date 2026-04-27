@@ -168,10 +168,7 @@ func (h *Handlers) HandleConnectorOAuthCallback(writer http.ResponseWriter, requ
 }
 
 func currentOwnerUserID(request *http.Request) string {
-	if userID, ok := authsvc.CurrentUserID(request.Context()); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
+	return authsvc.OwnerUserID(request.Context())
 }
 
 func (h *Handlers) writeOAuthClientFailure(writer http.ResponseWriter, err error) {

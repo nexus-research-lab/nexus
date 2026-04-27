@@ -333,10 +333,11 @@ func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage
 			return nil
 		}
 	}
+	enrichedBlocks := make([]map[string]any, 0, len(content))
 	for _, block := range content {
-		enrichedBlock := p.enrichToolResultBlock(block)
-		p.segment.AppendToolResults([]map[string]any{enrichedBlock})
+		enrichedBlocks = append(enrichedBlocks, p.enrichToolResultBlock(block))
 	}
+	p.segment.AppendToolResults(enrichedBlocks)
 	return p.buildAssistantDurableMessage(true, true, "")
 }
 

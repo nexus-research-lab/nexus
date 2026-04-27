@@ -84,14 +84,7 @@ func (s *Service) lookupRoomSession(
 	if s.roomStore == nil {
 		return nil, nil
 	}
-	return s.roomStore.GetRoomSessionByKey(ctx, ownerUserIDFromContext(ctx), parsed)
-}
-
-func ownerUserIDFromContext(ctx context.Context) string {
-	if userID, ok := authsvc.CurrentUserID(ctx); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
+	return s.roomStore.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
 }
 
 func (s *Service) appendRuntimeHistoryMessage(

@@ -42,10 +42,11 @@ func BuildAgentClientOptions(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, error) {
-	runtimeEnv, err := BuildRuntimeEnv(ctx, resolver, input.Provider)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider)
 	if err != nil {
 		return agentclient.Options{}, err
 	}
+	runtimeEnv := runtimeEnvFromConfig(runtimeConfig)
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 
 	permissionMode := input.PermissionMode
@@ -68,9 +69,7 @@ func BuildAgentClientOptions(
 		PermissionHandler:      permissionHandler,
 		AppendSystemPrompt:     input.AppendSystemPrompt,
 	}
-	if runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider); err != nil {
-		return agentclient.Options{}, err
-	} else if runtimeConfig != nil {
+	if runtimeConfig != nil {
 		options.Model = strings.TrimSpace(runtimeConfig.Model)
 	}
 	if strings.TrimSpace(input.ResumeSessionID) != "" {
@@ -101,6 +100,13 @@ func BuildRuntimeEnv(
 	if runtimeConfig == nil {
 		return nil, nil
 	}
+	return runtimeEnvFromConfig(runtimeConfig), nil
+}
+
+func runtimeEnvFromConfig(runtimeConfig *providercfg.RuntimeConfig) map[string]string {
+	if runtimeConfig == nil {
+		return nil
+	}
 	env := map[string]string{
 		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
 		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
@@ -113,7 +119,7 @@ func BuildRuntimeEnv(
 	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
 		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
-	return env, nil
+	return env
 }
 
 func resolveRuntimeConfig(

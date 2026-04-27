@@ -13,8 +13,15 @@ import (
 )
 
 type sqlRepository struct {
-	db         *sql.DB
-	isPostgres bool
+	db                         *sql.DB
+	isPostgres                 bool
+	upsertCronJobQuery         string
+	insertRunPendingQuery      string
+	markRunRunningQuery        string
+	markRunFinishedQuery       string
+	upsertHeartbeatStateQuery  string
+	insertSystemEventQuery     string
+	markSystemEventStatusQuery string
 }
 
 const (
@@ -22,12 +29,149 @@ const (
 	automationWriteRetryDelay    = 50 * time.Millisecond
 )
 
+const upsertCronJobQueryTemplate = `
+INSERT INTO automation_cron_jobs (
+    job_id,
+    name,
+    agent_id,
+    schedule_kind,
+    run_at,
+    interval_seconds,
+    cron_expression,
+    timezone,
+    instruction,
+    session_target_kind,
+    bound_session_key,
+    named_session_key,
+    wake_mode,
+    delivery_mode,
+    delivery_channel,
+    delivery_to,
+    delivery_account_id,
+    delivery_thread_id,
+    source_kind,
+    source_creator_agent_id,
+    source_context_type,
+    source_context_id,
+    source_context_label,
+    source_session_key,
+    source_session_label,
+    enabled,
+    created_at,
+    updated_at
+) VALUES (
+    %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+)
+ON CONFLICT(job_id) DO UPDATE SET
+    name = EXCLUDED.name,
+    agent_id = EXCLUDED.agent_id,
+    schedule_kind = EXCLUDED.schedule_kind,
+    run_at = EXCLUDED.run_at,
+    interval_seconds = EXCLUDED.interval_seconds,
+    cron_expression = EXCLUDED.cron_expression,
+    timezone = EXCLUDED.timezone,
+    instruction = EXCLUDED.instruction,
+    session_target_kind = EXCLUDED.session_target_kind,
+    bound_session_key = EXCLUDED.bound_session_key,
+    named_session_key = EXCLUDED.named_session_key,
+    wake_mode = EXCLUDED.wake_mode,
+    delivery_mode = EXCLUDED.delivery_mode,
+    delivery_channel = EXCLUDED.delivery_channel,
+    delivery_to = EXCLUDED.delivery_to,
+    delivery_account_id = EXCLUDED.delivery_account_id,
+    delivery_thread_id = EXCLUDED.delivery_thread_id,
+    source_kind = EXCLUDED.source_kind,
+    source_creator_agent_id = EXCLUDED.source_creator_agent_id,
+    source_context_type = EXCLUDED.source_context_type,
+    source_context_id = EXCLUDED.source_context_id,
+    source_context_label = EXCLUDED.source_context_label,
+    source_session_key = EXCLUDED.source_session_key,
+    source_session_label = EXCLUDED.source_session_label,
+    enabled = EXCLUDED.enabled,
+    updated_at = CURRENT_TIMESTAMP`
+
 // NewRepository 创建自动化仓储。
 func NewRepository(cfg config.Config, db *sql.DB) *sqlRepository {
-	return &sqlRepository{
+	repository := &sqlRepository{
 		db:         db,
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 	}
+	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(26))
+	repository.insertRunPendingQuery = fmt.Sprintf(
+		`INSERT INTO automation_cron_runs (
+    run_id,
+    job_id,
+    status,
+    scheduled_for,
+    attempts,
+    created_at,
+    updated_at
+) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+		repository.bindList(5),
+	)
+	repository.markRunRunningQuery = fmt.Sprintf(
+		`UPDATE automation_cron_runs
+SET status = %s,
+    started_at = %s,
+    attempts = attempts + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE run_id = %s`,
+		repository.bind(1), repository.bind(2), repository.bind(3),
+	)
+	repository.markRunFinishedQuery = fmt.Sprintf(
+		`UPDATE automation_cron_runs
+SET status = %s,
+    finished_at = %s,
+    error_message = %s,
+    updated_at = CURRENT_TIMESTAMP
+WHERE run_id = %s`,
+		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4),
+	)
+	repository.upsertHeartbeatStateQuery = fmt.Sprintf(
+		`INSERT INTO automation_heartbeat_states (
+    state_id,
+    agent_id,
+    enabled,
+    every_seconds,
+    target_mode,
+    ack_max_chars,
+    last_heartbeat_at,
+    last_ack_at,
+    created_at,
+    updated_at
+) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+ON CONFLICT(agent_id) DO UPDATE SET
+    enabled = EXCLUDED.enabled,
+    every_seconds = EXCLUDED.every_seconds,
+    target_mode = EXCLUDED.target_mode,
+    ack_max_chars = EXCLUDED.ack_max_chars,
+    last_heartbeat_at = EXCLUDED.last_heartbeat_at,
+    last_ack_at = EXCLUDED.last_ack_at,
+    updated_at = CURRENT_TIMESTAMP`,
+		repository.bindList(8),
+	)
+	repository.insertSystemEventQuery = fmt.Sprintf(
+		`INSERT INTO automation_system_events (
+    event_id,
+    event_type,
+    source_type,
+    source_id,
+    payload,
+    status,
+    created_at,
+    updated_at
+) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+		repository.bindList(6),
+	)
+	repository.markSystemEventStatusQuery = fmt.Sprintf(
+		`UPDATE automation_system_events
+SET status = %s,
+    processed_at = CASE WHEN %s IN ('processed', 'failed') THEN CURRENT_TIMESTAMP ELSE processed_at END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE event_id = %s`,
+		repository.bind(1), repository.bind(2), repository.bind(3),
+	)
+	return repository
 }
 
 func (r *sqlRepository) bind(index int) string {
@@ -35,6 +179,14 @@ func (r *sqlRepository) bind(index int) string {
 		return fmt.Sprintf("$%d", index)
 	}
 	return "?"
+}
+
+func (r *sqlRepository) bindList(count int) string {
+	items := make([]string, 0, count)
+	for index := 1; index <= count; index++ {
+		items = append(items, r.bind(index))
+	}
+	return strings.Join(items, ",")
 }
 
 // ListCronJobs 列出定时任务。
@@ -153,73 +305,9 @@ WHERE job_id = ` + r.bind(1)
 
 // UpsertCronJob 创建或更新任务。
 func (r *sqlRepository) UpsertCronJob(ctx context.Context, job CronJob) (*CronJob, error) {
-	query := fmt.Sprintf(`
-INSERT INTO automation_cron_jobs (
-    job_id,
-    name,
-    agent_id,
-    schedule_kind,
-    run_at,
-    interval_seconds,
-    cron_expression,
-    timezone,
-    instruction,
-    session_target_kind,
-    bound_session_key,
-    named_session_key,
-    wake_mode,
-    delivery_mode,
-    delivery_channel,
-    delivery_to,
-    delivery_account_id,
-    delivery_thread_id,
-    source_kind,
-    source_creator_agent_id,
-    source_context_type,
-    source_context_id,
-    source_context_label,
-    source_session_key,
-    source_session_label,
-    enabled,
-    created_at,
-    updated_at
-) VALUES (
-    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
-)
-ON CONFLICT(job_id) DO UPDATE SET
-    name = EXCLUDED.name,
-    agent_id = EXCLUDED.agent_id,
-    schedule_kind = EXCLUDED.schedule_kind,
-    run_at = EXCLUDED.run_at,
-    interval_seconds = EXCLUDED.interval_seconds,
-    cron_expression = EXCLUDED.cron_expression,
-    timezone = EXCLUDED.timezone,
-    instruction = EXCLUDED.instruction,
-    session_target_kind = EXCLUDED.session_target_kind,
-    bound_session_key = EXCLUDED.bound_session_key,
-    named_session_key = EXCLUDED.named_session_key,
-    wake_mode = EXCLUDED.wake_mode,
-    delivery_mode = EXCLUDED.delivery_mode,
-    delivery_channel = EXCLUDED.delivery_channel,
-    delivery_to = EXCLUDED.delivery_to,
-    delivery_account_id = EXCLUDED.delivery_account_id,
-    delivery_thread_id = EXCLUDED.delivery_thread_id,
-    source_kind = EXCLUDED.source_kind,
-    source_creator_agent_id = EXCLUDED.source_creator_agent_id,
-    source_context_type = EXCLUDED.source_context_type,
-    source_context_id = EXCLUDED.source_context_id,
-    source_context_label = EXCLUDED.source_context_label,
-    source_session_key = EXCLUDED.source_session_key,
-    source_session_label = EXCLUDED.source_session_label,
-    enabled = EXCLUDED.enabled,
-    updated_at = CURRENT_TIMESTAMP`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
-		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19), r.bind(20),
-		r.bind(21), r.bind(22), r.bind(23), r.bind(24), r.bind(25), r.bind(26),
-	)
 	_, err := r.execWithRetry(
 		ctx,
-		query,
+		r.upsertCronJobQuery,
 		job.JobID,
 		job.Name,
 		job.AgentID,
@@ -295,49 +383,19 @@ ORDER BY created_at DESC, run_id DESC`
 
 // InsertRunPending 新建一条待执行 run。
 func (r *sqlRepository) InsertRunPending(ctx context.Context, runID string, jobID string, scheduledFor *time.Time) error {
-	query := fmt.Sprintf(`
-INSERT INTO automation_cron_runs (
-    run_id,
-    job_id,
-    status,
-    scheduled_for,
-    attempts,
-    created_at,
-    updated_at
-) VALUES (%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5),
-	)
-	_, err := r.execWithRetry(ctx, query, runID, jobID, RunStatusPending, scheduledFor, 0)
+	_, err := r.execWithRetry(ctx, r.insertRunPendingQuery, runID, jobID, RunStatusPending, scheduledFor, 0)
 	return err
 }
 
 // MarkRunRunning 标记 run 开始执行。
 func (r *sqlRepository) MarkRunRunning(ctx context.Context, runID string, startedAt time.Time) error {
-	query := fmt.Sprintf(`
-UPDATE automation_cron_runs
-SET status = %s,
-    started_at = %s,
-    attempts = attempts + 1,
-    updated_at = CURRENT_TIMESTAMP
-WHERE run_id = %s`,
-		r.bind(1), r.bind(2), r.bind(3),
-	)
-	_, err := r.execWithRetry(ctx, query, RunStatusRunning, startedAt.UTC(), runID)
+	_, err := r.execWithRetry(ctx, r.markRunRunningQuery, RunStatusRunning, startedAt.UTC(), runID)
 	return err
 }
 
 // MarkRunFinished 标记 run 结束状态。
 func (r *sqlRepository) MarkRunFinished(ctx context.Context, runID string, status string, finishedAt time.Time, errorMessage *string) error {
-	query := fmt.Sprintf(`
-UPDATE automation_cron_runs
-SET status = %s,
-    finished_at = %s,
-    error_message = %s,
-    updated_at = CURRENT_TIMESTAMP
-WHERE run_id = %s`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4),
-	)
-	_, err := r.execWithRetry(ctx, query, status, finishedAt.UTC(), nullableString(errorMessage), runID)
+	_, err := r.execWithRetry(ctx, r.markRunFinishedQuery, status, finishedAt.UTC(), nullableString(errorMessage), runID)
 	return err
 }
 
@@ -414,32 +472,9 @@ ORDER BY agent_id ASC`)
 
 // UpsertHeartbeatState 创建或更新 heartbeat 配置。
 func (r *sqlRepository) UpsertHeartbeatState(ctx context.Context, stateID string, config HeartbeatConfig, lastHeartbeatAt *time.Time, lastAckAt *time.Time) error {
-	query := fmt.Sprintf(`
-INSERT INTO automation_heartbeat_states (
-    state_id,
-    agent_id,
-    enabled,
-    every_seconds,
-    target_mode,
-    ack_max_chars,
-    last_heartbeat_at,
-    last_ack_at,
-    created_at,
-    updated_at
-) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-ON CONFLICT(agent_id) DO UPDATE SET
-    enabled = EXCLUDED.enabled,
-    every_seconds = EXCLUDED.every_seconds,
-    target_mode = EXCLUDED.target_mode,
-    ack_max_chars = EXCLUDED.ack_max_chars,
-    last_heartbeat_at = EXCLUDED.last_heartbeat_at,
-    last_ack_at = EXCLUDED.last_ack_at,
-    updated_at = CURRENT_TIMESTAMP`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8),
-	)
 	_, err := r.execWithRetry(
 		ctx,
-		query,
+		r.upsertHeartbeatStateQuery,
 		stateID,
 		config.AgentID,
 		config.Enabled,
@@ -454,24 +489,11 @@ ON CONFLICT(agent_id) DO UPDATE SET
 
 // InsertSystemEvent 写入系统事件。
 func (r *sqlRepository) InsertSystemEvent(ctx context.Context, eventID string, eventType string, sourceType string, sourceID string, payload map[string]any) error {
-	query := fmt.Sprintf(`
-INSERT INTO automation_system_events (
-    event_id,
-    event_type,
-    source_type,
-    source_id,
-    payload,
-    status,
-    created_at,
-    updated_at
-) VALUES (%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
-	)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	_, err = r.execWithRetry(ctx, query, eventID, eventType, sourceType, sourceID, string(body), "new")
+	_, err = r.execWithRetry(ctx, r.insertSystemEventQuery, eventID, eventType, sourceType, sourceID, string(body), "new")
 	return err
 }
 
@@ -522,15 +544,7 @@ ORDER BY created_at ASC, event_id ASC`
 
 // MarkSystemEventStatus 更新系统事件状态。
 func (r *sqlRepository) MarkSystemEventStatus(ctx context.Context, eventID string, status string) error {
-	query := fmt.Sprintf(`
-UPDATE automation_system_events
-SET status = %s,
-    processed_at = CASE WHEN %s IN ('processed', 'failed') THEN CURRENT_TIMESTAMP ELSE processed_at END,
-    updated_at = CURRENT_TIMESTAMP
-WHERE event_id = %s`,
-		r.bind(1), r.bind(2), r.bind(3),
-	)
-	_, err := r.execWithRetry(ctx, query, status, status, eventID)
+	_, err := r.execWithRetry(ctx, r.markSystemEventStatusQuery, status, status, eventID)
 	return err
 }
 

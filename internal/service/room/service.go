@@ -64,24 +64,17 @@ func NewService(cfg config.Config, agents *agentsvc.Service, repository Reposito
 	}
 }
 
-func ownerUserIDFromContext(ctx context.Context) string {
-	if userID, ok := authsvc.CurrentUserID(ctx); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
-}
-
 // ListRooms 列出最近房间。
 func (s *Service) ListRooms(ctx context.Context, limit int) ([]protocol.RoomAggregate, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	return s.repository.ListRecentRooms(ctx, ownerUserIDFromContext(ctx), limit)
+	return s.repository.ListRecentRooms(ctx, authsvc.OwnerUserID(ctx), limit)
 }
 
 // GetRoom 读取单个房间。
 func (s *Service) GetRoom(ctx context.Context, roomID string) (*protocol.RoomAggregate, error) {
-	roomValue, err := s.repository.GetRoom(ctx, ownerUserIDFromContext(ctx), strings.TrimSpace(roomID))
+	roomValue, err := s.repository.GetRoom(ctx, authsvc.OwnerUserID(ctx), strings.TrimSpace(roomID))
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +86,7 @@ func (s *Service) GetRoom(ctx context.Context, roomID string) (*protocol.RoomAgg
 
 // GetRoomContexts 读取房间全部上下文。
 func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protocol.ConversationContextAggregate, error) {
-	contexts, err := s.repository.GetRoomContexts(ctx, ownerUserIDFromContext(ctx), strings.TrimSpace(roomID))
+	contexts, err := s.repository.GetRoomContexts(ctx, authsvc.OwnerUserID(ctx), strings.TrimSpace(roomID))
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +98,7 @@ func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protoco
 
 // GetConversationContext 按 conversation_id 读取单条房间上下文。
 func (s *Service) GetConversationContext(ctx context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
-	contextValue, err := s.repository.GetConversationContext(ctx, ownerUserIDFromContext(ctx), strings.TrimSpace(conversationID))
+	contextValue, err := s.repository.GetConversationContext(ctx, authsvc.OwnerUserID(ctx), strings.TrimSpace(conversationID))
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +115,7 @@ func (s *Service) EnsureDirectRoom(ctx context.Context, agentID string) (*protoc
 		return nil, err
 	}
 	normalizedAgentID := agentValue.AgentID
-	existing, err := s.repository.FindDMRoomContext(ctx, ownerUserIDFromContext(ctx), normalizedAgentID)
+	existing, err := s.repository.FindDMRoomContext(ctx, authsvc.OwnerUserID(ctx), normalizedAgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +134,7 @@ func (s *Service) CreateRoom(ctx context.Context, request protocol.CreateRoomReq
 }
 
 func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomRequest, roomType string) (*protocol.ConversationContextAggregate, error) {
+	ownerUserID := authsvc.OwnerUserID(ctx)
 	normalizedRoomType, err := s.normalizeRoomType(roomType)
 	if err != nil {
 		return nil, err
@@ -175,13 +169,13 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 	bundle := roomrepo.CreateRoomBundle{
 		Room: protocol.RoomRecord{
 			ID:          roomID,
-			OwnerUserID: ownerUserIDFromContext(ctx),
+			OwnerUserID: ownerUserID,
 			RoomType:    normalizedRoomType,
 			Name:        roomName,
 			Description: normalizeDescription(request.Description),
 			Avatar:      normalizeOptionalText(request.Avatar),
 		},
-		Members: buildMembers(roomID, ownerUserIDFromContext(ctx), normalizedAgentIDs),
+		Members: buildMembers(roomID, ownerUserID, normalizedAgentIDs),
 		Conversation: protocol.ConversationRecord{
 			ID:               conversationID,
 			RoomID:           roomID,
@@ -223,13 +217,9 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request protoco
 		avatarPtr = &avatarValue
 	}
 
-	if _, err := s.GetRoom(ctx, roomID); err != nil {
-		return nil, err
-	}
-
 	contextValue, err := s.repository.UpdateRoom(
 		ctx,
-		ownerUserIDFromContext(ctx),
+		authsvc.OwnerUserID(ctx),
 		strings.TrimSpace(roomID),
 		namePtr,
 		descriptionPtr,
@@ -252,24 +242,12 @@ func (s *Service) AddRoomMember(ctx context.Context, roomID string, request prot
 		return nil, err
 	}
 	normalizedAgentID := agentValue.AgentID
-	roomValue, err := s.GetRoom(ctx, roomID)
-	if err != nil {
-		return nil, err
-	}
-	if roomValue.Room.RoomType != protocol.RoomTypeGroup {
-		return nil, errors.New("DM room does not support adding members")
-	}
-	for _, member := range roomValue.Members {
-		if member.MemberType == protocol.MemberTypeAgent && member.MemberAgentID == normalizedAgentID {
-			return nil, errors.New("Agent already exists in room")
-		}
-	}
 
 	agentRefs, err := s.loadAgentRefs(ctx, []string{normalizedAgentID})
 	if err != nil {
 		return nil, err
 	}
-	contextValue, err := s.repository.AddRoomMember(ctx, ownerUserIDFromContext(ctx), strings.TrimSpace(roomID), agentRefs[0])
+	contextValue, err := s.repository.AddRoomMember(ctx, authsvc.OwnerUserID(ctx), strings.TrimSpace(roomID), agentRefs[0])
 	if err != nil {
 		return nil, err
 	}
@@ -291,16 +269,13 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 	if err != nil {
 		return nil, err
 	}
-	roomValue, err := s.GetRoom(ctx, roomID)
-	if err != nil {
-		return nil, err
-	}
-	if roomValue.Room.RoomType != protocol.RoomTypeGroup {
+	roomValue := roomContexts[0].Room
+	if roomValue.RoomType != protocol.RoomTypeGroup {
 		return nil, errors.New("DM room does not support removing members")
 	}
 	agentCount := 0
 	memberFound := false
-	for _, member := range roomValue.Members {
+	for _, member := range roomContexts[0].Members {
 		if member.MemberType == protocol.MemberTypeAgent && member.MemberAgentID != "" {
 			agentCount++
 		}
@@ -315,7 +290,7 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 		return nil, errors.New("Room 至少保留一个 agent 成员")
 	}
 
-	contextValue, err := s.repository.RemoveRoomMember(ctx, ownerUserIDFromContext(ctx), strings.TrimSpace(roomID), normalizedAgentID)
+	contextValue, err := s.repository.RemoveRoomMember(ctx, authsvc.OwnerUserID(ctx), strings.TrimSpace(roomID), normalizedAgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +309,7 @@ func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
 	if err != nil {
 		return err
 	}
-	deleted, err := s.repository.DeleteRoom(ctx, ownerUserIDFromContext(ctx), strings.TrimSpace(roomID))
+	deleted, err := s.repository.DeleteRoom(ctx, authsvc.OwnerUserID(ctx), strings.TrimSpace(roomID))
 	if err != nil {
 		return err
 	}
@@ -349,32 +324,29 @@ func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
 
 // CreateConversation 创建 room 话题。
 func (s *Service) CreateConversation(ctx context.Context, roomID string, request protocol.CreateConversationRequest) (*protocol.ConversationContextAggregate, error) {
-	roomValue, err := s.GetRoom(ctx, roomID)
+	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
+	roomValue := contexts[0].Room
 
-	agentIDs := listAgentIDs(roomValue.Members)
+	agentIDs := listAgentIDs(contexts[0].Members)
 	agentRefs, err := s.loadAgentRefs(ctx, agentIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	contexts, err := s.repository.GetRoomContexts(ctx, ownerUserIDFromContext(ctx), roomValue.Room.ID)
-	if err != nil {
-		return nil, err
-	}
 	nextTitle := normalizeOptionalText(request.Title)
 	if nextTitle == "" {
-		nextTitle = buildNextConversationTitle(roomValue.Room.Name, contexts)
+		nextTitle = buildNextConversationTitle(roomValue.Name, contexts)
 	}
 
 	conversationID := newEntityID()
 	contextValue, err := s.repository.CreateConversation(ctx, roomrepo.CreateConversationBundle{
-		RoomID: roomValue.Room.ID,
+		RoomID: roomValue.ID,
 		Conversation: protocol.ConversationRecord{
 			ID:               conversationID,
-			RoomID:           roomValue.Room.ID,
+			RoomID:           roomValue.ID,
 			ConversationType: protocol.ConversationTypeTopic,
 			Title:            nextTitle,
 		},
@@ -404,7 +376,7 @@ func (s *Service) UpdateConversation(ctx context.Context, roomID string, convers
 	}
 	contextValue, err := s.repository.UpdateConversation(
 		ctx,
-		ownerUserIDFromContext(ctx),
+		authsvc.OwnerUserID(ctx),
 		strings.TrimSpace(roomID),
 		strings.TrimSpace(conversationID),
 		title,
@@ -450,7 +422,7 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	}
 	contextValue, err := s.repository.DeleteConversation(
 		ctx,
-		ownerUserIDFromContext(ctx),
+		authsvc.OwnerUserID(ctx),
 		strings.TrimSpace(roomID),
 		strings.TrimSpace(conversationID),
 	)
@@ -580,7 +552,7 @@ func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string)
 }
 
 func (s *Service) loadAgentRefs(ctx context.Context, agentIDs []string) ([]roomrepo.AgentRuntimeRef, error) {
-	refs, err := s.repository.LoadAgentRuntimeRefs(ctx, ownerUserIDFromContext(ctx), agentIDs)
+	refs, err := s.repository.LoadAgentRuntimeRefs(ctx, authsvc.OwnerUserID(ctx), agentIDs)
 	if err != nil {
 		return nil, err
 	}
