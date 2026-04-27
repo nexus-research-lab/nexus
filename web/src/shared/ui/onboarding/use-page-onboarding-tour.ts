@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import {
-  OnboardingTourDefinition,
-  useOnboardingTour,
-} from "@/shared/ui/onboarding/tour-provider";
+import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-provider";
+import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import {
   clear_requested_tour_id,
   is_tour_dismissed,

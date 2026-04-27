@@ -150,14 +150,6 @@ func int64FromAny(value any) int64 {
 	return 0
 }
 
-// OwnerUserIDFromContext 暴露给运行链路捕获当前用户作用域。
-func OwnerUserIDFromContext(ctx context.Context) string {
-	if userID, ok := authsvc.CurrentUserID(ctx); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
-}
-
 func timestampFromAny(value any) time.Time {
 	switch typed := value.(type) {
 	case int64:

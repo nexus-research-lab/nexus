@@ -26,7 +26,7 @@ type telegramChannel struct {
 
 func newTelegramChannel(token string, client *http.Client) *telegramChannel {
 	if client == nil {
-		client = http.DefaultClient
+		client = defaultChannelHTTPClient
 	}
 	return &telegramChannel{
 		token:   strings.TrimSpace(token),

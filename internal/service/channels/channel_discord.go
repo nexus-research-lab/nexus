@@ -26,7 +26,7 @@ type discordChannel struct {
 
 func newDiscordChannel(token string, client *http.Client) *discordChannel {
 	if client == nil {
-		client = http.DefaultClient
+		client = defaultChannelHTTPClient
 	}
 	return &discordChannel{
 		token:   strings.TrimSpace(token),

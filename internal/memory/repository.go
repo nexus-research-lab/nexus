@@ -238,44 +238,46 @@ func (r *Repository) iterSearchFiles() []string {
 			items = append(items, path)
 		}
 	}
-	items = append(items, r.iterDiaryFiles()...)
-	memoryDir := filepath.Join(r.workspacePath, "memory")
-	entries, err := os.ReadDir(memoryDir)
-	if err != nil {
-		return items
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
-			continue
-		}
-		path := filepath.Join(memoryDir, entry.Name())
-		if _, ok := parseDiaryDate(path); ok {
-			continue
-		}
-		items = append(items, path)
-	}
+	memoryFiles := r.iterMemoryMarkdownFiles()
+	items = append(items, memoryFiles.diaries...)
+	items = append(items, memoryFiles.extra...)
 	sort.Sort(sort.Reverse(sort.StringSlice(items)))
 	return dedupe(items)
 }
 
 func (r *Repository) iterDiaryFiles() []string {
+	return r.iterMemoryMarkdownFiles().diaries
+}
+
+type memoryMarkdownFiles struct {
+	diaries []string
+	extra   []string
+}
+
+func (r *Repository) iterMemoryMarkdownFiles() memoryMarkdownFiles {
 	memoryDir := filepath.Join(r.workspacePath, "memory")
 	entries, err := os.ReadDir(memoryDir)
 	if err != nil {
-		return nil
+		return memoryMarkdownFiles{}
 	}
-	items := make([]string, 0, len(entries))
+	result := memoryMarkdownFiles{
+		diaries: make([]string, 0, len(entries)),
+		extra:   make([]string, 0, len(entries)),
+	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
 			continue
 		}
 		path := filepath.Join(memoryDir, entry.Name())
 		if _, ok := parseDiaryDate(path); ok {
-			items = append(items, path)
+			result.diaries = append(result.diaries, path)
+			continue
 		}
+		result.extra = append(result.extra, path)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(items)))
-	return items
+	sort.Sort(sort.Reverse(sort.StringSlice(result.diaries)))
+	sort.Sort(sort.Reverse(sort.StringSlice(result.extra)))
+	return result
 }
 
 func (r *Repository) resolveWorkspaceFile(relativePath string) (string, string, error) {

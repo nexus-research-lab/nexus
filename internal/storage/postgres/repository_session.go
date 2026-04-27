@@ -91,15 +91,14 @@ SELECT
     r.id,
     r.room_type,
     COALESCE(r.name, ''),
-    COALESCE(mc.message_count, 0)
+    (
+        SELECT COUNT(1)
+        FROM messages m
+        WHERE m.conversation_id = c.id
+    )
 FROM sessions s
 JOIN conversations c ON c.id = s.conversation_id
 JOIN rooms r ON r.id = c.room_id
-LEFT JOIN (
-    SELECT conversation_id, COUNT(id) AS message_count
-    FROM messages
-    GROUP BY conversation_id
-) mc ON mc.conversation_id = c.id
 `
 
 func scanRoomSessions(rows *sql.Rows) ([]protocol.Session, error) {

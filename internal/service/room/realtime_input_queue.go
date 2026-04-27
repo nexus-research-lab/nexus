@@ -51,6 +51,7 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 		if err != nil {
 			return err
 		}
+		ownerUserID := authsvc.OwnerUserID(ctx)
 		if _, err = s.inputQueue.Enqueue(location, protocol.InputQueueItem{
 			Scope:          protocol.InputQueueScopeRoom,
 			SessionKey:     location.SessionKey,
@@ -61,14 +62,14 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 			Source:         protocol.InputQueueSourceUser,
 			Content:        content,
 			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
-			OwnerUserID:    ownerUserIDFromContext(ctx),
+			OwnerUserID:    ownerUserID,
 		}); err != nil {
 			return err
 		}
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
-		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserIDFromContext(ctx)), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
+		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
 		return nil
 	case "delete":
 		if err = s.deleteRoomInputQueueItem(ctx, contextValue, request.ItemID); err != nil {

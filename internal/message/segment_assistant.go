@@ -74,7 +74,11 @@ func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, boo
 	for len(s.content) <= logicalIndex {
 		s.content = append(s.content, map[string]any{"type": "text", "text": ""})
 	}
-	block := cloneMap(s.content[logicalIndex])
+	block := s.content[logicalIndex]
+	if block == nil {
+		block = map[string]any{}
+		s.content[logicalIndex] = block
+	}
 	blockType := normalizeString(block["type"])
 	deltaType := normalizeString(delta["type"])
 

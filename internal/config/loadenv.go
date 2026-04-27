@@ -166,6 +166,8 @@ func extractVarValue(src []byte, vars map[string]string) (string, []byte, error)
 var (
 	escapeRegex        = regexp.MustCompile(`\\.`)
 	unescapeCharsRegex = regexp.MustCompile(`\\([^$])`)
+	simpleVarRegex     = regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_]*)`)
+	expandVarRegex     = regexp.MustCompile(`(\\)?\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 )
 
 // expandEscapes 处理双引号内的转义序列。
@@ -186,8 +188,6 @@ func expandEscapes(str string) string {
 	return unescapeCharsRegex.ReplaceAllString(out, "$1")
 }
 
-var expandVarRegex = regexp.MustCompile(`(\\)?\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
-
 // expandVariables 展开 $VAR 和 ${VAR} 形式的变量引用。
 func expandVariables(v string, localVars map[string]string) string {
 	// 先展开 ${VAR} 形式
@@ -206,8 +206,7 @@ func expandVariables(v string, localVars map[string]string) string {
 		return ""
 	})
 
-	// 再展开 $VAR 形式（仅限大写字母、数字、下划线）
-	simpleVarRegex := regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_]*)`)
+	// 再展开 $VAR 形式。
 	v = simpleVarRegex.ReplaceAllStringFunc(v, func(s string) string {
 		name := s[1:]
 		if val, ok := localVars[name]; ok {

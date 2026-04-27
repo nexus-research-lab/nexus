@@ -204,11 +204,20 @@ func (r *RoomRepository) FindDMRoomContext(ctx context.Context, ownerUserID stri
 	err := r.db.QueryRowContext(ctx, `
 SELECT r.id
 FROM rooms r
-JOIN members m ON m.room_id = r.id
-WHERE r.room_type = 'dm' AND r.owner_user_id = $1
-GROUP BY r.id
-HAVING SUM(CASE WHEN m.member_type = 'agent' AND m.member_agent_id = $2 THEN 1 ELSE 0 END) = 1
-   AND SUM(CASE WHEN m.member_type = 'agent' THEN 1 ELSE 0 END) = 1
+WHERE r.room_type = 'dm'
+  AND r.owner_user_id = $1
+  AND EXISTS (
+      SELECT 1
+      FROM members m
+      WHERE m.room_id = r.id
+        AND m.member_type = 'agent'
+        AND m.member_agent_id = $2
+  )
+  AND (
+      SELECT COUNT(1)
+      FROM members m
+      WHERE m.room_id = r.id AND m.member_type = 'agent'
+  ) = 1
 LIMIT 1`, ownerUserID, agentID).Scan(&roomID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -396,22 +405,12 @@ VALUES ($1, $2, 'agent', NULL, $3)`,
 		return nil, err
 	}
 	for _, conversation := range conversations {
-		var existingID string
-		queryErr := tx.QueryRowContext(ctx, `
-SELECT id FROM sessions
-WHERE conversation_id = $1 AND agent_id = $2 AND is_primary = true
-LIMIT 1`, conversation.ID, agent.AgentID).Scan(&existingID)
-		if queryErr != nil && !errors.Is(queryErr, sql.ErrNoRows) {
-			return nil, queryErr
-		}
-		if existingID != "" {
-			continue
-		}
 		if _, err = tx.ExecContext(ctx, `
-INSERT INTO sessions (
-    id, conversation_id, agent_id, runtime_id, version_no, branch_key,
-    is_primary, sdk_session_id, status
-) VALUES ($1, $2, $3, $4, 1, 'main', true, NULL, 'active')`,
+	INSERT INTO sessions (
+	    id, conversation_id, agent_id, runtime_id, version_no, branch_key,
+	    is_primary, sdk_session_id, status
+	) VALUES ($1, $2, $3, $4, 1, 'main', true, NULL, 'active')
+	ON CONFLICT DO NOTHING`,
 			newRoomEntityID(),
 			conversation.ID,
 			agent.AgentID,
@@ -875,15 +874,14 @@ SELECT
     c.room_id,
     c.conversation_type,
     COALESCE(c.title, ''),
-    COALESCE(mc.message_count, 0),
+    (
+        SELECT COUNT(1)
+        FROM messages m
+        WHERE m.conversation_id = c.id
+    ),
     c.created_at,
     c.updated_at
 FROM conversations c
-LEFT JOIN (
-    SELECT conversation_id, COUNT(id) AS message_count
-    FROM messages
-    GROUP BY conversation_id
-) mc ON mc.conversation_id = c.id
 WHERE room_id = $1
 ORDER BY created_at ASC`, roomID)
 	if err != nil {

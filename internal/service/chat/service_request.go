@@ -9,8 +9,8 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
@@ -108,7 +108,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		client:            client,
 		runtimeProvider:   runtimeProvider,
 		runtimeModel:      runtimeModel,
-		ownerUserID:       usagesvc.OwnerUserIDFromContext(ctx),
+		ownerUserID:       authsvc.OwnerUserID(ctx),
 		mapper:            newMessageMapper(sessionKey, agentID, request.RoundID),
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,

@@ -175,6 +175,20 @@ GROUP BY COALESCE(NULLIF(TRIM(provider), ''), '')`)
 	return result, rows.Err()
 }
 
+func (r *repository) usageCount(ctx context.Context, provider string) (int, error) {
+	row := r.db.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM runtimes rt
+JOIN agents a ON a.id = rt.agent_id
+WHERE a.status = 'active'
+  AND COALESCE(NULLIF(TRIM(rt.provider), ''), '') = `+r.bind(1), strings.TrimSpace(provider))
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *repository) trueValue() string {
 	if r.isPostgres {
 		return "true"

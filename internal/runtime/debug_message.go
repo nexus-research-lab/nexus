@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
@@ -352,9 +353,15 @@ func truncateForLog(value string) string {
 	if cleaned == "" {
 		return ""
 	}
-	runes := []rune(cleaned)
-	if len(runes) <= sdkMessagePreviewLimit {
+	if utf8.RuneCountInString(cleaned) <= sdkMessagePreviewLimit {
 		return cleaned
 	}
-	return string(runes[:sdkMessagePreviewLimit]) + "..."
+	count := 0
+	for index := range cleaned {
+		if count == sdkMessagePreviewLimit {
+			return cleaned[:index] + "..."
+		}
+		count++
+	}
+	return cleaned
 }

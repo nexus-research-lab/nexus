@@ -3,13 +3,10 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
-	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
 )
 
 // AgentRepository 提供 SQLite 的 Agent 仓储实现。
@@ -64,9 +61,9 @@ ORDER BY a.is_main DESC, a.created_at ASC`
 	}
 	defer rows.Close()
 
-	var result []protocol.Agent
+	result := make([]protocol.Agent, 0)
 	for rows.Next() {
-		item, err := scanAgent(rows)
+		item, err := agentrepo.ScanAgent(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +108,7 @@ WHERE a.id = ?`
 	}
 	row := r.db.QueryRowContext(ctx, query, args...)
 
-	item, err := scanAgent(row)
+	item, err := agentrepo.ScanAgent(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -155,7 +152,7 @@ LEFT JOIN runtimes rt ON rt.agent_id = a.id
 WHERE a.owner_user_id = ? AND a.status = 'active' AND a.is_main = 1
 LIMIT 1`, ownerUserID)
 
-	item, err := scanAgent(row)
+	item, err := agentrepo.ScanAgent(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -316,73 +313,6 @@ func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, ownerUserID
 		return false, err
 	}
 	return count > 0, nil
-}
-
-func scanAgent(scanner interface {
-	Scan(dest ...any) error
-}) (protocol.Agent, error) {
-	var (
-		item                protocol.Agent
-		vibeTagsJSON        string
-		allowedToolsJSON    string
-		disallowedToolsJSON string
-		mcpServersJSON      string
-		settingSourcesJSON  string
-		maxTurns            sql.NullInt64
-		maxThinkingTokens   sql.NullInt64
-		createdAt           time.Time
-	)
-
-	err := scanner.Scan(
-		&item.AgentID,
-		&item.Name,
-		&item.OwnerUserID,
-		&item.WorkspacePath,
-		&item.Status,
-		&item.IsMain,
-		&item.Avatar,
-		&item.Description,
-		&vibeTagsJSON,
-		&item.DisplayName,
-		&item.Headline,
-		&item.ProfileMarkdown,
-		&createdAt,
-		&item.Options.Provider,
-		&item.Options.PermissionMode,
-		&allowedToolsJSON,
-		&disallowedToolsJSON,
-		&mcpServersJSON,
-		&maxTurns,
-		&maxThinkingTokens,
-		&settingSourcesJSON,
-	)
-	if err != nil {
-		return protocol.Agent{}, err
-	}
-
-	item.CreatedAt = createdAt
-	item.VibeTags = decodeStringSlice(vibeTagsJSON)
-	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
-	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
-	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
-	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
-	if maxTurns.Valid {
-		value := int(maxTurns.Int64)
-		item.Options.MaxTurns = &value
-	}
-	if maxThinkingTokens.Valid {
-		value := int(maxThinkingTokens.Int64)
-		item.Options.MaxThinkingTokens = &value
-	}
-	return item, nil
-}
-
-func decodeStringSlice(raw string) []string {
-	var result []string
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		return nil
-	}
-	return result
 }
 
 func nullIfEmpty(value string) any {

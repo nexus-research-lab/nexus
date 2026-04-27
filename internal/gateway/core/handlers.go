@@ -117,10 +117,7 @@ func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Pre
 }
 
 func currentOwnerUserID(request *http.Request) string {
-	if userID, ok := authsvc.CurrentUserID(request.Context()); ok {
-		return userID
-	}
-	return authsvc.SystemUserID
+	return authsvc.OwnerUserID(request.Context())
 }
 
 // HandleListProviderConfigs 返回 provider 配置列表。

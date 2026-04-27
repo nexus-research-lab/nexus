@@ -14,9 +14,11 @@ import (
 )
 
 type deliveryMemory struct {
-	db         *sql.DB
-	isPostgres bool
-	idFactory  func(string) string
+	db                 *sql.DB
+	isPostgres         bool
+	idFactory          func(string) string
+	rememberRouteQuery string
+	latestRouteQuery   string
 }
 
 type rememberedRoute struct {
@@ -26,11 +28,49 @@ type rememberedRoute struct {
 }
 
 func newDeliveryMemory(cfg config.Config, db *sql.DB) *deliveryMemory {
-	return &deliveryMemory{
+	memory := &deliveryMemory{
 		db:         db,
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		idFactory:  newDeliveryID,
 	}
+	memory.rememberRouteQuery = fmt.Sprintf(`
+INSERT INTO automation_delivery_routes (
+    route_id,
+    agent_id,
+    mode,
+    channel,
+    "to",
+    account_id,
+    thread_id,
+    enabled,
+    created_at,
+    updated_at
+) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+ON CONFLICT(route_id) DO UPDATE SET
+    agent_id = EXCLUDED.agent_id,
+    mode = EXCLUDED.mode,
+    channel = EXCLUDED.channel,
+    "to" = EXCLUDED."to",
+    account_id = EXCLUDED.account_id,
+    thread_id = EXCLUDED.thread_id,
+    enabled = EXCLUDED.enabled,
+    updated_at = CURRENT_TIMESTAMP`,
+		memory.bindList(8),
+	)
+	memory.latestRouteQuery = `
+SELECT
+    route_id,
+    mode,
+    channel,
+    "to",
+    account_id,
+    thread_id,
+    enabled
+FROM automation_delivery_routes
+WHERE agent_id = ` + memory.bind(1) + `
+ORDER BY updated_at DESC, route_id DESC
+LIMIT 1`
+	return memory
 }
 
 func (m *deliveryMemory) bind(index int) string {
@@ -38,6 +78,14 @@ func (m *deliveryMemory) bind(index int) string {
 		return fmt.Sprintf("$%d", index)
 	}
 	return "?"
+}
+
+func (m *deliveryMemory) bindList(count int) string {
+	items := make([]string, 0, count)
+	for index := 1; index <= count; index++ {
+		items = append(items, m.bind(index))
+	}
+	return strings.Join(items, ",")
 }
 
 // GetLastRoute 读取最近一次成功投递的显式目标。
@@ -78,33 +126,9 @@ func (m *deliveryMemory) RememberRoute(ctx context.Context, agentID string, targ
 		routeID = existing.RouteID
 	}
 
-	query := fmt.Sprintf(`
-INSERT INTO automation_delivery_routes (
-    route_id,
-    agent_id,
-    mode,
-    channel,
-    "to",
-    account_id,
-    thread_id,
-    enabled,
-    created_at,
-    updated_at
-) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-ON CONFLICT(route_id) DO UPDATE SET
-    agent_id = EXCLUDED.agent_id,
-    mode = EXCLUDED.mode,
-    channel = EXCLUDED.channel,
-    "to" = EXCLUDED."to",
-    account_id = EXCLUDED.account_id,
-    thread_id = EXCLUDED.thread_id,
-    enabled = EXCLUDED.enabled,
-    updated_at = CURRENT_TIMESTAMP`,
-		m.bind(1), m.bind(2), m.bind(3), m.bind(4), m.bind(5), m.bind(6), m.bind(7), m.bind(8),
-	)
 	_, err = m.db.ExecContext(
 		ctx,
-		query,
+		m.rememberRouteQuery,
 		routeID,
 		strings.TrimSpace(agentID),
 		DeliveryModeExplicit,
@@ -121,20 +145,7 @@ ON CONFLICT(route_id) DO UPDATE SET
 }
 
 func (m *deliveryMemory) getLatestRouteRow(ctx context.Context, agentID string) (*rememberedRoute, error) {
-	query := `
-SELECT
-    route_id,
-    mode,
-    channel,
-    "to",
-    account_id,
-    thread_id,
-    enabled
-FROM automation_delivery_routes
-WHERE agent_id = ` + m.bind(1) + `
-ORDER BY updated_at DESC, route_id DESC
-LIMIT 1`
-	row := m.db.QueryRowContext(ctx, strings.TrimSpace(query), strings.TrimSpace(agentID))
+	row := m.db.QueryRowContext(ctx, m.latestRouteQuery, strings.TrimSpace(agentID))
 	var (
 		item      rememberedRoute
 		channel   sql.NullString

@@ -14,10 +14,7 @@ func scopedOwnerUserID(ctx context.Context) (string, bool) {
 }
 
 func effectiveOwnerUserID(ctx context.Context) string {
-	if ownerUserID, ok := scopedOwnerUserID(ctx); ok {
-		return ownerUserID
-	}
-	return systemOwnerUserID
+	return authsvc.OwnerUserID(ctx)
 }
 
 func isOwnedMainAgent(agentValue *protocol.Agent) bool {

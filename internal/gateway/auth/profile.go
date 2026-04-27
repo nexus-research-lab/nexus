@@ -193,9 +193,5 @@ func (h *Handlers) buildTokenUsageSummary(ctx context.Context) (usagesvc.Summary
 }
 
 func currentOwnerUserID(ctx context.Context) string {
-	principal := authsvc.PrincipalFromContext(ctx)
-	if principal == nil || strings.TrimSpace(principal.UserID) == "" {
-		return authsvc.SystemUserID
-	}
-	return strings.TrimSpace(principal.UserID)
+	return authsvc.OwnerUserID(ctx)
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 
@@ -33,7 +34,28 @@ func OpenDB(cfg config.Config) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	if err := configureConnectionPool(db, driver); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return db, nil
+}
+
+func configureConnectionPool(db *sql.DB, driver string) error {
+	if driver == "sqlite3" {
+		// SQLite 只有单写者，收敛连接数能避免多连接写入互相抢锁。
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
+			return fmt.Errorf("set sqlite busy_timeout: %w", err)
+		}
+		return nil
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxIdleTime(5 * time.Minute)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	return nil
 }
 
 func ensureParentDir(path string) error {

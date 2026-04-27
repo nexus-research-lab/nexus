@@ -67,6 +67,8 @@ export function useScheduledTaskDialogState({
   const single_picker_anchor_ref = useRef<HTMLButtonElement>(null);
 
   const schedule = useScheduledTaskDialogScheduleState(timezone);
+  const hydrate_schedule = schedule.hydrate;
+  const reset_schedule = schedule.reset;
 
   const reset_context_selection = useCallback(() => {
     set_selected_session_key_state("");
@@ -139,11 +141,11 @@ export function useScheduledTaskDialogState({
     set_is_submitting(false);
 
     if (initial_task && next_state.schedule_snapshot) {
-      schedule.hydrate(next_state.schedule_snapshot);
+      hydrate_schedule(next_state.schedule_snapshot);
       return;
     }
-    schedule.reset();
-  }, [agent_id, initial_task, schedule.hydrate, schedule.reset]);
+    reset_schedule();
+  }, [agent_id, hydrate_schedule, initial_task, reset_schedule]);
 
   function build_submit_state(): ScheduledTaskDialogSubmitState {
     return {

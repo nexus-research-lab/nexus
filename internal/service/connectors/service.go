@@ -135,6 +135,7 @@ func (s *Service) ListConnectors(ctx context.Context, ownerUserID string, query 
 	if err != nil {
 		return nil, err
 	}
+	configErrors := s.listOAuthConfigErrors(ctx, ownerUserID)
 	needle := strings.ToLower(strings.TrimSpace(query))
 	items := make([]Info, 0, len(connectorCatalog))
 	for _, entry := range connectorCatalog {
@@ -147,7 +148,7 @@ func (s *Service) ListConnectors(ctx context.Context, ownerUserID string, query 
 		if needle != "" && !connectorMatches(entry, needle) {
 			continue
 		}
-		items = append(items, s.toInfo(ctx, ownerUserID, entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected")))
+		items = append(items, s.toInfoWithConfigError(entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"), configErrors[entry.ConnectorID]))
 	}
 	return items, nil
 }
@@ -158,11 +159,11 @@ func (s *Service) GetConnectorDetail(ctx context.Context, ownerUserID string, co
 	if !ok {
 		return nil, errors.New("connector not found")
 	}
-	states, err := s.listConnectionStates(ctx)
+	state, err := s.connectionState(ctx, entry.ConnectorID)
 	if err != nil {
 		return nil, err
 	}
-	detail := s.toDetail(ctx, ownerUserID, entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"))
+	detail := s.toDetail(ctx, ownerUserID, entry, connectorFirstNonEmpty(state, "disconnected"))
 	return &detail, nil
 }
 
@@ -178,18 +179,23 @@ func (s *Service) GetConnectedCount(ctx context.Context) (int, error) {
 
 // ListActiveConnections 列出已连接 connector，暂时保留 ownerUserID 签名供后续 user scope 使用。
 func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]ConnectionSnapshot, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT connector_id FROM connector_connections WHERE state = 'connected'")
+	rows, err := s.db.QueryContext(ctx, "SELECT connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE state = 'connected'")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	result := []ConnectionSnapshot{}
 	for rows.Next() {
-		var connectorID string
-		if err = rows.Scan(&connectorID); err != nil {
+		var record connectionRecord
+		if err = rows.Scan(
+			&record.ConnectorID,
+			&record.Credentials,
+			&record.CredentialsEncrypted,
+			&record.AuthType,
+		); err != nil {
 			return nil, err
 		}
-		item, err := s.LoadActiveConnection(ctx, ownerUserID, connectorID)
+		item, err := s.connectionSnapshotFromRecord(record)
 		if err != nil {
 			return nil, err
 		}
@@ -220,6 +226,10 @@ func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connect
 	if err != nil {
 		return nil, err
 	}
+	return s.connectionSnapshotFromRecord(record)
+}
+
+func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*ConnectionSnapshot, error) {
 	entry, ok := getConnector(record.ConnectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
@@ -460,6 +470,10 @@ func (s *Service) Disconnect(ctx context.Context, connectorID string) (*Info, er
 
 func (s *Service) toInfo(ctx context.Context, ownerUserID string, entry CatalogEntry, connectionState string) Info {
 	configError := s.oauthConfigError(ctx, ownerUserID, entry.ConnectorID, entry.AuthType, entry.Status)
+	return s.toInfoWithConfigError(entry, connectionState, configError)
+}
+
+func (s *Service) toInfoWithConfigError(entry CatalogEntry, connectionState string, configError string) Info {
 	var configErrorPtr *string
 	if configError != "" {
 		configErrorPtr = &configError
@@ -509,6 +523,22 @@ func (s *Service) listConnectionStates(ctx context.Context) (map[string]string, 
 		result[connectorID] = state
 	}
 	return result, rows.Err()
+}
+
+func (s *Service) connectionState(ctx context.Context, connectorID string) (string, error) {
+	query := fmt.Sprintf(
+		"SELECT state FROM connector_connections WHERE connector_id = %s LIMIT 1",
+		s.bind(1),
+	)
+	var state string
+	err := s.db.QueryRowContext(ctx, query, strings.TrimSpace(connectorID)).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return state, nil
 }
 
 func (s *Service) insertState(ctx context.Context, row stateRow) error {
@@ -770,6 +800,10 @@ func (s *Service) oauthCredentials(ctx context.Context, ownerUserID string, conn
 			return requireOAuthCredentials(record.ClientID, record.ClientSecret, connectorID)
 		}
 	}
+	return s.defaultOAuthCredentials(connectorID)
+}
+
+func (s *Service) defaultOAuthCredentials(connectorID string) (string, string, error) {
 	switch connectorID {
 	case "github":
 		return requireOAuthCredentials(s.config.ConnectorGitHubClientID, s.config.ConnectorGitHubClientSecret, "GitHub")
@@ -797,6 +831,35 @@ func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, conn
 		return err.Error()
 	}
 	return ""
+}
+
+func (s *Service) listOAuthConfigErrors(ctx context.Context, ownerUserID string) map[string]string {
+	var (
+		records map[string]OAuthClient
+		loadErr error
+	)
+	if s.clients != nil {
+		records, loadErr = s.clients.ListByOwner(ctx, ownerUserID)
+	}
+
+	result := map[string]string{}
+	for _, entry := range connectorCatalog {
+		if entry.AuthType != "oauth2" || entry.Status != "available" {
+			continue
+		}
+		var err error
+		if loadErr != nil {
+			err = loadErr
+		} else if record, ok := records[entry.ConnectorID]; ok {
+			_, _, err = requireOAuthCredentials(record.ClientID, record.ClientSecret, entry.ConnectorID)
+		} else {
+			_, _, err = s.defaultOAuthCredentials(entry.ConnectorID)
+		}
+		if err != nil {
+			result[entry.ConnectorID] = err.Error()
+		}
+	}
+	return result
 }
 
 func getConnector(connectorID string) (CatalogEntry, bool) {

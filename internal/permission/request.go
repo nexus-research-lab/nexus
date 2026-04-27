@@ -38,14 +38,15 @@ type PendingRequest struct {
 
 func (c *Context) newPendingRequest(sessionKey string, request sdkprotocol.PermissionRequest) *PendingRequest {
 	route := c.resolveRouteContext(sessionKey)
+	now := time.Now()
 	return &PendingRequest{
-		RequestID:          fmt.Sprintf("perm_%d", time.Now().UnixNano()),
+		RequestID:          fmt.Sprintf("perm_%d", now.UnixNano()),
 		SessionKey:         sessionKey,
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           strings.TrimSpace(request.ToolName),
 		ToolInput:          cloneMap(request.Input),
 		Suggestions:        append([]sdkprotocol.PermissionUpdate(nil), request.PermissionSuggestions...),
-		ExpiresAt:          time.Now().Add(c.requestTimeout),
+		ExpiresAt:          now.Add(c.requestTimeout),
 		Route:              route,
 		ResponseCh:         make(chan sdkprotocol.PermissionDecision, 1),
 	}

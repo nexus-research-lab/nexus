@@ -12,6 +12,15 @@ import (
 
 // ListAgents 返回所有活跃 Agent。
 func (s *Service) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
+	return s.listAgents(ctx, true)
+}
+
+// ListAgentRecords 返回所有活跃 Agent 的落库基础记录。
+func (s *Service) ListAgentRecords(ctx context.Context) ([]protocol.Agent, error) {
+	return s.listAgents(ctx, false)
+}
+
+func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]protocol.Agent, error) {
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -20,7 +29,10 @@ func (s *Service) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = enrichAgentsWithSkillsCount(agents); err != nil {
+	if includeSkillsCount {
+		err = enrichAgentsWithSkillsCount(agents)
+	}
+	if err != nil {
 		return nil, err
 	}
 	return agents, nil
@@ -69,9 +81,16 @@ func (s *Service) ValidateName(ctx context.Context, name string, excludeAgentID 
 	if err := s.EnsureReady(ctx); err != nil {
 		return protocol.ValidateNameResponse{}, err
 	}
+	return s.validateName(ctx, effectiveOwnerUserID(ctx), name, excludeAgentID)
+}
 
+func (s *Service) validateName(
+	ctx context.Context,
+	ownerUserID string,
+	name string,
+	excludeAgentID string,
+) (protocol.ValidateNameResponse, error) {
 	normalized := NormalizeName(name)
-	ownerUserID := effectiveOwnerUserID(ctx)
 	response := protocol.ValidateNameResponse{
 		Name:           name,
 		NormalizedName: normalized,
@@ -135,7 +154,8 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 		return nil, err
 	}
 
-	validation, err := s.ValidateName(ctx, request.Name, "")
+	ownerUserID := effectiveOwnerUserID(ctx)
+	validation, err := s.validateName(ctx, ownerUserID, request.Name, "")
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +167,7 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	record := BuildCreateRecord(
 		s.config,
 		request,
-		effectiveOwnerUserID(ctx),
+		ownerUserID,
 		validation.NormalizedName,
 		agentID,
 		validation.WorkspacePath,
@@ -187,7 +207,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 			if existing.IsMain {
 				return nil, errors.New("主智能体名称不可修改")
 			}
-			validation, validateErr := s.ValidateName(ctx, candidate, existing.AgentID)
+			validation, validateErr := s.validateName(ctx, updateOwnerUserID, candidate, existing.AgentID)
 			if validateErr != nil {
 				return nil, validateErr
 			}

@@ -299,6 +299,14 @@ func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
 	if item.Extra["scope"] != "repo" {
 		t.Fatalf("extra 字段未保留: %+v", item.Extra)
 	}
+
+	items, err := service.ListActiveConnections(ctx, auth.SystemUserID)
+	if err != nil {
+		t.Fatalf("列出连接快照失败: %v", err)
+	}
+	if len(items) != 1 || items[0].ConnectorID != "github" || items[0].AccessToken != "token" {
+		t.Fatalf("连接快照列表不正确: %+v", items)
+	}
 }
 
 func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {

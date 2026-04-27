@@ -11,54 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
-type record struct {
-	OwnerUserID              string
-	UsageKey                 string
-	Source                   string
-	SessionKey               string
-	MessageID                string
-	RoundID                  string
-	AgentID                  string
-	RoomID                   string
-	ConversationID           string
-	InputTokens              int64
-	OutputTokens             int64
-	CacheCreationInputTokens int64
-	CacheReadInputTokens     int64
-	TotalTokens              int64
-	OccurredAt               time.Time
-}
-
-type repository struct {
-	db         *sql.DB
-	isPostgres bool
-}
-
-func newRepository(cfg config.Config, db *sql.DB) *repository {
-	return &repository{
-		db:         db,
-		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
-	}
-}
-
-func (r *repository) bind(index int) string {
-	if r.isPostgres {
-		return fmt.Sprintf("$%d", index)
-	}
-	return "?"
-}
-
-func (r *repository) bindList(count int) string {
-	items := make([]string, 0, count)
-	for index := 1; index <= count; index++ {
-		items = append(items, r.bind(index))
-	}
-	return strings.Join(items, ", ")
-}
-
-func (r *repository) upsert(ctx context.Context, item record) error {
-	now := time.Now().UTC()
-	query := fmt.Sprintf(`INSERT INTO token_usage_records (
+const usageUpsertQueryTemplate = `INSERT INTO token_usage_records (
     owner_user_id,
     usage_key,
     source,
@@ -91,11 +44,74 @@ ON CONFLICT(owner_user_id, usage_key) DO UPDATE SET
     cache_read_input_tokens = excluded.cache_read_input_tokens,
     total_tokens = excluded.total_tokens,
     occurred_at = excluded.occurred_at,
-    updated_at = excluded.updated_at`, r.bindList(17))
+    updated_at = excluded.updated_at`
 
+const usageSummaryQueryTemplate = `SELECT
+    COALESCE(SUM(input_tokens), 0),
+    COALESCE(SUM(output_tokens), 0),
+    COALESCE(SUM(cache_creation_input_tokens), 0),
+    COALESCE(SUM(cache_read_input_tokens), 0),
+    COALESCE(SUM(total_tokens), 0),
+    COUNT(DISTINCT session_key),
+    COUNT(*)
+FROM token_usage_records
+WHERE owner_user_id = %s`
+
+type record struct {
+	OwnerUserID              string
+	UsageKey                 string
+	Source                   string
+	SessionKey               string
+	MessageID                string
+	RoundID                  string
+	AgentID                  string
+	RoomID                   string
+	ConversationID           string
+	InputTokens              int64
+	OutputTokens             int64
+	CacheCreationInputTokens int64
+	CacheReadInputTokens     int64
+	TotalTokens              int64
+	OccurredAt               time.Time
+}
+
+type repository struct {
+	db           *sql.DB
+	isPostgres   bool
+	upsertQuery  string
+	summaryQuery string
+}
+
+func newRepository(cfg config.Config, db *sql.DB) *repository {
+	repository := &repository{
+		db:         db,
+		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
+	}
+	repository.upsertQuery = repository.buildUpsertQuery()
+	repository.summaryQuery = repository.buildSummaryQuery()
+	return repository
+}
+
+func (r *repository) bind(index int) string {
+	if r.isPostgres {
+		return fmt.Sprintf("$%d", index)
+	}
+	return "?"
+}
+
+func (r *repository) bindList(count int) string {
+	items := make([]string, 0, count)
+	for index := 1; index <= count; index++ {
+		items = append(items, r.bind(index))
+	}
+	return strings.Join(items, ", ")
+}
+
+func (r *repository) upsert(ctx context.Context, item record) error {
+	now := time.Now().UTC()
 	_, err := r.db.ExecContext(
 		ctx,
-		query,
+		r.upsertQuery,
 		item.OwnerUserID,
 		item.UsageKey,
 		item.Source,
@@ -117,19 +133,14 @@ ON CONFLICT(owner_user_id, usage_key) DO UPDATE SET
 	return err
 }
 
+func (r *repository) buildUpsertQuery() string {
+	return fmt.Sprintf(usageUpsertQueryTemplate, r.bindList(17))
+}
+
 func (r *repository) summary(ctx context.Context, ownerUserID string, now time.Time) (Summary, error) {
 	row := r.db.QueryRowContext(
 		ctx,
-		fmt.Sprintf(`SELECT
-    COALESCE(SUM(input_tokens), 0),
-    COALESCE(SUM(output_tokens), 0),
-    COALESCE(SUM(cache_creation_input_tokens), 0),
-    COALESCE(SUM(cache_read_input_tokens), 0),
-    COALESCE(SUM(total_tokens), 0),
-    COUNT(DISTINCT session_key),
-    COUNT(*)
-FROM token_usage_records
-WHERE owner_user_id = %s`, r.bind(1)),
+		r.summaryQuery,
 		ownerUserID,
 	)
 	var result Summary
@@ -152,4 +163,8 @@ WHERE owner_user_id = %s`, r.bind(1)),
 	result.MessageCount = int(messageCount)
 	result.UpdatedAt = now.UTC().Format(time.RFC3339)
 	return result, nil
+}
+
+func (r *repository) buildSummaryQuery() string {
+	return fmt.Sprintf(usageSummaryQueryTemplate, r.bind(1))
 }

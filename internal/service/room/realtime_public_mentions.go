@@ -141,7 +141,7 @@ func (s *RealtimeService) startPublicMentionRound(
 	if len(wakes) == 0 {
 		return nil
 	}
-	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue.Members)
+	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
 	if err != nil {
 		return err
 	}
