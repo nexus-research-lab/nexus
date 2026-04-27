@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 

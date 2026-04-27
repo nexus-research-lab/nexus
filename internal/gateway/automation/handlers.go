@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 
 	"github.com/go-chi/chi/v5"
 )

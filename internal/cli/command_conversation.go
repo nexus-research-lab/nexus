@@ -2,9 +2,12 @@ package cli
 
 import (
 	"fmt"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
-	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
+
 	"github.com/spf13/cobra"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 func newConversationCommand(roomService *roomsvc.Service, sessionService *sessionsvc.Service) *cobra.Command {
@@ -59,7 +62,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "create",
 			Short: "创建 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := roomService.CreateConversation(commandContext(cmd), roomID, roomsvc.CreateConversationRequest{
+				item, err := roomService.CreateConversation(commandContext(cmd), roomID, protocol.CreateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -86,7 +89,7 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "update",
 			Short: "更新 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := roomService.UpdateConversation(commandContext(cmd), roomID, conversationID, roomsvc.UpdateConversationRequest{
+				item, err := roomService.UpdateConversation(commandContext(cmd), roomID, conversationID, protocol.UpdateConversationRequest{
 					Title: title,
 				})
 				if err != nil {

@@ -16,9 +16,10 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -723,7 +724,7 @@ func buildTranscriptGuidanceMessages(
 		if messageID == "" {
 			messageID = firstNonEmpty(entryUUID, roundID) + ":guidance:" + strconv.Itoa(index+1)
 		}
-		rows = append(rows, protocol.NewGuidedInputMessage(protocol.GuidedInputMessageInput{
+		rows = append(rows, message.NewGuidedInputMessage(message.GuidedInputMessageInput{
 			MessageID:     messageID,
 			SessionKey:    sessionKey,
 			AgentID:       agentID,
@@ -922,7 +923,7 @@ func transcriptUserContent(entry map[string]any) string {
 
 func sanitizeTranscriptUserContent(content string) string {
 	trimmed := strings.TrimSpace(content)
-	if protocol.IsInternalTranscriptInterruptPrompt(trimmed) {
+	if message.IsInternalTranscriptInterruptPrompt(trimmed) {
 		return ""
 	}
 	return trimmed

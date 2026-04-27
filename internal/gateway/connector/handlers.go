@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
-	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 
 	"github.com/go-chi/chi/v5"
 )

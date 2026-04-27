@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/channels"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 
 	"github.com/spf13/cobra"
 )

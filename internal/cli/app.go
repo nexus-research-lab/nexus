@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	"github.com/spf13/cobra"
 )

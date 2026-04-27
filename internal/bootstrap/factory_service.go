@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/room"
-	"github.com/nexus-research-lab/nexus/internal/session"
+	"github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/session"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	postgresrepo "github.com/nexus-research-lab/nexus/internal/storage/postgres"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
 type authChangePasswordPayload struct {

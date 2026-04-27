@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	"github.com/go-chi/chi/v5"
 )

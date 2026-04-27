@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	channelspkg "github.com/nexus-research-lab/nexus/internal/channels"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 )
 
 type fakeIngress struct {

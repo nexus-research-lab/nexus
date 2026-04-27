@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"

@@ -1,8 +1,9 @@
 package cli
 
 import (
-	sessionsvc "github.com/nexus-research-lab/nexus/internal/session"
 	"github.com/spf13/cobra"
+
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 func newSessionCommand(service *sessionsvc.Service) *cobra.Command {

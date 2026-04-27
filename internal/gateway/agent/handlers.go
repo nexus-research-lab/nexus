@@ -5,13 +5,15 @@ import (
 	"net/http"
 	"strings"
 
-	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/preferences"
-	roompkg "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	sessionpkg "github.com/nexus-research-lab/nexus/internal/session"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
+	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -117,7 +119,7 @@ func (h *Handlers) HandleValidateAgentName(writer http.ResponseWriter, request *
 
 // HandleCreateAgent 创建 agent。
 func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.Request) {
-	var payload agentpkg.CreateRequest
+	var payload protocol.CreateRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
@@ -151,7 +153,7 @@ func currentOwnerUserID(request *http.Request) string {
 
 // HandleUpdateAgent 更新 agent。
 func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.Request) {
-	var payload agentpkg.UpdateRequest
+	var payload protocol.UpdateRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}

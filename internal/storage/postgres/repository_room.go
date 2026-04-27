@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 type roomQueryer interface {
@@ -29,7 +31,7 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 }
 
 // LoadAgentRuntimeRefs 读取建房所需的 Agent 运行时信息。
-func (r *RoomRepository) LoadAgentRuntimeRefs(ctx context.Context, ownerUserID string, agentIDs []string) ([]protocol.AgentRuntimeRef, error) {
+func (r *RoomRepository) LoadAgentRuntimeRefs(ctx context.Context, ownerUserID string, agentIDs []string) ([]roomrepo.AgentRuntimeRef, error) {
 	if len(agentIDs) == 0 {
 		return nil, nil
 	}
@@ -61,9 +63,9 @@ WHERE a.id IN (%s)`, joinPostgresPlaceholders(1, len(agentIDs)))
 	}
 	defer rows.Close()
 
-	result := make([]protocol.AgentRuntimeRef, 0, len(agentIDs))
+	result := make([]roomrepo.AgentRuntimeRef, 0, len(agentIDs))
 	for rows.Next() {
-		var item protocol.AgentRuntimeRef
+		var item roomrepo.AgentRuntimeRef
 		if err = rows.Scan(
 			&item.AgentID,
 			&item.Name,
@@ -228,7 +230,7 @@ LIMIT 1`, ownerUserID, agentID).Scan(&roomID)
 }
 
 // CreateRoom 创建房间、主对话和初始会话。
-func (r *RoomRepository) CreateRoom(ctx context.Context, bundle protocol.CreateRoomBundle) (*protocol.ConversationContextAggregate, error) {
+func (r *RoomRepository) CreateRoom(ctx context.Context, bundle roomrepo.CreateRoomBundle) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -359,7 +361,7 @@ func (r *RoomRepository) UpdateRoom(
 }
 
 // AddRoomMember 向房间追加成员。
-func (r *RoomRepository) AddRoomMember(ctx context.Context, ownerUserID string, roomID string, agent protocol.AgentRuntimeRef) (*protocol.ConversationContextAggregate, error) {
+func (r *RoomRepository) AddRoomMember(ctx context.Context, ownerUserID string, roomID string, agent roomrepo.AgentRuntimeRef) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -509,7 +511,7 @@ func (r *RoomRepository) DeleteRoom(ctx context.Context, ownerUserID string, roo
 }
 
 // CreateConversation 创建房间话题。
-func (r *RoomRepository) CreateConversation(ctx context.Context, bundle protocol.CreateConversationBundle) (*protocol.ConversationContextAggregate, error) {
+func (r *RoomRepository) CreateConversation(ctx context.Context, bundle roomrepo.CreateConversationBundle) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -1031,11 +1033,11 @@ func scanRoomMemberAgent(scanner interface{ Scan(...any) error }) (protocol.Agen
 	}
 
 	item.CreatedAt = createdAt
-	item.VibeTags = protocol.ParseJSONStringSlice(vibeTagsJSON)
-	item.Options.AllowedTools = protocol.ParseJSONStringSlice(allowedToolsJSON)
-	item.Options.DisallowedTools = protocol.ParseJSONStringSlice(disallowedToolsJSON)
-	item.Options.MCPServers = protocol.ParseJSONMap(mcpServersJSON)
-	item.Options.SettingSources = protocol.ParseJSONStringSlice(settingSourcesJSON)
+	item.VibeTags = jsoncodec.ParseStringSlice(vibeTagsJSON)
+	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
+	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
+	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
+	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)
 		item.Options.MaxTurns = &value

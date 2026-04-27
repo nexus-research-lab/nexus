@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/agent"
-	automationmcp "github.com/nexus-research-lab/nexus/internal/automation/mcp"
+	"github.com/nexus-research-lab/nexus/internal/service/agent"
+	automationmcp "github.com/nexus-research-lab/nexus/internal/service/automation/mcp"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 )

@@ -3,10 +3,10 @@ package capability
 import (
 	"net/http"
 
-	automationsvc "github.com/nexus-research-lab/nexus/internal/automation"
-	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	skillspkg "github.com/nexus-research-lab/nexus/internal/skills"
+	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
+	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
+	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 )
 
 // Handlers 封装 capability summary handler。

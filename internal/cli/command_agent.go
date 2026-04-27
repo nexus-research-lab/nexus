@@ -1,8 +1,10 @@
 package cli
 
 import (
-	agent2 "github.com/nexus-research-lab/nexus/internal/agent"
 	"github.com/spf13/cobra"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agent2 "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
 func newAgentCommand(service *agent2.Service) *cobra.Command {
@@ -38,7 +40,7 @@ func newAgentCommand(service *agent2.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建 Agent",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateAgent(commandContext(cmd), agent2.CreateRequest{
+				item, err := service.CreateAgent(commandContext(cmd), protocol.CreateRequest{
 					Name:        name,
 					Avatar:      avatar,
 					Description: description,

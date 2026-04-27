@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roompkg "github.com/nexus-research-lab/nexus/internal/room"
-	sessionpkg "github.com/nexus-research-lab/nexus/internal/session"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
+	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -135,7 +135,7 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 	}
 
 	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	if contextValue.Room.RoomType == roompkg.RoomTypeDM {
+	if contextValue.Room.RoomType == protocol.RoomTypeDM {
 		primarySession := findPrimaryConversationSession(contextValue.Sessions)
 		if primarySession == nil || strings.TrimSpace(primarySession.AgentID) == "" {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
@@ -144,7 +144,7 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 		sessionKey = protocol.BuildRoomAgentSessionKey(
 			conversationID,
 			strings.TrimSpace(primarySession.AgentID),
-			roompkg.RoomTypeDM,
+			protocol.RoomTypeDM,
 		)
 	}
 
@@ -164,7 +164,7 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 	h.api.WriteSuccess(writer, items)
 }
 
-func findPrimaryConversationSession(sessions []roompkg.SessionRecord) *roompkg.SessionRecord {
+func findPrimaryConversationSession(sessions []protocol.SessionRecord) *protocol.SessionRecord {
 	for index := range sessions {
 		if sessions[index].IsPrimary {
 			return &sessions[index]
@@ -178,7 +178,7 @@ func findPrimaryConversationSession(sessions []roompkg.SessionRecord) *roompkg.S
 
 // HandleCreateRoom 创建 room。
 func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Request) {
-	var payload roompkg.CreateRoomRequest
+	var payload protocol.CreateRoomRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
@@ -200,7 +200,7 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 
 // HandleUpdateRoom 更新 room。
 func (h *Handlers) HandleUpdateRoom(writer http.ResponseWriter, request *http.Request) {
-	var payload roompkg.UpdateRoomRequest
+	var payload protocol.UpdateRoomRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
@@ -265,7 +265,7 @@ func (h *Handlers) HandleEnsureDirectRoom(writer http.ResponseWriter, request *h
 
 // HandleAddRoomMember 添加成员。
 func (h *Handlers) HandleAddRoomMember(writer http.ResponseWriter, request *http.Request) {
-	var payload roompkg.AddRoomMemberRequest
+	var payload protocol.AddRoomMemberRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
@@ -318,7 +318,7 @@ func (h *Handlers) HandleRemoveRoomMember(writer http.ResponseWriter, request *h
 
 // HandleCreateConversation 创建 conversation。
 func (h *Handlers) HandleCreateConversation(writer http.ResponseWriter, request *http.Request) {
-	var payload roompkg.CreateConversationRequest
+	var payload protocol.CreateConversationRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
@@ -341,7 +341,7 @@ func (h *Handlers) HandleCreateConversation(writer http.ResponseWriter, request 
 
 // HandleUpdateConversation 更新 conversation。
 func (h *Handlers) HandleUpdateConversation(writer http.ResponseWriter, request *http.Request) {
-	var payload roompkg.UpdateConversationRequest
+	var payload protocol.UpdateConversationRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}

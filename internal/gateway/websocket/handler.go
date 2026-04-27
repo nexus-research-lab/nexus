@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	channelspkg "github.com/nexus-research-lab/nexus/internal/channels"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/chat"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roompkg "github.com/nexus-research-lab/nexus/internal/room"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
+	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
+	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
+	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"

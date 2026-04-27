@@ -1,8 +1,9 @@
 package cli
 
 import (
-	connectorsvc "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/spf13/cobra"
+
+	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 )
 
 func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {

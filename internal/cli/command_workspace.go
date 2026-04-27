@@ -1,8 +1,9 @@
 package cli
 
 import (
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/workspace"
 	"github.com/spf13/cobra"
+
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {

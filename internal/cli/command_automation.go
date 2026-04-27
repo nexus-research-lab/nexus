@@ -1,7 +1,7 @@
 package cli
 
 import (
-	automation2 "github.com/nexus-research-lab/nexus/internal/automation"
+	automation2 "github.com/nexus-research-lab/nexus/internal/service/automation"
 
 	"github.com/spf13/cobra"
 )

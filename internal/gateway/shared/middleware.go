@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/logx"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
 // responseRecorder 负责在不破坏 websocket/hijack 能力的前提下记录状态码和字节数。

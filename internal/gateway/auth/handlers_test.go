@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	"github.com/nexus-research-lab/nexus/internal/gateway"
 	"github.com/nexus-research-lab/nexus/internal/gateway/gatewaytest"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
 func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {

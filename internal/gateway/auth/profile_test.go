@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/usage"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
 type fakeTokenUsageStore struct {

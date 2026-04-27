@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
 type authLoginPayload struct {

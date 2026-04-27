@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	launcherpkg "github.com/nexus-research-lab/nexus/internal/launcher"
+	launcherpkg "github.com/nexus-research-lab/nexus/internal/service/launcher"
 )
 
 // Handlers 封装 launcher 域 HTTP handlers。

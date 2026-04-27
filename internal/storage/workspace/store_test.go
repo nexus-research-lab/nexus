@@ -1,9 +1,10 @@
 package workspace
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"path/filepath"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestStoreSessionDirUsesRoomConversationIDName(t *testing.T) {

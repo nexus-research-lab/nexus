@@ -4,7 +4,7 @@ import (
 	"io"
 	"strings"
 
-	auth2 "github.com/nexus-research-lab/nexus/internal/auth"
+	auth2 "github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	"github.com/spf13/cobra"
 )

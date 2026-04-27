@@ -1,8 +1,10 @@
 package cli
 
 import (
-	roomsvc "github.com/nexus-research-lab/nexus/internal/room"
 	"github.com/spf13/cobra"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
 func newRoomCommand(service *roomsvc.Service) *cobra.Command {
@@ -39,7 +41,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建 Room",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateRoom(commandContext(cmd), roomsvc.CreateRoomRequest{
+				item, err := service.CreateRoom(commandContext(cmd), protocol.CreateRoomRequest{
 					AgentIDs:    agentIDs,
 					Name:        name,
 					Description: description,
@@ -130,7 +132,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "更新 Room",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateRoom(commandContext(cmd), args[0], roomsvc.UpdateRoomRequest{
+				item, err := service.UpdateRoom(commandContext(cmd), args[0], protocol.UpdateRoomRequest{
 					Name:        name,
 					Description: description,
 					Title:       title,
@@ -176,7 +178,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "向 Room 添加成员",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.AddRoomMember(commandContext(cmd), args[0], roomsvc.AddRoomMemberRequest{
+				item, err := service.AddRoomMember(commandContext(cmd), args[0], protocol.AddRoomMemberRequest{
 					AgentID: agentID,
 				})
 				if err != nil {
@@ -224,7 +226,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "创建 Room 话题",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.CreateConversation(commandContext(cmd), args[0], roomsvc.CreateConversationRequest{
+				item, err := service.CreateConversation(commandContext(cmd), args[0], protocol.CreateConversationRequest{
 					Title: title,
 				})
 				if err != nil {
@@ -248,7 +250,7 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "更新 Room 话题",
 			Args:  exactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				item, err := service.UpdateConversation(commandContext(cmd), args[0], args[1], roomsvc.UpdateConversationRequest{
+				item, err := service.UpdateConversation(commandContext(cmd), args[0], args[1], protocol.UpdateConversationRequest{
 					Title: title,
 				})
 				if err != nil {

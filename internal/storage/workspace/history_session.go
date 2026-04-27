@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -51,7 +52,7 @@ func shouldSkipInternalHistoryRow(row protocol.Message) bool {
 		return strings.TrimSpace(stringFromAny(metadata["subtype"])) == "api_retry"
 	case "user":
 		content := strings.TrimSpace(stringFromAny(row["content"]))
-		return protocol.IsInternalTranscriptInterruptPrompt(content)
+		return message.IsInternalTranscriptInterruptPrompt(content)
 	default:
 		return false
 	}
@@ -295,7 +296,7 @@ func (m *roundResultSummaryMerger) indexAssistants() {
 			continue
 		}
 		m.lastAssistantIndexByRoundID[roundID] = index
-		if assistantText := protocol.ExtractAssistantDisplayText(row); assistantText != "" {
+		if assistantText := message.ExtractAssistantDisplayText(row); assistantText != "" {
 			m.assistantTextByRoundID[roundID] = assistantText
 		}
 	}
@@ -313,7 +314,7 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 		}
 
 		assistant := protocol.Clone(m.rows[assistantIndex])
-		summary := protocol.BuildAssistantResultSummary(row, m.assistantTextByRoundID[roundID])
+		summary := message.BuildAssistantResultSummary(row, m.assistantTextByRoundID[roundID])
 		if len(summary) == 0 {
 			continue
 		}
@@ -332,7 +333,7 @@ func (m *roundResultSummaryMerger) buildResultRows() []protocol.Message {
 			if _, merged := m.mergedResultMessageIDs[strings.TrimSpace(stringFromAny(row["message_id"]))]; merged {
 				continue
 			}
-			result = append(result, protocol.BuildSyntheticAssistantFromResult(row))
+			result = append(result, message.BuildSyntheticAssistantFromResult(row))
 			continue
 		}
 		result = append(result, row)

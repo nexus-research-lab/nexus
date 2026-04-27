@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	channelspkg "github.com/nexus-research-lab/nexus/internal/channels"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
+	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 )
 
 // Ingress 接口抽象通道入站服务。

@@ -1,8 +1,9 @@
 package cli
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/launcher"
 	"github.com/spf13/cobra"
+
+	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 )
 
 func newLauncherCommand(service *launcher.Service) *cobra.Command {

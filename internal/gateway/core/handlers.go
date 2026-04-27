@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strings"
 
-	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
-	authsvc "github.com/nexus-research-lab/nexus/internal/auth"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/preferences"
-	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 
 	"github.com/go-chi/chi/v5"
 )

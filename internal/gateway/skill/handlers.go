@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
-	skillspkg "github.com/nexus-research-lab/nexus/internal/skills"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 
 	"github.com/go-chi/chi/v5"
 )

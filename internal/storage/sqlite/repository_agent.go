@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
+	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
 )
 
 // AgentRepository 提供 SQLite 的 Agent 仓储实现。
@@ -164,7 +166,7 @@ LIMIT 1`, ownerUserID)
 }
 
 // CreateAgent 创建 Agent、Profile 与 Runtime。
-func (r *AgentRepository) CreateAgent(ctx context.Context, record protocol.CreateRecord) (*protocol.Agent, error) {
+func (r *AgentRepository) CreateAgent(ctx context.Context, record agentrepo.CreateRecord) (*protocol.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -228,7 +230,7 @@ VALUES (?, ?, ?, NULL, ?, ?)`,
 }
 
 // UpdateAgent 更新 Agent 配置。
-func (r *AgentRepository) UpdateAgent(ctx context.Context, record protocol.UpdateRecord) (*protocol.Agent, error) {
+func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentrepo.UpdateRecord) (*protocol.Agent, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -360,10 +362,10 @@ func scanAgent(scanner interface {
 
 	item.CreatedAt = createdAt
 	item.VibeTags = decodeStringSlice(vibeTagsJSON)
-	item.Options.AllowedTools = protocol.ParseJSONStringSlice(allowedToolsJSON)
-	item.Options.DisallowedTools = protocol.ParseJSONStringSlice(disallowedToolsJSON)
-	item.Options.MCPServers = protocol.ParseJSONMap(mcpServersJSON)
-	item.Options.SettingSources = protocol.ParseJSONStringSlice(settingSourcesJSON)
+	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
+	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
+	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
+	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)
 		item.Options.MaxTurns = &value

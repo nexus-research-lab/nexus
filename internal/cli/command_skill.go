@@ -1,8 +1,9 @@
 package cli
 
 import (
-	skillsvc "github.com/nexus-research-lab/nexus/internal/skills"
 	"github.com/spf13/cobra"
+
+	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
 )
 
 func newSkillCommand(service *skillsvc.Service) *cobra.Command {

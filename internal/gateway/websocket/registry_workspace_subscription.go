@@ -7,7 +7,7 @@ import (
 
 	gatewayshared "github.com/nexus-research-lab/nexus/internal/gateway/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	workspace2 "github.com/nexus-research-lab/nexus/internal/workspace"
+	workspace2 "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 // RuntimeSnapshot 描述某个 agent 当前的运行态快照。

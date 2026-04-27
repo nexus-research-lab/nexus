@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SessionRepository 提供 SQLite 的 Room Session 视图查询。

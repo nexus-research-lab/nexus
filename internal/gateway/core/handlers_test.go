@@ -7,10 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	agentpkg "github.com/nexus-research-lab/nexus/internal/agent"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	"github.com/nexus-research-lab/nexus/internal/gateway"
 	"github.com/nexus-research-lab/nexus/internal/gateway/gatewaytest"
-	providercfg "github.com/nexus-research-lab/nexus/internal/provider"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	sqlitestorage "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 )
 
@@ -38,7 +40,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 		t.Fatalf("加载默认 agent 失败: %v", err)
 	}
 	avatar := "12"
-	if _, err = agents.UpdateAgent(context.Background(), defaultAgent.AgentID, agentpkg.UpdateRequest{
+	if _, err = agents.UpdateAgent(context.Background(), defaultAgent.AgentID, protocol.UpdateRequest{
 		Avatar: &avatar,
 	}); err != nil {
 		t.Fatalf("更新默认 agent 头像失败: %v", err)

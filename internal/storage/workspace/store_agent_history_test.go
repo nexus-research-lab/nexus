@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -246,7 +247,7 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 		t.Fatalf("引导内容解析错误: %+v", *guidance)
 	}
 	metadata, _ := (*guidance)["metadata"].(map[string]any)
-	if metadata["subtype"] != protocol.SystemMessageSubtypeGuidedInput ||
+	if metadata["subtype"] != message.SystemMessageSubtypeGuidedInput ||
 		metadata["source_round_id"] != "queue_guide_1" {
 		t.Fatalf("引导 metadata 不正确: %+v", *guidance)
 	}

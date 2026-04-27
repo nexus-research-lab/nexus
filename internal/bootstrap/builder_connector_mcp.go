@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	"github.com/nexus-research-lab/nexus/internal/agent"
-	connectormcp "github.com/nexus-research-lab/nexus/internal/connectors/mcp"
+
+	"github.com/nexus-research-lab/nexus/internal/service/agent"
+	connectormcp "github.com/nexus-research-lab/nexus/internal/service/connectors/mcp"
 )
 
 // newConnectorMCPBuilder 返回 chat/room 实时链路所需的 connector MCPServerBuilder。
