@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
+	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -33,9 +33,9 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebSearch": {},
 }
 
-// ChatHandler 定义统一聊天入口能力。
-type ChatHandler interface {
-	HandleChat(context.Context, chatsvc.Request) error
+// DMHandler 定义统一 DM 入口能力。
+type DMHandler interface {
+	HandleChat(context.Context, dmsvc.Request) error
 }
 
 // IngressRequest 表示一条来自外部通道的标准化消息。
@@ -79,11 +79,11 @@ type normalizedIngressRequest struct {
 	rememberedTarget *DeliveryTarget
 }
 
-// IngressService 负责把外部通道消息归一到统一聊天入口。
+// IngressService 负责把外部通道消息归一到 DM 入口。
 type IngressService struct {
 	config    config.Config
 	agents    agentWorkspaceResolver
-	chat      ChatHandler
+	dm        DMHandler
 	router    *Router
 	idFactory func(string) string
 	logger    *slog.Logger
@@ -93,13 +93,13 @@ type IngressService struct {
 func NewIngressService(
 	cfg config.Config,
 	agents agentWorkspaceResolver,
-	chat ChatHandler,
+	dm DMHandler,
 	router *Router,
 ) *IngressService {
 	return &IngressService{
 		config:    cfg,
 		agents:    agents,
-		chat:      chat,
+		dm:        dm,
 		router:    router,
 		idFactory: newDeliveryID,
 		logger:    logx.NewDiscardLogger(),
@@ -124,8 +124,8 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	if s.agents == nil {
 		return nil, errors.New("ingress service is not configured with agent resolver")
 	}
-	if s.chat == nil {
-		return nil, errors.New("ingress service is not configured with chat handler")
+	if s.dm == nil {
+		return nil, errors.New("ingress service is not configured with dm handler")
 	}
 
 	logger := s.loggerFor(ctx).With(
@@ -144,7 +144,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		logger.Error("解析通道消息目标 Agent 失败", "err", err)
 		return nil, err
 	}
-	if err = s.chat.HandleChat(ctx, chatsvc.Request{
+	if err = s.dm.HandleChat(ctx, dmsvc.Request{
 		SessionKey:        normalized.sessionKey,
 		AgentID:           normalized.agentID,
 		Content:           normalized.content,
@@ -165,7 +165,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 			return nil, err
 		}
 	}
-	logger.Info("通道消息已进入聊天主链",
+	logger.Info("通道消息已进入 DM 主链",
 		"remembered_delivery", remembered != nil,
 	)
 

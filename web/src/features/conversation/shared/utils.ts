@@ -10,9 +10,6 @@ import { PendingPermission } from "@/types/conversation/permission";
 export function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
   const groups = new Map<string, Message[]>();
   for (const message of messages) {
-    if (is_legacy_queue_guidance_user_message(message)) {
-      continue;
-    }
     const round_id = message.round_id || message.message_id;
     if (!groups.has(round_id)) {
       groups.set(round_id, []);
@@ -46,9 +43,6 @@ export function group_room_messages_by_round(messages: Message[]): Map<string, M
   const groups = new Map<string, Message[]>();
 
   for (const message of messages) {
-    if (is_legacy_queue_guidance_user_message(message)) {
-      continue;
-    }
     const round_id = get_room_base_round_id(message.round_id || message.message_id, message.agent_id);
     if (!groups.has(round_id)) {
       groups.set(round_id, []);
@@ -77,14 +71,6 @@ export function group_room_pending_permissions_by_round(
   }
 
   return groups;
-}
-
-function is_legacy_queue_guidance_user_message(message: Message): boolean {
-  return (
-    message.role === "user" &&
-    message.delivery_policy === "guide" &&
-    (message.round_id || message.message_id || "").startsWith("queue_")
-  );
 }
 
 // ── 多 Agent 轮次工具函数 ──────────────────────────────────────────────

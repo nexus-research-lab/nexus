@@ -2,11 +2,9 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-
-	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 )
 
-func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
+func newConnectorCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "connector",
 		Short: "connector 领域命令",
@@ -16,6 +14,11 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出连接器目录",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Connectors
 			items, err := service.ListConnectors(commandContext(cmd), currentCLIUserID(cmd), "", "", "")
 			if err != nil {
 				return err
@@ -33,6 +36,11 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Short: "读取单个连接器详情",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Connectors
 			item, err := service.GetConnectorDetail(commandContext(cmd), currentCLIUserID(cmd), args[0])
 			if err != nil {
 				return err
@@ -52,6 +60,11 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 			Short: "生成 OAuth 授权地址",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Connectors
 				item, err := service.GetAuthURL(commandContext(cmd), currentCLIUserID(cmd), args[0], redirectURI, nil)
 				if err != nil {
 					return err
@@ -72,6 +85,11 @@ func newConnectorCommand(service *connectorsvc.Service) *cobra.Command {
 		Short: "断开连接器",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Connectors
 			item, err := service.Disconnect(commandContext(cmd), args[0])
 			if err != nil {
 				return err

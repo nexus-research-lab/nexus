@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -28,12 +28,12 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	sessionService.SetRuntimeManager(runtimectx.NewManager())
 
 	ctx := context.Background()
@@ -192,11 +192,11 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 
@@ -231,11 +231,11 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Transcript 助手"})
@@ -320,12 +320,12 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := bootstrap.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Room Topic Transcript 助手"})

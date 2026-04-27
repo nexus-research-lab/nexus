@@ -11,9 +11,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/gateway"
-	"github.com/nexus-research-lab/nexus/internal/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
@@ -72,9 +72,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	server, err := gateway.NewServerWithLogger(cfg, logger)
+	server, err := serverapp.NewWithLogger(cfg, logger)
 	if err != nil {
-		logger.Error("初始化网关失败", "err", err)
+		logger.Error("初始化 HTTP 服务失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

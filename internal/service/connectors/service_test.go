@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -243,22 +244,22 @@ func TestServiceEncryptsConnectionCredentials(t *testing.T) {
 		t.Fatalf("写入连接状态失败: %v", err)
 	}
 
-	var credentials string
+	var credentialText string
 	var encrypted sql.NullString
-	if err = db.QueryRowContext(ctx, "SELECT credentials, credentials_encrypted FROM connector_connections WHERE connector_id = ?", "github").Scan(&credentials, &encrypted); err != nil {
+	if err = db.QueryRowContext(ctx, "SELECT credentials, credentials_encrypted FROM connector_connections WHERE connector_id = ?", "github").Scan(&credentialText, &encrypted); err != nil {
 		t.Fatalf("读取连接凭证失败: %v", err)
 	}
-	if credentials != "__encrypted__" {
-		t.Fatalf("明文字段不应保存 token payload: %q", credentials)
+	if credentialText != "__encrypted__" {
+		t.Fatalf("明文字段不应保存 token payload: %q", credentialText)
 	}
 	if !encrypted.Valid || strings.Contains(encrypted.String, "secret-token") {
 		t.Fatalf("加密字段未正确写入: %q", encrypted.String)
 	}
-	key, err := decodeCredentialKey(cfg.ConnectorCredentialsKey)
+	key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey)
 	if err != nil {
 		t.Fatalf("解析测试密钥失败: %v", err)
 	}
-	plain, err := decryptCredentialPayload(key, encrypted.String)
+	plain, err := credentials.DecryptPayload(key, encrypted.String)
 	if err != nil {
 		t.Fatalf("解密连接凭证失败: %v", err)
 	}
@@ -525,6 +526,10 @@ func newConnectorsTestConfig(t *testing.T) config.Config {
 		ConnectorShopifyClientID:     "shopify-client-id",
 		ConnectorShopifyClientSecret: "shopify-client-secret",
 	}
+}
+
+func testConnectorCredentialKey() string {
+	return "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 }
 
 func migrateConnectorsSQLite(t *testing.T, databaseURL string) {

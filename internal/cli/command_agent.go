@@ -4,10 +4,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
-func newAgentCommand(service *agentsvc.Service) *cobra.Command {
+func newAgentCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "agent",
 		Short: "agent 领域命令",
@@ -17,6 +16,11 @@ func newAgentCommand(service *agentsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出全部 Agent",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Agent
 			items, err := service.ListAgents(commandContext(cmd))
 			if err != nil {
 				return err
@@ -40,6 +44,11 @@ func newAgentCommand(service *agentsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建 Agent",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Agent
 				item, err := service.CreateAgent(commandContext(cmd), protocol.CreateRequest{
 					Name:        name,
 					Avatar:      avatar,
@@ -67,6 +76,11 @@ func newAgentCommand(service *agentsvc.Service) *cobra.Command {
 		Short: "获取指定 Agent",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Agent
 			item, err := service.GetAgent(commandContext(cmd), args[0])
 			if err != nil {
 				return err

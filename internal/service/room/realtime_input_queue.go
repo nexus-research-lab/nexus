@@ -6,8 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -51,7 +52,7 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 		if err != nil {
 			return err
 		}
-		ownerUserID := authsvc.OwnerUserID(ctx)
+		ownerUserID := authctx.OwnerUserID(ctx)
 		if _, err = s.inputQueue.Enqueue(location, protocol.InputQueueItem{
 			Scope:          protocol.InputQueueScopeRoom,
 			SessionKey:     location.SessionKey,
@@ -184,7 +185,7 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 	} else if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
 		s.loggerFor(ctx).Warn("广播恢复后的 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 	}
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, s.newRoomErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", "待发送消息派发失败", entry.Item.ID))
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", "待发送消息派发失败", entry.Item.ID))
 }
 
 func (s *RealtimeService) dispatchInputQueueItem(
@@ -362,7 +363,7 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 	if err != nil {
 		return workspacestore.InputQueueLocation{}, nil, err
 	}
-	targetAgentIDs := ResolveMentionAgentIDs(content, buildRoomMentionAliases(contextValue))
+	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
 	if len(targetAgentIDs) == 0 && len(locationsByAgentID) == 1 {
 		for agentID := range locationsByAgentID {
 			targetAgentIDs = []string{agentID}
@@ -627,11 +628,11 @@ func contextWithQueueOwner(ctx context.Context, ownerUserID string) context.Cont
 	if ownerUserID == "" {
 		return ctx
 	}
-	if _, ok := authsvc.CurrentUserID(ctx); ok {
+	if _, ok := authctx.CurrentUserID(ctx); ok {
 		return ctx
 	}
-	return authsvc.WithPrincipal(ctx, &authsvc.Principal{
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
 		UserID: ownerUserID,
-		Role:   authsvc.RoleOwner,
+		Role:   authctx.RoleOwner,
 	})
 }

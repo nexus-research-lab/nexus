@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/logx"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -28,7 +29,7 @@ type roomClientFactory interface {
 	New(agentclient.Options) runtimectx.Client
 }
 
-// RoomBroadcaster 负责把 Room 共享事件扇出到 room 级订阅者。
+// RoomBroadcaster 负责把 Room 共享事件扇出到房间级订阅者。
 type RoomBroadcaster interface {
 	Broadcast(context.Context, string, protocol.EventMessage) []error
 }
@@ -56,9 +57,8 @@ type InterruptRequest struct {
 	MsgID      string
 }
 
-// RealtimeService 负责 Room 的共享流实时编排。
-// MCPServerBuilder 由 bootstrap 注入，按当前会话上下文构造一组进程内 MCP server。
-// 用 string 形参避免 room 包反向依赖 automation 子包，防止 import cycle。
+// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
+// 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer
 
 type RealtimeService struct {
@@ -67,7 +67,7 @@ type RealtimeService struct {
 	agents      *agentsvc.Service
 	runtime     *runtimectx.Manager
 	permission  *permissionctx.Context
-	providers   runtimectx.RuntimeConfigResolver
+	providers   clientopts.RuntimeConfigResolver
 	history     *workspacestore.AgentHistoryStore
 	roomHistory *workspacestore.RoomHistoryStore
 	inputQueue  *workspacestore.InputQueueStore
@@ -143,7 +143,7 @@ func (s *RealtimeService) SetLogger(logger *slog.Logger) {
 }
 
 // SetProviderResolver 注入 Provider 运行时解析器。
-func (s *RealtimeService) SetProviderResolver(resolver runtimectx.RuntimeConfigResolver) {
+func (s *RealtimeService) SetProviderResolver(resolver clientopts.RuntimeConfigResolver) {
 	s.providers = resolver
 }
 

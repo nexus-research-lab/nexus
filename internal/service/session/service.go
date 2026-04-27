@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -77,7 +77,7 @@ func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) 
 	if err != nil {
 		return nil, err
 	}
-	roomSessions, err := s.repository.ListRoomSessions(ctx, authsvc.OwnerUserID(ctx))
+	roomSessions, err := s.repository.ListRoomSessions(ctx, authctx.OwnerUserID(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 		return nil, ErrSessionNotFound
 	}
 
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authctx.OwnerUserID(ctx), parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func (s *Service) loadHistorySession(
 	parsed protocol.SessionKey,
 	sessionKey string,
 ) (*protocol.Session, string, error) {
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authctx.OwnerUserID(ctx), parsed)
 	if err != nil {
 		return nil, "", err
 	}
@@ -399,7 +399,7 @@ func (s *Service) loadMutableWorkspaceSession(ctx context.Context, rawSessionKey
 		return nil, "", parsed, fmt.Errorf("%w: 共享 room session 不支持通过 Session API 修改", ErrSessionMutationUnsupported)
 	}
 
-	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authsvc.OwnerUserID(ctx), parsed)
+	roomSession, err := s.repository.GetRoomSessionByKey(ctx, authctx.OwnerUserID(ctx), parsed)
 	if err != nil {
 		return nil, "", parsed, err
 	}

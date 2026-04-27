@@ -16,9 +16,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 
 	"github.com/spf13/cobra"
 )
@@ -79,7 +79,7 @@ func configureRootOutput(root *cobra.Command) *outputOptions {
 	return options
 }
 
-func applyOutputOptions(cfg config.Config, services *bootstrap.AppServices, options outputOptions) error {
+func applyOutputOptions(cfg config.Config, services *cliServiceProvider, options outputOptions) error {
 	if options.json && options.pretty {
 		return usageErrorf("--json 与 --pretty 不能同时使用")
 	}
@@ -87,7 +87,9 @@ func applyOutputOptions(cfg config.Config, services *bootstrap.AppServices, opti
 
 	logger := newCLILogger(cfg, options.verbose)
 	slog.SetDefault(logger)
-	bindServiceLogger(services, logger)
+	if services != nil {
+		services.SetLogger(logger)
+	}
 	return nil
 }
 
@@ -115,7 +117,7 @@ func newCLILogger(cfg config.Config, verbose bool) *slog.Logger {
 	})
 }
 
-func bindServiceLogger(services *bootstrap.AppServices, logger *slog.Logger) {
+func bindServiceLogger(services *serverapp.AppServices, logger *slog.Logger) {
 	if services == nil || logger == nil {
 		return
 	}
@@ -125,8 +127,8 @@ func bindServiceLogger(services *bootstrap.AppServices, logger *slog.Logger) {
 	if services.Channels != nil {
 		services.Channels.SetLogger(logger.With("component", "channels"))
 	}
-	if services.Chat != nil {
-		services.Chat.SetLogger(logger.With("component", "chat"))
+	if services.DM != nil {
+		services.DM.SetLogger(logger.With("component", "dm"))
 	}
 	if services.Ingress != nil {
 		services.Ingress.SetLogger(logger.With("component", "channels.ingress"))

@@ -1,6 +1,7 @@
 package room
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -38,7 +39,7 @@ func TestBuildPublicMentionSlotAddsFanoutMetadata(t *testing.T) {
 		t.Fatalf("公区 @ 元数据缺少目标顺序: %+v", metadata)
 	}
 	names, ok := metadata["public_mention_target_names"].([]string)
-	if !ok || !sameStringSlice(names, []string{"Devin", "sam"}) {
+	if !ok || !slices.Equal(names, []string{"Devin", "sam"}) {
 		t.Fatalf("公区 @ 元数据目标名称不正确: %+v", metadata)
 	}
 }

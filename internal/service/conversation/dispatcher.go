@@ -40,7 +40,7 @@ func (d *Dispatcher) HandleChat(
 		return d.dm.HandleDM(ctx, request)
 	default:
 		return protocol.StructuredSessionKeyError{
-			Message: "session_key must use structured gateway format",
+			Message: "session_key must use structured session_key format",
 		}
 	}
 }
@@ -64,7 +64,7 @@ func (d *Dispatcher) HandleInterrupt(
 		return d.dm.HandleDMInterrupt(ctx, request)
 	default:
 		return protocol.StructuredSessionKeyError{
-			Message: "session_key must use structured gateway format",
+			Message: "session_key must use structured session_key format",
 		}
 	}
 }

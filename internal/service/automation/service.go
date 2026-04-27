@@ -9,19 +9,21 @@ import (
 	"sync"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/logx"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
+	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-type chatRunner interface {
-	HandleChat(context.Context, chatsvc.Request) error
+type dmRunner interface {
+	HandleChat(context.Context, dmsvc.Request) error
 }
 
 type roomRunner interface {
@@ -43,9 +45,9 @@ type runtimeSessionCloser interface {
 // Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
 type Service struct {
 	config        config.Config
-	repository    *sqlRepository
+	repository    *automationstore.Repository
 	agents        *agentsvc.Service
-	chat          chatRunner
+	dm            dmRunner
 	room          roomRunner
 	permission    *permissionctx.Context
 	workspace     workspaceReader
@@ -57,9 +59,9 @@ type Service struct {
 	idFactory func(string) string
 
 	mu             sync.Mutex
-	jobStates      map[string]*jobRuntimeState
-	heartbeatState map[string]*heartbeatRuntimeState
-	wakeRequests   map[string][]heartbeatWakeRequest
+	jobStates      map[string]*automationdomain.JobRuntimeState
+	heartbeatState map[string]*automationdomain.HeartbeatRuntimeState
+	wakeRequests   map[string][]automationdomain.HeartbeatWakeRequest
 	started        bool
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
@@ -70,7 +72,7 @@ func NewService(
 	cfg config.Config,
 	db *sql.DB,
 	agents *agentsvc.Service,
-	chat chatRunner,
+	dm dmRunner,
 	room roomRunner,
 	permission *permissionctx.Context,
 	workspace workspaceReader,
@@ -78,19 +80,19 @@ func NewService(
 ) *Service {
 	return &Service{
 		config:         cfg,
-		repository:     NewRepository(cfg, db),
+		repository:     automationstore.NewRepository(cfg, db),
 		agents:         agents,
-		chat:           chat,
+		dm:             dm,
 		room:           room,
 		permission:     permission,
 		workspace:      workspace,
 		delivery:       delivery,
 		logger:         logx.NewDiscardLogger(),
 		nowFn:          func() time.Time { return time.Now().UTC() },
-		idFactory:      newAutomationID,
-		jobStates:      make(map[string]*jobRuntimeState),
-		heartbeatState: make(map[string]*heartbeatRuntimeState),
-		wakeRequests:   make(map[string][]heartbeatWakeRequest),
+		idFactory:      automationdomain.NewID,
+		jobStates:      make(map[string]*automationdomain.JobRuntimeState),
+		heartbeatState: make(map[string]*automationdomain.HeartbeatRuntimeState),
+		wakeRequests:   make(map[string][]automationdomain.HeartbeatWakeRequest),
 	}
 }
 
@@ -171,11 +173,11 @@ func (s *Service) requireAgent(ctx context.Context, agentID string) (*protocol.A
 	return s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 }
 
-func (s *Service) validateAgentAndTarget(ctx context.Context, agentID string, target SessionTarget) error {
+func (s *Service) validateAgentAndTarget(ctx context.Context, agentID string, target protocol.SessionTarget) error {
 	if _, err := s.requireAgent(ctx, agentID); err != nil {
 		return err
 	}
-	if strings.TrimSpace(target.Kind) != SessionTargetBound {
+	if strings.TrimSpace(target.Kind) != protocol.SessionTargetBound {
 		return nil
 	}
 	parsed := protocol.ParseSessionKey(target.BoundSessionKey)
@@ -185,11 +187,11 @@ func (s *Service) validateAgentAndTarget(ctx context.Context, agentID string, ta
 	return nil
 }
 
-func (s *Service) ensureDirectTargetSupported(target SessionTarget) error {
-	if strings.TrimSpace(target.Kind) == SessionTargetMain {
+func (s *Service) ensureDirectTargetSupported(target protocol.SessionTarget) error {
+	if strings.TrimSpace(target.Kind) == protocol.SessionTargetMain {
 		return nil
 	}
-	sessionKey, err := resolveSessionKey(CronJob{
+	sessionKey, err := automationdomain.ResolveSessionKey(protocol.CronJob{
 		AgentID:       "noop",
 		SessionTarget: target,
 	}, stringPointer("noop"))

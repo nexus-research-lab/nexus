@@ -1,17 +1,21 @@
 package auth
 
-import "time"
+import (
+	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+)
 
 const (
 	// SystemUserID 表示未启用认证时的本地单用户保底主体。
-	SystemUserID = "__system__"
+	SystemUserID = authctx.SystemUserID
 
 	// RoleOwner 表示单租户默认 owner。
-	RoleOwner = "owner"
+	RoleOwner = authctx.RoleOwner
 	// RoleAdmin 表示管理员角色。
-	RoleAdmin = "admin"
+	RoleAdmin = authctx.RoleAdmin
 	// RoleMember 表示普通成员角色。
-	RoleMember = "member"
+	RoleMember = authctx.RoleMember
 
 	// UserStatusActive 表示用户处于可登录状态。
 	UserStatusActive = "active"
@@ -19,9 +23,9 @@ const (
 	UserStatusDisabled = "disabled"
 
 	// AuthMethodPassword 表示密码登录签发的浏览器 Session。
-	AuthMethodPassword = "password"
+	AuthMethodPassword = authctx.AuthMethodPassword
 	// AuthMethodBearer 表示 ACCESS_TOKEN 的 Bearer 身份。
-	AuthMethodBearer = "bearer"
+	AuthMethodBearer = authctx.AuthMethodBearer
 )
 
 // User 表示认证域中的用户实体。
@@ -37,26 +41,8 @@ type User struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-// Principal 表示一次已解析的请求身份。
-type Principal struct {
-	UserID      string  `json:"user_id"`
-	Username    string  `json:"username"`
-	DisplayName string  `json:"display_name,omitempty"`
-	Role        string  `json:"role"`
-	Avatar      string  `json:"avatar,omitempty"`
-	AuthMethod  string  `json:"auth_method"`
-	SessionID   *string `json:"session_id,omitempty"`
-}
-
-// State 表示认证域的全局状态摘要。
-type State struct {
-	SetupRequired        bool `json:"setup_required"`
-	AuthRequired         bool `json:"auth_required"`
-	PasswordLoginEnabled bool `json:"password_login_enabled"`
-	AccessTokenEnabled   bool `json:"access_token_enabled"`
-	UserCount            int  `json:"user_count"`
-	PasswordUserCount    int  `json:"password_user_count"`
-}
+type Principal = authctx.Principal
+type State = authctx.State
 
 // StatusPayload 表示前端依赖的登录状态响应。
 type StatusPayload struct {
@@ -120,28 +106,4 @@ type ChangePasswordInput struct {
 type UpdateProfileInput struct {
 	UserID string
 	Avatar *string
-}
-
-type passwordCredential struct {
-	CredentialID      string
-	UserID            string
-	PasswordHash      string
-	PasswordAlgo      string
-	PasswordUpdatedAt time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-}
-
-type sessionRecord struct {
-	SessionID        string
-	UserID           string
-	SessionTokenHash string
-	AuthMethod       string
-	ExpiresAt        time.Time
-	LastSeenAt       time.Time
-	ClientIP         string
-	UserAgent        string
-	RevokedAt        *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
 }

@@ -7,11 +7,6 @@ import (
 	"strings"
 )
 
-const (
-	defaultMessageHistoryRoundPageSize = 3
-	maxMessageHistoryRoundPageSize     = 10
-)
-
 // Config 承载 Go 服务运行时配置。
 type Config struct {
 	Host                           string
@@ -185,14 +180,4 @@ func mustStringList(raw string) []string {
 		}
 	}
 	return values
-}
-
-// GetMessageHistoryRoundPageSize 返回历史消息分页的默认 round 数。
-func GetMessageHistoryRoundPageSize() int {
-	return defaultMessageHistoryRoundPageSize
-}
-
-// GetMessageHistoryRoundPageSizeMax 返回历史消息分页允许的最大 round 数。
-func GetMessageHistoryRoundPageSizeMax() int {
-	return maxMessageHistoryRoundPageSize
 }

@@ -10,7 +10,7 @@ import (
 )
 
 // ListTasks 列出任务。
-func (s *Service) ListTasks(ctx context.Context, agentID string) ([]CronJob, error) {
+func (s *Service) ListTasks(ctx context.Context, agentID string) ([]protocol.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -18,7 +18,7 @@ func (s *Service) ListTasks(ctx context.Context, agentID string) ([]CronJob, err
 	if err != nil {
 		return nil, err
 	}
-	result := make([]CronJob, 0, len(items))
+	result := make([]protocol.CronJob, 0, len(items))
 	for _, item := range items {
 		state := s.ensureJobState(item)
 		enriched := item
@@ -39,7 +39,7 @@ func (s *Service) CountEnabledTasks(ctx context.Context, agentID string) (int, e
 }
 
 // GetTask 按 job_id 读取任务。返回 nil 表示未找到。
-func (s *Service) GetTask(ctx context.Context, jobID string) (*CronJob, error) {
+func (s *Service) GetTask(ctx context.Context, jobID string) (*protocol.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (s *Service) GetTask(ctx context.Context, jobID string) (*CronJob, error) {
 }
 
 // CreateTask 创建任务。
-func (s *Service) CreateTask(ctx context.Context, input CreateJobInput) (*CronJob, error) {
+func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput) (*protocol.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateJobInput) (*CronJo
 		return nil, err
 	}
 
-	job := CronJob{
+	job := protocol.CronJob{
 		JobID:         s.idFactory("cron"),
 		Name:          normalized.Name,
 		AgentID:       normalized.AgentID,
@@ -95,7 +95,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateJobInput) (*CronJo
 }
 
 // UpdateTask 更新任务。
-func (s *Service) UpdateTask(ctx context.Context, jobID string, input UpdateJobInput) (*CronJob, error) {
+func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.UpdateJobInput) (*protocol.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input UpdateJobI
 		return nil, err
 	}
 	if current == nil {
-		return nil, ErrJobNotFound
+		return nil, protocol.ErrJobNotFound
 	}
 
 	next := *current
@@ -130,7 +130,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input UpdateJobI
 		next.Enabled = *input.Enabled
 	}
 
-	createLike := CreateJobInput{
+	createLike := protocol.CreateJobInput{
 		Name:          next.Name,
 		AgentID:       next.AgentID,
 		Schedule:      next.Schedule,
@@ -160,8 +160,8 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input UpdateJobI
 }
 
 // UpdateTaskStatus 切换任务启停。
-func (s *Service) UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*CronJob, error) {
-	return s.UpdateTask(ctx, jobID, UpdateJobInput{Enabled: &enabled})
+func (s *Service) UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*protocol.CronJob, error) {
+	return s.UpdateTask(ctx, jobID, protocol.UpdateJobInput{Enabled: &enabled})
 }
 
 // DeleteTask 删除任务。
@@ -174,7 +174,7 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) error {
 		return err
 	}
 	if current == nil {
-		return ErrJobNotFound
+		return protocol.ErrJobNotFound
 	}
 	if err = s.repository.DeleteCronJob(ctx, current.JobID); err != nil {
 		return err
@@ -189,7 +189,7 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) error {
 }
 
 // RunTaskNow 立即触发一次任务。
-func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*ExecutionResult, error) {
+func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*protocol.ExecutionResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*ExecutionResul
 		return nil, err
 	}
 	if job == nil {
-		return nil, ErrJobNotFound
+		return nil, protocol.ErrJobNotFound
 	}
 	s.loggerFor(ctx).Info("手动触发自动化任务",
 		"job_id", job.JobID,
@@ -208,7 +208,7 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*ExecutionResul
 }
 
 // ListTaskRuns 返回任务运行历史。
-func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]CronRun, error) {
+func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]protocol.CronRun, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -217,13 +217,13 @@ func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]CronRun, er
 		return nil, err
 	}
 	if job == nil {
-		return nil, ErrJobNotFound
+		return nil, protocol.ErrJobNotFound
 	}
 	return s.repository.ListRunsByJob(ctx, job.JobID)
 }
 
-func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job CronJob) error {
-	if strings.TrimSpace(job.SessionTarget.Kind) != SessionTargetIsolated {
+func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job protocol.CronJob) error {
+	if strings.TrimSpace(job.SessionTarget.Kind) != protocol.SessionTargetIsolated {
 		return nil
 	}
 	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)

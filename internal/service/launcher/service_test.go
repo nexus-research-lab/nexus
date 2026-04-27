@@ -83,6 +83,9 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	if suggestions.Rooms[0].ID != roomContext.Room.ID {
 		t.Fatalf("推荐 room 不正确: %+v", suggestions.Rooms[0])
 	}
+	if suggestions.Rooms[0].Type != "room" {
+		t.Fatalf("推荐 room 类型不正确: %+v", suggestions.Rooms[0])
+	}
 
 	if _, err = roomService.UpdateConversation(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.UpdateConversationRequest{
 		Title: "需求讨论",
@@ -107,8 +110,25 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	if len(bootstrap.Conversations) == 0 {
 		t.Fatalf("bootstrap conversations 不应为空")
 	}
+	assertContainsBootstrapRoomType(t, bootstrap.Rooms, roomContext.Room.ID, "room")
 	assertContainsConversationTitle(t, bootstrap.Conversations, "需求讨论")
 	assertContainsConversationTitle(t, bootstrap.Conversations, "产品私聊")
+}
+
+func assertContainsBootstrapRoomType(
+	t *testing.T,
+	items []BootstrapRoom,
+	roomID string,
+	roomType string,
+) {
+	t.Helper()
+
+	for _, item := range items {
+		if item.ID == roomID && item.RoomType == roomType {
+			return
+		}
+	}
+	t.Fatalf("bootstrap room 类型缺失: room_id=%s room_type=%s items=%+v", roomID, roomType, items)
 }
 
 func assertContainsConversationTitle(

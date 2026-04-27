@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"

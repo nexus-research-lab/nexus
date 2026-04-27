@@ -150,33 +150,6 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	}
 }
 
-func TestAgentHistoryStoreSkipsLegacyQueueGuidanceRoundMarkers(t *testing.T) {
-	configRoot := t.TempDir()
-	workspaceRoot := filepath.Join(configRoot, "workspace")
-	workspacePath := filepath.Join(workspaceRoot, "Amy")
-	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
-		t.Fatalf("创建 workspace 失败: %v", err)
-	}
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
-
-	history := NewAgentHistoryStore(workspaceRoot)
-	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
-	if err := history.AppendRoundMarker(workspacePath, sessionKey, "queue_guide_1", "补充要求", 1000, "guide"); err != nil {
-		t.Fatalf("写入旧引导 marker 失败: %v", err)
-	}
-
-	rows, err := history.ReadMessages(workspacePath, protocol.Session{
-		SessionKey: sessionKey,
-		AgentID:    "Amy",
-	}, nil)
-	if err != nil {
-		t.Fatalf("读取历史失败: %v", err)
-	}
-	if len(rows) != 0 {
-		t.Fatalf("旧 queue guide marker 不应物化成用户消息: %+v", rows)
-	}
-}
-
 func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")

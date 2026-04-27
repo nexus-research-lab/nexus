@@ -10,13 +10,15 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
 var providerPattern = regexp.MustCompile(`[^a-z0-9]+`)
 
 // Service 提供 Provider 配置管理与运行时解析。
 type Service struct {
-	repository *repository
+	repository *providerstore.Repository
 	now        func() time.Time
 	idFactory  func(string) string
 }
@@ -24,7 +26,7 @@ type Service struct {
 // NewServiceWithDB 使用共享 DB 创建 Provider 配置服务。
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
-		repository: newRepository(cfg, db),
+		repository: providerstore.NewRepository(cfg, db),
 		now:        func() time.Time { return time.Now().UTC() },
 		idFactory:  newProviderID,
 	}
@@ -36,7 +38,7 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	usageCounts, err := s.repository.listUsageCounts(ctx)
+	usageCounts, err := s.repository.ListUsageCounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +122,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.repository.getByProvider(ctx, normalized.Provider)
+	existing, err := s.repository.GetByProvider(ctx, normalized.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +130,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error
 		return nil, fmt.Errorf("provider 已存在: %s", normalized.Provider)
 	}
 	now := s.now()
-	item := entity{
+	item := providerstore.Entity{
 		ID:          s.idFactory("provider"),
 		Provider:    normalized.Provider,
 		DisplayName: normalized.DisplayName,
@@ -140,7 +142,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err = s.repository.create(ctx, item); err != nil {
+	if err = s.repository.Create(ctx, item); err != nil {
 		return nil, err
 	}
 	if err = s.ensureDefault(ctx, preferredDefault(item)); err != nil {
@@ -155,14 +157,14 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	if err != nil {
 		return nil, err
 	}
-	current, err := s.repository.getByProvider(ctx, normalizedProvider)
+	current, err := s.repository.GetByProvider(ctx, normalizedProvider)
 	if err != nil {
 		return nil, err
 	}
 	if current == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	usageCount, err := s.repository.usageCount(ctx, normalizedProvider)
+	usageCount, err := s.repository.UsageCount(ctx, normalizedProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +176,7 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 		return nil, err
 	}
 	updated.UpdatedAt = s.now()
-	if err = s.repository.update(ctx, updated); err != nil {
+	if err = s.repository.Update(ctx, updated); err != nil {
 		return nil, err
 	}
 	if err = s.ensureDefault(ctx, preferredDefault(updated)); err != nil {
@@ -189,21 +191,21 @@ func (s *Service) Delete(ctx context.Context, provider string) error {
 	if err != nil {
 		return err
 	}
-	current, err := s.repository.getByProvider(ctx, normalizedProvider)
+	current, err := s.repository.GetByProvider(ctx, normalizedProvider)
 	if err != nil {
 		return err
 	}
 	if current == nil {
 		return fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	usageCount, err := s.repository.usageCount(ctx, normalizedProvider)
+	usageCount, err := s.repository.UsageCount(ctx, normalizedProvider)
 	if err != nil {
 		return err
 	}
 	if usageCount > 0 {
 		return fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
 	}
-	if err = s.repository.delete(ctx, normalizedProvider); err != nil {
+	if err = s.repository.Delete(ctx, normalizedProvider); err != nil {
 		return err
 	}
 	return s.ensureDefault(ctx, "")
@@ -218,14 +220,14 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 	if _, err = s.listAndNormalize(ctx); err != nil {
 		return nil, err
 	}
-	item, err := s.repository.getByProvider(ctx, normalizedProvider)
+	item, err := s.repository.GetByProvider(ctx, normalizedProvider)
 	if err != nil {
 		return nil, err
 	}
 	if item == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	usageCount, err := s.repository.usageCount(ctx, item.Provider)
+	usageCount, err := s.repository.UsageCount(ctx, item.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +236,7 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 }
 
 // ResolveRuntimeConfig 解析 Agent 最终运行时要使用的 Provider 配置。
-func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*RuntimeConfig, error) {
+func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*clientopts.RuntimeConfig, error) {
 	items, err := s.listAndNormalize(ctx)
 	if err != nil {
 		return nil, err
@@ -244,7 +246,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*R
 		return nil, err
 	}
 
-	var target *entity
+	var target *providerstore.Entity
 	if targetProvider != "" {
 		for index := range items {
 			if items[index].Provider == targetProvider {
@@ -283,7 +285,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*R
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
 	}
-	return &RuntimeConfig{
+	return &clientopts.RuntimeConfig{
 		Provider:    target.Provider,
 		DisplayName: target.DisplayName,
 		AuthToken:   target.AuthToken,
@@ -308,8 +310,8 @@ func NormalizeProvider(provider string, allowEmpty bool) (string, error) {
 	return normalized, nil
 }
 
-func (s *Service) listAndNormalize(ctx context.Context) ([]entity, error) {
-	items, err := s.repository.list(ctx)
+func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
+	items, err := s.repository.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -318,13 +320,13 @@ func (s *Service) listAndNormalize(ctx context.Context) ([]entity, error) {
 		return nil, err
 	}
 	if changed {
-		return s.repository.list(ctx)
+		return s.repository.List(ctx)
 	}
 	return items, nil
 }
 
 func (s *Service) ensureDefault(ctx context.Context, preferred string) error {
-	items, err := s.repository.list(ctx)
+	items, err := s.repository.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -332,7 +334,7 @@ func (s *Service) ensureDefault(ctx context.Context, preferred string) error {
 	return err
 }
 
-func (s *Service) ensureDefaultFromItems(ctx context.Context, items []entity, preferred string) (bool, error) {
+func (s *Service) ensureDefaultFromItems(ctx context.Context, items []providerstore.Entity, preferred string) (bool, error) {
 	target := strings.TrimSpace(preferred)
 	if target == "" {
 		for _, item := range items {
@@ -365,12 +367,12 @@ func (s *Service) ensureDefaultFromItems(ctx context.Context, items []entity, pr
 		if currentDefaultCount == 0 {
 			return false, nil
 		}
-		return true, s.repository.updateDefaultFlags(ctx, "")
+		return true, s.repository.UpdateDefaultFlags(ctx, "")
 	}
 	if currentTargetIsDefault && currentDefaultCount == 1 {
 		return false, nil
 	}
-	return true, s.repository.updateDefaultFlags(ctx, target)
+	return true, s.repository.UpdateDefaultFlags(ctx, target)
 }
 
 func normalizeCreateInput(input CreateInput) (CreateInput, error) {
@@ -402,25 +404,25 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 	return result, nil
 }
 
-func normalizeUpdateInput(current entity, input UpdateInput) (entity, error) {
+func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (providerstore.Entity, error) {
 	displayName := strings.TrimSpace(input.DisplayName)
 	if displayName == "" {
-		return entity{}, errors.New("display_name 不能为空")
+		return providerstore.Entity{}, errors.New("display_name 不能为空")
 	}
 	baseURL := strings.TrimSpace(input.BaseURL)
 	if baseURL == "" {
-		return entity{}, errors.New("base_url 不能为空")
+		return providerstore.Entity{}, errors.New("base_url 不能为空")
 	}
 	model := strings.TrimSpace(input.Model)
 	if model == "" {
-		return entity{}, errors.New("model 不能为空")
+		return providerstore.Entity{}, errors.New("model 不能为空")
 	}
 	authToken := current.AuthToken
 	if input.AuthToken != nil {
 		authToken = strings.TrimSpace(*input.AuthToken)
 	}
 	if authToken == "" {
-		return entity{}, errors.New("auth_token 不能为空")
+		return providerstore.Entity{}, errors.New("auth_token 不能为空")
 	}
 	current.DisplayName = displayName
 	current.AuthToken = authToken
@@ -431,14 +433,14 @@ func normalizeUpdateInput(current entity, input UpdateInput) (entity, error) {
 	return current, nil
 }
 
-func preferredDefault(item entity) string {
+func preferredDefault(item providerstore.Entity) string {
 	if item.Enabled && item.IsDefault {
 		return item.Provider
 	}
 	return ""
 }
 
-func toRecord(item entity, usageCount int) Record {
+func toRecord(item providerstore.Entity, usageCount int) Record {
 	createdAt := item.CreatedAt
 	updatedAt := item.UpdatedAt
 	return Record{

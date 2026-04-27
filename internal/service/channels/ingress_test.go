@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
+	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -19,11 +19,11 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
-type fakeIngressChatHandler struct {
-	requests []chatsvc.Request
+type fakeIngressDMHandler struct {
+	requests []dmsvc.Request
 }
 
-func (f *fakeIngressChatHandler) HandleChat(_ context.Context, request chatsvc.Request) error {
+func (f *fakeIngressDMHandler) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.requests = append(f.requests, request)
 	return nil
 }
@@ -34,7 +34,7 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 	defer db.Close()
 
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
-	handler := &fakeIngressChatHandler{}
+	handler := &fakeIngressDMHandler{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
 	service := NewIngressService(cfg, agentService, handler, router)
 
@@ -86,7 +86,7 @@ func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) 
 	defer db.Close()
 
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
-	handler := &fakeIngressChatHandler{}
+	handler := &fakeIngressDMHandler{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
 	service := NewIngressService(cfg, agentService, handler, router)
 

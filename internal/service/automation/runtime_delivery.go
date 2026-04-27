@@ -4,18 +4,21 @@ import (
 	"context"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
 
 func (s *Service) deliverJobObservation(
-	job CronJob,
+	job protocol.CronJob,
 	executionSessionKey string,
-	observation executionObservation,
+	observation automationdomain.ExecutionObservation,
 ) *string {
-	if strings.TrimSpace(job.Delivery.Mode) == "" || strings.TrimSpace(job.Delivery.Mode) == DeliveryModeNone {
+	if strings.TrimSpace(job.Delivery.Mode) == "" || strings.TrimSpace(job.Delivery.Mode) == protocol.DeliveryModeNone {
 		return nil
 	}
-	if strings.TrimSpace(job.Delivery.Mode) == DeliveryModeExplicit &&
+	if strings.TrimSpace(job.Delivery.Mode) == protocol.DeliveryModeExplicit &&
 		strings.TrimSpace(job.Delivery.Channel) == "websocket" &&
 		strings.TrimSpace(job.Delivery.To) != "" &&
 		strings.TrimSpace(job.Delivery.To) == strings.TrimSpace(executionSessionKey) {
@@ -41,16 +44,16 @@ func (s *Service) deliverJobObservation(
 
 func (s *Service) deliverHeartbeatObservation(
 	agentID string,
-	configValue HeartbeatConfig,
-	observation executionObservation,
+	configValue protocol.HeartbeatConfig,
+	observation automationdomain.ExecutionObservation,
 ) *string {
-	if strings.TrimSpace(configValue.TargetMode) == "" || strings.TrimSpace(configValue.TargetMode) == HeartbeatTargetNone {
+	if strings.TrimSpace(configValue.TargetMode) == "" || strings.TrimSpace(configValue.TargetMode) == protocol.HeartbeatTargetNone {
 		return nil
 	}
 	if s.delivery == nil {
 		return stringPointer("delivery router is not configured")
 	}
-	filtered := filterHeartbeatResponse(
+	filtered := automationdomain.FilterHeartbeatResponse(
 		firstNonEmpty(strings.TrimSpace(observation.ResultText), strings.TrimSpace(observation.AssistantText)),
 		configValue.AckMaxChars,
 	)

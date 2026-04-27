@@ -2,11 +2,9 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 )
 
-func newLauncherCommand(service *launcher.Service) *cobra.Command {
+func newLauncherCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "launcher",
 		Short: "launcher 领域命令",
@@ -18,6 +16,11 @@ func newLauncherCommand(service *launcher.Service) *cobra.Command {
 			Use:   "query",
 			Short: "解析 Launcher 查询",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Launcher
 				item, err := service.Query(commandContext(cmd), query)
 				if err != nil {
 					return err
@@ -38,6 +41,11 @@ func newLauncherCommand(service *launcher.Service) *cobra.Command {
 		Use:   "suggestions",
 		Short: "读取 Launcher 推荐列表",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Launcher
 			item, err := service.Suggestions(commandContext(cmd))
 			if err != nil {
 				return err

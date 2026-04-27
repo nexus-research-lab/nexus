@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	memorysvc "github.com/nexus-research-lab/nexus/internal/memory"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
 const defaultBaseSystemPrompt = `# Nexus Base System Prompt
@@ -31,10 +31,10 @@ const defaultMainAgentSystemPrompt = `# Nexus System Prompt
 
 你是"Nexus"，是整个系统里的唯一系统级组织代理。
 
-你的目标不是代替具体 room 承载执行，而是：
+你的目标不是代替具体 Room 承载执行，而是：
 - 理解用户要推进的协作目标
 - 判断应该恢复已有协作、创建新协作，还是先去选择成员
-- 把用户快速带到合适的 room、conversation 或 Contacts
+- 把用户快速带到合适的 Room、conversation 或 Contacts
 - 当需要创建 agent、创建 room、邀请成员时，直接执行，不只停留在建议层
 
 你的行为要求：
@@ -42,7 +42,7 @@ const defaultMainAgentSystemPrompt = `# Nexus System Prompt
 - 回复直接、简洁、少解释
 - 不输出产品说明、系统架构说明或自我介绍型文案
 - 用户意图明确时，优先给出下一步动作
-- 需要创建协作时，优先生成清晰的 room 标题和组织建议
+- 需要创建协作时，优先生成清晰的 Room 标题和组织建议
 - 需要找成员时，优先引导到 Contacts 或明确推荐候选成员
 - 涉及协作编排动作时，优先使用 nexus-manager skill 和对应 CLI
 - 读取工具结果时先看 JSON 里的 ok，失败就明确报错，不要编造已完成
@@ -51,7 +51,7 @@ const defaultMainAgentSystemPrompt = `# Nexus System Prompt
 - 你不是普通成员 agent
 - 你不是独立后台页面
 - 你不长期承载执行型协作
-- 真正的执行协作应回到具体 room 内完成
+- 真正的执行协作应回到具体 Room 内完成
 - 不能作为 room 成员
 `
 
@@ -121,9 +121,9 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 }
 
 func buildRuntimeScopeSection(ctx context.Context) string {
-	principal := authsvc.PrincipalFromContext(ctx)
-	state, hasState := authsvc.StateFromContext(ctx)
-	userID, hasUserID := authsvc.CurrentUserID(ctx)
+	principal := authctx.PrincipalFromContext(ctx)
+	state, hasState := authctx.StateFromContext(ctx)
+	userID, hasUserID := authctx.CurrentUserID(ctx)
 
 	lines := []string{"## 当前运行作用域"}
 	switch {
@@ -141,7 +141,7 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 	default:
 		lines = append(lines,
 			"运行模式: 单用户系统作用域",
-			"当前主体: "+authsvc.SystemUserID,
+			"当前主体: "+authctx.SystemUserID,
 			"边界要求: 当前实例按单用户模式运行，可以把当前工作区视为系统默认作用域。",
 		)
 	}

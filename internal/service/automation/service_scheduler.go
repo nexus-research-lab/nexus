@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
+	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
@@ -50,7 +51,7 @@ func (s *Service) runLoop(ctx context.Context) {
 func (s *Service) runDueOnce() {
 	now := s.nowFn()
 
-	dueJobs := make([]CronJob, 0)
+	dueJobs := make([]protocol.CronJob, 0)
 	dueHeartbeats := make([]string, 0)
 
 	s.mu.Lock()
@@ -99,7 +100,7 @@ func (s *Service) runDueOnce() {
 	}
 }
 
-func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKind string, scheduledFor time.Time) (*ExecutionResult, error) {
+func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, triggerKind string, scheduledFor time.Time) (*protocol.ExecutionResult, error) {
 	logger := s.loggerFor(ctx).With(
 		"job_id", job.JobID,
 		"agent_id", job.AgentID,
@@ -109,21 +110,21 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 		logger.Error("自动化任务目标校验失败", "err", err)
 		return nil, err
 	}
-	if strings.TrimSpace(job.SessionTarget.Kind) == SessionTargetMain {
+	if strings.TrimSpace(job.SessionTarget.Kind) == protocol.SessionTargetMain {
 		eventID, err := s.enqueueMainSessionEvent(ctx, job, triggerKind)
 		if err != nil {
 			return nil, err
 		}
 		mode := job.SessionTarget.WakeMode
 		if mode == "" {
-			mode = WakeModeNextHeartbeat
+			mode = protocol.WakeModeNextHeartbeat
 		}
-		if _, err := s.WakeHeartbeat(ctx, job.AgentID, HeartbeatWakeRequest{Mode: mode}); err != nil {
+		if _, err := s.WakeHeartbeat(ctx, job.AgentID, protocol.HeartbeatWakeRequest{Mode: mode}); err != nil {
 			_ = s.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
 			logger.Error("自动化任务唤醒主会话 heartbeat 失败", "err", err)
 			return nil, err
 		}
-		sessionKey, err := resolveSessionKey(job, nil)
+		sessionKey, err := automationdomain.ResolveSessionKey(job, nil)
 		if err != nil {
 			logger.Error("自动化任务解析主会话键失败", "err", err)
 			return nil, err
@@ -132,9 +133,9 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 			"session_key", sessionKey,
 			"wake_mode", mode,
 		)
-		return &ExecutionResult{
+		return &protocol.ExecutionResult{
 			JobID:        job.JobID,
-			Status:       RunStatusQueuedToMain,
+			Status:       protocol.RunStatusQueuedToMain,
 			SessionKey:   sessionKey,
 			ScheduledFor: cloneTimePointer(&scheduledFor),
 		}, nil
@@ -151,7 +152,7 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 	s.mu.Unlock()
 
 	runID := s.idFactory("run")
-	sessionKey, err := resolveSessionKey(job, &runID)
+	sessionKey, err := automationdomain.ResolveSessionKey(job, &runID)
 	if err != nil {
 		s.finishJobRuntime(job.JobID, nil, false)
 		logger.Error("自动化任务解析执行会话键失败", "run_id", runID, "err", err)
@@ -172,14 +173,14 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 		"round_id", roundID,
 		"session_key", sessionKey,
 	)
-	sink := newExecutionSink("automation:" + runID)
+	sink := automationdomain.NewExecutionSink("automation:" + runID)
 	cleanup := s.bindSink(sessionKey, sink)
 	if err := s.dispatchToSession(ctx, sessionKey, roundID, job.AgentID, job.Instruction); err != nil {
 		cleanup()
 		sink.Close()
 		finishedAt := s.nowFn()
 		message := err.Error()
-		_ = s.repository.MarkRunFinished(context.Background(), runID, RunStatusFailed, finishedAt, &message)
+		_ = s.repository.MarkRunFinished(context.Background(), runID, protocol.RunStatusFailed, finishedAt, &message)
 		s.finishJobRuntime(job.JobID, &finishedAt, false)
 		logger.Error("自动化任务下发失败",
 			"run_id", runID,
@@ -192,10 +193,10 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 
 	go s.observeJobRun(job, runID, roundID, sessionKey, sink, cleanup)
 
-	return &ExecutionResult{
+	return &protocol.ExecutionResult{
 		JobID:        job.JobID,
 		RunID:        &runID,
-		Status:       RunStatusRunning,
+		Status:       protocol.RunStatusRunning,
 		SessionKey:   sessionKey,
 		ScheduledFor: cloneTimePointer(&scheduledFor),
 		RoundID:      &roundID,
@@ -204,29 +205,29 @@ func (s *Service) startJobExecution(ctx context.Context, job CronJob, triggerKin
 }
 
 func (s *Service) observeJobRun(
-	job CronJob,
+	job protocol.CronJob,
 	runID string,
 	roundID string,
 	sessionKey string,
-	sink *executionSink,
+	sink *automationdomain.ExecutionSink,
 	cleanup func(),
 ) {
 	defer cleanup()
 	defer sink.Close()
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), waitTimeout(0))
+	waitCtx, cancel := context.WithTimeout(context.Background(), automationdomain.WaitTimeout(0))
 	defer cancel()
 	observation := sink.WaitForRound(waitCtx, roundID)
 
 	finishedAt := s.nowFn()
 	status := observation.Status
 	if status == "" {
-		status = RunStatusFailed
+		status = protocol.RunStatusFailed
 	}
 	errorMessage := cloneStringPointer(observation.ErrorMessage)
-	if status == RunStatusSucceeded {
+	if status == protocol.RunStatusSucceeded {
 		if deliveryError := s.deliverJobObservation(job, sessionKey, observation); deliveryError != nil {
-			status = RunStatusFailed
+			status = protocol.RunStatusFailed
 			errorMessage = deliveryError
 		}
 	}
@@ -251,10 +252,10 @@ func (s *Service) observeJobRun(
 		)
 	}
 	_ = s.repository.MarkRunFinished(context.Background(), runID, status, finishedAt, errorMessage)
-	s.finishJobRuntime(job.JobID, &finishedAt, status == RunStatusSucceeded)
+	s.finishJobRuntime(job.JobID, &finishedAt, status == protocol.RunStatusSucceeded)
 }
 
-func (s *Service) bindSink(sessionKey string, sink *executionSink) func() {
+func (s *Service) bindSink(sessionKey string, sink *automationdomain.ExecutionSink) func() {
 	if s.permission == nil {
 		return func() {}
 	}
@@ -278,10 +279,10 @@ func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roun
 			ReqID:          roundID,
 		})
 	}
-	if s.chat == nil {
-		return errors.New("automation chat runner is not configured")
+	if s.dm == nil {
+		return errors.New("automation dm runner is not configured")
 	}
-	return s.chat.HandleChat(ctx, chatsvc.Request{
+	return s.dm.HandleChat(ctx, dmsvc.Request{
 		SessionKey: sessionKey,
 		AgentID:    firstNonEmpty(agentID, parsed.AgentID),
 		Content:    instruction,
@@ -290,7 +291,7 @@ func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roun
 	})
 }
 
-func (s *Service) enqueueMainSessionEvent(ctx context.Context, job CronJob, triggerKind string) (string, error) {
+func (s *Service) enqueueMainSessionEvent(ctx context.Context, job protocol.CronJob, triggerKind string) (string, error) {
 	eventID := s.idFactory("evt")
 	if err := s.repository.InsertSystemEvent(
 		ctx,

@@ -15,9 +15,12 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	authstore "github.com/nexus-research-lab/nexus/internal/storage/auth"
 )
 
 var (
+	// ErrUserNotFound 表示用户不存在。
+	ErrUserNotFound = errors.New("user not found")
 	// ErrPasswordLoginDisabled 表示系统未启用密码登录。
 	ErrPasswordLoginDisabled = errors.New("服务端未启用密码登录")
 	// ErrInvalidCredentials 表示用户名或密码无效。
@@ -31,7 +34,7 @@ var (
 // Service 提供统一认证能力。
 type Service struct {
 	config       config.Config
-	repository   *repository
+	repository   *authstore.Repository
 	now          func() time.Time
 	idFactory    func(string) string
 	tokenFactory func() (string, error)
@@ -41,7 +44,7 @@ type Service struct {
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
 		config:       cfg,
-		repository:   newRepository(cfg, db),
+		repository:   authstore.NewRepository(cfg, db),
 		now:          func() time.Time { return time.Now().UTC() },
 		idFactory:    newAuthID,
 		tokenFactory: newSessionToken,
@@ -50,7 +53,11 @@ func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 
 // GetState 返回认证系统状态。
 func (s *Service) GetState(ctx context.Context) (State, error) {
-	return s.repository.loadState(ctx, s.accessTokenEnabled())
+	state, err := s.repository.LoadState(ctx, s.accessTokenEnabled())
+	if err != nil {
+		return State{}, err
+	}
+	return toState(state), nil
 }
 
 // InspectRequest 解析请求身份并返回认证系统状态。
@@ -92,7 +99,7 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 		return nil, errors.New("密码不能为空")
 	}
 
-	user, credential, err := s.repository.getUserWithPasswordByUsername(ctx, username)
+	user, credential, err := s.repository.GetUserWithPasswordByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +119,7 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 	if err != nil {
 		return nil, err
 	}
-	record := sessionRecord{
+	record := authstore.SessionRecord{
 		SessionID:        s.idFactory("sess"),
 		UserID:           user.UserID,
 		SessionTokenHash: hashSessionToken(sessionToken),
@@ -124,13 +131,13 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
-	if err = s.repository.cleanupExpiredSessions(ctx, now); err != nil {
+	if err = s.repository.CleanupExpiredSessions(ctx, now); err != nil {
 		return nil, err
 	}
-	if err = s.repository.createSession(ctx, record); err != nil {
+	if err = s.repository.CreateSession(ctx, record); err != nil {
 		return nil, err
 	}
-	if err = s.repository.updateUserLastLogin(ctx, user.UserID, now); err != nil {
+	if err = s.repository.UpdateUserLastLogin(ctx, user.UserID, now); err != nil {
 		return nil, err
 	}
 
@@ -155,7 +162,7 @@ func (s *Service) Logout(ctx context.Context, sessionToken string) error {
 	if normalizedToken == "" {
 		return nil
 	}
-	return s.repository.revokeSessionByTokenHash(ctx, hashSessionToken(normalizedToken), s.now())
+	return s.repository.RevokeSessionByTokenHash(ctx, hashSessionToken(normalizedToken), s.now())
 }
 
 // InitOwner 初始化第一个 owner 用户。
@@ -185,7 +192,7 @@ func (s *Service) InitOwner(ctx context.Context, input InitOwnerInput) (*User, e
 	}
 
 	now := s.now()
-	user := User{
+	user := authstore.UserRecord{
 		UserID:      s.idFactory("user"),
 		Username:    username,
 		DisplayName: displayName,
@@ -194,7 +201,7 @@ func (s *Service) InitOwner(ctx context.Context, input InitOwnerInput) (*User, e
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	credential := passwordCredential{
+	credential := authstore.PasswordCredential{
 		CredentialID:      s.idFactory("cred"),
 		UserID:            user.UserID,
 		PasswordHash:      passwordHash,
@@ -203,10 +210,10 @@ func (s *Service) InitOwner(ctx context.Context, input InitOwnerInput) (*User, e
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err = s.repository.createUserWithPassword(ctx, user, credential); err != nil {
+	if err = s.repository.CreateUserWithPassword(ctx, user, credential); err != nil {
 		return nil, err
 	}
-	return s.repository.getUserByID(ctx, user.UserID)
+	return s.userByID(ctx, user.UserID)
 }
 
 // CreateUser 创建新的认证用户。
@@ -226,7 +233,7 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.repository.getUserByUsername(ctx, username)
+	existing, err := s.repository.GetUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +246,7 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 		return nil, err
 	}
 	now := s.now()
-	user := User{
+	user := authstore.UserRecord{
 		UserID:      s.idFactory("user"),
 		Username:    username,
 		DisplayName: displayName,
@@ -248,7 +255,7 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	credential := passwordCredential{
+	credential := authstore.PasswordCredential{
 		CredentialID:      s.idFactory("cred"),
 		UserID:            user.UserID,
 		PasswordHash:      passwordHash,
@@ -257,15 +264,23 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err = s.repository.createUserWithPassword(ctx, user, credential); err != nil {
+	if err = s.repository.CreateUserWithPassword(ctx, user, credential); err != nil {
 		return nil, err
 	}
-	return s.repository.getUserByID(ctx, user.UserID)
+	return s.userByID(ctx, user.UserID)
 }
 
 // ListUsers 列出当前全部用户。
 func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
-	return s.repository.listUsers(ctx)
+	records, err := s.repository.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	users := make([]User, 0, len(records))
+	for _, record := range records {
+		users = append(users, toUser(record))
+	}
+	return users, nil
 }
 
 // ResetPassword 重置指定用户密码。
@@ -275,13 +290,13 @@ func (s *Service) ResetPassword(ctx context.Context, input ResetPasswordInput) (
 	}
 
 	var (
-		user *User
+		user *authstore.UserRecord
 		err  error
 	)
 	if strings.TrimSpace(input.UserID) != "" {
-		user, err = s.repository.getUserByID(ctx, input.UserID)
+		user, err = s.repository.GetUserByID(ctx, input.UserID)
 	} else if strings.TrimSpace(input.Username) != "" {
-		user, err = s.repository.getUserByUsername(ctx, strings.TrimSpace(input.Username))
+		user, err = s.repository.GetUserByUsername(ctx, strings.TrimSpace(input.Username))
 	} else {
 		return nil, errors.New("user_id 与 username 至少提供一个")
 	}
@@ -297,7 +312,7 @@ func (s *Service) ResetPassword(ctx context.Context, input ResetPasswordInput) (
 		return nil, err
 	}
 	now := s.now()
-	credential := passwordCredential{
+	credential := authstore.PasswordCredential{
 		CredentialID:      s.idFactory("cred"),
 		UserID:            user.UserID,
 		PasswordHash:      passwordHash,
@@ -306,10 +321,10 @@ func (s *Service) ResetPassword(ctx context.Context, input ResetPasswordInput) (
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err = s.repository.upsertPasswordCredential(ctx, credential); err != nil {
+	if err = s.repository.UpsertPasswordCredential(ctx, credential); err != nil {
 		return nil, err
 	}
-	return s.repository.getUserByID(ctx, user.UserID)
+	return s.userByID(ctx, user.UserID)
 }
 
 // ChangePassword 校验当前密码后修改当前用户密码。
@@ -325,7 +340,7 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 		return nil, err
 	}
 
-	user, credential, err := s.repository.getUserWithPasswordByID(ctx, userID)
+	user, credential, err := s.repository.GetUserWithPasswordByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +360,7 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 		return nil, err
 	}
 	now := s.now()
-	nextCredential := passwordCredential{
+	nextCredential := authstore.PasswordCredential{
 		CredentialID:      s.idFactory("cred"),
 		UserID:            user.UserID,
 		PasswordHash:      passwordHash,
@@ -354,10 +369,10 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err = s.repository.upsertPasswordCredential(ctx, nextCredential); err != nil {
+	if err = s.repository.UpsertPasswordCredential(ctx, nextCredential); err != nil {
 		return nil, err
 	}
-	return s.repository.getUserByID(ctx, user.UserID)
+	return s.userByID(ctx, user.UserID)
 }
 
 // UpdateProfile 更新当前用户的个人资料。
@@ -367,7 +382,7 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 		return nil, errors.New("user_id 不能为空")
 	}
 
-	user, err := s.repository.getUserByID(ctx, userID)
+	user, err := s.repository.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -380,11 +395,11 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 		if avatarErr != nil {
 			return nil, avatarErr
 		}
-		if err = s.repository.updateUserAvatar(ctx, userID, avatar, s.now()); err != nil {
+		if err = s.repository.UpdateUserAvatar(ctx, userID, avatar, s.now()); err != nil {
 			return nil, err
 		}
 	}
-	return s.repository.getUserByID(ctx, userID)
+	return s.userByID(ctx, userID)
 }
 
 // ExtractSessionToken 从请求 Cookie 中提取服务端 Session。
@@ -452,6 +467,40 @@ func (s *Service) buildStatusPayload(state State, principal *Principal) StatusPa
 	return result
 }
 
+func (s *Service) userByID(ctx context.Context, userID string) (*User, error) {
+	record, err := s.repository.GetUserByID(ctx, userID)
+	if err != nil || record == nil {
+		return nil, err
+	}
+	user := toUser(*record)
+	return &user, nil
+}
+
+func toState(state authstore.State) State {
+	return State{
+		SetupRequired:        state.SetupRequired,
+		AuthRequired:         state.AuthRequired,
+		PasswordLoginEnabled: state.PasswordLoginEnabled,
+		AccessTokenEnabled:   state.AccessTokenEnabled,
+		UserCount:            state.UserCount,
+		PasswordUserCount:    state.PasswordUserCount,
+	}
+}
+
+func toUser(record authstore.UserRecord) User {
+	return User{
+		UserID:      record.UserID,
+		Username:    record.Username,
+		DisplayName: record.DisplayName,
+		Role:        record.Role,
+		Status:      record.Status,
+		Avatar:      record.Avatar,
+		LastLoginAt: record.LastLoginAt,
+		CreatedAt:   record.CreatedAt,
+		UpdatedAt:   record.UpdatedAt,
+	}
+}
+
 func (s *Service) resolveRequestPrincipal(ctx context.Context, request *http.Request, state State) (*Principal, error) {
 	if request == nil {
 		return nil, nil
@@ -473,14 +522,14 @@ func (s *Service) resolveRequestPrincipal(ctx context.Context, request *http.Req
 }
 
 func (s *Service) resolveSessionPrincipal(ctx context.Context, sessionToken string) (*Principal, error) {
-	record, user, err := s.repository.getActiveSessionByTokenHash(ctx, hashSessionToken(sessionToken), s.now())
+	record, user, err := s.repository.GetActiveSessionByTokenHash(ctx, hashSessionToken(sessionToken), s.now())
 	if err != nil {
 		return nil, err
 	}
 	if record == nil || user == nil || user.Status != UserStatusActive {
 		return nil, nil
 	}
-	if err = s.repository.touchSession(ctx, record.SessionID, s.now()); err != nil {
+	if err = s.repository.TouchSession(ctx, record.SessionID, s.now()); err != nil {
 		return nil, err
 	}
 	return &Principal{
@@ -513,7 +562,7 @@ func (s *Service) resolveBearerPrincipal(request *http.Request) *Principal {
 		return nil
 	}
 	return &Principal{
-		UserID:      "legacy-access-token",
+		UserID:      "access-token-bootstrap",
 		Username:    "access-token",
 		DisplayName: "ACCESS_TOKEN",
 		Role:        RoleOwner,

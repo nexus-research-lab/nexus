@@ -57,7 +57,7 @@ type SessionKey struct {
 // ErrInvalidSessionKey 表示 session_key 不符合结构化协议。
 var ErrInvalidSessionKey = errors.New("invalid structured session_key")
 
-// StructuredSessionKeyError 对齐前端网关的 422 校验错误。
+// StructuredSessionKeyError 对齐前端 HTTP 入口的 422 校验错误。
 type StructuredSessionKeyError struct {
 	Message string
 }
@@ -116,7 +116,7 @@ func GetSessionKeyValidationError(raw string) string {
 		return ""
 	}
 
-	return "session_key must use structured gateway format"
+	return "session_key must use structured session_key format"
 }
 
 // IsStructuredSessionKey 判断是否合法。

@@ -6,7 +6,7 @@ import (
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
-func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
+func newSessionCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "session",
 		Short: "session 领域命令",
@@ -18,9 +18,13 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "list",
 			Short: "列出会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Session
 				var (
 					items any
-					err   error
 				)
 				if agentID != "" {
 					items, err = service.ListAgentSessions(commandContext(cmd), agentID)
@@ -47,6 +51,11 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "get",
 			Short: "读取单个会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Session
 				item, err := service.GetSession(commandContext(cmd), sessionKey)
 				if err != nil {
 					return err
@@ -73,6 +82,11 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Session
 				item, err := service.CreateSession(commandContext(cmd), sessionsvc.CreateRequest{
 					SessionKey: sessionKey,
 					AgentID:    agentID,
@@ -104,6 +118,11 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "update",
 			Short: "更新会话标题",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Session
 				item, err := service.UpdateSession(commandContext(cmd), sessionKey, sessionsvc.UpdateRequest{
 					Title: &title,
 				})
@@ -129,6 +148,11 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "messages",
 			Short: "读取会话消息",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Session
 				items, err := service.GetSessionMessages(commandContext(cmd), sessionKey)
 				if err != nil {
 					return err
@@ -151,6 +175,11 @@ func newSessionCommand(service *sessionsvc.Service) *cobra.Command {
 			Use:   "delete",
 			Short: "删除会话",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Session
 				if err := service.DeleteSession(commandContext(cmd), sessionKey); err != nil {
 					return err
 				}

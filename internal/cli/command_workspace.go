@@ -2,11 +2,9 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
-func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
+func newWorkspaceCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "workspace",
 		Short: "workspace 领域命令",
@@ -18,6 +16,11 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "list",
 			Short: "列出工作区文件",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Workspace
 				items, err := service.ListFiles(commandContext(cmd), agentID)
 				if err != nil {
 					return err
@@ -41,6 +44,11 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "get",
 			Short: "读取工作区文件",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Workspace
 				item, err := service.GetFile(commandContext(cmd), agentID, path)
 				if err != nil {
 					return err
@@ -67,6 +75,11 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "update",
 			Short: "更新工作区文件",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Workspace
 				item, err := service.UpdateFile(commandContext(cmd), agentID, path, content)
 				if err != nil {
 					return err
@@ -95,6 +108,11 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建工作区条目",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Workspace
 				item, err := service.CreateEntry(commandContext(cmd), agentID, path, entryType, content)
 				if err != nil {
 					return err
@@ -123,6 +141,11 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "rename",
 			Short: "重命名工作区条目",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Workspace
 				item, err := service.RenameEntry(commandContext(cmd), agentID, path, newPath)
 				if err != nil {
 					return err
@@ -150,6 +173,11 @@ func newWorkspaceCommand(service *workspacepkg.Service) *cobra.Command {
 			Use:   "delete",
 			Short: "删除工作区条目",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Workspace
 				item, err := service.DeleteEntry(commandContext(cmd), agentID, path)
 				if err != nil {
 					return err

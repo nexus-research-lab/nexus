@@ -10,9 +10,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	memorysvc "github.com/nexus-research-lab/nexus/internal/memory"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
 func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T) {

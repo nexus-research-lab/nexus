@@ -4,10 +4,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
-func newRoomCommand(service *roomsvc.Service) *cobra.Command {
+func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "room",
 		Short: "room 领域命令",
@@ -17,6 +16,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出全部 Room",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Room
 			items, err := service.ListRooms(commandContext(cmd), 200)
 			if err != nil {
 				return err
@@ -41,6 +45,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建 Room",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.CreateRoom(commandContext(cmd), protocol.CreateRoomRequest{
 					AgentIDs:    agentIDs,
 					Name:        name,
@@ -70,6 +79,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "读取指定 Room",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Room
 			item, err := service.GetRoom(commandContext(cmd), args[0])
 			if err != nil {
 				return err
@@ -87,6 +101,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "读取 Room 上下文",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Room
 			items, err := service.GetRoomContexts(commandContext(cmd), args[0])
 			if err != nil {
 				return err
@@ -105,6 +124,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Use:   "ensure-dm",
 			Short: "获取或创建直聊 Room",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.EnsureDirectRoom(commandContext(cmd), agentID)
 				if err != nil {
 					return err
@@ -132,6 +156,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "更新 Room",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.UpdateRoom(commandContext(cmd), args[0], protocol.UpdateRoomRequest{
 					Name:        name,
 					Description: description,
@@ -158,6 +187,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "删除 Room",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Room
 			if err := service.DeleteRoom(commandContext(cmd), args[0]); err != nil {
 				return err
 			}
@@ -178,6 +212,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "向 Room 添加成员",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.AddRoomMember(commandContext(cmd), args[0], protocol.AddRoomMemberRequest{
 					AgentID: agentID,
 				})
@@ -203,6 +242,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "从 Room 移除成员",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.RemoveRoomMember(commandContext(cmd), args[0], agentID)
 				if err != nil {
 					return err
@@ -226,6 +270,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "创建 Room 话题",
 			Args:  exactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.CreateConversation(commandContext(cmd), args[0], protocol.CreateConversationRequest{
 					Title: title,
 				})
@@ -250,6 +299,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 			Short: "更新 Room 话题",
 			Args:  exactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				service := appServices.Core.Room
 				item, err := service.UpdateConversation(commandContext(cmd), args[0], args[1], protocol.UpdateConversationRequest{
 					Title: title,
 				})
@@ -273,6 +327,11 @@ func newRoomCommand(service *roomsvc.Service) *cobra.Command {
 		Short: "删除 Room 话题",
 		Args:  exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Core.Room
 			item, err := service.DeleteConversation(commandContext(cmd), args[0], args[1])
 			if err != nil {
 				return err

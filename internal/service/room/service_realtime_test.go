@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/message"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -27,10 +27,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
-
-type ChatRequest = roomsvc.ChatRequest
-type InterruptRequest = roomsvc.InterruptRequest
-type InputQueueRequest = roomsvc.InputQueueRequest
 
 var NewRealtimeServiceWithFactory = roomsvc.NewRealtimeServiceWithFactory
 
@@ -175,11 +171,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -387,11 +383,11 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -520,7 +516,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	sender := newRealtimeTestSender("room-sender-think-stream")
 	permission.BindSession(sharedSessionKey, sender, "room-client-think-stream", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         dmContext.Room.ID,
 		ConversationID: dmContext.Conversation.ID,
@@ -622,11 +618,11 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -697,7 +693,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-no-model")
 	permission.BindSession(sharedSessionKey, sender, "client-no-model", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         dmContext.Room.ID,
 		ConversationID: dmContext.Conversation.ID,
@@ -743,11 +739,11 @@ func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *test
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "bypass 助手")
 	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
@@ -790,7 +786,7 @@ func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *test
 	sender := newRealtimeTestSender("room-sender-bypass")
 	permission.BindSession(sharedSessionKey, sender, "client-bypass", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         dmContext.Room.ID,
 		ConversationID: dmContext.Conversation.ID,
@@ -817,11 +813,11 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -860,7 +856,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	sender := newRealtimeTestSender("room-sender-public-mention")
 	permission.BindSession(sharedSessionKey, sender, "client-public-mention", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -896,11 +892,11 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -948,7 +944,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-public-mention-queue")
 	permission.BindSession(sharedSessionKey, sender, "client-public-mention-queue", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -962,7 +958,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID
 	})
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1035,11 +1031,11 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1082,7 +1078,7 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	sender := newRealtimeTestSender("room-sender-user-queue-idle-target")
 	permission.BindSession(sharedSessionKey, sender, "client-user-queue-idle-target", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1096,7 +1092,7 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == amy.AgentID
 	})
 
-	if err = service.HandleInputQueue(ctx, InputQueueRequest{
+	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1139,11 +1135,11 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1174,7 +1170,7 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-no-mention")
 	permission.BindSession(sharedSessionKey, sender, "client-no-mention", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1197,11 +1193,11 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1286,7 +1282,7 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-no-reply")
 	permission.BindSession(sharedSessionKey, sender, "client-no-reply", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1319,11 +1315,11 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1393,7 +1389,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-2")
 	permission.BindSession(sharedSessionKey, sender, "client-1", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1408,7 +1404,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		return countEventType(events, protocol.EventTypeStreamStart) >= 2
 	})
 
-	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
 		t.Fatalf("HandleInterrupt 失败: %v", err)
 	}
 
@@ -1484,11 +1480,11 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1529,7 +1525,7 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-parallel-agents")
 	permission.BindSession(sharedSessionKey, sender, "client-1", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1543,7 +1539,7 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentA.AgentID
 	})
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1570,7 +1566,7 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 		t.Fatalf("助手乙 round 应正常完成: %+v", events)
 	}
 
-	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
 		t.Fatalf("清理活跃 Room round 失败: %v", err)
 	}
 }
@@ -1579,11 +1575,11 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1632,7 +1628,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-queue-running")
 	permission.BindSession(sharedSessionKey, sender, "client-queue-running", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1646,7 +1642,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID
 	})
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1671,7 +1667,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 		t.Fatalf("Room 运行中 slot 未收到排队输入: %+v", sentContents)
 	}
 
-	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
 		t.Fatalf("清理活跃 Room round 失败: %v", err)
 	}
 }
@@ -1680,11 +1676,11 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1733,7 +1729,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	sender := newRealtimeTestSender("room-sender-guide-running")
 	permission.BindSession(sharedSessionKey, sender, "client-guide-running", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1747,7 +1743,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID
 	})
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1798,7 +1794,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		}
 	}
 
-	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
 		t.Fatalf("清理活跃 Room round 失败: %v", err)
 	}
 }
@@ -1807,11 +1803,11 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1853,7 +1849,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	sender := newRealtimeTestSender("room-sender-interrupt-closed-stream")
 	permission.BindSession(sharedSessionKey, sender, "client-1", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -1868,7 +1864,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 		return event.EventType == protocol.EventTypeStreamStart
 	})
 
-	if err = service.HandleInterrupt(ctx, InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
+	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
 		t.Fatalf("HandleInterrupt 失败: %v", err)
 	}
 
@@ -1918,11 +1914,11 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1987,7 +1983,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	sender := newRealtimeTestSender("room-resume-sender")
 	permission.BindSession(sharedSessionKey, sender, "client-room-resume", true)
 
-	if err = service.HandleChat(ctx, ChatRequest{
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,

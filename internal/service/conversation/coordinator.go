@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/nexus-research-lab/nexus/internal/logx"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 )
 

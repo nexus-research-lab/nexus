@@ -2,15 +2,10 @@ package connectors
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,8 +13,11 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/service/connectors/providers"
+	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
+	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	"github.com/nexus-research-lab/nexus/internal/storage"
+	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
 // Info 表示连接器列表项。
@@ -55,16 +53,6 @@ type OAuthClientView struct {
 	ClientID        string    `json:"client_id"`
 	HasClientSecret bool      `json:"has_client_secret"`
 	UpdatedAt       time.Time `json:"updated_at"`
-}
-
-// ConnectionSnapshot 是 Agent MCP 调用 connector REST API 所需的连接快照。
-type ConnectionSnapshot struct {
-	ConnectorID string            `json:"connector_id"`
-	AuthType    string            `json:"auth_type"`
-	APIBaseURL  string            `json:"api_base_url"`
-	AccessToken string            `json:"-"`
-	ShopDomain  string            `json:"shop_domain,omitempty"`
-	Extra       map[string]string `json:"extra,omitempty"`
 }
 
 // AuthURLResult 表示 OAuth 授权地址。
@@ -106,15 +94,15 @@ type Service struct {
 	db         *sql.DB
 	driver     string
 	httpClient *http.Client
-	clients    *oauthClientStore
+	clients    *connectorstore.OAuthClientStore
 }
 
 // NewService 创建连接器服务。
 func NewService(cfg config.Config, db *sql.DB) *Service {
 	driver := storage.NormalizeSQLDriver(cfg.DatabaseDriver)
-	var clients *oauthClientStore
-	if key, err := decodeCredentialKey(cfg.ConnectorCredentialsKey); err == nil {
-		clients = newOAuthClientStore(db, driver, key)
+	var clients *connectorstore.OAuthClientStore
+	if key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey); err == nil {
+		clients = connectorstore.NewOAuthClientStore(db, driver, key)
 	} else if strings.TrimSpace(cfg.ConnectorCredentialsKey) != "" {
 		fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 解析失败，OAuth client DB 配置将不可用")
 	}
@@ -178,13 +166,13 @@ func (s *Service) GetConnectedCount(ctx context.Context) (int, error) {
 }
 
 // ListActiveConnections 列出已连接 connector，暂时保留 ownerUserID 签名供后续 user scope 使用。
-func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]ConnectionSnapshot, error) {
+func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]connectordomain.ConnectionSnapshot, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE state = 'connected'")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	result := []ConnectionSnapshot{}
+	result := []connectordomain.ConnectionSnapshot{}
 	for rows.Next() {
 		var record connectionRecord
 		if err = rows.Scan(
@@ -207,7 +195,7 @@ func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string)
 }
 
 // LoadActiveConnection 读取已连接 connector 的 token 快照。
-func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*ConnectionSnapshot, error) {
+func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*connectordomain.ConnectionSnapshot, error) {
 	// TODO(connector-user-scope): 追加 owner_user_id 过滤 —— 见 Phase 3。
 	query := fmt.Sprintf(
 		"SELECT connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE connector_id = %s AND state = 'connected'",
@@ -229,7 +217,7 @@ func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connect
 	return s.connectionSnapshotFromRecord(record)
 }
 
-func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*ConnectionSnapshot, error) {
+func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connectordomain.ConnectionSnapshot, error) {
 	entry, ok := getConnector(record.ConnectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
@@ -250,7 +238,7 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*Connec
 	delete(parsed, "token")
 	delete(parsed, "bearer_token")
 	shop := connectorFirstNonEmpty(parsed["shop"], parsed["shop_domain"])
-	return &ConnectionSnapshot{
+	return &connectordomain.ConnectionSnapshot{
 		ConnectorID: record.ConnectorID,
 		AuthType:    record.AuthType,
 		APIBaseURL:  entry.APIBaseURL,
@@ -697,7 +685,7 @@ func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
 		record.CredentialsEncrypted = sql.NullString{}
 		return nil
 	}
-	key, err := decodeCredentialKey(s.config.ConnectorCredentialsKey)
+	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
 	if err != nil {
 		if s.config.Debug {
 			fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 未配置，connector credentials 将以明文保存")
@@ -705,7 +693,7 @@ func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
 		}
 		return err
 	}
-	encrypted, err := encryptCredentialPayload(key, []byte(record.Credentials))
+	encrypted, err := credentials.EncryptPayload(key, []byte(record.Credentials))
 	if err != nil {
 		return err
 	}
@@ -716,11 +704,11 @@ func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
 
 func (s *Service) connectionCredentialsPayload(record connectionRecord) ([]byte, error) {
 	if record.CredentialsEncrypted.Valid && strings.TrimSpace(record.CredentialsEncrypted.String) != "" {
-		key, err := decodeCredentialKey(s.config.ConnectorCredentialsKey)
+		key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
 		if err != nil {
 			return nil, err
 		}
-		return decryptCredentialPayload(key, record.CredentialsEncrypted.String)
+		return credentials.DecryptPayload(key, record.CredentialsEncrypted.String)
 	}
 	return []byte(record.Credentials), nil
 }
@@ -768,7 +756,7 @@ func (s *Service) UpsertOAuthClient(ctx context.Context, ownerUserID, connectorI
 	if s.clients == nil {
 		return errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 OAuth 应用凭据")
 	}
-	return s.clients.Upsert(ctx, OAuthClient{
+	return s.clients.Upsert(ctx, connectorstore.OAuthClient{
 		OwnerUserID:  ownerUserID,
 		ConnectorID:  entry.ConnectorID,
 		ClientID:     clientID,
@@ -835,7 +823,7 @@ func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, conn
 
 func (s *Service) listOAuthConfigErrors(ctx context.Context, ownerUserID string) map[string]string {
 	var (
-		records map[string]OAuthClient
+		records map[string]connectorstore.OAuthClient
 		loadErr error
 	)
 	if s.clients != nil {
@@ -967,57 +955,6 @@ func (row stateRow) extra() (map[string]string, error) {
 		result["shop"] = row.ShopDomain
 	}
 	return normalizeExtras(result), nil
-}
-
-func decodeCredentialKey(raw string) ([]byte, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 未配置")
-	}
-	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
-	if err != nil || len(key) != 32 {
-		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 必须是 32 字节 base64")
-	}
-	return key, nil
-}
-
-func encryptCredentialPayload(key []byte, payload []byte) (string, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-	ciphertext := gcm.Seal(nil, nonce, payload, nil)
-	encoded := append(nonce, ciphertext...)
-	return "v1:" + base64.StdEncoding.EncodeToString(encoded), nil
-}
-
-func decryptCredentialPayload(key []byte, payload string) ([]byte, error) {
-	encoded := strings.TrimPrefix(strings.TrimSpace(payload), "v1:")
-	raw, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil, err
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) < gcm.NonceSize() {
-		return nil, errors.New("connector credentials payload 格式不正确")
-	}
-	nonce := raw[:gcm.NonceSize()]
-	ciphertext := raw[gcm.NonceSize():]
-	return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
 func connectorFirstNonEmpty(values ...string) string {

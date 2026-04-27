@@ -1,19 +1,9 @@
 package room
 
 import (
-	"strings"
-
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-const roomNoReplyMarker = "<nexus_room_no_reply/>"
-
-func isRoomNoReplyAssistantMessage(message protocol.Message) bool {
-	if protocol.MessageRole(message) != "assistant" {
-		return false
-	}
-	return strings.TrimSpace(extractHistoryText(message)) == roomNoReplyMarker
-}
 
 func roomEventsReadyForEmission(slot *activeRoomSlot, event protocol.EventMessage) []protocol.EventMessage {
 	if slot == nil {
@@ -44,28 +34,9 @@ func shouldHoldNoReplyCandidateStream(slot *activeRoomSlot, event protocol.Event
 		slot.NoReplyCandidate = false
 		return false
 	}
-	if isNoReplyCandidateStreamEvent(event) {
+	if roomdomain.IsNoReplyCandidateStreamEvent(event) {
 		return true
 	}
 	slot.NoReplyCandidate = false
 	return false
-}
-
-func isNoReplyCandidateStreamEvent(event protocol.EventMessage) bool {
-	eventType := strings.TrimSpace(anyString(event.Data["type"]))
-	switch eventType {
-	case "message_start", "message_delta", "message_stop":
-		return true
-	case "content_block_stop":
-		return true
-	case "content_block_start", "content_block_delta":
-		block, _ := event.Data["content_block"].(map[string]any)
-		if strings.TrimSpace(anyString(block["type"])) != "text" {
-			return false
-		}
-		text := strings.TrimSpace(anyString(block["text"]))
-		return text == "" || strings.HasPrefix(roomNoReplyMarker, text)
-	default:
-		return false
-	}
 }

@@ -3,9 +3,8 @@ package room
 import (
 	"context"
 	"strings"
-	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/message"
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -20,16 +19,15 @@ func buildRoomGuidanceMessage(
 	if slot == nil {
 		return protocol.Message{}
 	}
-	return message.NewGuidedInputMessage(message.GuidedInputMessageInput{
+	return roomdomain.BuildGuidanceMessage(roomdomain.GuidanceMessageInput{
 		SessionKey:     sessionKey,
 		RoomID:         roomID,
 		ConversationID: conversationID,
 		AgentID:        slot.AgentID,
-		RoundID:        slot.AgentRoundID,
+		AgentRoundID:   slot.AgentRoundID,
 		SourceRoundID:  sourceRoundID,
 		Content:        content,
-		SessionID:      slot.SDKSessionID,
-		Timestamp:      time.Now().UnixMilli(),
+		SDKSessionID:   slot.SDKSessionID,
 	})
 }
 
@@ -44,7 +42,7 @@ func (s *RealtimeService) broadcastSlotGuidanceMessage(
 	if len(message) == 0 {
 		return
 	}
-	event := wrapRoomMessageEvent(roomID, conversationID, message, strings.TrimSpace(sourceRoundID))
+	event := roomdomain.WrapMessageEvent(roomID, conversationID, message, strings.TrimSpace(sourceRoundID))
 	event.DeliveryMode = "ephemeral"
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, event)
 }

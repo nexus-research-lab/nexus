@@ -15,9 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/nexus-research-lab/nexus/internal/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 )
 
 const (
@@ -47,7 +47,7 @@ type Request struct {
 }
 
 type providerResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*providercfg.RuntimeConfig, error)
+	ResolveRuntimeConfig(context.Context, string) (*clientopts.RuntimeConfig, error)
 }
 
 type sessionService interface {

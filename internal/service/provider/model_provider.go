@@ -1,6 +1,8 @@
 package provider
 
-import "time"
+import (
+	"time"
+)
 
 // Record 表示对外暴露的 Provider 配置。
 type Record struct {
@@ -49,26 +51,4 @@ type UpdateInput struct {
 	Model       string  `json:"model"`
 	Enabled     bool    `json:"enabled"`
 	IsDefault   bool    `json:"is_default"`
-}
-
-// RuntimeConfig 表示运行时使用的 Provider 解析结果。
-type RuntimeConfig struct {
-	Provider    string
-	DisplayName string
-	AuthToken   string
-	BaseURL     string
-	Model       string
-}
-
-type entity struct {
-	ID          string
-	Provider    string
-	DisplayName string
-	AuthToken   string
-	BaseURL     string
-	Model       string
-	Enabled     bool
-	IsDefault   bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
 }

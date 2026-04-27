@@ -4,53 +4,16 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-type jobRuntimeState struct {
-	Job           CronJob
-	Running       bool
-	NextRunAt     *time.Time
-	LastRunAt     *time.Time
-	FailureStreak int
-}
-
-// 失败重试策略：连续失败不超过 maxFailureRetries 次时，按 retryBackoffs 顺序退避重排。
-// 超过阈值后回退到 Schedule 的正常节奏，由下一个自然触发继续尝试。
-var retryBackoffs = []time.Duration{
-	30 * time.Second,
-	2 * time.Minute,
-	10 * time.Minute,
-}
-
-func retryBackoffFor(streak int) (time.Duration, bool) {
-	if streak <= 0 || streak > len(retryBackoffs) {
-		return 0, false
-	}
-	return retryBackoffs[streak-1], true
-}
-
-type heartbeatRuntimeState struct {
-	Config          HeartbeatConfig
-	Running         bool
-	PendingWake     bool
-	NextRunAt       *time.Time
-	LastHeartbeatAt *time.Time
-	LastAckAt       *time.Time
-	DeliveryError   *string
-}
-
-type heartbeatWakeRequest struct {
-	AgentID    string
-	SessionKey string
-	WakeMode   string
-	Text       string
-}
-
-func (s *Service) ensureJobState(job CronJob) *jobRuntimeState {
+func (s *Service) ensureJobState(job protocol.CronJob) *automationdomain.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	if state == nil {
-		state = &jobRuntimeState{}
+		state = &automationdomain.JobRuntimeState{}
 		s.jobStates[job.JobID] = state
 	}
 	state.Job = job
@@ -62,7 +25,7 @@ func (s *Service) ensureJobState(job CronJob) *jobRuntimeState {
 	}
 	// 启动期发现 at-kind 已过期且仍处于启用态时，主动落库为停用，避免反复检查空 NextRunAt 浪费循环。
 	shouldDisable := job.Enabled &&
-		strings.EqualFold(job.Schedule.Kind, ScheduleKindAt) &&
+		strings.EqualFold(job.Schedule.Kind, protocol.ScheduleKindAt) &&
 		state.NextRunAt == nil
 	jobSnapshot := state.Job
 	s.mu.Unlock()
@@ -73,11 +36,11 @@ func (s *Service) ensureJobState(job CronJob) *jobRuntimeState {
 	return state
 }
 
-func (s *Service) computeJobNext(job CronJob, now time.Time) *time.Time {
+func (s *Service) computeJobNext(job protocol.CronJob, now time.Time) *time.Time {
 	if !job.Enabled {
 		return nil
 	}
-	next, err := ComputeNextRunAt(job.Schedule, now)
+	next, err := automationdomain.ComputeNextRunAt(job.Schedule, now)
 	if err != nil {
 		return nil
 	}
@@ -105,7 +68,7 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, succeede
 	} else {
 		state.FailureStreak++
 		state.NextRunAt = naturalNext
-		if backoff, ok := retryBackoffFor(state.FailureStreak); ok {
+		if backoff, ok := automationdomain.RetryBackoffFor(state.FailureStreak); ok {
 			retryAt := now.UTC().Add(backoff)
 			if naturalNext == nil || retryAt.Before(*naturalNext) {
 				retryCopy := retryAt
@@ -116,7 +79,7 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, succeede
 
 	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
 	shouldDisable := state.Job.Enabled &&
-		strings.EqualFold(state.Job.Schedule.Kind, ScheduleKindAt) &&
+		strings.EqualFold(state.Job.Schedule.Kind, protocol.ScheduleKindAt) &&
 		state.NextRunAt == nil
 	jobSnapshot := state.Job
 	s.mu.Unlock()
@@ -126,7 +89,7 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, succeede
 	}
 }
 
-func (s *Service) disableExpiredJobAsync(job CronJob) {
+func (s *Service) disableExpiredJobAsync(job protocol.CronJob) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()

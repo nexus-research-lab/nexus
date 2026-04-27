@@ -14,8 +14,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	"github.com/nexus-research-lab/nexus/internal/appfs"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )

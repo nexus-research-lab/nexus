@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 var (
@@ -341,8 +341,8 @@ var mainAgentWorkspaceTemplates = map[string]string{
 你的职责：
 - 理解用户当前要推进的协作目标
 - 整理任务、成员、上下文与下一步建议
-- 决定是恢复已有 room，还是创建新的 room
-- 在必要时把用户带到合适的 room 或 Contacts
+- 决定是恢复已有 Room，还是创建新的 Room
+- 在必要时把用户带到合适的 Room 或 Contacts
 
 ## 定时任务路由
 
@@ -366,7 +366,7 @@ var mainAgentWorkspaceTemplates = map[string]string{
 ## 长期记忆
 
 - 用户希望首页中的 Nexus 是唯一系统级 agent
-- Nexus 应负责组织协作，而不是替代 room 承载执行
+- Nexus 应负责组织协作，而不是替代 Room 承载执行
 `,
 	"soul": defaultWorkspaceTemplates["soul"],
 	"tools": `# TOOLS.md
@@ -383,6 +383,6 @@ var mainAgentWorkspaceTemplates = map[string]string{
 
 ### 你的固定任务
 - 识别当前请求更适合恢复已有协作还是创建新协作
-- 当需要多人协作时，先组织成员和结构，再引导进入 room
+- 当需要多人协作时，先组织成员和结构，再引导进入 Room
 `,
 }

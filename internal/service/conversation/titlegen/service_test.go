@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 )
 
 var errTestNotFound = errors.New("not found")
@@ -73,7 +73,7 @@ func TestScheduleUpdatesSessionAndConversationTitle(t *testing.T) {
 	events := &fakeEventBroadcaster{}
 	service := NewService(
 		&fakeProviderResolver{
-			config: &providercfg.RuntimeConfig{
+			config: &clientopts.RuntimeConfig{
 				Provider:  "kimi",
 				AuthToken: "token-1",
 				BaseURL:   server.URL + "/anthropic",
@@ -164,7 +164,7 @@ func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	events := &fakeEventBroadcaster{}
 	service := NewService(
 		&fakeProviderResolver{
-			config: &providercfg.RuntimeConfig{
+			config: &clientopts.RuntimeConfig{
 				Provider:  "glm",
 				AuthToken: "token-2",
 				BaseURL:   server.URL,
@@ -250,7 +250,7 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 	}
 	service := NewService(
 		&fakeProviderResolver{
-			config: &providercfg.RuntimeConfig{
+			config: &clientopts.RuntimeConfig{
 				Provider:  "glm",
 				AuthToken: "token-1",
 				BaseURL:   server.URL,
@@ -279,10 +279,10 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 }
 
 type fakeProviderResolver struct {
-	config *providercfg.RuntimeConfig
+	config *clientopts.RuntimeConfig
 }
 
-func (f *fakeProviderResolver) ResolveRuntimeConfig(_ context.Context, _ string) (*providercfg.RuntimeConfig, error) {
+func (f *fakeProviderResolver) ResolveRuntimeConfig(_ context.Context, _ string) (*clientopts.RuntimeConfig, error) {
 	return f.config, nil
 }
 

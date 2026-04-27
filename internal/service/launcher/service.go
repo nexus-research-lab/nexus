@@ -147,7 +147,7 @@ func (s *Service) Suggestions(ctx context.Context) (SuggestionsResponse, error) 
 
 	roomItems := make([]Suggestion, 0, len(rooms))
 	for _, roomValue := range rooms {
-		if roomValue.Room.RoomType != "room" {
+		if roomValue.Room.RoomType != protocol.RoomTypeGroup {
 			continue
 		}
 		lastActivity := roomValue.Room.UpdatedAt
@@ -204,7 +204,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		roomTypeByID[roomValue.Room.ID] = roomValue.Room.RoomType
 		roomItems = append(roomItems, BootstrapRoom{
 			ID:              roomValue.Room.ID,
-			RoomType:        roomValue.Room.RoomType,
+			RoomType:        normalizeLauncherRoomType(roomValue.Room.RoomType),
 			Name:            roomValue.Room.Name,
 			Avatar:          roomValue.Room.Avatar,
 			DMTargetAgentID: firstRoomAgentID(roomValue),
@@ -263,20 +263,27 @@ func buildBootstrapConversations(
 
 func normalizeBootstrapConversationRoomType(chatType string, roomType string) string {
 	normalizedRoomType := strings.TrimSpace(roomType)
-	if normalizedRoomType == "dm" || normalizedRoomType == "room" {
-		return normalizedRoomType
+	if normalizedRoomType == protocol.RoomTypeDM || normalizedRoomType == protocol.RoomTypeGroup {
+		return normalizeLauncherRoomType(normalizedRoomType)
 	}
-	if strings.TrimSpace(chatType) == "dm" {
-		return "dm"
+	if strings.TrimSpace(chatType) == protocol.RoomTypeDM {
+		return protocol.RoomTypeDM
 	}
 	return "room"
 }
 
 func defaultLauncherConversationTitle(roomType string) string {
-	if roomType == "dm" {
+	if roomType == protocol.RoomTypeDM {
 		return "未命名会话"
 	}
 	return "未命名话题"
+}
+
+func normalizeLauncherRoomType(roomType string) string {
+	if strings.TrimSpace(roomType) == protocol.RoomTypeDM {
+		return protocol.RoomTypeDM
+	}
+	return "room"
 }
 
 func normalizeBootstrapConversationTitle(title string, roomType string) string {
@@ -331,7 +338,7 @@ func (s *Service) findRoomByKeyword(ctx context.Context, keyword string) (*proto
 	}
 
 	for _, roomValue := range rooms {
-		if roomValue.Room.RoomType != "room" {
+		if roomValue.Room.RoomType != protocol.RoomTypeGroup {
 			continue
 		}
 		if strings.ToLower(roomValue.Room.Name) == normalizedKeyword {
@@ -340,7 +347,7 @@ func (s *Service) findRoomByKeyword(ctx context.Context, keyword string) (*proto
 		}
 	}
 	for _, roomValue := range rooms {
-		if roomValue.Room.RoomType != "room" {
+		if roomValue.Room.RoomType != protocol.RoomTypeGroup {
 			continue
 		}
 		if strings.Contains(strings.ToLower(roomValue.Room.Name), normalizedKeyword) {

@@ -3,7 +3,7 @@ package cli
 import (
 	"strings"
 
-	memorysvc "github.com/nexus-research-lab/nexus/internal/memory"
+	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 
 	"github.com/spf13/cobra"
 )

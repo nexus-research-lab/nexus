@@ -14,7 +14,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -25,7 +25,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := bootstrap.NewAgentService(cfg)
+	service, _, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := bootstrap.NewAgentService(cfg)
+	service, _, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := bootstrap.NewAgentService(cfg)
+	service, _, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}

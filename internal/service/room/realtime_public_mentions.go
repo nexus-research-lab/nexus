@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -20,14 +21,14 @@ func (s *RealtimeService) collectPublicMentionWakes(
 	if roundValue == nil || roundValue.Context == nil || slot == nil {
 		return nil
 	}
-	if !isFinalPublicAssistantMessage(message) {
+	if !roomdomain.IsFinalPublicAssistantMessage(message) {
 		return nil
 	}
-	content := strings.TrimSpace(extractAssistantResultText(message))
+	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
 	if content == "" {
 		return nil
 	}
-	targetAgentIDs := ResolveMentionAgentIDs(content, buildRoomMentionAliases(roundValue.Context))
+	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(roundValue.Context))
 	if len(targetAgentIDs) == 0 {
 		return nil
 	}
@@ -35,7 +36,7 @@ func (s *RealtimeService) collectPublicMentionWakes(
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	for _, targetAgentID := range targetAgentIDs {
 		targetAgentID = strings.TrimSpace(targetAgentID)
-		if targetAgentID == "" || targetAgentID == slot.AgentID || !isRoomMemberAgent(roundValue.Context.Members, targetAgentID) {
+		if targetAgentID == "" || targetAgentID == slot.AgentID || !roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
 			continue
 		}
 		if isReciprocalPublicMention(slot, targetAgentID) {
@@ -59,17 +60,6 @@ func isReciprocalPublicMention(slot *activeRoomSlot, targetAgentID string) bool 
 		return false
 	}
 	return strings.TrimSpace(slot.Trigger.SourceAgentID) == strings.TrimSpace(targetAgentID)
-}
-
-func isFinalPublicAssistantMessage(message protocol.Message) bool {
-	if protocol.MessageRole(message) != "assistant" {
-		return false
-	}
-	if message["is_complete"] == true {
-		return true
-	}
-	_, hasResultSummary := message["result_summary"]
-	return hasResultSummary
 }
 
 func (s *RealtimeService) enqueuePublicMentionWake(roundValue *activeRoomRound, wake publicMentionWake) {
@@ -240,8 +230,8 @@ func (s *RealtimeService) startPublicMentionRound(
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
 	s.runtime.StartRound(sessionKey, roundID, cancel)
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, wrapRoomRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, wrapRoomChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, roundID, pending))
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, roundID, pending))
 	s.broadcastSessionStatus(ctx, sessionKey)
 	go s.runRound(roundCtx, activeRound, publicHistory, agentNameByID, agentByID)
 	return nil
@@ -341,7 +331,7 @@ func buildPublicMentionSlot(
 		MessageID:     strings.TrimSpace(wake.MessageID),
 		SourceAgentID: strings.TrimSpace(wake.SourceAgentID),
 		TargetAgentID: strings.TrimSpace(wake.TargetAgentID),
-		Metadata:      buildPublicMentionTriggerMetadata(targetAgentIDs, index, agentNameByID),
+		Metadata:      roomdomain.BuildPublicMentionTriggerMetadata(targetAgentIDs, index, agentNameByID),
 	}
 	return &activeRoomSlot{
 		RoomSessionID:     sessionRecord.ID,
@@ -359,41 +349,6 @@ func buildPublicMentionSlot(
 	}
 }
 
-func buildPublicMentionTriggerMetadata(targetAgentIDs []string, targetIndex int, agentNameByID map[string]string) map[string]any {
-	targets := make([]string, 0, len(targetAgentIDs))
-	targetNames := make([]string, 0, len(targetAgentIDs))
-	for _, targetAgentID := range targetAgentIDs {
-		targetAgentID = strings.TrimSpace(targetAgentID)
-		if targetAgentID == "" {
-			continue
-		}
-		targets = append(targets, targetAgentID)
-		targetNames = append(targetNames, firstNonEmpty(agentNameByID[targetAgentID], targetAgentID))
-	}
-	if len(targets) == 0 {
-		return nil
-	}
-	return map[string]any{
-		"public_mention_target_count": len(targets),
-		"public_mention_target_ids":   targets,
-		"public_mention_target_index": targetIndex,
-		"public_mention_target_names": targetNames,
-	}
-}
-
-func isRoomMemberAgent(members []protocol.MemberRecord, agentID string) bool {
-	agentID = strings.TrimSpace(agentID)
-	if agentID == "" {
-		return false
-	}
-	for _, member := range members {
-		if member.MemberType == protocol.MemberTypeAgent && strings.TrimSpace(member.MemberAgentID) == agentID {
-			return true
-		}
-	}
-	return false
-}
-
 func findRoomSessionForAgent(sessions []protocol.SessionRecord, agentID string) (protocol.SessionRecord, bool) {
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" {
@@ -405,33 +360,4 @@ func findRoomSessionForAgent(sessions []protocol.SessionRecord, agentID string) 
 		}
 	}
 	return protocol.SessionRecord{}, false
-}
-
-func buildRoomMentionAliases(contextValue *protocol.ConversationContextAggregate) map[string]string {
-	if contextValue == nil {
-		return nil
-	}
-	aliases := make(map[string]string, len(contextValue.MemberAgents)*3)
-	for _, agentValue := range contextValue.MemberAgents {
-		agentID := strings.TrimSpace(agentValue.AgentID)
-		if agentID == "" {
-			continue
-		}
-		for _, candidate := range []string{agentValue.Name, agentValue.DisplayName, agentID} {
-			alias := strings.TrimSpace(candidate)
-			if alias != "" {
-				aliases[alias] = agentID
-				aliases[strings.ToLower(alias)] = agentID
-			}
-		}
-	}
-	for _, member := range contextValue.Members {
-		if member.MemberType != protocol.MemberTypeAgent || strings.TrimSpace(member.MemberAgentID) == "" {
-			continue
-		}
-		if _, exists := aliases[member.MemberAgentID]; !exists {
-			aliases[member.MemberAgentID] = member.MemberAgentID
-		}
-	}
-	return aliases
 }

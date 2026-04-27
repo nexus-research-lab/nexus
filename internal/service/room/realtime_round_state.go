@@ -8,6 +8,7 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -54,14 +55,7 @@ type activeRoomRound struct {
 	doneOnce       sync.Once
 }
 
-type roomTrigger struct {
-	TriggerType   string
-	Content       string
-	MessageID     string
-	SourceAgentID string
-	TargetAgentID string
-	Metadata      map[string]any
-}
+type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
 	SourceAgentID string
@@ -76,7 +70,7 @@ type roomQueuedInput struct {
 }
 
 type roomRoundMapperAdapter struct {
-	mapper *slotMessageMapper
+	mapper *roomdomain.SlotMessageMapper
 }
 
 func (a roomRoundMapperAdapter) Map(

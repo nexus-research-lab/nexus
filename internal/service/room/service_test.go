@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -35,11 +35,11 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
@@ -146,11 +146,11 @@ func TestRoomServiceAllowsMainAgentDirectRoom(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -190,11 +190,11 @@ func TestRoomServiceRejectsMainAgentAsGroupMember(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -218,11 +218,11 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := bootstrap.NewAgentService(cfg)
+	agentService, db, err := serverapp.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := bootstrap.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}

@@ -47,6 +47,36 @@ func resultStatus(subtype any) string {
 	}
 }
 
+func anyString(value any) string {
+	typed, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return typed
+}
+
+func intValue(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func roomTargetResolution(targetAgentIDs []string) string {
 	if len(targetAgentIDs) > 0 {
 		return "mention"

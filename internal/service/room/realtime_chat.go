@@ -8,9 +8,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 )
 
@@ -31,7 +32,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
-	targetAgentIDs := ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
+	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
 	targetResolution := roomTargetResolution(targetAgentIDs)
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 	if len(targetAgentIDs) == 0 && len(agentNameByID) == 1 {
@@ -68,7 +69,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 		targetAgentIDs = filterQueuedAgentIDs(targetAgentIDs, guidedAgentIDs)
 		if len(targetAgentIDs) == 0 {
-			s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(
+			s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 				sessionKey,
 				roomID,
 				conversationID,
@@ -103,7 +104,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
 		return err
 	}
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomMessageEvent(roomID, conversationID, userMessage, request.RoundID))
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
 	s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
 
 	if len(targetAgentIDs) == 0 {
@@ -113,7 +114,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			"conversation_id", conversationID,
 			"round_id", request.RoundID,
 		)
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 			sessionKey,
 			roomID,
 			conversationID,
@@ -144,14 +145,14 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			ctx,
 			sessionKey,
 			roomID,
-			wrapRoomMessageEvent(
+			roomdomain.WrapMessageEvent(
 				roomID,
 				conversationID,
 				message.ProjectResultMessage(nil, hintMessage),
 				request.RoundID,
 			),
 		)
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "finished", "success"))
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "finished", "success"))
 		return nil
 	}
 	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
@@ -168,7 +169,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 		targetAgentIDs = filterQueuedAgentIDs(targetAgentIDs, queuedAgentIDs)
 		if len(targetAgentIDs) == 0 {
-			s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(
+			s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 				sessionKey,
 				roomID,
 				conversationID,
@@ -205,7 +206,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		Context:        contextValue,
 		RoundID:        request.RoundID,
 		RootRoundID:    request.RoundID,
-		OwnerUserID:    authsvc.OwnerUserID(ctx),
+		OwnerUserID:    authctx.OwnerUserID(ctx),
 		Slots:          make(map[string]*activeRoomSlot),
 		Done:           make(chan struct{}),
 	}
@@ -256,7 +257,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			"conversation_id", conversationID,
 			"round_id", request.RoundID,
 		)
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 			sessionKey,
 			roomID,
 			conversationID,
@@ -264,8 +265,8 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			request.RoundID,
 			[]map[string]any{},
 		))
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, s.newRoomErrorEvent(sessionKey, roomID, conversationID, "room_error", "Room 中没有可用成员会话", request.RoundID))
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "error", "error"))
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "room_error", "Room 中没有可用成员会话", request.RoundID))
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "error", "error"))
 		return nil
 	}
 
@@ -274,8 +275,8 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.registerRound(activeRound)
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, wrapRoomChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)

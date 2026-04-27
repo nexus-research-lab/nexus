@@ -10,27 +10,28 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
-	chatsvc "github.com/nexus-research-lab/nexus/internal/service/chat"
+	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type fakeChatRunner struct {
+type fakeDMRunner struct {
 	permission    *permissionctx.Context
 	resultText    string
 	assistantText string
 
 	mu       sync.Mutex
-	requests []chatsvc.Request
+	requests []dmsvc.Request
 }
 
-func (f *fakeChatRunner) HandleChat(_ context.Context, request chatsvc.Request) error {
+func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.mu.Lock()
 	f.requests = append(f.requests, request)
 	f.mu.Unlock()
@@ -81,10 +82,10 @@ func (f *fakeChatRunner) HandleChat(_ context.Context, request chatsvc.Request) 
 	return nil
 }
 
-func (f *fakeChatRunner) Requests() []chatsvc.Request {
+func (f *fakeDMRunner) Requests() []dmsvc.Request {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	result := make([]chatsvc.Request, len(f.requests))
+	result := make([]dmsvc.Request, len(f.requests))
 	copy(result, f.requests)
 	return result
 }
@@ -152,32 +153,32 @@ func (f *fakeRuntimeSessionCloser) Calls() []string {
 func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{permission: permission}
+	dm := &fakeDMRunner{permission: permission}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), CreateJobInput{
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "日报同步",
 		AgentID:     "agent-1",
 		Instruction: "整理今天的进展",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{
-			Kind:            SessionTargetBound,
+		SessionTarget: protocol.SessionTarget{
+			Kind:            protocol.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "manual", ""),
 		},
-		Delivery: DeliveryTarget{Mode: DeliveryModeNone},
+		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -188,7 +189,7 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow 失败: %v", err)
 	}
-	if result.Status != RunStatusRunning {
+	if result.Status != protocol.RunStatusRunning {
 		t.Fatalf("期望立即返回 running，实际为 %s", result.Status)
 	}
 
@@ -197,7 +198,7 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].Status == RunStatusSucceeded
+		return items[0].Status == protocol.RunStatusSucceeded
 	})
 
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
@@ -207,13 +208,13 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if len(runs) != 1 {
 		t.Fatalf("期望 1 条 run 记录，实际 %d", len(runs))
 	}
-	if runs[0].Status != RunStatusSucceeded {
+	if runs[0].Status != protocol.RunStatusSucceeded {
 		t.Fatalf("期望 run 成功，实际 %s", runs[0].Status)
 	}
 
-	requests := chat.Requests()
+	requests := dm.Requests()
 	if len(requests) != 1 {
-		t.Fatalf("期望 chat runner 收到 1 次请求，实际 %d", len(requests))
+		t.Fatalf("期望 dm runner 收到 1 次请求，实际 %d", len(requests))
 	}
 	if requests[0].Content != "整理今天的进展" {
 		t.Fatalf("下发指令不正确: %s", requests[0].Content)
@@ -223,12 +224,12 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{permission: permission}
+	dm := &fakeDMRunner{permission: permission}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{
@@ -239,18 +240,18 @@ func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
 		nil,
 	)
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 1800,
-		TargetMode:   HeartbeatTargetNone,
+		TargetMode:   protocol.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
 
 	text := "请额外检查告警列表"
-	result, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
-		Mode: WakeModeNow,
+	result, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
+		Mode: protocol.WakeModeNow,
 		Text: &text,
 	})
 	if err != nil {
@@ -276,11 +277,11 @@ func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
 		t.Fatalf("heartbeat 状态没有正确更新: %+v", status)
 	}
 
-	requests := chat.Requests()
+	requests := dm.Requests()
 	if len(requests) != 1 {
 		t.Fatalf("期望主会话收到 1 次 heartbeat 请求，实际 %d", len(requests))
 	}
-	if requests[0].SessionKey != buildMainSessionKey("agent-1") {
+	if requests[0].SessionKey != automationdomain.BuildMainSessionKey("agent-1") {
 		t.Fatalf("heartbeat 主会话键错误: %s", requests[0].SessionKey)
 	}
 	if !strings.Contains(requests[0].Content, "检查今日待办并汇总异常") || !strings.Contains(requests[0].Content, text) {
@@ -291,12 +292,12 @@ func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
 func TestServiceStartRunsDueTask(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{permission: permission}
+	dm := &fakeDMRunner{permission: permission}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
@@ -306,20 +307,20 @@ func TestServiceStartRunsDueTask(t *testing.T) {
 		return time.Now().UTC()
 	}
 
-	_, err := service.CreateTask(context.Background(), CreateJobInput{
+	_, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "定时巡检",
 		AgentID:     "agent-1",
 		Instruction: "执行自动巡检",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(1),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{
-			Kind:            SessionTargetBound,
+		SessionTarget: protocol.SessionTarget{
+			Kind:            protocol.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "scheduler", ""),
 		},
-		Delivery: DeliveryTarget{Mode: DeliveryModeNone},
+		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -332,7 +333,7 @@ func TestServiceStartRunsDueTask(t *testing.T) {
 	defer service.Stop()
 
 	waitFor(t, 3*time.Second, func() bool {
-		return len(chat.Requests()) > 0
+		return len(dm.Requests()) > 0
 	})
 }
 
@@ -340,7 +341,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	workspacePath := t.TempDir()
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{
+	dm := &fakeDMRunner{
 		permission: permission,
 		resultText: "巡检完成：CPU 使用率正常",
 	}
@@ -375,27 +376,27 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
 		router,
 	)
 
-	task, err := service.CreateTask(context.Background(), CreateJobInput{
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "主动巡检播报",
 		AgentID:     "agent-1",
 		Instruction: "执行巡检并输出结果",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{
-			Kind:            SessionTargetNamed,
+		SessionTarget: protocol.SessionTarget{
+			Kind:            protocol.SessionTargetNamed,
 			NamedSessionKey: "ops-bot",
 		},
-		Delivery: DeliveryTarget{Mode: DeliveryModeLast},
+		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeLast},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -410,7 +411,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].Status == RunStatusSucceeded
+		return items[0].Status == protocol.RunStatusSucceeded
 	})
 
 	sessionValue, _, err := store.FindSession([]string{workspacePath}, sessionKey)
@@ -444,7 +445,7 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 	workspacePath := t.TempDir()
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{
+	dm := &fakeDMRunner{
 		permission: permission,
 		resultText: "HEARTBEAT_OK",
 	}
@@ -479,7 +480,7 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{
@@ -490,15 +491,15 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 		router,
 	)
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 1800,
-		TargetMode:   HeartbeatTargetLast,
+		TargetMode:   protocol.HeartbeatTargetLast,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
-	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{Mode: WakeModeNow}); err != nil {
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{Mode: protocol.WakeModeNow}); err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
 	}
 	waitFor(t, 2*time.Second, func() bool {
@@ -545,7 +546,7 @@ func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T)
 	instruction, err := service.buildHeartbeatInstruction(
 		context.Background(),
 		"agent-1",
-		[]SystemEvent{
+		[]protocol.SystemEvent{
 			{
 				EventID:    "evt-1",
 				EventType:  "heartbeat.wake",
@@ -554,19 +555,19 @@ func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T)
 				Payload:    string(payload),
 			},
 		},
-		[]heartbeatWakeRequest{
+		[]automationdomain.HeartbeatWakeRequest{
 			{
 				AgentID:    "agent-1",
-				SessionKey: buildMainSessionKey("agent-1"),
-				WakeMode:   WakeModeNow,
+				SessionKey: automationdomain.BuildMainSessionKey("agent-1"),
+				WakeMode:   protocol.WakeModeNow,
 				Text:       "urgent ping",
 			},
 		},
-		[]heartbeatWakeRequest{
+		[]automationdomain.HeartbeatWakeRequest{
 			{
 				AgentID:    "agent-1",
-				SessionKey: buildMainSessionKey("agent-1"),
-				WakeMode:   WakeModeNextHeartbeat,
+				SessionKey: automationdomain.BuildMainSessionKey("agent-1"),
+				WakeMode:   protocol.WakeModeNextHeartbeat,
 				Text:       "follow up soon",
 			},
 		},
@@ -606,7 +607,7 @@ func TestBuildHeartbeatInstructionFallsBackToEventTypeWhenTextMissing(t *testing
 	instruction, err := service.buildHeartbeatInstruction(
 		context.Background(),
 		"agent-1",
-		[]SystemEvent{
+		[]protocol.SystemEvent{
 			{
 				EventID:    "evt-1",
 				EventType:  "cron.trigger",
@@ -644,11 +645,11 @@ func TestGetHeartbeatStatusDegradesPersistedExplicitTargetMode(t *testing.T) {
 	err := service.repository.UpsertHeartbeatState(
 		context.Background(),
 		"hb_1",
-		HeartbeatConfig{
+		protocol.HeartbeatConfig{
 			AgentID:      "agent-1",
 			Enabled:      true,
 			EverySeconds: 120,
-			TargetMode:   HeartbeatTargetExplicit,
+			TargetMode:   protocol.HeartbeatTargetExplicit,
 			AckMaxChars:  80,
 		},
 		nil,
@@ -662,7 +663,7 @@ func TestGetHeartbeatStatusDegradesPersistedExplicitTargetMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
 	}
-	if status.TargetMode != HeartbeatTargetNone {
+	if status.TargetMode != protocol.HeartbeatTargetNone {
 		t.Fatalf("explicit 应降级为 none，实际 %s", status.TargetMode)
 	}
 	if status.DeliveryError == nil || *status.DeliveryError != heartbeatExplicitTargetUnsupportedMessage {
@@ -673,12 +674,12 @@ func TestGetHeartbeatStatusDegradesPersistedExplicitTargetMode(t *testing.T) {
 func TestWakeHeartbeatNextHeartbeatDoesNotDispatchBeforeDueTime(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{permission: permission}
+	dm := &fakeDMRunner{permission: permission}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{
@@ -696,25 +697,25 @@ func TestWakeHeartbeatNextHeartbeatDoesNotDispatchBeforeDueTime(t *testing.T) {
 	}
 	defer service.Stop()
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 120,
-		TargetMode:   HeartbeatTargetNone,
+		TargetMode:   protocol.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
 
-	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
-		Mode: WakeModeNextHeartbeat,
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
+		Mode: protocol.WakeModeNextHeartbeat,
 		Text: stringRef("follow up later"),
 	}); err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
 	}
 
 	time.Sleep(1200 * time.Millisecond)
-	if len(chat.Requests()) != 0 {
-		t.Fatalf("next-heartbeat 不应提前触发，实际请求数 %d", len(chat.Requests()))
+	if len(dm.Requests()) != 0 {
+		t.Fatalf("next-heartbeat 不应提前触发，实际请求数 %d", len(dm.Requests()))
 	}
 	status, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
 	if err != nil {
@@ -737,10 +738,10 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 60,
-		TargetMode:   HeartbeatTargetNone,
+		TargetMode:   protocol.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
@@ -756,8 +757,8 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 	state.PendingWake = false
 	service.mu.Unlock()
 
-	result, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
-		Mode: WakeModeNow,
+	result, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
+		Mode: protocol.WakeModeNow,
 	})
 	if err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
@@ -773,8 +774,8 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 	if !status.PendingWake {
 		t.Fatalf("running 状态下 wake-now 应保留 pending_wake=true")
 	}
-	items := service.wakeRequests[buildMainSessionKey("agent-1")]
-	if len(items) != 1 || items[0].WakeMode != WakeModeNow {
+	items := service.wakeRequests[automationdomain.BuildMainSessionKey("agent-1")]
+	if len(items) != 1 || items[0].WakeMode != protocol.WakeModeNow {
 		t.Fatalf("running 状态下 wake-now 应继续排队等待下一轮消费: %+v", items)
 	}
 }
@@ -782,40 +783,40 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{permission: permission}
+	dm := &fakeDMRunner{permission: permission}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 3600,
-		TargetMode:   HeartbeatTargetNone,
+		TargetMode:   protocol.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
 
-	task, err := service.CreateTask(context.Background(), CreateJobInput{
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "Main payload",
 		AgentID:     "agent-1",
 		Instruction: "follow up in main session",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{
-			Kind:     SessionTargetMain,
-			WakeMode: WakeModeNow,
+		SessionTarget: protocol.SessionTarget{
+			Kind:     protocol.SessionTargetMain,
+			WakeMode: protocol.WakeModeNow,
 		},
-		Delivery: DeliveryTarget{Mode: DeliveryModeNone},
+		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -849,17 +850,17 @@ func TestHeartbeatStatusRunningReflectsHeartbeatExecutionState(t *testing.T) {
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		&fakeChatRunner{permission: permission},
+		&fakeDMRunner{permission: permission},
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
 		nil,
 	)
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 60,
-		TargetMode:   HeartbeatTargetNone,
+		TargetMode:   protocol.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
@@ -912,7 +913,7 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
 		db,
 		nil,
-		&fakeChatRunner{permission: permission},
+		&fakeDMRunner{permission: permission},
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
@@ -920,17 +921,17 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 	)
 	runtimeCloser := &fakeRuntimeSessionCloser{}
 	service.SetRuntimeSessionCloser(runtimeCloser)
-	task, err := service.CreateTask(context.Background(), CreateJobInput{
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "cleanup-target",
 		AgentID:     "agent-1",
 		Instruction: "cleanup",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{Kind: SessionTargetIsolated},
-		Delivery:      DeliveryTarget{Mode: DeliveryModeNone},
+		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
+		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -993,23 +994,23 @@ func TestRunTaskNowMarksMainEventFailedWhenWakeValidationFails(t *testing.T) {
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		&fakeChatRunner{permission: permission},
+		&fakeDMRunner{permission: permission},
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), CreateJobInput{
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "main-wake-fail",
 		AgentID:     "agent-1",
 		Instruction: "wake failed",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{Kind: SessionTargetMain, WakeMode: WakeModeNow},
-		Delivery:      DeliveryTarget{Mode: DeliveryModeNone},
+		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetMain, WakeMode: protocol.WakeModeNow},
+		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -1043,28 +1044,28 @@ func TestRunTaskNowSkipsDuplicateExplicitDeliveryWhenTargetMatchesExecutionSessi
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		&fakeChatRunner{permission: permission, resultText: "done"},
+		&fakeDMRunner{permission: permission, resultText: "done"},
 		nil,
 		permission,
 		&fakeWorkspaceReader{},
 		delivery,
 	)
-	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "existing-room", "")
-	task, err := service.CreateTask(context.Background(), CreateJobInput{
+	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "existing-chat", "")
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
 		Name:        "dup-delivery",
 		AgentID:     "agent-1",
 		Instruction: "run once",
-		Schedule: Schedule{
-			Kind:            ScheduleKindEvery,
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: SessionTarget{
-			Kind:            SessionTargetBound,
+		SessionTarget: protocol.SessionTarget{
+			Kind:            protocol.SessionTargetBound,
 			BoundSessionKey: sessionKey,
 		},
-		Delivery: DeliveryTarget{
-			Mode:    DeliveryModeExplicit,
+		Delivery: protocol.DeliveryTarget{
+			Mode:    protocol.DeliveryModeExplicit,
 			Channel: "websocket",
 			To:      sessionKey,
 		},
@@ -1079,7 +1080,7 @@ func TestRunTaskNowSkipsDuplicateExplicitDeliveryWhenTargetMatchesExecutionSessi
 	}
 	waitFor(t, 2*time.Second, func() bool {
 		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(items) > 0 && items[0].Status == RunStatusSucceeded
+		return listErr == nil && len(items) > 0 && items[0].Status == protocol.RunStatusSucceeded
 	})
 
 	if len(delivery.Calls()) != 0 {
@@ -1098,18 +1099,18 @@ func TestWakeRequestBookkeepingPreservesQueuedRequests(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	sessionKey := buildMainSessionKey("agent-1")
+	sessionKey := automationdomain.BuildMainSessionKey("agent-1")
 	first := "first"
 	second := "second"
-	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &first)
-	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &second)
-	service.recordWakeRequest("agent-1", sessionKey, WakeModeNextHeartbeat, nil)
+	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &first)
+	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &second)
+	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNextHeartbeat, nil)
 
 	items := service.wakeRequests[sessionKey]
 	if len(items) != 3 {
 		t.Fatalf("同 session 的 wake request 不应被覆盖，实际条目 %d", len(items))
 	}
-	if items[0].Text != "first" || items[1].Text != "second" || items[2].WakeMode != WakeModeNextHeartbeat {
+	if items[0].Text != "first" || items[1].Text != "second" || items[2].WakeMode != protocol.WakeModeNextHeartbeat {
 		t.Fatalf("wake request 应按到达顺序保留: %+v", items)
 	}
 }
@@ -1125,9 +1126,9 @@ func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) 
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	sessionKey := buildMainSessionKey("agent-1")
+	sessionKey := automationdomain.BuildMainSessionKey("agent-1")
 	first := "first"
-	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &first)
+	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &first)
 
 	immediate, deferred := service.takeWakeRequests("agent-1", sessionKey)
 	if len(immediate) != 1 || len(deferred) != 0 {
@@ -1135,7 +1136,7 @@ func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) 
 	}
 
 	second := "second"
-	service.recordWakeRequest("agent-1", sessionKey, WakeModeNow, &second)
+	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &second)
 	remaining := service.wakeRequests[sessionKey]
 	if len(remaining) != 1 || remaining[0].Text != "second" {
 		t.Fatalf("dispatch 开始后新增的 wake request 应保留到下一轮: %+v", remaining)
@@ -1145,12 +1146,12 @@ func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) 
 func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	chat := &fakeChatRunner{permission: permission}
+	dm := &fakeDMRunner{permission: permission}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
 		nil,
-		chat,
+		dm,
 		nil,
 		permission,
 		&fakeWorkspaceReader{
@@ -1160,10 +1161,10 @@ func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
 		},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 60,
-		TargetMode:   HeartbeatTargetNone,
+		TargetMode:   protocol.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
@@ -1181,15 +1182,15 @@ func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
 	); err != nil {
 		t.Fatalf("预置 system event 失败: %v", err)
 	}
-	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", HeartbeatWakeRequest{
-		Mode: WakeModeNow,
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
+		Mode: protocol.WakeModeNow,
 	}); err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
 	}
 	waitFor(t, 2*time.Second, func() bool {
-		return len(chat.Requests()) > 0
+		return len(dm.Requests()) > 0
 	})
-	requests := chat.Requests()
+	requests := dm.Requests()
 	if len(requests) == 0 {
 		t.Fatalf("未触发 heartbeat 下发")
 	}

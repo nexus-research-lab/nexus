@@ -20,9 +20,11 @@
 - 服务入口：`cmd/nexus-server`
 - 迁移入口：`cmd/nexus-migrate`
 - 主 CLI：`cmd/nexusctl`
-- HTTP / WebSocket 网关：`internal/gateway`
+- HTTP 服务装配与生命周期：`cmd/nexus-server/app`
+- HTTP / WebSocket 处理器：`internal/handler`
 - Claude Code runtime：`internal/runtime` + 独立 Go SDK
-- 业务服务：`internal/service/agent`、`internal/service/chat`、`internal/service/room`、`internal/service/session`
+- 业务服务：`internal/service/agent`、`internal/service/dm`、`internal/service/room`、`internal/service/session`
+- 对话领域：`internal/chat/dm`、`internal/chat/room`
 - 能力服务：`internal/service/workspace`、`internal/service/skills`、`internal/service/connectors`、`internal/service/automation`
 - 协议与执行内核：`internal/protocol`、`internal/runtime`、`internal/message`、`internal/permission`
 

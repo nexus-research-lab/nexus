@@ -6,16 +6,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newChannelCommand(service *channels.IngressService) *cobra.Command {
+func newChannelCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "channel",
 		Short: "channel 入口命令",
 	}
-	command.AddCommand(newChannelIngressCommand(service))
+	command.AddCommand(newChannelIngressCommand(services))
 	return command
 }
 
-func newChannelIngressCommand(service *channels.IngressService) *cobra.Command {
+func newChannelIngressCommand(services *cliServiceProvider) *cobra.Command {
 	var (
 		channel          string
 		sessionKey       string
@@ -38,6 +38,11 @@ func newChannelIngressCommand(service *channels.IngressService) *cobra.Command {
 		Use:   "ingress",
 		Short: "把外部通道消息注入统一聊天入口",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			service := appServices.Ingress
 			var delivery *channels.DeliveryTarget
 			if deliveryTo != "" || deliveryThreadID != "" || deliveryAccount != "" {
 				delivery = &channels.DeliveryTarget{

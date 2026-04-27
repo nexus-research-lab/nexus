@@ -292,9 +292,6 @@ func materializeRoundMarkerMessages(
 		if roundID == "" {
 			continue
 		}
-		if isQueueGuidanceRoundMarker(marker) {
-			continue
-		}
 		row := protocol.Message{
 			"message_id":  roundID,
 			"session_key": sessionKey,
@@ -310,13 +307,6 @@ func materializeRoundMarkerMessages(
 		rows = append(rows, row)
 	}
 	return rows
-}
-
-func isQueueGuidanceRoundMarker(marker transcriptRoundMarker) bool {
-	if protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy) != protocol.ChatDeliveryPolicyGuide {
-		return false
-	}
-	return strings.HasPrefix(strings.TrimSpace(marker.RoundID), "queue_")
 }
 
 func (s *AgentHistoryStore) readTranscriptMessages(

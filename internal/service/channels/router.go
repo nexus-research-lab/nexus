@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/logx"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 )
 
 // Router 负责管理通道生命周期与统一投递。

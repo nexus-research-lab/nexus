@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	usagestore "github.com/nexus-research-lab/nexus/internal/storage/usage"
 )
 
 // Service 负责用户级 token usage ledger。
 type Service struct {
-	repository *repository
+	repository *usagestore.Repository
 	now        func() time.Time
 }
 
 // NewServiceWithDB 使用共享 DB 创建 usage 服务。
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
-		repository: newRepository(cfg, db),
+		repository: usagestore.NewRepository(cfg, db),
 		now:        func() time.Time { return time.Now().UTC() },
 	}
 }
@@ -32,22 +33,35 @@ func (s *Service) RecordMessageUsage(ctx context.Context, input RecordInput) err
 	if !ok {
 		return nil
 	}
-	return s.repository.upsert(ctx, record)
+	return s.repository.Upsert(ctx, record)
 }
 
 // Summary 返回用户级 token 用量汇总。
 func (s *Service) Summary(ctx context.Context, ownerUserID string) (Summary, error) {
 	ownerUserID = normalizeOwnerUserID(ownerUserID)
-	return s.repository.summary(ctx, ownerUserID, s.now())
+	stored, err := s.repository.Summary(ctx, ownerUserID, s.now())
+	if err != nil {
+		return Summary{}, err
+	}
+	return Summary{
+		InputTokens:              stored.InputTokens,
+		OutputTokens:             stored.OutputTokens,
+		CacheCreationInputTokens: stored.CacheCreationInputTokens,
+		CacheReadInputTokens:     stored.CacheReadInputTokens,
+		TotalTokens:              stored.TotalTokens,
+		SessionCount:             stored.SessionCount,
+		MessageCount:             stored.MessageCount,
+		UpdatedAt:                stored.UpdatedAt,
+	}, nil
 }
 
-func (s *Service) buildRecord(input RecordInput) (record, bool) {
+func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 	ownerUserID := normalizeOwnerUserID(input.OwnerUserID)
 	sessionKey := strings.TrimSpace(input.SessionKey)
 	messageID := strings.TrimSpace(input.MessageID)
 	roundID := strings.TrimSpace(input.RoundID)
 	if sessionKey == "" || (messageID == "" && roundID == "") {
-		return record{}, false
+		return usagestore.Record{}, false
 	}
 
 	inputTokens := int64FromAny(input.Usage["input_tokens"])
@@ -59,7 +73,7 @@ func (s *Service) buildRecord(input RecordInput) (record, bool) {
 		totalTokens = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens
 	}
 	if totalTokens <= 0 {
-		return record{}, false
+		return usagestore.Record{}, false
 	}
 
 	occurredAt := input.OccurredAt.UTC()
@@ -71,7 +85,7 @@ func (s *Service) buildRecord(input RecordInput) (record, bool) {
 		source = "runtime"
 	}
 	usageKey := buildUsageKey(sessionKey, messageID, roundID)
-	return record{
+	return usagestore.Record{
 		OwnerUserID:              ownerUserID,
 		UsageKey:                 usageKey,
 		Source:                   source,
@@ -93,7 +107,7 @@ func (s *Service) buildRecord(input RecordInput) (record, bool) {
 func normalizeOwnerUserID(ownerUserID string) string {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
-		return authsvc.SystemUserID
+		return authctx.SystemUserID
 	}
 	return ownerUserID
 }

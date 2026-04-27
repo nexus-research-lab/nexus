@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/bootstrap"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 
@@ -16,20 +15,7 @@ const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 
 // New 创建 CLI 应用。
 func New(cfg config.Config) (*cobra.Command, error) {
-	appServices, err := bootstrap.NewAppServices(cfg, nil)
-	if err != nil {
-		return nil, err
-	}
-	agentService := appServices.Core.Agent
-	roomService := appServices.Core.Room
-	sessionService := appServices.Core.Session
-	authService := appServices.Auth
-	workspaceService := appServices.Workspace
-	skillService := appServices.Skills
-	connectorService := appServices.Connectors
-	launcherService := appServices.Launcher
-	ingressService := appServices.Ingress
-	automationService := appServices.Automation
+	services := newCLIServiceProvider(cfg)
 
 	root := &cobra.Command{
 		Use:           "nexusctl",
@@ -56,8 +42,19 @@ func New(cfg config.Config) (*cobra.Command, error) {
 		"显式允许在本机管理员场景下使用全局作用域",
 	)
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if err := applyOutputOptions(cfg, appServices, *outputOptions); err != nil {
+		if err := applyOutputOptions(cfg, services, *outputOptions); err != nil {
 			return err
+		}
+		var authService *authsvc.Service
+		needsScopeState := commandRequiresUserScope(cmd) &&
+			strings.TrimSpace(scopeUserID) == "" &&
+			!globalScope
+		if needsScopeState {
+			var err error
+			authService, err = services.AuthService()
+			if err != nil {
+				return err
+			}
 		}
 		nextCtx, err := buildScopedCLIContext(commandContext(cmd), authService, cmd, scopeUserID, globalScope)
 		if err != nil {
@@ -67,18 +64,18 @@ func New(cfg config.Config) (*cobra.Command, error) {
 		return nil
 	}
 
-	root.AddCommand(newAgentCommand(agentService))
-	root.AddCommand(newAuthCommand(authService))
-	root.AddCommand(newUserCommand(authService))
-	root.AddCommand(newRoomCommand(roomService))
-	root.AddCommand(newConversationCommand(roomService, sessionService))
-	root.AddCommand(newSessionCommand(sessionService))
-	root.AddCommand(newWorkspaceCommand(workspaceService))
-	root.AddCommand(newSkillCommand(skillService))
-	root.AddCommand(newConnectorCommand(connectorService))
-	root.AddCommand(newLauncherCommand(launcherService))
-	root.AddCommand(newChannelCommand(ingressService))
-	root.AddCommand(newAutomationCommand(automationService))
+	root.AddCommand(newAgentCommand(services))
+	root.AddCommand(newAuthCommand(services))
+	root.AddCommand(newUserCommand(services))
+	root.AddCommand(newRoomCommand(services))
+	root.AddCommand(newConversationCommand(services))
+	root.AddCommand(newSessionCommand(services))
+	root.AddCommand(newWorkspaceCommand(services))
+	root.AddCommand(newSkillCommand(services))
+	root.AddCommand(newConnectorCommand(services))
+	root.AddCommand(newLauncherCommand(services))
+	root.AddCommand(newChannelCommand(services))
+	root.AddCommand(newAutomationCommand(services))
 	root.AddCommand(newMemoryCommand())
 
 	return root, nil
@@ -121,8 +118,11 @@ func buildScopedCLIContext(
 		}
 		return base, nil
 	}
-	if trimmedUserID == "" || authService == nil || !commandRequiresUserScope(cmd) {
-		if trimmedUserID == "" && authService != nil && commandRequiresUserScope(cmd) {
+	if !commandRequiresUserScope(cmd) {
+		return base, nil
+	}
+	if trimmedUserID == "" {
+		if authService != nil {
 			state, err := authService.GetState(context.Background())
 			if err != nil {
 				return nil, err

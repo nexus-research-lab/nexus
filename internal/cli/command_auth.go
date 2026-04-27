@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newAuthCommand(service *authsvc.Service) *cobra.Command {
+func newAuthCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "auth",
 		Short: "auth 领域命令",
@@ -19,6 +19,10 @@ func newAuthCommand(service *authsvc.Service) *cobra.Command {
 		Use:   "status",
 		Short: "读取认证系统状态",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			service, err := services.AuthService()
+			if err != nil {
+				return err
+			}
 			state, err := service.GetState(commandContext(cmd))
 			if err != nil {
 				return err
@@ -42,6 +46,10 @@ func newAuthCommand(service *authsvc.Service) *cobra.Command {
 			Use:   "init-owner",
 			Short: "初始化首个 owner 用户",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				service, err := services.AuthService()
+				if err != nil {
+					return err
+				}
 				resolvedPassword, err := resolvePasswordInput(cmd, password, passwordStdin)
 				if err != nil {
 					return err
@@ -71,7 +79,7 @@ func newAuthCommand(service *authsvc.Service) *cobra.Command {
 	return command
 }
 
-func newUserCommand(service *authsvc.Service) *cobra.Command {
+func newUserCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "user",
 		Short: "user 领域命令",
@@ -81,6 +89,10 @@ func newUserCommand(service *authsvc.Service) *cobra.Command {
 		Use:   "list",
 		Short: "列出全部认证用户",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			service, err := services.AuthService()
+			if err != nil {
+				return err
+			}
 			items, err := service.ListUsers(commandContext(cmd))
 			if err != nil {
 				return err
@@ -105,6 +117,10 @@ func newUserCommand(service *authsvc.Service) *cobra.Command {
 			Use:   "create",
 			Short: "创建认证用户",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				service, err := services.AuthService()
+				if err != nil {
+					return err
+				}
 				resolvedPassword, err := resolvePasswordInput(cmd, password, passwordStdin)
 				if err != nil {
 					return err
@@ -145,6 +161,10 @@ func newUserCommand(service *authsvc.Service) *cobra.Command {
 			Use:   "reset-password",
 			Short: "重置用户密码",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				service, err := services.AuthService()
+				if err != nil {
+					return err
+				}
 				resolvedPassword, err := resolvePasswordInput(cmd, password, passwordStdin)
 				if err != nil {
 					return err

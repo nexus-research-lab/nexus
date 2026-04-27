@@ -6,11 +6,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
-	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
-func newConversationCommand(roomService *roomsvc.Service, sessionService *sessionsvc.Service) *cobra.Command {
+func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "conversation",
 		Short: "conversation 领域命令",
@@ -22,6 +20,11 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "list",
 			Short: "列出 Room 下的全部话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				roomService := appServices.Core.Room
 				items, err := roomService.GetRoomContexts(commandContext(cmd), roomID)
 				if err != nil {
 					return err
@@ -43,6 +46,11 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 		Short: "读取单个话题上下文",
 		Args:  exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			appServices, err := services.AppServices()
+			if err != nil {
+				return err
+			}
+			roomService := appServices.Core.Room
 			item, err := roomService.GetConversationContext(commandContext(cmd), args[0])
 			if err != nil {
 				return err
@@ -62,6 +70,11 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "create",
 			Short: "创建 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				roomService := appServices.Core.Room
 				item, err := roomService.CreateConversation(commandContext(cmd), roomID, protocol.CreateConversationRequest{
 					Title: title,
 				})
@@ -89,6 +102,11 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "update",
 			Short: "更新 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				roomService := appServices.Core.Room
 				item, err := roomService.UpdateConversation(commandContext(cmd), roomID, conversationID, protocol.UpdateConversationRequest{
 					Title: title,
 				})
@@ -118,6 +136,11 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "delete",
 			Short: "删除 Room 话题",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				roomService := appServices.Core.Room
 				item, err := roomService.DeleteConversation(commandContext(cmd), roomID, conversationID)
 				if err != nil {
 					return err
@@ -142,6 +165,11 @@ func newConversationCommand(roomService *roomsvc.Service, sessionService *sessio
 			Use:   "messages",
 			Short: "读取共享对话消息",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				appServices, err := services.AppServices()
+				if err != nil {
+					return err
+				}
+				sessionService := appServices.Core.Session
 				items, err := sessionService.GetSessionMessages(commandContext(cmd), fmt.Sprintf("room:group:%s", conversationID))
 				if err != nil {
 					return err
