@@ -19,22 +19,25 @@ func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*Hear
 	if _, err := s.requireAgent(ctx, agentID); err != nil {
 		return nil, err
 	}
-	state, err := s.ensureHeartbeatState(ctx, agentID)
-	if err != nil {
+	if _, err := s.ensureHeartbeatState(ctx, agentID); err != nil {
 		return nil, err
 	}
+	snapshot, ok := s.snapshotHeartbeatState(agentID)
+	if !ok {
+		return nil, errors.New("heartbeat state not found")
+	}
 	return &HeartbeatStatus{
-		AgentID:         state.Config.AgentID,
-		Enabled:         state.Config.Enabled,
-		EverySeconds:    state.Config.EverySeconds,
-		TargetMode:      state.Config.TargetMode,
-		AckMaxChars:     state.Config.AckMaxChars,
-		Running:         state.Running,
-		PendingWake:     state.PendingWake,
-		NextRunAt:       cloneTimePointer(state.NextRunAt),
-		LastHeartbeatAt: cloneTimePointer(state.LastHeartbeatAt),
-		LastAckAt:       cloneTimePointer(state.LastAckAt),
-		DeliveryError:   cloneStringPointer(state.DeliveryError),
+		AgentID:         snapshot.Config.AgentID,
+		Enabled:         snapshot.Config.Enabled,
+		EverySeconds:    snapshot.Config.EverySeconds,
+		TargetMode:      snapshot.Config.TargetMode,
+		AckMaxChars:     snapshot.Config.AckMaxChars,
+		Running:         snapshot.Running,
+		PendingWake:     snapshot.PendingWake,
+		NextRunAt:       cloneTimePointer(snapshot.NextRunAt),
+		LastHeartbeatAt: cloneTimePointer(snapshot.LastHeartbeatAt),
+		LastAckAt:       cloneTimePointer(snapshot.LastAckAt),
+		DeliveryError:   cloneStringPointer(snapshot.DeliveryError),
 	}, nil
 }
 
@@ -64,6 +67,7 @@ func (s *Service) UpdateHeartbeat(ctx context.Context, agentID string, input Hea
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
 	state.Config = configValue
 	state.NextRunAt = s.computeHeartbeatNext(configValue, s.nowFn())
 	state.DeliveryError = nil
@@ -71,12 +75,15 @@ func (s *Service) UpdateHeartbeat(ctx context.Context, agentID string, input Hea
 		state.PendingWake = false
 		state.Running = false
 	}
+	lastHeartbeatAt := cloneTimePointer(state.LastHeartbeatAt)
+	lastAckAt := cloneTimePointer(state.LastAckAt)
+	s.mu.Unlock()
 	if err = s.repository.UpsertHeartbeatState(
 		ctx,
 		s.idFactory("hb"),
 		configValue,
-		state.LastHeartbeatAt,
-		state.LastAckAt,
+		lastHeartbeatAt,
+		lastAckAt,
 	); err != nil {
 		return nil, err
 	}
@@ -455,12 +462,34 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 	}
 }
 
+func (s *Service) snapshotHeartbeatState(agentID string) (heartbeatRuntimeState, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state := s.heartbeatState[strings.TrimSpace(agentID)]
+	if state == nil {
+		return heartbeatRuntimeState{}, false
+	}
+	return heartbeatRuntimeState{
+		Config:          state.Config,
+		Running:         state.Running,
+		PendingWake:     state.PendingWake,
+		NextRunAt:       cloneTimePointer(state.NextRunAt),
+		LastHeartbeatAt: cloneTimePointer(state.LastHeartbeatAt),
+		LastAckAt:       cloneTimePointer(state.LastAckAt),
+		DeliveryError:   cloneStringPointer(state.DeliveryError),
+	}, true
+}
+
 func (s *Service) persistHeartbeatTimes(ctx context.Context, agentID string, lastHeartbeatAt *time.Time, lastAckAt *time.Time) error {
-	state, err := s.ensureHeartbeatState(ctx, agentID)
-	if err != nil {
+	if _, err := s.ensureHeartbeatState(ctx, agentID); err != nil {
 		return err
 	}
-	return s.repository.UpsertHeartbeatState(ctx, s.idFactory("hb"), state.Config, lastHeartbeatAt, lastAckAt)
+	snapshot, ok := s.snapshotHeartbeatState(agentID)
+	if !ok {
+		return errors.New("heartbeat state not found")
+	}
+	return s.repository.UpsertHeartbeatState(ctx, s.idFactory("hb"), snapshot.Config, lastHeartbeatAt, lastAckAt)
 }
 
 func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode string, text *string) {
