@@ -18,8 +18,9 @@ const createDescription = "创建定时任务（== UI「新建任务」对话框
 	"必填：name / instruction / schedule。schedule.kind 支持 single|daily|interval|cron 四种：" +
 	"single+run_at / daily+daily_time(+weekdays) / interval+interval_value+interval_unit / cron+expr(标准 5 段 cron 表达式，会被翻译回 daily 形态以保证 UI 可编辑；只支持 minute/hour 为单整数 + dom/month=* 的表达式)。" +
 	"schedule.timezone 缺省按服务器默认时区（通常 Asia/Shanghai）。" +
-	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected)，缺省走 temporary+none——" +
-	"短文本提醒类任务直接发即可；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
+	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected)。" +
+	"短文本提醒类任务在当前会话中可缺省，工具会默认 existing+execution，让用户能看到提醒；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
+	"独立/临时执行但仍要让用户看到结果时，用 execution_mode=temporary + reply_mode=selected + selected_reply_session_key；只有用户明确要求后台静默时才用 reply_mode=none。" +
 	"overlap_policy 可选 skip|allow，缺省 skip。" +
 	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
 
@@ -34,8 +35,8 @@ func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 			}
 			semantic.ReassembleFlatSchedule(args)
 			semantic.ApplyDefaultTimezone(args, sctx)
-			normalized := semantic.ApplySimpleDefaults(args)
-			if err := semantic.RequireExplicitCreateFields(normalized); err != nil {
+			normalized := semantic.ApplySimpleDefaults(args, sctx)
+			if err := semantic.RequireExplicitCreateFields(normalized, sctx); err != nil {
 				return render.Error(err), nil
 			}
 			input, err := buildCreateInput(normalized, sctx)

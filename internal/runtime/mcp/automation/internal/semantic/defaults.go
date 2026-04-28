@@ -106,9 +106,12 @@ func containsHeavyKeyword(instruction string) bool {
 	return false
 }
 
-// CanDefaultToTemporaryNone 判断是否允许在 create 时默认按 temporary + none 创建。
-// 仅短文本、无重业务关键词、调度形状合法的提醒类任务允许默认。
-func CanDefaultToTemporaryNone(args map[string]any) bool {
+// CanDefaultSimpleReminder 判断是否允许在 create 时套用短提醒默认值。
+// 仅当前有会话、短文本、无重业务关键词、调度形状合法的提醒类任务允许默认。
+func CanDefaultSimpleReminder(args map[string]any, sctx contract.ServerContext) bool {
+	if strings.TrimSpace(sctx.CurrentSessionKey) == "" {
+		return false
+	}
 	instruction := strings.TrimSpace(argx.String(args, "instruction"))
 	if instruction == "" || utf8.RuneCountInString(instruction) > 24 {
 		return false
@@ -145,30 +148,42 @@ func CanDefaultToTemporaryNone(args map[string]any) bool {
 }
 
 // ApplySimpleDefaults 在允许的前提下补齐 execution_mode / reply_mode 默认值。
-// 默认走 temporary + none：
-//   - reply_mode=execution 在 agent 上下文下会被 executionReply 强制改写为 none，
-//     与其让 agent 误以为"会回到我这"，不如直接默认 none，语义诚实。
-//   - 想让结果回到当前会话，agent 必须显式 execution_mode=existing + reply_mode=execution。
-func ApplySimpleDefaults(args map[string]any) map[string]any {
-	if !CanDefaultToTemporaryNone(args) {
+// 默认对齐 UI 的当前会话可见语义：existing + execution。
+// 如果模型显式要求 temporary/dedicated 但没写 reply_mode，则把结果回传到当前会话。
+func ApplySimpleDefaults(args map[string]any, sctx contract.ServerContext) map[string]any {
+	if !CanDefaultSimpleReminder(args, sctx) {
 		return args
 	}
 	if argx.String(args, "execution_mode") == "" {
-		args["execution_mode"] = "temporary"
+		args["execution_mode"] = "existing"
 	}
 	if argx.String(args, "reply_mode") == "" {
-		args["reply_mode"] = "none"
+		switch strings.TrimSpace(argx.String(args, "execution_mode")) {
+		case "main":
+			args["reply_mode"] = "none"
+		case "temporary", "dedicated":
+			args["reply_mode"] = "selected"
+			if argx.String(args, "selected_reply_session_key") == "" {
+				args["selected_reply_session_key"] = sctx.CurrentSessionKey
+			}
+		default:
+			args["reply_mode"] = "execution"
+		}
+	}
+	if strings.TrimSpace(argx.String(args, "reply_mode")) == "selected" &&
+		argx.String(args, "selected_reply_session_key") == "" {
+		args["selected_reply_session_key"] = sctx.CurrentSessionKey
 	}
 	return args
 }
 
 // RequireExplicitCreateFields 在不允许默认时强制要求 execution_mode / reply_mode 字段齐全。
 // 注意：schedule.timezone 现在由 ApplyDefaultTimezone 自动补齐，这里不再强求。
-func RequireExplicitCreateFields(args map[string]any) error {
+func RequireExplicitCreateFields(args map[string]any, sctx contract.ServerContext) error {
 	if _, ok := args["schedule"].(map[string]any); !ok {
 		return missingFieldsError([]string{"schedule"})
 	}
-	if CanDefaultToTemporaryNone(args) {
+	if CanDefaultSimpleReminder(args, sctx) {
 		return nil
 	}
 	missing := []string{}
@@ -196,5 +211,5 @@ func (e *requiredFieldError) Error() string {
 	return "missing required scheduling fields: " + strings.Join(e.Missing, ", ") +
 		". Either ask the user to confirm these fields (e.g. via AskUserQuestion), " +
 		"or shorten the instruction to a short reminder (≤24 chars / 24 字) without heavy-context keywords " +
-		"(summary / report / analyze / 总结 / 汇总 / 分析 …) to qualify for the default temporary+none mode."
+		"(summary / report / analyze / 总结 / 汇总 / 分析 …) from an active chat to qualify for the default visible reminder mode."
 }

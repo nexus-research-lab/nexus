@@ -153,11 +153,13 @@ func TestCreateAllowsSimpleDefaults(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
-		t.Fatalf("expected isolated target from default, got %q", svc.createInput.SessionTarget.Kind)
+	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetBound ||
+		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
+		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeNone {
-		t.Fatalf("expected none delivery from default, got %q", svc.createInput.Delivery.Mode)
+	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
+		t.Fatalf("expected visible current-session delivery from default, got %+v", svc.createInput.Delivery)
 	}
 	if svc.createInput.Schedule.IntervalSeconds == nil || *svc.createInput.Schedule.IntervalSeconds != 15*60 {
 		t.Fatalf("expected 900s interval, got %+v", svc.createInput.Schedule.IntervalSeconds)
@@ -177,14 +179,32 @@ func TestCreateAllowsSimpleDefaultsWithJSONNumberAndDottedSchedule(t *testing.T)
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
-		t.Fatalf("expected isolated target from default, got %q", svc.createInput.SessionTarget.Kind)
+	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetBound ||
+		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
+		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeNone {
-		t.Fatalf("expected none delivery from default, got %q", svc.createInput.Delivery.Mode)
+	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
+		t.Fatalf("expected visible current-session delivery from default, got %+v", svc.createInput.Delivery)
 	}
 	if svc.createInput.Schedule.IntervalSeconds == nil || *svc.createInput.Schedule.IntervalSeconds != 60 {
 		t.Fatalf("expected 60s interval, got %+v", svc.createInput.Schedule.IntervalSeconds)
+	}
+}
+
+func TestCreateSimpleDefaultsRequireCurrentSession(t *testing.T) {
+	svc := &stubService{}
+	sctx := contract.ServerContext{CurrentAgentID: "agent-1"}
+	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"name":        "简单提醒",
+		"instruction": "喝水",
+		"schedule":    intervalSchedule(15, "minutes"),
+	})
+	if !isError {
+		t.Fatalf("expected error without current session, got %+v", result)
+	}
+	if !strings.Contains(extractText(t, result), "execution_mode") {
+		t.Fatalf("error must mention execution_mode: %s", extractText(t, result))
 	}
 }
 
