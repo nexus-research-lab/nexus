@@ -3,6 +3,8 @@ package semantic
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 )
 
 func TestReassembleFlatScheduleMergesDottedAndTopLevelFields(t *testing.T) {
@@ -29,8 +31,9 @@ func TestReassembleFlatScheduleMergesDottedAndTopLevelFields(t *testing.T) {
 	if schedule["interval_unit"] != "minutes" {
 		t.Fatalf("schedule.interval_unit = %v, want minutes", schedule["interval_unit"])
 	}
-	if !CanDefaultToTemporaryNone(args) {
-		t.Fatalf("短提醒应允许 temporary+none 默认: %+v", args)
+	sctx := contract.ServerContext{CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
+	if !CanDefaultSimpleReminder(args, sctx) {
+		t.Fatalf("短提醒应允许当前会话可见默认: %+v", args)
 	}
 }
 

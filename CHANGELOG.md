@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复主会话定时任务没有 run ledger、以及运行中任务重复触发缺少可诊断记录的问题。
 - 修复模型流停在 thinking 且没有发送终态时，DM 与 Room 会话一直显示运行中的问题。
 - 修复 `nexus_automation` 创建定时任务时 `json.Number` 类型的 interval 值与 `schedule.*` 平铺参数未被正确识别的问题，减少模型重复猜参。
+- 修复智能体创建短提醒类定时任务时默认不回传的问题，改为默认复用当前会话并让用户可见。
 
 ## [0.1.1] - 2026-04-25
 
