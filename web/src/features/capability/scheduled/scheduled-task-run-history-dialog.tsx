@@ -35,6 +35,12 @@ function get_status_meta(status: ScheduledTaskRunItem["status"]) {
   if (status === "cancelled") {
     return { label: "已取消", tone: "idle" as const };
   }
+  if (status === "queued_to_main_session") {
+    return { label: "已入主会话", tone: "default" as const };
+  }
+  if (status === "skipped") {
+    return { label: "已跳过", tone: "idle" as const };
+  }
   return { label: "失败", tone: "default" as const };
 }
 
@@ -164,19 +170,7 @@ export function ScheduledTaskRunHistoryDialog({
         </div>
 
         <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {task.session_target.kind === "main" ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-(--divider-subtle-color)">
-                <History className="h-6 w-6 text-(--icon-strong)" />
-              </div>
-              <h4 className="mt-5 text-lg font-bold tracking-[-0.03em] text-(--text-strong)">
-                主会话任务暂不提供独立运行历史
-              </h4>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-(--text-default)">
-                这类任务会排入主会话处理，当前列表只展示独立执行会话的运行记录。
-              </p>
-            </div>
-          ) : is_loading ? (
+          {is_loading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, index) => (
                 <div
@@ -238,7 +232,35 @@ export function ScheduledTaskRunHistoryDialog({
                               {format_duration(run.started_at, run.finished_at)}
                             </p>
                           </div>
+                          {run.trigger_kind ? (
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                                触发方式
+                              </p>
+                              <p className="mt-1.5 font-medium text-(--text-strong)">
+                                {run.trigger_kind}
+                              </p>
+                            </div>
+                          ) : null}
+                          {typeof run.message_count === "number" ? (
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                                消息数
+                              </p>
+                              <p className="mt-1.5 font-medium text-(--text-strong)">
+                                {run.message_count}
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
+                        {(run.session_key || run.round_id || run.session_id || run.delivery_to) ? (
+                          <div className="mt-3 space-y-1.5 text-xs text-(--text-default)">
+                            {run.session_key ? <p className="break-all">Session {run.session_key}</p> : null}
+                            {run.round_id ? <p className="break-all">Round {run.round_id}</p> : null}
+                            {run.session_id ? <p className="break-all">Runtime {run.session_id}</p> : null}
+                            {run.delivery_to ? <p className="break-all">Delivery {run.delivery_to}</p> : null}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="shrink-0 text-right text-sm text-(--text-default)">
@@ -250,6 +272,11 @@ export function ScheduledTaskRunHistoryDialog({
                     {run.error_message ? (
                       <div className="mt-3 rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-3 py-2.5 text-sm text-(--destructive)">
                         {run.error_message}
+                      </div>
+                    ) : null}
+                    {run.result_summary ? (
+                      <div className="mt-3 rounded-[14px] border border-(--divider-subtle-color) px-3 py-2.5 text-sm leading-6 text-(--text-default)">
+                        {run.result_summary}
                       </div>
                     ) : null}
                   </article>

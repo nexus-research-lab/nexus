@@ -25,7 +25,7 @@ func runs(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool
 			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
 				return render.Error(err), nil
 			}
-			runs, err := svc.ListTaskRuns(ctx, jobID)
+			runs, err := svc.ListTaskRuns(scopedToolContext(ctx, sctx), jobID)
 			if err != nil {
 				return render.Error(err), nil
 			}

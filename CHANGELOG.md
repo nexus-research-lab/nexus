@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - DM 与 Room 输入区新增待发送队列：运行中或已有排队消息时，Enter 会把新输入加入队列，队列项支持手动引导、删除与拖拽排序。
 - 常规设置新增用户级默认消息行为与新建 Agent 默认权限模式，偏好写入 workspace JSON，不新增数据库表。
+- 定时任务新增 owner 用户隔离、运行历史诊断字段与重叠触发策略，Agent 工具创建的任务会记录触发方式、会话、轮次、投递与结果摘要。
+- `scheduled-task-manager` 升级为系统托管 skill，DM 与 Room 运行时会引导定时任务/提醒意图先加载该 skill 再调用 `nexus_automation`。
 
 ### Changed
 - 输入框不再内联展示“排队 / 引导 / 打断”选择，消息行为改由常规设置统一控制，默认行为为排队。
@@ -21,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - 修复引导队列在当前 round 没有工具调用时被提前消费，导致消息既未注入也不再可见的问题。
+- 修复 Room 内智能体通过 `nexus_automation` 创建定时任务时，`reply_mode=execution` 被误降级为不回传的问题，并对齐 UI 的 Room 来源快照与星期参数。
+- 修复主会话定时任务没有 run ledger、以及运行中任务重复触发缺少可诊断记录的问题。
+- 修复模型流停在 thinking 且没有发送终态时，DM 与 Room 会话一直显示运行中的问题。
+- 修复 `nexus_automation` 创建定时任务时 `json.Number` 类型的 interval 值与 `schedule.*` 平铺参数未被正确识别的问题，减少模型重复猜参。
 
 ## [0.1.1] - 2026-04-25
 

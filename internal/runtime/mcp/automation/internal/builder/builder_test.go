@@ -73,3 +73,17 @@ func TestSchedule_CronImpliedFromExprAlias(t *testing.T) {
 		t.Fatalf("cron expr = %v, want weekdays daily form", got.CronExpression)
 	}
 }
+
+func TestSchedule_DailyAcceptsUIWeekdayKeys(t *testing.T) {
+	got, err := Schedule(map[string]any{
+		"kind":       "daily",
+		"daily_time": "08:30",
+		"weekdays":   []any{"mo", "we", "fr", "mon"},
+	}, "Asia/Shanghai")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.CronExpression == nil || *got.CronExpression != "30 8 * * 1,3,5" {
+		t.Fatalf("cron expr = %v, want UI weekday mapping", got.CronExpression)
+	}
+}

@@ -22,6 +22,7 @@ func (s *Service) ensureJobState(job protocol.CronJob) *automationdomain.JobRunt
 	}
 	if !job.Enabled {
 		state.Running = false
+		state.RunningCount = 0
 	}
 	// 启动期发现 at-kind 已过期且仍处于启用态时，主动落库为停用，避免反复检查空 NextRunAt 浪费循环。
 	shouldDisable := job.Enabled &&
@@ -54,7 +55,10 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, succeede
 		s.mu.Unlock()
 		return
 	}
-	state.Running = false
+	if state.RunningCount > 0 {
+		state.RunningCount--
+	}
+	state.Running = state.RunningCount > 0
 	if finishedAt != nil {
 		state.LastRunAt = cloneTimePointer(finishedAt)
 	}
@@ -78,6 +82,27 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, succeede
 	}
 
 	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
+	shouldDisable := state.Job.Enabled &&
+		strings.EqualFold(state.Job.Schedule.Kind, protocol.ScheduleKindAt) &&
+		state.NextRunAt == nil
+	jobSnapshot := state.Job
+	s.mu.Unlock()
+
+	if shouldDisable {
+		s.disableExpiredJobAsync(jobSnapshot)
+	}
+}
+
+func (s *Service) advanceJobRuntimeAfterTrigger(jobID string, scheduledFor time.Time) {
+	s.mu.Lock()
+	state := s.jobStates[jobID]
+	if state == nil {
+		s.mu.Unlock()
+		return
+	}
+	state.LastRunAt = cloneTimePointer(&scheduledFor)
+	// 避免允许并发或跳过重叠时，同一个 due tick 被下一秒反复触发。
+	state.NextRunAt = s.computeJobNext(state.Job, scheduledFor.UTC().Add(time.Second))
 	shouldDisable := state.Job.Enabled &&
 		strings.EqualFold(state.Job.Schedule.Kind, protocol.ScheduleKindAt) &&
 		state.NextRunAt == nil

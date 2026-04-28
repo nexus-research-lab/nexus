@@ -148,12 +148,14 @@ func (r *roundRunner) failRound(err error) {
 		r.finishInterrupted(interruptReason)
 		return
 	}
-	r.service.loggerFor(context.Background()).Error("DM round 执行失败",
+	fields := []any{
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
 		"round_id", r.roundID,
 		"err", err,
-	)
+	}
+	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
+	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
@@ -214,6 +216,36 @@ func (r *roundRunner) failRound(err error) {
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+}
+
+func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
+	fields := make([]any, 0, 16)
+	var streamClosed *runtimectx.RoundStreamClosedError
+	if errors.As(err, &streamClosed) {
+		fields = append(fields,
+			"stream_messages_seen", streamClosed.MessagesSeen,
+			"stream_last_type", streamClosed.LastMessageType,
+			"stream_last_summary", streamClosed.LastMessageSummary,
+			"stream_last_session_id", streamClosed.LastSessionID,
+			"stream_last_message_id", streamClosed.LastMessageID,
+			"stream_wait_error", streamClosed.WaitError,
+		)
+	}
+	var streamIdle *runtimectx.RoundStreamIdleTimeoutError
+	if errors.As(err, &streamIdle) {
+		fields = append(fields,
+			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
+			"stream_messages_seen", streamIdle.MessagesSeen,
+			"stream_last_type", streamIdle.LastMessageType,
+			"stream_last_summary", streamIdle.LastMessageSummary,
+			"stream_last_session_id", streamIdle.LastSessionID,
+			"stream_last_message_id", streamIdle.LastMessageID,
+		)
+	}
+	if runner != nil && runner.client != nil {
+		fields = append(fields, "client_session_id", runner.client.SessionID())
+	}
+	return fields
 }
 
 func (r *roundRunner) finishInterrupted(resultText string) {

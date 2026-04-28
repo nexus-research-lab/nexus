@@ -24,7 +24,7 @@ func list(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool
 			if err != nil {
 				return render.Error(err), nil
 			}
-			jobs, err := svc.ListTasks(ctx, filterAgentID)
+			jobs, err := svc.ListTasks(scopedToolContext(ctx, sctx), filterAgentID)
 			if err != nil {
 				return render.Error(err), nil
 			}

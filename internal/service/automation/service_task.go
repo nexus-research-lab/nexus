@@ -5,16 +5,26 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+func scopedOwnerUserID(ctx context.Context) (string, bool) {
+	return authctx.CurrentUserID(ctx)
+}
+
+func effectiveOwnerUserID(ctx context.Context) string {
+	return authctx.OwnerUserID(ctx)
+}
 
 // ListTasks 列出任务。
 func (s *Service) ListTasks(ctx context.Context, agentID string) ([]protocol.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	items, err := s.repository.ListCronJobs(ctx, agentID)
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	items, err := s.repository.ListCronJobs(ctx, ownerUserID, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +45,8 @@ func (s *Service) CountEnabledTasks(ctx context.Context, agentID string) (int, e
 	if err := s.ensureReady(ctx); err != nil {
 		return 0, err
 	}
-	return s.repository.CountEnabledCronJobs(ctx, strings.TrimSpace(agentID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	return s.repository.CountEnabledCronJobs(ctx, ownerUserID, strings.TrimSpace(agentID))
 }
 
 // GetTask 按 job_id 读取任务。返回 nil 表示未找到。
@@ -43,7 +54,8 @@ func (s *Service) GetTask(ctx context.Context, jobID string) (*protocol.CronJob,
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	job, err := s.repository.GetCronJob(ctx, strings.TrimSpace(jobID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	job, err := s.repository.GetCronJob(ctx, ownerUserID, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +82,14 @@ func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput)
 	if err := s.validateAgentAndTarget(ctx, normalized.AgentID, normalized.SessionTarget); err != nil {
 		return nil, err
 	}
+	ownerUserID, err := s.resolveTaskOwnerUserID(ctx, normalized.AgentID)
+	if err != nil {
+		return nil, err
+	}
 
 	job := protocol.CronJob{
 		JobID:         s.idFactory("cron"),
+		OwnerUserID:   ownerUserID,
 		Name:          normalized.Name,
 		AgentID:       normalized.AgentID,
 		Schedule:      normalized.Schedule,
@@ -80,6 +97,7 @@ func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput)
 		SessionTarget: normalized.SessionTarget,
 		Delivery:      normalized.Delivery,
 		Source:        normalized.Source,
+		OverlapPolicy: normalized.OverlapPolicy,
 		Enabled:       normalized.Enabled,
 	}
 	created, err := s.repository.UpsertCronJob(ctx, job)
@@ -99,7 +117,8 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	current, err := s.repository.GetCronJob(ctx, strings.TrimSpace(jobID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	current, err := s.repository.GetCronJob(ctx, ownerUserID, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +145,9 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 	if input.Source != nil {
 		next.Source = input.Source.Normalized()
 	}
+	if input.OverlapPolicy != nil {
+		next.OverlapPolicy = protocol.NormalizeOverlapPolicy(*input.OverlapPolicy)
+	}
 	if input.Enabled != nil {
 		next.Enabled = *input.Enabled
 	}
@@ -138,6 +160,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 		SessionTarget: next.SessionTarget,
 		Delivery:      next.Delivery,
 		Source:        next.Source,
+		OverlapPolicy: next.OverlapPolicy,
 		Enabled:       next.Enabled,
 	}
 	if err = createLike.Validate(); err != nil {
@@ -169,14 +192,15 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) error {
 	if err := s.ensureReady(ctx); err != nil {
 		return err
 	}
-	current, err := s.repository.GetCronJob(ctx, strings.TrimSpace(jobID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	current, err := s.repository.GetCronJob(ctx, ownerUserID, strings.TrimSpace(jobID))
 	if err != nil {
 		return err
 	}
 	if current == nil {
 		return protocol.ErrJobNotFound
 	}
-	if err = s.repository.DeleteCronJob(ctx, current.JobID); err != nil {
+	if err = s.repository.DeleteCronJob(ctx, ownerUserID, current.JobID); err != nil {
 		return err
 	}
 	if err = s.cleanupIsolatedAutomationSessions(ctx, *current); err != nil {
@@ -193,7 +217,8 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*protocol.Execu
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	job, err := s.repository.GetCronJob(ctx, strings.TrimSpace(jobID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	job, err := s.repository.GetCronJob(ctx, ownerUserID, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
@@ -212,14 +237,28 @@ func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]protocol.Cr
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	job, err := s.repository.GetCronJob(ctx, strings.TrimSpace(jobID))
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	job, err := s.repository.GetCronJob(ctx, ownerUserID, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
 	if job == nil {
 		return nil, protocol.ErrJobNotFound
 	}
-	return s.repository.ListRunsByJob(ctx, job.JobID)
+	return s.repository.ListRunsByJob(ctx, ownerUserID, job.JobID)
+}
+
+func (s *Service) resolveTaskOwnerUserID(ctx context.Context, agentID string) (string, error) {
+	if s.agents != nil && strings.TrimSpace(agentID) != "" {
+		agentValue, err := s.requireAgent(ctx, agentID)
+		if err != nil {
+			return "", err
+		}
+		if agentValue != nil && strings.TrimSpace(agentValue.OwnerUserID) != "" {
+			return strings.TrimSpace(agentValue.OwnerUserID), nil
+		}
+	}
+	return effectiveOwnerUserID(ctx), nil
 }
 
 func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job protocol.CronJob) error {

@@ -14,10 +14,12 @@ import (
 )
 
 type fakeRoundExecutionClient struct {
-	sessionID string
-	queryErr  error
-	waitErr   error
-	messages  chan sdkprotocol.ReceivedMessage
+	sessionID   string
+	queryErr    error
+	waitErr     error
+	messages    chan sdkprotocol.ReceivedMessage
+	interrupts  int
+	disconnects int
 }
 
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
@@ -28,9 +30,15 @@ func (c *fakeRoundExecutionClient) ReceiveMessages(context.Context) <-chan sdkpr
 	return c.messages
 }
 
-func (c *fakeRoundExecutionClient) Interrupt(context.Context) error { return nil }
+func (c *fakeRoundExecutionClient) Interrupt(context.Context) error {
+	c.interrupts++
+	return nil
+}
 
-func (c *fakeRoundExecutionClient) Disconnect(context.Context) error { return nil }
+func (c *fakeRoundExecutionClient) Disconnect(context.Context) error {
+	c.disconnects++
+	return nil
+}
 
 func (c *fakeRoundExecutionClient) Wait() error { return c.waitErr }
 
@@ -206,5 +214,49 @@ func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(streamErr.WaitError, "exit status 1") {
 		t.Fatalf("stream close 缺少 wait error: %+v", streamErr)
+	}
+}
+
+func TestExecuteRoundReturnsIdleTimeoutDiagnostics(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "content_block_delta",
+				"delta": map[string]any{
+					"type":     "thinking_delta",
+					"thinking": "让我用 AskUserQuestion 来收集信息。",
+				},
+			},
+		},
+	}
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:       "创建定时任务",
+		Client:      client,
+		Mapper:      &fakeRoundExecutionMapper{results: []RoundMapResult{{}}},
+		IdleTimeout: 10 * time.Millisecond,
+	})
+	if !errors.Is(err, ErrRoundStreamIdleTimeout) {
+		t.Fatalf("期望 ErrRoundStreamIdleTimeout，实际 %v", err)
+	}
+	var timeoutErr *RoundStreamIdleTimeoutError
+	if !errors.As(err, &timeoutErr) {
+		t.Fatalf("期望 RoundStreamIdleTimeoutError，实际 %T %[1]v", err)
+	}
+	if timeoutErr.MessagesSeen != 1 ||
+		timeoutErr.LastMessageType != string(sdkprotocol.MessageTypeStreamEvent) ||
+		timeoutErr.LastSessionID != "sdk-session-1" ||
+		!strings.Contains(timeoutErr.LastMessageSummary, "thinking_delta") ||
+		!strings.Contains(timeoutErr.LastMessageSummary, "AskUserQuestion") {
+		t.Fatalf("idle timeout 诊断字段不正确: %+v", timeoutErr)
+	}
+	if client.interrupts != 1 || client.disconnects != 1 {
+		t.Fatalf("idle timeout 未中止 runtime client: interrupts=%d disconnects=%d", client.interrupts, client.disconnects)
 	}
 }

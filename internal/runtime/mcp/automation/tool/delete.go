@@ -25,7 +25,7 @@ func del(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool 
 			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
 				return render.Error(err), nil
 			}
-			if err := svc.DeleteTask(ctx, jobID); err != nil {
+			if err := svc.DeleteTask(scopedToolContext(ctx, sctx), jobID); err != nil {
 				return render.Error(err), nil
 			}
 			return render.JSON(map[string]any{"job_id": jobID, "deleted": true}), nil

@@ -19,6 +19,16 @@ var weekdayCronValue = map[string]int{
 
 var allWeekdayKeys = []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
 
+var weekdayAliases = map[string]string{
+	"sun": "sun", "su": "sun",
+	"mon": "mon", "mo": "mon",
+	"tue": "tue", "tu": "tue",
+	"wed": "wed", "we": "wed",
+	"thu": "thu", "th": "thu",
+	"fri": "fri", "fr": "fri",
+	"sat": "sat", "sa": "sat",
+}
+
 // Schedule 把 UI 对齐的 schedule 对象翻译成底层 Schedule。
 // 支持 kind=single/daily/interval/cron，其中 cron 允许直接传 raw cron 表达式（对齐 OpenClaw 的易用写法）。
 // 入参里若 timezone 为空，使用 defaultTimezone 回退（通常来自 cfg.DefaultTimezone=Asia/Shanghai）。
@@ -118,14 +128,15 @@ func normalizeWeekdays(raw any) ([]string, error) {
 		if key == "" {
 			continue
 		}
-		if _, exists := weekdayCronValue[key]; !exists {
-			return nil, fmt.Errorf("schedule.weekdays contains unsupported value %q (allowed: mon/tue/wed/thu/fri/sat/sun)", key)
+		canonical, exists := weekdayAliases[key]
+		if !exists {
+			return nil, fmt.Errorf("schedule.weekdays contains unsupported value %q (allowed: mo/tu/we/th/fr/sa/su or mon/tue/wed/thu/fri/sat/sun)", key)
 		}
-		if _, dup := seen[key]; dup {
+		if _, dup := seen[canonical]; dup {
 			continue
 		}
-		seen[key] = struct{}{}
-		result = append(result, key)
+		seen[canonical] = struct{}{}
+		result = append(result, canonical)
 	}
 	return result, nil
 }

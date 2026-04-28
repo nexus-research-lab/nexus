@@ -58,6 +58,36 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	assertPromptContains(t, prompt, "提示词注入测试")
 }
 
+func TestServiceBuildRuntimePromptDirectsScheduledTaskSkill(t *testing.T) {
+	workspacePath := t.TempDir()
+	skillPath := filepath.Join(workspacePath, ".agents", "skills", "scheduled-task-manager")
+	if err := os.MkdirAll(skillPath, 0o755); err != nil {
+		t.Fatalf("创建 scheduled-task-manager 目录失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: scheduled-task-manager\ndescription: test\n---\n"), 0o644); err != nil {
+		t.Fatalf("写入 scheduled-task-manager 失败: %v", err)
+	}
+
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID:   "nexus",
+		BaseSystemPrompt: "BASE CUSTOM PROMPT",
+	}, nil)
+
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
+		AgentID:       "agent-1",
+		Name:          "planner",
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("构建运行时提示词失败: %v", err)
+	}
+
+	assertPromptContains(t, prompt, "托管 Skill 使用要求")
+	assertPromptContains(t, prompt, "scheduled-task-manager")
+	assertPromptContains(t, prompt, "nexus_automation")
+	assertPromptContains(t, prompt, "短提醒不要猜 execution_mode / reply_mode")
+}
+
 func TestServiceBuildRuntimePromptUsesMainAgentPromptOverride(t *testing.T) {
 	workspacePath := t.TempDir()
 	writePromptFile(t, workspacePath, "AGENTS.md", "# AGENTS.md\n\n主智能体规则。")

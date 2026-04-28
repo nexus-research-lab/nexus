@@ -83,7 +83,7 @@ func executionReply(executionMode string, args map[string]any, sctx contract.Ser
 	if resolved == "" {
 		resolved = executionModeFromTarget(sessionTarget)
 	}
-	if (resolved == "temporary" || resolved == "dedicated") && sctx.SourceContextType != "chat" {
+	if (resolved == "temporary" || resolved == "dedicated") && !isInteractiveSourceContext(sctx.SourceContextType) {
 		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone}.Normalized(), nil
 	}
 	to := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
@@ -91,6 +91,15 @@ func executionReply(executionMode string, args map[string]any, sctx contract.Ser
 		return protocol.DeliveryTarget{}, errors.New("reply_mode=execution requires selected_session_key or an active current session. Use AskUserQuestion to confirm which execution session should receive the result")
 	}
 	return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: to}.Normalized(), nil
+}
+
+func isInteractiveSourceContext(sourceContextType string) bool {
+	switch strings.TrimSpace(sourceContextType) {
+	case "room", "chat":
+		return true
+	default:
+		return false
+	}
 }
 
 func executionModeFromTarget(target protocol.SessionTarget) string {
@@ -120,20 +129,53 @@ func ValidatePage(executionMode, replyMode string) error {
 // Source 基于当前 ServerContext 组装 Source 元数据。
 // 工具层不再接受外部传入的 source 对象，统一使用当前上下文，避免 Agent 伪造来源。
 func Source(sctx contract.ServerContext, agentID string) protocol.Source {
-	contextLabel := sctx.CurrentAgentName
-	if contextLabel == "" {
-		contextLabel = agentID
+	contextType := sourceContextTypeForSnapshot(sctx.SourceContextType)
+	contextID := strings.TrimSpace(sctx.SourceContextID)
+	if contextID == "" {
+		if contextType == "room" {
+			contextID = roomContextIDFallback(sctx.CurrentSessionKey)
+		}
+		if contextID == "" {
+			contextID = agentID
+		}
+	}
+	contextLabel := strings.TrimSpace(sctx.SourceContextLabel)
+	if contextLabel == "" && contextType == "agent" {
+		contextLabel = strings.TrimSpace(sctx.CurrentAgentName)
+		if contextLabel == "" {
+			contextLabel = agentID
+		}
 	}
 	source := protocol.Source{
 		Kind:           protocol.SourceKindAgent,
 		CreatorAgentID: sctx.CurrentAgentID,
-		ContextType:    "agent",
-		ContextID:      agentID,
+		ContextType:    contextType,
+		ContextID:      contextID,
 		ContextLabel:   contextLabel,
 		SessionKey:     sctx.CurrentSessionKey,
 		SessionLabel:   argx.FirstNonEmpty(sctx.CurrentSessionLabel, sessionLabelFallback(sctx.CurrentSessionKey)),
 	}
 	return source.Normalized()
+}
+
+func sourceContextTypeForSnapshot(sourceContextType string) string {
+	switch strings.TrimSpace(sourceContextType) {
+	case "room", "chat":
+		return "room"
+	default:
+		return "agent"
+	}
+}
+
+func roomContextIDFallback(sessionKey string) string {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		return parsed.ConversationID
+	}
+	if parsed.Kind == protocol.SessionKeyKindAgent && (parsed.ChatType == "group" || parsed.ChatType == "dm") {
+		return parsed.Ref
+	}
+	return ""
 }
 
 func sessionLabelFallback(sessionKey string) string {

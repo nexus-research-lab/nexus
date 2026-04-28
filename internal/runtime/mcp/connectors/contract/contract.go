@@ -11,11 +11,13 @@ const ServerName = "nexus_connectors"
 
 // ServerContext 承载当前会话与智能体上下文。
 type ServerContext struct {
-	OwnerUserID       string
-	CurrentAgentID    string
-	CurrentSessionKey string
-	SourceContextType string
-	IsMainAgent       bool
+	OwnerUserID        string
+	CurrentAgentID     string
+	CurrentSessionKey  string
+	SourceContextType  string
+	SourceContextID    string
+	SourceContextLabel string
+	IsMainAgent        bool
 }
 
 // Service 是 connector MCP server 依赖的服务子集。

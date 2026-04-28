@@ -9,16 +9,17 @@ export type ScheduledTaskSessionTargetKind = "isolated" | "main" | "bound" | "na
 export type ScheduledTaskWakeMode = "now" | "next-heartbeat";
 export type ScheduledTaskDeliveryMode = "none" | "last" | "explicit";
 export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
-export type ScheduledTaskSourceContextType = "agent" | "room";
+export type ScheduledTaskSourceContextType = "agent" | "room" | "chat";
+export type ScheduledTaskOverlapPolicy = "skip" | "allow";
 export type ScheduledTaskRunLedgerStatus =
   | "pending"
   | "running"
   | "succeeded"
   | "failed"
-  | "cancelled";
-export type ScheduledTaskExecutionStatus =
-  | ScheduledTaskRunLedgerStatus
-  | "queued_to_main_session";
+  | "cancelled"
+  | "queued_to_main_session"
+  | "skipped";
+export type ScheduledTaskExecutionStatus = ScheduledTaskRunLedgerStatus;
 
 export type ScheduledTaskSchedule =
   | {
@@ -96,6 +97,7 @@ export interface ApiScheduledTask {
   session_target: ScheduledTaskSessionTarget;
   delivery: ScheduledTaskDeliveryTarget;
   source: ScheduledTaskSource;
+  overlap_policy?: ScheduledTaskOverlapPolicy | null;
   enabled: boolean;
   next_run_at?: string | null;
   running: boolean;
@@ -119,6 +121,7 @@ export interface CreateScheduledTaskParams {
   instruction: string;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
+  overlap_policy?: ScheduledTaskOverlapPolicy;
   enabled?: boolean;
 }
 
@@ -130,6 +133,7 @@ export interface UpdateScheduledTaskParams {
   session_target?: ScheduledTaskSessionTarget;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
+  overlap_policy?: ScheduledTaskOverlapPolicy;
   enabled?: boolean;
 }
 
@@ -145,11 +149,19 @@ export interface ApiScheduledTaskRun {
   run_id: string;
   job_id: string;
   status: ScheduledTaskRunLedgerStatus;
+  trigger_kind?: string | null;
+  session_key?: string | null;
+  round_id?: string | null;
+  session_id?: string | null;
+  message_count?: number | null;
+  delivery_mode?: ScheduledTaskDeliveryMode | string | null;
+  delivery_to?: string | null;
   scheduled_for?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
   attempts: number;
   error_message?: string | null;
+  result_summary?: string | null;
 }
 
 export interface ScheduledTaskRunItem extends Omit<ApiScheduledTaskRun, "scheduled_for" | "started_at" | "finished_at"> {

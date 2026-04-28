@@ -56,6 +56,13 @@ const (
 	RunStatusCancelled = "cancelled"
 	// RunStatusQueuedToMain 表示已排入主会话队列。
 	RunStatusQueuedToMain = "queued_to_main_session"
+	// RunStatusSkipped 表示因重叠策略跳过本次触发。
+	RunStatusSkipped = "skipped"
+
+	// OverlapPolicySkip 表示已有执行时跳过新触发。
+	OverlapPolicySkip = "skip"
+	// OverlapPolicyAllow 表示允许同一任务并发执行。
+	OverlapPolicyAllow = "allow"
 
 	// HeartbeatTargetNone 表示不投递。
 	HeartbeatTargetNone = "none"
@@ -254,9 +261,9 @@ func (s Source) Validate() error {
 	}
 	contextType := strings.TrimSpace(s.ContextType)
 	switch contextType {
-	case "", "agent", "chat":
+	case "", "agent", "room", "chat":
 	default:
-		return errors.New("source.context_type must be one of agent, chat")
+		return errors.New("source.context_type must be one of agent, room, chat")
 	}
 	if contextType == "" {
 		if contextID != "" || contextLabel != "" {
@@ -292,6 +299,7 @@ func (s Source) Normalized() Source {
 // CronJob 表示对外暴露的定时任务视图。
 type CronJob struct {
 	JobID         string         `json:"job_id"`
+	OwnerUserID   string         `json:"-"`
 	Name          string         `json:"name"`
 	AgentID       string         `json:"agent_id"`
 	Schedule      Schedule       `json:"schedule"`
@@ -299,6 +307,7 @@ type CronJob struct {
 	SessionTarget SessionTarget  `json:"session_target"`
 	Delivery      DeliveryTarget `json:"delivery"`
 	Source        Source         `json:"source"`
+	OverlapPolicy string         `json:"overlap_policy,omitempty"`
 	Enabled       bool           `json:"enabled"`
 	NextRunAt     *time.Time     `json:"next_run_at,omitempty"`
 	Running       bool           `json:"running"`
@@ -307,16 +316,25 @@ type CronJob struct {
 
 // CronRun 表示 run ledger 条目。
 type CronRun struct {
-	RunID        string     `json:"run_id"`
-	JobID        string     `json:"job_id"`
-	Status       string     `json:"status"`
-	ScheduledFor *time.Time `json:"scheduled_for,omitempty"`
-	StartedAt    *time.Time `json:"started_at,omitempty"`
-	FinishedAt   *time.Time `json:"finished_at,omitempty"`
-	Attempts     int        `json:"attempts"`
-	ErrorMessage *string    `json:"error_message,omitempty"`
-	CreatedAt    time.Time  `json:"created_at,omitempty"`
-	UpdatedAt    time.Time  `json:"updated_at,omitempty"`
+	RunID         string     `json:"run_id"`
+	JobID         string     `json:"job_id"`
+	OwnerUserID   string     `json:"-"`
+	Status        string     `json:"status"`
+	TriggerKind   string     `json:"trigger_kind,omitempty"`
+	SessionKey    string     `json:"session_key,omitempty"`
+	RoundID       string     `json:"round_id,omitempty"`
+	SessionID     *string    `json:"session_id,omitempty"`
+	MessageCount  int        `json:"message_count,omitempty"`
+	DeliveryMode  string     `json:"delivery_mode,omitempty"`
+	DeliveryTo    string     `json:"delivery_to,omitempty"`
+	ScheduledFor  *time.Time `json:"scheduled_for,omitempty"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`
+	Attempts      int        `json:"attempts"`
+	ErrorMessage  *string    `json:"error_message,omitempty"`
+	ResultSummary *string    `json:"result_summary,omitempty"`
+	CreatedAt     time.Time  `json:"created_at,omitempty"`
+	UpdatedAt     time.Time  `json:"updated_at,omitempty"`
 }
 
 // ExecutionResult 表示一次手动触发或后台触发的返回体。
@@ -341,6 +359,7 @@ type CreateJobInput struct {
 	SessionTarget SessionTarget  `json:"session_target"`
 	Delivery      DeliveryTarget `json:"delivery"`
 	Source        Source         `json:"source"`
+	OverlapPolicy string         `json:"overlap_policy,omitempty"`
 	Enabled       bool           `json:"enabled"`
 }
 
@@ -367,6 +386,9 @@ func (i CreateJobInput) Validate() error {
 	if err := i.Source.Normalized().Validate(); err != nil {
 		return err
 	}
+	if err := validateOverlapPolicy(i.OverlapPolicy); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -380,7 +402,26 @@ func (i CreateJobInput) Normalized() CreateJobInput {
 	result.SessionTarget = result.SessionTarget.Normalized()
 	result.Delivery = result.Delivery.Normalized()
 	result.Source = result.Source.Normalized()
+	result.OverlapPolicy = NormalizeOverlapPolicy(result.OverlapPolicy)
 	return result
+}
+
+// NormalizeOverlapPolicy 返回重叠触发策略的默认值。
+func NormalizeOverlapPolicy(policy string) string {
+	normalized := strings.TrimSpace(policy)
+	if normalized == "" {
+		return OverlapPolicySkip
+	}
+	return normalized
+}
+
+func validateOverlapPolicy(policy string) error {
+	switch NormalizeOverlapPolicy(policy) {
+	case OverlapPolicySkip, OverlapPolicyAllow:
+		return nil
+	default:
+		return errors.New("overlap_policy must be one of skip, allow")
+	}
 }
 
 // UpdateJobInput 表示更新请求。
@@ -391,6 +432,7 @@ type UpdateJobInput struct {
 	SessionTarget *SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *DeliveryTarget `json:"delivery,omitempty"`
 	Source        *Source         `json:"source,omitempty"`
+	OverlapPolicy *string         `json:"overlap_policy,omitempty"`
 	Enabled       *bool           `json:"enabled,omitempty"`
 }
 

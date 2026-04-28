@@ -21,37 +21,54 @@ var flatScheduleKeys = []string{
 }
 
 // ReassembleFlatSchedule 检测顶层平铺的 schedule 字段，缺失时回补成 schedule 对象。
-// 已经显式传 args["schedule"] 的请求不动。
+// 已经显式传 args["schedule"] 的请求也会合并缺失字段，兼容模型把一部分参数写成顶层或 schedule.xxx。
 func ReassembleFlatSchedule(args map[string]any) {
 	if args == nil {
 		return
 	}
-	if existing, ok := args["schedule"].(map[string]any); ok && len(existing) > 0 {
-		return
+	schedule, hasSchedule := args["schedule"].(map[string]any)
+	if !hasSchedule || schedule == nil {
+		schedule = map[string]any{}
 	}
-	synthetic := map[string]any{}
 	hasSignal := false
 	for _, key := range flatScheduleKeys {
-		value, exists := args[key]
+		value, exists := firstScheduleAliasValue(args, key)
 		if !exists || value == nil {
 			continue
 		}
-		switch key {
-		case "at":
-			synthetic["run_at"] = value
-		case "cron", "cron_expression":
-			synthetic["expr"] = value
-		default:
-			synthetic[key] = value
+		targetKey := normalizeScheduleKey(key)
+		if _, exists = schedule[targetKey]; !exists {
+			schedule[targetKey] = value
 		}
 		if key != "kind" && key != "timezone" {
 			hasSignal = true
 		}
 	}
-	if !hasSignal {
+	if !hasSchedule && !hasSignal {
 		return
 	}
-	args["schedule"] = synthetic
+	args["schedule"] = schedule
+}
+
+func firstScheduleAliasValue(args map[string]any, key string) (any, bool) {
+	if value, exists := args[key]; exists {
+		return value, true
+	}
+	if value, exists := args["schedule."+key]; exists {
+		return value, true
+	}
+	return nil, false
+}
+
+func normalizeScheduleKey(key string) string {
+	switch key {
+	case "at":
+		return "run_at"
+	case "cron", "cron_expression":
+		return "expr"
+	default:
+		return key
+	}
 }
 
 // ApplyDefaultTimezone 如果 schedule.timezone 缺失，写入 sctx.DefaultTimezone（兜底 Asia/Shanghai）。
