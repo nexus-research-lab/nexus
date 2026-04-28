@@ -11,12 +11,12 @@ sequenceDiagram
     participant DB as SQLite/Postgres
 
     User->>Web: Click Connect
-    Web->>API: GET /agent/v1/connectors/{id}/auth-url
+    Web->>API: GET /nexus/v1/connectors/{id}/auth-url
     API->>DB: Insert connector_oauth_states
     API-->>Web: auth_url + state
     Web->>Provider: Open authorize URL
     Provider-->>Web: Redirect to /capability/connectors/oauth/callback
-    Web->>API: POST /agent/v1/connectors/oauth/callback
+    Web->>API: POST /nexus/v1/connectors/oauth/callback
     API->>DB: Atomically consume state + PKCE verifier + extras
     API->>Provider: Exchange code for token
     Provider-->>API: Token payload

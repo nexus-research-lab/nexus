@@ -25,7 +25,7 @@
 主智能体身份以服务端配置为准：
 
 - `internal/config`
-- `/agent/v1/runtime/options`
+- `/nexus/v1/runtime/options`
 
 前端只消费后端下发的 `default_agent_id`，不再维护第二份默认值。
 
@@ -63,7 +63,7 @@
 
 ## 6. 前端规则
 
-- 前端通过 `/agent/v1/runtime/options` 获取 `default_agent_id`
+- 前端通过 `/nexus/v1/runtime/options` 获取 `default_agent_id`
 - launcher 和 `/app` 不允许手写第二份默认主智能体 ID
 - 普通成员目录可以过滤主智能体，但核心 agent cache 必须能解析到它
 

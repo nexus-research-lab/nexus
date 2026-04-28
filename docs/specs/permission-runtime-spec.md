@@ -106,7 +106,7 @@ Room 中必须分开两件事：
 
 ## 7. 当前实现约束
 
-- WebSocket 入口固定：`/agent/v1/chat/ws`
+- WebSocket 入口固定：`/nexus/v1/chat/ws`
 - runtime 继续按 `session_key` 复用
 - 权限请求只发给控制端，不广播给全部观察者
 - `session_status` 负责同步运行态和控制端归属，不负责定义消息历史

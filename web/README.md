@@ -35,8 +35,8 @@ cp env.example .env.local
 本地开发常用配置：
 
 ```bash
-VITE_WS_URL=/agent/v1/chat/ws
-VITE_API_URL=/agent/v1
+VITE_WS_URL=/nexus/v1/chat/ws
+VITE_API_URL=/nexus/v1
 ```
 
 如果不写 `VITE_API_URL` / `VITE_WS_URL`，前端会默认跟随当前域名访问 `/agent/...`，开发环境由 Vite 代理转发到后端。

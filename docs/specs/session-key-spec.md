@@ -154,10 +154,10 @@ room:group:<conversation_id>
 - Room 历史接口已经切到：
 
 ```text
-/agent/v1/rooms/{room_id}/conversations/{conversation_id}/messages
+/nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 ```
 
-- 不再保留旧的 `/agent/v1/sessions/{session_key}/messages` HTTP 读取链
+- 不再保留旧的 `/nexus/v1/sessions/{session_key}/messages` HTTP 读取链
 
 ## 8. 一句话总结
 

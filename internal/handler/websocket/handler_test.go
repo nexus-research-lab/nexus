@@ -27,7 +27,7 @@ func TestWebSocketSessionBindingAndControl(t *testing.T) {
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/agent/v1/chat/ws"
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

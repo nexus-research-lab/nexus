@@ -75,7 +75,7 @@ func TestServiceSetupOwnerLoginLogoutAndResetPassword(t *testing.T) {
 		t.Fatalf("登录状态未返回密码认证方式: %+v", loginResult.Status)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/agent/v1/auth/status", nil)
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil)
 	request.AddCookie(&http.Cookie{
 		Name:  service.CookieName(),
 		Value: loginResult.SessionToken,
@@ -162,7 +162,7 @@ func TestServiceAccessTokenBearer(t *testing.T) {
 	cfg.AccessToken = "access-token"
 	service := NewServiceWithDB(cfg, db)
 
-	request := httptest.NewRequest(http.MethodGet, "/agent/v1/auth/status", nil)
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil)
 	request.Header.Set("Authorization", "Bearer access-token")
 
 	principal, state, err := service.InspectRequest(context.Background(), request)
@@ -190,7 +190,7 @@ func TestServiceDisablesAccessTokenAfterOwnerInit(t *testing.T) {
 		t.Fatalf("初始化 owner 失败: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/agent/v1/auth/status", nil)
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil)
 	request.Header.Set("Authorization", "Bearer access-token")
 
 	principal, state, err := service.InspectRequest(ctx, request)
@@ -213,7 +213,7 @@ func newAuthTestDB(t *testing.T) (config.Config, *sql.DB) {
 
 	root := t.TempDir()
 	cfg := config.Config{
-		APIPrefix:      "/agent/v1",
+		APIPrefix:      "/nexus/v1",
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "auth.db"),
 	}

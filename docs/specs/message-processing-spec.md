@@ -173,10 +173,10 @@ Room shared 不再保存完整正文副本，而是：
 Room / DM 历史读取统一走 room conversation 语义：
 
 ```text
-GET /agent/v1/rooms/{room_id}/conversations/{conversation_id}/messages
+GET /nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 ```
 
-旧的 `/agent/v1/sessions/{session_key}/messages` 已移除。
+旧的 `/nexus/v1/sessions/{session_key}/messages` 已移除。
 
 ## 8. 已删除的旧链路
 

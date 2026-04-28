@@ -50,7 +50,7 @@ services:
     expose:
       - "8010"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8010/agent/v1/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8010/nexus/v1/health >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5

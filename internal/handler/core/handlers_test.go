@@ -51,7 +51,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/agent/v1/runtime/options", nil)
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
 	recorder := httptest.NewRecorder()
 	server.Router().ServeHTTP(recorder, request)
 

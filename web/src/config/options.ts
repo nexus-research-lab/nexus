@@ -23,8 +23,8 @@ let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
   setting_sources: ["project"],
 };
 
-const DEFAULT_API_PATH = "/agent/v1";
-const DEFAULT_WS_PATH = "/agent/v1/chat/ws";
+const DEFAULT_API_PATH = "/nexus/v1";
+const DEFAULT_WS_PATH = "/nexus/v1/chat/ws";
 const ENABLE_STRICT_MODE = false;
 const MESSAGE_HISTORY_ROUND_PAGE_SIZE = 3;
 // 与后端 protocol.ChatAckTimeoutMS 保持一致。
@@ -143,7 +143,7 @@ export async function hydrate_runtime_options(): Promise<void> {
     },
   );
   const next_default_agent_id = payload?.default_agent_id;
-  if (!next_default_agent_id || typeof next_default_agent_id !== "string") {
+  if (!next_default_agent_id) {
     throw new Error("运行时配置缺少 default_agent_id");
   }
 

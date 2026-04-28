@@ -41,7 +41,7 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 		t.Fatalf("初始化 owner 失败: %v", err)
 	}
 
-	protectedRequest, _ := http.NewRequest(http.MethodGet, httpServer.URL+"/agent/v1/agents", nil)
+	protectedRequest, _ := http.NewRequest(http.MethodGet, httpServer.URL+"/nexus/v1/agents", nil)
 	protectedResponse, err := http.DefaultClient.Do(protectedRequest)
 	if err != nil {
 		t.Fatalf("请求受保护路由失败: %v", err)
@@ -150,7 +150,7 @@ type apiEnvelope[T any] struct {
 func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authStatusResponse {
 	t.Helper()
 
-	request, _ := http.NewRequest(http.MethodGet, baseURL+"/agent/v1/auth/status", nil)
+	request, _ := http.NewRequest(http.MethodGet, baseURL+"/nexus/v1/auth/status", nil)
 	for _, cookie := range cookies {
 		request.AddCookie(cookie)
 	}
@@ -173,7 +173,7 @@ func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authSta
 func getPersonalProfile(t *testing.T, baseURL string, cookie *http.Cookie) personalProfileResponse {
 	t.Helper()
 
-	request, _ := http.NewRequest(http.MethodGet, baseURL+"/agent/v1/settings/profile", nil)
+	request, _ := http.NewRequest(http.MethodGet, baseURL+"/nexus/v1/settings/profile", nil)
 	request.AddCookie(cookie)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -201,7 +201,7 @@ func updatePersonalAvatar(t *testing.T, baseURL string, cookie *http.Cookie, ava
 		t.Fatalf("编码头像更新请求失败: %v", err)
 	}
 
-	request, _ := http.NewRequest(http.MethodPatch, baseURL+"/agent/v1/settings/profile", bytes.NewReader(body))
+	request, _ := http.NewRequest(http.MethodPatch, baseURL+"/nexus/v1/settings/profile", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.AddCookie(cookie)
 	response, err := http.DefaultClient.Do(request)
@@ -231,7 +231,7 @@ func loginByHTTP(t *testing.T, baseURL string, username string, password string)
 		t.Fatalf("编码登录请求失败: %v", err)
 	}
 
-	request, _ := http.NewRequest(http.MethodPost, baseURL+"/agent/v1/auth/login", bytes.NewReader(body))
+	request, _ := http.NewRequest(http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -260,7 +260,7 @@ func loginStatus(t *testing.T, baseURL string, username string, password string)
 	if err != nil {
 		t.Fatalf("编码登录请求失败: %v", err)
 	}
-	request, _ := http.NewRequest(http.MethodPost, baseURL+"/agent/v1/auth/login", bytes.NewReader(body))
+	request, _ := http.NewRequest(http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -286,7 +286,7 @@ func changePasswordStatus(
 	if err != nil {
 		t.Fatalf("编码改密请求失败: %v", err)
 	}
-	request, _ := http.NewRequest(http.MethodPost, baseURL+"/agent/v1/settings/profile/password", bytes.NewReader(body))
+	request, _ := http.NewRequest(http.MethodPost, baseURL+"/nexus/v1/settings/profile/password", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.AddCookie(cookie)
 	response, err := http.DefaultClient.Do(request)

@@ -20,7 +20,7 @@ func TestMiddlewareWritesRequestIDAndAccessLog(t *testing.T) {
 		})),
 	)
 
-	request := httptest.NewRequest(http.MethodPost, "/agent/v1/agents?limit=10", nil)
+	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/agents?limit=10", nil)
 	request.RemoteAddr = "127.0.0.1:9000"
 	recorder := httptest.NewRecorder()
 
@@ -58,7 +58,7 @@ func TestRecoverMiddlewareReturnsInternalError(t *testing.T) {
 		),
 	)
 
-	request := httptest.NewRequest(http.MethodGet, "/agent/v1/panic", nil)
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/panic", nil)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 

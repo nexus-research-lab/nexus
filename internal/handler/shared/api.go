@@ -244,11 +244,11 @@ func PublicAuthRoute(request *http.Request) bool {
 	}
 	path := strings.TrimSpace(request.URL.Path)
 	switch path {
-	case "/agent/v1/health",
-		"/agent/v1/runtime/options",
-		"/agent/v1/auth/status",
-		"/agent/v1/auth/login",
-		"/agent/v1/auth/logout":
+	case "/nexus/v1/health",
+		"/nexus/v1/runtime/options",
+		"/nexus/v1/auth/status",
+		"/nexus/v1/auth/login",
+		"/nexus/v1/auth/logout":
 		return true
 	default:
 		return false

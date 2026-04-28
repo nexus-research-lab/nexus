@@ -57,7 +57,7 @@ func TestHandleInternalChannelIngressOverridesChannel(t *testing.T) {
 	}
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/agent/v1/channels/internal/messages", bytes.NewReader(body))
+	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/channels/internal/messages", bytes.NewReader(body))
 	handler.HandleInternalChannelIngress(recorder, request)
 
 	if recorder.Code != http.StatusOK {
