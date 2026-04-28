@@ -140,7 +140,7 @@ func (s *RealtimeService) runSlot(
 	}
 	mcpServers := map[string]agentclient.SDKMCPServer(nil)
 	if s.mcpServers != nil {
-		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")
+		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room", roundValue.RoomID, "")
 	}
 	permissionMode := sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
 	permissionHandler := func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
@@ -398,9 +398,21 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 		fields = append(fields,
 			"stream_messages_seen", streamClosed.MessagesSeen,
 			"stream_last_type", streamClosed.LastMessageType,
+			"stream_last_summary", streamClosed.LastMessageSummary,
 			"stream_last_session_id", streamClosed.LastSessionID,
 			"stream_last_message_id", streamClosed.LastMessageID,
 			"stream_wait_error", streamClosed.WaitError,
+		)
+	}
+	var streamIdle *runtimectx.RoundStreamIdleTimeoutError
+	if errors.As(err, &streamIdle) {
+		fields = append(fields,
+			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
+			"stream_messages_seen", streamIdle.MessagesSeen,
+			"stream_last_type", streamIdle.LastMessageType,
+			"stream_last_summary", streamIdle.LastMessageSummary,
+			"stream_last_session_id", streamIdle.LastSessionID,
+			"stream_last_message_id", streamIdle.LastMessageID,
 		)
 	}
 	if mapper != nil {

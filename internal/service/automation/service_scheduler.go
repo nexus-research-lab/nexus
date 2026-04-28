@@ -10,10 +10,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 func (s *Service) bootstrapRuntime(ctx context.Context) error {
-	jobs, err := s.repository.ListCronJobs(ctx, "")
+	jobs, err := s.repository.ListCronJobs(ctx, "", "")
 	if err != nil {
 		return err
 	}
@@ -56,7 +57,10 @@ func (s *Service) runDueOnce() {
 
 	s.mu.Lock()
 	for _, state := range s.jobStates {
-		if state == nil || !state.Job.Enabled || state.Running || state.NextRunAt == nil {
+		if state == nil || !state.Job.Enabled || state.NextRunAt == nil {
+			continue
+		}
+		if state.Running && protocol.NormalizeOverlapPolicy(state.Job.OverlapPolicy) == protocol.OverlapPolicySkip {
 			continue
 		}
 		if !state.NextRunAt.After(now) {
@@ -111,8 +115,34 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 		return nil, err
 	}
 	if strings.TrimSpace(job.SessionTarget.Kind) == protocol.SessionTargetMain {
+		runID := s.idFactory("run")
+		sessionKey, err := automationdomain.ResolveSessionKey(job, nil)
+		if err != nil {
+			logger.Error("自动化任务解析主会话键失败", "err", err)
+			return nil, err
+		}
+		if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
+			RunID:        runID,
+			JobID:        job.JobID,
+			OwnerUserID:  job.OwnerUserID,
+			ScheduledFor: &scheduledFor,
+			TriggerKind:  triggerKind,
+			SessionKey:   sessionKey,
+			DeliveryMode: protocol.DeliveryModeNone,
+		}); err != nil {
+			return nil, err
+		}
 		eventID, err := s.enqueueMainSessionEvent(ctx, job, triggerKind)
 		if err != nil {
+			finishedAt := s.nowFn()
+			message := err.Error()
+			_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+				RunID:        runID,
+				Status:       protocol.RunStatusFailed,
+				FinishedAt:   finishedAt,
+				ErrorMessage: &message,
+			})
+			s.finishJobRuntime(job.JobID, &finishedAt, false)
 			return nil, err
 		}
 		mode := job.SessionTarget.WakeMode
@@ -121,20 +151,33 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 		}
 		if _, err := s.WakeHeartbeat(ctx, job.AgentID, protocol.HeartbeatWakeRequest{Mode: mode}); err != nil {
 			_ = s.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
+			finishedAt := s.nowFn()
+			message := err.Error()
+			_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+				RunID:        runID,
+				Status:       protocol.RunStatusFailed,
+				FinishedAt:   finishedAt,
+				ErrorMessage: &message,
+			})
+			s.finishJobRuntime(job.JobID, &finishedAt, false)
 			logger.Error("自动化任务唤醒主会话 heartbeat 失败", "err", err)
 			return nil, err
 		}
-		sessionKey, err := automationdomain.ResolveSessionKey(job, nil)
-		if err != nil {
-			logger.Error("自动化任务解析主会话键失败", "err", err)
-			return nil, err
-		}
+		finishedAt := s.nowFn()
+		_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+			RunID:      runID,
+			Status:     protocol.RunStatusQueuedToMain,
+			FinishedAt: finishedAt,
+		})
+		s.finishJobRuntime(job.JobID, &finishedAt, true)
 		logger.Info("自动化任务已排入主会话",
+			"run_id", runID,
 			"session_key", sessionKey,
 			"wake_mode", mode,
 		)
 		return &protocol.ExecutionResult{
 			JobID:        job.JobID,
+			RunID:        &runID,
 			Status:       protocol.RunStatusQueuedToMain,
 			SessionKey:   sessionKey,
 			ScheduledFor: cloneTimePointer(&scheduledFor),
@@ -143,12 +186,17 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 
 	state := s.ensureJobState(job)
 	s.mu.Lock()
-	if state.Running {
+	overlapPolicy := protocol.NormalizeOverlapPolicy(job.OverlapPolicy)
+	if state.Running && overlapPolicy == protocol.OverlapPolicySkip {
 		s.mu.Unlock()
 		logger.Warn("自动化任务已在运行中")
-		return nil, errors.New("任务正在运行中")
+		return s.recordSkippedOverlap(ctx, job, triggerKind, scheduledFor)
 	}
+	state.RunningCount++
 	state.Running = true
+	if triggerKind == "cron" {
+		state.NextRunAt = s.computeJobNext(job, scheduledFor.UTC().Add(time.Second))
+	}
 	s.mu.Unlock()
 
 	runID := s.idFactory("run")
@@ -158,7 +206,18 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 		logger.Error("自动化任务解析执行会话键失败", "run_id", runID, "err", err)
 		return nil, err
 	}
-	if err := s.repository.InsertRunPending(ctx, runID, job.JobID, &scheduledFor); err != nil {
+	roundID := s.idFactory("round")
+	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
+		RunID:        runID,
+		JobID:        job.JobID,
+		OwnerUserID:  job.OwnerUserID,
+		ScheduledFor: &scheduledFor,
+		TriggerKind:  triggerKind,
+		SessionKey:   sessionKey,
+		RoundID:      roundID,
+		DeliveryMode: strings.TrimSpace(job.Delivery.Mode),
+		DeliveryTo:   deliveryTargetSummary(job.Delivery),
+	}); err != nil {
 		s.finishJobRuntime(job.JobID, nil, false)
 		return nil, err
 	}
@@ -167,7 +226,6 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 		return nil, err
 	}
 
-	roundID := s.idFactory("round")
 	logger.Info("开始执行自动化任务",
 		"run_id", runID,
 		"round_id", roundID,
@@ -180,7 +238,12 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 		sink.Close()
 		finishedAt := s.nowFn()
 		message := err.Error()
-		_ = s.repository.MarkRunFinished(context.Background(), runID, protocol.RunStatusFailed, finishedAt, &message)
+		_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+			RunID:        runID,
+			Status:       protocol.RunStatusFailed,
+			FinishedAt:   finishedAt,
+			ErrorMessage: &message,
+		})
 		s.finishJobRuntime(job.JobID, &finishedAt, false)
 		logger.Error("自动化任务下发失败",
 			"run_id", runID,
@@ -251,8 +314,56 @@ func (s *Service) observeJobRun(
 			"session_id", anyStringPointer(observation.SessionID),
 		)
 	}
-	_ = s.repository.MarkRunFinished(context.Background(), runID, status, finishedAt, errorMessage)
+	resultSummary := stringPointer(firstNonEmpty(observation.ResultText, observation.AssistantText))
+	_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+		RunID:         runID,
+		Status:        status,
+		FinishedAt:    finishedAt,
+		ErrorMessage:  errorMessage,
+		SessionID:     observation.SessionID,
+		MessageCount:  observation.MessageCount,
+		ResultSummary: resultSummary,
+	})
 	s.finishJobRuntime(job.JobID, &finishedAt, status == protocol.RunStatusSucceeded)
+}
+
+func (s *Service) recordSkippedOverlap(
+	ctx context.Context,
+	job protocol.CronJob,
+	triggerKind string,
+	scheduledFor time.Time,
+) (*protocol.ExecutionResult, error) {
+	runID := s.idFactory("run")
+	message := "previous run is still running; overlap_policy=skip"
+	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
+		RunID:        runID,
+		JobID:        job.JobID,
+		OwnerUserID:  job.OwnerUserID,
+		ScheduledFor: &scheduledFor,
+		TriggerKind:  triggerKind,
+		DeliveryMode: strings.TrimSpace(job.Delivery.Mode),
+		DeliveryTo:   deliveryTargetSummary(job.Delivery),
+		Status:       protocol.RunStatusSkipped,
+	}); err != nil {
+		return nil, err
+	}
+	finishedAt := s.nowFn()
+	_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+		RunID:        runID,
+		Status:       protocol.RunStatusSkipped,
+		FinishedAt:   finishedAt,
+		ErrorMessage: &message,
+	})
+	if triggerKind == "cron" {
+		s.advanceJobRuntimeAfterTrigger(job.JobID, scheduledFor)
+	}
+	return &protocol.ExecutionResult{
+		JobID:        job.JobID,
+		RunID:        &runID,
+		Status:       protocol.RunStatusSkipped,
+		ScheduledFor: cloneTimePointer(&scheduledFor),
+		ErrorMessage: &message,
+	}, nil
 }
 
 func (s *Service) bindSink(sessionKey string, sink *automationdomain.ExecutionSink) func() {

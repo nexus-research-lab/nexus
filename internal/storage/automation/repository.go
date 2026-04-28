@@ -25,6 +25,7 @@ type Repository struct {
 const upsertCronJobQueryTemplate = `
 INSERT INTO automation_cron_jobs (
     job_id,
+    owner_user_id,
     name,
     agent_id,
     schedule_kind,
@@ -49,6 +50,7 @@ INSERT INTO automation_cron_jobs (
     source_context_label,
     source_session_key,
     source_session_label,
+    overlap_policy,
     enabled,
     created_at,
     updated_at
@@ -56,6 +58,7 @@ INSERT INTO automation_cron_jobs (
     %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 )
 ON CONFLICT(job_id) DO UPDATE SET
+    owner_user_id = EXCLUDED.owner_user_id,
     name = EXCLUDED.name,
     agent_id = EXCLUDED.agent_id,
     schedule_kind = EXCLUDED.schedule_kind,
@@ -80,6 +83,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     source_context_label = EXCLUDED.source_context_label,
     source_session_key = EXCLUDED.source_session_key,
     source_session_label = EXCLUDED.source_session_label,
+    overlap_policy = EXCLUDED.overlap_policy,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`
 
@@ -89,18 +93,24 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		db:         db,
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 	}
-	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(26))
+	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(28))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_cron_runs (
     run_id,
     job_id,
+    owner_user_id,
     status,
+    trigger_kind,
+    session_key,
+    round_id,
+    delivery_mode,
+    delivery_to,
     scheduled_for,
     attempts,
     created_at,
     updated_at
 ) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(5),
+		repository.bindList(11),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
 		`UPDATE automation_cron_runs
@@ -116,9 +126,12 @@ WHERE run_id = %s`,
 SET status = %s,
     finished_at = %s,
     error_message = %s,
+    session_id = %s,
+    message_count = %s,
+    result_summary = %s,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
-		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4),
+		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7),
 	)
 	repository.upsertHeartbeatStateQuery = fmt.Sprintf(
 		`INSERT INTO automation_heartbeat_states (

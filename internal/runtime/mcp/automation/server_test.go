@@ -164,6 +164,30 @@ func TestCreateAllowsSimpleDefaults(t *testing.T) {
 	}
 }
 
+func TestCreateAllowsSimpleDefaultsWithJSONNumberAndDottedSchedule(t *testing.T) {
+	svc := &stubService{}
+	sctx := contract.ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
+	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"name":                    "test",
+		"instruction":             "提醒我喝水",
+		"schedule.kind":           "interval",
+		"schedule.interval_value": json.Number("1"),
+		"schedule.interval_unit":  "minutes",
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
+		t.Fatalf("expected isolated target from default, got %q", svc.createInput.SessionTarget.Kind)
+	}
+	if svc.createInput.Delivery.Mode != protocol.DeliveryModeNone {
+		t.Fatalf("expected none delivery from default, got %q", svc.createInput.Delivery.Mode)
+	}
+	if svc.createInput.Schedule.IntervalSeconds == nil || *svc.createInput.Schedule.IntervalSeconds != 60 {
+		t.Fatalf("expected 60s interval, got %+v", svc.createInput.Schedule.IntervalSeconds)
+	}
+}
+
 func TestCreateExecutionModeExistingRequiresSession(t *testing.T) {
 	svc := &stubService{}
 	sctx := contract.ServerContext{CurrentAgentID: "agent-1"}
@@ -179,6 +203,45 @@ func TestCreateExecutionModeExistingRequiresSession(t *testing.T) {
 	}
 	if !strings.Contains(extractText(t, result), "selected_session_key") {
 		t.Fatalf("expected hint about selected_session_key, got %q", extractText(t, result))
+	}
+}
+
+func TestCreateExistingExecutionMatchesUIPayloadShape(t *testing.T) {
+	svc := &stubService{}
+	sessionKey := "agent:agent-1:ws:dm:current"
+	sctx := contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: sessionKey,
+		SourceContextType: "agent",
+		SourceContextID:   "agent-1",
+	}
+	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"name":                 "半小时同步",
+		"instruction":          "同步当前进展",
+		"execution_mode":       "existing",
+		"reply_mode":           "execution",
+		"selected_session_key": sessionKey,
+		"schedule":             intervalSchedule(30, "minutes"),
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	input := svc.createInput
+	if input.Schedule.Kind != protocol.ScheduleKindEvery ||
+		input.Schedule.IntervalSeconds == nil ||
+		*input.Schedule.IntervalSeconds != 1800 {
+		t.Fatalf("schedule should match UI every payload, got %+v", input.Schedule)
+	}
+	if input.SessionTarget.Kind != protocol.SessionTargetBound || input.SessionTarget.BoundSessionKey != sessionKey {
+		t.Fatalf("session target should match UI existing payload, got %+v", input.SessionTarget)
+	}
+	if input.Delivery.Mode != protocol.DeliveryModeExplicit ||
+		input.Delivery.Channel != "websocket" ||
+		input.Delivery.To != sessionKey {
+		t.Fatalf("delivery should match UI execution payload, got %+v", input.Delivery)
+	}
+	if input.Source.Kind != protocol.SourceKindAgent || input.Source.ContextType != "agent" || input.Source.ContextID != "agent-1" {
+		t.Fatalf("source should preserve agent snapshot, got %+v", input.Source)
 	}
 }
 
@@ -248,6 +311,38 @@ func TestCreateExecutionReplyTemporaryFromAgentContextFallsBackToNone(t *testing
 	}
 	if svc.createInput.Delivery.Mode != protocol.DeliveryModeNone {
 		t.Fatalf("expected delivery.mode=none for temporary+execution in agent context, got %q", svc.createInput.Delivery.Mode)
+	}
+}
+
+func TestCreateExecutionReplyTemporaryFromRoomContextTargetsCurrentSession(t *testing.T) {
+	svc := &stubService{}
+	sessionKey := protocol.BuildRoomAgentSessionKey("conversation-1", "agent-1", protocol.RoomTypeGroup)
+	sctx := contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: sessionKey,
+		SourceContextType: "room",
+		SourceContextID:   "room-1",
+	}
+	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
+		"name":           "定点播报",
+		"instruction":    "每天 9 点说早安",
+		"execution_mode": "temporary",
+		"reply_mode":     "execution",
+		"schedule":       dailySchedule("09:00"),
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit {
+		t.Fatalf("expected delivery.mode=explicit for temporary+execution in room context, got %q", svc.createInput.Delivery.Mode)
+	}
+	if svc.createInput.Delivery.To != sessionKey {
+		t.Fatalf("expected delivery.To=current room session, got %q", svc.createInput.Delivery.To)
+	}
+	if svc.createInput.Source.ContextType != "room" ||
+		svc.createInput.Source.ContextID != "room-1" ||
+		svc.createInput.Source.SessionKey != sessionKey {
+		t.Fatalf("expected room source snapshot, got %+v", svc.createInput.Source)
 	}
 }
 

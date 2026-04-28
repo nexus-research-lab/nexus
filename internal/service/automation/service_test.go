@@ -12,6 +12,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -26,6 +27,7 @@ type fakeDMRunner struct {
 	permission    *permissionctx.Context
 	resultText    string
 	assistantText string
+	delay         time.Duration
 
 	mu       sync.Mutex
 	requests []dmsvc.Request
@@ -37,7 +39,11 @@ func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) erro
 	f.mu.Unlock()
 
 	go func() {
-		time.Sleep(20 * time.Millisecond)
+		delay := f.delay
+		if delay <= 0 {
+			delay = 20 * time.Millisecond
+		}
+		time.Sleep(delay)
 		f.permission.BroadcastEvent(context.Background(), request.SessionKey, protocol.EventMessage{
 			ProtocolVersion: 2,
 			DeliveryMode:    "durable",
@@ -218,6 +224,168 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	}
 	if requests[0].Content != "整理今天的进展" {
 		t.Fatalf("下发指令不正确: %s", requests[0].Content)
+	}
+}
+
+func TestServiceListTasksScopesByOwnerUserID(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	ctxUser1 := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-1", Username: "user-1"})
+	ctxUser2 := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-2", Username: "user-2"})
+
+	taskUser1, err := service.CreateTask(ctxUser1, protocol.CreateJobInput{
+		Name:        "用户 1 任务",
+		AgentID:     "agent-1",
+		Instruction: "user 1",
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
+		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("创建 user-1 任务失败: %v", err)
+	}
+	if _, err = service.CreateTask(ctxUser2, protocol.CreateJobInput{
+		Name:        "用户 2 任务",
+		AgentID:     "agent-1",
+		Instruction: "user 2",
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
+		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Enabled:       true,
+	}); err != nil {
+		t.Fatalf("创建 user-2 任务失败: %v", err)
+	}
+
+	user1Tasks, err := service.ListTasks(ctxUser1, "")
+	if err != nil {
+		t.Fatalf("ListTasks user-1 失败: %v", err)
+	}
+	if len(user1Tasks) != 1 || user1Tasks[0].JobID != taskUser1.JobID {
+		t.Fatalf("user-1 scope 不正确: %+v", user1Tasks)
+	}
+	user2View, err := service.GetTask(ctxUser2, taskUser1.JobID)
+	if err != nil {
+		t.Fatalf("GetTask user-2 失败: %v", err)
+	}
+	if user2View != nil {
+		t.Fatalf("user-2 不应读取 user-1 任务: %+v", user2View)
+	}
+	globalTasks, err := service.ListTasks(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListTasks global 失败: %v", err)
+	}
+	if len(globalTasks) != 2 {
+		t.Fatalf("global scope 应看到 2 个任务，实际 %d", len(globalTasks))
+	}
+}
+
+func TestServiceRunTaskNowRecordsOverlapSkippedRun(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	dm := &fakeDMRunner{permission: permission, delay: 200 * time.Millisecond}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		dm,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+
+	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+		Name:        "重叠保护",
+		AgentID:     "agent-1",
+		Instruction: "慢任务",
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: protocol.SessionTarget{
+			Kind:            protocol.SessionTargetBound,
+			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "overlap", ""),
+		},
+		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		OverlapPolicy: protocol.OverlapPolicySkip,
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	first, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("第一次 RunTaskNow 失败: %v", err)
+	}
+	if first.Status != protocol.RunStatusRunning {
+		t.Fatalf("第一次应返回 running，实际 %s", first.Status)
+	}
+	second, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("第二次 RunTaskNow 不应报错，应记录 skipped: %v", err)
+	}
+	if second.Status != protocol.RunStatusSkipped {
+		t.Fatalf("第二次应返回 skipped，实际 %s", second.Status)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		if listErr != nil || len(items) != 2 {
+			return false
+		}
+		hasSuccess := false
+		hasSkipped := false
+		for _, item := range items {
+			hasSuccess = hasSuccess || item.Status == protocol.RunStatusSucceeded
+			hasSkipped = hasSkipped || item.Status == protocol.RunStatusSkipped
+		}
+		return hasSuccess && hasSkipped
+	})
+
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("ListTaskRuns 失败: %v", err)
+	}
+	var skipped, succeeded *protocol.CronRun
+	for i := range runs {
+		switch runs[i].Status {
+		case protocol.RunStatusSkipped:
+			skipped = &runs[i]
+		case protocol.RunStatusSucceeded:
+			succeeded = &runs[i]
+		}
+	}
+	if skipped == nil || skipped.ErrorMessage == nil {
+		t.Fatalf("skipped run 应包含错误说明: %+v", runs)
+	}
+	if skipped.TriggerKind != "manual" {
+		t.Fatalf("skipped run trigger_kind 不正确: %+v", skipped)
+	}
+	if succeeded == nil || succeeded.SessionKey == "" || succeeded.RoundID == "" || succeeded.SessionID == nil || succeeded.MessageCount == 0 {
+		t.Fatalf("succeeded run 缺少执行诊断字段: %+v", succeeded)
+	}
+	if succeeded.ResultSummary == nil || strings.TrimSpace(*succeeded.ResultSummary) == "" {
+		t.Fatalf("succeeded run 缺少 result_summary: %+v", succeeded)
 	}
 }
 
@@ -822,8 +990,12 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
 	}
-	if _, err = service.RunTaskNow(context.Background(), task.JobID); err != nil {
+	result, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil {
 		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	if result.RunID == nil || result.Status != protocol.RunStatusQueuedToMain {
+		t.Fatalf("main target 应返回 queued run: %+v", result)
 	}
 
 	var rawPayload string
@@ -840,6 +1012,13 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	}
 	if _, exists := payload["instruction"]; exists {
 		t.Fatalf("cron.trigger 不应写 instruction 字段: %v", payload)
+	}
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("ListTaskRuns 失败: %v", err)
+	}
+	if len(runs) != 1 || runs[0].Status != protocol.RunStatusQueuedToMain || runs[0].SessionKey == "" {
+		t.Fatalf("main target run ledger 不正确: %+v", runs)
 	}
 }
 
@@ -1215,6 +1394,7 @@ CREATE TABLE agents (
 );
 CREATE TABLE automation_cron_jobs (
     job_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    owner_user_id VARCHAR(64) NOT NULL DEFAULT '__system__',
     name VARCHAR(255) NOT NULL,
     agent_id VARCHAR(64) NOT NULL,
     source_kind VARCHAR(32) NOT NULL DEFAULT 'manual',
@@ -1224,6 +1404,7 @@ CREATE TABLE automation_cron_jobs (
     source_context_label VARCHAR(255),
     source_session_key VARCHAR(255),
     source_session_label VARCHAR(255),
+    overlap_policy VARCHAR(32) NOT NULL DEFAULT 'skip',
     schedule_kind VARCHAR(32) NOT NULL,
     run_at VARCHAR(32),
     interval_seconds INTEGER,
@@ -1246,12 +1427,21 @@ CREATE TABLE automation_cron_jobs (
 CREATE TABLE automation_cron_runs (
     run_id VARCHAR(64) NOT NULL PRIMARY KEY,
     job_id VARCHAR(64) NOT NULL,
+    owner_user_id VARCHAR(64) NOT NULL DEFAULT '__system__',
     status VARCHAR(32) NOT NULL,
+    trigger_kind VARCHAR(32) NOT NULL DEFAULT '',
+    session_key VARCHAR(255),
+    round_id VARCHAR(64),
+    session_id VARCHAR(255),
+    message_count INTEGER NOT NULL DEFAULT 0,
+    delivery_mode VARCHAR(32),
+    delivery_to VARCHAR(255),
     scheduled_for DATETIME,
     started_at DATETIME,
     finished_at DATETIME,
     attempts INTEGER NOT NULL,
     error_message TEXT,
+    result_summary TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

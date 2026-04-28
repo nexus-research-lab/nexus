@@ -3,6 +3,8 @@ package automation
 import (
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func cloneTimePointer(value *time.Time) *time.Time {
@@ -60,4 +62,28 @@ func stringPointer(value string) *string {
 		return nil
 	}
 	return &normalized
+}
+
+func deliveryTargetSummary(target protocol.DeliveryTarget) string {
+	mode := strings.TrimSpace(target.Mode)
+	switch mode {
+	case "", protocol.DeliveryModeNone:
+		return ""
+	case protocol.DeliveryModeLast:
+		return protocol.DeliveryModeLast
+	case protocol.DeliveryModeExplicit:
+		parts := []string{protocol.DeliveryModeExplicit}
+		if channel := strings.TrimSpace(target.Channel); channel != "" {
+			parts = append(parts, channel)
+		}
+		if to := strings.TrimSpace(target.To); to != "" {
+			parts = append(parts, to)
+		}
+		if threadID := strings.TrimSpace(target.ThreadID); threadID != "" {
+			parts = append(parts, "thread:"+threadID)
+		}
+		return strings.Join(parts, ":")
+	default:
+		return mode
+	}
 }

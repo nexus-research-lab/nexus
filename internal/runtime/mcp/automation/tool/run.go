@@ -24,7 +24,7 @@ func runNow(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
 				return render.Error(err), nil
 			}
-			result, err := svc.RunTaskNow(ctx, jobID)
+			result, err := svc.RunTaskNow(scopedToolContext(ctx, sctx), jobID)
 			if err != nil {
 				return render.Error(err), nil
 			}

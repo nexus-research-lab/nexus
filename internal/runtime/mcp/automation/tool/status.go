@@ -29,7 +29,7 @@ func status(svc contract.Service, sctx contract.ServerContext, name string, enab
 			if err := ensureJobOwnedByCaller(ctx, svc, sctx, jobID); err != nil {
 				return render.Error(err), nil
 			}
-			job, err := svc.UpdateTaskStatus(ctx, jobID, enabled)
+			job, err := svc.UpdateTaskStatus(scopedToolContext(ctx, sctx), jobID, enabled)
 			if err != nil {
 				return render.Error(err), nil
 			}

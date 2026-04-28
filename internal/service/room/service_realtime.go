@@ -59,7 +59,7 @@ type InterruptRequest struct {
 
 // MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
 // 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
-type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer
+type MCPServerBuilder func(agentID, sessionKey, sourceContextType, sourceContextID, sourceContextLabel string) map[string]agentclient.SDKMCPServer
 
 type RealtimeService struct {
 	config      config.Config

@@ -20,6 +20,7 @@ const createDescription = "创建定时任务（== UI「新建任务」对话框
 	"schedule.timezone 缺省按服务器默认时区（通常 Asia/Shanghai）。" +
 	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected)，缺省走 temporary+none——" +
 	"短文本提醒类任务直接发即可；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
+	"overlap_policy 可选 skip|allow，缺省 skip。" +
 	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
 
 func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
@@ -41,7 +42,7 @@ func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 			if err != nil {
 				return render.Error(err), nil
 			}
-			job, err := svc.CreateTask(ctx, input)
+			job, err := svc.CreateTask(scopedToolContext(ctx, sctx), input)
 			if err != nil {
 				return render.Error(err), nil
 			}
@@ -84,6 +85,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (protoco
 		SessionTarget: sessionTarget,
 		Delivery:      delivery,
 		Source:        semantic.Source(sctx, agentID),
+		OverlapPolicy: argx.String(args, "overlap_policy"),
 		Enabled:       argx.Bool(args, "enabled", true),
 	}, nil
 }

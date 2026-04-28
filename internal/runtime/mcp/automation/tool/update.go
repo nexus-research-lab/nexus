@@ -17,7 +17,7 @@ import (
 
 const updateDescription = "按 job_id 局部更新定时任务字段。字段语义与 UI「编辑任务」对话框一致：" +
 	"name / instruction / schedule / execution_mode / reply_mode / selected_session_key / " +
-	"named_session_key / selected_reply_session_key / enabled。只有提供的字段会被更新。"
+	"named_session_key / selected_reply_session_key / overlap_policy / enabled。只有提供的字段会被更新。"
 
 func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
 	return agentclient.MCPTool{
@@ -41,7 +41,7 @@ func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTo
 			if err != nil {
 				return render.Error(err), nil
 			}
-			job, err := svc.UpdateTask(ctx, jobID, input)
+			job, err := svc.UpdateTask(scopedToolContext(ctx, sctx), jobID, input)
 			if err != nil {
 				return render.Error(err), nil
 			}
@@ -65,6 +65,10 @@ func buildUpdateInput(args map[string]any, sctx contract.ServerContext) (protoco
 	if enabled, ok := args["enabled"]; ok {
 		b := argx.ParseBool(enabled)
 		input.Enabled = &b
+	}
+	if overlapPolicy, ok := args["overlap_policy"]; ok {
+		s := strings.TrimSpace(argx.StringOf(overlapPolicy))
+		input.OverlapPolicy = &s
 	}
 	if raw, ok := args["schedule"]; ok {
 		schedule, err := builder.Schedule(raw, sctx.DefaultTimezone)

@@ -16,17 +16,20 @@ import (
 // 每次新建会话时按当前 (agentID, sessionKey, sourceContextType) 构造一个
 // nexus_automation 进程内 MCP server，让主智能体可以通过工具自助管理定时任务。
 // 在 dm 与 chat 包外部完成绑定，避免它们反向依赖 automation 子包导致 import cycle。
-func newAutomationMCPBuilder(svc automationmcpcontract.Service, agents *agent.Service, defaultTimezone string) func(string, string, string) map[string]agentclient.SDKMCPServer {
-	return func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer {
+func newAutomationMCPBuilder(svc automationmcpcontract.Service, agents *agent.Service, defaultTimezone string) func(string, string, string, string, string) map[string]agentclient.SDKMCPServer {
+	return func(agentID, sessionKey, sourceContextType, sourceContextID, sourceContextLabel string) map[string]agentclient.SDKMCPServer {
 		sctx := automationmcpcontract.ServerContext{
-			CurrentAgentID:    agentID,
-			CurrentSessionKey: sessionKey,
-			SourceContextType: sourceContextType,
-			DefaultTimezone:   strings.TrimSpace(defaultTimezone),
+			CurrentAgentID:     agentID,
+			CurrentSessionKey:  sessionKey,
+			SourceContextType:  sourceContextType,
+			SourceContextID:    sourceContextID,
+			SourceContextLabel: sourceContextLabel,
+			DefaultTimezone:    strings.TrimSpace(defaultTimezone),
 		}
 		if agents != nil && agentID != "" {
 			if record, err := agents.GetAgent(context.Background(), agentID); err == nil && record != nil {
 				sctx.CurrentAgentName = record.Name
+				sctx.OwnerUserID = record.OwnerUserID
 				sctx.IsMainAgent = record.IsMain
 			}
 		}

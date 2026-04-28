@@ -20,6 +20,7 @@ type scheduledTaskCreatePayload struct {
 	SessionTarget *protocol.SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *protocol.DeliveryTarget `json:"delivery,omitempty"`
 	Source        *protocol.Source         `json:"source,omitempty"`
+	OverlapPolicy string                   `json:"overlap_policy,omitempty"`
 	Enabled       *bool                    `json:"enabled,omitempty"`
 }
 
@@ -30,6 +31,7 @@ type scheduledTaskUpdatePayload struct {
 	SessionTarget *protocol.SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *protocol.DeliveryTarget `json:"delivery,omitempty"`
 	Source        *protocol.Source         `json:"source,omitempty"`
+	OverlapPolicy *string                  `json:"overlap_policy,omitempty"`
 	Enabled       *bool                    `json:"enabled,omitempty"`
 }
 
@@ -102,6 +104,7 @@ func (h *Handlers) HandleCreateScheduledTask(writer http.ResponseWriter, request
 		SessionTarget: sessionTarget,
 		Delivery:      delivery,
 		Source:        source,
+		OverlapPolicy: payload.OverlapPolicy,
 		Enabled:       enabled,
 	})
 	if err != nil {
@@ -127,6 +130,7 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 		SessionTarget: payload.SessionTarget,
 		Delivery:      payload.Delivery,
 		Source:        payload.Source,
+		OverlapPolicy: payload.OverlapPolicy,
 		Enabled:       payload.Enabled,
 	})
 	if err != nil {

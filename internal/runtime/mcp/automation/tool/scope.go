@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 )
 
@@ -18,7 +19,7 @@ func ensureJobOwnedByCaller(ctx context.Context, svc contract.Service, sctx cont
 	if caller == "" {
 		return fmt.Errorf("missing caller agent context")
 	}
-	job, err := svc.GetTask(ctx, jobID)
+	job, err := svc.GetTask(scopedToolContext(ctx, sctx), jobID)
 	if err != nil {
 		return err
 	}
@@ -29,6 +30,19 @@ func ensureJobOwnedByCaller(ctx context.Context, svc contract.Service, sctx cont
 		return fmt.Errorf("scheduled task %s belongs to another agent; only its owner or main agent can manage it", jobID)
 	}
 	return nil
+}
+
+func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context.Context {
+	ownerUserID := strings.TrimSpace(sctx.OwnerUserID)
+	if ownerUserID == "" {
+		return ctx
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: "mcp_runtime",
+	})
 }
 
 // resolveListAgentID 决定 list_scheduled_tasks 的过滤条件。

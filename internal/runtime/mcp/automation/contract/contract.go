@@ -16,10 +16,16 @@ const ServerName = "nexus_automation"
 type ServerContext struct {
 	CurrentAgentID      string
 	CurrentAgentName    string
+	OwnerUserID         string
 	CurrentSessionKey   string
 	CurrentSessionLabel string
-	// SourceContextType 取值 "agent" 或 "chat"，影响 reply_mode=execution 的解析。
+	// SourceContextType 取值 "agent" 或 "room"，影响 reply_mode=execution 的解析。
+	// 兼容历史值 "chat"。
 	SourceContextType string
+	// SourceContextID/Label 对齐前端任务来源快照，用于让 Agent 创建的 Room 任务
+	// 后续仍能在任务管理 UI 里按 Room 维度编辑。
+	SourceContextID    string
+	SourceContextLabel string
 	// IsMainAgent 标识当前调用方是否为主智能体。主智能体豁免 agent_id scope 限制，
 	// 可以查看/管理任意智能体的定时任务；普通 Agent 只能 CRUD 自己的任务。
 	IsMainAgent bool
