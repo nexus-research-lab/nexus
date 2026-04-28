@@ -29,7 +29,7 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -178,7 +178,7 @@ func migrateSkillsSQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

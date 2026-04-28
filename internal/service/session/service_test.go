@@ -55,7 +55,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 
 	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, created)
-	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey, dmSessionID)
+	seedWorkspaceSessionArtifacts(t, cfg, agentA.WorkspacePath, dmKey, dmSessionID)
 
 	dmContext, err := roomService.EnsureDirectRoom(ctx, agentA.AgentID)
 	if err != nil {
@@ -211,7 +211,7 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 		t.Fatalf("创建 session 失败: %v", err)
 	}
 	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, sessionValue)
-	seedWorkspaceSessionArtifacts(t, cfg, agentA.AgentID, agentA.WorkspacePath, dmKey, dmSessionID)
+	seedWorkspaceSessionArtifacts(t, cfg, agentA.WorkspacePath, dmKey, dmSessionID)
 	runtimeManager.StartRound(dmKey, "round_1", nil)
 	defer runtimeManager.MarkRoundFinished(dmKey, "round_1")
 
@@ -450,7 +450,6 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 func seedWorkspaceSessionArtifacts(
 	t *testing.T,
 	cfg config.Config,
-	agentID string,
 	workspacePath string,
 	sessionKey string,
 	sessionID string,
@@ -552,7 +551,7 @@ func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID
 	if err != nil {
 		t.Fatalf("创建 transcript fixture 失败: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	for _, row := range rows {
@@ -639,7 +638,7 @@ func migrateSessionSQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

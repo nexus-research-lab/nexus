@@ -46,7 +46,7 @@ func MigrateSQLite(t testing.TB, databaseURL string) {
 	t.Helper()
 
 	db := OpenSQLite(t, databaseURL)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

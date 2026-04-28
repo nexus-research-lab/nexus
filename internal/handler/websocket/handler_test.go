@@ -35,13 +35,13 @@ func TestWebSocketSessionBindingAndControl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("连接 ws1 失败: %v", err)
 	}
-	defer conn1.Close(websocket.StatusNormalClosure, "test done")
+	defer func() { _ = conn1.Close(websocket.StatusNormalClosure, "test done") }()
 
 	conn2, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("连接 ws2 失败: %v", err)
 	}
-	defer conn2.Close(websocket.StatusNormalClosure, "test done")
+	defer func() { _ = conn2.Close(websocket.StatusNormalClosure, "test done") }()
 
 	sessionKey := "agent:nexus:ws:dm:test-session"
 

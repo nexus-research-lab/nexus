@@ -13,9 +13,9 @@ services:
       additional_contexts:
         nexus_agent_sdk: ${NEXUS_AGENT_SDK_DIR:-../../nexus-agent-sdk/nexus-agent-sdk-go}
       cache_from:
-        - type=local,src=../.buildx-cache/nexus
+        - "type=local,src=../.buildx-cache/nexus"
       cache_to:
-        - type=local,dest=../.buildx-cache/nexus,mode=max
+        - "type=local,dest=../.buildx-cache/nexus,mode=max"
       args:
         APT_MIRROR: ${APT_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn}
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn/debian-security}
@@ -62,9 +62,9 @@ services:
       context: ..
       dockerfile: web/Dockerfile
       cache_from:
-        - type=local,src=../.buildx-cache/nginx
+        - "type=local,src=../.buildx-cache/nginx"
       cache_to:
-        - type=local,dest=../.buildx-cache/nginx,mode=max
+        - "type=local,dest=../.buildx-cache/nginx,mode=max"
       args:
         APK_MIRROR: ${APK_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/alpine}
         PNPM_REGISTRY: ${PNPM_REGISTRY:-https://registry.npmmirror.com/}

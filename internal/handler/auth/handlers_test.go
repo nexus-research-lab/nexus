@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,7 +20,7 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	authService := authsvc.NewServiceWithDB(cfg, db)
 
 	server, err := serverapp.New(cfg)
@@ -41,12 +42,12 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 		t.Fatalf("初始化 owner 失败: %v", err)
 	}
 
-	protectedRequest, _ := http.NewRequest(http.MethodGet, httpServer.URL+"/nexus/v1/agents", nil)
+	protectedRequest := mustNewRequest(t, http.MethodGet, httpServer.URL+"/nexus/v1/agents", nil)
 	protectedResponse, err := http.DefaultClient.Do(protectedRequest)
 	if err != nil {
 		t.Fatalf("请求受保护路由失败: %v", err)
 	}
-	defer protectedResponse.Body.Close()
+	defer func() { _ = protectedResponse.Body.Close() }()
 	if protectedResponse.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("未登录访问受保护路由应返回 401，实际: %d", protectedResponse.StatusCode)
 	}
@@ -67,7 +68,7 @@ func TestPersonalProfileAndChangePassword(t *testing.T) {
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	authService := authsvc.NewServiceWithDB(cfg, db)
 	if _, err := authService.InitOwner(context.Background(), authsvc.InitOwnerInput{
 		Username: "admin",
@@ -150,7 +151,7 @@ type apiEnvelope[T any] struct {
 func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authStatusResponse {
 	t.Helper()
 
-	request, _ := http.NewRequest(http.MethodGet, baseURL+"/nexus/v1/auth/status", nil)
+	request := mustNewRequest(t, http.MethodGet, baseURL+"/nexus/v1/auth/status", nil)
 	for _, cookie := range cookies {
 		request.AddCookie(cookie)
 	}
@@ -158,7 +159,7 @@ func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authSta
 	if err != nil {
 		t.Fatalf("请求 auth status 失败: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("auth status 状态码不正确: %d", response.StatusCode)
 	}
@@ -173,13 +174,13 @@ func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authSta
 func getPersonalProfile(t *testing.T, baseURL string, cookie *http.Cookie) personalProfileResponse {
 	t.Helper()
 
-	request, _ := http.NewRequest(http.MethodGet, baseURL+"/nexus/v1/settings/profile", nil)
+	request := mustNewRequest(t, http.MethodGet, baseURL+"/nexus/v1/settings/profile", nil)
 	request.AddCookie(cookie)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("请求个人设置资料失败: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("个人设置资料状态码不正确: %d", response.StatusCode)
 	}
@@ -201,14 +202,14 @@ func updatePersonalAvatar(t *testing.T, baseURL string, cookie *http.Cookie, ava
 		t.Fatalf("编码头像更新请求失败: %v", err)
 	}
 
-	request, _ := http.NewRequest(http.MethodPatch, baseURL+"/nexus/v1/settings/profile", bytes.NewReader(body))
+	request := mustNewRequest(t, http.MethodPatch, baseURL+"/nexus/v1/settings/profile", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.AddCookie(cookie)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("头像更新请求失败: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("头像更新状态码不正确: %d", response.StatusCode)
 	}
@@ -231,13 +232,13 @@ func loginByHTTP(t *testing.T, baseURL string, username string, password string)
 		t.Fatalf("编码登录请求失败: %v", err)
 	}
 
-	request, _ := http.NewRequest(http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
+	request := mustNewRequest(t, http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("登录请求失败: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("登录状态码不正确: %d", response.StatusCode)
 	}
@@ -260,13 +261,13 @@ func loginStatus(t *testing.T, baseURL string, username string, password string)
 	if err != nil {
 		t.Fatalf("编码登录请求失败: %v", err)
 	}
-	request, _ := http.NewRequest(http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
+	request := mustNewRequest(t, http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("登录请求失败: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	return response.StatusCode
 }
 
@@ -286,13 +287,23 @@ func changePasswordStatus(
 	if err != nil {
 		t.Fatalf("编码改密请求失败: %v", err)
 	}
-	request, _ := http.NewRequest(http.MethodPost, baseURL+"/nexus/v1/settings/profile/password", bytes.NewReader(body))
+	request := mustNewRequest(t, http.MethodPost, baseURL+"/nexus/v1/settings/profile/password", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.AddCookie(cookie)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("改密请求失败: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	return response.StatusCode
+}
+
+func mustNewRequest(t *testing.T, method string, url string, body io.Reader) *http.Request {
+	t.Helper()
+
+	request, err := http.NewRequest(method, url, body)
+	if err != nil {
+		t.Fatalf("构造 HTTP 请求失败: %v", err)
+	}
+	return request
 }

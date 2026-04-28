@@ -21,7 +21,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	agents := agentpkg.NewService(cfg, sqlitestorage.NewAgentRepository(db))
 	providers := providercfg.NewServiceWithDB(cfg, db)
 	if _, err := providers.Create(context.Background(), providercfg.CreateInput{

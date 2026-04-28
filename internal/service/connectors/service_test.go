@@ -28,7 +28,7 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	ctx := context.Background()
@@ -87,7 +87,7 @@ func TestServiceOAuthClientOverridesEnvCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func TestServiceShopifyRequiresShop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	ctx := context.Background()
@@ -180,7 +180,7 @@ func TestServiceRejectsRedirectURIOutsideAllowedOrigins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	_, err = service.GetAuthURL(context.Background(), auth.SystemUserID, "github", "https://evil.example/callback", nil)
@@ -197,7 +197,7 @@ func TestServiceMultipleAuthURLsDoNotOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	ctx := context.Background()
@@ -215,6 +215,7 @@ func TestServiceMultipleAuthURLsDoNotOverwrite(t *testing.T) {
 	}
 
 	var count int
+	//goland:noinspection SqlResolve
 	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE state IN (?, ?)", first.State, second.State).Scan(&count); err != nil {
 		t.Fatalf("查询 OAuth state 失败: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestServiceEncryptsConnectionCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	service := NewService(cfg, db)
@@ -246,6 +247,7 @@ func TestServiceEncryptsConnectionCredentials(t *testing.T) {
 
 	var credentialText string
 	var encrypted sql.NullString
+	//goland:noinspection SqlResolve
 	if err = db.QueryRowContext(ctx, "SELECT credentials, credentials_encrypted FROM connector_connections WHERE connector_id = ?", "github").Scan(&credentialText, &encrypted); err != nil {
 		t.Fatalf("读取连接凭证失败: %v", err)
 	}
@@ -277,7 +279,7 @@ func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	ctx := context.Background()
@@ -318,7 +320,7 @@ func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := NewService(cfg, db)
 	ctx := context.Background()
@@ -345,7 +347,7 @@ func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -363,6 +365,7 @@ func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
 	service := NewService(cfg, db)
 	service.httpClient = server.Client()
 
+	//goland:noinspection SqlResolve
 	_, err = db.ExecContext(
 		ctx,
 		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+10 minutes'))",
@@ -388,6 +391,7 @@ func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
 	}
 
 	var remaining int
+	//goland:noinspection SqlResolve
 	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE state = ?", "state-token").Scan(&remaining); err != nil {
 		t.Fatalf("查询 OAuth state 失败: %v", err)
 	}
@@ -404,7 +408,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -416,6 +420,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 	service := NewService(cfg, db)
 	service.httpClient = server.Client()
 
+	//goland:noinspection SqlResolve
 	_, err = db.ExecContext(
 		ctx,
 		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+10 minutes'))",
@@ -438,6 +443,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 	}
 
 	var remaining int
+	//goland:noinspection SqlResolve
 	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE state = ?", "state-token").Scan(&remaining); err != nil {
 		t.Fatalf("查询 OAuth state 失败: %v", err)
 	}
@@ -454,7 +460,7 @@ func TestServiceOAuthCallbackPassesStoredExtraJSONToProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	service := NewService(cfg, db)
@@ -470,6 +476,7 @@ func TestServiceOAuthCallbackPassesStoredExtraJSONToProvider(t *testing.T) {
 		}, nil
 	})}
 
+	//goland:noinspection SqlResolve
 	_, err = db.ExecContext(
 		ctx,
 		"INSERT INTO connector_oauth_states (state, connector_id, redirect_uri, extra_json, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+10 minutes'))",
@@ -539,7 +546,7 @@ func migrateConnectorsSQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

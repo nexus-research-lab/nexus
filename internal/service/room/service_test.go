@@ -151,9 +151,6 @@ func TestRoomServiceAllowsMainAgentDirectRoom(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
 
 	ctx := context.Background()
 	if err = agentService.EnsureReady(ctx); err != nil {
@@ -195,9 +192,6 @@ func TestRoomServiceRejectsMainAgentAsGroupMember(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "分组测试助手A")
@@ -223,9 +217,6 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "清理助手A")
@@ -419,7 +410,7 @@ func migrateRoomSQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

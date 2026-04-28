@@ -279,7 +279,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
 	transcriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
-	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+	writeTranscriptFixture(t, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "transcript-user-1",
@@ -533,7 +533,7 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
 	thinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
-	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+	writeTranscriptFixture(t, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "transcript-think-user-1",
@@ -1046,7 +1046,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	}
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
-	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+	writeTranscriptFixture(t, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "interrupt-user-1",
@@ -1475,7 +1475,7 @@ func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T)
 	assertContainsResultSubtype(t, events, "interrupted")
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
-	writeTranscriptFixture(t, cfg, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
+	writeTranscriptFixture(t, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "interrupt-error-user-1",
@@ -1799,7 +1799,6 @@ func readDMSessionHistory(
 
 func writeTranscriptFixture(
 	t *testing.T,
-	cfg config.Config,
 	workspacePath string,
 	sessionID string,
 	rows []map[string]any,
@@ -1820,7 +1819,7 @@ func writeTranscriptFixture(
 	if err != nil {
 		t.Fatalf("创建 transcript fixture 失败: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	encoder := json.NewEncoder(file)
 	for _, row := range rows {
@@ -1909,7 +1908,7 @@ func migrateDMSQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)

@@ -31,7 +31,7 @@ func (f *fakeIngressDMHandler) HandleChat(_ context.Context, request dmsvc.Reque
 func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	handler := &fakeIngressDMHandler{}
@@ -83,7 +83,7 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	handler := &fakeIngressDMHandler{}

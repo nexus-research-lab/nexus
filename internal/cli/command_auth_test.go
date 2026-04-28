@@ -206,15 +206,6 @@ func runCLICommandError(
 	return executeErr.Error()
 }
 
-func executeCLICommand(
-	t *testing.T,
-	cfg config.Config,
-	env map[string]string,
-	args ...string,
-) (map[string]any, error, string) {
-	return executeCLICommandWithInput(t, cfg, env, "", args...)
-}
-
 func executeCLICommandWithInput(
 	t *testing.T,
 	cfg config.Config,
@@ -294,7 +285,7 @@ func migrateCLISQLite(t *testing.T, databaseURL string) {
 	if err != nil {
 		t.Fatalf("打开 CLI 测试数据库失败: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatalf("设置 goose 方言失败: %v", err)
