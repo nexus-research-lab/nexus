@@ -43,6 +43,8 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     skills_count: 0,
     connected_connectors_count: 0,
     enabled_scheduled_tasks_count: 0,
+    configured_channels_count: 0,
+    active_pairings_count: 0,
   });
 
   const refresh_capability_summary = useCallback(async (options?: { reset_on_error?: boolean }) => {
@@ -55,6 +57,8 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
           skills_count: 0,
           connected_connectors_count: 0,
           enabled_scheduled_tasks_count: 0,
+          configured_channels_count: 0,
+          active_pairings_count: 0,
         });
       }
     }
@@ -74,6 +78,8 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
             skills_count: 0,
             connected_connectors_count: 0,
             enabled_scheduled_tasks_count: 0,
+            configured_channels_count: 0,
+            active_pairings_count: 0,
           });
         }
       }
@@ -111,8 +117,8 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     };
   }, [refresh_capability_summary]);
 
-  const channel_count = 0;
-  const pairing_count = 0;
+  const channel_count = summary.configured_channels_count ?? 0;
+  const pairing_count = summary.active_pairings_count ?? 0;
   const capability_items = useMemo<CapabilitySidebarItem[]>(() => [
     {
       id: SIDEBAR_CAPABILITY_ITEM_IDS.skills,

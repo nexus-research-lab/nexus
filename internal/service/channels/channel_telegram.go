@@ -14,9 +14,10 @@ import (
 )
 
 type telegramChannel struct {
-	token   string
-	client  *http.Client
-	baseURL string
+	token       string
+	client      *http.Client
+	baseURL     string
+	ownerUserID string
 
 	mu      sync.RWMutex
 	ingress IngressAcceptor
@@ -33,6 +34,11 @@ func newTelegramChannel(token string, client *http.Client) *telegramChannel {
 		client:  client,
 		baseURL: "https://api.telegram.org",
 	}
+}
+
+func (c *telegramChannel) WithOwner(ownerUserID string) *telegramChannel {
+	c.ownerUserID = strings.TrimSpace(ownerUserID)
+	return c
 }
 
 func (c *telegramChannel) ChannelType() string {
@@ -250,12 +256,13 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
-		Channel:  ChannelTypeTelegram,
-		ChatType: chatType,
-		Ref:      ref,
-		ThreadID: threadID,
-		Content:  content,
-		Delivery: delivery,
+		Channel:     ChannelTypeTelegram,
+		OwnerUserID: c.ownerUserID,
+		ChatType:    chatType,
+		Ref:         ref,
+		ThreadID:    threadID,
+		Content:     content,
+		Delivery:    delivery,
 	}); err != nil {
 		_ = c.SendDeliveryText(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+truncateChannelError(err))
 	}

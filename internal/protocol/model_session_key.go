@@ -13,6 +13,12 @@ const (
 	SessionChannelDiscordSegment = "dg"
 	// SessionChannelTelegramSegment 表示 session_key 中的 Telegram 通道段。
 	SessionChannelTelegramSegment = "tg"
+	// SessionChannelDingTalkSegment 表示 session_key 中的钉钉通道段。
+	SessionChannelDingTalkSegment = "dt"
+	// SessionChannelWeChatSegment 表示 session_key 中的微信通道段。
+	SessionChannelWeChatSegment = "wx"
+	// SessionChannelFeishuSegment 表示 session_key 中的飞书通道段。
+	SessionChannelFeishuSegment = "fs"
 	// SessionChannelInternalSegment 表示 session_key 中的内部通道段。
 	SessionChannelInternalSegment = "internal"
 
@@ -22,6 +28,12 @@ const (
 	SessionChannelDiscord = "discord"
 	// SessionChannelTelegram 表示持久化后的 Telegram 通道类型。
 	SessionChannelTelegram = "telegram"
+	// SessionChannelDingTalk 表示持久化后的钉钉通道类型。
+	SessionChannelDingTalk = "dingtalk"
+	// SessionChannelWeChat 表示持久化后的微信通道类型。
+	SessionChannelWeChat = "wechat"
+	// SessionChannelFeishu 表示持久化后的飞书通道类型。
+	SessionChannelFeishu = "feishu"
 )
 
 // SessionKeyKind 表示协议族。
@@ -246,6 +258,12 @@ func NormalizeSessionKeyChannelSegment(channel string) string {
 		return SessionChannelDiscordSegment
 	case SessionChannelTelegramSegment, SessionChannelTelegram:
 		return SessionChannelTelegramSegment
+	case SessionChannelDingTalkSegment, SessionChannelDingTalk:
+		return SessionChannelDingTalkSegment
+	case SessionChannelWeChatSegment, SessionChannelWeChat:
+		return SessionChannelWeChatSegment
+	case SessionChannelFeishuSegment, SessionChannelFeishu:
+		return SessionChannelFeishuSegment
 	case SessionChannelInternalSegment:
 		return SessionChannelInternalSegment
 	default:
@@ -262,6 +280,12 @@ func NormalizeStoredChannelType(channel string) string {
 		return SessionChannelDiscord
 	case SessionChannelTelegramSegment, SessionChannelTelegram:
 		return SessionChannelTelegram
+	case SessionChannelDingTalkSegment, SessionChannelDingTalk:
+		return SessionChannelDingTalk
+	case SessionChannelWeChatSegment, SessionChannelWeChat:
+		return SessionChannelWeChat
+	case SessionChannelFeishuSegment, SessionChannelFeishu:
+		return SessionChannelFeishu
 	case SessionChannelInternalSegment:
 		return SessionChannelInternalSegment
 	default:

@@ -6,9 +6,7 @@ import { get_agent_ws_url } from "@/config/options";
 import { useWebSocket } from "@/lib/websocket";
 import { LauncherPage } from "@/pages/launcher/launcher-page";
 import { LoginPage } from "@/pages/login/login-page";
-import { PlaceholderPage } from "@/pages/placeholder/placeholder-page";
 import { AuthGuard } from "@/app/router/auth-guard";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { AppLayout } from "@/shared/ui/layout/app-layout";
 import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
 
@@ -24,6 +22,12 @@ const RoomPage = lazy(() =>
 );
 const ScheduledTasksPage = lazy(() =>
   import("@/pages/scheduled-tasks/scheduled-tasks-page").then((m) => ({default: m.ScheduledTasksPage})),
+);
+const ChannelsPage = lazy(() =>
+  import("@/pages/channels/channels-page").then((m) => ({default: m.ChannelsPage})),
+);
+const PairingsPage = lazy(() =>
+  import("@/pages/pairings/pairings-page").then((m) => ({default: m.PairingsPage})),
 );
 const SkillsPage = lazy(() =>
   import("@/pages/skills/skills-page").then((m) => ({default: m.SkillsPage})),
@@ -63,8 +67,6 @@ function AuthenticatedAppSessionRoot() {
 }
 
 export function AppRouter() {
-  const {t} = useI18n();
-
   return (
     <BrowserRouter>
       <OnboardingTourProvider>
@@ -105,16 +107,8 @@ export function AppRouter() {
                   {/* 能力子路由 */}
                   <Route element={<ConnectorsPage/>} path={APP_ROUTE_PATHS.connectors}/>
                   <Route element={<ScheduledTasksPage/>} path={APP_ROUTE_PATHS.scheduled_tasks}/>
-                  <Route
-                    element={<PlaceholderPage title={t("placeholder.channels_title")}
-                                              description={t("placeholder.channels_description")}/>}
-                    path={APP_ROUTE_PATHS.channels}
-                  />
-                  <Route
-                    element={<PlaceholderPage title={t("placeholder.pairings_title")}
-                                              description={t("placeholder.pairings_description")}/>}
-                    path={APP_ROUTE_PATHS.pairings}
-                  />
+                  <Route element={<ChannelsPage/>} path={APP_ROUTE_PATHS.channels}/>
+                  <Route element={<PairingsPage/>} path={APP_ROUTE_PATHS.pairings}/>
 
                   {/* 其他占位路由 */}
                   <Route element={<SettingsPage/>} path={APP_ROUTE_PATHS.settings}/>

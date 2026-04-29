@@ -49,6 +49,11 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	if s.services != nil && s.services.Channels != nil {
+		if s.services.ChannelControl != nil {
+			if err := s.services.ChannelControl.LoadConfiguredChannels(ctx); err != nil {
+				s.api.BaseLogger().Warn("加载 IM 通道配置失败，跳过数据库通道注册", "err", err)
+			}
+		}
 		s.api.BaseLogger().Info("启动通道适配器",
 			"discord_enabled", s.config.DiscordEnabled,
 			"discord_configured", strings.TrimSpace(s.config.DiscordBotToken) != "",

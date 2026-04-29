@@ -22,6 +22,12 @@ const (
 	ChannelTypeDiscord = "discord"
 	// ChannelTypeTelegram 表示 Telegram 通道。
 	ChannelTypeTelegram = "telegram"
+	// ChannelTypeDingTalk 表示钉钉通道。
+	ChannelTypeDingTalk = "dingtalk"
+	// ChannelTypeWeChat 表示微信通道。
+	ChannelTypeWeChat = "wechat"
+	// ChannelTypeFeishu 表示飞书通道。
+	ChannelTypeFeishu = "feishu"
 	// ChannelTypeInternal 表示内部系统会话。
 	ChannelTypeInternal = "internal"
 )

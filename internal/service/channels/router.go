@@ -21,6 +21,8 @@ type Router struct {
 	memory   *deliveryMemory
 	channels map[string]DeliveryChannel
 	ingress  IngressAcceptor
+	running  bool
+	runCtx   context.Context
 	logger   *slog.Logger
 }
 
@@ -69,6 +71,26 @@ func (r *Router) Register(channel DeliveryChannel) {
 	r.channels[normalizeChannelType(channel.ChannelType())] = channel
 }
 
+// RegisterAndStart 注册通道；如果路由器已经启动，则立即启动该通道。
+func (r *Router) RegisterAndStart(ctx context.Context, channel DeliveryChannel) error {
+	if channel == nil {
+		return nil
+	}
+	r.Register(channel)
+
+	r.mu.RLock()
+	running := r.running
+	runCtx := r.runCtx
+	r.mu.RUnlock()
+	if !running {
+		return nil
+	}
+	if runCtx == nil {
+		runCtx = ctx
+	}
+	return channel.Start(runCtx)
+}
+
 // SetIngress 为支持真实入口的通道注入统一 ingress 处理器。
 func (r *Router) SetIngress(ingress IngressAcceptor) {
 	r.mu.Lock()
@@ -85,6 +107,10 @@ func (r *Router) SetIngress(ingress IngressAcceptor) {
 
 // Start 启动全部通道。
 func (r *Router) Start(ctx context.Context) error {
+	r.mu.Lock()
+	r.running = true
+	r.runCtx = ctx
+	r.mu.Unlock()
 	for _, item := range r.snapshotChannels() {
 		r.loggerFor(ctx).Info("启动通道",
 			"channel", item.ChannelType(),
@@ -102,6 +128,10 @@ func (r *Router) Start(ctx context.Context) error {
 
 // Stop 停止全部通道。
 func (r *Router) Stop(ctx context.Context) {
+	r.mu.Lock()
+	r.running = false
+	r.runCtx = nil
+	r.mu.Unlock()
 	items := r.snapshotChannels()
 	for index := len(items) - 1; index >= 0; index-- {
 		r.loggerFor(ctx).Info("停止通道",
