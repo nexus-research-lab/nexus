@@ -33,6 +33,11 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebSearch": {},
 }
 
+const (
+	feishuReceiveIDTypeOpenID = "open_id"
+	feishuReceiveIDTypeChatID = "chat_id"
+)
+
 // DMHandler 定义统一 DM 入口能力。
 type DMHandler interface {
 	HandleChat(context.Context, dmsvc.Request) error
@@ -332,6 +337,22 @@ func (s *IngressService) resolveRememberedTarget(
 			To:        channelID,
 			AccountID: guildID,
 			ThreadID:  strings.TrimSpace(parsed.ThreadID),
+		}
+		return &target, nil
+	case ChannelTypeFeishu:
+		receiveIDType := feishuReceiveIDTypeChatID
+		if parsed.ChatType != "group" {
+			receiveIDType = feishuReceiveIDTypeOpenID
+		}
+		target := DeliveryTarget{
+			Mode:      DeliveryModeExplicit,
+			Channel:   ChannelTypeFeishu,
+			To:        strings.TrimSpace(parsed.Ref),
+			AccountID: receiveIDType,
+			ThreadID:  strings.TrimSpace(parsed.ThreadID),
+		}
+		if target.To == "" {
+			return nil, nil
 		}
 		return &target, nil
 	default:

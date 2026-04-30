@@ -19,11 +19,20 @@ import (
 type Router struct {
 	mu       sync.RWMutex
 	memory   *deliveryMemory
-	channels map[string]DeliveryChannel
+	agents   agentWorkspaceResolver
+	channels map[string]*registeredChannel
 	ingress  IngressAcceptor
 	running  bool
 	runCtx   context.Context
 	logger   *slog.Logger
+}
+
+type registeredChannel struct {
+	ownerUserID string
+	channelType string
+	channel     DeliveryChannel
+	started     bool
+	lastError   string
 }
 
 // NewRouter 创建通道路由器。
@@ -35,7 +44,8 @@ func NewRouter(
 ) *Router {
 	router := &Router{
 		memory:   newDeliveryMemory(cfg, db),
-		channels: make(map[string]DeliveryChannel),
+		agents:   agents,
+		channels: make(map[string]*registeredChannel),
 		logger:   logx.NewDiscardLogger(),
 	}
 	router.Register(newSessionDeliveryChannel(ChannelTypeWebSocket, agents, permission, cfg.WorkspacePath))
@@ -60,35 +70,146 @@ func (r *Router) SetLogger(logger *slog.Logger) {
 
 // Register 注册一个投递通道。
 func (r *Router) Register(channel DeliveryChannel) {
+	r.RegisterForOwner("", channel)
+}
+
+// RegisterForOwner 按 owner 注册投递通道；同一 owner 的同类通道会替换旧实例。
+func (r *Router) RegisterForOwner(ownerUserID string, channel DeliveryChannel) {
 	if channel == nil {
 		return
 	}
+	entry := r.newRegisteredChannel(ownerUserID, channel)
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if aware, ok := channel.(ingressAwareChannel); ok {
-		aware.SetIngress(r.ingress)
+	replaced := r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)]
+	r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)] = entry
+	r.mu.Unlock()
+	if replaced != nil && replaced.channel != nil && replaced.channel != channel {
+		_ = replaced.channel.Stop(context.Background())
 	}
-	r.channels[normalizeChannelType(channel.ChannelType())] = channel
 }
 
 // RegisterAndStart 注册通道；如果路由器已经启动，则立即启动该通道。
 func (r *Router) RegisterAndStart(ctx context.Context, channel DeliveryChannel) error {
+	return r.RegisterAndStartForOwner(ctx, "", channel)
+}
+
+// RegisterAndStartForOwner 按 owner 注册通道；如果路由器已经启动，则立即启动该通道。
+func (r *Router) RegisterAndStartForOwner(ctx context.Context, ownerUserID string, channel DeliveryChannel) error {
 	if channel == nil {
 		return nil
 	}
-	r.Register(channel)
+	entry := r.newRegisteredChannel(ownerUserID, channel)
 
-	r.mu.RLock()
+	r.mu.Lock()
+	replaced := r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)]
+	r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)] = entry
 	running := r.running
 	runCtx := r.runCtx
-	r.mu.RUnlock()
+	r.mu.Unlock()
+	if replaced != nil && replaced.channel != nil && replaced.channel != channel {
+		_ = replaced.channel.Stop(context.Background())
+	}
+
 	if !running {
 		return nil
 	}
 	if runCtx == nil {
 		runCtx = ctx
 	}
-	return channel.Start(runCtx)
+	if err := channel.Start(runCtx); err != nil {
+		r.markChannelStartResult(entry.ownerUserID, entry.channelType, false, err)
+		return err
+	}
+	r.markChannelStartResult(entry.ownerUserID, entry.channelType, true, nil)
+	return nil
+}
+
+// UnregisterForOwner 停止并移除指定 owner 的通道实例。
+func (r *Router) UnregisterForOwner(ctx context.Context, ownerUserID string, channelType string) {
+	key := channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))
+	r.mu.Lock()
+	entry := r.channels[key]
+	delete(r.channels, key)
+	r.mu.Unlock()
+	if entry != nil && entry.channel != nil {
+		_ = entry.channel.Stop(ctx)
+	}
+}
+
+func (r *Router) newRegisteredChannel(ownerUserID string, channel DeliveryChannel) *registeredChannel {
+	if aware, ok := channel.(ingressAwareChannel); ok {
+		aware.SetIngress(r.ingress)
+	}
+	channelType := normalizeChannelType(channel.ChannelType())
+	return &registeredChannel{
+		ownerUserID: normalizeChannelOwnerUserID(ownerUserID),
+		channelType: channelType,
+		channel:     channel,
+		started:     isAlwaysReadyChannel(channelType),
+	}
+}
+
+func (r *Router) markChannelStartResult(ownerUserID string, channelType string, started bool, startErr error) {
+	key := channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry := r.channels[key]
+	if entry == nil {
+		return
+	}
+	entry.started = started || isAlwaysReadyChannel(entry.channelType)
+	if startErr != nil {
+		entry.lastError = startErr.Error()
+		return
+	}
+	entry.lastError = ""
+}
+
+func channelRouteKey(ownerUserID string, channelType string) string {
+	return normalizeChannelOwnerUserID(ownerUserID) + "/" + normalizeChannelType(channelType)
+}
+
+func isAlwaysReadyChannel(channelType string) bool {
+	switch normalizeChannelType(channelType) {
+	case ChannelTypeWebSocket, ChannelTypeInternal:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *Router) resolveDeliveryOwner(ctx context.Context, agentID string) string {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" || r.agents == nil {
+		return normalizeChannelOwnerUserID("")
+	}
+	agentValue, err := r.agents.GetAgent(ctx, agentID)
+	if err != nil || agentValue == nil {
+		return normalizeChannelOwnerUserID("")
+	}
+	return normalizeChannelOwnerUserID(agentValue.OwnerUserID)
+}
+
+func (r *Router) channelForDelivery(ctx context.Context, agentID string, channelType string) DeliveryChannel {
+	channelType = normalizeChannelType(channelType)
+	ownerUserID := r.resolveDeliveryOwner(ctx, agentID)
+	if channel := r.readyChannelForOwner(ownerUserID, channelType); channel != nil {
+		return channel
+	}
+	if ownerUserID != normalizeChannelOwnerUserID("") {
+		return r.readyChannelForOwner("", channelType)
+	}
+	return nil
+}
+
+func (r *Router) readyChannelForOwner(ownerUserID string, channelType string) DeliveryChannel {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entry := r.channels[channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))]
+	if entry == nil || !entry.started {
+		return nil
+	}
+	return entry.channel
 }
 
 // SetIngress 为支持真实入口的通道注入统一 ingress 处理器。
@@ -96,8 +217,11 @@ func (r *Router) SetIngress(ingress IngressAcceptor) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ingress = ingress
-	for _, channel := range r.channels {
-		aware, ok := channel.(ingressAwareChannel)
+	for _, entry := range r.channels {
+		if entry == nil || entry.channel == nil {
+			continue
+		}
+		aware, ok := entry.channel.(ingressAwareChannel)
 		if !ok {
 			continue
 		}
@@ -113,15 +237,19 @@ func (r *Router) Start(ctx context.Context) error {
 	r.mu.Unlock()
 	for _, item := range r.snapshotChannels() {
 		r.loggerFor(ctx).Info("启动通道",
-			"channel", item.ChannelType(),
+			"owner_user_id", item.ownerUserID,
+			"channel", item.channelType,
 		)
-		if err := item.Start(ctx); err != nil {
+		if err := item.channel.Start(ctx); err != nil {
+			r.markChannelStartResult(item.ownerUserID, item.channelType, false, err)
 			r.loggerFor(ctx).Error("启动通道失败",
-				"channel", item.ChannelType(),
+				"owner_user_id", item.ownerUserID,
+				"channel", item.channelType,
 				"err", err,
 			)
-			return err
+			continue
 		}
+		r.markChannelStartResult(item.ownerUserID, item.channelType, true, nil)
 	}
 	return nil
 }
@@ -135,17 +263,33 @@ func (r *Router) Stop(ctx context.Context) {
 	items := r.snapshotChannels()
 	for index := len(items) - 1; index >= 0; index-- {
 		r.loggerFor(ctx).Info("停止通道",
-			"channel", items[index].ChannelType(),
+			"owner_user_id", items[index].ownerUserID,
+			"channel", items[index].channelType,
 		)
-		_ = items[index].Stop(ctx)
+		_ = items[index].channel.Stop(ctx)
+		r.markChannelStartResult(items[index].ownerUserID, items[index].channelType, false, nil)
 	}
 }
 
 // Get 返回指定通道。
 func (r *Router) Get(channelType string) DeliveryChannel {
+	return r.GetForOwner("", channelType)
+}
+
+// GetForOwner 返回指定 owner 的指定通道实例，不代表该实例已经启动成功。
+func (r *Router) GetForOwner(ownerUserID string, channelType string) DeliveryChannel {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.channels[normalizeChannelType(channelType)]
+	entry := r.channels[channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))]
+	if entry == nil {
+		return nil
+	}
+	return entry.channel
+}
+
+// IsReadyForOwner 返回指定 owner 的通道是否已启动成功。
+func (r *Router) IsReadyForOwner(ownerUserID string, channelType string) bool {
+	return r.readyChannelForOwner(ownerUserID, channelType) != nil
 }
 
 // GetLastRoute 读取最近一次成功目标。
@@ -227,7 +371,7 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 		return DeliveryTarget{}, err
 	}
 
-	channel := r.Get(normalized.Channel)
+	channel := r.channelForDelivery(ctx, agentID, normalized.Channel)
 	if channel == nil {
 		err := fmt.Errorf("delivery sender is not configured for channel: %s", normalized.Channel)
 		r.loggerFor(ctx).Error("投递通道未配置",
@@ -269,14 +413,19 @@ func (r *Router) loggerFor(ctx context.Context) *slog.Logger {
 // RegisteredChannelTypes 返回当前已注册的通道类型快照。
 func (r *Router) RegisteredChannelTypes() []string {
 	items := r.snapshotChannels()
+	seen := map[string]bool{}
 	result := make([]string, 0, len(items))
 	for _, item := range items {
-		result = append(result, item.ChannelType())
+		if seen[item.channelType] {
+			continue
+		}
+		seen[item.channelType] = true
+		result = append(result, item.channelType)
 	}
 	return result
 }
 
-func (r *Router) snapshotChannels() []DeliveryChannel {
+func (r *Router) snapshotChannels() []registeredChannel {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -286,9 +435,13 @@ func (r *Router) snapshotChannels() []DeliveryChannel {
 	}
 	sort.Strings(keys)
 
-	items := make([]DeliveryChannel, 0, len(keys))
+	items := make([]registeredChannel, 0, len(keys))
 	for _, key := range keys {
-		items = append(items, r.channels[key])
+		entry := r.channels[key]
+		if entry == nil || entry.channel == nil {
+			continue
+		}
+		items = append(items, *entry)
 	}
 	return items
 }

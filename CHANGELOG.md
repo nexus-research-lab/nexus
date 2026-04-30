@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 定时任务新增 owner 用户隔离、运行历史诊断字段与重叠触发策略，Agent 工具创建的任务会记录触发方式、会话、轮次、投递与结果摘要。
 - `scheduled-task-manager` 升级为系统托管 skill，DM 与 Room 运行时会引导定时任务/提醒意图先加载该 skill 再调用 `nexus_automation`。
 - 频道与配对新增 IM 接入管理：支持钉钉、微信、飞书、Telegram、Discord 的频道配置页、配对授权页和本地凭据存储。
+- 消息渠道页统一标记为“未上线”，保留钉钉、微信、飞书、Telegram、Discord 的入口骨架、配对授权模型和本地存储结构，真实接入作为后续补充。
 
 ### Changed
 - 输入框不再内联展示“排队 / 引导 / 打断”选择，消息行为改由常规设置统一控制，默认行为为排队。

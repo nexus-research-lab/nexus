@@ -56,6 +56,8 @@ type ChannelCatalogItem struct {
 	BotLabel          string                   `json:"bot_label"`
 	Description       string                   `json:"description"`
 	DocsURL           string                   `json:"docs_url,omitempty"`
+	RuntimeStatus     string                   `json:"runtime_status"`
+	RuntimeNote       string                   `json:"runtime_note,omitempty"`
 	SupportsGroup     bool                     `json:"supports_group"`
 	SupportsQRCode    bool                     `json:"supports_qr_code"`
 	SupportsOAuthLink bool                     `json:"supports_oauth_link"`
@@ -217,18 +219,22 @@ func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) (
 
 	result := make([]ChannelConfigView, 0, len(channelCatalog()))
 	for _, catalog := range channelCatalog() {
+		catalogStats := stats[catalog.ChannelType]
+		if isPlannedChannel(catalog.ChannelType) {
+			catalogStats = ChannelStats{}
+		}
 		view := ChannelConfigView{
 			ChannelCatalogItem: catalog,
 			ConnectionState:    "not_configured",
 			Status:             "not_configured",
-			Stats:              stats[catalog.ChannelType],
+			Stats:              catalogStats,
 		}
 		row, ok := byType[catalog.ChannelType]
 		if ok {
 			publicConfig, _ := decodeStringMap(row.ConfigJSON)
 			view.Configured = true
 			view.Status = firstNonEmpty(row.Status, ChannelConfigStatusConfigured)
-			view.ConnectionState = s.connectionStateFor(catalog.ChannelType, view.Status)
+			view.ConnectionState = s.connectionStateFor(ownerUserID, catalog.ChannelType, view.Status)
 			view.AgentID = row.AgentID
 			view.AgentName = s.agentName(ctx, row.AgentID)
 			view.PublicConfig = publicConfig
@@ -243,17 +249,33 @@ func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) (
 }
 
 func (s *ControlService) CountConfiguredChannels(ctx context.Context, ownerUserID string) (int, error) {
-	query := "SELECT COUNT(1) FROM im_channel_configs WHERE owner_user_id = " + s.bind(1) + " AND status <> " + s.bind(2)
-	var count int
-	err := s.db.QueryRowContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID), ChannelConfigStatusDisabled).Scan(&count)
-	return count, err
+	rows, err := s.listChannelConfigRows(ctx, normalizeChannelOwnerUserID(ownerUserID))
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, row := range rows {
+		if row.Status == ChannelConfigStatusDisabled || isPlannedChannel(row.ChannelType) {
+			continue
+		}
+		count++
+	}
+	return count, nil
 }
 
 func (s *ControlService) CountActivePairings(ctx context.Context, ownerUserID string) (int, error) {
-	query := "SELECT COUNT(1) FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND status = " + s.bind(2)
-	var count int
-	err := s.db.QueryRowContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID), PairingStatusActive).Scan(&count)
-	return count, err
+	rows, err := s.listPairingRows(ctx, normalizeChannelOwnerUserID(ownerUserID), PairingQuery{Status: PairingStatusActive})
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, row := range rows {
+		if isPlannedChannel(row.ChannelType) {
+			continue
+		}
+		count++
+	}
+	return count, nil
 }
 
 func (s *ControlService) UpsertChannelConfig(
@@ -267,6 +289,9 @@ func (s *ControlService) UpsertChannelConfig(
 	catalog, ok := channelCatalogByType(channelType)
 	if !ok {
 		return nil, ErrChannelNotFound
+	}
+	if isPlannedChannel(channelType) {
+		return nil, errors.New("消息渠道未上线")
 	}
 	agentID := strings.TrimSpace(request.AgentID)
 	if agentID == "" {
@@ -285,12 +310,6 @@ func (s *ControlService) UpsertChannelConfig(
 	if err = validateChannelConfigInput(catalog, publicConfig, secrets, existing != nil && existing.CredentialsEncrypted.Valid); err != nil {
 		return nil, err
 	}
-	if channelType == ChannelTypeWeChat {
-		if strings.TrimSpace(publicConfig["qr_payload"]) == "" {
-			publicConfig["qr_payload"] = s.buildWeChatQRPayload(ownerUserID, agentID)
-		}
-	}
-
 	credentialsEncrypted := sql.NullString{}
 	if len(secrets) > 0 {
 		encrypted, encryptErr := s.encryptCredentials(secrets)
@@ -316,7 +335,17 @@ func (s *ControlService) UpsertChannelConfig(
 	}); err != nil {
 		return nil, err
 	}
-	_ = s.configureRouterChannel(ctx, ownerUserID, channelType, credentialsEncrypted)
+	runtimeStatus := ChannelConfigStatusConfigured
+	runtimeError := ""
+	if err = s.configureRouterChannel(ctx, ownerUserID, channelType, configJSON, credentialsEncrypted); err != nil {
+		runtimeStatus = ChannelConfigStatusError
+		runtimeError = err.Error()
+	} else if s.router != nil && s.router.IsReadyForOwner(ownerUserID, channelType) {
+		runtimeStatus = ChannelConfigStatusConnected
+	}
+	if err = s.updateChannelConfigRuntimeState(ctx, ownerUserID, channelType, runtimeStatus, runtimeError); err != nil {
+		return nil, err
+	}
 
 	items, err := s.ListChannels(ctx, ownerUserID)
 	if err != nil {
@@ -332,8 +361,13 @@ func (s *ControlService) UpsertChannelConfig(
 }
 
 func (s *ControlService) DeleteChannelConfig(ctx context.Context, ownerUserID string, channelType string) error {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	channelType = normalizeIMChannelType(channelType)
 	query := "DELETE FROM im_channel_configs WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
-	_, err := s.db.ExecContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID), normalizeIMChannelType(channelType))
+	_, err := s.db.ExecContext(ctx, query, ownerUserID, channelType)
+	if err == nil && s.router != nil {
+		s.router.UnregisterForOwner(ctx, ownerUserID, channelType)
+	}
 	return err
 }
 
@@ -500,7 +534,9 @@ func (s *ControlService) LoadConfiguredChannels(ctx context.Context) error {
 		if row.Status == ChannelConfigStatusDisabled {
 			continue
 		}
-		_ = s.configureRouterChannel(ctx, row.OwnerUserID, row.ChannelType, row.CredentialsEncrypted)
+		if err := s.configureRouterChannel(ctx, row.OwnerUserID, row.ChannelType, row.ConfigJSON, row.CredentialsEncrypted); err != nil {
+			_ = s.updateChannelConfigRuntimeState(ctx, row.OwnerUserID, row.ChannelType, ChannelConfigStatusError, err.Error())
+		}
 	}
 	return nil
 }
@@ -577,6 +613,32 @@ ON CONFLICT(owner_user_id, channel_type) DO UPDATE SET
     last_error = NULL,
     updated_at = CURRENT_TIMESTAMP`
 	_, err := s.db.ExecContext(ctx, query, row.OwnerUserID, row.ChannelType, row.AgentID, row.Status, row.ConfigJSON, nullableString(row.CredentialsEncrypted.String))
+	return err
+}
+
+func (s *ControlService) updateChannelConfigRuntimeState(
+	ctx context.Context,
+	ownerUserID string,
+	channelType string,
+	status string,
+	lastError string,
+) error {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	channelType = normalizeIMChannelType(channelType)
+	status = firstNonEmpty(normalizeChannelConfigStatus(status), ChannelConfigStatusConfigured)
+	if s.driver == "pgx" {
+		query := `
+UPDATE im_channel_configs
+SET status = $3, last_error = $4, updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = $1 AND channel_type = $2`
+		_, err := s.db.ExecContext(ctx, query, ownerUserID, channelType, status, nullableString(lastError))
+		return err
+	}
+	query := `
+UPDATE im_channel_configs
+SET status = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = ? AND channel_type = ?`
+	_, err := s.db.ExecContext(ctx, query, status, nullableString(lastError), ownerUserID, channelType)
 	return err
 }
 
@@ -957,10 +1019,20 @@ func (s *ControlService) decryptCredentials(encrypted sql.NullString) (map[strin
 	return normalizeStringMap(result), nil
 }
 
-func (s *ControlService) configureRouterChannel(ctx context.Context, ownerUserID string, channelType string, encrypted sql.NullString) error {
+func (s *ControlService) configureRouterChannel(
+	ctx context.Context,
+	ownerUserID string,
+	channelType string,
+	configJSON string,
+	encrypted sql.NullString,
+) error {
 	if s.router == nil {
 		return nil
 	}
+	if isPlannedChannel(channelType) {
+		return nil
+	}
+	_ = configJSON
 	secrets, err := s.decryptCredentials(encrypted)
 	if err != nil {
 		return err
@@ -971,19 +1043,19 @@ func (s *ControlService) configureRouterChannel(ctx context.Context, ownerUserID
 		if token == "" {
 			return nil
 		}
-		return s.router.RegisterAndStart(ctx, newTelegramChannel(token, nil).WithOwner(ownerUserID))
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newTelegramChannel(token, nil).WithOwner(ownerUserID))
 	case ChannelTypeDiscord:
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
 			return nil
 		}
-		return s.router.RegisterAndStart(ctx, newDiscordChannel(token, nil).WithOwner(ownerUserID))
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newDiscordChannel(token, nil).WithOwner(ownerUserID))
 	default:
 		return nil
 	}
 }
 
-func (s *ControlService) connectionStateFor(channelType string, status string) string {
+func (s *ControlService) connectionStateFor(ownerUserID string, channelType string, status string) string {
 	status = firstNonEmpty(status, ChannelConfigStatusConfigured)
 	if status == ChannelConfigStatusDisabled {
 		return "disabled"
@@ -991,19 +1063,13 @@ func (s *ControlService) connectionStateFor(channelType string, status string) s
 	if status == ChannelConfigStatusError {
 		return "error"
 	}
-	if s.router != nil && s.router.Get(channelType) != nil {
+	if s.router != nil && s.router.IsReadyForOwner(ownerUserID, channelType) {
 		return "connected"
 	}
+	if status == ChannelConfigStatusConnected {
+		return ChannelConfigStatusConfigured
+	}
 	return status
-}
-
-func (s *ControlService) buildWeChatQRPayload(ownerUserID string, agentID string) string {
-	return fmt.Sprintf(
-		"nexus://wechat/pair?owner=%s&agent=%s&nonce=%s",
-		strings.TrimSpace(ownerUserID),
-		strings.TrimSpace(agentID),
-		s.idFactory("wx"),
-	)
 }
 
 func validateChannelConfigInput(
@@ -1031,6 +1097,19 @@ func validateChannelConfigInput(
 
 func normalizeIMChannelType(channelType string) string {
 	return protocol.NormalizeStoredChannelType(channelType)
+}
+
+func normalizeChannelConfigStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case ChannelConfigStatusConfigured,
+		ChannelConfigStatusConnected,
+		ChannelConfigStatusPending,
+		ChannelConfigStatusError,
+		ChannelConfigStatusDisabled:
+		return strings.ToLower(strings.TrimSpace(status))
+	default:
+		return ""
+	}
 }
 
 func normalizeChannelOwnerUserID(ownerUserID string) string {
@@ -1119,8 +1198,10 @@ func channelCatalog() []ChannelCatalogItem {
 			ChannelType:   ChannelTypeDingTalk,
 			Title:         "钉钉",
 			BotLabel:      "钉钉机器人",
-			Description:   "企业内部应用 Stream 模式",
+			Description:   "未上线",
 			DocsURL:       "https://open.dingtalk.com/",
+			RuntimeStatus: "planned",
+			RuntimeNote:   "未上线：消息渠道接入将在后续版本补充",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "client_id", Label: "Client ID（AppKey）", Kind: "text", Required: true, Placeholder: "填写开发者控制台的 Client ID"},
@@ -1128,21 +1209,23 @@ func channelCatalog() []ChannelCatalogItem {
 			},
 		},
 		{
-			ChannelType:    ChannelTypeWeChat,
-			Title:          "微信",
-			BotLabel:       "微信 ClawBot",
-			Description:    "通过微信适配器扫码配对",
-			SupportsQRCode: true,
-			CredentialFields: []ChannelCredentialField{
-				{Key: "adapter_url", Label: "适配器地址", Kind: "text", Required: false, Placeholder: "可选，例如 http://127.0.0.1:8020"},
-			},
+			ChannelType:      ChannelTypeWeChat,
+			Title:            "微信",
+			BotLabel:         "微信 ClawBot",
+			Description:      "未上线",
+			RuntimeStatus:    "planned",
+			RuntimeNote:      "未上线：消息渠道接入将在后续版本补充",
+			SupportsQRCode:   false,
+			CredentialFields: []ChannelCredentialField{},
 		},
 		{
 			ChannelType:   ChannelTypeFeishu,
 			Title:         "飞书",
 			BotLabel:      "飞书机器人",
-			Description:   "企业自建应用长连接事件",
+			Description:   "未上线",
 			DocsURL:       "https://open.feishu.cn/",
+			RuntimeStatus: "planned",
+			RuntimeNote:   "未上线：消息渠道接入将在后续版本补充",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "app_id", Label: "App ID", Kind: "text", Required: true, Placeholder: "例如 cli_xxxxxxxxx"},
@@ -1153,8 +1236,10 @@ func channelCatalog() []ChannelCatalogItem {
 			ChannelType:   ChannelTypeTelegram,
 			Title:         "Telegram",
 			BotLabel:      "Telegram Bot",
-			Description:   "BotFather Token + getUpdates",
+			Description:   "未上线",
 			DocsURL:       "https://core.telegram.org/bots",
+			RuntimeStatus: "planned",
+			RuntimeNote:   "未上线：消息渠道接入将在后续版本补充",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "bot_token", Label: "Bot Token", Kind: "password", Required: true, Secret: true, Placeholder: "粘贴来自 @BotFather 的 Token"},
@@ -1164,8 +1249,10 @@ func channelCatalog() []ChannelCatalogItem {
 			ChannelType:       ChannelTypeDiscord,
 			Title:             "Discord",
 			BotLabel:          "Discord Bot",
-			Description:       "Gateway 消息事件与 Bot API",
+			Description:       "未上线",
 			DocsURL:           "https://discord.com/developers/applications",
+			RuntimeStatus:     "planned",
+			RuntimeNote:       "未上线：消息渠道接入将在后续版本补充",
 			SupportsGroup:     true,
 			SupportsOAuthLink: true,
 			CredentialFields: []ChannelCredentialField{
@@ -1184,6 +1271,11 @@ func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
 		}
 	}
 	return ChannelCatalogItem{}, false
+}
+
+func isPlannedChannel(channelType string) bool {
+	item, ok := channelCatalogByType(channelType)
+	return ok && item.RuntimeStatus == "planned"
 }
 
 func sortedChannelTypes() []string {
