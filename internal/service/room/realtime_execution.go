@@ -85,7 +85,7 @@ func (s *RealtimeService) runSlot(
 	agentValue *protocol.Agent,
 ) {
 	if agentValue == nil {
-		slot.Status = "error"
+		slot.setStatus("error")
 		s.loggerFor(ctx).Error("Room slot 缺少 agent 配置",
 			"session_key", roundValue.SessionKey,
 			"room_id", roundValue.RoomID,
@@ -108,7 +108,7 @@ func (s *RealtimeService) runSlot(
 		"msg_id", slot.MsgID,
 	)
 	mapper := roomdomain.NewSlotMessageMapper(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, slot.AgentID, slot.MsgID, slot.AgentRoundID)
-	slot.Status = "running"
+	slot.setStatus("running")
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
@@ -155,7 +155,7 @@ func (s *RealtimeService) runSlot(
 		DisallowedTools:    agentValue.Options.DisallowedTools,
 		SettingSources:     agentValue.Options.SettingSources,
 		AppendSystemPrompt: appendSystemPrompt,
-		ResumeSessionID:    slot.SDKSessionID,
+		ResumeSessionID:    slot.getSDKSessionID(),
 		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
 		MaxTurns:           agentValue.Options.MaxTurns,
 		MCPServers:         mcpServers,
@@ -179,7 +179,7 @@ func (s *RealtimeService) runSlot(
 		logger.Warn("Agent SDK stderr", "stderr", line)
 	}
 	client := s.factory.New(options)
-	slot.Client = client
+	slot.setClient(client)
 
 	if err := client.Connect(slotCtx); err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -216,7 +216,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	slot.NoReplyCandidate = true
+	slot.beginNoReplyCandidate()
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
 		Query:  dispatchPrompt,
 		Client: client,
@@ -247,14 +247,14 @@ func (s *RealtimeService) runSlot(
 		HandleDurableMessage: func(messageValue protocol.Message) error {
 			messageRole := protocol.MessageRole(messageValue)
 			if messageRole == "result" {
-				slot.Status = resultStatus(messageValue["subtype"])
+				slot.setStatus(resultStatus(messageValue["subtype"]))
 				s.recordUsage(roundValue, messageValue)
 			}
 			if messageRole == "assistant" && roomdomain.IsNoReplyAssistantMessage(messageValue) {
-				slot.SuppressOutput = true
+				slot.suppressOutput()
 				return nil
 			}
-			if slot.SuppressOutput {
+			if slot.shouldSuppressOutput() {
 				return nil
 			}
 			if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
@@ -268,7 +268,7 @@ func (s *RealtimeService) runSlot(
 			return nil
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
-			for _, readyEvent := range roomEventsReadyForEmission(slot, event) {
+			for _, readyEvent := range slot.eventsReadyForEmission(event) {
 				s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, readyEvent)
 			}
 			return nil
@@ -283,10 +283,10 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 
-	if slot.Status == "running" {
-		slot.Status = resultStatus(result.ResultSubtype)
+	if slot.getStatus() == "running" {
+		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
-	if !slot.SuppressOutput {
+	if !slot.shouldSuppressOutput() {
 		if err := s.collectPublicMentionWakes(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
@@ -301,7 +301,7 @@ func (s *RealtimeService) runSlot(
 		slot.MsgID,
 		slot.AgentRoundID,
 	))
-	logger.Info("Room slot 结束", "status", slot.Status)
+	logger.Info("Room slot 结束", "status", slot.getStatus())
 }
 
 func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message protocol.Message) {
@@ -322,10 +322,9 @@ func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message proto
 
 func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {
 	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" || sessionID == strings.TrimSpace(slot.SDKSessionID) {
+	if !slot.setSDKSessionID(sessionID) {
 		return nil
 	}
-	slot.SDKSessionID = sessionID
 	if s.rooms == nil {
 		return nil
 	}
@@ -344,7 +343,7 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
-	slot.Status = "error"
+	slot.setStatus("error")
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + slot.AgentRoundID,
 		"session_key":     roundValue.SessionKey,
@@ -425,8 +424,8 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 			"last_assistant_chars", utf8.RuneCountInString(strings.TrimSpace(roomdomain.ExtractHistoryText(lastAssistant))),
 		)
 	}
-	if slot != nil && slot.Client != nil {
-		fields = append(fields, "client_session_id", slot.Client.SessionID())
+	if client := slot.getClient(); client != nil {
+		fields = append(fields, "client_session_id", client.SessionID())
 	}
 	return fields
 }
@@ -449,11 +448,7 @@ func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *a
 }
 
 func (s *RealtimeService) markSlotCancelled(slot *activeRoomSlot) bool {
-	if slot == nil || slot.Status == "cancelled" {
-		return false
-	}
-	slot.Status = "cancelled"
-	return true
+	return slot != nil && slot.markCancelled()
 }
 
 func (s *RealtimeService) broadcastSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot) {
@@ -491,8 +486,8 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
 		resultMessage["result"] = trimmedResult
 	}
-	if slot.Client != nil {
-		if sessionID := strings.TrimSpace(slot.Client.SessionID()); sessionID != "" {
+	if client := slot.getClient(); client != nil {
+		if sessionID := strings.TrimSpace(client.SessionID()); sessionID != "" {
 			resultMessage["session_id"] = sessionID
 		}
 	}
@@ -555,7 +550,7 @@ func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, mes
 	}
 	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
 	privateMessage["session_key"] = slot.RuntimeSessionKey
-	if sessionID := firstNonEmpty(strings.TrimSpace(anyString(privateMessage["session_id"])), strings.TrimSpace(slot.SDKSessionID)); sessionID != "" {
+	if sessionID := firstNonEmpty(strings.TrimSpace(anyString(privateMessage["session_id"])), slot.getSDKSessionID()); sessionID != "" {
 		privateMessage["session_id"] = sessionID
 	}
 	if strings.TrimSpace(anyString(privateMessage["message_id"])) == "" {

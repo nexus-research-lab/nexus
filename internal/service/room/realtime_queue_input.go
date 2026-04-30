@@ -21,7 +21,8 @@ func (s *RealtimeService) queueActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		if slot.Client == nil {
+		client := slot.getClient()
+		if client == nil {
 			slot.enqueueQueuedInput(roundID, content)
 			queuedAgentIDs[agentID] = struct{}{}
 			s.loggerFor(ctx).Info("Room 排队消息等待 slot 启动",
@@ -34,7 +35,7 @@ func (s *RealtimeService) queueActiveAgentSlots(
 			)
 			continue
 		}
-		if err := runtimectx.SendClientContent(ctx, slot.Client, strings.TrimSpace(content)); err != nil {
+		if err := runtimectx.SendClientContent(ctx, client, strings.TrimSpace(content)); err != nil {
 			return queuedAgentIDs, err
 		}
 		queuedAgentIDs[agentID] = struct{}{}
@@ -93,15 +94,7 @@ func (s *RealtimeService) findQueueSlots(
 }
 
 func isActiveQueueSlot(slot *activeRoomSlot) bool {
-	if slot == nil {
-		return false
-	}
-	switch slot.Status {
-	case "finished", "error", "cancelled":
-		return false
-	default:
-		return true
-	}
+	return slot != nil && !slot.isTerminal()
 }
 
 func filterQueuedAgentIDs(agentIDs []string, queued map[string]struct{}) []string {

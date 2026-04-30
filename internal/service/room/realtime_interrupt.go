@@ -209,9 +209,9 @@ func (s *RealtimeService) interruptActiveSlot(
 	}
 	interruptReason := normalizeRoomInterruptReason(message)
 	markRoomSlotInterrupted(slot, interruptReason)
-	shouldBroadcast := slot.Status != "finished" && slot.Status != "error" && slot.Status != "cancelled"
-	if slot.Client != nil {
-		if err := slot.Client.Interrupt(ctx); err != nil && !suppressError {
+	shouldBroadcast := !slot.isTerminal()
+	if client := slot.getClient(); client != nil {
+		if err := client.Interrupt(ctx); err != nil && !suppressError {
 			return err
 		}
 	}
@@ -264,8 +264,8 @@ func (s *RealtimeService) interruptActiveRound(
 	interruptReason := normalizeRoomInterruptReason(message)
 	for _, slot := range roundValue.Slots {
 		markRoomSlotInterrupted(slot, interruptReason)
-		if slot.Client != nil {
-			if err := slot.Client.Interrupt(ctx); err != nil && !suppressError {
+		if client := slot.getClient(); client != nil {
+			if err := client.Interrupt(ctx); err != nil && !suppressError {
 				return err
 			}
 		}
