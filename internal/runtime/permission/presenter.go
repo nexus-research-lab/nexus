@@ -3,7 +3,7 @@ package permission
 import (
 	"strings"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 var (
@@ -87,7 +87,7 @@ func summarizeInput(toolName string, input map[string]any) string {
 	return toolName
 }
 
-func serializePermissionUpdates(updates []sdkprotocol.PermissionUpdate) []map[string]any {
+func serializePermissionUpdates(updates []sdkpermission.Update) []map[string]any {
 	result := make([]map[string]any, 0, len(updates))
 	for _, update := range updates {
 		payload := map[string]any{

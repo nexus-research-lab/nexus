@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 
@@ -69,6 +70,7 @@ type RoundExecutionRequest struct {
 	Client                 Client
 	Mapper                 RoundMapper
 	InterruptReason        func() string
+	AssistantTerminalGrace time.Duration
 	SyncSessionID          func(string) error
 	AfterQuery             func() error
 	HandleDurableMessage   func(protocol.Message) error
@@ -78,9 +80,12 @@ type RoundExecutionRequest struct {
 
 // RoundExecutionResult 表示 round 执行的终态结果。
 type RoundExecutionResult struct {
-	TerminalStatus string
-	ResultSubtype  string
+	TerminalStatus       string
+	ResultSubtype        string
+	CompletedByAssistant bool
 }
+
+const defaultAssistantTerminalGrace = 1500 * time.Millisecond
 
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
 func ExecuteRound(
@@ -109,14 +114,21 @@ func ExecuteRound(
 	messageCh := request.Client.ReceiveMessages(ctx)
 	messagesSeen := 0
 	lastMessage := sdkprotocol.ReceivedMessage{}
+	var assistantTerminalResult *RoundExecutionResult
+	var assistantTerminalTimer <-chan time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return RoundExecutionResult{}, ErrRoundInterrupted
+		case <-assistantTerminalTimer:
+			return *assistantTerminalResult, nil
 		case incoming, ok := <-messageCh:
 			if !ok {
 				if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
 					return RoundExecutionResult{}, ErrRoundInterrupted
+				}
+				if assistantTerminalResult != nil {
+					return *assistantTerminalResult, nil
 				}
 				return RoundExecutionResult{}, buildRoundStreamClosedError(request.Client, messagesSeen, lastMessage)
 			}
@@ -170,7 +182,49 @@ func ExecuteRound(
 					ResultSubtype:  strings.TrimSpace(mapResult.ResultSubtype),
 				}, nil
 			}
+			if assistantResult, ok := terminalAssistantResult(mapResult); ok {
+				assistantTerminalResult = &assistantResult
+				if assistantTerminalTimer == nil {
+					assistantTerminalTimer = time.After(normalizeAssistantTerminalGrace(request.AssistantTerminalGrace))
+				}
+			}
 		}
+	}
+}
+
+func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {
+	if value > 0 {
+		return value
+	}
+	return defaultAssistantTerminalGrace
+}
+
+func terminalAssistantResult(mapResult RoundMapResult) (RoundExecutionResult, bool) {
+	for _, messageValue := range mapResult.DurableMessages {
+		if messageValue == nil || protocol.MessageRole(messageValue) != "assistant" {
+			continue
+		}
+		if messageValue["is_complete"] != true {
+			continue
+		}
+		if !isTerminalAssistantStopReason(messageString(messageValue["stop_reason"])) {
+			continue
+		}
+		return RoundExecutionResult{
+			TerminalStatus:       "finished",
+			ResultSubtype:        "success",
+			CompletedByAssistant: true,
+		}, true
+	}
+	return RoundExecutionResult{}, false
+}
+
+func isTerminalAssistantStopReason(stopReason string) bool {
+	switch strings.TrimSpace(stopReason) {
+	case "end_turn", "stop_sequence", "max_tokens":
+		return true
+	default:
+		return false
 	}
 }
 

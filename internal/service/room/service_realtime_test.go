@@ -25,6 +25,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
@@ -298,7 +299,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		}
 	}
 
-	roomSystemPrompt := factory.LastOptions().AppendSystemPrompt
+	roomSystemPrompt := factory.LastOptions().System.Append
 	for _, expected := range []string{
 		"# Nexus Room 公区协作规则",
 		"你正在 Nexus 的多人协作 Room 中参与公开协作",
@@ -755,10 +756,10 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入 subagent model: %+v", options.Env)
 	}
-	if options.MaxThinkingTokens != maxThinkingTokens {
+	if options.Runtime.MaxThinkingTokens != maxThinkingTokens {
 		t.Fatalf("room runtime 未向 SDK 透传 max thinking tokens: %+v", options)
 	}
-	if options.MaxTurns != maxTurns {
+	if options.Runtime.MaxTurns != maxTurns {
 		t.Fatalf("room runtime 未向 SDK 透传 max turns: %+v", options)
 	}
 	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
@@ -835,10 +836,10 @@ func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *test
 	})
 
 	options := factory.LastOptions()
-	if options.PermissionMode != sdkprotocol.PermissionModeBypassPermissions {
+	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("room bypass 权限模式未透传: %+v", options)
 	}
-	if options.PermissionHandler != nil {
+	if options.Adapters.PermissionHandler != nil {
 		t.Fatalf("room bypass 权限模式不应安装 permission handler: %+v", options)
 	}
 }
@@ -919,7 +920,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	case <-time.After(time.Second):
 		t.Fatal("Devin 未被公区 @ 唤醒")
 	}
-	roomSystemPrompt := factory.LastOptions().AppendSystemPrompt
+	roomSystemPrompt := factory.LastOptions().System.Append
 	if !strings.Contains(roomSystemPrompt, "<room_member_directory>") ||
 		!strings.Contains(roomSystemPrompt, "agent_id="+devin.AgentID) {
 		t.Fatalf("Devin system prompt 应包含 Room 成员目录: %s", roomSystemPrompt)
@@ -2070,7 +2071,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	})
 
 	options := factory.LastOptions()
-	if options.Resume != resumeID {
+	if options.Session.ResumeID != resumeID {
 		t.Fatalf("room runtime 未将房间 sdk_session_id 作为 resume 透传: %+v", options)
 	}
 

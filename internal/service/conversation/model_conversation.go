@@ -4,7 +4,7 @@ import (
 	"context"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 // UnifiedRequest 表示统一会话入站请求。
@@ -16,7 +16,7 @@ type UnifiedRequest struct {
 	Content           string
 	RoundID           string
 	ReqID             string
-	PermissionMode    sdkprotocol.PermissionMode
+	PermissionMode    sdkpermission.Mode
 	PermissionHandler agentclient.PermissionHandler
 }
 

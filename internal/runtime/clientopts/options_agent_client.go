@@ -7,7 +7,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
@@ -23,7 +24,7 @@ type RuntimeConfigResolver interface {
 type AgentClientOptionsInput struct {
 	WorkspacePath      string
 	Provider           string
-	PermissionMode     sdkprotocol.PermissionMode
+	PermissionMode     sdkpermission.Mode
 	PermissionHandler  agentclient.PermissionHandler
 	AllowedTools       []string
 	DisallowedTools    []string
@@ -32,7 +33,7 @@ type AgentClientOptionsInput struct {
 	ResumeSessionID    string
 	MaxThinkingTokens  *int
 	MaxTurns           *int
-	MCPServers         map[string]agentclient.SDKMCPServer
+	MCPServers         map[string]sdkmcp.SDKMCPServer
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -50,38 +51,47 @@ func BuildAgentClientOptions(
 
 	permissionMode := input.PermissionMode
 	if permissionMode == "" {
-		permissionMode = sdkprotocol.PermissionModeDefault
+		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := input.PermissionHandler
-	if permissionMode == sdkprotocol.PermissionModeBypassPermissions {
+	if permissionMode == sdkpermission.ModeBypassPermissions {
 		permissionHandler = nil
 	}
 
 	options := agentclient.Options{
+		Backend:                agentclient.ProcessBackend(agentclient.ProcessBackendOptions{}),
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
-		PermissionMode:         permissionMode,
-		AllowedTools:           append([]string(nil), input.AllowedTools...),
-		DisallowedTools:        append([]string(nil), input.DisallowedTools...),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
-		PermissionHandler:      permissionHandler,
-		AppendSystemPrompt:     input.AppendSystemPrompt,
+		System: agentclient.SystemOptions{
+			Append: input.AppendSystemPrompt,
+		},
+		Tools: agentclient.ToolOptions{
+			Allow: append([]string(nil), input.AllowedTools...),
+			Deny:  append([]string(nil), input.DisallowedTools...),
+		},
+		Runtime: agentclient.RuntimeOptions{
+			PermissionMode: permissionMode,
+		},
+		Adapters: agentclient.AdapterOptions{
+			PermissionHandler: permissionHandler,
+		},
 	}
 	if runtimeConfig != nil {
 		options.Model = strings.TrimSpace(runtimeConfig.Model)
 	}
 	if strings.TrimSpace(input.ResumeSessionID) != "" {
-		options.Resume = strings.TrimSpace(input.ResumeSessionID)
+		options.Session.ResumeID = strings.TrimSpace(input.ResumeSessionID)
 	}
 	if input.MaxThinkingTokens != nil && *input.MaxThinkingTokens > 0 {
-		options.MaxThinkingTokens = *input.MaxThinkingTokens
+		options.Runtime.MaxThinkingTokens = *input.MaxThinkingTokens
 	}
 	if input.MaxTurns != nil && *input.MaxTurns > 0 {
-		options.MaxTurns = *input.MaxTurns
+		options.Runtime.MaxTurns = *input.MaxTurns
 	}
 	if len(input.MCPServers) > 0 {
-		options.SDKMCPServers = cloneMCPServers(input.MCPServers)
+		options.MCP.SDKServers = cloneMCPServers(input.MCPServers)
 	}
 	return options, nil
 }
@@ -133,12 +143,12 @@ func resolveRuntimeConfig(
 }
 
 func cloneMCPServers(
-	current map[string]agentclient.SDKMCPServer,
-) map[string]agentclient.SDKMCPServer {
+	current map[string]sdkmcp.SDKMCPServer,
+) map[string]sdkmcp.SDKMCPServer {
 	if len(current) == 0 {
 		return nil
 	}
-	result := make(map[string]agentclient.SDKMCPServer, len(current))
+	result := make(map[string]sdkmcp.SDKMCPServer, len(current))
 	for key, value := range current {
 		result[key] = value
 	}

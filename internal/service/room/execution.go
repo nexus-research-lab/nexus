@@ -9,7 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -153,12 +154,12 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt())
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
-	mcpServers := map[string]agentclient.SDKMCPServer(nil)
+	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")
 	}
-	permissionMode := sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
-	permissionHandler := func(permissionCtx context.Context, request sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
+	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
+	permissionHandler := func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
 	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
@@ -296,6 +297,9 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 
+	if result.CompletedByAssistant {
+		s.recordTerminalAssistantUsage(roundValue, mapper.LastAssistantMessage())
+	}
 	if slot.Status == "running" {
 		slot.Status = resultStatus(result.ResultSubtype)
 	}
@@ -327,6 +331,17 @@ func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message proto
 	if s.usage == nil || roundValue == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
+	s.writeUsage(roundValue, message)
+}
+
+func (s *RealtimeService) recordTerminalAssistantUsage(roundValue *activeRoomRound, message protocol.Message) {
+	if s.usage == nil || roundValue == nil || protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	s.writeUsage(roundValue, message)
+}
+
+func (s *RealtimeService) writeUsage(roundValue *activeRoomRound, message protocol.Message) {
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
 	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		s.loggerFor(context.Background()).Error("Room token usage 写入失败",

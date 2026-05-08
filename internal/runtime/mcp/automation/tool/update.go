@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
@@ -19,12 +19,12 @@ const updateDescription = "按 job_id 局部更新定时任务字段。字段语
 	"name / instruction / schedule / execution_mode / reply_mode / selected_session_key / " +
 	"named_session_key / selected_reply_session_key / enabled。只有提供的字段会被更新。"
 
-func update(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
-	return agentclient.MCPTool{
+func update(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
 		Name:        "update_scheduled_task",
 		Description: updateDescription,
 		InputSchema: updateSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			if args == nil {
 				args = map[string]any{}
 			}

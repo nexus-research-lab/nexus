@@ -10,7 +10,7 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
 )
 
 func (s *Service) withInputQueueGuidanceHook(
@@ -26,21 +26,21 @@ func (s *Service) inputQueueGuidanceHook(
 	sessionKey string,
 	location workspacestore.InputQueueLocation,
 	sessionItem protocol.Session,
-) sdkprotocol.HookCallback {
-	return func(ctx context.Context, input sdkprotocol.HookInput, _ string) (sdkprotocol.HookOutput, error) {
-		if input.EventName != "" && input.EventName != sdkprotocol.HookEventPostToolUse {
-			return sdkprotocol.HookOutput{}, nil
+) sdkhook.Callback {
+	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
+		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
+			return sdkhook.Output{}, nil
 		}
 		runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
 		if len(runningRoundIDs) == 0 {
-			return sdkprotocol.HookOutput{}, nil
+			return sdkhook.Output{}, nil
 		}
 		items, snapshot, err := s.inputQueue.DispatchGuidance(location, runningRoundIDs...)
 		if err != nil {
-			return sdkprotocol.HookOutput{}, err
+			return sdkhook.Output{}, err
 		}
 		if len(items) == 0 {
-			return sdkprotocol.HookOutput{}, nil
+			return sdkhook.Output{}, nil
 		}
 
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, snapshot)
@@ -55,10 +55,10 @@ func (s *Service) inputQueueGuidanceHook(
 			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, sourceRoundID, item.Content)
 		}
 
-		return sdkprotocol.HookOutput{
-			HookSpecificOutput: map[string]any{
-				"hookEventName":     string(sdkprotocol.HookEventPostToolUse),
-				"additionalContext": runtimectx.FormatGuidanceAdditionalContext(inputs),
+		return sdkhook.Output{
+			SpecificOutput: &sdkhook.SpecificOutput{
+				HookEventName:     sdkhook.EventPostToolUse,
+				AdditionalContext: runtimectx.FormatGuidanceAdditionalContext(inputs),
 			},
 		}, nil
 	}

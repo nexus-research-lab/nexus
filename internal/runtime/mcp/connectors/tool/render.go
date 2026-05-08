@@ -3,21 +3,21 @@ package tool
 import (
 	"encoding/json"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 )
 
-func jsonResult(payload any) agentclient.MCPToolResult {
+func jsonResult(payload any) sdkmcp.ToolResult {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return errorResult(err)
 	}
-	return agentclient.MCPToolResult{
+	return sdkmcp.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": string(data)}},
 	}
 }
 
-func errorResult(err error) agentclient.MCPToolResult {
-	return agentclient.MCPToolResult{
+func errorResult(err error) sdkmcp.ToolResult {
+	return sdkmcp.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": err.Error()}},
 		IsError: true,
 	}

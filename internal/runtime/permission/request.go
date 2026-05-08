@@ -9,7 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 // RouteContext 描述运行时 session 到前端路由会话的映射。
@@ -29,14 +29,14 @@ type PendingRequest struct {
 	DispatchSessionKey string
 	ToolName           string
 	ToolInput          map[string]any
-	Suggestions        []sdkprotocol.PermissionUpdate
+	Suggestions        []sdkpermission.Update
 	ExpiresAt          time.Time
 	Route              RouteContext
-	ResponseCh         chan sdkprotocol.PermissionDecision
+	ResponseCh         chan sdkpermission.Decision
 	finalizeOnce       sync.Once
 }
 
-func (c *Context) newPendingRequest(sessionKey string, request sdkprotocol.PermissionRequest) *PendingRequest {
+func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Request) *PendingRequest {
 	route := c.resolveRouteContext(sessionKey)
 	now := time.Now()
 	return &PendingRequest{
@@ -45,10 +45,10 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkprotocol.Permi
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           strings.TrimSpace(request.ToolName),
 		ToolInput:          cloneMap(request.Input),
-		Suggestions:        append([]sdkprotocol.PermissionUpdate(nil), request.PermissionSuggestions...),
+		Suggestions:        append([]sdkpermission.Update(nil), request.PermissionSuggestions...),
 		ExpiresAt:          now.Add(c.requestTimeout),
 		Route:              route,
-		ResponseCh:         make(chan sdkprotocol.PermissionDecision, 1),
+		ResponseCh:         make(chan sdkpermission.Decision, 1),
 	}
 }
 
@@ -112,7 +112,7 @@ func (c *Context) finalizeRequest(pending *PendingRequest, status string) {
 func (c *Context) buildPermissionDecision(
 	pending *PendingRequest,
 	message map[string]any,
-) sdkprotocol.PermissionDecision {
+) sdkpermission.Decision {
 	decision := strings.TrimSpace(normalizeString(message["decision"]))
 	if decision == "allow" {
 		updatedInput := cloneMap(pending.ToolInput)
@@ -124,12 +124,12 @@ func (c *Context) buildPermissionDecision(
 				updatedInput["answers"] = answers
 			}
 		}
-		return sdkprotocol.AllowPermission(
+		return sdkpermission.Allow(
 			updatedInput,
 			deserializePermissionUpdates(message["updated_permissions"]),
 		)
 	}
-	return sdkprotocol.DenyPermission(
+	return sdkpermission.Deny(
 		firstNonEmpty(normalizeString(message["message"]), "User denied permission"),
 		normalizeBool(message["interrupt"]),
 	)
@@ -198,12 +198,12 @@ func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) ma
 	return answers
 }
 
-func deserializePermissionUpdates(raw any) []sdkprotocol.PermissionUpdate {
+func deserializePermissionUpdates(raw any) []sdkpermission.Update {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	result := make([]sdkprotocol.PermissionUpdate, 0, len(items))
+	result := make([]sdkpermission.Update, 0, len(items))
 	for _, item := range items {
 		payload, ok := item.(map[string]any)
 		if !ok {
@@ -213,11 +213,11 @@ func deserializePermissionUpdates(raw any) []sdkprotocol.PermissionUpdate {
 		if updateType == "" {
 			continue
 		}
-		update := sdkprotocol.PermissionUpdate{
+		update := sdkpermission.Update{
 			Type:        updateType,
-			Behavior:    sdkprotocol.PermissionBehavior(normalizeString(payload["behavior"])),
-			Mode:        sdkprotocol.PermissionMode(normalizeString(payload["mode"])),
-			Destination: sdkprotocol.PermissionUpdateDestination(normalizeString(payload["destination"])),
+			Behavior:    sdkpermission.Behavior(normalizeString(payload["behavior"])),
+			Mode:        sdkpermission.Mode(normalizeString(payload["mode"])),
+			Destination: sdkpermission.UpdateDestination(normalizeString(payload["destination"])),
 		}
 		update.Directories = normalizeStringSlice(payload["directories"])
 		update.Rules = deserializePermissionRules(payload["rules"])
@@ -226,12 +226,12 @@ func deserializePermissionUpdates(raw any) []sdkprotocol.PermissionUpdate {
 	return result
 }
 
-func deserializePermissionRules(raw any) []sdkprotocol.PermissionRuleValue {
+func deserializePermissionRules(raw any) []sdkpermission.RuleValue {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	result := make([]sdkprotocol.PermissionRuleValue, 0, len(items))
+	result := make([]sdkpermission.RuleValue, 0, len(items))
 	for _, item := range items {
 		payload, ok := item.(map[string]any)
 		if !ok {
@@ -241,7 +241,7 @@ func deserializePermissionRules(raw any) []sdkprotocol.PermissionRuleValue {
 		if toolName == "" {
 			continue
 		}
-		result = append(result, sdkprotocol.PermissionRuleValue{
+		result = append(result, sdkpermission.RuleValue{
 			ToolName:    toolName,
 			RuleContent: firstNonEmpty(normalizeString(payload["rule_content"]), normalizeString(payload["ruleContent"])),
 		})

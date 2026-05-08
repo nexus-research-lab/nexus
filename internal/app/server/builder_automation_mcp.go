@@ -8,7 +8,7 @@ import (
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/agent"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 )
 
 // newAutomationMCPBuilder 返回 DM/Room 实时链路所需的 MCPServerBuilder。
@@ -16,8 +16,8 @@ import (
 // 每次新建会话时按当前 (agentID, sessionKey, sourceContextType) 构造一个
 // nexus_automation 进程内 MCP server，让主智能体可以通过工具自助管理定时任务。
 // 在 dm 与 chat 包外部完成绑定，避免它们反向依赖 automation 子包导致 import cycle。
-func newAutomationMCPBuilder(svc automationmcpcontract.Service, agents *agent.Service, defaultTimezone string) func(string, string, string) map[string]agentclient.SDKMCPServer {
-	return func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer {
+func newAutomationMCPBuilder(svc automationmcpcontract.Service, agents *agent.Service, defaultTimezone string) func(string, string, string) map[string]sdkmcp.SDKMCPServer {
+	return func(agentID, sessionKey, sourceContextType string) map[string]sdkmcp.SDKMCPServer {
 		sctx := automationmcpcontract.ServerContext{
 			CurrentAgentID:    agentID,
 			CurrentSessionKey: sessionKey,
@@ -30,7 +30,7 @@ func newAutomationMCPBuilder(svc automationmcpcontract.Service, agents *agent.Se
 				sctx.IsMainAgent = record.IsMain
 			}
 		}
-		return map[string]agentclient.SDKMCPServer{
+		return map[string]sdkmcp.SDKMCPServer{
 			automationmcpcontract.ServerName: automationmcp.NewServer(svc, sctx),
 		}
 	}

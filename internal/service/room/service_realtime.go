@@ -18,6 +18,7 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 )
 
 const (
@@ -37,7 +38,7 @@ type RoomBroadcaster interface {
 type defaultRoomClientFactory struct{}
 
 func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Client {
-	return runtimectx.WrapSDKClient(agentclient.New(options))
+	return runtimectx.WrapSDKClient(options)
 }
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。
@@ -59,7 +60,7 @@ type InterruptRequest struct {
 
 // MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
 // 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
-type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer
+type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]sdkmcp.SDKMCPServer
 
 type RealtimeService struct {
 	config      config.Config

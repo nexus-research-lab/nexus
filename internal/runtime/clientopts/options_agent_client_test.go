@@ -6,7 +6,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 type fakeRuntimeConfigResolver struct {
@@ -50,7 +50,7 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.PermissionMode != sdkprotocol.PermissionModeDefault {
+	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
 	}
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
@@ -62,10 +62,10 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env["ENABLE_TOOL_SEARCH"] != "false" {
 		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
 	}
-	if options.Resume != "sdk-session-1" {
+	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
 	}
-	if options.MaxThinkingTokens != 2048 || options.MaxTurns != 8 {
+	if options.Runtime.MaxThinkingTokens != 2048 || options.Runtime.MaxTurns != 8 {
 		t.Fatalf("思考/轮次限制未透传: %+v", options)
 	}
 	if resolveCalls != 1 {

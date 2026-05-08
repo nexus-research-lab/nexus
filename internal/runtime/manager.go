@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -44,25 +45,208 @@ type Factory interface {
 type defaultFactory struct{}
 
 type sdkClientAdapter struct {
-	*agentclient.Client
+	mu       sync.Mutex
+	options  agentclient.Options
+	session  *agentclient.Session
+	messages chan sdkprotocol.ReceivedMessage
+	cancel   context.CancelFunc
 }
 
-func WrapSDKClient(client *agentclient.Client) Client {
-	if client == nil {
+func WrapSDKClient(options agentclient.Options) Client {
+	return &sdkClientAdapter{options: ensureBridgeBackend(options)}
+}
+
+func ensureBridgeBackend(options agentclient.Options) agentclient.Options {
+	if options.Backend == nil {
+		options.Backend = agentclient.ProcessBackend(agentclient.ProcessBackendOptions{})
+	}
+	return options
+}
+
+func (c *sdkClientAdapter) Connect(ctx context.Context) error {
+	c.mu.Lock()
+	if c.session != nil {
+		c.mu.Unlock()
 		return nil
 	}
-	return &sdkClientAdapter{Client: client}
+	options := ensureBridgeBackend(c.options)
+	c.options = options
+	c.mu.Unlock()
+
+	session, err := agentclient.NewSession(ctx, options)
+	if err != nil {
+		return err
+	}
+
+	pumpCtx, cancel := context.WithCancel(context.Background())
+	messages := make(chan sdkprotocol.ReceivedMessage, 64)
+
+	c.mu.Lock()
+	c.session = session
+	c.messages = messages
+	c.cancel = cancel
+	c.mu.Unlock()
+
+	go c.pumpMessages(pumpCtx, session, messages)
+	return nil
+}
+
+func (c *sdkClientAdapter) Query(ctx context.Context, prompt string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	_, err = session.Send(ctx, prompt)
+	return err
+}
+
+func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.messages == nil {
+		closed := make(chan sdkprotocol.ReceivedMessage)
+		close(closed)
+		return closed
+	}
+	return c.messages
+}
+
+func (c *sdkClientAdapter) Interrupt(ctx context.Context) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.Interrupt(ctx)
+}
+
+func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
+	c.mu.Lock()
+	session := c.session
+	cancel := c.cancel
+	c.session = nil
+	c.messages = nil
+	c.cancel = nil
+	c.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if session == nil {
+		return nil
+	}
+	return session.Close(ctx)
 }
 
 func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.Options) error {
-	if c == nil || c.Client == nil {
-		return nil
+	options = ensureBridgeBackend(options)
+	c.mu.Lock()
+	currentOptions := c.options
+	session := c.session
+	c.mu.Unlock()
+	if session != nil {
+		if err := applyRuntimeControls(ctx, session, currentOptions, options); err != nil {
+			return err
+		}
 	}
-	return c.Client.Reconfigure(ctx, options)
+
+	c.mu.Lock()
+	c.options = options
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *sdkClientAdapter) SessionID() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.session == nil {
+		return strings.TrimSpace(c.options.Session.ResumeID)
+	}
+	return c.session.ID()
+}
+
+func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"type":               "user",
+		"session_id":         firstNonEmpty(strings.TrimSpace(sessionID), session.ID(), c.SessionID()),
+		"parent_tool_use_id": parentToolUseID,
+		"message": map[string]any{
+			"role":    "user",
+			"content": content,
+		},
+	}
+	_, err = session.SendMessage(ctx, sdkprotocol.NewRawMessage(payload))
+	return err
+}
+
+func (c *sdkClientAdapter) currentSession() (*agentclient.Session, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.session == nil {
+		return nil, agentclient.ErrNotConnected
+	}
+	return c.session, nil
+}
+
+func (c *sdkClientAdapter) pumpMessages(
+	ctx context.Context,
+	session *agentclient.Session,
+	messages chan<- sdkprotocol.ReceivedMessage,
+) {
+	defer close(messages)
+	for {
+		message, err := session.Recv(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
+				return
+			}
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case messages <- message:
+		}
+	}
 }
 
 func (f defaultFactory) New(options agentclient.Options) Client {
-	return WrapSDKClient(agentclient.New(options))
+	return WrapSDKClient(options)
+}
+
+func applyRuntimeControls(
+	ctx context.Context,
+	session *agentclient.Session,
+	currentOptions agentclient.Options,
+	nextOptions agentclient.Options,
+) error {
+	control := session.Control()
+	if nextOptions.Runtime.PermissionMode != "" &&
+		nextOptions.Runtime.PermissionMode != currentOptions.Runtime.PermissionMode {
+		if err := control.SetPermissionMode(ctx, nextOptions.Runtime.PermissionMode); err != nil {
+			return err
+		}
+	}
+
+	nextModel := strings.TrimSpace(nextOptions.Model)
+	currentModel := strings.TrimSpace(currentOptions.Model)
+	if nextModel != "" && nextModel != currentModel {
+		if err := control.SetModel(ctx, nextModel); err != nil {
+			return err
+		}
+	}
+
+	nextMaxThinkingTokens := nextOptions.Runtime.MaxThinkingTokens
+	if nextMaxThinkingTokens > 0 &&
+		nextMaxThinkingTokens != currentOptions.Runtime.MaxThinkingTokens {
+		if err := control.SetMaxThinkingTokens(ctx, nextMaxThinkingTokens); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type sessionState struct {

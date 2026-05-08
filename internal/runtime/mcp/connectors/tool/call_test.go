@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
@@ -125,7 +125,7 @@ func callTool(t *testing.T, svc contract.Service, args map[string]any) map[strin
 	return output
 }
 
-func callToolResult(t *testing.T, svc contract.Service, args map[string]any) agentclient.MCPToolResult {
+func callToolResult(t *testing.T, svc contract.Service, args map[string]any) sdkmcp.ToolResult {
 	t.Helper()
 	for _, item := range BuildAll(svc, contract.ServerContext{OwnerUserID: "user-1"}) {
 		if item.Name == "connector_call" {
@@ -137,5 +137,5 @@ func callToolResult(t *testing.T, svc contract.Service, args map[string]any) age
 		}
 	}
 	t.Fatal("connector_call tool not found")
-	return agentclient.MCPToolResult{}
+	return sdkmcp.ToolResult{}
 }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 type permissionTestSender struct {
@@ -45,9 +45,9 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 
 	ctx.BindSession(sessionKey, controllerA, "client-a", true)
 
-	resultCh := make(chan sdkprotocol.PermissionDecision, 1)
+	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkprotocol.PermissionRequest{
+		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
 			ToolName: "Read",
 			Input: map[string]any{
 				"file_path": "go.mod",
@@ -85,7 +85,7 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 
 	select {
 	case decision := <-resultCh:
-		if decision.Behavior != sdkprotocol.PermissionBehaviorAllow {
+		if decision.Behavior != sdkpermission.BehaviorAllow {
 			t.Fatalf("期望 allow，实际: %+v", decision)
 		}
 	case <-time.After(2 * time.Second):
@@ -111,9 +111,9 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 	controller := newPermissionTestSender("sender-timeout")
 	ctx.BindSession(sessionKey, controller, "client-timeout", true)
 
-	resultCh := make(chan sdkprotocol.PermissionDecision, 1)
+	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkprotocol.PermissionRequest{
+		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
 			ToolName: "Read",
 			Input: map[string]any{
 				"file_path": "README.md",
@@ -136,7 +136,7 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 
 	select {
 	case decision := <-resultCh:
-		if decision.Behavior != sdkprotocol.PermissionBehaviorDeny {
+		if decision.Behavior != sdkpermission.BehaviorDeny {
 			t.Fatalf("期望 deny，实际: %+v", decision)
 		}
 	case <-time.After(2 * time.Second):
@@ -150,9 +150,9 @@ func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
 	controller := newPermissionTestSender("sender-cancel")
 	ctx.BindSession(sessionKey, controller, "client-cancel", true)
 
-	resultCh := make(chan sdkprotocol.PermissionDecision, 1)
+	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkprotocol.PermissionRequest{
+		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
 			ToolName: "Read",
 			Input: map[string]any{
 				"file_path": "go.mod",
@@ -180,7 +180,7 @@ func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
 
 	select {
 	case decision := <-resultCh:
-		if decision.Behavior != sdkprotocol.PermissionBehaviorDeny {
+		if decision.Behavior != sdkpermission.BehaviorDeny {
 			t.Fatalf("期望 deny，实际: %+v", decision)
 		}
 	case <-time.After(2 * time.Second):

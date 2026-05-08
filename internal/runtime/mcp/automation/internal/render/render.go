@@ -7,25 +7,25 @@ import (
 	"strings"
 	"time"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/argx"
 )
 
 // JSON 把任意结构体序列化为 MCP text 内容。
-func JSON(payload any) agentclient.MCPToolResult {
+func JSON(payload any) sdkmcp.ToolResult {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return Error(err)
 	}
-	return agentclient.MCPToolResult{
+	return sdkmcp.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": string(data)}},
 	}
 }
 
 // Error 把错误转成 MCP 错误内容（IsError=true）。
-func Error(err error) agentclient.MCPToolResult {
-	return agentclient.MCPToolResult{
+func Error(err error) sdkmcp.ToolResult {
+	return sdkmcp.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": err.Error()}},
 		IsError: true,
 	}

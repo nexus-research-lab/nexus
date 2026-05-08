@@ -14,6 +14,7 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
@@ -55,7 +56,7 @@ type roundRunner struct {
 	runtimeModel      string
 	ownerUserID       string
 	mapper            *dmdomain.MessageMapper
-	permissionMode    sdkprotocol.PermissionMode
+	permissionMode    sdkpermission.Mode
 	permissionHandler agentclient.PermissionHandler
 }
 
@@ -83,6 +84,9 @@ func (r *roundRunner) run(ctx context.Context) {
 		"status", result.TerminalStatus,
 		"result_subtype", result.ResultSubtype,
 	)
+	if result.CompletedByAssistant {
+		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
+	}
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	r.service.permission.BroadcastEvent(
 		context.Background(),
@@ -299,6 +303,17 @@ func (r *roundRunner) recordUsage(message protocol.Message) {
 	if r.service.usage == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
+	r.writeUsage(message)
+}
+
+func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
+	if r.service.usage == nil || protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	r.writeUsage(message)
+}
+
+func (r *roundRunner) writeUsage(message protocol.Message) {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
 	if err := r.service.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		r.service.loggerFor(context.Background()).Error("DM token usage 写入失败",

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
 )
 
 // GuidedInput 是等待注入当前 round 的用户引导。
@@ -63,35 +63,35 @@ func (m *Manager) WithGuidanceHook(options agentclient.Options, sessionKey strin
 }
 
 // WithPostToolUseGuidanceHook 给 SDK options 追加一个 PostToolUse 引导 hook。
-func WithPostToolUseGuidanceHook(options agentclient.Options, callback sdkprotocol.HookCallback) agentclient.Options {
+func WithPostToolUseGuidanceHook(options agentclient.Options, callback sdkhook.Callback) agentclient.Options {
 	if callback == nil {
 		return options
 	}
-	hooks := cloneSDKHooks(options.Hooks)
-	hooks[sdkprotocol.HookEventPostToolUse] = append(
-		hooks[sdkprotocol.HookEventPostToolUse],
-		sdkprotocol.HookMatcher{
-			Hooks:   []sdkprotocol.HookCallback{callback},
+	hooks := cloneSDKHooks(options.Hooks.Matchers)
+	hooks[sdkhook.EventPostToolUse] = append(
+		hooks[sdkhook.EventPostToolUse],
+		sdkhook.Matcher{
+			Hooks:   []sdkhook.Callback{callback},
 			Timeout: 2 * time.Second,
 		},
 	)
-	options.Hooks = hooks
+	options.Hooks.Matchers = hooks
 	return options
 }
 
-func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkprotocol.HookCallback {
-	return func(_ context.Context, input sdkprotocol.HookInput, _ string) (sdkprotocol.HookOutput, error) {
-		if input.EventName != "" && input.EventName != sdkprotocol.HookEventPostToolUse {
-			return sdkprotocol.HookOutput{}, nil
+func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
+	return func(_ context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
+		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
+			return sdkhook.Output{}, nil
 		}
 		inputs := m.drainGuidanceInputs(sessionKey)
 		if len(inputs) == 0 {
-			return sdkprotocol.HookOutput{}, nil
+			return sdkhook.Output{}, nil
 		}
-		return sdkprotocol.HookOutput{
-			HookSpecificOutput: map[string]any{
-				"hookEventName":     string(sdkprotocol.HookEventPostToolUse),
-				"additionalContext": FormatGuidanceAdditionalContext(inputs),
+		return sdkhook.Output{
+			SpecificOutput: &sdkhook.SpecificOutput{
+				HookEventName:     sdkhook.EventPostToolUse,
+				AdditionalContext: FormatGuidanceAdditionalContext(inputs),
 			},
 		}, nil
 	}
@@ -130,13 +130,13 @@ func FormatGuidanceAdditionalContext(inputs []GuidedInput) string {
 	return strings.Join(lines, "\n")
 }
 
-func cloneSDKHooks(input map[sdkprotocol.HookEvent][]sdkprotocol.HookMatcher) map[sdkprotocol.HookEvent][]sdkprotocol.HookMatcher {
-	output := make(map[sdkprotocol.HookEvent][]sdkprotocol.HookMatcher, len(input)+1)
+func cloneSDKHooks(input map[sdkhook.Event][]sdkhook.Matcher) map[sdkhook.Event][]sdkhook.Matcher {
+	output := make(map[sdkhook.Event][]sdkhook.Matcher, len(input)+1)
 	for event, matchers := range input {
-		copied := make([]sdkprotocol.HookMatcher, 0, len(matchers))
+		copied := make([]sdkhook.Matcher, 0, len(matchers))
 		for _, matcher := range matchers {
 			next := matcher
-			next.Hooks = append([]sdkprotocol.HookCallback(nil), matcher.Hooks...)
+			next.Hooks = append([]sdkhook.Callback(nil), matcher.Hooks...)
 			copied = append(copied, next)
 		}
 		output[event] = copied

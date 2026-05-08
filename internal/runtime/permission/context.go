@@ -8,7 +8,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 // Sender 抽象出 WebSocket 级别的事件发送能力。
@@ -290,8 +290,8 @@ func (c *Context) ResolveDispatchSessionKey(sessionKey string) string {
 func (c *Context) RequestPermission(
 	ctx context.Context,
 	sessionKey string,
-	request sdkprotocol.PermissionRequest,
-) (sdkprotocol.PermissionDecision, error) {
+	request sdkpermission.Request,
+) (sdkpermission.Decision, error) {
 	pending := c.newPendingRequest(sessionKey, request)
 	c.mu.Lock()
 	c.pendingRequests[pending.RequestID] = pending
@@ -314,10 +314,10 @@ func (c *Context) RequestPermission(
 		return decision, nil
 	case <-ctx.Done():
 		c.finalizeRequest(pending, "cancelled")
-		return sdkprotocol.DenyPermission("Permission request cancelled", request.ToolName == "AskUserQuestion"), nil
+		return sdkpermission.Deny("Permission request cancelled", request.ToolName == "AskUserQuestion"), nil
 	case <-timer.C:
 		c.finalizeRequest(pending, "expired")
-		return sdkprotocol.DenyPermission("Permission request timeout", request.ToolName == "AskUserQuestion"), nil
+		return sdkpermission.Deny("Permission request timeout", request.ToolName == "AskUserQuestion"), nil
 	}
 }
 
@@ -361,7 +361,7 @@ func (c *Context) CancelRequestsForSession(sessionKey string, message string) in
 
 	for _, pending := range requests {
 		select {
-		case pending.ResponseCh <- sdkprotocol.DenyPermission(message, true):
+		case pending.ResponseCh <- sdkpermission.Deny(message, true):
 			c.finalizeRequest(pending, "cancelled")
 		default:
 		}

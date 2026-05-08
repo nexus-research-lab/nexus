@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
@@ -22,12 +22,12 @@ const createDescription = "创建定时任务（== UI「新建任务」对话框
 	"短文本提醒类任务直接发即可；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
 	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
 
-func create(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
-	return agentclient.MCPTool{
+func create(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
 		Name:        "create_scheduled_task",
 		Description: createDescription,
 		InputSchema: createSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			if args == nil {
 				args = map[string]any{}
 			}

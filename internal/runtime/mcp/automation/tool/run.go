@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/render"
 )
 
-func runNow(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
-	return agentclient.MCPTool{
+func runNow(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
 		Name:        "run_scheduled_task",
 		Description: "立即触发一次执行（不影响后续排程），用于验证或紧急补跑。普通 agent 只能触发自己名下的任务。",
 		InputSchema: jobIDSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			jobID := argx.String(args, "job_id")
 			if jobID == "" {
 				return render.Error(errors.New("job_id is required")), nil

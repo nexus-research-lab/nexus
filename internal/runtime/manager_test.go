@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
@@ -69,8 +71,10 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 		t.Fatalf("首次创建 client 失败: %v", err)
 	}
 	second, err := manager.GetOrCreate(context.Background(), "agent:nexus:ws:dm:test", agentclient.Options{
-		CWD:            "/tmp/b",
-		PermissionMode: sdkprotocol.PermissionModeAcceptEdits,
+		CWD: "/tmp/b",
+		Runtime: agentclient.RuntimeOptions{
+			PermissionMode: sdkpermission.ModeAcceptEdits,
+		},
 	})
 	if err != nil {
 		t.Fatalf("复用 client 失败: %v", err)
@@ -85,7 +89,7 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	if client.lastOptions.CWD != "/tmp/b" {
 		t.Fatalf("Reconfigure 未收到最新配置: %+v", client.lastOptions)
 	}
-	if client.lastOptions.PermissionMode != sdkprotocol.PermissionModeAcceptEdits {
+	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
 		t.Fatalf("Reconfigure 未收到权限模式: %+v", client.lastOptions)
 	}
 }
@@ -140,17 +144,17 @@ func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 	}
 
 	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
-	matchers := options.Hooks[sdkprotocol.HookEventPostToolUse]
+	matchers := options.Hooks.Matchers[sdkhook.EventPostToolUse]
 	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
 		t.Fatalf("PostToolUse hook 未注册: %+v", matchers)
 	}
-	output, err := matchers[0].Hooks[0](context.Background(), sdkprotocol.HookInput{
-		EventName: sdkprotocol.HookEventPostToolUse,
+	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+		EventName: sdkhook.EventPostToolUse,
 	}, "tool-1")
 	if err != nil {
 		t.Fatalf("执行 PostToolUse hook 失败: %v", err)
 	}
-	additionalContext, _ := output.HookSpecificOutput["additionalContext"].(string)
+	additionalContext := output.SpecificOutput.AdditionalContext
 	if !strings.Contains(additionalContext, "请优先检查日志") || !strings.Contains(additionalContext, "round-guide-msg") {
 		t.Fatalf("additionalContext 未包含引导内容: %q", additionalContext)
 	}

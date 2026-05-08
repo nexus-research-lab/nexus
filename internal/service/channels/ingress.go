@@ -13,7 +13,7 @@ import (
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 var (
@@ -73,7 +73,7 @@ type normalizedIngressRequest struct {
 	content          string
 	roundID          string
 	reqID            string
-	permissionMode   sdkprotocol.PermissionMode
+	permissionMode   sdkpermission.Mode
 	autoApproveAll   bool
 	autoApproveTools map[string]struct{}
 	rememberedTarget *DeliveryTarget
@@ -209,7 +209,7 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		content:          content,
 		roundID:          roundID,
 		reqID:            firstNonEmptyIngress(request.ReqID, request.RoundID, roundID),
-		permissionMode:   sdkprotocol.PermissionMode(strings.TrimSpace(request.PermissionMode)),
+		permissionMode:   sdkpermission.Mode(strings.TrimSpace(request.PermissionMode)),
 		autoApproveAll:   request.AutoApproveAll,
 		autoApproveTools: s.resolveApprovedTools(channelStored, request.AutoApproveTools),
 		rememberedTarget: rememberedTarget,
@@ -343,31 +343,31 @@ func (s *IngressService) buildPermissionHandler(
 	if request.channelStored == ChannelTypeInternal && len(approved) == 0 {
 		approved = copyToolSet(allowedByAgent)
 	}
-	return func(_ context.Context, permissionRequest sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
+	return func(_ context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
 		toolName := strings.TrimSpace(permissionRequest.ToolName)
 		if toolName == "" {
-			return sdkprotocol.DenyPermission("permission tool_name is required", true), nil
+			return sdkpermission.Deny("permission tool_name is required", true), nil
 		}
 		// 外部通道没有前端问答能力，AskUserQuestion 必须直接拒绝，
 		// 否则 SDK 会卡在等待人工输入，导致整个会话超时。
 		if toolName == "AskUserQuestion" {
-			return sdkprotocol.DenyPermission("当前通道不支持交互式问题确认", true), nil
+			return sdkpermission.Deny("当前通道不支持交互式问题确认", true), nil
 		}
 		if request.autoApproveAll {
-			return sdkprotocol.AllowPermission(permissionRequest.Input, nil), nil
+			return sdkpermission.Allow(permissionRequest.Input, nil), nil
 		}
 		if len(allowedByAgent) > 0 {
 			if _, ok := allowedByAgent[toolName]; !ok {
-				return sdkprotocol.DenyPermission("当前 agent 未授权该工具", false), nil
+				return sdkpermission.Deny("当前 agent 未授权该工具", false), nil
 			}
 		}
 		if len(approved) == 0 {
-			return sdkprotocol.DenyPermission("当前通道未配置自动授权工具", false), nil
+			return sdkpermission.Deny("当前通道未配置自动授权工具", false), nil
 		}
 		if _, ok := approved[toolName]; !ok {
-			return sdkprotocol.DenyPermission("当前通道不允许自动授权该工具", false), nil
+			return sdkpermission.Deny("当前通道不允许自动授权该工具", false), nil
 		}
-		return sdkprotocol.AllowPermission(permissionRequest.Input, nil), nil
+		return sdkpermission.Allow(permissionRequest.Input, nil), nil
 	}
 }
 

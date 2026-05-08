@@ -17,7 +17,8 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 var (
@@ -34,7 +35,7 @@ type Request struct {
 	ReqID                string
 	DeliveryPolicy       protocol.ChatDeliveryPolicy
 	BroadcastUserMessage bool
-	PermissionMode       sdkprotocol.PermissionMode
+	PermissionMode       sdkpermission.Mode
 	PermissionHandler    agentclient.PermissionHandler
 }
 
@@ -46,7 +47,7 @@ type InterruptRequest struct {
 
 // MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
 // 用 string 形参避免 dm 包反向依赖 automation 子包，防止 import cycle。
-type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]agentclient.SDKMCPServer
+type MCPServerBuilder func(agentID, sessionKey, sourceContextType string) map[string]sdkmcp.SDKMCPServer
 
 // Service 负责编排 DM 实时链路。
 type Service struct {

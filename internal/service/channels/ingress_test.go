@@ -16,7 +16,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 type fakeIngressDMHandler struct {
@@ -68,14 +68,14 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 		t.Fatalf("internal route 记忆不正确: %+v", route)
 	}
 
-	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkprotocol.PermissionRequest{
+	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Read",
 		Input:    map[string]any{"file_path": "README.md"},
 	})
 	if err != nil {
 		t.Fatalf("执行权限处理器失败: %v", err)
 	}
-	if decision.Behavior != sdkprotocol.PermissionBehaviorAllow {
+	if decision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("internal ingress 的 Read 应自动允许: %+v", decision)
 	}
 }
@@ -112,25 +112,25 @@ func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) 
 		t.Fatalf("telegram route 记忆不正确: %+v", route)
 	}
 
-	readDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkprotocol.PermissionRequest{
+	readDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Read",
 		Input:    map[string]any{"file_path": "README.md"},
 	})
 	if err != nil {
 		t.Fatalf("Read 权限处理失败: %v", err)
 	}
-	if readDecision.Behavior != sdkprotocol.PermissionBehaviorAllow {
+	if readDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("telegram ingress 的 Read 应自动允许: %+v", readDecision)
 	}
 
-	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkprotocol.PermissionRequest{
+	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Write",
 		Input:    map[string]any{"file_path": "README.md"},
 	})
 	if err != nil {
 		t.Fatalf("Write 权限处理失败: %v", err)
 	}
-	if writeDecision.Behavior != sdkprotocol.PermissionBehaviorDeny {
+	if writeDecision.Behavior != sdkpermission.BehaviorDeny {
 		t.Fatalf("telegram ingress 的 Write 应默认拒绝: %+v", writeDecision)
 	}
 }

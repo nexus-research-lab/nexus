@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/argx"
@@ -12,16 +12,16 @@ import (
 )
 
 // status 同时生成 enable / disable 两个工具，仅 enabled 取值不同。
-func status(svc contract.Service, sctx contract.ServerContext, name string, enabled bool) agentclient.MCPTool {
+func status(svc contract.Service, sctx contract.ServerContext, name string, enabled bool) sdkmcp.Tool {
 	description := "启用定时任务。普通 agent 只能操作自己名下的任务。"
 	if !enabled {
 		description = "停用定时任务。停用后不会触发，但保留配置。普通 agent 只能操作自己名下的任务。"
 	}
-	return agentclient.MCPTool{
+	return sdkmcp.Tool{
 		Name:        name,
 		Description: description,
 		InputSchema: jobIDSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			jobID := argx.String(args, "job_id")
 			if jobID == "" {
 				return render.Error(errors.New("job_id is required")), nil

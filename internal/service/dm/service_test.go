@@ -26,6 +26,8 @@ import (
 	"github.com/pressly/goose/v3"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
 
@@ -373,12 +375,12 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 	if _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
-		PermissionMode: sdkprotocol.PermissionModeDefault,
+		PermissionMode: sdkpermission.ModeDefault,
 	}); err != nil {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
 
-	appendSystemPrompt := factory.LastOptions().AppendSystemPrompt
+	appendSystemPrompt := factory.LastOptions().System.Append
 	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
 		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
 	}
@@ -659,10 +661,10 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
 		t.Fatalf("runtime 未注入 subagent model: %+v", options.Env)
 	}
-	if options.MaxThinkingTokens != maxThinkingTokens {
+	if options.Runtime.MaxThinkingTokens != maxThinkingTokens {
 		t.Fatalf("runtime 未向 SDK 透传 max thinking tokens: %+v", options)
 	}
-	if options.MaxTurns != maxTurns {
+	if options.Runtime.MaxTurns != maxTurns {
 		t.Fatalf("runtime 未向 SDK 透传 max turns: %+v", options)
 	}
 	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
@@ -728,10 +730,10 @@ func TestServiceHandleChatBypassPermissionsDoesNotInstallPermissionHandler(t *te
 	})
 
 	options := factory.LastOptions()
-	if options.PermissionMode != sdkprotocol.PermissionModeBypassPermissions {
+	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("bypass 权限模式未透传: %+v", options)
 	}
-	if options.PermissionHandler != nil {
+	if options.Adapters.PermissionHandler != nil {
 		t.Fatalf("bypass 权限模式不应安装 permission handler: %+v", options)
 	}
 }
@@ -890,7 +892,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	})
 
 	options := factory.LastOptions()
-	if options.Resume != resumeID {
+	if options.Session.ResumeID != resumeID {
 		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
 	}
 }
@@ -974,7 +976,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	})
 
 	options := factory.LastOptions()
-	if options.Resume != "" {
+	if options.Session.ResumeID != "" {
 		t.Fatalf("runtime 模型变更后不应 resume 过期 sdk session: %+v", options)
 	}
 	if options.Model != "glm-5.1" {
@@ -1226,7 +1228,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	if len(factory.options) != 1 {
 		t.Fatalf("引导不应创建新 runtime client: got=%d want=1", len(factory.options))
 	}
-	if matchers := factory.options[0].Hooks[sdkprotocol.HookEventPostToolUse]; len(matchers) == 0 {
+	if matchers := factory.options[0].Hooks.Matchers[sdkhook.EventPostToolUse]; len(matchers) == 0 {
 		t.Fatalf("runtime options 未挂载 PostToolUse 引导 hook: %+v", factory.options[0].Hooks)
 	}
 	rows := readDMSessionHistory(t, cfg, service, sessionKey)
@@ -1306,15 +1308,16 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 
 	var additionalContext string
-	for _, matcher := range factory.options[0].Hooks[sdkprotocol.HookEventPostToolUse] {
+	for _, matcher := range factory.options[0].Hooks.Matchers[sdkhook.EventPostToolUse] {
 		for _, hook := range matcher.Hooks {
-			output, hookErr := hook(context.Background(), sdkprotocol.HookInput{
-				EventName: sdkprotocol.HookEventPostToolUse,
+			output, hookErr := hook(context.Background(), sdkhook.Input{
+				EventName: sdkhook.EventPostToolUse,
 			}, "tool-1")
 			if hookErr != nil {
 				t.Fatalf("执行 PostToolUse hook 失败: %v", hookErr)
 			}
-			if text, _ := output.HookSpecificOutput["additionalContext"].(string); text != "" {
+			if output.SpecificOutput != nil && output.SpecificOutput.AdditionalContext != "" {
+				text := output.SpecificOutput.AdditionalContext
 				additionalContext = text
 			}
 		}

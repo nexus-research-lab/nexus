@@ -2,13 +2,13 @@
 package connectormcp
 
 import (
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/tool"
 )
 
 // NewServer 根据当前上下文构建 nexus_connectors MCP server。
-func NewServer(svc contract.Service, sctx contract.ServerContext) *agentclient.SimpleSDKMCPServer {
-	return agentclient.NewSimpleSDKMCPServer(contract.ServerName, "1.0.0", tool.BuildAll(svc, sctx))
+func NewServer(svc contract.Service, sctx contract.ServerContext) *sdkmcp.SimpleSDKMCPServer {
+	return sdkmcp.NewSimpleSDKMCPServer(contract.ServerName, "1.0.0", tool.BuildAll(svc, sctx))
 }

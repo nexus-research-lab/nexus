@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -21,13 +21,16 @@ func TestRoomSlotGuidanceHookInjectsQueuedInput(t *testing.T) {
 		Scope:         protocol.InputQueueScopeRoom,
 		WorkspacePath: storeRoot,
 		SessionKey:    protocol.BuildRoomAgentSessionKey("conversation-1", "agent-1", protocol.RoomTypeGroup),
-	})(context.Background(), sdkprotocol.HookInput{
-		EventName: sdkprotocol.HookEventPostToolUse,
+	})(context.Background(), sdkhook.Input{
+		EventName: sdkhook.EventPostToolUse,
 	}, "tool-1")
 	if err != nil {
 		t.Fatalf("执行 Room PostToolUse 引导 hook 失败: %v", err)
 	}
-	additionalContext, _ := output.HookSpecificOutput["additionalContext"].(string)
+	additionalContext := ""
+	if output.SpecificOutput != nil {
+		additionalContext = output.SpecificOutput.AdditionalContext
+	}
 	if !strings.Contains(additionalContext, "下一步先看工具输出里的错误") ||
 		!strings.Contains(additionalContext, "room-round-guide") {
 		t.Fatalf("additionalContext 未包含 Room 引导内容: %q", additionalContext)
@@ -63,13 +66,16 @@ func TestRoomSlotGuidanceHookConsumesInputQueueGuidance(t *testing.T) {
 		AgentRoundID:      "room-round-running",
 		RuntimeSessionKey: location.SessionKey,
 	}
-	output, err := service.roomSlotGuidanceHook(nil, slot, location)(context.Background(), sdkprotocol.HookInput{
-		EventName: sdkprotocol.HookEventPostToolUse,
+	output, err := service.roomSlotGuidanceHook(nil, slot, location)(context.Background(), sdkhook.Input{
+		EventName: sdkhook.EventPostToolUse,
 	}, "tool-1")
 	if err != nil {
 		t.Fatalf("执行 Room 队列引导 hook 失败: %v", err)
 	}
-	additionalContext, _ := output.HookSpecificOutput["additionalContext"].(string)
+	additionalContext := ""
+	if output.SpecificOutput != nil {
+		additionalContext = output.SpecificOutput.AdditionalContext
+	}
 	if !strings.Contains(additionalContext, "@Amy 路径发给我吧") ||
 		!strings.Contains(additionalContext, "queue_room-guide-item") {
 		t.Fatalf("additionalContext 未包含 Room 队列引导内容: %q", additionalContext)

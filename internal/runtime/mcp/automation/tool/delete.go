@@ -4,20 +4,20 @@ import (
 	"context"
 	"errors"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/render"
 )
 
-func del(svc contract.Service, sctx contract.ServerContext) agentclient.MCPTool {
-	return agentclient.MCPTool{
+func del(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
 		Name:        "delete_scheduled_task",
 		Description: "按 job_id 删除定时任务。普通 agent 只能删除自己名下的任务。",
 		InputSchema: jobIDSchema(),
-		Annotations: &agentclient.MCPToolAnnotations{Destructive: true},
-		Handler: func(ctx context.Context, args map[string]any) (agentclient.MCPToolResult, error) {
+		Annotations: &sdkmcp.ToolAnnotations{Destructive: true},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			jobID := argx.String(args, "job_id")
 			if jobID == "" {
 				return render.Error(errors.New("job_id is required")), nil

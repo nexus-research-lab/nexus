@@ -16,7 +16,8 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
 )
 
 // HandleChat 处理一条 DM 写请求。
@@ -307,14 +308,14 @@ func (s *Service) ensureClient(
 ) (runtimectx.Client, string, string, error) {
 	permissionMode := request.PermissionMode
 	if permissionMode == "" {
-		permissionMode = sdkprotocol.PermissionMode(agentValue.Options.PermissionMode)
+		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
 	}
 	if permissionMode == "" {
-		permissionMode = sdkprotocol.PermissionModeDefault
+		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
-		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkprotocol.PermissionRequest) (sdkprotocol.PermissionDecision, error) {
+		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
@@ -322,7 +323,7 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", err
 	}
-	mcpServers := map[string]agentclient.SDKMCPServer(nil)
+	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent")
 	}
@@ -349,7 +350,7 @@ func (s *Service) ensureClient(
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
 	}, sessionItem)
-	options.Resume = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, agentValue.Options.Provider, options)
+	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, agentValue.Options.Provider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
 		return nil, "", "", err
@@ -364,7 +365,7 @@ func (s *Service) resolveReusableSDKSessionID(
 	provider string,
 	options agentclient.Options,
 ) string {
-	resumeID := strings.TrimSpace(options.Resume)
+	resumeID := strings.TrimSpace(options.Session.ResumeID)
 	if resumeID == "" {
 		return ""
 	}
