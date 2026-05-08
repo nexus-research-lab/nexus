@@ -179,7 +179,7 @@ export function AgentOptionsSkillsTab({
         ) : (
           <button
             className={get_dialog_action_class_name(tone === "installed" ? "default" : "primary", "compact")}
-            disabled={isBusy}
+            disabled={!!toggling}
             onClick={() => handleSkillAction(skill)}
             type="button"
           >
