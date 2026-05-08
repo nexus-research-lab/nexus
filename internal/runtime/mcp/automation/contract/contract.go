@@ -20,7 +20,6 @@ type ServerContext struct {
 	CurrentSessionKey   string
 	CurrentSessionLabel string
 	// SourceContextType 取值 "agent" 或 "room"，影响 reply_mode=execution 的解析。
-	// 兼容历史值 "chat"。
 	SourceContextType string
 	// SourceContextID/Label 对齐前端任务来源快照，用于让 Agent 创建的 Room 任务
 	// 后续仍能在任务管理 UI 里按 Room 维度编辑。

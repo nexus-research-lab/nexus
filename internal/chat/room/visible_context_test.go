@@ -100,17 +100,15 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		PublicMessages: []protocol.Message{
 			{"role": "user", "content": "@Amy 你们来对对子吧，对个3轮这样"},
 			roomAssistantResult("agent-amy", "第一轮开始"),
+			{"message_id": "trigger-message", "role": "user", "content": "@Devin @sam 谁先来？"},
 			{"role": "assistant", "agent_id": "agent-devin", "content": "半成品", "is_complete": false},
 		},
 		LatestTrigger: Trigger{
 			TriggerType:   "public_mention",
 			Content:       "@Devin @sam 谁先来？",
+			MessageID:     "trigger-message",
 			SourceAgentID: "agent-amy",
 			TargetAgentID: "agent-devin",
-			Metadata: map[string]any{
-				"public_mention_target_count": 2,
-				"public_mention_target_index": 0,
-			},
 		},
 		AgentNameByID: map[string]string{
 			"agent-amy":   "Amy",
@@ -160,8 +158,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	contextValue := BuildVisibleContext(input)
 	for _, expected := range []string{
 		"<public_feed>",
-		"\"trigger_type\":\"public_mention\"",
-		"\"public_mention_target_count\":2",
+		"Amy: @Devin @sam 谁先来？",
 		"Assistant(Amy): 第一轮开始",
 	} {
 		if !strings.Contains(contextValue, expected) {
@@ -174,6 +171,15 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<room_member_directory>",
 		"@ 是执行触发",
 		"<nexus_room_no_reply/>",
+		"User: @Devin @sam 谁先来？",
+		"trigger_type",
+		"message_id",
+		"public_mention_target_count",
+		"public_mention_target_ids",
+		"fanout_targets",
+		"from:",
+		"to:",
+		"message:",
 	} {
 		if strings.Contains(contextValue, unexpected) {
 			t.Fatalf("Room 动态输入不应重复固定规则 %q:\n%s", unexpected, contextValue)

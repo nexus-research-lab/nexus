@@ -17,15 +17,24 @@ var (
 	ErrRoundInterrupted = errors.New("round interrupted")
 	// ErrRoundStreamClosedBeforeTerminal 表示 SDK 在产出终态前提前结束消息流。
 	ErrRoundStreamClosedBeforeTerminal = errors.New("round stream closed before terminal")
+	// ErrRoundStreamIdleTimeout 表示 SDK 消息流长时间无新事件且未结束。
+	ErrRoundStreamIdleTimeout = errors.New("round stream idle timeout")
+)
+
+const (
+	defaultAssistantTerminalGrace = 1500 * time.Millisecond
+	defaultRoundIdleTimeout       = 5 * time.Minute
+	roundIdleAbortTimeout         = 5 * time.Second
 )
 
 // RoundStreamClosedError 携带 SDK 流提前关闭时的定位信息。
 type RoundStreamClosedError struct {
-	MessagesSeen    int
-	LastMessageType string
-	LastSessionID   string
-	LastMessageID   string
-	WaitError       string
+	MessagesSeen       int
+	LastMessageType    string
+	LastMessageSummary string
+	LastSessionID      string
+	LastMessageID      string
+	WaitError          string
 }
 
 func (e *RoundStreamClosedError) Error() string {
@@ -33,10 +42,11 @@ func (e *RoundStreamClosedError) Error() string {
 		return ErrRoundStreamClosedBeforeTerminal.Error()
 	}
 	detail := fmt.Sprintf(
-		"%s: messages_seen=%d last_type=%s last_session_id=%s last_message_id=%s",
+		"%s: messages_seen=%d last_type=%s last_summary=%q last_session_id=%s last_message_id=%s",
 		ErrRoundStreamClosedBeforeTerminal,
 		e.MessagesSeen,
 		e.LastMessageType,
+		e.LastMessageSummary,
 		e.LastSessionID,
 		e.LastMessageID,
 	)
@@ -48,6 +58,36 @@ func (e *RoundStreamClosedError) Error() string {
 
 func (e *RoundStreamClosedError) Unwrap() error {
 	return ErrRoundStreamClosedBeforeTerminal
+}
+
+// RoundStreamIdleTimeoutError 携带 SDK 流空闲超时时的定位信息。
+type RoundStreamIdleTimeoutError struct {
+	IdleTimeout        time.Duration
+	MessagesSeen       int
+	LastMessageType    string
+	LastMessageSummary string
+	LastSessionID      string
+	LastMessageID      string
+}
+
+func (e *RoundStreamIdleTimeoutError) Error() string {
+	if e == nil {
+		return ErrRoundStreamIdleTimeout.Error()
+	}
+	return fmt.Sprintf(
+		"%s after %s: messages_seen=%d last_type=%s last_summary=%q last_session_id=%s last_message_id=%s",
+		ErrRoundStreamIdleTimeout,
+		e.IdleTimeout,
+		e.MessagesSeen,
+		e.LastMessageType,
+		e.LastMessageSummary,
+		e.LastSessionID,
+		e.LastMessageID,
+	)
+}
+
+func (e *RoundStreamIdleTimeoutError) Unwrap() error {
+	return ErrRoundStreamIdleTimeout
 }
 
 // RoundMapResult 表示单条 SDK 消息映射后的统一结果。
@@ -69,6 +109,7 @@ type RoundExecutionRequest struct {
 	Query                  string
 	Client                 Client
 	Mapper                 RoundMapper
+	IdleTimeout            time.Duration
 	InterruptReason        func() string
 	AssistantTerminalGrace time.Duration
 	SyncSessionID          func(string) error
@@ -84,8 +125,6 @@ type RoundExecutionResult struct {
 	ResultSubtype        string
 	CompletedByAssistant bool
 }
-
-const defaultAssistantTerminalGrace = 1500 * time.Millisecond
 
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
 func ExecuteRound(
@@ -114,6 +153,14 @@ func ExecuteRound(
 	messageCh := request.Client.ReceiveMessages(ctx)
 	messagesSeen := 0
 	lastMessage := sdkprotocol.ReceivedMessage{}
+	idleTimeout := normalizeRoundIdleTimeout(request.IdleTimeout)
+	var idleTimer *time.Timer
+	var idleTimeoutCh <-chan time.Time
+	if idleTimeout > 0 {
+		idleTimer = time.NewTimer(idleTimeout)
+		defer idleTimer.Stop()
+		idleTimeoutCh = idleTimer.C
+	}
 	var assistantTerminalResult *RoundExecutionResult
 	var assistantTerminalTimer <-chan time.Time
 	for {
@@ -122,6 +169,12 @@ func ExecuteRound(
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		case <-assistantTerminalTimer:
 			return *assistantTerminalResult, nil
+		case <-idleTimeoutCh:
+			if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
+				return RoundExecutionResult{}, ErrRoundInterrupted
+			}
+			abortRoundClientAfterIdleTimeout(request.Client)
+			return RoundExecutionResult{}, buildRoundStreamIdleTimeoutError(idleTimeout, messagesSeen, lastMessage)
 		case incoming, ok := <-messageCh:
 			if !ok {
 				if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
@@ -134,6 +187,7 @@ func ExecuteRound(
 			}
 			messagesSeen++
 			lastMessage = incoming
+			resetRoundIdleTimer(idleTimer, idleTimeout)
 			if request.ObserveIncomingMessage != nil {
 				request.ObserveIncomingMessage(incoming)
 			}
@@ -199,6 +253,57 @@ func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {
 	return defaultAssistantTerminalGrace
 }
 
+func normalizeRoundIdleTimeout(timeout time.Duration) time.Duration {
+	if timeout < 0 {
+		return 0
+	}
+	if timeout == 0 {
+		return defaultRoundIdleTimeout
+	}
+	return timeout
+}
+
+func resetRoundIdleTimer(timer *time.Timer, timeout time.Duration) {
+	if timer == nil || timeout <= 0 {
+		return
+	}
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(timeout)
+}
+
+func abortRoundClientAfterIdleTimeout(client Client) {
+	if client == nil {
+		return
+	}
+	interruptCtx, interruptCancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	_ = client.Interrupt(interruptCtx)
+	interruptCancel()
+
+	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	_ = client.Disconnect(disconnectCtx)
+	disconnectCancel()
+}
+
+func buildRoundStreamIdleTimeoutError(
+	idleTimeout time.Duration,
+	messagesSeen int,
+	lastMessage sdkprotocol.ReceivedMessage,
+) error {
+	return &RoundStreamIdleTimeoutError{
+		IdleTimeout:        idleTimeout,
+		MessagesSeen:       messagesSeen,
+		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
+		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
+		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
+		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
+	}
+}
+
 func terminalAssistantResult(mapResult RoundMapResult) (RoundExecutionResult, bool) {
 	for _, messageValue := range mapResult.DurableMessages {
 		if messageValue == nil || protocol.MessageRole(messageValue) != "assistant" {
@@ -234,10 +339,11 @@ type clientWaiter interface {
 
 func buildRoundStreamClosedError(client Client, messagesSeen int, lastMessage sdkprotocol.ReceivedMessage) error {
 	result := &RoundStreamClosedError{
-		MessagesSeen:    messagesSeen,
-		LastMessageType: strings.TrimSpace(string(lastMessage.Type)),
-		LastSessionID:   strings.TrimSpace(lastMessage.SessionID),
-		LastMessageID:   strings.TrimSpace(receivedMessageID(lastMessage)),
+		MessagesSeen:       messagesSeen,
+		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
+		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
+		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
+		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
 	}
 	if waiter, ok := client.(clientWaiter); ok {
 		if err := waiter.Wait(); err != nil {

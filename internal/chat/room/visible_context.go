@@ -1,7 +1,6 @@
 package room
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -53,7 +52,6 @@ type Trigger struct {
 	MessageID     string
 	SourceAgentID string
 	TargetAgentID string
-	Metadata      map[string]any
 }
 
 // BuildSystemPrompt 构建 Room 成员稳定系统提示词。
@@ -70,7 +68,7 @@ Room 运行时会在系统提示词中提供成员目录，并在每轮用户消
 5. 只有明确转交任务、请求对方行动或要求对方公开回复时才 @；回报结果、确认收到、总结状态时不要 @ 发起者。
 6. 区分真实唤醒和流程提及：已经轮到对方马上行动时才 @；只是描述后续流程、计划、顺序或未来会轮到某成员时，用成员名但不要加 @。
 7. 候选邀请不要多 @：遇到“谁先来、谁来、任选一个、想要成员、你们可以让成员来”等场景，先选定一个下一位成员，只 @ 这一个人；如果暂时不需要立刻唤醒任何人，就不用 @。
-8. 如果 latest_trigger 是 public_mention 且 metadata 显示多个目标，只有来源明确要求“分别、各自、同时、都回答”时才并行回答；若语义是候选抢答或选一个人，排在第一位的目标回答，其他目标输出 <nexus_room_no_reply/>。
+8. 如果 latest_trigger 这一行同时 @ 多个成员，只有来源明确要求“分别、各自、同时、都回答”时才并行回答；若语义是候选抢答或选一个人，只由第一个被 @ 的目标回答，其余目标输出 <nexus_room_no_reply/>。
 9. 多轮任务要自己维护轻量进度：目标轮数、当前轮次、下一位成员、停止条件；达到目标后直接总结并停止，最终总结不要 @ 任何成员。
 10. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。`
 }
@@ -86,7 +84,7 @@ func BuildMemberDirectoryPrompt(agentNameByID map[string]string) string {
 
 // BuildVisibleContext 构建 Room 成员本轮动态输入。
 func BuildVisibleContext(input VisibleContextInput) string {
-	lines := buildHistoryLines(input.PublicMessages, input.AgentNameByID)
+	lines := buildHistoryLines(contextPublicMessages(input.PublicMessages, input.LatestTrigger), input.AgentNameByID)
 	if len(lines) == 0 {
 		lines = []string{"（本次没有新的公区消息）"}
 	}
@@ -126,9 +124,12 @@ func BuildPublicInputBatch(input PublicInputBatchInput) PublicInputBatch {
 
 // BuildGuidedPublicInputContext 构造运行中 round 的公区增量引导文本。
 func BuildGuidedPublicInputContext(input VisibleContextInput) string {
-	lines := buildHistoryLines(input.PublicMessages, input.AgentNameByID)
+	lines := buildHistoryLines(contextPublicMessages(input.PublicMessages, input.LatestTrigger), input.AgentNameByID)
 	if len(lines) == 0 {
-		return ""
+		if strings.TrimSpace(input.LatestTrigger.TriggerType) == "" && strings.TrimSpace(input.LatestTrigger.Content) == "" {
+			return ""
+		}
+		lines = []string{"（本次没有新的公区消息）"}
 	}
 	return fmt.Sprintf(
 		"Room 公区在你当前运行期间出现了新的消息。把这些消息当作已经进入公区的事实；如果需要调整当前任务，请结合它们继续。\n\n"+
@@ -137,6 +138,21 @@ func BuildGuidedPublicInputContext(input VisibleContextInput) string {
 		strings.Join(lines, "\n"),
 		formatRoomTrigger(input.LatestTrigger, input.AgentNameByID),
 	)
+}
+
+func contextPublicMessages(messages []protocol.Message, trigger Trigger) []protocol.Message {
+	triggerMessageID := strings.TrimSpace(trigger.MessageID)
+	if triggerMessageID == "" || len(messages) == 0 {
+		return messages
+	}
+	filtered := make([]protocol.Message, 0, len(messages))
+	for _, message := range messages {
+		if strings.TrimSpace(normalizeAnyString(message["message_id"])) == triggerMessageID {
+			continue
+		}
+		filtered = append(filtered, message)
+	}
+	return filtered
 }
 
 func publicMessagesAfterCursor(history []protocol.Message, cursor PublicCursor) []protocol.Message {
@@ -285,22 +301,14 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 	if strings.TrimSpace(trigger.TriggerType) == "" && strings.TrimSpace(trigger.Content) == "" {
 		return "（无触发消息）"
 	}
-	return mustJSON(map[string]any{
-		"trigger_type": trigger.TriggerType,
-		"content":      trigger.Content,
-		"message_id":   trigger.MessageID,
-		"source_agent": firstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID),
-		"target_agent": firstNonEmpty(agentNameByID[trigger.TargetAgentID], trigger.TargetAgentID),
-		"metadata":     trigger.Metadata,
-	})
-}
-
-func mustJSON(value any) string {
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return "{}"
+	sourceName := firstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID)
+	if sourceName == "" {
+		sourceName = "User"
 	}
-	return string(payload)
+	if content := strings.TrimSpace(trigger.Content); content != "" {
+		return sourceName + ": " + content
+	}
+	return sourceName + ": （无内容）"
 }
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {

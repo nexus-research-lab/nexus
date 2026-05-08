@@ -233,6 +233,8 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		if len(targetAgentIDs) > 1 {
 			agentRoundID = fmt.Sprintf("%s:%s", request.RoundID, agentID)
 		}
+		slotTrigger := initialTrigger
+		slotTrigger.TargetAgentID = agentID
 		activeRound.Slots[msgID] = &activeRoomSlot{
 			RoomSessionID:     sessionRecord.ID,
 			SDKSessionID:      strings.TrimSpace(sessionRecord.SDKSessionID),
@@ -244,7 +246,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			Status:            "pending",
 			Index:             index,
 			TimestampMS:       normalizeInt64(userMessage["timestamp"]),
-			Trigger:           initialTrigger,
+			Trigger:           slotTrigger,
 			Done:              make(chan struct{}),
 		}
 		_ = sessionRecord

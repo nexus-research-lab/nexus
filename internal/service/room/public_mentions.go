@@ -213,8 +213,6 @@ func (s *RealtimeService) startPublicMentionRound(
 			agentRoundID,
 			msgID,
 			slotIndex,
-			targetAgentIDs,
-			agentNameByID,
 		)
 		pending = append(pending, map[string]any{
 			"agent_id":  pendingSlot.targetAgentID,
@@ -322,8 +320,6 @@ func buildPublicMentionSlot(
 	agentRoundID string,
 	msgID string,
 	index int,
-	targetAgentIDs []string,
-	agentNameByID map[string]string,
 ) *activeRoomSlot {
 	trigger := roomTrigger{
 		TriggerType:   "public_mention",
@@ -331,7 +327,6 @@ func buildPublicMentionSlot(
 		MessageID:     strings.TrimSpace(wake.MessageID),
 		SourceAgentID: strings.TrimSpace(wake.SourceAgentID),
 		TargetAgentID: strings.TrimSpace(wake.TargetAgentID),
-		Metadata:      roomdomain.BuildPublicMentionTriggerMetadata(targetAgentIDs, index, agentNameByID),
 	}
 	return &activeRoomSlot{
 		RoomSessionID:     sessionRecord.ID,

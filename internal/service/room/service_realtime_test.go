@@ -410,8 +410,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	privateUserContent := anyToString(privateMessages[0]["content"])
 	for _, expected := range []string{
 		"<public_feed>",
-		"\"content\":\"你好\"",
-		"\"trigger_type\":\"public_chat\"",
+		"User: 你好",
 	} {
 		if !strings.Contains(privateUserContent, expected) {
 			t.Fatalf("私有 round marker 应记录实际 Room dispatch prompt，缺少 %q:\n%s", expected, privateUserContent)
@@ -1015,9 +1014,11 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	})
 	select {
 	case prompt := <-devinPrompt:
-		if !strings.Contains(prompt, "public_mention") ||
-			!strings.Contains(prompt, "@Devin 请查询天气") {
+		if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气") {
 			t.Fatalf("Devin prompt 缺少公区 @ 触发上下文: %s", prompt)
+		}
+		if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
+			t.Fatalf("Devin 动态 prompt 不应包含字段化 trigger: %s", prompt)
 		}
 		if strings.Contains(prompt, "<room_member_directory>") {
 			t.Fatalf("Devin 动态 prompt 不应重复成员目录: %s", prompt)
@@ -1165,9 +1166,11 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	go sendFakeAssistantResult(devinCurrentClient, "devin-current-task-done", "当前长任务完成。")
 	select {
 	case prompt := <-devinQueuedPrompt:
-		if !strings.Contains(prompt, "public_mention") ||
-			!strings.Contains(prompt, "@Devin 当前天气任务交给你。") {
+		if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 当前天气任务交给你。") {
 			t.Fatalf("queued mention prompt 缺少公区 @ 触发上下文: %s", prompt)
+		}
+		if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
+			t.Fatalf("queued mention prompt 不应包含字段化 trigger: %s", prompt)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("目标 agent 空闲后未派发 queued mention")

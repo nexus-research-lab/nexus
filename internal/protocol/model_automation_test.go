@@ -23,7 +23,7 @@ func TestSourceValidateRequiresContextTypeAndContextIDPair(t *testing.T) {
 
 	sourceWithContextTypeOnly := Source{
 		Kind:        SourceKindUserPage,
-		ContextType: "chat",
+		ContextType: "agent",
 	}.Normalized()
 	if err := sourceWithContextTypeOnly.Validate(); err == nil {
 		t.Fatalf("context_type 存在时应要求 context_id")
@@ -31,9 +31,9 @@ func TestSourceValidateRequiresContextTypeAndContextIDPair(t *testing.T) {
 
 	validSource := Source{
 		Kind:         SourceKindUserPage,
-		ContextType:  "chat",
-		ContextID:    "chat-1",
-		ContextLabel: "Room 1",
+		ContextType:  "agent",
+		ContextID:    "agent-1",
+		ContextLabel: "Agent 1",
 	}.Normalized()
 	if err := validSource.Validate(); err != nil {
 		t.Fatalf("合法 source 校验失败: %v", err)

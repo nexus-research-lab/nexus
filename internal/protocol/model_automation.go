@@ -261,9 +261,9 @@ func (s Source) Validate() error {
 	}
 	contextType := strings.TrimSpace(s.ContextType)
 	switch contextType {
-	case "", "agent", "room", "chat":
+	case "", "agent", "room":
 	default:
-		return errors.New("source.context_type must be one of agent, room, chat")
+		return errors.New("source.context_type must be one of agent, room")
 	}
 	if contextType == "" {
 		if contextID != "" || contextLabel != "" {

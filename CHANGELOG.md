@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DM 与 Room 的“引导”改为持久队列状态：点击后不会立即消失，只有对应 round 的 PostToolUse hook 真正注入时才消费。
 - 引导消息历史改为从 Claude transcript 的 `hook_additional_context` 回放，不再写入 overlay 作为重复真相源。
 - Room 公区消息命中正在回复的 Agent 时不再强制中断该 Agent；忙碌目标会通过 SDK streaming input 接收补充上下文，空闲目标仍正常启动新 round。
-- Room 公区上下文改为按成员 cursor 投递增量；固定协作规则进入 SDK append system prompt，每轮动态输入仅保留成员目录、公区增量与触发信息。
+- Room 公区上下文改为按成员 cursor 投递增量；固定协作规则进入 SDK append system prompt，每轮动态输入仅保留公区增量与一行自然消息形式的触发信息。
 - DM 回复中也可继续输入补充要求，新消息会排入当前流式会话，不再默认杀掉正在执行的任务。
 
 ### Fixed

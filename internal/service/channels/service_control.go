@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -179,6 +178,7 @@ type ControlService struct {
 	agents    agentWorkspaceResolver
 	router    *Router
 	idFactory func(string) string
+	keyErr    error
 }
 
 func NewControlService(
@@ -188,9 +188,6 @@ func NewControlService(
 	router *Router,
 ) *ControlService {
 	key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey)
-	if err != nil && strings.TrimSpace(cfg.ConnectorCredentialsKey) != "" {
-		fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 解析失败，IM 通道凭据加密将不可用")
-	}
 	return &ControlService{
 		config:    cfg,
 		db:        db,
@@ -199,6 +196,7 @@ func NewControlService(
 		agents:    agents,
 		router:    router,
 		idFactory: newDeliveryID,
+		keyErr:    err,
 	}
 }
 
@@ -290,7 +288,7 @@ func (s *ControlService) UpsertChannelConfig(
 	if !ok {
 		return nil, ErrChannelNotFound
 	}
-	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
+	if isPlannedChannel(channelType) {
 		return nil, errors.New("消息渠道未上线")
 	}
 	agentID := strings.TrimSpace(request.AgentID)
@@ -991,6 +989,9 @@ func (s *ControlService) encryptCredentials(values map[string]string) (string, e
 	if len(values) == 0 {
 		return "", nil
 	}
+	if s.keyErr != nil && strings.TrimSpace(s.config.ConnectorCredentialsKey) != "" {
+		return "", fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 解析失败: %w", s.keyErr)
+	}
 	if len(s.key) == 0 {
 		return "", errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 IM 通道凭据")
 	}
@@ -1004,6 +1005,9 @@ func (s *ControlService) encryptCredentials(values map[string]string) (string, e
 func (s *ControlService) decryptCredentials(encrypted sql.NullString) (map[string]string, error) {
 	if !encrypted.Valid || strings.TrimSpace(encrypted.String) == "" {
 		return nil, nil
+	}
+	if s.keyErr != nil && strings.TrimSpace(s.config.ConnectorCredentialsKey) != "" {
+		return nil, fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 解析失败: %w", s.keyErr)
 	}
 	if len(s.key) == 0 {
 		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法读取 IM 通道凭据")
@@ -1029,32 +1033,14 @@ func (s *ControlService) configureRouterChannel(
 	if s.router == nil {
 		return nil
 	}
-	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
+	if isPlannedChannel(channelType) {
 		return nil
-	}
-	publicConfig, err := decodeStringMap(configJSON)
-	if err != nil {
-		return err
 	}
 	secrets, err := s.decryptCredentials(encrypted)
 	if err != nil {
 		return err
 	}
 	switch normalizeIMChannelType(channelType) {
-	case ChannelTypeDingTalk:
-		clientID := strings.TrimSpace(firstNonEmpty(publicConfig["client_id"], publicConfig["app_key"], secrets["client_id"], secrets["app_key"]))
-		clientSecret := strings.TrimSpace(secrets["client_secret"])
-		if clientID == "" || clientSecret == "" {
-			return nil
-		}
-		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newDingTalkChannel(clientID, clientSecret, nil).WithOwner(ownerUserID))
-	case ChannelTypeFeishu:
-		appID := strings.TrimSpace(firstNonEmpty(publicConfig["app_id"], secrets["app_id"]))
-		appSecret := strings.TrimSpace(secrets["app_secret"])
-		if appID == "" || appSecret == "" {
-			return nil
-		}
-		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newFeishuChannel(appID, appSecret).WithOwner(ownerUserID))
 	case ChannelTypeTelegram:
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
@@ -1293,15 +1279,6 @@ func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
 func isPlannedChannel(channelType string) bool {
 	item, ok := channelCatalogByType(channelType)
 	return ok && item.RuntimeStatus == "planned"
-}
-
-func hasHiddenChannelBackend(channelType string) bool {
-	switch normalizeIMChannelType(channelType) {
-	case ChannelTypeDingTalk, ChannelTypeFeishu:
-		return true
-	default:
-		return false
-	}
 }
 
 func sortedChannelTypes() []string {

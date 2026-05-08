@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 )
 
 func TestChannelCatalogMarksAllIMChannelsPlanned(t *testing.T) {
@@ -25,64 +24,56 @@ func TestControlServiceRejectsPlannedChannelConfig(t *testing.T) {
 	defer db.Close()
 
 	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeTelegram, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Credentials: map[string]string{
-			"bot_token": "token",
+	cases := []struct {
+		name        string
+		channelType string
+		config      map[string]string
+		credentials map[string]string
+	}{
+		{
+			name:        "dingtalk",
+			channelType: ChannelTypeDingTalk,
+			config:      map[string]string{"client_id": "ding-client"},
+			credentials: map[string]string{"client_secret": "ding-secret"},
 		},
-	})
-	if err == nil || !strings.Contains(err.Error(), "消息渠道未上线") {
-		t.Fatalf("未上线渠道应拒绝配置，实际 err=%v", err)
-	}
-}
-
-func TestControlServiceAllowsHiddenDingTalkAndFeishuBackends(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	cfg := config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-	}
-	router := NewRouter(cfg, db, nil, permissionctx.NewContext())
-	service := NewControlService(cfg, db, nil, router)
-
-	dingtalk, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeDingTalk, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"client_id": "ding-client",
+		{
+			name:        "wechat",
+			channelType: ChannelTypeWeChat,
 		},
-		Credentials: map[string]string{
-			"client_secret": "ding-secret",
+		{
+			name:        "feishu",
+			channelType: ChannelTypeFeishu,
+			config:      map[string]string{"app_id": "cli_xxx"},
+			credentials: map[string]string{"app_secret": "feishu-secret"},
 		},
-	})
-	if err != nil {
-		t.Fatalf("钉钉底层配置应可保存: %v", err)
-	}
-	if dingtalk.RuntimeStatus != "planned" {
-		t.Fatalf("前端状态仍应保持未上线，实际 %s", dingtalk.RuntimeStatus)
-	}
-	if router.GetForOwner("owner-a", ChannelTypeDingTalk) == nil {
-		t.Fatal("钉钉底层通道应注册到 owner router")
+		{
+			name:        "telegram",
+			channelType: ChannelTypeTelegram,
+			credentials: map[string]string{
+				"bot_token": "token",
+			},
+		},
+		{
+			name:        "discord",
+			channelType: ChannelTypeDiscord,
+			config:      map[string]string{"application_id": "123"},
+			credentials: map[string]string{
+				"bot_token": "token",
+			},
+		},
 	}
 
-	feishu, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeFeishu, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"app_id": "cli_hidden",
-		},
-		Credentials: map[string]string{
-			"app_secret": "feishu-secret",
-		},
-	})
-	if err != nil {
-		t.Fatalf("飞书底层配置应可保存: %v", err)
-	}
-	if feishu.RuntimeStatus != "planned" {
-		t.Fatalf("前端状态仍应保持未上线，实际 %s", feishu.RuntimeStatus)
-	}
-	if router.GetForOwner("owner-a", ChannelTypeFeishu) == nil {
-		t.Fatal("飞书底层通道应注册到 owner router")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := service.UpsertChannelConfig(context.Background(), "owner-a", tc.channelType, UpsertChannelConfigRequest{
+				AgentID:     "agent-a",
+				Config:      tc.config,
+				Credentials: tc.credentials,
+			})
+			if err == nil || !strings.Contains(err.Error(), "消息渠道未上线") {
+				t.Fatalf("未上线渠道应拒绝配置，实际 err=%v", err)
+			}
+		})
 	}
 }
 

@@ -95,7 +95,7 @@ func executionReply(executionMode string, args map[string]any, sctx contract.Ser
 
 func isInteractiveSourceContext(sourceContextType string) bool {
 	switch strings.TrimSpace(sourceContextType) {
-	case "room", "chat":
+	case "room":
 		return true
 	default:
 		return false
@@ -160,7 +160,7 @@ func Source(sctx contract.ServerContext, agentID string) protocol.Source {
 
 func sourceContextTypeForSnapshot(sourceContextType string) string {
 	switch strings.TrimSpace(sourceContextType) {
-	case "room", "chat":
+	case "room":
 		return "room"
 	default:
 		return "agent"

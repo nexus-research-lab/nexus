@@ -156,7 +156,13 @@ func (s *RealtimeService) runSlot(
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
-		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")
+		mcpServers = s.mcpServers(
+			agentValue.AgentID,
+			slot.RuntimeSessionKey,
+			"room",
+			roundValue.RoomID,
+			roomSourceContextLabel(roundValue),
+		)
 	}
 	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
 	permissionHandler := func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -325,6 +331,16 @@ func (s *RealtimeService) runSlot(
 		slot.AgentRoundID,
 	))
 	logger.Info("Room slot 结束", "status", slot.Status)
+}
+
+func roomSourceContextLabel(roundValue *activeRoomRound) string {
+	if roundValue == nil || roundValue.Context == nil {
+		return ""
+	}
+	if roomName := strings.TrimSpace(roundValue.Context.Room.Name); roomName != "" {
+		return roomName
+	}
+	return strings.TrimSpace(roundValue.Context.Conversation.Title)
 }
 
 func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message protocol.Message) {
