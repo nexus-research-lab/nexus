@@ -67,6 +67,7 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 				})
 			}
 		}
+		inputs = appendUnanchoredGuidanceQueueItems(inputs, queueItems)
 		if len(inputs) == 0 {
 			for _, item := range queuedInputs {
 				inputs = append(inputs, runtimectx.GuidedInput{
@@ -103,6 +104,26 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 			},
 		}, nil
 	}
+}
+
+func appendUnanchoredGuidanceQueueItems(
+	inputs []runtimectx.GuidedInput,
+	queueItems []protocol.InputQueueItem,
+) []runtimectx.GuidedInput {
+	for _, item := range queueItems {
+		if strings.TrimSpace(item.SourceMessageID) != "" {
+			continue
+		}
+		content := strings.TrimSpace(item.Content)
+		if content == "" {
+			continue
+		}
+		inputs = append(inputs, runtimectx.GuidedInput{
+			RoundID: "queue_" + strings.TrimSpace(item.ID),
+			Content: content,
+		})
+	}
+	return inputs
 }
 
 func latestGuidanceTrigger(queuedInputs []roomQueuedInput, queueItems []protocol.InputQueueItem) (string, string) {

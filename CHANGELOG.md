@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复引导队列在当前 round 没有工具调用时被提前消费，导致消息既未注入也不再可见的问题。
 - 修复 SDK 未返回 `result` 但 assistant 已完整 `end_turn` 时，DM/Room 轮次被误判为提前关闭的问题。
+- 修复 Room 公区后续上下文漏掉无 SDK `result` 的完整 assistant 回复，以及手动引导队列项被公区增量覆盖的问题。
 
 ## [0.1.1] - 2026-04-25
 

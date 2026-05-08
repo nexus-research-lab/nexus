@@ -121,6 +121,25 @@ func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text stri
 	sendFakeAssistantResultWithUsage(client, messageID, text, nil)
 }
 
+func sendFakeTerminalAssistantAndClose(client *fakeRoomClient, messageID string, text string, usage map[string]any) {
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeAssistant,
+		SessionID: client.sessionID,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:         messageID,
+				Model:      "sonnet",
+				StopReason: "end_turn",
+				Usage:      usage,
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: text},
+				},
+			},
+		},
+	}
+	close(client.messages)
+}
+
 func sendFakeAssistantResultWithUsage(client *fakeRoomClient, messageID string, text string, usage map[string]any) {
 	client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeAssistant,
@@ -411,6 +430,92 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 	if usageSummary.SessionCount != 1 || usageSummary.MessageCount != 1 {
 		t.Fatalf("room usage 计数不正确: %+v", usageSummary)
+	}
+}
+
+func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-assistant-terminal",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	memberAgent := createTestAgent(t, agentService, ctx, "终态助手")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{memberAgent.AgentID},
+		Name:     "assistant 终态房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeTerminalAssistantAndClose(client, "assistant-terminal-no-result", "这是完整回复。", map[string]any{
+			"input_tokens":  7,
+			"output_tokens": 11,
+		})
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	usageService := usagesvc.NewServiceWithDB(cfg, db)
+	service.SetUsageRecorder(usageService)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-assistant-terminal")
+	permission.BindSession(sharedSessionKey, sender, "client-assistant-terminal", true)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@终态助手 写一句话",
+		RoundID:        "room-round-assistant-terminal",
+		ReqID:          "room-round-assistant-terminal",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeError || event.Data["status"] == "error" {
+			t.Fatalf("assistant end_turn 无 result 不应进入错误态: %+v", event)
+		}
+	}
+	assistantPayload := findRoomAssistantMessagePayload(t, events, "assistant-terminal-no-result")
+	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "end_turn" {
+		t.Fatalf("terminal assistant 事件应保持完整终态: %+v", assistantPayload)
+	}
+	usageSummary, err := usageService.Summary(ctx, "user-room-assistant-terminal")
+	if err != nil {
+		t.Fatalf("读取 room token usage 失败: %v", err)
+	}
+	if usageSummary.InputTokens != 7 || usageSummary.OutputTokens != 11 || usageSummary.TotalTokens != 18 {
+		t.Fatalf("assistant fallback usage 未写入 ledger: %+v", usageSummary)
 	}
 }
 

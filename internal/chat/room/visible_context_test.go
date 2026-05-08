@@ -15,14 +15,17 @@ func TestBuildHistoryLinesFiltersIncompleteAssistant(t *testing.T) {
 		roomAssistantResult("a1", "已完成"),
 	}
 	lines := buildHistoryLines(history, map[string]string{"a1": "Agent1"})
-	if len(lines) != 2 {
-		t.Fatalf("应只保留 user 和带 result_summary 的 assistant: %+v", lines)
+	if len(lines) != 3 {
+		t.Fatalf("应保留 user、完整 assistant fallback 和带 result_summary 的 assistant: %+v", lines)
 	}
 	if lines[0] != "User: 你好" {
 		t.Fatalf("第一行不正确: %s", lines[0])
 	}
-	if lines[1] != "Assistant(Agent1): 已完成" {
+	if lines[1] != "Assistant(Agent1): 已完成但无 result" {
 		t.Fatalf("第二行不正确: %s", lines[1])
+	}
+	if lines[2] != "Assistant(Agent1): 已完成" {
+		t.Fatalf("第三行不正确: %s", lines[2])
 	}
 }
 

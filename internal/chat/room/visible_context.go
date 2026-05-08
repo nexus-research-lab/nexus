@@ -341,6 +341,9 @@ func extractAssistantResultText(message protocol.Message) string {
 		}
 		return strings.TrimSpace(normalizeAnyString(summary["result"]))
 	}
+	if message["is_complete"] == true {
+		return extractHistoryText(message)
+	}
 	return ""
 }
 
