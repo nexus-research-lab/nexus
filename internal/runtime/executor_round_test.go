@@ -253,7 +253,7 @@ func TestExecuteRoundReturnsIdleTimeoutDiagnostics(t *testing.T) {
 		timeoutErr.LastMessageType != string(sdkprotocol.MessageTypeStreamEvent) ||
 		timeoutErr.LastSessionID != "sdk-session-1" ||
 		!strings.Contains(timeoutErr.LastMessageSummary, "thinking_delta") ||
-		!strings.Contains(timeoutErr.LastMessageSummary, "AskUserQuestion") {
+		strings.Contains(timeoutErr.LastMessageSummary, "AskUserQuestion") {
 		t.Fatalf("idle timeout 诊断字段不正确: %+v", timeoutErr)
 	}
 	if client.interrupts != 1 || client.disconnects != 1 {

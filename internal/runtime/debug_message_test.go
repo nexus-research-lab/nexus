@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"testing"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
@@ -20,8 +21,11 @@ func TestBuildSDKMessageLogSummaryForStreamEvent(t *testing.T) {
 		},
 	})
 
-	if summary != "stream content_block_delta(thinking_delta) \"正在分析天气问题\"" {
+	if summary != "stream content_block_delta(thinking_delta)" {
 		t.Fatalf("stream 摘要不符合预期: %s", summary)
+	}
+	if strings.Contains(summary, "正在分析天气问题") {
+		t.Fatalf("stream 摘要不应包含 thinking 正文: %s", summary)
 	}
 }
 
@@ -39,8 +43,56 @@ func TestBuildSDKMessageLogSummaryForAssistantSnapshot(t *testing.T) {
 		},
 	})
 
-	if summary != "assistant snapshot(thinking,text) \"thinking:先分析 | 再回答\"" {
+	if summary != "assistant snapshot(thinking,text)" {
 		t.Fatalf("assistant 摘要不符合预期: %s", summary)
+	}
+	if strings.Contains(summary, "先分析") || strings.Contains(summary, "再回答") {
+		t.Fatalf("assistant 摘要不应包含正文: %s", summary)
+	}
+}
+
+func TestBuildSDKMessageLogSummaryRedactsToolInputDelta(t *testing.T) {
+	summary := BuildSDKMessageLogSummary(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "content_block_delta",
+				"delta": map[string]any{
+					"type":         "input_json_delta",
+					"partial_json": `{"command":"ln -s ../../.agents/skills/demo /Users/me/.nexus/workspace/.claude/skills/demo"}`,
+				},
+			},
+		},
+	})
+
+	if summary != "stream content_block_delta(input_json_delta)" {
+		t.Fatalf("tool input delta 摘要不符合预期: %s", summary)
+	}
+	if strings.Contains(summary, "command") || strings.Contains(summary, "/Users/me") {
+		t.Fatalf("tool input delta 摘要不应包含工具参数: %s", summary)
+	}
+}
+
+func TestBuildSDKMessageLogSummaryKeepsToolNameOnly(t *testing.T) {
+	summary := BuildSDKMessageLogSummary(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "content_block_start",
+				"content_block": map[string]any{
+					"type":  "tool_use",
+					"name":  "Bash",
+					"input": map[string]any{"command": "cat SECRET.txt"},
+				},
+			},
+		},
+	})
+
+	if summary != `stream content_block_start(tool_use) "Bash"` {
+		t.Fatalf("tool_use start 摘要不符合预期: %s", summary)
+	}
+	if strings.Contains(summary, "SECRET") || strings.Contains(summary, "cat ") {
+		t.Fatalf("tool_use start 摘要不应包含工具输入: %s", summary)
 	}
 }
 
@@ -59,7 +111,7 @@ func TestBuildSDKMessageLogFieldsIncludesSummary(t *testing.T) {
 	if key, ok := fields[0].(string); !ok || key != "sdk_summary" {
 		t.Fatalf("首个字段应为 sdk_summary: %+v", fields)
 	}
-	if value, ok := fields[1].(string); !ok || value != "result success \"查询完成\"" {
+	if value, ok := fields[1].(string); !ok || value != "result success" {
 		t.Fatalf("sdk_summary 值异常: %+v", fields)
 	}
 }
