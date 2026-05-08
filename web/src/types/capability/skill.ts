@@ -7,7 +7,7 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-export type SkillSourceType = "system" | "builtin" | "external";
+export type SkillSourceType = "system" | "builtin" | "external" | "workspace";
 
 export interface SkillInfo {
     name: string;

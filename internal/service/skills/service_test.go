@@ -60,6 +60,70 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 		t.Fatal("系统托管 scheduled-task-manager skill 不应允许手动安装")
 	}
 
+	agentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "agent-only-skill")
+	if err = os.MkdirAll(agentLocalSkillRoot, 0o755); err != nil {
+		t.Fatalf("创建 agent 本地 skill 目录失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(agentLocalSkillRoot, "SKILL.md"), []byte(`---
+name: agent-only-skill
+title: Agent Only Skill
+description: 只在当前智能体工作区内可用
+tags: [agent-local]
+---
+
+# agent-only-skill
+
+workspace skill body
+`), 0o644); err != nil {
+		t.Fatalf("写入 agent 本地 skill 失败: %v", err)
+	}
+	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取含 agent 本地 skill 的列表失败: %v", err)
+	}
+	agentLocalSkill, ok := findSkill(items, "agent-only-skill")
+	if !ok {
+		t.Fatalf("agent 本地 skill 未暴露: %+v", items)
+	}
+	if agentLocalSkill.SourceType != sourceTypeWorkspace || !agentLocalSkill.Installed || !agentLocalSkill.Locked {
+		t.Fatalf("agent 本地 skill 状态不正确: %+v", agentLocalSkill)
+	}
+	if _, err = service.GetSkillDetail(ctx, "agent-only-skill", ""); err == nil {
+		t.Fatal("未指定 agent 时不应读取 agent 本地 skill")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err == nil {
+		t.Fatal("agent 本地 skill 不应允许通过市场安装")
+	}
+	if err = service.UninstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err == nil {
+		t.Fatal("agent 本地 skill 不应允许通过市场移除")
+	}
+
+	directAgentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "direct-agent-skill")
+	if err = os.MkdirAll(directAgentLocalSkillRoot, 0o755); err != nil {
+		t.Fatalf("创建 agent 直属本地 skill 目录失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(directAgentLocalSkillRoot, "SKILL.md"), []byte(`---
+name: direct-agent-skill
+title: Direct Agent Skill
+description: 兼容直接位于 .agents 下的技能目录
+---
+
+# direct-agent-skill
+`), 0o644); err != nil {
+		t.Fatalf("写入 agent 直属本地 skill 失败: %v", err)
+	}
+	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取含 agent 直属本地 skill 的列表失败: %v", err)
+	}
+	directAgentLocalSkill, ok := findSkill(items, "direct-agent-skill")
+	if !ok {
+		t.Fatalf("agent 直属本地 skill 未暴露: %+v", items)
+	}
+	if directAgentLocalSkill.SourceType != sourceTypeWorkspace || !directAgentLocalSkill.Installed || !directAgentLocalSkill.Locked {
+		t.Fatalf("agent 直属本地 skill 状态不正确: %+v", directAgentLocalSkill)
+	}
+
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")
 	if err = os.MkdirAll(localSkillRoot, 0o755); err != nil {
 		t.Fatalf("创建本地 skill 目录失败: %v", err)
@@ -155,6 +219,15 @@ func containsSkill(items []Info, target string) bool {
 		}
 	}
 	return false
+}
+
+func findSkill(items []Info, target string) (Info, bool) {
+	for _, item := range items {
+		if item.Name == target {
+			return item, true
+		}
+	}
+	return Info{}, false
 }
 
 func newSkillsTestConfig(t *testing.T) config.Config {

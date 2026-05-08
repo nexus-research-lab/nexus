@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	sourceTypeSystem   = "system"
-	sourceTypeBuiltin  = "builtin"
-	sourceTypeExternal = "external"
-	scopeMain          = "main"
-	scopeAny           = "any"
+	sourceTypeSystem    = "system"
+	sourceTypeBuiltin   = "builtin"
+	sourceTypeExternal  = "external"
+	sourceTypeWorkspace = "workspace"
+	scopeMain           = "main"
+	scopeAny            = "any"
 )
 
 var (
@@ -224,6 +225,9 @@ func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName st
 	if record.Detail.SourceType == sourceTypeSystem {
 		return nil, errors.New("系统托管 skill 不能手动安装")
 	}
+	if record.Detail.SourceType == sourceTypeWorkspace {
+		return nil, errors.New("智能体工作区内 skill 不能从技能市场安装")
+	}
 	if record.Detail.Scope == scopeMain && !isMainAgent {
 		return nil, errors.New("该 skill 仅允许主智能体安装")
 	}
@@ -253,6 +257,9 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 	}
 	if record.Detail.SourceType == sourceTypeSystem {
 		return errors.New("系统托管 skill 不能手动卸载")
+	}
+	if record.Detail.SourceType == sourceTypeWorkspace {
+		return errors.New("智能体工作区内 skill 不能从技能市场移除")
 	}
 	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
 }
@@ -347,8 +354,60 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 		for _, name := range names {
 			installedNames[name] = true
 		}
+		s.addWorkspaceLocalRecords(agentValue.WorkspacePath, records, installedNames)
 	}
 	return records, installedNames, isMainAgent, nil
+}
+
+func (s *Service) addWorkspaceLocalRecords(workspacePath string, records map[string]catalogRecord, installedNames map[string]bool) {
+	skillDirs := discoverWorkspaceSkillDirs(workspacePath)
+	skillNames := make([]string, 0, len(skillDirs))
+	for skillName := range skillDirs {
+		skillNames = append(skillNames, skillName)
+	}
+	sort.Strings(skillNames)
+	for _, skillName := range skillNames {
+		if _, ok := records[skillName]; ok {
+			installedNames[skillName] = true
+			continue
+		}
+		record, err := buildWorkspaceRecord(skillDirs[skillName])
+		if err != nil {
+			continue
+		}
+		if _, ok := records[record.Detail.Name]; ok {
+			installedNames[record.Detail.Name] = true
+			continue
+		}
+		records[record.Detail.Name] = record
+		installedNames[record.Detail.Name] = true
+	}
+}
+
+func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
+	root := strings.TrimSpace(workspacePath)
+	result := map[string]string{}
+	addSkillDirs := func(parent string) {
+		entries, err := os.ReadDir(parent)
+		if err != nil {
+			return
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			skillDir := filepath.Join(parent, entry.Name())
+			if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+				continue
+			}
+			if _, exists := result[entry.Name()]; !exists {
+				result[entry.Name()] = skillDir
+			}
+		}
+	}
+	addSkillDirs(filepath.Join(root, ".agents", "skills"))
+	addSkillDirs(filepath.Join(root, ".agents"))
+	return result
 }
 
 func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Agent, error) {
@@ -472,6 +531,34 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
 		Recommendation: firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
+	}
+	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
+}
+
+func buildWorkspaceRecord(sourceDir string) (catalogRecord, error) {
+	content, _, skillName, err := readSkillSource(sourceDir)
+	if err != nil {
+		return catalogRecord{}, err
+	}
+	parsed := parseSkillFrontmatter(content, skillName)
+	detail := Detail{
+		Info: Info{
+			Name:         parsed.Name,
+			Title:        firstNonEmpty(parsed.Title, parsed.Name),
+			Description:  parsed.Description,
+			Scope:        defaultSkillScope(parsed.Scope),
+			Tags:         parsed.Tags,
+			CategoryKey:  firstNonEmpty(parsed.CategoryKey, "agent-workspace"),
+			CategoryName: firstNonEmpty(parsed.CategoryName, "智能体工作区"),
+			SourceType:   sourceTypeWorkspace,
+			SourceRef:    sourceDir,
+			Version:      firstNonEmpty(parsed.Version, "workspace"),
+			Installed:    true,
+			Locked:       true,
+			Deletable:    false,
+		},
+		ReadmeMarkdown: parsed.ReadmeMarkdown,
+		Recommendation: firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
