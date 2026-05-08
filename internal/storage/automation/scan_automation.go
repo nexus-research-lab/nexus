@@ -30,6 +30,7 @@ func scanCronJob(scanner interface {
 	)
 	err := scanner.Scan(
 		&item.JobID,
+		&item.OwnerUserID,
 		&item.Name,
 		&item.AgentID,
 		&item.Schedule.Kind,
@@ -54,6 +55,7 @@ func scanCronJob(scanner interface {
 		&sourceContextLabel,
 		&sourceSessionKey,
 		&sourceSessionLabel,
+		&item.OverlapPolicy,
 		&item.Enabled,
 	)
 	if err != nil {
@@ -76,6 +78,7 @@ func scanCronJob(scanner interface {
 	item.Source.SessionKey = nullStringValue(sourceSessionKey)
 	item.Source.SessionLabel = nullStringValue(sourceSessionLabel)
 	item.Source = item.Source.Normalized()
+	item.OverlapPolicy = protocol.NormalizeOverlapPolicy(item.OverlapPolicy)
 	return item, nil
 }
 
@@ -91,21 +94,36 @@ func scanCronRun(scanner interface {
 	Scan(dest ...any) error
 }) (protocol.CronRun, error) {
 	var (
-		item         protocol.CronRun
-		scheduledFor sql.NullTime
-		startedAt    sql.NullTime
-		finishedAt   sql.NullTime
-		errorMessage sql.NullString
+		item          protocol.CronRun
+		sessionKey    sql.NullString
+		roundID       sql.NullString
+		sessionID     sql.NullString
+		deliveryMode  sql.NullString
+		deliveryTo    sql.NullString
+		resultSummary sql.NullString
+		scheduledFor  sql.NullTime
+		startedAt     sql.NullTime
+		finishedAt    sql.NullTime
+		errorMessage  sql.NullString
 	)
 	err := scanner.Scan(
 		&item.RunID,
 		&item.JobID,
+		&item.OwnerUserID,
 		&item.Status,
+		&item.TriggerKind,
+		&sessionKey,
+		&roundID,
+		&sessionID,
+		&item.MessageCount,
+		&deliveryMode,
+		&deliveryTo,
 		&scheduledFor,
 		&startedAt,
 		&finishedAt,
 		&item.Attempts,
 		&errorMessage,
+		&resultSummary,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
@@ -116,5 +134,11 @@ func scanCronRun(scanner interface {
 	item.StartedAt = nullTimePointer(startedAt)
 	item.FinishedAt = nullTimePointer(finishedAt)
 	item.ErrorMessage = nullStringToPointer(errorMessage)
+	item.SessionKey = nullStringValue(sessionKey)
+	item.RoundID = nullStringValue(roundID)
+	item.SessionID = nullStringToPointer(sessionID)
+	item.DeliveryMode = nullStringValue(deliveryMode)
+	item.DeliveryTo = nullStringValue(deliveryTo)
+	item.ResultSummary = nullStringToPointer(resultSummary)
 	return item, nil
 }

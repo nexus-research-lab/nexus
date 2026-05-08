@@ -26,24 +26,25 @@ import (
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
 type AppServices struct {
-	DB           *sql.DB
-	Core         *CoreServices
-	Auth         *authsvc.Service
-	Provider     *providercfg.Service
-	Workspace    *workspacepkg.Service
-	Skills       *skillsvc.Service
-	Connectors   *connectorsvc.Service
-	Launcher     *launcher.Service
-	Title        *titlegen.Service
-	Usage        *usagesvc.Service
-	Preferences  *preferencessvc.Service
-	Permission   *permissionctx.Context
-	Runtime      *runtimectx.Manager
-	Channels     *channels.Router
-	DM           *dmsvc.Service
-	Ingress      *channels.IngressService
-	RoomRealtime *roomsvc.RealtimeService
-	Automation   *automationsvc.Service
+	DB             *sql.DB
+	Core           *CoreServices
+	Auth           *authsvc.Service
+	Provider       *providercfg.Service
+	Workspace      *workspacepkg.Service
+	Skills         *skillsvc.Service
+	Connectors     *connectorsvc.Service
+	Launcher       *launcher.Service
+	Title          *titlegen.Service
+	Usage          *usagesvc.Service
+	Preferences    *preferencessvc.Service
+	Permission     *permissionctx.Context
+	Runtime        *runtimectx.Manager
+	Channels       *channels.Router
+	ChannelControl *channels.ControlService
+	DM             *dmsvc.Service
+	Ingress        *channels.IngressService
+	RoomRealtime   *roomsvc.RealtimeService
+	Automation     *automationsvc.Service
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -75,6 +76,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	runtimeManager := runtimectx.NewManager()
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
 	channelRouter.SetLogger(logger.With("component", "channels"))
+	channelControl := channels.NewControlService(cfg, db, core.Agent, channelRouter)
 	dmService := dmsvc.NewService(cfg, core.Agent, runtimeManager, permission)
 	dmService.SetLogger(logger.With("component", "dm"))
 	dmService.SetProviderResolver(providerService)
@@ -83,6 +85,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetTitleGenerator(titleService)
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
+	ingressService.SetControlService(channelControl)
 	channelRouter.SetIngress(ingressService)
 	roomRealtime := roomsvc.NewRealtimeService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
@@ -112,24 +115,25 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	warnIfProviderMissing(providerService, logger)
 
 	return &AppServices{
-		DB:           db,
-		Core:         core,
-		Auth:         authService,
-		Provider:     providerService,
-		Preferences:  preferencesService,
-		Workspace:    workspaceService,
-		Skills:       skillService,
-		Connectors:   connectorService,
-		Launcher:     launcherService,
-		Title:        titleService,
-		Usage:        usageService,
-		Permission:   permission,
-		Runtime:      runtimeManager,
-		Channels:     channelRouter,
-		DM:           dmService,
-		Ingress:      ingressService,
-		RoomRealtime: roomRealtime,
-		Automation:   automationService,
+		DB:             db,
+		Core:           core,
+		Auth:           authService,
+		Provider:       providerService,
+		Preferences:    preferencesService,
+		Workspace:      workspaceService,
+		Skills:         skillService,
+		Connectors:     connectorService,
+		Launcher:       launcherService,
+		Title:          titleService,
+		Usage:          usageService,
+		Permission:     permission,
+		Runtime:        runtimeManager,
+		Channels:       channelRouter,
+		ChannelControl: channelControl,
+		DM:             dmService,
+		Ingress:        ingressService,
+		RoomRealtime:   roomRealtime,
+		Automation:     automationService,
 	}
 }
 

@@ -47,6 +47,9 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "room-collaboration", "SKILL.md")); err != nil {
 		t.Fatalf("系统托管 room-collaboration skill 未部署: %v", err)
 	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")); err != nil {
+		t.Fatalf("系统托管 scheduled-task-manager skill 未部署: %v", err)
+	}
 	claudeSkillLink := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "room-collaboration")
 	if info, statErr := os.Lstat(claudeSkillLink); statErr != nil {
 		t.Fatalf("room-collaboration skill 的 Claude 链接未生成: %v", statErr)

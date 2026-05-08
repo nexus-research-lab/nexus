@@ -27,7 +27,7 @@ func buildRoomGuidanceMessage(
 		AgentRoundID:   slot.AgentRoundID,
 		SourceRoundID:  sourceRoundID,
 		Content:        content,
-		SDKSessionID:   slot.SDKSessionID,
+		SDKSessionID:   slot.getSDKSessionID(),
 	})
 }
 

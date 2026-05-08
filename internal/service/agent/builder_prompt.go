@@ -96,6 +96,9 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 	if workspacePath != "" {
 		sections = append(sections, fmt.Sprintf("当前工作区绝对路径: %s", workspacePath))
 	}
+	if skillSection := buildManagedSkillUsageSection(workspacePath); skillSection != "" {
+		sections = append(sections, skillSection)
+	}
 
 	fileSections, err := b.loadWorkspacePromptSections(workspacePath)
 	if err != nil {
@@ -214,6 +217,22 @@ func buildAgentProfileSection(agentValue *protocol.Agent) string {
 		lines = append(lines, "", profileMarkdown)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func buildManagedSkillUsageSection(workspacePath string) string {
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	if trimmedWorkspacePath == "" {
+		return ""
+	}
+	skillPath := filepath.Join(trimmedWorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")
+	if _, err := os.Stat(skillPath); err != nil {
+		return ""
+	}
+	return strings.Join([]string{
+		"## 托管 Skill 使用要求",
+		"- 涉及定时任务、提醒、每天/每周/每隔一段时间自动执行时，必须先使用 Skill 工具加载 scheduled-task-manager，再调用 nexus_automation。",
+		"- 创建定时任务时按 scheduled-task-manager 的模板生成参数；短提醒不要猜 execution_mode / reply_mode，复杂任务先向用户确认。",
+	}, "\n")
 }
 
 func compactPromptSections(items []string) []string {

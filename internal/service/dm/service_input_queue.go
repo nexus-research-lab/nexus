@@ -170,7 +170,7 @@ func (s *Service) dispatchNextInputQueueItem(ctx context.Context, sessionKey str
 	} else {
 		s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, restored)
 	}
-	s.permission.BroadcastEvent(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, "待发送消息派发失败"))
+	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, "待发送消息派发失败"))
 }
 
 func (s *Service) resolveInputQueueLocation(
@@ -220,7 +220,7 @@ func (s *Service) broadcastInputQueueSnapshot(
 ) {
 	event := protocol.NewInputQueueEvent(sessionKey, items)
 	event.Data["scope"] = string(protocol.InputQueueScopeDM)
-	s.permission.BroadcastEvent(ctx, sessionKey, event)
+	s.broadcastEventWithTimeout(ctx, sessionKey, event)
 }
 
 func contextWithQueueOwner(ctx context.Context, ownerUserID string) context.Context {

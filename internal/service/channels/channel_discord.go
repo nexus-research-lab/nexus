@@ -15,9 +15,10 @@ import (
 )
 
 type discordChannel struct {
-	token   string
-	client  *http.Client
-	baseURL string
+	token       string
+	client      *http.Client
+	baseURL     string
+	ownerUserID string
 
 	mu      sync.RWMutex
 	ingress IngressAcceptor
@@ -33,6 +34,11 @@ func newDiscordChannel(token string, client *http.Client) *discordChannel {
 		client:  client,
 		baseURL: "https://discord.com/api/v10",
 	}
+}
+
+func (c *discordChannel) WithOwner(ownerUserID string) *discordChannel {
+	c.ownerUserID = strings.TrimSpace(ownerUserID)
+	return c
 }
 
 func (c *discordChannel) ChannelType() string {
@@ -180,11 +186,12 @@ func (c *discordChannel) buildIngressRequest(
 		chatType = "dm"
 		ref = strings.TrimSpace(message.Author.ID)
 		return IngressRequest{
-			Channel:  ChannelTypeDiscord,
-			ChatType: chatType,
-			Ref:      ref,
-			Content:  content,
-			Delivery: delivery,
+			Channel:     ChannelTypeDiscord,
+			OwnerUserID: c.ownerUserID,
+			ChatType:    chatType,
+			Ref:         ref,
+			Content:     content,
+			Delivery:    delivery,
 		}, nil
 	}
 
@@ -199,12 +206,13 @@ func (c *discordChannel) buildIngressRequest(
 	ref = joinDiscordRoute(strings.TrimSpace(message.GuildID), channelID)
 
 	return IngressRequest{
-		Channel:  ChannelTypeDiscord,
-		ChatType: chatType,
-		Ref:      ref,
-		ThreadID: threadID,
-		Content:  content,
-		Delivery: delivery,
+		Channel:     ChannelTypeDiscord,
+		OwnerUserID: c.ownerUserID,
+		ChatType:    chatType,
+		Ref:         ref,
+		ThreadID:    threadID,
+		Content:     content,
+		Delivery:    delivery,
 	}, nil
 }
 

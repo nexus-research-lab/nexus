@@ -117,6 +117,14 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/channels/discord/messages"), s.handlers.channel.HandleDiscordChannelIngress)
 	s.router.Post(s.prefixPath("/channels/telegram/messages"), s.handlers.channel.HandleTelegramChannelIngress)
 
+	s.router.Get(s.prefixPath("/capability/channels"), s.handlers.channel.HandleListChannels)
+	s.router.Put(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleUpsertChannelConfig)
+	s.router.Delete(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleDeleteChannelConfig)
+	s.router.Get(s.prefixPath("/capability/pairings"), s.handlers.channel.HandleListPairings)
+	s.router.Post(s.prefixPath("/capability/pairings"), s.handlers.channel.HandleCreatePairing)
+	s.router.Patch(s.prefixPath("/capability/pairings/{pairing_id}"), s.handlers.channel.HandleUpdatePairing)
+	s.router.Delete(s.prefixPath("/capability/pairings/{pairing_id}"), s.handlers.channel.HandleDeletePairing)
+
 	s.router.Get(s.prefixPath("/capability/scheduled/tasks"), s.handlers.automation.HandleListScheduledTasks)
 	s.router.Post(s.prefixPath("/capability/scheduled/tasks"), s.handlers.automation.HandleCreateScheduledTask)
 	s.router.Patch(s.prefixPath("/capability/scheduled/tasks/{job_id}"), s.handlers.automation.HandleUpdateScheduledTask)

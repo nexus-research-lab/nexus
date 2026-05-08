@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	baseSkillNames      = []string{"memory-manager", "room-collaboration"}
+	baseSkillNames      = []string{"memory-manager", "room-collaboration", "scheduled-task-manager"}
 	mainAgentSkillNames = []string{"nexus-manager"}
 	workspaceFiles      = map[string]string{
 		"agents":  "AGENTS.md",

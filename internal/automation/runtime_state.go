@@ -10,6 +10,7 @@ import (
 type JobRuntimeState struct {
 	Job           protocol.CronJob
 	Running       bool
+	RunningCount  int
 	NextRunAt     *time.Time
 	LastRunAt     *time.Time
 	FailureStreak int

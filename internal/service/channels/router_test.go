@@ -80,6 +80,49 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
+type recordingDeliveryChannel struct {
+	channelType string
+	startErr    error
+
+	mu      sync.Mutex
+	starts  int
+	stops   int
+	targets []DeliveryTarget
+	texts   []string
+}
+
+func (c *recordingDeliveryChannel) ChannelType() string {
+	return c.channelType
+}
+
+func (c *recordingDeliveryChannel) Start(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.starts++
+	return c.startErr
+}
+
+func (c *recordingDeliveryChannel) Stop(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stops++
+	return nil
+}
+
+func (c *recordingDeliveryChannel) SendDeliveryText(_ context.Context, target DeliveryTarget, text string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.targets = append(c.targets, target)
+	c.texts = append(c.texts, text)
+	return nil
+}
+
+func (c *recordingDeliveryChannel) sentCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.targets)
+}
+
 func extractAssistantText(message protocol.Message) string {
 	items, ok := message["content"].([]map[string]any)
 	if !ok {
@@ -106,6 +149,77 @@ func extractAssistantText(message protocol.Message) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func TestRouterDeliverTextUsesOwnerScopedChannel(t *testing.T) {
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{
+		agentByID: map[string]*protocol.Agent{
+			"agent-a": {AgentID: "agent-a", OwnerUserID: "owner-a"},
+			"agent-b": {AgentID: "agent-b", OwnerUserID: "owner-b"},
+		},
+	}
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, resolver, nil)
+	channelA := &recordingDeliveryChannel{channelType: ChannelTypeTelegram}
+	channelB := &recordingDeliveryChannel{channelType: ChannelTypeTelegram}
+	router.RegisterForOwner("owner-a", channelA)
+	router.RegisterForOwner("owner-b", channelB)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	if _, err := router.DeliverText(context.Background(), "agent-a", "给 A", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "chat-a",
+	}); err != nil {
+		t.Fatalf("owner-a 投递失败: %v", err)
+	}
+	if channelA.sentCount() != 1 || channelB.sentCount() != 0 {
+		t.Fatalf("owner-a 投递应只进入 A 通道，A=%d B=%d", channelA.sentCount(), channelB.sentCount())
+	}
+
+	if _, err := router.DeliverText(context.Background(), "agent-b", "给 B", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "chat-b",
+	}); err != nil {
+		t.Fatalf("owner-b 投递失败: %v", err)
+	}
+	if channelA.sentCount() != 1 || channelB.sentCount() != 1 {
+		t.Fatalf("owner-b 投递应只进入 B 通道，A=%d B=%d", channelA.sentCount(), channelB.sentCount())
+	}
+}
+
+func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{
+		agentByID: map[string]*protocol.Agent{
+			"agent-a": {AgentID: "agent-a", OwnerUserID: "owner-a"},
+		},
+	}
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, resolver, nil)
+	failedChannel := &recordingDeliveryChannel{
+		channelType: ChannelTypeTelegram,
+		startErr:    fmt.Errorf("boom"),
+	}
+	router.RegisterForOwner("owner-a", failedChannel)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 不应因单个 owner 通道失败而失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	if _, err := router.DeliverText(context.Background(), "agent-a", "失败通道", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "chat-a",
+	}); err == nil {
+		t.Fatal("启动失败的 owner 通道不应可投递")
+	}
+	if failedChannel.sentCount() != 0 {
+		t.Fatalf("启动失败通道不应收到投递，实际 %d", failedChannel.sentCount())
+	}
 }
 
 func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
@@ -294,18 +408,46 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	schema := `
-CREATE TABLE automation_delivery_routes (
-    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
-    agent_id VARCHAR(64) NOT NULL,
+	CREATE TABLE automation_delivery_routes (
+	    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
+	    agent_id VARCHAR(64) NOT NULL,
     mode VARCHAR(32) NOT NULL,
     channel VARCHAR(64),
     "to" VARCHAR(255),
     account_id VARCHAR(64),
     thread_id VARCHAR(255),
     enabled BOOLEAN NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
-);`
+	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+	);
+	CREATE TABLE im_channel_configs (
+	    owner_user_id VARCHAR(64) NOT NULL,
+	    channel_type VARCHAR(32) NOT NULL,
+	    agent_id VARCHAR(64) NOT NULL,
+	    status VARCHAR(32) NOT NULL DEFAULT 'configured',
+	    config_json TEXT NOT NULL DEFAULT '{}',
+	    credentials_encrypted TEXT,
+	    last_error TEXT,
+	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    PRIMARY KEY (owner_user_id, channel_type)
+	);
+	CREATE TABLE im_pairings (
+	    pairing_id VARCHAR(64) NOT NULL PRIMARY KEY,
+	    owner_user_id VARCHAR(64) NOT NULL,
+	    channel_type VARCHAR(32) NOT NULL,
+	    chat_type VARCHAR(16) NOT NULL,
+	    external_ref VARCHAR(255) NOT NULL,
+	    thread_id VARCHAR(255) NOT NULL DEFAULT '',
+	    external_name VARCHAR(255),
+	    agent_id VARCHAR(64) NOT NULL,
+	    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+	    source VARCHAR(32) NOT NULL DEFAULT 'manual',
+	    last_message_at DATETIME,
+	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    UNIQUE (owner_user_id, channel_type, chat_type, external_ref, thread_id)
+	);`
 	if _, err = db.Exec(schema); err != nil {
 		t.Fatalf("初始化 delivery schema 失败: %v", err)
 	}

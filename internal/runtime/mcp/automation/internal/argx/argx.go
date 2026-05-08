@@ -2,7 +2,10 @@
 package argx
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 )
 
@@ -62,14 +65,32 @@ func Int(value any) int {
 		return v
 	case int64:
 		return int(v)
+	case json.Number:
+		return intFromNumberString(v.String())
 	case float64:
+		if math.Trunc(v) != v {
+			return 0
+		}
 		return int(v)
 	case string:
-		var n int
-		fmt.Sscanf(strings.TrimSpace(v), "%d", &n)
-		return n
+		return intFromNumberString(v)
 	}
 	return 0
+}
+
+func intFromNumberString(raw string) int {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return 0
+	}
+	if n, err := strconv.Atoi(s); err == nil {
+		return n
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || math.Trunc(f) != f {
+		return 0
+	}
+	return int(f)
 }
 
 // FirstNonEmpty 返回第一个非空字符串。

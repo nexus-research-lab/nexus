@@ -21,7 +21,7 @@ func TestPrettyHandlerRendersSDKSummaryCompactly(t *testing.T) {
 		slog.String("session_key", "agent:c5740009ac97:ws:dm:93c96efb202a"),
 		slog.String("agent_id", "c5740009ac97"),
 		slog.String("round_id", "a9928342-88bb-40a1-bd5b-d1d122b61b79"),
-		slog.String("sdk_summary", `stream content_block_delta(text_delta) "片"`),
+		slog.String("sdk_summary", "stream content_block_delta(text_delta)"),
 	)
 
 	if err := handler.Handle(context.Background(), record); err != nil {
@@ -32,10 +32,10 @@ func TestPrettyHandlerRendersSDKSummaryCompactly(t *testing.T) {
 	if !strings.Contains(output, `Agent s=93c96efb202a a=c5740009ac97 r=a9928342-88b`) {
 		t.Fatalf("未输出前置固定上下文: %s", output)
 	}
-	if !strings.Contains(output, `stream content_block_delta(text_delta) "片"`) {
+	if !strings.Contains(output, "stream content_block_delta(text_delta)") {
 		t.Fatalf("未输出紧凑摘要: %s", output)
 	}
-	if strings.Index(output, `stream content_block_delta(text_delta) "片"`) < strings.Index(output, "r=a9928342-88b") {
+	if strings.Index(output, "stream content_block_delta(text_delta)") < strings.Index(output, "r=a9928342-88b") {
 		t.Fatalf("摘要仍然出现在固定字段前面: %s", output)
 	}
 	if strings.Contains(output, "session_key=") ||

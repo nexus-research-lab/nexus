@@ -63,6 +63,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 			namedSessionKey string
 			wakeMode        string
 			deliveryMode    string
+			overlapPolicy   string
 			enabled         bool
 		)
 		createCommand := &cobra.Command{
@@ -91,7 +92,8 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 					Delivery: protocol.DeliveryTarget{
 						Mode: deliveryMode,
 					},
-					Enabled: enabled,
+					OverlapPolicy: overlapPolicy,
+					Enabled:       enabled,
 				}
 				if runAt != "" {
 					payload.Schedule.RunAt = stringRef(runAt)
@@ -126,6 +128,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		createCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
 		createCommand.Flags().StringVar(&wakeMode, "wake-mode", protocol.WakeModeNextHeartbeat, "now|next-heartbeat")
 		createCommand.Flags().StringVar(&deliveryMode, "delivery-mode", protocol.DeliveryModeNone, "none|last|explicit")
+		createCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", protocol.OverlapPolicySkip, "skip|allow")
 		createCommand.Flags().BoolVar(&enabled, "enabled", true, "enabled")
 		_ = createCommand.MarkFlagRequired("name")
 		_ = createCommand.MarkFlagRequired("agent-id")
@@ -147,6 +150,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		var namedSessionKey string
 		var wakeMode string
 		var deliveryMode string
+		var overlapPolicy string
 
 		updateCommand := &cobra.Command{
 			Use:   "update [job_id]",
@@ -193,6 +197,9 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 				if deliveryMode != "" {
 					payload.Delivery = &protocol.DeliveryTarget{Mode: deliveryMode}
 				}
+				if overlapPolicy != "" {
+					payload.OverlapPolicy = stringRef(overlapPolicy)
+				}
 				if cmd.Flags().Changed("enabled") {
 					payload.Enabled = &enabled
 				}
@@ -219,6 +226,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		updateCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
 		updateCommand.Flags().StringVar(&wakeMode, "wake-mode", protocol.WakeModeNextHeartbeat, "now|next-heartbeat")
 		updateCommand.Flags().StringVar(&deliveryMode, "delivery-mode", "", "none|last|explicit")
+		updateCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", "", "skip|allow")
 		updateCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")
 		return updateCommand
 	}())

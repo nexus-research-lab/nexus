@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
@@ -153,11 +154,11 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
 
-	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
 		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy)
 	}
-	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, request.RoundID, "running", ""))
+	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, request.RoundID, "running", ""))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go runner.run(roundCtx)
@@ -199,7 +200,7 @@ func (s *Service) queueRunningInput(
 		return false, err
 	}
 	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
-	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
+	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
 		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue)
 	}
@@ -225,7 +226,7 @@ func (s *Service) guideRunningInput(
 	if err != nil {
 		return false, err
 	}
-	s.permission.BroadcastEvent(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
+	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
 		for _, targetRoundID := range runningRoundIDs {
 			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, request.RoundID, content)
@@ -319,13 +320,22 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
+	if err := workspacepkg.EnsureInitialized(
+		agentValue.AgentID,
+		agentValue.Name,
+		agentValue.WorkspacePath,
+		agentValue.IsMain,
+		agentValue.CreatedAt,
+	); err != nil {
+		return nil, "", "", err
+	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return nil, "", "", err
 	}
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
-		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent")
+		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,

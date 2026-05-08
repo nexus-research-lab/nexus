@@ -1,15 +1,11 @@
 package runtime
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
-
-const sdkMessagePreviewLimit = 240
 
 // BuildSDKMessageLogFields 生成 SDK 消息调试日志字段。
 func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
@@ -28,10 +24,6 @@ func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
 		fields = append(fields, buildToolProgressFields(message)...)
 	case sdkprotocol.MessageTypeSystem:
 		fields = append(fields, buildSystemMessageFields(message)...)
-	case sdkprotocol.MessageTypePromptSuggestion:
-		if message.PromptSuggestion != nil {
-			fields = append(fields, "suggestion_preview", truncateForLog(message.PromptSuggestion.Suggestion))
-		}
 	case sdkprotocol.MessageTypeAuthStatus:
 		if message.AuthStatus != nil {
 			fields = append(
@@ -98,7 +90,7 @@ func buildResultMessageFields(message sdkprotocol.ReceivedMessage) []any {
 		fields = append(fields, "result_stop_reason", stopReason)
 	}
 	if len(message.Result.Errors) > 0 {
-		fields = append(fields, "result_errors", strings.Join(message.Result.Errors, " | "))
+		fields = append(fields, "result_error_count", len(message.Result.Errors))
 	}
 	return fields
 }
@@ -156,27 +148,18 @@ func summarizeStreamMessage(message sdkprotocol.ReceivedMessage) string {
 	case "content_block_delta":
 		delta := rawMap(event["delta"])
 		deltaType := strings.TrimSpace(rawString(delta["type"]))
-		preview = truncateForLog(firstNonEmpty(
-			rawString(delta["text"]),
-			rawString(delta["thinking"]),
-			rawString(delta["partial_json"]),
-		))
 		if deltaType != "" {
-			return appendSummaryPreview(fmt.Sprintf("stream %s(%s)", eventType, deltaType), preview)
+			return fmt.Sprintf("stream %s(%s)", eventType, deltaType)
 		}
 	case "content_block_start":
 		block := rawMap(event["content_block"])
 		blockType := strings.TrimSpace(rawString(block["type"]))
-		preview = truncateForLog(firstNonEmpty(
-			rawString(block["text"]),
-			rawString(block["thinking"]),
-			rawString(block["name"]),
-		))
 		if blockType != "" {
+			if blockType == "tool_use" {
+				preview = safeToolName(rawString(block["name"]))
+			}
 			return appendSummaryPreview(fmt.Sprintf("stream %s(%s)", eventType, blockType), preview)
 		}
-	default:
-		preview = truncateForLog(rawJSON(event))
 	}
 	return appendSummaryPreview("stream "+eventType, preview)
 }
@@ -198,9 +181,9 @@ func summarizeResultMessage(message sdkprotocol.ReceivedMessage) string {
 	}
 	subtype := strings.TrimSpace(message.Result.Subtype)
 	if subtype == "" {
-		return appendSummaryPreview("result", truncateForLog(message.Result.Result))
+		return "result"
 	}
-	return appendSummaryPreview("result "+subtype, truncateForLog(message.Result.Result))
+	return "result " + subtype
 }
 
 func summarizeSystemMessage(message sdkprotocol.ReceivedMessage) string {
@@ -214,18 +197,15 @@ func summarizeSystemMessage(message sdkprotocol.ReceivedMessage) string {
 	switch subtype {
 	case "task_progress":
 		if message.System.TaskProgress != nil {
-			return appendSummaryPreview(
-				"system task_progress",
-				truncateForLog(firstNonEmpty(message.System.TaskProgress.Summary, message.System.TaskProgress.Description)),
-			)
+			return "system task_progress"
 		}
 	case "task_started":
 		if message.System.TaskStarted != nil {
-			return appendSummaryPreview("system task_started", truncateForLog(message.System.TaskStarted.Description))
+			return "system task_started"
 		}
 	case "task_notification":
 		if message.System.TaskNotification != nil {
-			return appendSummaryPreview("system task_notification", truncateForLog(message.System.TaskNotification.Summary))
+			return "system task_notification"
 		}
 	}
 	return "system " + subtype
@@ -261,33 +241,15 @@ func summarizeContentBlocks(blocks []sdkprotocol.ContentBlock) ([]string, string
 		}
 		blockTypes = append(blockTypes, blockType)
 		switch blockType {
-		case "text":
-			if textBlock, ok := sdkprotocol.AsTextBlock(block); ok {
-				if text := truncateForLog(textBlock.Text); text != "" {
-					previewParts = append(previewParts, text)
-				}
-			}
-		case "thinking":
-			if thinkingBlock, ok := sdkprotocol.AsThinkingBlock(block); ok {
-				if thinking := truncateForLog(thinkingBlock.Thinking); thinking != "" {
-					previewParts = append(previewParts, "thinking:"+thinking)
-				}
-			}
 		case "tool_use":
 			if toolUseBlock, ok := sdkprotocol.AsToolUseBlock(block); ok {
-				previewParts = append(previewParts, "tool_use:"+firstNonEmpty(toolUseBlock.Name, toolUseBlock.ID))
-			}
-		case "tool_result":
-			if toolResultBlock, ok := sdkprotocol.AsToolResultBlock(block); ok {
-				payload := truncateForLog(rawJSON(decodeRawJSON(toolResultBlock.Content)))
-				if payload == "" {
-					payload = toolResultBlock.ToolUseID
+				if toolName := safeToolName(firstNonEmpty(toolUseBlock.Name, toolUseBlock.ID)); toolName != "" {
+					previewParts = append(previewParts, "tool_use:"+toolName)
 				}
-				previewParts = append(previewParts, "tool_result:"+payload)
 			}
 		}
 	}
-	return blockTypes, truncateForLog(strings.Join(previewParts, " | "))
+	return blockTypes, strings.Join(previewParts, " | ")
 }
 
 func normalizeSDKBlockType(blockType string) string {
@@ -299,28 +261,6 @@ func normalizeSDKBlockType(blockType string) string {
 	default:
 		return strings.TrimSpace(blockType)
 	}
-}
-
-func rawJSON(value any) string {
-	if value == nil {
-		return ""
-	}
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return ""
-	}
-	return string(payload)
-}
-
-func decodeRawJSON(raw json.RawMessage) any {
-	if len(raw) == 0 {
-		return nil
-	}
-	var result any
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return strings.TrimSpace(string(raw))
-	}
-	return result
 }
 
 func rawMap(value any) map[string]any {
@@ -339,6 +279,10 @@ func rawString(value any) string {
 	}
 }
 
+func safeToolName(value string) string {
+	return strings.TrimSpace(value)
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -346,22 +290,4 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func truncateForLog(value string) string {
-	cleaned := strings.TrimSpace(strings.ReplaceAll(value, "\n", "\\n"))
-	if cleaned == "" {
-		return ""
-	}
-	if utf8.RuneCountInString(cleaned) <= sdkMessagePreviewLimit {
-		return cleaned
-	}
-	count := 0
-	for index := range cleaned {
-		if count == sdkMessagePreviewLimit {
-			return cleaned[:index] + "..."
-		}
-		count++
-	}
-	return cleaned
 }

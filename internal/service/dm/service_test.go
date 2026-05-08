@@ -186,6 +186,49 @@ func (s *dmTestSender) SendEvent(_ context.Context, event protocol.EventMessage)
 	return nil
 }
 
+type blockingDMTestSender struct {
+	key  string
+	done chan struct{}
+	once sync.Once
+}
+
+func (s *blockingDMTestSender) Key() string    { return s.key }
+func (s *blockingDMTestSender) IsClosed() bool { return false }
+func (s *blockingDMTestSender) SendEvent(ctx context.Context, _ protocol.EventMessage) error {
+	<-ctx.Done()
+	s.once.Do(func() {
+		close(s.done)
+	})
+	return ctx.Err()
+}
+
+func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
+	previousTimeout := dmBroadcastTimeout
+	dmBroadcastTimeout = 20 * time.Millisecond
+	t.Cleanup(func() {
+		dmBroadcastTimeout = previousTimeout
+	})
+
+	permission := permissionctx.NewContext()
+	sender := &blockingDMTestSender{
+		key:  "slow-sender",
+		done: make(chan struct{}),
+	}
+	permission.BindSession("session-1", sender, "client-1", true)
+	service := &Service{permission: permission}
+
+	startedAt := time.Now()
+	service.broadcastEventWithTimeout(context.Background(), "session-1", protocol.NewEvent(protocol.EventTypeMessage, map[string]any{}))
+	if elapsed := time.Since(startedAt); elapsed > 200*time.Millisecond {
+		t.Fatalf("DM 广播未按总超时返回: elapsed=%s", elapsed)
+	}
+	select {
+	case <-sender.done:
+	default:
+		t.Fatal("慢 sender 没有收到取消信号")
+	}
+}
+
 func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 	t.Helper()
 	db, err := sql.Open("sqlite3", cfg.DatabaseURL)

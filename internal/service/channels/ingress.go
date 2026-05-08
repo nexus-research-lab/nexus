@@ -33,6 +33,11 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebSearch": {},
 }
 
+const (
+	feishuReceiveIDTypeOpenID = "open_id"
+	feishuReceiveIDTypeChatID = "chat_id"
+)
+
 // DMHandler 定义统一 DM 入口能力。
 type DMHandler interface {
 	HandleChat(context.Context, dmsvc.Request) error
@@ -41,11 +46,13 @@ type DMHandler interface {
 // IngressRequest 表示一条来自外部通道的标准化消息。
 type IngressRequest struct {
 	Channel          string          `json:"channel,omitempty"`
+	OwnerUserID      string          `json:"owner_user_id,omitempty"`
 	SessionKey       string          `json:"session_key,omitempty"`
 	AgentID          string          `json:"agent_id,omitempty"`
 	ChatType         string          `json:"chat_type,omitempty"`
 	Ref              string          `json:"ref,omitempty"`
 	ThreadID         string          `json:"thread_id,omitempty"`
+	ExternalName     string          `json:"external_name,omitempty"`
 	Content          string          `json:"content"`
 	RoundID          string          `json:"round_id,omitempty"`
 	ReqID            string          `json:"req_id,omitempty"`
@@ -85,6 +92,7 @@ type IngressService struct {
 	agents    agentWorkspaceResolver
 	dm        DMHandler
 	router    *Router
+	control   *ControlService
 	idFactory func(string) string
 	logger    *slog.Logger
 }
@@ -104,6 +112,11 @@ func NewIngressService(
 		idFactory: newDeliveryID,
 		logger:    logx.NewDiscardLogger(),
 	}
+}
+
+// SetControlService 注入频道配置与配对授权服务。
+func (s *IngressService) SetControlService(control *ControlService) {
+	s.control = control
 }
 
 // SetLogger 注入业务日志实例。
@@ -245,6 +258,13 @@ func (s *IngressService) resolveSession(ctx context.Context, request IngressRequ
 	}
 
 	agentID := strings.TrimSpace(request.AgentID)
+	if agentID == "" && s.control != nil {
+		resolvedAgentID, pairErr := s.control.ResolveIngressAgent(ctx, request)
+		if pairErr != nil {
+			return "", protocol.SessionKey{}, "", pairErr
+		}
+		agentID = strings.TrimSpace(resolvedAgentID)
+	}
 	if agentID == "" {
 		if s.agents == nil {
 			return "", protocol.SessionKey{}, "", errors.New("channel ingress 缺少默认 agent 解析器")
@@ -317,6 +337,22 @@ func (s *IngressService) resolveRememberedTarget(
 			To:        channelID,
 			AccountID: guildID,
 			ThreadID:  strings.TrimSpace(parsed.ThreadID),
+		}
+		return &target, nil
+	case ChannelTypeFeishu:
+		receiveIDType := feishuReceiveIDTypeChatID
+		if parsed.ChatType != "group" {
+			receiveIDType = feishuReceiveIDTypeOpenID
+		}
+		target := DeliveryTarget{
+			Mode:      DeliveryModeExplicit,
+			Channel:   ChannelTypeFeishu,
+			To:        strings.TrimSpace(parsed.Ref),
+			AccountID: receiveIDType,
+			ThreadID:  strings.TrimSpace(parsed.ThreadID),
+		}
+		if target.To == "" {
+			return nil, nil
 		}
 		return &target, nil
 	default:
