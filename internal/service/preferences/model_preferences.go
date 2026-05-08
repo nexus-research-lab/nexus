@@ -16,8 +16,8 @@ type Preferences struct {
 
 // UpdateRequest 表示偏好更新请求。字段为 nil 时保留原值。
 type UpdateRequest struct {
-	ChatDefaultDeliveryPolicy *string           `json:"chat_default_delivery_policy,omitempty"`
-	DefaultAgentOptions       *protocol.Options `json:"default_agent_options,omitempty"`
+	ChatDefaultDeliveryPolicy *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
+	DefaultAgentOptions       *protocol.Options            `json:"default_agent_options,omitempty"`
 }
 
 // DefaultAllowedTools 返回新建 Agent 默认启用的工具集合。
@@ -58,7 +58,10 @@ func DefaultPreferences() Preferences {
 }
 
 func normalizePreferences(item Preferences) Preferences {
-	policy := protocol.NormalizeChatDeliveryPolicy(string(item.ChatDefaultDeliveryPolicy))
+	policy := item.ChatDefaultDeliveryPolicy
+	if policy == "" {
+		policy = protocol.ChatDeliveryPolicyQueue
+	}
 	options := item.DefaultAgentOptions
 	if strings.TrimSpace(options.PermissionMode) == "" {
 		options.PermissionMode = "bypassPermissions"

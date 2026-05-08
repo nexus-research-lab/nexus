@@ -152,6 +152,7 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt())
+	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
 	mcpServers := map[string]agentclient.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")

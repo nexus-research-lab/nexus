@@ -7,7 +7,7 @@
 
 import { request_api } from "@/lib/api/http";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
-import type { AgentConversationDeliveryPolicy } from "@/types/agent/agent-conversation";
+import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
 import { DEFAULT_AGENT_ALLOWED_TOOLS } from "@/features/agents/options/agent-options-constants";
 
@@ -15,7 +15,7 @@ export let DEFAULT_AGENT_ID = "";
 export let DEFAULT_AGENT_AVATAR = "";
 export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
-let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDeliveryPolicy = "queue";
+let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
   permission_mode: "bypassPermissions",
   allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
@@ -101,7 +101,7 @@ export function get_initial_agent_options(): Partial<AgentOptions> {
   return clone_agent_options(DEFAULT_AGENT_OPTIONS);
 }
 
-export function get_default_chat_delivery_policy(): AgentConversationDeliveryPolicy {
+export function get_default_chat_delivery_policy(): AgentConversationDefaultDeliveryPolicy {
   return DEFAULT_CHAT_DELIVERY_POLICY;
 }
 
@@ -114,7 +114,7 @@ export function get_user_preferences(): UserPreferences {
 
 export function set_user_preferences(preferences?: Partial<UserPreferences> | null): void {
   const policy = preferences?.chat_default_delivery_policy;
-  if (policy === "queue" || policy === "guide" || policy === "interrupt" || policy === "auto") {
+  if (policy !== undefined) {
     DEFAULT_CHAT_DELIVERY_POLICY = policy;
   }
   DEFAULT_AGENT_OPTIONS = normalize_agent_options(preferences?.default_agent_options);

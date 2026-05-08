@@ -39,7 +39,7 @@ import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import type { AgentConversationDeliveryPolicy } from "@/types/agent/agent-conversation";
+import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
 import type { Locale } from "@/shared/i18n/messages";
 
@@ -59,11 +59,10 @@ const SETTINGS_TABS: {
 ];
 
 const DELIVERY_POLICY_OPTIONS: ReadonlyArray<{
-  value: AgentConversationDeliveryPolicy;
-  label_key: "settings.general.default_delivery_queue" | "settings.general.default_delivery_guide" | "settings.general.default_delivery_interrupt";
+  value: AgentConversationDefaultDeliveryPolicy;
+  label_key: "settings.general.default_delivery_queue" | "settings.general.default_delivery_interrupt";
 }> = [
   { value: "queue", label_key: "settings.general.default_delivery_queue" },
-  { value: "guide", label_key: "settings.general.default_delivery_guide" },
   { value: "interrupt", label_key: "settings.general.default_delivery_interrupt" },
 ];
 
@@ -268,7 +267,7 @@ function GeneralSettingsSection() {
     }
   }, [t]);
 
-  const handle_delivery_policy_change = useCallback((value: AgentConversationDeliveryPolicy) => {
+  const handle_delivery_policy_change = useCallback((value: AgentConversationDefaultDeliveryPolicy) => {
     const current_preferences = preferences_ref.current;
     void persist_preferences({
       ...current_preferences,

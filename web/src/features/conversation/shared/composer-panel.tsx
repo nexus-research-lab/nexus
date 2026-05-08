@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
+  AgentConversationDefaultDeliveryPolicy,
   AgentConversationDeliveryPolicy,
   AgentConversationRuntimePhase,
   InputQueueItem,
@@ -65,7 +66,7 @@ interface ComposerPanelProps {
   on_guide_queued_message?: (item_id: string) => void | Promise<void>;
   on_reorder_queue_messages?: (ordered_ids: string[]) => void | Promise<void>;
   on_stop?: () => void;
-  default_delivery_policy?: AgentConversationDeliveryPolicy;
+  default_delivery_policy?: AgentConversationDefaultDeliveryPolicy;
   initial_draft?: string | null;
   disabled?: boolean;
   allow_send_while_loading?: boolean;
@@ -378,7 +379,10 @@ const ComposerPanelView = memo(({
         }
         await on_enqueue_message?.(next_message, default_delivery_policy);
       } else {
-        await dispatch_message(next_message, default_delivery_policy);
+        const delivery_policy = is_loading || input_queue_items.length > 0
+          ? default_delivery_policy
+          : "queue";
+        await dispatch_message(next_message, delivery_policy);
       }
       setInput("");
       setAttachments([]);

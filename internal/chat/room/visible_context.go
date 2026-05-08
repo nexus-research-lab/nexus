@@ -61,7 +61,7 @@ func BuildSystemPrompt() string {
 	return `# Nexus Room 公区协作规则
 
 你正在 Nexus 的多人协作 Room 中参与公开协作。
-Room 运行时会在每轮用户消息里提供成员目录、public_feed 和 latest_trigger；public_feed 是你上次处理之后的新公区消息，latest_trigger 是这次唤醒你的直接原因。
+Room 运行时会在系统提示词中提供成员目录，并在每轮用户消息里提供 public_feed 和 latest_trigger；public_feed 是你上次处理之后的新公区消息，latest_trigger 是这次唤醒你的直接原因。
 规则：
 1. 只把 <public_feed> 里的内容当作权威公共历史。
 2. 不要把未完成、被取消或报错的回复当作事实。
@@ -75,6 +75,15 @@ Room 运行时会在每轮用户消息里提供成员目录、public_feed 和 la
 10. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。`
 }
 
+// BuildMemberDirectoryPrompt 构建 Room 级稳定成员目录提示词。
+func BuildMemberDirectoryPrompt(agentNameByID map[string]string) string {
+	return fmt.Sprintf(
+		"# Nexus Room 成员目录\n\n"+
+			"<room_member_directory>\n%s\n</room_member_directory>",
+		formatMemberDirectory(agentNameByID),
+	)
+}
+
 // BuildVisibleContext 构建 Room 成员本轮动态输入。
 func BuildVisibleContext(input VisibleContextInput) string {
 	lines := buildHistoryLines(input.PublicMessages, input.AgentNameByID)
@@ -83,10 +92,8 @@ func BuildVisibleContext(input VisibleContextInput) string {
 	}
 
 	return fmt.Sprintf(
-		"<room_member_directory>\n%s\n</room_member_directory>\n\n"+
-			"<public_feed>\n%s\n</public_feed>\n\n"+
+		"<public_feed>\n%s\n</public_feed>\n\n"+
 			"<latest_trigger>\n%s\n</latest_trigger>",
-		formatMemberDirectory(input.AgentNameByID),
 		strings.Join(lines, "\n"),
 		formatRoomTrigger(input.LatestTrigger, input.AgentNameByID),
 	)

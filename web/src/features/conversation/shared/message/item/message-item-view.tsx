@@ -132,14 +132,7 @@ export function MessageUserSection({
               </MessageAvatar>
             </div>
 
-            <div
-              className={cn(
-                "ml-auto w-fit max-w-full rounded-2xl px-4 py-3",
-                is_guided_user_message
-                  ? "border border-(--divider-subtle-color) bg-(--surface-inset-background)"
-                  : "bg-[color-mix(in_srgb,var(--primary)_6%,var(--material-card-background))]",
-              )}
-            >
+            <div className="ml-auto w-fit max-w-full rounded-2xl px-4 py-3">
               <ContentRenderer
                 content={user_content}
                 on_open_workspace_file={on_open_workspace_file}

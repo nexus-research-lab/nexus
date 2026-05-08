@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
@@ -42,7 +41,7 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 		return Preferences{}, err
 	}
 	if request.ChatDefaultDeliveryPolicy != nil {
-		current.ChatDefaultDeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(*request.ChatDefaultDeliveryPolicy)
+		current.ChatDefaultDeliveryPolicy = *request.ChatDefaultDeliveryPolicy
 	}
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions

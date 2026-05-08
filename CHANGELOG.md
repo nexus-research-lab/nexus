@@ -9,10 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - DM 与 Room 输入区新增待发送队列：运行中或已有排队消息时，Enter 会把新输入加入队列，队列项支持手动引导、删除与拖拽排序。
-- 常规设置新增用户级默认消息行为与新建 Agent 默认权限模式，偏好写入 workspace JSON，不新增数据库表。
+- 常规设置新增用户级默认消息行为与新建 Agent 默认权限模式；默认消息行为仅支持排队/打断，偏好写入 workspace JSON，不新增数据库表。
 
 ### Changed
-- 输入框不再内联展示“排队 / 引导 / 打断”选择，消息行为改由常规设置统一控制，默认行为为排队。
+- 输入框不再内联展示“排队 / 引导 / 打断”选择，默认消息行为改由常规设置统一控制；引导只保留为待发送队列项的手动动作。
 - 常规设置页按外观、常规、权限分区展示，文案与控件更紧凑；偏好项选择后即时保存，权限设置收敛为四种权限模式下拉选择。
 - DM 与 Room 的“引导”改为持久队列状态：点击后不会立即消失，只有对应 round 的 PostToolUse hook 真正注入时才消费。
 - 引导消息历史改为从 Claude transcript 的 `hook_additional_context` 回放，不再写入 overlay 作为重复真相源。

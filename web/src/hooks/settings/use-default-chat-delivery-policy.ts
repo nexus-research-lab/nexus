@@ -4,11 +4,11 @@ import {
   get_default_chat_delivery_policy,
   USER_PREFERENCES_CHANGED_EVENT,
 } from "@/config/options";
-import type { AgentConversationDeliveryPolicy } from "@/types/agent/agent-conversation";
+import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
 
-export function useDefaultChatDeliveryPolicy(): AgentConversationDeliveryPolicy {
-  const [policy, set_policy] = useState<AgentConversationDeliveryPolicy>(
+export function useDefaultChatDeliveryPolicy(): AgentConversationDefaultDeliveryPolicy {
+  const [policy, set_policy] = useState<AgentConversationDefaultDeliveryPolicy>(
     () => get_default_chat_delivery_policy(),
   );
 

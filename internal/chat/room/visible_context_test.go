@@ -143,10 +143,20 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		}
 	}
 
-	contextValue := BuildVisibleContext(input)
+	memberDirectoryPrompt := BuildMemberDirectoryPrompt(input.AgentNameByID)
 	for _, expected := range []string{
+		"# Nexus Room 成员目录",
 		"<room_member_directory>",
 		"- name=Devin agent_id=agent-devin",
+	} {
+		if !strings.Contains(memberDirectoryPrompt, expected) {
+			t.Fatalf("Room 成员目录 prompt 缺少片段 %q:\n%s", expected, memberDirectoryPrompt)
+		}
+	}
+
+	contextValue := BuildVisibleContext(input)
+	for _, expected := range []string{
+		"<public_feed>",
 		"\"trigger_type\":\"public_mention\"",
 		"\"public_mention_target_count\":2",
 		"Assistant(Amy): 第一轮开始",
@@ -158,6 +168,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	for _, unexpected := range []string{
 		"# Nexus Room 公区协作规则",
 		"<current_room_member>",
+		"<room_member_directory>",
 		"@ 是执行触发",
 		"<nexus_room_no_reply/>",
 	} {

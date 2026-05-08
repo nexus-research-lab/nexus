@@ -302,7 +302,10 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	for _, expected := range []string{
 		"# Nexus Room 公区协作规则",
 		"你正在 Nexus 的多人协作 Room 中参与公开协作",
-		"Room 运行时会在每轮用户消息里提供成员目录、public_feed 和 latest_trigger",
+		"Room 运行时会在系统提示词中提供成员目录，并在每轮用户消息里提供 public_feed 和 latest_trigger",
+		"# Nexus Room 成员目录",
+		"<room_member_directory>",
+		"- name=单聊助手 agent_id=" + memberAgent.AgentID,
 	} {
 		if !strings.Contains(roomSystemPrompt, expected) {
 			t.Fatalf("Room 固定规则应注入 SDK append system prompt，缺少 %q:\n%s", expected, roomSystemPrompt)
@@ -310,7 +313,6 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 	for _, unexpected := range []string{
 		"以成员 单聊助手",
-		"<room_member_directory>",
 		"<current_room_member>",
 	} {
 		if strings.Contains(roomSystemPrompt, unexpected) {
@@ -908,12 +910,19 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	select {
 	case prompt := <-devinPrompt:
 		if !strings.Contains(prompt, "public_mention") ||
-			!strings.Contains(prompt, "@Devin 请查询天气") ||
-			!strings.Contains(prompt, "agent_id="+devin.AgentID) {
+			!strings.Contains(prompt, "@Devin 请查询天气") {
 			t.Fatalf("Devin prompt 缺少公区 @ 触发上下文: %s", prompt)
+		}
+		if strings.Contains(prompt, "<room_member_directory>") {
+			t.Fatalf("Devin 动态 prompt 不应重复成员目录: %s", prompt)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Devin 未被公区 @ 唤醒")
+	}
+	roomSystemPrompt := factory.LastOptions().AppendSystemPrompt
+	if !strings.Contains(roomSystemPrompt, "<room_member_directory>") ||
+		!strings.Contains(roomSystemPrompt, "agent_id="+devin.AgentID) {
+		t.Fatalf("Devin system prompt 应包含 Room 成员目录: %s", roomSystemPrompt)
 	}
 	if !hasChatAckPendingAgent(events, devin.AgentID) {
 		t.Fatalf("事件流缺少 Devin 公区 @ 唤醒 slot: %+v", events)
