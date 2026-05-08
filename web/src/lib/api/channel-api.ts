@@ -23,6 +23,8 @@ export interface ChannelCatalogItem {
   bot_label: string;
   description: string;
   docs_url?: string;
+  runtime_status: "ready" | "external_adapter" | string;
+  runtime_note?: string;
   supports_group: boolean;
   supports_qr_code: boolean;
   supports_oauth_link: boolean;
