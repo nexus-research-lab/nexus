@@ -34,6 +34,7 @@ type activeRoomSlot struct {
 	NoReplyCandidate  bool
 	PendingStream     []protocol.EventMessage
 	Done              chan struct{}
+	stateMu           sync.RWMutex
 	inputMu           sync.Mutex
 	doneOnce          sync.Once
 }
@@ -109,7 +110,7 @@ func (s *RealtimeService) CountRunningTasks(agentID string) int {
 	count := 0
 	for _, roundValue := range s.activeRounds {
 		for _, slot := range roundValue.Slots {
-			if slot.AgentID == agentID && slot.Status != "finished" && slot.Status != "error" && slot.Status != "cancelled" {
+			if slot != nil && slot.AgentID == agentID && !slot.isTerminal() {
 				count++
 			}
 		}
@@ -135,10 +136,10 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 			snapshot.RoundID = roundValue.RoundID
 		}
 		for _, slot := range roundValue.Slots {
-			if slot == nil || slot.Status == "finished" || slot.Status == "error" || slot.Status == "cancelled" {
+			if slot == nil || slot.isTerminal() {
 				continue
 			}
-			status := slot.Status
+			status := slot.getStatus()
 			if status == "running" {
 				status = "streaming"
 			}
@@ -215,6 +216,161 @@ func (s *RealtimeService) finishSlot(slot *activeRoomSlot) {
 	})
 }
 
+func (slot *activeRoomSlot) getStatus() string {
+	if slot == nil {
+		return ""
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return slot.Status
+}
+
+func (slot *activeRoomSlot) setStatus(status string) {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.Status = status
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) isTerminal() bool {
+	switch slot.getStatus() {
+	case "finished", "error", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func (slot *activeRoomSlot) setSDKSessionID(sessionID string) bool {
+	if slot == nil {
+		return false
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if sessionID == "" || sessionID == strings.TrimSpace(slot.SDKSessionID) {
+		return false
+	}
+	slot.SDKSessionID = sessionID
+	return true
+}
+
+func (slot *activeRoomSlot) getSDKSessionID() string {
+	if slot == nil {
+		return ""
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return strings.TrimSpace(slot.SDKSessionID)
+}
+
+func (slot *activeRoomSlot) setClient(client runtimectx.Client) {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.Client = client
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) getClient() runtimectx.Client {
+	if slot == nil {
+		return nil
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return slot.Client
+}
+
+func (slot *activeRoomSlot) setInterruptReason(reason string) {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.InterruptReason = reason
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) getInterruptReason() string {
+	if slot == nil {
+		return ""
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return strings.TrimSpace(slot.InterruptReason)
+}
+
+func (slot *activeRoomSlot) beginNoReplyCandidate() {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.NoReplyCandidate = true
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) suppressOutput() {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.SuppressOutput = true
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) shouldSuppressOutput() bool {
+	if slot == nil {
+		return false
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return slot.SuppressOutput
+}
+
+func (slot *activeRoomSlot) eventsReadyForEmission(event protocol.EventMessage) []protocol.EventMessage {
+	if slot == nil {
+		return []protocol.EventMessage{event}
+	}
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if slot.SuppressOutput {
+		slot.PendingStream = nil
+		return nil
+	}
+	if slot.NoReplyCandidate {
+		if event.EventType != protocol.EventTypeStream {
+			slot.NoReplyCandidate = false
+		} else if roomdomain.IsNoReplyCandidateStreamEvent(event) {
+			slot.PendingStream = append(slot.PendingStream, event)
+			return nil
+		} else {
+			slot.NoReplyCandidate = false
+		}
+	}
+	if len(slot.PendingStream) == 0 {
+		return []protocol.EventMessage{event}
+	}
+	events := append([]protocol.EventMessage(nil), slot.PendingStream...)
+	slot.PendingStream = nil
+	events = append(events, event)
+	return events
+}
+
+func (slot *activeRoomSlot) markCancelled() bool {
+	if slot == nil {
+		return false
+	}
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if slot.Status == "cancelled" {
+		return false
+	}
+	slot.Status = "cancelled"
+	return true
+}
+
 func (slot *activeRoomSlot) enqueueQueuedInput(roundID string, content string) {
 	if slot == nil || strings.TrimSpace(content) == "" {
 		return
@@ -279,14 +435,14 @@ func markRoomSlotInterrupted(slot *activeRoomSlot, reason string) {
 	if slot == nil {
 		return
 	}
-	slot.InterruptReason = normalizeRoomInterruptReason(reason)
+	slot.setInterruptReason(normalizeRoomInterruptReason(reason))
 }
 
 func roomSlotInterruptReason(slot *activeRoomSlot) string {
 	if slot == nil {
 		return ""
 	}
-	return strings.TrimSpace(slot.InterruptReason)
+	return slot.getInterruptReason()
 }
 
 func (r *activeRoomRound) allSlotsCancelled() bool {
@@ -294,7 +450,7 @@ func (r *activeRoomRound) allSlotsCancelled() bool {
 		return false
 	}
 	for _, slot := range r.Slots {
-		if slot.Status != "cancelled" {
+		if slot == nil || slot.getStatus() != "cancelled" {
 			return false
 		}
 	}
@@ -306,7 +462,7 @@ func (r *activeRoomRound) hasSlotError() bool {
 		return false
 	}
 	for _, slot := range r.Slots {
-		if slot != nil && slot.Status == "error" {
+		if slot != nil && slot.getStatus() == "error" {
 			return true
 		}
 	}
