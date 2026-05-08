@@ -150,6 +150,133 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	}
 }
 
+func TestAgentHistoryStoreTranscriptCacheUsesRoundMarkers(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "e100c0a7-6e11-43d6-9e8f-d74af06f54ed"
+	if err := appendAgentHistoryRoundMarker(history, workspacePath, sessionKey, "round-old", "安装 skill", 1000); err != nil {
+		t.Fatalf("写入第一条 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-1",
+			"sessionId": sessionID,
+			"timestamp": "1970-01-01T00:00:02.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "安装 skill",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-1",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-1",
+			"timestamp":  "1970-01-01T00:00:03.000Z",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "已安装"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("首次读取历史失败: %v", err)
+	}
+	assertAgentHistoryAssistantRound(t, rows, "round-old")
+
+	if err := appendAgentHistoryRoundMarker(history, workspacePath, sessionKey, "round-new", "安装 skill", 2000); err != nil {
+		t.Fatalf("写入第二条 round marker 失败: %v", err)
+	}
+	rows, err = history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("第二次读取历史失败: %v", err)
+	}
+	assertAgentHistoryAssistantRound(t, rows, "round-new")
+}
+
+func TestAgentHistoryStoreKeepsFutureMarkerOffPreviousTranscriptUser(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "dbccf541-055b-4ace-b1e5-bec64a5bbac7"
+	if err := appendAgentHistoryRoundMarker(history, workspacePath, sessionKey, "round-delete", "删除它", 1000); err != nil {
+		t.Fatalf("写入旧 round marker 失败: %v", err)
+	}
+	if err := appendAgentHistoryRoundMarker(history, workspacePath, sessionKey, "round-install", "安装 skill", 3000); err != nil {
+		t.Fatalf("写入新 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-delete",
+			"sessionId": sessionID,
+			"timestamp": "1970-01-01T00:00:02.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "删除它",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-delete",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-delete",
+			"timestamp":  "1970-01-01T00:00:02.500Z",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "已删除"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	assertAgentHistoryAssistantRound(t, rows, "round-delete")
+}
+
 func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")
@@ -223,6 +350,36 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 		metadata["source_round_id"] != "queue_guide_1" {
 		t.Fatalf("引导 metadata 不正确: %+v", *guidance)
 	}
+}
+
+func appendAgentHistoryRoundMarker(
+	history *AgentHistoryStore,
+	workspacePath string,
+	sessionKey string,
+	roundID string,
+	content string,
+	timestamp int64,
+) error {
+	return history.AppendOverlayMessage(workspacePath, sessionKey, protocol.Message{
+		overlayKindField: overlayKindRoundMarker,
+		"round_id":       roundID,
+		"content":        content,
+		"timestamp":      timestamp,
+	})
+}
+
+func assertAgentHistoryAssistantRound(t *testing.T, rows []protocol.Message, wantRoundID string) {
+	t.Helper()
+	for _, row := range rows {
+		if stringFromAny(row["role"]) != "assistant" {
+			continue
+		}
+		if got := stringFromAny(row["round_id"]); got != wantRoundID {
+			t.Fatalf("assistant round_id 不正确: got=%s want=%s rows=%+v", got, wantRoundID, rows)
+		}
+		return
+	}
+	t.Fatalf("没有找到 assistant 消息: %+v", rows)
 }
 
 func writeAgentTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {

@@ -133,8 +133,14 @@ func (s *Service) SetTitleGenerator(generator titleScheduler) {
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
-	if errs := s.permission.BroadcastSessionStatus(ctx, sessionKey, s.runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
-		s.loggerFor(ctx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
+	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
+	defer cancel()
+	if errs := s.permission.BroadcastSessionStatus(
+		broadcastCtx,
+		sessionKey,
+		s.runtime.GetRunningRoundIDs(sessionKey),
+	); len(errs) > 0 {
+		s.loggerFor(broadcastCtx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
 	}
 }
 

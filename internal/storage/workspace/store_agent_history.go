@@ -36,10 +36,11 @@ var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 var transcriptGuidanceLinePattern = regexp.MustCompile(`^\s*\d+\.\s+(?:round_id=([^:]+):\s*)?(.+?)\s*$`)
 
 type transcriptCacheEntry struct {
-	FileSize      int64
-	ModifiedUnix  int64
-	LastAccessUTC int64
-	Messages      []protocol.Message
+	FileSize               int64
+	ModifiedUnix           int64
+	RoundMarkerFingerprint string
+	LastAccessUTC          int64
+	Messages               []protocol.Message
 }
 
 type transcriptEntry struct {
@@ -325,7 +326,8 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 		return nil, err
 	}
 
-	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo); ok {
+	roundMarkerFingerprint := fingerprintTranscriptRoundMarkers(roundMarkers)
+	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint); ok {
 		return cachedRows, nil
 	}
 
@@ -335,7 +337,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	}
 	chain := buildPrimaryTranscriptChain(entries)
 	projectedRows := projectTranscriptChain(sessionKey, agentID, chain, roundMarkers)
-	s.writeTranscriptCache(transcriptPath, fileInfo, projectedRows)
+	s.writeTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint, projectedRows)
 	return projectedRows, nil
 }
 
@@ -418,14 +420,20 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 	return "", os.ErrNotExist
 }
 
-func (s *AgentHistoryStore) readTranscriptCache(path string, fileInfo os.FileInfo) ([]protocol.Message, bool) {
+func (s *AgentHistoryStore) readTranscriptCache(
+	path string,
+	fileInfo os.FileInfo,
+	roundMarkerFingerprint string,
+) ([]protocol.Message, bool) {
 	s.cacheMu.RLock()
 	entry, exists := s.messageCache[path]
 	s.cacheMu.RUnlock()
 	if !exists {
 		return nil, false
 	}
-	if entry.FileSize != fileInfo.Size() || entry.ModifiedUnix != fileInfo.ModTime().UnixNano() {
+	if entry.FileSize != fileInfo.Size() ||
+		entry.ModifiedUnix != fileInfo.ModTime().UnixNano() ||
+		entry.RoundMarkerFingerprint != roundMarkerFingerprint {
 		return nil, false
 	}
 
@@ -440,18 +448,42 @@ func (s *AgentHistoryStore) readTranscriptCache(path string, fileInfo os.FileInf
 func (s *AgentHistoryStore) writeTranscriptCache(
 	path string,
 	fileInfo os.FileInfo,
+	roundMarkerFingerprint string,
 	rows []protocol.Message,
 ) {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
 
 	s.messageCache[path] = transcriptCacheEntry{
-		FileSize:      fileInfo.Size(),
-		ModifiedUnix:  fileInfo.ModTime().UnixNano(),
-		LastAccessUTC: time.Now().UTC().UnixNano(),
-		Messages:      rows,
+		FileSize:               fileInfo.Size(),
+		ModifiedUnix:           fileInfo.ModTime().UnixNano(),
+		RoundMarkerFingerprint: roundMarkerFingerprint,
+		LastAccessUTC:          time.Now().UTC().UnixNano(),
+		Messages:               rows,
 	}
 	s.pruneTranscriptCacheLocked()
+}
+
+func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) string {
+	if len(roundMarkers) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for _, marker := range roundMarkers {
+		builder.WriteString(strconv.Itoa(len(marker.RoundID)))
+		builder.WriteString(":")
+		builder.WriteString(marker.RoundID)
+		builder.WriteString("|")
+		builder.WriteString(strconv.Itoa(len(marker.Content)))
+		builder.WriteString(":")
+		builder.WriteString(marker.Content)
+		builder.WriteString("|")
+		builder.WriteString(strconv.FormatInt(marker.Timestamp, 10))
+		builder.WriteString("|")
+		builder.WriteString(marker.DeliveryPolicy)
+		builder.WriteString("\n")
+	}
+	return builder.String()
 }
 
 func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
@@ -797,23 +829,56 @@ func alignTranscriptRoundMarkers(
 	if len(roundMarkers) == 0 {
 		return nil
 	}
-	// transcript 只保留当前主链末端的用户轮次，而 overlay 可能保留了更早的 round marker。
-	// 这里必须按尾部对齐，保证最新 transcript user 绑定到最新 round marker，
-	// 不能从头部顺序消费，否则会把前序轮次用户输入错绑到新的 assistant 回复上。
-	transcriptUserCount := countTranscriptUserTurns(chain)
-	if transcriptUserCount <= 0 {
+	userTurns := collectTranscriptUserTurns(chain)
+	if len(userTurns) == 0 {
 		return nil
 	}
-	if transcriptUserCount >= len(roundMarkers) {
-		return append([]transcriptRoundMarker(nil), roundMarkers...)
+
+	aligned := make([]transcriptRoundMarker, len(userTurns))
+	used := make([]bool, len(roundMarkers))
+	for index, turn := range userTurns {
+		markerIndex := findMatchingRoundMarker(roundMarkers, used, turn)
+		if markerIndex < 0 {
+			continue
+		}
+		aligned[index] = roundMarkers[markerIndex]
+		used[markerIndex] = true
 	}
-	startIndex := len(roundMarkers) - transcriptUserCount
-	return append([]transcriptRoundMarker(nil), roundMarkers[startIndex:]...)
+
+	fallback := tailTranscriptRoundMarkers(roundMarkers, len(userTurns))
+	fallbackIndex := 0
+	for index := range aligned {
+		if strings.TrimSpace(aligned[index].RoundID) != "" || strings.TrimSpace(aligned[index].Content) != "" {
+			continue
+		}
+		for fallbackIndex < len(fallback) {
+			candidate := fallback[fallbackIndex]
+			fallbackIndex++
+			if markerAlreadyAligned(aligned, candidate) {
+				continue
+			}
+			aligned[index] = candidate
+			break
+		}
+	}
+	return aligned
 }
 
 func countTranscriptUserTurns(chain []transcriptEntry) int {
-	count := 0
+	return len(collectTranscriptUserTurns(chain))
+}
+
+type transcriptUserTurn struct {
+	Content   string
+	Timestamp int64
+}
+
+func collectTranscriptUserTurns(chain []transcriptEntry) []transcriptUserTurn {
+	turns := make([]transcriptUserTurn, 0)
+	var lastTimestamp int64
 	for _, entry := range chain {
+		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
+		lastTimestamp = entryTimestamp
 		decoded, err := sdkprotocol.DecodeMessage(entry.Data)
 		if err != nil {
 			continue
@@ -821,10 +886,84 @@ func countTranscriptUserTurns(chain []transcriptEntry) int {
 		if decoded.Type == sdkprotocol.MessageTypeUser &&
 			!isTranscriptToolResult(decoded) &&
 			shouldMaterializeTranscriptUserTurn(entry.Data) {
-			count++
+			turns = append(turns, transcriptUserTurn{
+				Content:   sanitizeTranscriptUserContent(transcriptUserContent(entry.Data)),
+				Timestamp: entryTimestamp,
+			})
 		}
 	}
-	return count
+	return turns
+}
+
+func findMatchingRoundMarker(
+	roundMarkers []transcriptRoundMarker,
+	used []bool,
+	turn transcriptUserTurn,
+) int {
+	content := strings.TrimSpace(turn.Content)
+	if content == "" {
+		return -1
+	}
+	bestIndex := -1
+	var bestDistance int64
+	for index, marker := range roundMarkers {
+		if index < len(used) && used[index] {
+			continue
+		}
+		if strings.TrimSpace(marker.Content) != content {
+			continue
+		}
+		distance, ok := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
+		if !ok {
+			continue
+		}
+		if bestIndex < 0 || distance < bestDistance || (distance == bestDistance && index > bestIndex) {
+			bestIndex = index
+			bestDistance = distance
+		}
+	}
+	return bestIndex
+}
+
+func transcriptRoundMarkerDistance(turnTimestamp int64, markerTimestamp int64) (int64, bool) {
+	if turnTimestamp <= 0 || markerTimestamp <= 0 {
+		return 0, true
+	}
+	// 允许少量落盘顺序抖动，但不要把新追加的 marker 绑定到旧 transcript user。
+	const markerFutureToleranceMS = 5 * 1000
+	if markerTimestamp > turnTimestamp+markerFutureToleranceMS {
+		return 0, false
+	}
+	if turnTimestamp >= markerTimestamp {
+		return turnTimestamp - markerTimestamp, true
+	}
+	return markerTimestamp - turnTimestamp, true
+}
+
+func tailTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker, count int) []transcriptRoundMarker {
+	if count <= 0 {
+		return nil
+	}
+	if count >= len(roundMarkers) {
+		return append([]transcriptRoundMarker(nil), roundMarkers...)
+	}
+	startIndex := len(roundMarkers) - count
+	return append([]transcriptRoundMarker(nil), roundMarkers[startIndex:]...)
+}
+
+func markerAlreadyAligned(aligned []transcriptRoundMarker, candidate transcriptRoundMarker) bool {
+	for _, marker := range aligned {
+		if strings.TrimSpace(marker.RoundID) == "" && strings.TrimSpace(marker.Content) == "" {
+			continue
+		}
+		if marker.RoundID == candidate.RoundID &&
+			marker.Content == candidate.Content &&
+			marker.Timestamp == candidate.Timestamp &&
+			marker.DeliveryPolicy == candidate.DeliveryPolicy {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {

@@ -84,7 +84,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"result_subtype", result.ResultSubtype,
 	)
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
-	r.service.permission.BroadcastEvent(
+	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
@@ -137,7 +137,7 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
-			r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			return nil
 		},
 	})
@@ -200,7 +200,7 @@ func (r *roundRunner) failRound(err error) {
 		event.AgentID = r.agent.AgentID
 		event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
 		event.DeliveryMode = "durable"
-		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
 	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
 	errorEvent.AgentID = r.agent.AgentID
@@ -208,8 +208,8 @@ func (r *roundRunner) failRound(err error) {
 	if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
 		errorEvent.MessageID = messageID
 	}
-	r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, errorEvent)
-	r.service.permission.BroadcastEvent(
+	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)
+	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "error", "error"),
@@ -301,9 +301,9 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		event.AgentID = r.agent.AgentID
 		event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
 		event.DeliveryMode = "durable"
-		r.service.permission.BroadcastEvent(context.Background(), r.sessionKey, event)
+		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
-	r.service.permission.BroadcastEvent(
+	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),

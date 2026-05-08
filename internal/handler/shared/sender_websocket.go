@@ -58,5 +58,9 @@ func (s *WebSocketSender) SendEvent(ctx context.Context, event protocol.EventMes
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, WebSocketWriteTimeout)
 	defer cancel()
-	return wsjson.Write(writeCtx, s.conn, event)
+	if err := wsjson.Write(writeCtx, s.conn, event); err != nil {
+		s.MarkClosed()
+		return err
+	}
+	return nil
 }
