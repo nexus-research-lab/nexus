@@ -290,7 +290,7 @@ func (s *ControlService) UpsertChannelConfig(
 	if !ok {
 		return nil, ErrChannelNotFound
 	}
-	if isPlannedChannel(channelType) {
+	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
 		return nil, errors.New("消息渠道未上线")
 	}
 	agentID := strings.TrimSpace(request.AgentID)
@@ -1029,15 +1029,32 @@ func (s *ControlService) configureRouterChannel(
 	if s.router == nil {
 		return nil
 	}
-	if isPlannedChannel(channelType) {
+	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
 		return nil
 	}
-	_ = configJSON
+	publicConfig, err := decodeStringMap(configJSON)
+	if err != nil {
+		return err
+	}
 	secrets, err := s.decryptCredentials(encrypted)
 	if err != nil {
 		return err
 	}
 	switch normalizeIMChannelType(channelType) {
+	case ChannelTypeDingTalk:
+		clientID := strings.TrimSpace(firstNonEmpty(publicConfig["client_id"], publicConfig["app_key"], secrets["client_id"], secrets["app_key"]))
+		clientSecret := strings.TrimSpace(secrets["client_secret"])
+		if clientID == "" || clientSecret == "" {
+			return nil
+		}
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newDingTalkChannel(clientID, clientSecret, nil).WithOwner(ownerUserID))
+	case ChannelTypeFeishu:
+		appID := strings.TrimSpace(firstNonEmpty(publicConfig["app_id"], secrets["app_id"]))
+		appSecret := strings.TrimSpace(secrets["app_secret"])
+		if appID == "" || appSecret == "" {
+			return nil
+		}
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newFeishuChannel(appID, appSecret).WithOwner(ownerUserID))
 	case ChannelTypeTelegram:
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
@@ -1276,6 +1293,15 @@ func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
 func isPlannedChannel(channelType string) bool {
 	item, ok := channelCatalogByType(channelType)
 	return ok && item.RuntimeStatus == "planned"
+}
+
+func hasHiddenChannelBackend(channelType string) bool {
+	switch normalizeIMChannelType(channelType) {
+	case ChannelTypeDingTalk, ChannelTypeFeishu:
+		return true
+	default:
+		return false
+	}
 }
 
 func sortedChannelTypes() []string {
