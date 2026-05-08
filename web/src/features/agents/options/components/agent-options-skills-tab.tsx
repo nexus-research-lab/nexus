@@ -4,6 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import { Loader2, Lock, Search } from "lucide-react";
 
 import { get_agent_skills_api, install_skill_api, uninstall_skill_api } from "@/lib/api/skill-api";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { get_dialog_action_class_name } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
@@ -23,6 +24,7 @@ export function AgentOptionsSkillsTab({
   const [toggling, setToggling] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pendingRemoveSkill, setPendingRemoveSkill] = useState<AgentSkillEntry | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const loadSkills = useCallback(async () => {
@@ -53,7 +55,7 @@ export function AgentOptionsSkillsTab({
     void loadSkills();
   }, [is_visible, loadSkills]);
 
-  const handleToggle = useCallback(
+  const runSkillToggle = useCallback(
     async (skill: AgentSkillEntry) => {
       if (!agent_id || skill.locked || toggling) {
         return;
@@ -78,6 +80,26 @@ export function AgentOptionsSkillsTab({
     },
     [agent_id, loadSkills, toggling, t]
   );
+
+  const handleSkillAction = useCallback(
+    (skill: AgentSkillEntry) => {
+      if (skill.installed) {
+        setPendingRemoveSkill(skill);
+        return;
+      }
+      void runSkillToggle(skill);
+    },
+    [runSkillToggle]
+  );
+
+  const handleConfirmRemove = useCallback(() => {
+    if (!pendingRemoveSkill) {
+      return;
+    }
+    const skill = pendingRemoveSkill;
+    setPendingRemoveSkill(null);
+    void runSkillToggle(skill);
+  }, [pendingRemoveSkill, runSkillToggle]);
 
   const installedCount = useMemo(
     () => skills.filter((skill) => skill.installed).length,
@@ -158,7 +180,7 @@ export function AgentOptionsSkillsTab({
           <button
             className={get_dialog_action_class_name(tone === "installed" ? "default" : "primary", "compact")}
             disabled={isBusy}
-            onClick={() => void handleToggle(skill)}
+            onClick={() => handleSkillAction(skill)}
             type="button"
           >
             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
@@ -255,6 +277,18 @@ export function AgentOptionsSkillsTab({
           </div>
         </>
       ) : null}
+
+      <ConfirmDialog
+        confirm_text={t("agent_options.skills.remove_confirm_action")}
+        is_open={!!pendingRemoveSkill}
+        message={t("agent_options.skills.remove_confirm_message", {
+          name: pendingRemoveSkill?.title || pendingRemoveSkill?.name || "",
+        })}
+        on_cancel={() => setPendingRemoveSkill(null)}
+        on_confirm={handleConfirmRemove}
+        title={t("agent_options.skills.remove_confirm_title")}
+        variant="danger"
+      />
     </div>
   );
 }
