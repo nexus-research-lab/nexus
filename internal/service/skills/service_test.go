@@ -85,7 +85,7 @@ workspace skill body
 	if !ok {
 		t.Fatalf("agent 本地 skill 未暴露: %+v", items)
 	}
-	if agentLocalSkill.SourceType != sourceTypeWorkspace || !agentLocalSkill.Installed || !agentLocalSkill.Locked {
+	if agentLocalSkill.SourceType != sourceTypeWorkspace || !agentLocalSkill.Installed || agentLocalSkill.Locked {
 		t.Fatalf("agent 本地 skill 状态不正确: %+v", agentLocalSkill)
 	}
 	if _, err = service.GetSkillDetail(ctx, "agent-only-skill", ""); err == nil {
@@ -94,8 +94,18 @@ workspace skill body
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err == nil {
 		t.Fatal("agent 本地 skill 不应允许通过市场安装")
 	}
-	if err = service.UninstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err == nil {
-		t.Fatal("agent 本地 skill 不应允许通过市场移除")
+	if err = service.UninstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err != nil {
+		t.Fatalf("agent 本地 skill 应允许从当前智能体移除: %v", err)
+	}
+	if _, err = os.Stat(agentLocalSkillRoot); !os.IsNotExist(err) {
+		t.Fatalf("agent 本地 skill 移除后目录仍存在: %v", err)
+	}
+	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("移除 agent 本地 skill 后读取列表失败: %v", err)
+	}
+	if _, ok := findSkill(items, "agent-only-skill"); ok {
+		t.Fatalf("agent 本地 skill 移除后仍在列表中: %+v", items)
 	}
 
 	directAgentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "direct-agent-skill")
@@ -120,8 +130,14 @@ description: 兼容直接位于 .agents 下的技能目录
 	if !ok {
 		t.Fatalf("agent 直属本地 skill 未暴露: %+v", items)
 	}
-	if directAgentLocalSkill.SourceType != sourceTypeWorkspace || !directAgentLocalSkill.Installed || !directAgentLocalSkill.Locked {
+	if directAgentLocalSkill.SourceType != sourceTypeWorkspace || !directAgentLocalSkill.Installed || directAgentLocalSkill.Locked {
 		t.Fatalf("agent 直属本地 skill 状态不正确: %+v", directAgentLocalSkill)
+	}
+	if err = service.UninstallSkill(ctx, agentValue.AgentID, "direct-agent-skill"); err != nil {
+		t.Fatalf("agent 直属本地 skill 应允许从当前智能体移除: %v", err)
+	}
+	if _, err = os.Stat(directAgentLocalSkillRoot); !os.IsNotExist(err) {
+		t.Fatalf("agent 直属本地 skill 移除后目录仍存在: %v", err)
 	}
 
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")

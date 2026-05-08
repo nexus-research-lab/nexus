@@ -259,7 +259,7 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		return errors.New("系统托管 skill 不能手动卸载")
 	}
 	if record.Detail.SourceType == sourceTypeWorkspace {
-		return errors.New("智能体工作区内 skill 不能从技能市场移除")
+		return undeployWorkspaceLocalSkill(agentValue.WorkspacePath, record)
 	}
 	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
 }
@@ -554,13 +554,46 @@ func buildWorkspaceRecord(sourceDir string) (catalogRecord, error) {
 			SourceRef:    sourceDir,
 			Version:      firstNonEmpty(parsed.Version, "workspace"),
 			Installed:    true,
-			Locked:       true,
-			Deletable:    false,
+			Locked:       false,
+			Deletable:    true,
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
 		Recommendation: firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
+}
+
+func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) error {
+	workspaceRoot := filepath.Clean(strings.TrimSpace(workspacePath))
+	sourcePath := filepath.Clean(strings.TrimSpace(record.SourcePath))
+	if workspaceRoot == "." || sourcePath == "." {
+		return errors.New("workspace skill path is empty")
+	}
+	agentsRoot := filepath.Join(workspaceRoot, ".agents")
+	relativePath, err := filepath.Rel(agentsRoot, sourcePath)
+	if err != nil || relativePath == "." || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
+		return errors.New("workspace skill path is outside .agents")
+	}
+	if err = os.RemoveAll(sourcePath); err != nil {
+		return err
+	}
+	skillNames := []string{record.Detail.Name, filepath.Base(sourcePath)}
+	seen := map[string]struct{}{}
+	for _, skillName := range skillNames {
+		trimmedName := strings.TrimSpace(skillName)
+		if trimmedName == "" {
+			continue
+		}
+		if _, ok := seen[trimmedName]; ok {
+			continue
+		}
+		seen[trimmedName] = struct{}{}
+		linkPath := filepath.Join(workspaceRoot, ".claude", "skills", trimmedName)
+		if err = os.Remove(linkPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) loadExternalRecords() (map[string]catalogRecord, error) {
