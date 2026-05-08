@@ -30,6 +30,7 @@ const (
 	transcriptSessionSearchTimout = 5 * time.Second
 	overlayKindField              = "nexus_overlay_kind"
 	overlayKindRoundMarker        = "round_marker"
+	overlayKindRoomPublicCursor   = "room_public_cursor"
 )
 
 var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
@@ -52,6 +53,17 @@ type transcriptRoundMarker struct {
 	Content        string
 	Timestamp      int64
 	DeliveryPolicy string
+}
+
+// RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。
+type RoomPublicCursor struct {
+	RoomID              string
+	ConversationID      string
+	AgentID             string
+	RoundID             string
+	LastPublicMessageID string
+	LastPublicTimestamp int64
+	Timestamp           int64
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
@@ -146,6 +158,74 @@ func (s *AgentHistoryStore) AppendRoundMarker(
 		}
 	}
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
+}
+
+// AppendRoomPublicCursor 追加 Room 公区消费位置控制行。
+func (s *AgentHistoryStore) AppendRoomPublicCursor(workspacePath string, sessionKey string, cursor RoomPublicCursor) error {
+	now := time.Now().UnixMilli()
+	if cursor.Timestamp == 0 {
+		cursor.Timestamp = now
+	}
+	row := map[string]any{
+		overlayKindField:         overlayKindRoomPublicCursor,
+		"room_id":                strings.TrimSpace(cursor.RoomID),
+		"conversation_id":        strings.TrimSpace(cursor.ConversationID),
+		"agent_id":               strings.TrimSpace(cursor.AgentID),
+		"round_id":               strings.TrimSpace(cursor.RoundID),
+		"last_public_message_id": strings.TrimSpace(cursor.LastPublicMessageID),
+		"last_public_timestamp":  cursor.LastPublicTimestamp,
+		"timestamp":              cursor.Timestamp,
+	}
+	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
+}
+
+// ReadRoomPublicCursor 读取 Room agent 最新公区消费位置。
+func (s *AgentHistoryStore) ReadRoomPublicCursor(
+	workspacePath string,
+	sessionKey string,
+	conversationID string,
+	agentID string,
+) (RoomPublicCursor, bool, error) {
+	rows, err := s.files.readJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey))
+	if errors.Is(err, os.ErrNotExist) {
+		return RoomPublicCursor{}, false, nil
+	}
+	if err != nil {
+		return RoomPublicCursor{}, false, err
+	}
+
+	conversationID = strings.TrimSpace(conversationID)
+	agentID = strings.TrimSpace(agentID)
+	var latest RoomPublicCursor
+	found := false
+	for _, row := range rows {
+		if stringFromAny(row[overlayKindField]) != overlayKindRoomPublicCursor {
+			continue
+		}
+		if conversationID != "" && stringFromAny(row["conversation_id"]) != conversationID {
+			continue
+		}
+		if agentID != "" && stringFromAny(row["agent_id"]) != agentID {
+			continue
+		}
+		cursor := RoomPublicCursor{
+			RoomID:              stringFromAny(row["room_id"]),
+			ConversationID:      stringFromAny(row["conversation_id"]),
+			AgentID:             stringFromAny(row["agent_id"]),
+			RoundID:             stringFromAny(row["round_id"]),
+			LastPublicMessageID: stringFromAny(row["last_public_message_id"]),
+			LastPublicTimestamp: messageTimestamp(protocol.Message(row)),
+			Timestamp:           messageTimestamp(protocol.Message(row)),
+		}
+		if value := int64FromAny(row["last_public_timestamp"]); value > 0 {
+			cursor.LastPublicTimestamp = value
+		}
+		if !found || cursor.Timestamp >= latest.Timestamp {
+			latest = cursor
+			found = true
+		}
+	}
+	return latest, found, nil
 }
 
 // ReadMessages 读取 DM 历史。
@@ -249,9 +329,21 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 			})
 			continue
 		}
+		if isSessionOverlayControlRow(row) {
+			continue
+		}
 		messageRows = append(messageRows, protocol.Message(row))
 	}
 	return messageRows, roundMarkers, nil
+}
+
+func isSessionOverlayControlRow(row map[string]any) bool {
+	switch stringFromAny(row[overlayKindField]) {
+	case overlayKindRoomPublicCursor, "room_context_checkpoint":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildOverlayOnlyHistoryRows(

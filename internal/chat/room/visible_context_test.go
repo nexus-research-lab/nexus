@@ -93,8 +93,8 @@ func TestFormatHistoryLineUsesOnlyAssistantResult(t *testing.T) {
 }
 
 func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
-	contextValue := BuildVisibleContext(VisibleContextInput{
-		PublicHistory: []protocol.Message{
+	input := VisibleContextInput{
+		PublicMessages: []protocol.Message{
 			{"role": "user", "content": "@Amy 你们来对对子吧，对个3轮这样"},
 			roomAssistantResult("agent-amy", "第一轮开始"),
 			{"role": "assistant", "agent_id": "agent-devin", "content": "半成品", "is_complete": false},
@@ -115,23 +115,54 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 			"agent-sam":   "sam",
 		},
 		TargetAgentID: "agent-devin",
-	})
+	}
+
+	systemPrompt := BuildSystemPrompt()
 
 	for _, expected := range []string{
-		"以成员 Devin 的身份响应新消息",
+		"# Nexus Room 公区协作规则",
+		"你正在 Nexus 的多人协作 Room 中参与公开协作",
 		"@ 是执行触发",
 		"候选邀请不要多 @",
 		"<nexus_room_no_reply/>",
 		"目标轮数、当前轮次、下一位成员、停止条件",
 		"最终总结不要 @ 任何成员",
+	} {
+		if !strings.Contains(systemPrompt, expected) {
+			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
+		}
+	}
+	for _, unexpected := range []string{
+		"Devin",
+		"agent-devin",
 		"<room_member_directory>",
-		"当前成员 agent_id=agent-devin name=Devin",
+		"<current_room_member>",
+	} {
+		if strings.Contains(systemPrompt, unexpected) {
+			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
+		}
+	}
+
+	contextValue := BuildVisibleContext(input)
+	for _, expected := range []string{
+		"<room_member_directory>",
+		"- name=Devin agent_id=agent-devin",
 		"\"trigger_type\":\"public_mention\"",
 		"\"public_mention_target_count\":2",
 		"Assistant(Amy): 第一轮开始",
 	} {
 		if !strings.Contains(contextValue, expected) {
-			t.Fatalf("Room 公区 prompt 缺少片段 %q:\n%s", expected, contextValue)
+			t.Fatalf("Room 动态输入缺少片段 %q:\n%s", expected, contextValue)
+		}
+	}
+	for _, unexpected := range []string{
+		"# Nexus Room 公区协作规则",
+		"<current_room_member>",
+		"@ 是执行触发",
+		"<nexus_room_no_reply/>",
+	} {
+		if strings.Contains(contextValue, unexpected) {
+			t.Fatalf("Room 动态输入不应重复固定规则 %q:\n%s", unexpected, contextValue)
 		}
 	}
 	if strings.Contains(contextValue, "半成品") {
@@ -144,12 +175,47 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	}
 }
 
+func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
+	history := []protocol.Message{
+		{"message_id": "m1", "role": "user", "content": "旧消息", "timestamp": int64(1)},
+		roomAssistantResultWithID("m2", "agent-amy", "Amy 看过的回复", 2),
+		roomAssistantResultWithID("m3", "agent-devin", "Devin 自己刚说过的话", 3),
+		{"message_id": "m4", "role": "user", "content": "@Devin 你怎么看", "timestamp": int64(4)},
+	}
+
+	batch := BuildPublicInputBatch(PublicInputBatchInput{
+		PublicHistory: history,
+		Cursor: PublicCursor{
+			LastMessageID: "m2",
+			LastTimestamp: 2,
+		},
+		AgentNameByID: map[string]string{
+			"agent-amy":   "Amy",
+			"agent-devin": "Devin",
+		},
+		TargetAgentID: "agent-devin",
+	})
+
+	if batch.LastMessageID != "m4" || batch.LastTimestamp != 4 {
+		t.Fatalf("batch 应推进到最新公区边界: %+v", batch)
+	}
+	if len(batch.Messages) != 1 || normalizeAnyString(batch.Messages[0]["message_id"]) != "m4" {
+		t.Fatalf("batch 应跳过目标自己的公开回复，只保留新用户消息: %+v", batch.Messages)
+	}
+}
+
 func roomAssistantResult(agentID string, result string) protocol.Message {
+	return roomAssistantResultWithID("", agentID, result, 0)
+}
+
+func roomAssistantResultWithID(messageID string, agentID string, result string, timestamp int64) protocol.Message {
 	return protocol.Message{
+		"message_id":  messageID,
 		"role":        "assistant",
 		"agent_id":    agentID,
 		"content":     []map[string]any{{"type": "text", "text": result}},
 		"is_complete": true,
+		"timestamp":   timestamp,
 		"result_summary": map[string]any{
 			"subtype": "success",
 			"result":  result,

@@ -298,7 +298,39 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		}
 	}
 
+	roomSystemPrompt := factory.LastOptions().AppendSystemPrompt
+	for _, expected := range []string{
+		"# Nexus Room 公区协作规则",
+		"你正在 Nexus 的多人协作 Room 中参与公开协作",
+		"Room 运行时会在每轮用户消息里提供成员目录、public_feed 和 latest_trigger",
+	} {
+		if !strings.Contains(roomSystemPrompt, expected) {
+			t.Fatalf("Room 固定规则应注入 SDK append system prompt，缺少 %q:\n%s", expected, roomSystemPrompt)
+		}
+	}
+	for _, unexpected := range []string{
+		"以成员 单聊助手",
+		"<room_member_directory>",
+		"<current_room_member>",
+	} {
+		if strings.Contains(roomSystemPrompt, unexpected) {
+			t.Fatalf("Room 固定规则不应包含动态变量 %q:\n%s", unexpected, roomSystemPrompt)
+		}
+	}
+
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	cursor, ok, err := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ReadRoomPublicCursor(
+		memberAgent.WorkspacePath,
+		privateSessionKey,
+		dmContext.Conversation.ID,
+		memberAgent.AgentID,
+	)
+	if err != nil {
+		t.Fatalf("读取 Room 公区 cursor 失败: %v", err)
+	}
+	if !ok || cursor.LastPublicMessageID != "room-round-1" {
+		t.Fatalf("成功 round 应记录目标 agent 公区消费位置: ok=%v cursor=%+v", ok, cursor)
+	}
 	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
 	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
@@ -1663,8 +1695,28 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	if interruptCalls != 0 {
 		t.Fatalf("默认排队不应中断同一个 Room agent: interruptCalls=%d", interruptCalls)
 	}
-	if len(sentContents) != 1 || sentContents[0] != "@助手甲 这是补充要求" {
-		t.Fatalf("Room 运行中 slot 未收到排队输入: %+v", sentContents)
+	if len(sentContents) != 0 {
+		t.Fatalf("默认排队不应走运行中 streaming input: %+v", sentContents)
+	}
+	targetQueueLocation := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  agentValue.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	targetQueueItems, err := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
+	if err != nil {
+		t.Fatalf("读取目标 agent session 队列失败: %v", err)
+	}
+	if len(targetQueueItems) != 1 ||
+		targetQueueItems[0].AgentID != agentValue.AgentID ||
+		targetQueueItems[0].SourceMessageID != "room-round-queue-2" ||
+		targetQueueItems[0].Content != "@助手甲 这是补充要求" {
+		t.Fatalf("Room 运行中公区消息未写入目标 agent 队列: %+v", targetQueueItems)
+	}
+	if _, err = workspacestore.NewInputQueueStore(cfg.WorkspacePath).Dispatch(targetQueueLocation, targetQueueItems[0].ID); err != nil {
+		t.Fatalf("清理测试队列项失败: %v", err)
 	}
 
 	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
@@ -1788,10 +1840,20 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
 	}
+	foundGuidedPublicMessage := false
 	for _, message := range sharedMessages {
-		if message["message_id"] == "room-round-guide-2" && message["role"] == "user" {
-			t.Fatalf("Room 引导不应进入公区用户消息: %+v", message)
+		if message["message_id"] != "room-round-guide-2" {
+			continue
 		}
+		if message["role"] != "user" ||
+			message["content"] != "@助手甲 等工具结果回来后优先看错误日志" ||
+			message["delivery_policy"] != string(protocol.ChatDeliveryPolicyGuide) {
+			t.Fatalf("Room 引导公区消息缺少 guide 标记: %+v", message)
+		}
+		foundGuidedPublicMessage = true
+	}
+	if !foundGuidedPublicMessage {
+		t.Fatalf("Room 引导消息应先进入公区事实历史: %+v", sharedMessages)
 	}
 
 	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {

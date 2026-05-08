@@ -205,6 +205,15 @@ func (s *RealtimeService) dispatchInputQueueItem(
 			protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 		)
 	}
+	if strings.TrimSpace(item.SourceMessageID) != "" && len(inputQueueTargetAgentIDs(item)) > 0 {
+		return s.dispatchRoomPublicTriggerQueueItem(
+			contextWithQueueOwner(ctx, item.OwnerUserID),
+			sessionKey,
+			roomID,
+			conversationID,
+			item,
+		)
+	}
 	return s.HandleChat(contextWithQueueOwner(ctx, item.OwnerUserID), ChatRequest{
 		SessionKey:     sessionKey,
 		RoomID:         roomID,
@@ -214,6 +223,48 @@ func (s *RealtimeService) dispatchInputQueueItem(
 		ReqID:          "queue_" + item.ID,
 		DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 	})
+}
+
+func (s *RealtimeService) dispatchRoomPublicTriggerQueueItem(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	item protocol.InputQueueItem,
+) error {
+	targetAgentIDs := inputQueueTargetAgentIDs(item)
+	if len(targetAgentIDs) == 0 {
+		return errors.New("target_agent_ids is required")
+	}
+	content := strings.TrimSpace(item.Content)
+	if content == "" {
+		return errors.New("content is required")
+	}
+	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	if err != nil {
+		return err
+	}
+	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
+	for _, targetAgentID := range targetAgentIDs {
+		wakes = append(wakes, publicMentionWake{
+			SourceAgentID: strings.TrimSpace(item.SourceAgentID),
+			TargetAgentID: targetAgentID,
+			Content:       content,
+			MessageID:     strings.TrimSpace(item.SourceMessageID),
+		})
+	}
+	parentRound := &activeRoomRound{
+		SessionKey:     sessionKey,
+		RoomID:         firstNonEmpty(strings.TrimSpace(roomID), contextValue.Room.ID),
+		ConversationID: conversationID,
+		RoomType:       contextValue.Room.RoomType,
+		Context:        contextValue,
+		RoundID:        strings.TrimSpace(item.SourceMessageID),
+		RootRoundID:    firstNonEmpty(strings.TrimSpace(item.RootRoundID), strings.TrimSpace(item.SourceMessageID)),
+		HopIndex:       item.HopIndex,
+		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
+	}
+	return s.startPublicMentionRound(ctx, parentRound, wakes)
 }
 
 func (s *RealtimeService) dispatchAgentPublicMentionQueueItem(
@@ -275,7 +326,7 @@ func (s *RealtimeService) canDispatchInputQueueItem(sessionKey string, conversat
 	}
 	targetAgentIDs := inputQueueTargetAgentIDs(item)
 	if len(targetAgentIDs) > 0 {
-		return len(s.findQueueSlots(sessionKey, conversationID, targetAgentIDs)) == 0
+		return len(s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)) == 0
 	}
 	return len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0
 }
@@ -314,7 +365,7 @@ func (s *RealtimeService) inputQueueGuidanceTargetSlot(
 	conversationID string,
 	entry roomInputQueueEntry,
 ) *activeRoomSlot {
-	slotsByAgentID := s.findQueueSlots(sessionKey, conversationID, inputQueueTargetAgentIDs(entry.Item))
+	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, inputQueueTargetAgentIDs(entry.Item))
 	if len(slotsByAgentID) == 0 {
 		return nil
 	}

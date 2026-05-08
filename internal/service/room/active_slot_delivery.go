@@ -4,41 +4,51 @@ import (
 	"context"
 	"strings"
 
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-func (s *RealtimeService) queueActiveAgentSlots(
+func (s *RealtimeService) enqueueForActiveAgentSlots(
 	ctx context.Context,
 	sessionKey string,
+	roomID string,
 	conversationID string,
 	targetAgentIDs []string,
 	content string,
 	roundID string,
+	ownerUserID string,
 ) (map[string]struct{}, error) {
-	slotsByAgentID := s.findQueueSlots(sessionKey, conversationID, targetAgentIDs)
+	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)
 	queuedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
 	for agentID, slot := range slotsByAgentID {
 		if slot == nil {
 			continue
 		}
-		if slot.Client == nil {
-			slot.enqueueQueuedInput(roundID, content)
-			queuedAgentIDs[agentID] = struct{}{}
-			s.loggerFor(ctx).Info("Room 排队消息等待 slot 启动",
-				"session_key", sessionKey,
-				"conversation_id", conversationID,
-				"agent_id", agentID,
-				"round_id", roundID,
-				"active_round_id", slot.AgentRoundID,
-				"msg_id", slot.MsgID,
-			)
-			continue
+		location := workspacestore.InputQueueLocation{
+			Scope:          protocol.InputQueueScopeRoom,
+			WorkspacePath:  slot.WorkspacePath,
+			SessionKey:     slot.RuntimeSessionKey,
+			RoomID:         roomID,
+			ConversationID: conversationID,
 		}
-		if err := runtimectx.SendClientContent(ctx, slot.Client, strings.TrimSpace(content)); err != nil {
+		if _, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+			Scope:           protocol.InputQueueScopeRoom,
+			SessionKey:      slot.RuntimeSessionKey,
+			RoomID:          roomID,
+			ConversationID:  conversationID,
+			AgentID:         agentID,
+			SourceMessageID: strings.TrimSpace(roundID),
+			TargetAgentIDs:  []string{agentID},
+			Source:          protocol.InputQueueSourceUser,
+			Content:         strings.TrimSpace(content),
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+			OwnerUserID:     strings.TrimSpace(ownerUserID),
+			RootRoundID:     strings.TrimSpace(roundID),
+		}); err != nil {
 			return queuedAgentIDs, err
 		}
 		queuedAgentIDs[agentID] = struct{}{}
-		s.loggerFor(ctx).Info("排队 Room 消息到运行中 slot",
+		s.loggerFor(ctx).Info("Room 公区消息写入目标 agent 待处理队列",
 			"session_key", sessionKey,
 			"conversation_id", conversationID,
 			"agent_id", agentID,
@@ -50,7 +60,7 @@ func (s *RealtimeService) queueActiveAgentSlots(
 	return queuedAgentIDs, nil
 }
 
-func (s *RealtimeService) findQueueSlots(
+func (s *RealtimeService) findActiveDeliverySlots(
 	sessionKey string,
 	conversationID string,
 	targetAgentIDs []string,
@@ -77,7 +87,7 @@ func (s *RealtimeService) findQueueSlots(
 			continue
 		}
 		for _, slot := range roundValue.Slots {
-			if slot == nil || !isActiveQueueSlot(slot) {
+			if slot == nil || !isActiveDeliverySlot(slot) {
 				continue
 			}
 			if _, ok := targets[slot.AgentID]; !ok {
@@ -92,7 +102,7 @@ func (s *RealtimeService) findQueueSlots(
 	return result
 }
 
-func isActiveQueueSlot(slot *activeRoomSlot) bool {
+func isActiveDeliverySlot(slot *activeRoomSlot) bool {
 	if slot == nil {
 		return false
 	}
@@ -104,13 +114,13 @@ func isActiveQueueSlot(slot *activeRoomSlot) bool {
 	}
 }
 
-func filterQueuedAgentIDs(agentIDs []string, queued map[string]struct{}) []string {
-	if len(queued) == 0 {
+func filterHandledAgentIDs(agentIDs []string, handled map[string]struct{}) []string {
+	if len(handled) == 0 {
 		return agentIDs
 	}
 	result := make([]string, 0, len(agentIDs))
 	for _, agentID := range agentIDs {
-		if _, ok := queued[agentID]; ok {
+		if _, ok := handled[agentID]; ok {
 			continue
 		}
 		result = append(result, agentID)
@@ -127,7 +137,7 @@ func (s *RealtimeService) guideActiveAgentSlots(
 	content string,
 	roundID string,
 ) (map[string]struct{}, error) {
-	slotsByAgentID := s.findQueueSlots(sessionKey, conversationID, targetAgentIDs)
+	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)
 	guidedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
 	for agentID, slot := range slotsByAgentID {
 		if slot == nil {

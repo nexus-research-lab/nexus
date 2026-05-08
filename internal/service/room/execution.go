@@ -76,6 +76,19 @@ func (s *RealtimeService) runRound(
 	)
 }
 
+func appendPromptSection(base string, section string) string {
+	base = strings.TrimSpace(base)
+	section = strings.TrimSpace(section)
+	switch {
+	case base == "":
+		return section
+	case section == "":
+		return base
+	default:
+		return base + "\n\n---\n\n" + section
+	}
+}
+
 func (s *RealtimeService) runSlot(
 	ctx context.Context,
 	roundValue *activeRoomRound,
@@ -138,6 +151,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt())
 	mcpServers := map[string]agentclient.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, slot.RuntimeSessionKey, "room")
@@ -205,13 +219,11 @@ func (s *RealtimeService) runSlot(
 		slot.AgentRoundID,
 	))
 
-	trigger := slot.Trigger
-	dispatchPrompt := roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
-		PublicHistory: history,
-		LatestTrigger: trigger,
-		AgentNameByID: agentNameByID,
-		TargetAgentID: slot.AgentID,
-	})
+	dispatchPrompt, err := s.buildSlotVisibleContext(slotCtx, roundValue, slot, history, agentNameByID)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
 	if err := s.recordPrivateRoundMarker(slot, dispatchPrompt); err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
@@ -288,6 +300,12 @@ func (s *RealtimeService) runSlot(
 	}
 	if !slot.SuppressOutput {
 		if err := s.collectPublicMentionWakes(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
+			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+			return
+		}
+	}
+	if slot.Status == "finished" {
+		if err := s.recordRoomPublicCursor(slot, roundValue, slot.PublicCursorID, slot.PublicCursorTS); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}

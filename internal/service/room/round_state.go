@@ -27,6 +27,8 @@ type activeRoomSlot struct {
 	Index             int
 	TimestampMS       int64
 	Trigger           roomTrigger
+	PublicCursorID    string
+	PublicCursorTS    int64
 	InterruptReason   string
 	QueuedInputs      []roomQueuedInput
 	GuidedInputs      []roomQueuedInput
