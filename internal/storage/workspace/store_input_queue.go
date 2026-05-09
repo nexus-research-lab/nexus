@@ -131,6 +131,8 @@ func (s *InputQueueStore) UpdateDeliveryPolicy(
 	selected.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(deliveryPolicy))
 	if len(rootRoundIDs) > 0 {
 		selected.RootRoundID = strings.TrimSpace(rootRoundIDs[0])
+	} else {
+		selected.RootRoundID = ""
 	}
 	selected.UpdatedAt = now
 	if err = s.appendActionLocked(location, map[string]any{

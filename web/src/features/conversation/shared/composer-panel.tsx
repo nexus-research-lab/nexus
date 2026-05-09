@@ -693,16 +693,16 @@ const ComposerPanelView = memo(({
                       {message.content}
                     </p>
                     <button
-                      aria-label={is_guidance_waiting ? "等待引导注入" : "引导当前 round"}
+                      aria-label={is_guidance_waiting ? "取消引导" : "引导当前 round"}
                       className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                      disabled={disabled || is_queue_action_running || is_guidance_waiting}
+                      disabled={disabled || is_queue_action_running}
                       onClick={() => {
                         void guide_pending_message(message);
                       }}
                       type="button"
                     >
                       <CornerDownRight className="h-3 w-3" />
-                      {is_guidance_waiting ? "等待引导" : "引导"}
+                      {is_guidance_waiting ? "取消引导" : "引导"}
                     </button>
                     <button
                       aria-label="删除待发送消息"

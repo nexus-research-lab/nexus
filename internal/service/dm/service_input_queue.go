@@ -110,12 +110,21 @@ func (s *Service) guideInputQueueItem(
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
+	if protocol.ShouldGuideRunningRound(selected.DeliveryPolicy) {
+		items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyQueue)
+		if err != nil {
+			return err
+		}
+		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), selected.OwnerUserID), sessionKey, selected.AgentID)
+		return nil
+	}
 	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
 	if len(runningRoundIDs) == 0 {
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
-	items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide, runningRoundIDs[0])
+	items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide)
 	if err != nil {
 		return err
 	}

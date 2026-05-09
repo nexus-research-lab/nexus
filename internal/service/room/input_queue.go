@@ -125,11 +125,26 @@ func (s *RealtimeService) guideInputQueueItem(
 	if !ok {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
+	if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
+		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+			return err
+		}
+		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+			return err
+		}
+		go s.dispatchNextInputQueueItem(
+			contextWithQueueOwner(context.Background(), entry.Item.OwnerUserID),
+			sessionKey,
+			contextValue.Room.ID,
+			contextValue.Conversation.ID,
+		)
+		return nil
+	}
 	activeSlot := s.inputQueueGuidanceTargetSlot(sessionKey, contextValue.Conversation.ID, entry)
 	if activeSlot == nil {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
-	if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyGuide, activeSlot.AgentRoundID); err != nil {
+	if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyGuide); err != nil {
 		return err
 	}
 	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)

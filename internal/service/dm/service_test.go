@@ -1346,8 +1346,8 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	if len(items) != 1 ||
 		items[0].ID != itemID ||
 		items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
-		items[0].RootRoundID != "round-guide-input-queue-1" {
-		t.Fatalf("点击引导后应保留队列项并绑定当前 round: %+v", items)
+		items[0].RootRoundID != "" {
+		t.Fatalf("点击引导后应保留为可跨 round 注入的队列项: %+v", items)
 	}
 
 	var additionalContext string

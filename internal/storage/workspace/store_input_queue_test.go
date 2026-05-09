@@ -140,6 +140,88 @@ func TestInputQueueStoreGuidanceWaitsForMatchingRound(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreUntargetedGuidanceWaitsForAnyRound(t *testing.T) {
+	root := t.TempDir()
+	workspacePath := filepath.Join(root, "agent")
+	sessionKey := "agent:alpha:ws:dm:test"
+	store := NewInputQueueStore(root)
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: workspacePath,
+		SessionKey:    sessionKey,
+	}
+
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:             "item-guide",
+		Content:        "后续工具回来时补充这句",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		Source:         protocol.InputQueueSourceUser,
+		RootRoundID:    "stale-round",
+	}); err != nil {
+		t.Fatalf("写入待引导队列失败: %v", err)
+	}
+	items, err := store.UpdateDeliveryPolicy(location, "item-guide", protocol.ChatDeliveryPolicyGuide)
+	if err != nil {
+		t.Fatalf("标记无绑定引导队列失败: %v", err)
+	}
+	if len(items) != 1 || items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide || items[0].RootRoundID != "" {
+		t.Fatalf("无绑定引导不应保留旧 root_round_id: %+v", items)
+	}
+
+	dispatched, items, err := store.DispatchFirstDispatchable(location)
+	if err != nil {
+		t.Fatalf("派发普通队列失败: %v", err)
+	}
+	if dispatched != nil || len(items) != 1 {
+		t.Fatalf("无绑定引导仍应等待 hook 消费: dispatched=%+v items=%+v", dispatched, items)
+	}
+
+	guidanceItems, items, err := store.DispatchGuidance(location, "future-round")
+	if err != nil {
+		t.Fatalf("未来 round 派发无绑定引导失败: %v", err)
+	}
+	if len(guidanceItems) != 1 || guidanceItems[0].ID != "item-guide" || len(items) != 0 {
+		t.Fatalf("无绑定引导应被后续任意 round 的 hook 消费: guidance=%+v items=%+v", guidanceItems, items)
+	}
+}
+
+func TestInputQueueStoreCancelGuidanceRestoresDispatchableQueue(t *testing.T) {
+	root := t.TempDir()
+	workspacePath := filepath.Join(root, "agent")
+	sessionKey := "agent:alpha:ws:dm:test"
+	store := NewInputQueueStore(root)
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: workspacePath,
+		SessionKey:    sessionKey,
+	}
+
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:             "item-guide",
+		Content:        "取消后作为普通队列发送",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		Source:         protocol.InputQueueSourceUser,
+		RootRoundID:    "stale-round",
+	}); err != nil {
+		t.Fatalf("写入引导队列失败: %v", err)
+	}
+	items, err := store.UpdateDeliveryPolicy(location, "item-guide", protocol.ChatDeliveryPolicyQueue)
+	if err != nil {
+		t.Fatalf("取消引导失败: %v", err)
+	}
+	if len(items) != 1 || items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue || items[0].RootRoundID != "" {
+		t.Fatalf("取消引导后应恢复普通队列并清理 root_round_id: %+v", items)
+	}
+
+	dispatched, items, err := store.DispatchFirstDispatchable(location)
+	if err != nil {
+		t.Fatalf("派发取消引导后的队列失败: %v", err)
+	}
+	if dispatched == nil || dispatched.ID != "item-guide" || len(items) != 0 {
+		t.Fatalf("取消引导后的队列应可正常派发: dispatched=%+v items=%+v", dispatched, items)
+	}
+}
+
 func TestInputQueueStoreRoomScopeUsesAgentSessionPath(t *testing.T) {
 	root := t.TempDir()
 	store := NewInputQueueStore(root)
