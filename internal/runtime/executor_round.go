@@ -34,6 +34,7 @@ type RoundStreamClosedError struct {
 	LastMessageSummary string
 	LastSessionID      string
 	LastMessageID      string
+	ReadError          string
 	WaitError          string
 }
 
@@ -52,6 +53,9 @@ func (e *RoundStreamClosedError) Error() string {
 	)
 	if strings.TrimSpace(e.WaitError) != "" {
 		detail += " wait_error=" + strings.TrimSpace(e.WaitError)
+	}
+	if strings.TrimSpace(e.ReadError) != "" {
+		detail += " read_error=" + strings.TrimSpace(e.ReadError)
 	}
 	return detail
 }
@@ -337,6 +341,10 @@ type clientWaiter interface {
 	Wait() error
 }
 
+type clientStreamErrorer interface {
+	StreamError() error
+}
+
 func buildRoundStreamClosedError(client Client, messagesSeen int, lastMessage sdkprotocol.ReceivedMessage) error {
 	result := &RoundStreamClosedError{
 		MessagesSeen:       messagesSeen,
@@ -344,6 +352,11 @@ func buildRoundStreamClosedError(client Client, messagesSeen int, lastMessage sd
 		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
 		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
+	}
+	if streamErrorer, ok := client.(clientStreamErrorer); ok {
+		if err := streamErrorer.StreamError(); err != nil {
+			result.ReadError = err.Error()
+		}
 	}
 	if waiter, ok := client.(clientWaiter); ok {
 		if err := waiter.Wait(); err != nil {

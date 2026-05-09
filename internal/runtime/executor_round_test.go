@@ -16,6 +16,7 @@ import (
 type fakeRoundExecutionClient struct {
 	sessionID   string
 	queryErr    error
+	streamErr   error
 	waitErr     error
 	messages    chan sdkprotocol.ReceivedMessage
 	interrupts  int
@@ -41,6 +42,8 @@ func (c *fakeRoundExecutionClient) Disconnect(context.Context) error {
 }
 
 func (c *fakeRoundExecutionClient) Wait() error { return c.waitErr }
+
+func (c *fakeRoundExecutionClient) StreamError() error { return c.streamErr }
 
 func (c *fakeRoundExecutionClient) Reconfigure(context.Context, agentclient.Options) error {
 	return nil
@@ -278,6 +281,36 @@ func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(streamErr.WaitError, "exit status 1") {
 		t.Fatalf("stream close 缺少 wait error: %+v", streamErr)
+	}
+}
+
+func TestExecuteRoundReturnsStreamReadErrorDiagnostics(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		streamErr: errors.New(
+			"client: read message failed: process: decode stdout JSON message failed: unexpected EOF",
+		),
+		messages: make(chan sdkprotocol.ReceivedMessage),
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{},
+	})
+	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
+		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
+	}
+	var streamErr *RoundStreamClosedError
+	if !errors.As(err, &streamErr) {
+		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
+	}
+	if !strings.Contains(streamErr.ReadError, "decode stdout JSON message failed") {
+		t.Fatalf("stream close 缺少 read error: %+v", streamErr)
+	}
+	if !strings.Contains(err.Error(), "read_error=") {
+		t.Fatalf("错误字符串缺少 read_error: %v", err)
 	}
 }
 

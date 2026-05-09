@@ -45,11 +45,12 @@ type Factory interface {
 type defaultFactory struct{}
 
 type sdkClientAdapter struct {
-	mu       sync.Mutex
-	options  agentclient.Options
-	session  *agentclient.Session
-	messages chan sdkprotocol.ReceivedMessage
-	cancel   context.CancelFunc
+	mu        sync.Mutex
+	options   agentclient.Options
+	session   *agentclient.Session
+	messages  chan sdkprotocol.ReceivedMessage
+	cancel    context.CancelFunc
+	streamErr error
 }
 
 func WrapSDKClient(options agentclient.Options) Client {
@@ -85,6 +86,7 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 	c.session = session
 	c.messages = messages
 	c.cancel = cancel
+	c.streamErr = nil
 	c.mu.Unlock()
 
 	go c.pumpMessages(pumpCtx, session, messages)
@@ -182,6 +184,18 @@ func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentT
 	return err
 }
 
+func (c *sdkClientAdapter) StreamError() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.streamErr
+}
+
+func (c *sdkClientAdapter) setStreamError(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.streamErr = err
+}
+
 func (c *sdkClientAdapter) currentSession() (*agentclient.Session, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -203,6 +217,7 @@ func (c *sdkClientAdapter) pumpMessages(
 			if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
 				return
 			}
+			c.setStreamError(err)
 			return
 		}
 		select {

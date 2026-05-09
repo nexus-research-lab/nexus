@@ -450,6 +450,7 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 			"stream_last_type", streamClosed.LastMessageType,
 			"stream_last_session_id", streamClosed.LastSessionID,
 			"stream_last_message_id", streamClosed.LastMessageID,
+			"stream_read_error", streamClosed.ReadError,
 			"stream_wait_error", streamClosed.WaitError,
 		)
 	}
