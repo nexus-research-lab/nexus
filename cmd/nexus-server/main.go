@@ -17,6 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
+	"github.com/spf13/cobra"
 )
 
 func runMigrations(cfg config.Config, logger *slog.Logger) error {
@@ -46,7 +47,19 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	return nil
 }
 
-func main() {
+func buildRootCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:           "nexus-server",
+		Short:         "启动 Nexus HTTP 服务",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServer()
+		},
+	}
+}
+
+func runServer() error {
 	cfg := config.Load()
 	logger := logx.New(logx.Options{
 		Service: cfg.ProjectName,
@@ -69,14 +82,14 @@ func main() {
 	if err := runMigrations(cfg, logger); err != nil {
 		logger.Error("数据库迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	server, err := serverapp.NewWithLogger(cfg, logger)
 	if err != nil {
 		logger.Error("初始化 HTTP 服务失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -90,7 +103,15 @@ func main() {
 	)
 	if err = server.ListenAndServe(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("服务异常退出", "err", err)
-		os.Exit(1)
+		return err
 	}
 	logger.Info("服务已停止")
+	return nil
+}
+
+func main() {
+	root := buildRootCommand()
+	if err := root.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
