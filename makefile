@@ -206,6 +206,13 @@ clean: ## Clean up Docker resources
 	TAG=$(TAG) $(COMPOSE_CMD) down -v
 	docker system prune -f
 
+
+# deploy
+pull:
+	git pull origin main
+
+deploy: pull restart
+
 # Legacy commands (for backward compatibility)
 up: start ## Legacy alias for start
 down: stop ## Legacy alias for stop
