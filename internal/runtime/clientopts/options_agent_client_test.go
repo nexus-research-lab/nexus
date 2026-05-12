@@ -120,3 +120,63 @@ func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
 		t.Fatalf("未把单用户保底主体注入环境: %+v", options.Env)
 	}
 }
+
+func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
+	var handledTools []string
+	handler := func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		handledTools = append(handledTools, request.ToolName)
+		updatedInput := map[string]any{
+			"answers": []any{
+				map[string]any{"question_index": float64(0), "text": "继续"},
+			},
+		}
+		return sdkpermission.Allow(updatedInput, nil), nil
+	}
+
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath:     "/tmp/workspace",
+		PermissionMode:    sdkpermission.ModeBypassPermissions,
+		PermissionHandler: handler,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Adapters.PermissionHandler == nil {
+		t.Fatalf("bypass 模式应保留 AskUserQuestion 交互通道")
+	}
+
+	questionDecision, err := options.Adapters.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: " AskUserQuestion ",
+		Input: map[string]any{
+			"questions": []any{"测试问题"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AskUserQuestion handler 返回错误: %v", err)
+	}
+	if len(handledTools) != 1 || handledTools[0] != " AskUserQuestion " {
+		t.Fatalf("AskUserQuestion 未走真实交互处理器: tools=%+v", handledTools)
+	}
+	if questionDecision.UpdatedInput["answers"] == nil {
+		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
+	}
+
+	bypassDecision, err := options.Adapters.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Bash",
+		Input: map[string]any{
+			"command": "pwd",
+		},
+	})
+	if err != nil {
+		t.Fatalf("bypass 工具自动放行失败: %v", err)
+	}
+	if len(handledTools) != 1 {
+		t.Fatalf("非提问工具不应进入交互处理器: tools=%+v", handledTools)
+	}
+	if bypassDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("bypass 工具应自动放行: %+v", bypassDecision)
+	}
+	if bypassDecision.UpdatedInput["command"] != "pwd" {
+		t.Fatalf("bypass 工具输入未原样保留: %+v", bypassDecision.UpdatedInput)
+	}
+}

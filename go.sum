@@ -35,8 +35,8 @@ github.com/mfridman/interpolate v0.0.2 h1:pnuTK7MQIxxFz1Gr+rjSIx9u7qVjf5VOoM/u6B
 github.com/mfridman/interpolate v0.0.2/go.mod h1:p+7uk6oE07mpE/Ik1b8EckO0O4ZXiGAfshKBWLUM9Xg=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
-github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260509050921-9221e97e54e9 h1:56DtszDVY8T3gY5Nr/S6OEifFXolXhcDkPz/78yf6wM=
-github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260509050921-9221e97e54e9/go.mod h1:5Dxkortbe8yCpLiirLkjcmZgQlD8EfKdARqFfxQM0FA=
+github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260509095209-a9243a398b02 h1:sxmQgx067GDje+IV6gSz+ygCBrll5l5S/8H8J1ZF+g4=
+github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260509095209-a9243a398b02/go.mod h1:5Dxkortbe8yCpLiirLkjcmZgQlD8EfKdARqFfxQM0FA=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pressly/goose/v3 v3.27.0 h1:/D30gVTuQhu0WsNZYbJi4DMOsx1lNq+6SkLe+Wp59BM=

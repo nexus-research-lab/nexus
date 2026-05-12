@@ -718,7 +718,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 }
 
-func TestServiceHandleChatBypassPermissionsDoesNotInstallPermissionHandler(t *testing.T) {
+func TestServiceHandleChatBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -776,8 +776,8 @@ func TestServiceHandleChatBypassPermissionsDoesNotInstallPermissionHandler(t *te
 	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("bypass 权限模式未透传: %+v", options)
 	}
-	if options.Adapters.PermissionHandler != nil {
-		t.Fatalf("bypass 权限模式不应安装 permission handler: %+v", options)
+	if options.Adapters.PermissionHandler == nil {
+		t.Fatalf("bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
 	}
 }
 

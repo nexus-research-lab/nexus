@@ -874,7 +874,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	}
 }
 
-func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *testing.T) {
+func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -943,8 +943,8 @@ func TestRealtimeServiceBypassPermissionsDoesNotInstallPermissionHandler(t *test
 	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("room bypass 权限模式未透传: %+v", options)
 	}
-	if options.Adapters.PermissionHandler != nil {
-		t.Fatalf("room bypass 权限模式不应安装 permission handler: %+v", options)
+	if options.Adapters.PermissionHandler == nil {
+		t.Fatalf("room bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
 	}
 }
 

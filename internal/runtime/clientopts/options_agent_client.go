@@ -14,6 +14,7 @@ import (
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
+const askUserQuestionToolName = "AskUserQuestion"
 
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
@@ -53,10 +54,7 @@ func BuildAgentClientOptions(
 	if permissionMode == "" {
 		permissionMode = sdkpermission.ModeDefault
 	}
-	permissionHandler := input.PermissionHandler
-	if permissionMode == sdkpermission.ModeBypassPermissions {
-		permissionHandler = nil
-	}
+	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
 
 	options := agentclient.Options{
 		Backend:                agentclient.ProcessBackend(agentclient.ProcessBackendOptions{}),
@@ -94,6 +92,32 @@ func BuildAgentClientOptions(
 		options.MCP.SDKServers = cloneMCPServers(input.MCPServers)
 	}
 	return options, nil
+}
+
+func permissionHandlerForMode(
+	permissionMode sdkpermission.Mode,
+	handler agentclient.PermissionHandler,
+) agentclient.PermissionHandler {
+	if permissionMode != sdkpermission.ModeBypassPermissions || handler == nil {
+		return handler
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if strings.TrimSpace(request.ToolName) == askUserQuestionToolName {
+			return handler(ctx, request)
+		}
+		return sdkpermission.Allow(clonePermissionInput(request.Input), nil), nil
+	}
+}
+
+func clonePermissionInput(input map[string]any) map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	result := make(map[string]any, len(input))
+	for key, value := range input {
+		result[key] = value
+	}
+	return result
 }
 
 // BuildRuntimeEnv 统一把 provider 配置收口成 Claude SDK 所需环境变量。
