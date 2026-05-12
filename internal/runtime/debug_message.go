@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
 )
@@ -14,6 +15,8 @@ func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
 	}
 
 	switch message.Type {
+	case sdkprotocol.MessageTypeUser:
+		fields = append(fields, buildUserMessageFields(message)...)
 	case sdkprotocol.MessageTypeAssistant:
 		fields = append(fields, buildAssistantMessageFields(message)...)
 	case sdkprotocol.MessageTypeResult:
@@ -41,6 +44,8 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 	switch message.Type {
 	case sdkprotocol.MessageTypeStreamEvent:
 		return summarizeStreamMessage(message)
+	case sdkprotocol.MessageTypeUser:
+		return summarizeUserMessage(message)
 	case sdkprotocol.MessageTypeAssistant:
 		return summarizeAssistantMessage(message)
 	case sdkprotocol.MessageTypeResult:
@@ -56,6 +61,32 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 	default:
 		return string(message.Type)
 	}
+}
+
+func buildUserMessageFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.User == nil {
+		return nil
+	}
+	toolResults := 0
+	toolErrors := 0
+	for _, block := range message.User.Message.Content {
+		toolResultBlock, ok := sdkprotocol.AsToolResultBlock(block)
+		if !ok {
+			continue
+		}
+		toolResults++
+		if toolResultBlock.IsError {
+			toolErrors++
+		}
+	}
+	fields := []any{}
+	if toolResults > 0 {
+		fields = append(fields, "tool_results", toolResults)
+	}
+	if toolErrors > 0 {
+		fields = append(fields, "tool_errors", toolErrors)
+	}
+	return fields
 }
 
 func buildAssistantMessageFields(message sdkprotocol.ReceivedMessage) []any {
@@ -96,11 +127,62 @@ func buildResultMessageFields(message sdkprotocol.ReceivedMessage) []any {
 }
 
 func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.Stream == nil {
+		return nil
+	}
+	event := rawMap(message.Stream.Event)
+	if len(event) == 0 {
+		event = rawMap(message.Stream.Data)
+	}
+	eventType := strings.TrimSpace(rawString(event["type"]))
+	if eventType == "" {
+		return nil
+	}
+	switch eventType {
+	case "content_block_start":
+		block := rawMap(event["content_block"])
+		blockType := normalizeSDKBlockType(rawString(block["type"]))
+		switch blockType {
+		case "text":
+			if text := streamDebugText(rawString(block["text"])); text != "" {
+				return []any{"stream_text", text}
+			}
+		case "tool_use":
+			if toolName := safeToolName(firstNonEmpty(rawString(block["name"]), rawString(block["id"]))); toolName != "" {
+				return []any{"tool", toolName}
+			}
+		}
+	case "content_block_delta":
+		delta := rawMap(event["delta"])
+		deltaType := strings.TrimSpace(rawString(delta["type"]))
+		switch deltaType {
+		case "text_delta":
+			text := rawString(delta["text"])
+			if preview := streamDebugText(text); preview != "" {
+				return []any{"delta", preview}
+			}
+		case "thinking_delta":
+			text := firstNonEmpty(rawString(delta["thinking"]), rawString(delta["text"]))
+			if preview := streamDebugText(text); preview != "" {
+				return []any{"thinking", preview}
+			}
+		}
+	}
 	return nil
 }
 
 func buildToolProgressFields(message sdkprotocol.ReceivedMessage) []any {
-	return nil
+	if message.ToolProgress == nil {
+		return nil
+	}
+	fields := []any{}
+	if toolName := safeToolName(message.ToolProgress.ToolName); toolName != "" {
+		fields = append(fields, "tool", toolName)
+	}
+	if message.ToolProgress.ElapsedTimeSeconds > 0 {
+		fields = append(fields, "elapsed_sec", message.ToolProgress.ElapsedTimeSeconds)
+	}
+	return fields
 }
 
 func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
@@ -158,10 +240,21 @@ func summarizeStreamMessage(message sdkprotocol.ReceivedMessage) string {
 			if blockType == "tool_use" {
 				preview = safeToolName(rawString(block["name"]))
 			}
-			return appendSummaryPreview(fmt.Sprintf("stream %s(%s)", eventType, blockType), preview)
+			return appendSummaryPreview(fmt.Sprintf("stream %s", blockType), preview)
 		}
 	}
 	return appendSummaryPreview("stream "+eventType, preview)
+}
+
+func summarizeUserMessage(message sdkprotocol.ReceivedMessage) string {
+	if message.User == nil {
+		return "user"
+	}
+	blockTypes, preview := summarizeContentBlocks(message.User.Message.Content)
+	if len(blockTypes) == 0 {
+		return "user"
+	}
+	return appendSummaryPreview("user snapshot("+strings.Join(blockTypes, ",")+")", preview)
 }
 
 func summarizeAssistantMessage(message sdkprotocol.ReceivedMessage) string {
@@ -277,6 +370,19 @@ func rawString(value any) string {
 	default:
 		return ""
 	}
+}
+
+func streamDebugText(value string) string {
+	value = strings.TrimSpace(strings.Join(strings.Fields(value), " "))
+	if value == "" {
+		return ""
+	}
+	const maxRunes = 240
+	if utf8.RuneCountInString(value) <= maxRunes {
+		return value
+	}
+	runes := []rune(value)
+	return string(runes[:maxRunes]) + "..."
 }
 
 func safeToolName(value string) string {

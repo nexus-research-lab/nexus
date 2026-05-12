@@ -194,6 +194,10 @@ export function GroupChatPanel({
     on_room_event,
   });
 
+  const todos = useExtractTodos(messages, session_key);
+  const { has_available_provider, is_ready: provider_ready } = useProviderAvailability();
+  const show_provider_warning = provider_ready && !has_available_provider;
+  const system_error = error && !is_provider_error(error) ? error : null;
   const {
     scroll_ref,
     feed_ref,
@@ -211,14 +215,11 @@ export function GroupChatPanel({
     message_count: messages.length,
     auxiliary_block_count:
       pending_agent_slots.length + pending_permissions.length,
+    auxiliary_block_key: system_error,
     is_loading,
     session_key,
     history_prepend_token,
   });
-
-  const todos = useExtractTodos(messages, session_key);
-  const { has_available_provider, is_ready: provider_ready } = useProviderAvailability();
-  const show_provider_warning = provider_ready && !has_available_provider;
   const can_control_session = session_control_state !== "observer";
   const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
   const session_control_text = useMemo(
@@ -527,13 +528,11 @@ export function GroupChatPanel({
               }
               round_ids={round_ids}
             />
-            {error && !is_provider_error(error) ? (
+            {system_error ? (
               <div className={is_mobile_layout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
                 <ConversationErrorBubble
-                  error={error}
+                  error={system_error}
                   compact={is_mobile_layout}
-                  current_agent_name={current_agent_name ?? null}
-                  current_agent_avatar={current_agent_avatar ?? null}
                 />
               </div>
             ) : null}

@@ -15,7 +15,7 @@ import {
   Radio,
   Users2,
 } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -39,6 +39,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   const navigate = useNavigate();
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
+  const summary_refresh_in_flight_ref = useRef(false);
   const [summary, set_summary] = useState<CapabilitySummary>({
     skills_count: 0,
     connected_connectors_count: 0,
@@ -48,6 +49,10 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   });
 
   const refresh_capability_summary = useCallback(async (options?: { reset_on_error?: boolean }) => {
+    if (summary_refresh_in_flight_ref.current) {
+      return;
+    }
+    summary_refresh_in_flight_ref.current = true;
     try {
       const next_summary = await get_capability_summary_api();
       set_summary(next_summary);
@@ -61,6 +66,8 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
           active_pairings_count: 0,
         });
       }
+    } finally {
+      summary_refresh_in_flight_ref.current = false;
     }
   }, []);
 
@@ -109,11 +116,9 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     };
     window.addEventListener("focus", handle_revalidate);
     document.addEventListener("visibilitychange", handle_revalidate);
-    const interval_id = window.setInterval(handle_revalidate, 15000);
     return () => {
       window.removeEventListener("focus", handle_revalidate);
       document.removeEventListener("visibilitychange", handle_revalidate);
-      window.clearInterval(interval_id);
     };
   }, [refresh_capability_summary]);
 

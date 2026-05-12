@@ -101,12 +101,9 @@ func (s *RealtimeService) runSlot(
 	if agentValue == nil {
 		slot.Status = "error"
 		s.loggerFor(ctx).Error("Room slot 缺少 agent 配置",
-			"session_key", roundValue.SessionKey,
-			"room_id", roundValue.RoomID,
-			"conversation_id", roundValue.ConversationID,
-			"round_id", slot.AgentRoundID,
-			"agent_id", slot.AgentID,
-			"msg_id", slot.MsgID,
+			"s", roundValue.SessionKey,
+			"r", roundValue.RoomID,
+			"c", roundValue.ConversationID,
 		)
 		return
 	}
@@ -114,12 +111,13 @@ func (s *RealtimeService) runSlot(
 	slotCtx, cancel := context.WithCancel(ctx)
 	slot.Cancel = cancel
 	logger := s.loggerFor(slotCtx).With(
-		"session_key", roundValue.SessionKey,
-		"room_id", roundValue.RoomID,
-		"conversation_id", roundValue.ConversationID,
-		"agent_id", slot.AgentID,
-		"round_id", slot.AgentRoundID,
-		"msg_id", slot.MsgID,
+		"s", roundValue.SessionKey,
+		"r", roundValue.RoomID,
+		"c", roundValue.ConversationID,
+	)
+	streamLogger := s.loggerFor(slotCtx).With(
+		"s", roundValue.SessionKey,
+		"a", slot.AgentID,
 	)
 	mapper := roomdomain.NewSlotMessageMapper(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, slot.AgentID, slot.MsgID, slot.AgentRoundID)
 	slot.Status = "running"
@@ -257,8 +255,8 @@ func (s *RealtimeService) runSlot(
 			return nil
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			if logger.Enabled(slotCtx, slog.LevelDebug) {
-				logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			if streamLogger.Enabled(slotCtx, slog.LevelDebug) {
+				streamLogger.Debug("Room slot 收到 SDK 消息", runtimectx.BuildSDKMessageLogFields(incoming)...)
 			}
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -361,10 +359,9 @@ func (s *RealtimeService) writeUsage(roundValue *activeRoomRound, message protoc
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
 	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		s.loggerFor(context.Background()).Error("Room token usage 写入失败",
-			"session_key", roundValue.SessionKey,
-			"room_id", roundValue.RoomID,
-			"conversation_id", roundValue.ConversationID,
-			"round_id", roundValue.RoundID,
+			"s", roundValue.SessionKey,
+			"r", roundValue.RoomID,
+			"c", roundValue.ConversationID,
 			"err", err,
 		)
 	}
@@ -537,12 +534,9 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 	}
 	if err := s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage); err != nil {
 		s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
-			"session_key", roundValue.SessionKey,
-			"room_id", roundValue.RoomID,
-			"conversation_id", roundValue.ConversationID,
-			"agent_id", slot.AgentID,
-			"round_id", slot.AgentRoundID,
-			"msg_id", slot.MsgID,
+			"s", roundValue.SessionKey,
+			"r", roundValue.RoomID,
+			"c", roundValue.ConversationID,
 			"err", err,
 		)
 	} else {
@@ -564,12 +558,9 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 	}
 	if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey)); err != nil {
 		s.loggerFor(context.Background()).Error("Room interrupted 私有结果持久化失败",
-			"session_key", roundValue.SessionKey,
-			"room_id", roundValue.RoomID,
-			"conversation_id", roundValue.ConversationID,
-			"agent_id", slot.AgentID,
-			"round_id", slot.AgentRoundID,
-			"msg_id", slot.MsgID,
+			"s", roundValue.SessionKey,
+			"r", roundValue.RoomID,
+			"c", roundValue.ConversationID,
 			"err", err,
 		)
 	}

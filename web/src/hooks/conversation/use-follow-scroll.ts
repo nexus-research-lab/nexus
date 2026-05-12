@@ -79,6 +79,8 @@ interface UseFollowScrollOptions {
   message_count: number;
   /** 权限/插槽块变化时触发滚动 */
   auxiliary_block_count?: number;
+  /** 辅助块内容变化时触发滚动，例如系统消息文本变化。 */
+  auxiliary_block_key?: string | null;
   /** loading 变化时触发滚动 */
   is_loading: boolean;
   /** session 切换时重置跟随状态 */
@@ -117,6 +119,7 @@ interface UseFollowScrollReturn {
 export function useFollowScroll({
   message_count,
   auxiliary_block_count = 0,
+  auxiliary_block_key = null,
   is_loading,
   session_key,
   history_prepend_token = 0,
@@ -262,6 +265,7 @@ export function useFollowScroll({
     schedule_scroll_to_bottom(is_loading ? "auto" : "smooth");
   }, [
     auxiliary_block_count,
+    auxiliary_block_key,
     is_loading,
     message_count,
     schedule_scroll_to_bottom,

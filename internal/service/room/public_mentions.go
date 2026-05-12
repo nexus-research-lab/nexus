@@ -21,6 +21,7 @@ func (s *RealtimeService) collectPublicMentionWakes(
 	if roundValue == nil || roundValue.Context == nil || slot == nil {
 		return nil
 	}
+	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	if !roomdomain.IsFinalPublicAssistantMessage(message) {
 		return nil
 	}
@@ -33,13 +34,15 @@ func (s *RealtimeService) collectPublicMentionWakes(
 		return nil
 	}
 
-	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	for _, targetAgentID := range targetAgentIDs {
 		targetAgentID = strings.TrimSpace(targetAgentID)
-		if targetAgentID == "" || targetAgentID == slot.AgentID || !roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
+		if targetAgentID == "" {
 			continue
 		}
-		if isReciprocalPublicMention(slot, targetAgentID) {
+		if targetAgentID == slot.AgentID {
+			continue
+		}
+		if !roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
 			continue
 		}
 		s.enqueuePublicMentionWake(roundValue, publicMentionWake{
@@ -50,16 +53,6 @@ func (s *RealtimeService) collectPublicMentionWakes(
 		})
 	}
 	return nil
-}
-
-func isReciprocalPublicMention(slot *activeRoomSlot, targetAgentID string) bool {
-	if slot == nil {
-		return false
-	}
-	if strings.TrimSpace(slot.Trigger.TriggerType) != "public_mention" {
-		return false
-	}
-	return strings.TrimSpace(slot.Trigger.SourceAgentID) == strings.TrimSpace(targetAgentID)
 }
 
 func (s *RealtimeService) enqueuePublicMentionWake(roundValue *activeRoomRound, wake publicMentionWake) {
@@ -96,17 +89,17 @@ func (s *RealtimeService) startQueuedPublicMentionWakes(ctx context.Context, rou
 	}
 	if roundValue.HopIndex >= roomMaxWakeHops {
 		s.loggerFor(ctx).Warn("Room 公区 @ 唤醒达到跳数上限",
-			"room_id", roundValue.RoomID,
-			"conversation_id", roundValue.ConversationID,
-			"root_round_id", roomRootRoundID(roundValue),
+			"r", roundValue.RoomID,
+			"c", roundValue.ConversationID,
+			"root", roomRootRoundID(roundValue),
 		)
 		return false
 	}
 	if err := s.startPublicMentionRound(ctx, roundValue, wakes); err != nil {
 		s.loggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
-			"room_id", roundValue.RoomID,
-			"conversation_id", roundValue.ConversationID,
-			"root_round_id", roomRootRoundID(roundValue),
+			"r", roundValue.RoomID,
+			"c", roundValue.ConversationID,
+			"root", roomRootRoundID(roundValue),
 			"err", err,
 		)
 		return false
@@ -129,6 +122,13 @@ func (s *RealtimeService) startPublicMentionRound(
 		return err
 	}
 	if len(wakes) == 0 {
+		s.loggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
+			"s", sessionKey,
+			"r", contextValue.Room.ID,
+			"c", contextValue.Conversation.ID,
+			"parent", parentRound.RoundID,
+			"root", roomRootRoundID(parentRound),
+		)
 		return nil
 	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
@@ -189,6 +189,12 @@ func (s *RealtimeService) startPublicMentionRound(
 		})
 	}
 	if len(pendingSlots) == 0 {
+		s.loggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
+			"s", sessionKey,
+			"r", contextValue.Room.ID,
+			"c", contextValue.Conversation.ID,
+			"wakes", len(wakes),
+		)
 		return nil
 	}
 
@@ -228,6 +234,14 @@ func (s *RealtimeService) startPublicMentionRound(
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
 	s.runtime.StartRound(sessionKey, roundID, cancel)
+	s.loggerFor(ctx).Info("启动 Room 公区 @ 唤醒 round",
+		"s", sessionKey,
+		"r", contextValue.Room.ID,
+		"c", contextValue.Conversation.ID,
+		"hop", activeRound.HopIndex,
+		"targets", targetAgentIDs,
+		"pending", len(pending),
+	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, roundID, pending))
 	s.broadcastSessionStatus(ctx, sessionKey)
@@ -273,6 +287,12 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 		}
 		location, ok := locationsByAgentID[targetAgentID]
 		if !ok {
+			s.loggerFor(ctx).Warn("Room 公区 @ 目标正忙但缺少队列位置",
+				"s", sessionKey,
+				"r", parentRound.RoomID,
+				"c", parentRound.ConversationID,
+				"t", targetAgentID,
+			)
 			continue
 		}
 		if _, err := s.inputQueue.Enqueue(location.Location, protocol.InputQueueItem{
@@ -295,13 +315,12 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 		}
 		queued = true
 		s.loggerFor(ctx).Info("Room 公区 @ 目标正忙，写入后端待发送队列",
-			"session_key", sessionKey,
-			"queue_session_key", location.Location.SessionKey,
-			"room_id", parentRound.RoomID,
-			"conversation_id", parentRound.ConversationID,
-			"source_agent_id", wake.SourceAgentID,
-			"target_agent_id", targetAgentID,
-			"message_id", wake.MessageID,
+			"s", sessionKey,
+			"qs", location.Location.SessionKey,
+			"r", parentRound.RoomID,
+			"c", parentRound.ConversationID,
+			"src", wake.SourceAgentID,
+			"t", targetAgentID,
 		)
 	}
 	if queued {

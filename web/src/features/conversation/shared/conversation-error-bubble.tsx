@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -9,8 +9,6 @@ import { MessageAvatar } from "./message/ui/message-primitives";
 interface ConversationErrorBubbleProps {
   error: string;
   compact?: boolean;
-  current_agent_name?: string | null;
-  current_agent_avatar?: string | null;
 }
 
 interface ErrorPresentation {
@@ -19,23 +17,35 @@ interface ErrorPresentation {
 }
 
 function resolve_error_presentation(error: string): ErrorPresentation {
-  if (error.includes("服务器")) {
+  const normalized_error = error.toLowerCase();
+
+  if (
+    normalized_error.includes("websocket") ||
+    error.includes("WebSocket未连接") ||
+    error.includes("连接")
+  ) {
     return {
-      title: "无法连接到后端服务",
-      detail: "请确保后端服务正在运行（端口 8010）。",
+      title: "连接中断",
+      detail: "浏览器与 Nexus 后端的实时连接异常，系统会自动尝试重连。请先确认网络和后端服务状态；连接恢复后，如果刚才的消息没有继续处理，可以刷新页面后重新发送。",
     };
   }
+
+  if (error.includes("服务器") || error.includes("后端")) {
+    return {
+      title: "无法连接到后端服务",
+      detail: "请确认后端服务正在运行，并检查本地开发端口或部署代理配置。服务恢复后，可以刷新页面重新进入当前对话。",
+    };
+  }
+
   return {
-    title: "对话出错",
-    detail: error,
+    title: "系统消息",
+    detail: `${error}。请稍后重试；如果当前轮次没有继续响应，可以刷新页面后重新发送上一条消息。`,
   };
 }
 
 export function ConversationErrorBubble({
   error,
   compact = false,
-  current_agent_name,
-  current_agent_avatar,
 }: ConversationErrorBubbleProps) {
   const presentation = resolve_error_presentation(error);
 
@@ -47,8 +57,8 @@ export function ConversationErrorBubble({
           compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
         )}>
           {!compact ? (
-            <MessageAvatar avatar_url={current_agent_avatar}>
-              {!current_agent_avatar && <Bot className="h-4 w-4" />}
+            <MessageAvatar>
+              <CircleAlert className="h-4 w-4 text-destructive" />
             </MessageAvatar>
           ) : null}
 
@@ -58,12 +68,12 @@ export function ConversationErrorBubble({
               compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
             )}>
               {compact ? (
-                <MessageAvatar class_name="shrink-0" size="compact" avatar_url={current_agent_avatar}>
-                  {!current_agent_avatar && <Bot className="h-3 w-3" />}
+                <MessageAvatar class_name="shrink-0" size="compact">
+                  <CircleAlert className="h-3 w-3 text-destructive" />
                 </MessageAvatar>
               ) : null}
               <span className="shrink-0 text-sm font-bold text-(--text-strong)">
-                {current_agent_name || "协作成员"}
+                系统消息
               </span>
             </div>
 

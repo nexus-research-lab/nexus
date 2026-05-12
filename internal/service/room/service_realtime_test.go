@@ -1036,6 +1036,79 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	}
 }
 
+func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "公区 @ 接力测试房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	amyFirstClient := newFakeRoomClient()
+	devinClient := newFakeRoomClient()
+	amySecondClient := newFakeRoomClient()
+	amySecondPrompt := make(chan string, 1)
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyFirstClient, devinClient, amySecondClient}}
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
+
+	amyFirstClient.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-1", "@Devin 请接下一联。")
+		return nil
+	}
+	devinClient.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeAssistantResult(devinClient, "devin-public-mention-chain-1", "@Amy 我接完了，你继续。")
+		return nil
+	}
+	amySecondClient.onQuery = func(_ context.Context, prompt string) error {
+		amySecondPrompt <- prompt
+		go sendFakeAssistantResult(amySecondClient, "amy-public-mention-chain-2", "收到，继续接力。")
+		return nil
+	}
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-public-mention-chain")
+	permission.BindSession(sharedSessionKey, sender, "client-public-mention-chain", true)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Amy 你俩接力 5 轮",
+		RoundID:        "room-round-public-mention-chain",
+		ReqID:          "room-round-public-mention-chain",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	select {
+	case prompt := <-amySecondPrompt:
+		if !strings.Contains(prompt, "<latest_trigger>\nDevin: @Amy 我接完了，你继续。") {
+			t.Fatalf("Amy 第二次 prompt 缺少 Devin 触发上下文: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Devin @Amy 后未继续触发 Amy")
+	}
+}
+
 func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
