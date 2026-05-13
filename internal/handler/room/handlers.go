@@ -25,6 +25,7 @@ type roomRegistryRemover func(string)
 const (
 	internalTokenHeader       = "X-Nexus-Internal-Token"
 	internalScopeUserIDHeader = "X-Nexus-Scope-User-ID"
+	internalRoomAgentIDHeader = "X-Nexus-Room-Agent-ID"
 )
 
 // Handlers 封装 room 域 HTTP handlers。
@@ -197,11 +198,17 @@ func (h *Handlers) HandleCreateAction(writer http.ResponseWriter, request *http.
 		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少 user scope")
 		return
 	}
+	sourceAgentID := strings.TrimSpace(request.Header.Get(internalRoomAgentIDHeader))
+	if sourceAgentID == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少 room agent scope")
+		return
+	}
 
 	var payload protocol.CreateRoomActionRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
+	payload.SourceAgentID = sourceAgentID
 	ctx := authsvc.WithPrincipal(request.Context(), &authsvc.Principal{
 		UserID:     scopeUserID,
 		Username:   scopeUserID,

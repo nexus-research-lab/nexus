@@ -2,6 +2,9 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -255,6 +258,59 @@ func TestRoomActionCommandRequiresInternalEndpoint(t *testing.T) {
 	)
 	if errText == "" {
 		t.Fatal("缺少内部 endpoint 时应返回错误")
+	}
+}
+
+func TestCreateRoomActionSendsSourceAgentAsInternalHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if got := request.Header.Get(nexusInternalRoomAgentIDHeader); got != "agent-amy" {
+			t.Fatalf("source agent 应通过内部 header 注入: %q", got)
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("读取请求 body 失败: %v", err)
+		}
+		var payload protocol.CreateRoomActionRequest
+		if err = json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("解析请求 body 失败: %v", err)
+		}
+		if strings.TrimSpace(payload.SourceAgentID) != "" {
+			t.Fatalf("source_agent_id 不应出现在 action JSON body: %+v", payload)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(writer).Encode(map[string]any{
+			"success": true,
+			"data": protocol.RoomActionRecord{
+				ActionID:       "action-1",
+				RoomID:         "room-1",
+				ConversationID: "conversation-1",
+				ActionType:     protocol.RoomActionTypePrivateNote,
+				SourceAgentID:  "agent-amy",
+				Content:        "note",
+				Visibility:     protocol.RoomActionVisibilityPrivate,
+				ReplyTarget:    protocol.RoomReplyTargetSenderPrivate,
+			},
+		})
+		if err != nil {
+			t.Fatalf("写入响应失败: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	item, err := createRoomAction(context.Background(), roomActionCLIOptions{
+		actionType:      protocol.RoomActionTypePrivateNote,
+		roomID:          "room-1",
+		conversationID:  "conversation-1",
+		sourceAgentID:   "agent-amy",
+		content:         "note",
+		internalAPIBase: server.URL,
+		internalToken:   "token-1",
+	}, "user-1")
+	if err != nil {
+		t.Fatalf("创建 Room action 失败: %v", err)
+	}
+	if item.SourceAgentID != "agent-amy" {
+		t.Fatalf("响应 source_agent_id 不正确: %+v", item)
 	}
 }
 

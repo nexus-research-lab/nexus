@@ -26,6 +26,7 @@ const (
 	nexusRoomInternalTokenEnvName   = "NEXUS_ROOM_INTERNAL_TOKEN"
 	nexusInternalTokenHeader        = "X-Nexus-Internal-Token"
 	nexusInternalScopeUserIDHeader  = "X-Nexus-Scope-User-ID"
+	nexusInternalRoomAgentIDHeader  = "X-Nexus-Room-Agent-ID"
 )
 
 func newRoomActionCommand(_ *cliServiceProvider) *cobra.Command {
@@ -202,7 +203,6 @@ func createRoomAction(
 	}
 	payload := protocol.CreateRoomActionRequest{
 		ActionType:       options.actionType,
-		SourceAgentID:    strings.TrimSpace(options.sourceAgentID),
 		TargetAgentID:    strings.TrimSpace(options.targetAgentID),
 		AudienceAgentIDs: normalizeRoomActionCLIIDs(options.audienceAgentIDs),
 		Content:          strings.TrimSpace(options.content),
@@ -221,6 +221,7 @@ func createRoomAction(
 	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set(nexusInternalTokenHeader, strings.TrimSpace(options.internalToken))
 	httpRequest.Header.Set(nexusInternalScopeUserIDHeader, scopeUserID)
+	httpRequest.Header.Set(nexusInternalRoomAgentIDHeader, strings.TrimSpace(options.sourceAgentID))
 
 	response, err := http.DefaultClient.Do(httpRequest)
 	if err != nil {

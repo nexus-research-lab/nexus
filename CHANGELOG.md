@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。
 - `nexusctl room action` 的 JSON 输出不再回显 action 正文，避免私域内容进入工具结果日志。
+- Room action 内部入口改为从受控 header 注入 source agent，避免 action JSON body 接收模型侧手写的 `source_agent_id`。
 
 ## [0.1.2] - 2026-05-12
 
