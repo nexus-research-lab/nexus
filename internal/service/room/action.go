@@ -41,6 +41,7 @@ func (s *RealtimeService) HandleAction(
 		"action_type", action.ActionType,
 		"source_agent_id", action.SourceAgentID,
 		"target_agent_id", action.TargetAgentID,
+		"audience_agent_ids", action.AudienceAgentIDs,
 		"content_chars", utf8.RuneCountInString(action.Content),
 	)
 	if err = s.startRoomActionWake(ctx, contextValue, *action); err != nil {
@@ -51,6 +52,7 @@ func (s *RealtimeService) HandleAction(
 			"action_type", action.ActionType,
 			"source_agent_id", action.SourceAgentID,
 			"target_agent_id", action.TargetAgentID,
+			"audience_agent_ids", action.AudienceAgentIDs,
 			"err", err,
 		)
 	}
@@ -115,15 +117,25 @@ func (s *RealtimeService) buildRoomActionRecord(
 
 	switch actionType {
 	case protocol.RoomActionTypePrivateMessage:
-		if targetAgentID == "" {
-			return nil, errors.New("target_agent_id is required")
+		if targetAgentID == "" && len(audienceAgentIDs) == 0 {
+			return nil, errors.New("private_message requires target_agent_id or audience_agent_ids")
 		}
-		if !roomdomain.ContainsString(memberAgentIDs, targetAgentID) {
+		if targetAgentID != "" && !roomdomain.ContainsString(memberAgentIDs, targetAgentID) {
 			return nil, ErrRoomMemberNotFound
+		}
+		if err = validateRoomActionAudienceMembers(audienceAgentIDs, memberAgentIDs); err != nil {
+			return nil, err
 		}
 		visibility = protocol.RoomActionVisibilityPrivate
 		if replyTarget == "" {
-			replyTarget = protocol.RoomReplyTargetTargetPrivate
+			if len(audienceAgentIDs) > 0 {
+				replyTarget = protocol.RoomReplyTargetAudience
+			} else {
+				replyTarget = protocol.RoomReplyTargetTargetPrivate
+			}
+		}
+		if wakePolicy == "" {
+			wakePolicy = protocol.RoomWakePolicyImmediate
 		}
 	case protocol.RoomActionTypeRequestReply:
 		if targetAgentID == "" {
@@ -160,6 +172,9 @@ func (s *RealtimeService) buildRoomActionRecord(
 		if targetAgentID != "" && !roomdomain.ContainsString(memberAgentIDs, targetAgentID) {
 			return nil, ErrRoomMemberNotFound
 		}
+	}
+	if replyTarget == protocol.RoomReplyTargetTargetPrivate && targetAgentID == "" {
+		return nil, errors.New("target_private reply_target requires target_agent_id")
 	}
 	if err = validateRoomReplyTarget(replyTarget, audienceAgentIDs, memberAgentIDs); err != nil {
 		return nil, err
@@ -222,6 +237,15 @@ func normalizeRoomActionAudience(values []string) []string {
 	return result
 }
 
+func validateRoomActionAudienceMembers(audienceAgentIDs []string, memberAgentIDs []string) error {
+	for _, agentID := range audienceAgentIDs {
+		if !roomdomain.ContainsString(memberAgentIDs, agentID) {
+			return ErrRoomMemberNotFound
+		}
+	}
+	return nil
+}
+
 func validateRoomReplyTarget(
 	replyTarget protocol.RoomReplyTarget,
 	audienceAgentIDs []string,
@@ -252,8 +276,8 @@ func validateRoomWakePolicy(actionType protocol.RoomActionType, wakePolicy proto
 	if wakePolicy == "" {
 		return nil
 	}
-	if actionType != protocol.RoomActionTypeRequestReply {
-		return errors.New("wake_policy 仅支持 request_reply")
+	if actionType != protocol.RoomActionTypeRequestReply && actionType != protocol.RoomActionTypePrivateMessage {
+		return errors.New("wake_policy 仅支持 private_message/request_reply")
 	}
 	switch wakePolicy {
 	case protocol.RoomWakePolicyNone, protocol.RoomWakePolicyImmediate:

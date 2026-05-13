@@ -153,6 +153,192 @@ func TestRealtimeServiceCreatesPrivateMessageAction(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceCreatesAudiencePrivateMessageAction(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-audience-private",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	sam := createTestAgent(t, agentService, ctx, "Sam")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID, sam.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	devinClient := newFakeRoomClient()
+	samClient := newFakeRoomClient()
+	var devinSeen atomic.Bool
+	var samSeen atomic.Bool
+	devinClient.onQuery = func(_ context.Context, prompt string) error {
+		devinSeen.Store(strings.Contains(prompt, "<room_actions>") &&
+			strings.Contains(prompt, "只给小范围成员的消息") &&
+			strings.Contains(prompt, "private_message audience="))
+		sendFakeAssistantResult(devinClient, "devin-audience-private", "Devin 收到")
+		return nil
+	}
+	samClient.onQuery = func(_ context.Context, prompt string) error {
+		samSeen.Store(strings.Contains(prompt, "<room_actions>") &&
+			strings.Contains(prompt, "只给小范围成员的消息") &&
+			strings.Contains(prompt, "private_message audience="))
+		sendFakeAssistantResult(samClient, "sam-audience-private", "Sam 收到")
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinClient, samClient}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypePrivateMessage,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{devin.AgentID, sam.AgentID},
+		Content:          "只给小范围成员的消息",
+	})
+	if err != nil {
+		t.Fatalf("创建 audience private_message action 失败: %v", err)
+	}
+	if action.TargetAgentID != "" ||
+		action.ReplyTarget != protocol.RoomReplyTargetAudience ||
+		action.WakePolicy != protocol.RoomWakePolicyImmediate {
+		t.Fatalf("audience private_message 默认路由不正确: %+v", action)
+	}
+
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
+	if event.Data["action_type"] != string(protocol.RoomActionTypePrivateMessage) ||
+		event.Data["reply_target"] != string(protocol.RoomReplyTargetAudience) ||
+		event.Data["wake_policy"] != string(protocol.RoomWakePolicyImmediate) ||
+		!strings.Contains(fmt.Sprint(event.Data["audience_agent_ids"]), devin.AgentID) ||
+		!strings.Contains(fmt.Sprint(event.Data["audience_agent_ids"]), sam.AgentID) {
+		t.Fatalf("audience private_message 创建事件不正确: %+v", event.Data)
+	}
+	if _, ok := event.Data["content"]; ok {
+		t.Fatalf("audience private_message 事件不应泄漏正文: %+v", event.Data)
+	}
+	waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_started" && event.Data["target_agent_id"] == devin.AgentID
+	})
+	waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_started" && event.Data["target_agent_id"] == sam.AgentID
+	})
+
+	deadline := time.After(3 * time.Second)
+	for !devinSeen.Load() || !samSeen.Load() {
+		select {
+		case <-deadline:
+			t.Fatalf("audience private_message 未唤醒全部受众: devin=%v sam=%v", devinSeen.Load(), samSeen.Load())
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	devinActions, err := actionStore.ReadContextActions(roomContext.Conversation.ID, devin.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Devin audience private_message 失败: %v", err)
+	}
+	if !roomActionContentsContain(devinActions, "只给小范围成员的消息") {
+		t.Fatalf("Devin 未读到 audience private_message: %+v", devinActions)
+	}
+	samActions, err := actionStore.ReadContextActions(roomContext.Conversation.ID, sam.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Sam audience private_message 失败: %v", err)
+	}
+	if !roomActionContentsContain(samActions, "只给小范围成员的消息") {
+		t.Fatalf("Sam 未读到 audience private_message: %+v", samActions)
+	}
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, amy.AgentID, nil)
+}
+
+func TestRealtimeServiceRecordsAudiencePrivateMessageWithoutWake(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-audience-private-none",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	sam := createTestAgent(t, agentService, ctx, "Sam")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID, sam.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	var queryCount atomic.Int32
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		queryCount.Add(1)
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypePrivateMessage,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{devin.AgentID, sam.AgentID},
+		Content:          "先只投递给小范围成员",
+		WakePolicy:       protocol.RoomWakePolicyNone,
+	})
+	if err != nil {
+		t.Fatalf("创建 wake_policy none audience private_message 失败: %v", err)
+	}
+	if action.ReplyTarget != protocol.RoomReplyTargetAudience ||
+		action.WakePolicy != protocol.RoomWakePolicyNone {
+		t.Fatalf("wake_policy none audience private_message 路由不正确: %+v", action)
+	}
+	time.Sleep(80 * time.Millisecond)
+	if queryCount.Load() != 0 {
+		t.Fatal("wake_policy=none 的 audience private_message 不应立即唤醒")
+	}
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
+	if event.Data["wake_policy"] != string(protocol.RoomWakePolicyNone) ||
+		event.Data["event_kind"] != "created" {
+		t.Fatalf("wake_policy none audience private_message 事件不正确: %+v", event.Data)
+	}
+
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, devin.AgentID, []string{"先只投递给小范围成员"})
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, sam.AgentID, []string{"先只投递给小范围成员"})
+}
+
 func TestRealtimeServiceRejectsActionForNonMemberTarget(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -206,6 +392,16 @@ func TestRealtimeServiceRejectsActionForNonMemberTarget(t *testing.T) {
 	})
 	if !errors.Is(err, roomsvc.ErrRoomMemberNotFound) {
 		t.Fatalf("非成员 audience 应被拒绝: %v", err)
+	}
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypePrivateMessage,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{outsider.AgentID},
+		Content:          "非成员私域受众不应写入",
+	})
+	if !errors.Is(err, roomsvc.ErrRoomMemberNotFound) {
+		t.Fatalf("private_message 非成员 audience 应被拒绝: %v", err)
 	}
 }
 

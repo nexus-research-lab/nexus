@@ -159,7 +159,10 @@ func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) 
 	}
 	switch action.ActionType {
 	case protocol.RoomActionTypePrivateMessage:
-		return action.TargetAgentID == agentID
+		if strings.TrimSpace(action.TargetAgentID) != "" {
+			return action.TargetAgentID == agentID
+		}
+		return containsRoomActionAgent(action.AudienceAgentIDs, agentID)
 	case protocol.RoomActionTypeRequestReply:
 		return action.TargetAgentID == agentID
 	case protocol.RoomActionTypePrivateNote:

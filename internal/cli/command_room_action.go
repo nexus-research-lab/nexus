@@ -74,20 +74,20 @@ func newRoomActionCursorsCommand(services *cliServiceProvider) *cobra.Command {
 }
 
 func newRoomPrivateMessageCommand() *cobra.Command {
-	options := roomActionCLIOptions{actionType: protocol.RoomActionTypePrivateMessage}
+	options := roomActionCLIOptions{
+		actionType: protocol.RoomActionTypePrivateMessage,
+		wakePolicy: protocol.RoomWakePolicyImmediate,
+	}
 	command := &cobra.Command{
 		Use:   "private-message",
 		Short: "发送 Room 内私域消息",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if options.replyTarget == "" {
-				options.replyTarget = protocol.RoomReplyTargetTargetPrivate
-			}
 			return runRoomActionCommand(cmd, options)
 		},
 	}
 	bindRoomActionCommonFlags(command, &options)
 	command.Flags().StringVar(&options.targetAgentID, "target-agent-id", "", "target room agent id")
-	_ = command.MarkFlagRequired("target-agent-id")
+	command.Flags().StringVar((*string)(&options.wakePolicy), "wake-policy", string(protocol.RoomWakePolicyImmediate), "none|immediate")
 	_ = command.MarkFlagRequired("content")
 	return command
 }
@@ -347,8 +347,12 @@ func (o roomActionCLIOptions) validate() error {
 	if strings.TrimSpace(o.internalToken) == "" {
 		return usageErrorf("room action requires %s from Room runtime", nexusRoomInternalTokenEnvName)
 	}
-	if o.actionType == protocol.RoomActionTypePrivateMessage && strings.TrimSpace(o.targetAgentID) == "" {
-		return usageErrorf("private-message requires --target-agent-id")
+	if o.actionType == protocol.RoomActionTypePrivateMessage {
+		hasTarget := strings.TrimSpace(o.targetAgentID) != ""
+		hasAudience := len(normalizeRoomActionCLIIDs(o.audienceAgentIDs)) > 0
+		if !hasTarget && !hasAudience {
+			return usageErrorf("private-message requires --target-agent-id or --audience-agent-id")
+		}
 	}
 	if o.actionType == protocol.RoomActionTypeRequestReply && strings.TrimSpace(o.targetAgentID) == "" {
 		return usageErrorf("request-reply requires --target-agent-id")
