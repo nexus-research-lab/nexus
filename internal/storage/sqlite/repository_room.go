@@ -472,13 +472,7 @@ WHERE room_id = ? AND member_type = 'agent' AND member_agent_id = ?`,
 		return nil, err
 	}
 
-	if _, err = tx.ExecContext(ctx, `
-DELETE FROM sessions
-WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)
-  AND agent_id = ?`,
-		roomID,
-		agentID,
-	); err != nil {
+	if err = deleteRoomAgentSessionDependents(ctx, tx, roomID, agentID); err != nil {
 		return nil, err
 	}
 
@@ -499,12 +493,28 @@ WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)
 
 // DeleteRoom 删除房间。
 func (r *RoomRepository) DeleteRoom(ctx context.Context, ownerUserID string, roomID string) (bool, error) {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM rooms WHERE id = ? AND owner_user_id = ?`, roomID, ownerUserID)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	roomValue, err := r.loadRoom(ctx, tx, ownerUserID, roomID)
+	if err != nil || roomValue == nil {
+		return false, err
+	}
+	if err = deleteRoomDependents(ctx, tx, roomID); err != nil {
+		return false, err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM rooms WHERE id = ? AND owner_user_id = ?`, roomID, ownerUserID)
 	if err != nil {
 		return false, err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
 		return false, err
 	}
 	return affected > 0, nil
@@ -656,6 +666,9 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, ownerUserID str
 		}
 	}
 
+	if err = deleteConversationDependents(ctx, tx, conversationID); err != nil {
+		return nil, err
+	}
 	result, err := tx.ExecContext(ctx, `DELETE FROM conversations WHERE id = ? AND room_id = ?`, conversationID, roomID)
 	if err != nil {
 		return nil, err
@@ -675,6 +688,79 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, ownerUserID str
 		return nil, nil
 	}
 	return r.getContextByConversation(ctx, ownerUserID, roomID, fallbackConversationID)
+}
+
+func deleteRoomDependents(ctx context.Context, tx *sql.Tx, roomID string) error {
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM rounds
+WHERE session_id IN (
+    SELECT s.id FROM sessions s
+    JOIN conversations c ON c.id = s.conversation_id
+    WHERE c.room_id = ?
+)
+OR trigger_message_id IN (
+    SELECT m.id FROM messages m
+    JOIN conversations c ON c.id = m.conversation_id
+    WHERE c.room_id = ?
+)`, roomID, roomID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM messages
+WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)`, roomID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM sessions
+WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)`, roomID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM conversations WHERE room_id = ?`, roomID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM members WHERE room_id = ?`, roomID)
+	return err
+}
+
+func deleteConversationDependents(ctx context.Context, tx *sql.Tx, conversationID string) error {
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM rounds
+WHERE session_id IN (SELECT id FROM sessions WHERE conversation_id = ?)
+OR trigger_message_id IN (SELECT id FROM messages WHERE conversation_id = ?)`, conversationID, conversationID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE conversation_id = ?`, conversationID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE conversation_id = ?`, conversationID)
+	return err
+}
+
+func deleteRoomAgentSessionDependents(ctx context.Context, tx *sql.Tx, roomID string, agentID string) error {
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM rounds
+WHERE session_id IN (
+    SELECT s.id FROM sessions s
+    JOIN conversations c ON c.id = s.conversation_id
+    WHERE c.room_id = ? AND s.agent_id = ?
+)`, roomID, agentID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+UPDATE messages
+SET session_id = NULL
+WHERE session_id IN (
+    SELECT s.id FROM sessions s
+    JOIN conversations c ON c.id = s.conversation_id
+    WHERE c.room_id = ? AND s.agent_id = ?
+)`, roomID, agentID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+DELETE FROM sessions
+WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)
+  AND agent_id = ?`, roomID, agentID)
+	return err
 }
 
 func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomAggregate, error) {

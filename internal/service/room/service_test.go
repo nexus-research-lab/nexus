@@ -264,6 +264,30 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	topicAgentCSession := seedRoomPrivateSession(t, files, agentC.WorkspacePath, topicContextAfterAdd.Room.RoomType, topicContextAfterAdd.Conversation.ID, agentC.AgentID)
 	seedRoomConversationLog(t, cfg.WorkspacePath, mainContextAfterAdd.Conversation.ID, mainContextAfterAdd.Room.ID)
 	seedRoomConversationLog(t, cfg.WorkspacePath, topicContextAfterAdd.Conversation.ID, topicContextAfterAdd.Room.ID)
+	mainAgentCDBSessionID := findRoomSessionID(t, mainContextAfterAdd, agentC.AgentID)
+	_, mainAgentCRoundID := seedRoomDatabaseMessageRound(
+		t,
+		db,
+		mainContextAfterAdd.Conversation.ID,
+		mainAgentCDBSessionID,
+		"remove-member",
+	)
+	mainAgentADBSessionID := findRoomSessionID(t, mainContextAfterAdd, agentA.AgentID)
+	_, mainRoundID := seedRoomDatabaseMessageRound(
+		t,
+		db,
+		mainContextAfterAdd.Conversation.ID,
+		mainAgentADBSessionID,
+		"delete-room",
+	)
+	topicAgentADBSessionID := findRoomSessionID(t, topicContextAfterAdd, agentA.AgentID)
+	_, topicRoundID := seedRoomDatabaseMessageRound(
+		t,
+		db,
+		topicContextAfterAdd.Conversation.ID,
+		topicAgentADBSessionID,
+		"delete-topic",
+	)
 
 	if _, err = roomService.RemoveRoomMember(ctx, mainContext.Room.ID, agentC.AgentID); err != nil {
 		t.Fatalf("移除成员失败: %v", err)
@@ -271,6 +295,10 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	assertPathRemoved(t, paths.SessionDir(agentC.WorkspacePath, mainAgentCSession))
 	assertPathRemoved(t, paths.SessionDir(agentC.WorkspacePath, topicAgentCSession))
 	assertPathExists(t, paths.RoomConversationDir(topicContextAfterAdd.Conversation.ID))
+	assertSQLCount(t, db, `
+SELECT COUNT(*) FROM sessions
+WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation.ID, agentC.AgentID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, mainAgentCRoundID)
 
 	fallbackContext, err := roomService.DeleteConversation(ctx, mainContext.Room.ID, topicContextAfterAdd.Conversation.ID)
 	if err != nil {
@@ -284,6 +312,10 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	assertPathRemoved(t, paths.SessionDir(agentB.WorkspacePath, topicAgentBSession))
 	assertPathExists(t, paths.SessionDir(agentA.WorkspacePath, mainAgentASession))
 	assertPathExists(t, paths.SessionDir(agentB.WorkspacePath, mainAgentBSession))
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM conversations WHERE id = ?`, 0, topicContextAfterAdd.Conversation.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM sessions WHERE conversation_id = ?`, 0, topicContextAfterAdd.Conversation.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, 0, topicContextAfterAdd.Conversation.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, topicRoundID)
 
 	if err = roomService.DeleteRoom(ctx, mainContext.Room.ID); err != nil {
 		t.Fatalf("删除 room 失败: %v", err)
@@ -291,6 +323,12 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	assertPathRemoved(t, paths.RoomConversationDir(mainContextAfterAdd.Conversation.ID))
 	assertPathRemoved(t, paths.SessionDir(agentA.WorkspacePath, mainAgentASession))
 	assertPathRemoved(t, paths.SessionDir(agentB.WorkspacePath, mainAgentBSession))
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM rooms WHERE id = ?`, 0, mainContextAfterAdd.Room.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM members WHERE room_id = ?`, 0, mainContextAfterAdd.Room.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM conversations WHERE room_id = ?`, 0, mainContextAfterAdd.Room.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM sessions WHERE conversation_id = ?`, 0, mainContextAfterAdd.Conversation.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, 0, mainContextAfterAdd.Conversation.ID)
+	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, mainRoundID)
 }
 
 func createTestAgent(
@@ -378,6 +416,71 @@ func seedRoomConversationLog(
 		"timestamp":       time.Now().UnixMilli(),
 	}); err != nil {
 		t.Fatalf("写入 room 共享日志失败: %v", err)
+	}
+}
+
+func seedRoomDatabaseMessageRound(
+	t *testing.T,
+	db *sql.DB,
+	conversationID string,
+	sessionID string,
+	suffix string,
+) (string, string) {
+	t.Helper()
+
+	messageID := "msg-" + suffix
+	roundID := "round-" + suffix
+	if _, err := db.Exec(`
+INSERT INTO messages (
+    id, conversation_id, session_id, sender_type, kind, status,
+    content_preview, jsonl_path, round_id
+) VALUES (?, ?, ?, 'agent', 'text', 'completed', 'seed', 'seed.jsonl', ?)`,
+		messageID,
+		conversationID,
+		sessionID,
+		roundID,
+	); err != nil {
+		t.Fatalf("写入测试 message 失败: %v", err)
+	}
+	if _, err := db.Exec(`
+INSERT INTO rounds (
+    id, session_id, round_id, trigger_message_id, status
+) VALUES (?, ?, ?, ?, 'success')`,
+		"round-row-"+suffix,
+		sessionID,
+		roundID,
+		messageID,
+	); err != nil {
+		t.Fatalf("写入测试 round 失败: %v", err)
+	}
+	return messageID, roundID
+}
+
+func findRoomSessionID(
+	t *testing.T,
+	contextValue protocol.ConversationContextAggregate,
+	agentID string,
+) string {
+	t.Helper()
+
+	for _, sessionValue := range contextValue.Sessions {
+		if sessionValue.AgentID == agentID {
+			return sessionValue.ID
+		}
+	}
+	t.Fatalf("未找到 agent session: conversation=%s agent=%s", contextValue.Conversation.ID, agentID)
+	return ""
+}
+
+func assertSQLCount(t *testing.T, db *sql.DB, query string, want int, args ...any) {
+	t.Helper()
+
+	var got int
+	if err := db.QueryRow(query, args...).Scan(&got); err != nil {
+		t.Fatalf("查询数量失败: %v query=%s", err, query)
+	}
+	if got != want {
+		t.Fatalf("数量不符合预期: got=%d want=%d query=%s args=%v", got, want, query, args)
 	}
 }
 
