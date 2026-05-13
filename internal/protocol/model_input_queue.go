@@ -16,6 +16,7 @@ type InputQueueSource string
 const (
 	InputQueueSourceUser               InputQueueSource = "user"
 	InputQueueSourceAgentPublicMention InputQueueSource = "agent_public_mention"
+	InputQueueSourceAgentRoomAction    InputQueueSource = "agent_room_action"
 )
 
 // InputQueueItem 表示后端同步的待发送队列项。
@@ -52,9 +53,10 @@ func NormalizeInputQueueScope(value string) InputQueueScope {
 
 // NormalizeInputQueueSource 归一化队列来源。
 func NormalizeInputQueueSource(value string) InputQueueSource {
-	switch InputQueueSource(strings.ToLower(strings.TrimSpace(value))) {
-	case InputQueueSourceAgentPublicMention:
-		return InputQueueSourceAgentPublicMention
+	normalized := InputQueueSource(strings.ToLower(strings.TrimSpace(value)))
+	switch normalized {
+	case InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomAction:
+		return normalized
 	default:
 		return InputQueueSourceUser
 	}

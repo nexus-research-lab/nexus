@@ -132,7 +132,7 @@ export type AgentConversationDeliveryPolicy = 'queue' | 'guide' | 'interrupt' | 
 export type AgentConversationDefaultDeliveryPolicy = 'queue' | 'interrupt';
 
 export type InputQueueScope = 'dm' | 'room';
-export type InputQueueSource = 'user' | 'agent_public_mention';
+export type InputQueueSource = 'user' | 'agent_public_mention' | 'agent_room_action';
 
 export interface InputQueueItem {
   id: string;

@@ -87,6 +87,8 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		"private-message",
 		"--target-agent-id",
 		devin.AgentID,
+		"--reply-target",
+		string(protocol.RoomReplyTargetNone),
 		"--content",
 		"hello",
 	)

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - 新增 `MESSAGE_DEBUG_STREAM_EVENT` 配置项，并按官方 `StreamEvent -> AssistantMessage -> ResultMessage` 流程梳理 message debug 日志；debug 默认不记录高频 StreamEvent，开启该配置后才输出流式事件。
+- Room `private_message` 创建后会自动唤醒目标成员；目标正忙时先进入 Room 待发送队列，空闲后再消费私域 action。
 
 ### Fixed
 - Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。

@@ -140,7 +140,7 @@ func (s *RealtimeService) startPublicMentionRound(
 		return err
 	}
 
-	roundID := "room_mention_" + newRealtimeID()
+	roundID := roomWakeRoundID(wakes)
 	rootRoundID := firstNonEmpty(roomRootRoundID(parentRound), roundID)
 	activeRound := &activeRoomRound{
 		SessionKey:     sessionKey,
@@ -234,7 +234,7 @@ func (s *RealtimeService) startPublicMentionRound(
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
 	s.runtime.StartRound(sessionKey, roundID, cancel)
-	s.loggerFor(ctx).Info("启动 Room 公区 @ 唤醒 round",
+	s.loggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
 		"c", contextValue.Conversation.ID,
@@ -304,7 +304,7 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			SourceAgentID:   strings.TrimSpace(wake.SourceAgentID),
 			SourceMessageID: strings.TrimSpace(wake.MessageID),
 			TargetAgentIDs:  []string{targetAgentID},
-			Source:          protocol.InputQueueSourceAgentPublicMention,
+			Source:          normalizeWakeQueueSource(wake),
 			Content:         strings.TrimSpace(wake.Content),
 			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 			OwnerUserID:     parentRound.OwnerUserID,
@@ -314,7 +314,7 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			return nil, err
 		}
 		queued = true
-		s.loggerFor(ctx).Info("Room 公区 @ 目标正忙，写入后端待发送队列",
+		s.loggerFor(ctx).Info(roomWakeQueuedLogMessage(wake),
 			"s", sessionKey,
 			"qs", location.Location.SessionKey,
 			"r", parentRound.RoomID,
@@ -340,8 +340,12 @@ func buildPublicMentionSlot(
 	msgID string,
 	index int,
 ) *activeRoomSlot {
+	triggerType := strings.TrimSpace(wake.TriggerType)
+	if triggerType == "" {
+		triggerType = "public_mention"
+	}
 	trigger := roomTrigger{
-		TriggerType:   "public_mention",
+		TriggerType:   triggerType,
 		Content:       strings.TrimSpace(wake.Content),
 		MessageID:     strings.TrimSpace(wake.MessageID),
 		SourceAgentID: strings.TrimSpace(wake.SourceAgentID),
@@ -361,6 +365,35 @@ func buildPublicMentionSlot(
 		Trigger:           trigger,
 		Done:              make(chan struct{}),
 	}
+}
+
+func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource {
+	if wake.QueueSource == protocol.InputQueueSourceAgentRoomAction {
+		return protocol.InputQueueSourceAgentRoomAction
+	}
+	return protocol.InputQueueSourceAgentPublicMention
+}
+
+func roomWakeRoundID(wakes []publicMentionWake) string {
+	prefix := "room_mention_"
+	if len(wakes) > 0 && normalizeWakeQueueSource(wakes[0]) == protocol.InputQueueSourceAgentRoomAction {
+		prefix = "room_action_"
+	}
+	return prefix + newRealtimeID()
+}
+
+func roomWakeStartLogMessage(wakes []publicMentionWake) string {
+	if len(wakes) > 0 && normalizeWakeQueueSource(wakes[0]) == protocol.InputQueueSourceAgentRoomAction {
+		return "启动 Room action 唤醒 round"
+	}
+	return "启动 Room 公区 @ 唤醒 round"
+}
+
+func roomWakeQueuedLogMessage(wake publicMentionWake) string {
+	if normalizeWakeQueueSource(wake) == protocol.InputQueueSourceAgentRoomAction {
+		return "Room action 目标正忙，写入后端待发送队列"
+	}
+	return "Room 公区 @ 目标正忙，写入后端待发送队列"
 }
 
 func findRoomSessionForAgent(sessions []protocol.SessionRecord, agentID string) (protocol.SessionRecord, bool) {

@@ -43,6 +43,17 @@ func (s *RealtimeService) HandleAction(
 		"target_agent_id", action.TargetAgentID,
 		"content_chars", utf8.RuneCountInString(action.Content),
 	)
+	if err = s.startRoomActionWake(ctx, contextValue, *action); err != nil {
+		s.loggerFor(ctx).Error("启动 Room action 唤醒失败",
+			"room_id", action.RoomID,
+			"conversation_id", action.ConversationID,
+			"action_id", action.ActionID,
+			"action_type", action.ActionType,
+			"source_agent_id", action.SourceAgentID,
+			"target_agent_id", action.TargetAgentID,
+			"err", err,
+		)
+	}
 	return action, nil
 }
 

@@ -3,6 +3,7 @@ package room_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -74,7 +75,22 @@ func TestRealtimeServiceCreatesPrivateMessageAction(t *testing.T) {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
 
-	service := roomsvc.NewRealtimeService(cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext())
+	client := newFakeRoomClient()
+	var seenPrivateAction atomic.Bool
+	client.onQuery = func(_ context.Context, prompt string) error {
+		seenPrivateAction.Store(strings.Contains(prompt, "<room_actions>") &&
+			strings.Contains(prompt, "只给 Devin 的提醒"))
+		sendFakeAssistantResult(client, "assistant-sdk-action-create", "收到")
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
 	broadcaster := &roomActionBroadcaster{}
 	service.SetRoomBroadcaster(broadcaster)
 	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
@@ -90,7 +106,7 @@ func TestRealtimeServiceCreatesPrivateMessageAction(t *testing.T) {
 		t.Fatalf("private_message reply_target 不正确: %+v", action)
 	}
 
-	event := broadcaster.Last()
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
 	if event.EventType != protocol.EventTypeRoomAction {
 		t.Fatalf("未广播 room_action 事件: %+v", event)
 	}
@@ -106,14 +122,26 @@ func TestRealtimeServiceCreatesPrivateMessageAction(t *testing.T) {
 	if len(actions) != 1 || actions[0].Content != "只给 Devin 的提醒" {
 		t.Fatalf("目标成员未读到 private_message: %+v", actions)
 	}
+	waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomActionConsumed)
+	deadline := time.After(3 * time.Second)
+	for !seenPrivateAction.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("private_message 未自动唤醒目标 agent")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取公区历史失败: %v", err)
 	}
-	if len(messages) != 0 {
-		t.Fatalf("private_message 不应写入公区 feed: %+v", messages)
+	for _, message := range messages {
+		if strings.Contains(fmt.Sprint(message), "只给 Devin 的提醒") {
+			t.Fatalf("private_message 正文不应写入公区 feed: %+v", messages)
+		}
 	}
 }
 
@@ -316,16 +344,6 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 		t.Fatalf("创建 private action 失败: %v", err)
 	}
 
-	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
-		SessionKey:     protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "@Devin 请处理",
-		RoundID:        "round-action-context",
-		ReqID:          "req-action-context",
-	}); err != nil {
-		t.Fatalf("发送 Room 消息失败: %v", err)
-	}
 	deadline := time.After(3 * time.Second)
 	for !seenPrivateAction.Load() {
 		select {
@@ -367,6 +385,135 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
+	}
+}
+
+func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-busy",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	currentStarted := make(chan struct{})
+	releaseCurrent := make(chan struct{})
+	var startOnce sync.Once
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			close(releaseCurrent)
+		})
+	}
+	defer release()
+
+	devinCurrentClient := newFakeRoomClient()
+	devinPrivateClient := newFakeRoomClient()
+	var seenPrivateAction atomic.Bool
+	devinCurrentClient.onQuery = func(queryCtx context.Context, _ string) error {
+		startOnce.Do(func() {
+			close(currentStarted)
+		})
+		select {
+		case <-releaseCurrent:
+			sendFakeAssistantResult(devinCurrentClient, "devin-current-before-private", "当前任务完成")
+			return nil
+		case <-queryCtx.Done():
+			return queryCtx.Err()
+		}
+	}
+	devinPrivateClient.onQuery = func(_ context.Context, prompt string) error {
+		seenPrivateAction.Store(strings.Contains(prompt, "<room_actions>") &&
+			strings.Contains(prompt, "排队后的私信") &&
+			strings.Contains(prompt, "收到一条 Room private_message"))
+		sendFakeAssistantResult(devinPrivateClient, "devin-private-after-busy", "私信已处理")
+		return nil
+	}
+
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, devinPrivateClient}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Devin 先处理公开任务",
+		RoundID:        "round-private-action-busy",
+		ReqID:          "req-private-action-busy",
+	}); err != nil {
+		t.Fatalf("发送 Room 消息失败: %v", err)
+	}
+	select {
+	case <-currentStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("目标 agent 未进入当前任务")
+	}
+
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateMessage,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "排队后的私信",
+	})
+	if err != nil {
+		t.Fatalf("创建 private action 失败: %v", err)
+	}
+
+	queueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
+	items, err := queueStore.Snapshot(workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  devin.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, devin.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	})
+	if err != nil {
+		t.Fatalf("读取 Room action 队列失败: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].Source != protocol.InputQueueSourceAgentRoomAction ||
+		items[0].SourceMessageID != action.ActionID ||
+		strings.Contains(items[0].Content, "排队后的私信") {
+		t.Fatalf("private action 应以脱敏队列项等待目标空闲: %+v", items)
+	}
+
+	release()
+	deadline := time.After(3 * time.Second)
+	for !seenPrivateAction.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("目标空闲后未消费排队 private action")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	consumedEvent := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomActionConsumed)
+	if got := consumedEvent.Data["last_action_id"]; got != action.ActionID {
+		t.Fatalf("private action 消费游标不正确: %+v", consumedEvent.Data)
 	}
 }
 

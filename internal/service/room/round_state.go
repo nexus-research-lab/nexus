@@ -63,6 +63,8 @@ type activeRoomRound struct {
 type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
+	TriggerType   string
+	QueueSource   protocol.InputQueueSource
 	SourceAgentID string
 	TargetAgentID string
 	Content       string
