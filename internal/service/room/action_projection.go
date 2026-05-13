@@ -51,6 +51,7 @@ func (s *RealtimeService) recordRoomActionReply(
 		ActionID:       newRealtimeID(),
 		RoomID:         roundValue.RoomID,
 		ConversationID: roundValue.ConversationID,
+		RequestID:      strings.TrimSpace(slot.ReplyRequestID),
 		SourceAgentID:  strings.TrimSpace(slot.AgentID),
 		Content:        content,
 		Visibility:     protocol.RoomActionVisibilityPrivate,

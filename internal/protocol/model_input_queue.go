@@ -31,6 +31,7 @@ type InputQueueItem struct {
 	SourceMessageID  string             `json:"source_message_id,omitempty"`
 	TargetAgentIDs   []string           `json:"target_agent_ids,omitempty"`
 	AudienceAgentIDs []string           `json:"audience_agent_ids,omitempty"`
+	RequestID        string             `json:"request_id,omitempty"`
 	Source           InputQueueSource   `json:"source"`
 	Content          string             `json:"content"`
 	DeliveryPolicy   ChatDeliveryPolicy `json:"delivery_policy"`

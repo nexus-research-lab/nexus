@@ -9,14 +9,17 @@ import (
 )
 
 const roomActionTriggerType = "room_action"
-const roomPrivateMessageWakeContent = "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。"
 
 func (s *RealtimeService) startRoomActionWake(
 	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,
 	action protocol.RoomActionRecord,
 ) error {
-	if contextValue == nil || action.ActionType != protocol.RoomActionTypePrivateMessage {
+	if contextValue == nil {
+		return nil
+	}
+	wakeContent, ok := roomActionWakeContent(action)
+	if !ok {
 		return nil
 	}
 	targetAgentID := strings.TrimSpace(action.TargetAgentID)
@@ -39,10 +42,25 @@ func (s *RealtimeService) startRoomActionWake(
 			QueueSource:   protocol.InputQueueSourceAgentRoomAction,
 			SourceAgentID: strings.TrimSpace(action.SourceAgentID),
 			TargetAgentID: targetAgentID,
-			Content:       roomPrivateMessageWakeContent,
+			Content:       wakeContent,
 			MessageID:     strings.TrimSpace(action.ActionID),
+			RequestID:     strings.TrimSpace(action.RequestID),
 			ReplyTarget:   action.ReplyTarget,
 			ReplyAudience: append([]string(nil), action.AudienceAgentIDs...),
 		},
 	})
+}
+
+func roomActionWakeContent(action protocol.RoomActionRecord) (string, bool) {
+	switch action.ActionType {
+	case protocol.RoomActionTypePrivateMessage:
+		return "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。", true
+	case protocol.RoomActionTypeRequestReply:
+		if action.WakePolicy != protocol.RoomWakePolicyImmediate {
+			return "", false
+		}
+		return "收到一条 Room request_reply；请读取 <room_actions> 中投影给你的请求并按 reply_target 回复。", true
+	default:
+		return "", false
+	}
 }

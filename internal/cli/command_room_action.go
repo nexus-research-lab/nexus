@@ -35,6 +35,7 @@ func newRoomActionCommand(_ *cliServiceProvider) *cobra.Command {
 		Short: "创建 Room 内部协作动作",
 	}
 	command.AddCommand(newRoomPrivateMessageCommand())
+	command.AddCommand(newRoomRequestReplyCommand())
 	command.AddCommand(newRoomPrivateNoteCommand())
 	command.AddCommand(newRoomMarkerCommand())
 	return command
@@ -54,6 +55,27 @@ func newRoomPrivateMessageCommand() *cobra.Command {
 	}
 	bindRoomActionCommonFlags(command, &options)
 	command.Flags().StringVar(&options.targetAgentID, "target-agent-id", "", "target room agent id")
+	_ = command.MarkFlagRequired("target-agent-id")
+	_ = command.MarkFlagRequired("content")
+	return command
+}
+
+func newRoomRequestReplyCommand() *cobra.Command {
+	options := roomActionCLIOptions{
+		actionType:  protocol.RoomActionTypeRequestReply,
+		replyTarget: protocol.RoomReplyTargetPublicFeed,
+		wakePolicy:  protocol.RoomWakePolicyImmediate,
+	}
+	command := &cobra.Command{
+		Use:   "request-reply",
+		Short: "请求 Room 成员回复",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRoomActionCommand(cmd, options)
+		},
+	}
+	bindRoomActionCommonFlags(command, &options)
+	command.Flags().StringVar(&options.targetAgentID, "target-agent-id", "", "target room agent id")
+	command.Flags().StringVar((*string)(&options.wakePolicy), "wake-policy", string(protocol.RoomWakePolicyImmediate), "none|immediate")
 	_ = command.MarkFlagRequired("target-agent-id")
 	_ = command.MarkFlagRequired("content")
 	return command
@@ -113,6 +135,7 @@ type roomActionCLIOptions struct {
 	content          string
 	visibility       string
 	replyTarget      protocol.RoomReplyTarget
+	wakePolicy       protocol.RoomWakePolicy
 	internalAPIBase  string
 	internalToken    string
 }
@@ -189,6 +212,9 @@ func (o roomActionCLIOptions) validate() error {
 	if o.actionType == protocol.RoomActionTypePrivateMessage && strings.TrimSpace(o.targetAgentID) == "" {
 		return usageErrorf("private-message requires --target-agent-id")
 	}
+	if o.actionType == protocol.RoomActionTypeRequestReply && strings.TrimSpace(o.targetAgentID) == "" {
+		return usageErrorf("request-reply requires --target-agent-id")
+	}
 	return nil
 }
 
@@ -208,6 +234,7 @@ func createRoomAction(
 		Content:          strings.TrimSpace(options.content),
 		Visibility:       strings.TrimSpace(options.visibility),
 		ReplyTarget:      options.replyTarget,
+		WakePolicy:       options.wakePolicy,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -268,6 +295,12 @@ func roomActionCLIOutputItem(action *protocol.RoomActionRecord) map[string]any {
 		"reply_target":    string(action.ReplyTarget),
 		"content_chars":   utf8.RuneCountInString(action.Content),
 		"timestamp":       action.Timestamp,
+	}
+	if strings.TrimSpace(action.RequestID) != "" {
+		item["request_id"] = action.RequestID
+	}
+	if action.WakePolicy != "" {
+		item["wake_policy"] = string(action.WakePolicy)
 	}
 	if strings.TrimSpace(action.TargetAgentID) != "" {
 		item["target_agent_id"] = action.TargetAgentID

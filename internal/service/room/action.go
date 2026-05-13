@@ -110,6 +110,7 @@ func (s *RealtimeService) buildRoomActionRecord(
 	targetAgentID := strings.TrimSpace(request.TargetAgentID)
 	visibility := normalizeRoomActionVisibility(request.Visibility)
 	replyTarget := request.ReplyTarget
+	wakePolicy := request.WakePolicy
 	audienceAgentIDs := normalizeRoomActionAudience(request.AudienceAgentIDs)
 
 	switch actionType {
@@ -123,6 +124,20 @@ func (s *RealtimeService) buildRoomActionRecord(
 		visibility = protocol.RoomActionVisibilityPrivate
 		if replyTarget == "" {
 			replyTarget = protocol.RoomReplyTargetTargetPrivate
+		}
+	case protocol.RoomActionTypeRequestReply:
+		if targetAgentID == "" {
+			return nil, errors.New("target_agent_id is required")
+		}
+		if !roomdomain.ContainsString(memberAgentIDs, targetAgentID) {
+			return nil, ErrRoomMemberNotFound
+		}
+		visibility = protocol.RoomActionVisibilityPrivate
+		if replyTarget == "" {
+			replyTarget = protocol.RoomReplyTargetPublicFeed
+		}
+		if wakePolicy == "" {
+			wakePolicy = protocol.RoomWakePolicyImmediate
 		}
 	case protocol.RoomActionTypePrivateNote:
 		targetAgentID = sourceAgentID
@@ -149,9 +164,13 @@ func (s *RealtimeService) buildRoomActionRecord(
 	if err = validateRoomReplyTarget(replyTarget, audienceAgentIDs, memberAgentIDs); err != nil {
 		return nil, err
 	}
+	if err = validateRoomWakePolicy(actionType, wakePolicy); err != nil {
+		return nil, err
+	}
 
-	return &protocol.RoomActionRecord{
-		ActionID:         newRealtimeID(),
+	actionID := newRealtimeID()
+	action := &protocol.RoomActionRecord{
+		ActionID:         actionID,
 		RoomID:           contextValue.Room.ID,
 		ConversationID:   contextValue.Conversation.ID,
 		ActionType:       actionType,
@@ -161,13 +180,21 @@ func (s *RealtimeService) buildRoomActionRecord(
 		Content:          content,
 		Visibility:       visibility,
 		ReplyTarget:      replyTarget,
+		WakePolicy:       wakePolicy,
 		Timestamp:        time.Now().UnixMilli(),
-	}, nil
+	}
+	if action.ActionType == protocol.RoomActionTypeRequestReply {
+		action.RequestID = actionID
+	}
+	return action, nil
 }
 
 func normalizeRoomActionType(actionType protocol.RoomActionType) (protocol.RoomActionType, error) {
 	switch actionType {
-	case protocol.RoomActionTypePrivateMessage, protocol.RoomActionTypePrivateNote, protocol.RoomActionTypeMarker:
+	case protocol.RoomActionTypePrivateMessage,
+		protocol.RoomActionTypeRequestReply,
+		protocol.RoomActionTypePrivateNote,
+		protocol.RoomActionTypeMarker:
 		return actionType, nil
 	default:
 		return "", errors.New("action_type 不支持")
@@ -221,6 +248,21 @@ func validateRoomReplyTarget(
 	}
 }
 
+func validateRoomWakePolicy(actionType protocol.RoomActionType, wakePolicy protocol.RoomWakePolicy) error {
+	if wakePolicy == "" {
+		return nil
+	}
+	if actionType != protocol.RoomActionTypeRequestReply {
+		return errors.New("wake_policy 仅支持 request_reply")
+	}
+	switch wakePolicy {
+	case protocol.RoomWakePolicyNone, protocol.RoomWakePolicyImmediate:
+		return nil
+	default:
+		return errors.New("wake_policy 不支持")
+	}
+}
+
 func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage {
 	data := map[string]any{
 		"action_id":       action.ActionID,
@@ -231,6 +273,12 @@ func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage 
 		"visibility":      action.Visibility,
 		"reply_target":    string(action.ReplyTarget),
 		"content_chars":   utf8.RuneCountInString(action.Content),
+	}
+	if action.RequestID != "" {
+		data["request_id"] = action.RequestID
+	}
+	if action.WakePolicy != "" {
+		data["wake_policy"] = string(action.WakePolicy)
 	}
 	if action.TargetAgentID != "" {
 		data["target_agent_id"] = action.TargetAgentID

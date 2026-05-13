@@ -134,6 +134,39 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		"--json",
 		"room",
 		"action",
+		"request-reply",
+		"--target-agent-id",
+		devin.AgentID,
+		"--wake-policy",
+		"none",
+		"--content",
+		"please-answer-later",
+	)
+	item, ok = payload["item"].(map[string]any)
+	if !ok ||
+		item["action_type"] != string(protocol.RoomActionTypeRequestReply) ||
+		item["wake_policy"] != string(protocol.RoomWakePolicyNone) ||
+		item["reply_target"] != string(protocol.RoomReplyTargetPublicFeed) ||
+		item["request_id"] == "" {
+		t.Fatalf("CLI request_reply 输出不正确: %+v", payload)
+	}
+	if _, exists := item["content"]; exists {
+		t.Fatalf("CLI request_reply 输出不应回显正文: %+v", item)
+	}
+	event = readRoomActionWebSocketEvent(t, conn)
+	if event.Data["action_type"] != string(protocol.RoomActionTypeRequestReply) ||
+		event.Data["wake_policy"] != string(protocol.RoomWakePolicyNone) ||
+		event.Data["request_id"] == "" {
+		t.Fatalf("request_reply room_action websocket 事件不正确: %+v", event.Data)
+	}
+
+	payload = runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
 		"marker",
 		"--reply-target",
 		"audience",
@@ -185,11 +218,17 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 Room action 失败: %v", err)
 	}
-	if len(actions) != 3 ||
-		actions[1].ReplyTarget != protocol.RoomReplyTargetAudience ||
-		len(actions[1].AudienceAgentIDs) != 1 ||
-		actions[1].AudienceAgentIDs[0] != devin.AgentID ||
-		actions[2].ReplyTarget != protocol.RoomReplyTargetNone {
+	if len(actions) != 4 ||
+		actions[1].ActionType != protocol.RoomActionTypeRequestReply ||
+		actions[1].RequestID == "" ||
+		actions[1].WakePolicy != protocol.RoomWakePolicyNone {
+		t.Fatalf("CLI request_reply action 未正确落盘: %+v", actions)
+	}
+	if len(actions) != 4 ||
+		actions[2].ReplyTarget != protocol.RoomReplyTargetAudience ||
+		len(actions[2].AudienceAgentIDs) != 1 ||
+		actions[2].AudienceAgentIDs[0] != devin.AgentID ||
+		actions[3].ReplyTarget != protocol.RoomReplyTargetNone {
 		t.Fatalf("CLI audience/none action 未正确落盘: %+v", actions)
 	}
 }

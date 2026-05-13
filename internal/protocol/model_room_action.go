@@ -5,6 +5,7 @@ type RoomActionType string
 
 const (
 	RoomActionTypePrivateMessage RoomActionType = "private_message"
+	RoomActionTypeRequestReply   RoomActionType = "request_reply"
 	RoomActionTypePrivateNote    RoomActionType = "private_note"
 	RoomActionTypeMarker         RoomActionType = "marker"
 )
@@ -25,6 +26,14 @@ const (
 	RoomActionVisibilityPrivate = "private"
 )
 
+// RoomWakePolicy 表示 Room action 是否触发目标成员运行。
+type RoomWakePolicy string
+
+const (
+	RoomWakePolicyNone      RoomWakePolicy = "none"
+	RoomWakePolicyImmediate RoomWakePolicy = "immediate"
+)
+
 // CreateRoomActionRequest 表示创建 Room action 的请求。
 type CreateRoomActionRequest struct {
 	ActionType RoomActionType `json:"action_type"`
@@ -35,6 +44,7 @@ type CreateRoomActionRequest struct {
 	Content          string          `json:"content"`
 	Visibility       string          `json:"visibility,omitempty"`
 	ReplyTarget      RoomReplyTarget `json:"reply_target,omitempty"`
+	WakePolicy       RoomWakePolicy  `json:"wake_policy,omitempty"`
 }
 
 // RoomActionRecord 表示 Room action 的 append-only 持久化记录。
@@ -43,11 +53,13 @@ type RoomActionRecord struct {
 	RoomID           string          `json:"room_id"`
 	ConversationID   string          `json:"conversation_id"`
 	ActionType       RoomActionType  `json:"action_type"`
+	RequestID        string          `json:"request_id,omitempty"`
 	SourceAgentID    string          `json:"source_agent_id"`
 	TargetAgentID    string          `json:"target_agent_id,omitempty"`
 	AudienceAgentIDs []string        `json:"audience_agent_ids,omitempty"`
 	Content          string          `json:"content,omitempty"`
 	Visibility       string          `json:"visibility"`
 	ReplyTarget      RoomReplyTarget `json:"reply_target"`
+	WakePolicy       RoomWakePolicy  `json:"wake_policy,omitempty"`
 	Timestamp        int64           `json:"timestamp"`
 }

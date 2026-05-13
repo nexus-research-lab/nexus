@@ -130,6 +130,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"直接创建 Room action",
 		`cd "$NEXUS_PROJECT_ROOT" && go run ./cmd/nexusctl --json room action`,
 		`room action private-message --target-agent-id <agent_id> --content "<text>"`,
+		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
 		`room action private-note --content "<text>"`,
 		`room action marker --visibility public|private --content "<text>"`,
 		"不要调用 Skill 工具",

@@ -563,6 +563,163 @@ func TestRealtimeServiceKeepsPrivateActionFailureOutOfPublicFeed(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceCreatesImmediateRequestReplyAction(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-request-reply",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, prompt string) error {
+		for _, expected := range []string{
+			"收到一条 Room request_reply",
+			"[request_reply request_id=",
+			"需要公开回复的请求",
+			"reply_target=public_feed",
+		} {
+			if !strings.Contains(prompt, expected) {
+				t.Fatalf("request_reply prompt 缺少 %q:\n%s", expected, prompt)
+			}
+		}
+		sendFakeAssistantResult(client, "devin-request-reply-public", "这是公开回复")
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypeRequestReply,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "需要公开回复的请求",
+	})
+	if err != nil {
+		t.Fatalf("创建 request_reply action 失败: %v", err)
+	}
+	if action.RequestID == "" || action.RequestID != action.ActionID {
+		t.Fatalf("request_reply 应生成稳定 request_id: %+v", action)
+	}
+	if action.ReplyTarget != protocol.RoomReplyTargetPublicFeed ||
+		action.WakePolicy != protocol.RoomWakePolicyImmediate {
+		t.Fatalf("request_reply 默认投影和唤醒策略不正确: %+v", action)
+	}
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
+	if event.Data["action_type"] != string(protocol.RoomActionTypeRequestReply) ||
+		event.Data["request_id"] != action.RequestID ||
+		event.Data["wake_policy"] != string(protocol.RoomWakePolicyImmediate) {
+		t.Fatalf("request_reply room_action 事件不正确: %+v", event.Data)
+	}
+	if _, ok := event.Data["content"]; ok {
+		t.Fatalf("request_reply websocket 事件不应泄漏正文: %+v", event.Data)
+	}
+
+	messages := waitForRoomHistoryContent(t, cfg.WorkspacePath, roomContext.Conversation.ID, "done")
+	payload := fmt.Sprint(messages)
+	if strings.Contains(payload, "需要公开回复的请求") {
+		t.Fatalf("request_reply 原始正文不应进入公区 feed: %+v", messages)
+	}
+}
+
+func TestRealtimeServiceRecordsRequestReplyWithoutWake(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-request-reply-none",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	var queryCount atomic.Int32
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		queryCount.Add(1)
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypeRequestReply,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "先记录稍后再回复",
+		WakePolicy:    protocol.RoomWakePolicyNone,
+	})
+	if err != nil {
+		t.Fatalf("创建 wake_policy none request_reply 失败: %v", err)
+	}
+	time.Sleep(80 * time.Millisecond)
+	if queryCount.Load() != 0 {
+		t.Fatal("wake_policy=none 不应立即唤醒目标 agent")
+	}
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
+	if event.Data["wake_policy"] != string(protocol.RoomWakePolicyNone) ||
+		event.Data["request_id"] != action.RequestID {
+		t.Fatalf("wake_policy none room_action 事件不正确: %+v", event.Data)
+	}
+
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	actions, err := actionStore.ReadContextActions(roomContext.Conversation.ID, devin.AgentID)
+	if err != nil {
+		t.Fatalf("读取目标 request_reply 失败: %v", err)
+	}
+	if len(actions) != 1 ||
+		actions[0].ActionType != protocol.RoomActionTypeRequestReply ||
+		actions[0].RequestID != action.RequestID ||
+		actions[0].Content != "先记录稍后再回复" {
+		t.Fatalf("wake_policy none request_reply 应只落盘给目标上下文: %+v", actions)
+	}
+}
+
 func TestRealtimeServiceProjectsPrivateActionReplyToAudience(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -894,6 +1051,32 @@ func waitForRoomActionContent(
 		select {
 		case <-deadline:
 			t.Fatalf("Room action 未投影给目标成员: agent=%s content=%q actions=%+v", agentID, content, actions)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func waitForRoomHistoryContent(
+	t *testing.T,
+	workspacePath string,
+	conversationID string,
+	content string,
+) []protocol.Message {
+	t.Helper()
+	store := workspacestore.NewRoomHistoryStore(workspacePath)
+	deadline := time.After(3 * time.Second)
+	for {
+		messages, err := store.ReadMessages(conversationID, nil)
+		if err != nil {
+			t.Fatalf("读取公区历史失败: %v", err)
+		}
+		if strings.Contains(fmt.Sprint(messages), content) {
+			return messages
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("公区历史未出现目标内容 %q: %+v", content, messages)
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}

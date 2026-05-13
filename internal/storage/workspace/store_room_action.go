@@ -127,6 +127,8 @@ func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) 
 	switch action.ActionType {
 	case protocol.RoomActionTypePrivateMessage:
 		return action.TargetAgentID == agentID
+	case protocol.RoomActionTypeRequestReply:
+		return action.TargetAgentID == agentID
 	case protocol.RoomActionTypePrivateNote:
 		return action.SourceAgentID == agentID
 	}
@@ -183,6 +185,12 @@ func roomActionToRow(action protocol.RoomActionRecord) map[string]any {
 		"reply_target":    string(action.ReplyTarget),
 		"timestamp":       action.Timestamp,
 	}
+	if strings.TrimSpace(action.RequestID) != "" {
+		row["request_id"] = action.RequestID
+	}
+	if action.WakePolicy != "" {
+		row["wake_policy"] = string(action.WakePolicy)
+	}
 	if strings.TrimSpace(action.TargetAgentID) != "" {
 		row["target_agent_id"] = action.TargetAgentID
 	}
@@ -225,12 +233,14 @@ func roomActionFromRow(row map[string]any) protocol.RoomActionRecord {
 		RoomID:           stringFromAny(row["room_id"]),
 		ConversationID:   stringFromAny(row["conversation_id"]),
 		ActionType:       protocol.RoomActionType(stringFromAny(row["action_type"])),
+		RequestID:        stringFromAny(row["request_id"]),
 		SourceAgentID:    stringFromAny(row["source_agent_id"]),
 		TargetAgentID:    stringFromAny(row["target_agent_id"]),
 		AudienceAgentIDs: stringSliceFromAny(row["audience_agent_ids"]),
 		Content:          stringFromAny(row["content"]),
 		Visibility:       stringFromAny(row["visibility"]),
 		ReplyTarget:      protocol.RoomReplyTarget(stringFromAny(row["reply_target"])),
+		WakePolicy:       protocol.RoomWakePolicy(stringFromAny(row["wake_policy"])),
 		Timestamp:        int64FromAny(row["timestamp"]),
 	}
 }

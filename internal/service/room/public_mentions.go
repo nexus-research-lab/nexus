@@ -305,6 +305,7 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			SourceMessageID:  strings.TrimSpace(wake.MessageID),
 			TargetAgentIDs:   []string{targetAgentID},
 			AudienceAgentIDs: append([]string(nil), wake.ReplyAudience...),
+			RequestID:        strings.TrimSpace(wake.RequestID),
 			Source:           normalizeWakeQueueSource(wake),
 			Content:          strings.TrimSpace(wake.Content),
 			DeliveryPolicy:   protocol.ChatDeliveryPolicyQueue,
@@ -370,6 +371,7 @@ func buildPublicMentionSlot(
 		ReplyTarget:       wake.ReplyTarget,
 		ReplySourceAction: strings.TrimSpace(wake.MessageID),
 		ReplySourceAgent:  strings.TrimSpace(wake.SourceAgentID),
+		ReplyRequestID:    strings.TrimSpace(wake.RequestID),
 		ReplyAudience:     append([]string(nil), wake.ReplyAudience...),
 		Done:              make(chan struct{}),
 	}

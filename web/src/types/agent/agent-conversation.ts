@@ -222,12 +222,14 @@ export interface RoomEventPayload {
   agent_id?: string;
   agent_name?: string;
   action_id?: string;
-  action_type?: "private_message" | "private_note" | "marker";
+  action_type?: "private_message" | "request_reply" | "private_note" | "marker";
+  request_id?: string;
   source_agent_id?: string;
   target_agent_id?: string;
   audience_agent_ids?: string[];
   visibility?: "public" | "private";
   reply_target?: "public_feed" | "sender_private" | "target_private" | "audience" | "none";
+  wake_policy?: "none" | "immediate";
   content_chars?: number;
   content?: string;
   round_id?: string;

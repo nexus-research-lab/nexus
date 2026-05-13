@@ -421,6 +421,7 @@ func normalizeInputQueueItem(
 	item.SourceMessageID = strings.TrimSpace(item.SourceMessageID)
 	item.TargetAgentIDs = normalizeInputQueueTargets(item.TargetAgentIDs)
 	item.AudienceAgentIDs = normalizeInputQueueTargets(item.AudienceAgentIDs)
+	item.RequestID = strings.TrimSpace(item.RequestID)
 	item.Source = protocol.NormalizeInputQueueSource(string(item.Source))
 	item.Content = strings.TrimSpace(item.Content)
 	item.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy))
@@ -458,6 +459,7 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			SourceMessageID:  stringFromAny(typed["source_message_id"]),
 			TargetAgentIDs:   stringSliceFromAny(typed["target_agent_ids"]),
 			AudienceAgentIDs: stringSliceFromAny(typed["audience_agent_ids"]),
+			RequestID:        stringFromAny(typed["request_id"]),
 			Source:           protocol.InputQueueSource(stringFromAny(typed["source"])),
 			Content:          stringFromAny(typed["content"]),
 			DeliveryPolicy:   protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
