@@ -67,16 +67,43 @@ func WithPostToolUseGuidanceHook(options agentclient.Options, callback sdkhook.C
 	if callback == nil {
 		return options
 	}
+	wrappedCallback := func(ctx context.Context, input sdkhook.Input, toolUseID string) (sdkhook.Output, error) {
+		output, err := callback(ctx, input, toolUseID)
+		if err != nil {
+			return output, err
+		}
+		if hookOutputIsEmpty(output) {
+			return noopHookOutput(), nil
+		}
+		return output, nil
+	}
 	hooks := cloneSDKHooks(options.Hooks.Matchers)
 	hooks[sdkhook.EventPostToolUse] = append(
 		hooks[sdkhook.EventPostToolUse],
 		sdkhook.Matcher{
-			Hooks:   []sdkhook.Callback{callback},
+			Hooks:   []sdkhook.Callback{wrappedCallback},
 			Timeout: 2 * time.Second,
 		},
 	)
 	options.Hooks.Matchers = hooks
 	return options
+}
+
+func noopHookOutput() sdkhook.Output {
+	continueValue := true
+	return sdkhook.Output{Continue: &continueValue}
+}
+
+func hookOutputIsEmpty(output sdkhook.Output) bool {
+	return output.Async == nil &&
+		output.Continue == nil &&
+		output.SuppressOutput == nil &&
+		output.StopReason == "" &&
+		output.Decision == "" &&
+		output.SystemMessage == "" &&
+		output.Reason == "" &&
+		output.SpecificOutput == nil &&
+		len(output.RawSpecificOutput) == 0
 }
 
 func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
