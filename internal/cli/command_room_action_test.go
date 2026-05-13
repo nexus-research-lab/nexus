@@ -111,6 +111,9 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	if event.Data["action_type"] != string(protocol.RoomActionTypePrivateNote) {
 		t.Fatalf("room_action websocket 事件 action_type 不正确: %+v", event.Data)
 	}
+	if event.Data["event_kind"] != "created" {
+		t.Fatalf("room_action websocket 事件应标记 created: %+v", event.Data)
+	}
 	if _, ok := event.Data["content"]; ok {
 		t.Fatalf("private_message websocket 事件不应泄漏正文: %+v", event.Data)
 	}
@@ -155,6 +158,7 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	}
 	event = readRoomActionWebSocketEvent(t, conn)
 	if event.Data["action_type"] != string(protocol.RoomActionTypeRequestReply) ||
+		event.Data["event_kind"] != "created" ||
 		event.Data["wake_policy"] != string(protocol.RoomWakePolicyNone) ||
 		event.Data["request_id"] == "" {
 		t.Fatalf("request_reply room_action websocket 事件不正确: %+v", event.Data)

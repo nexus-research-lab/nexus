@@ -222,6 +222,7 @@ export interface RoomEventPayload {
   agent_id?: string;
   agent_name?: string;
   action_id?: string;
+  event_kind?: "created" | "wake_started" | "wake_queued";
   action_type?: "private_message" | "request_reply" | "private_note" | "marker";
   request_id?: string;
   source_agent_id?: string;

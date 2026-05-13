@@ -244,6 +244,14 @@ func (s *RealtimeService) startPublicMentionRound(
 	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, roundID, pending))
+	for _, pendingSlot := range pendingSlots {
+		if normalizeWakeQueueSource(pendingSlot.wake) != protocol.InputQueueSourceAgentRoomAction {
+			continue
+		}
+		s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, newRoomActionWakeEvent(activeRound, pendingSlot.wake, "wake_started", map[string]any{
+			"round_id": roundID,
+		}))
+	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	go s.runRound(roundCtx, activeRound, publicHistory, agentNameByID, agentByID)
 	return nil
@@ -325,6 +333,11 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			"src", wake.SourceAgentID,
 			"t", targetAgentID,
 		)
+		if normalizeWakeQueueSource(wake) == protocol.InputQueueSourceAgentRoomAction {
+			s.broadcastSharedEventWithTimeout(ctx, sessionKey, parentRound.RoomID, newRoomActionWakeEvent(parentRound, wake, "wake_queued", map[string]any{
+				"queue_session_key": location.Location.SessionKey,
+			}))
+		}
 	}
 	if queued {
 		if err := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, parentRound.Context); err != nil {

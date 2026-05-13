@@ -266,6 +266,7 @@ func validateRoomWakePolicy(actionType protocol.RoomActionType, wakePolicy proto
 func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage {
 	data := map[string]any{
 		"action_id":       action.ActionID,
+		"event_kind":      "created",
 		"room_id":         action.RoomID,
 		"conversation_id": action.ConversationID,
 		"action_type":     string(action.ActionType),
@@ -295,5 +296,38 @@ func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage 
 	event.RoomID = action.RoomID
 	event.ConversationID = action.ConversationID
 	event.AgentID = action.SourceAgentID
+	return event
+}
+
+func newRoomActionWakeEvent(
+	roundValue *activeRoomRound,
+	wake publicMentionWake,
+	eventKind string,
+	extra map[string]any,
+) protocol.EventMessage {
+	data := map[string]any{
+		"action_id":       strings.TrimSpace(wake.MessageID),
+		"event_kind":      strings.TrimSpace(eventKind),
+		"room_id":         roundValue.RoomID,
+		"conversation_id": roundValue.ConversationID,
+		"source_agent_id": strings.TrimSpace(wake.SourceAgentID),
+		"target_agent_id": strings.TrimSpace(wake.TargetAgentID),
+		"reply_target":    string(wake.ReplyTarget),
+	}
+	if requestID := strings.TrimSpace(wake.RequestID); requestID != "" {
+		data["request_id"] = requestID
+	}
+	if len(wake.ReplyAudience) > 0 {
+		data["audience_agent_ids"] = append([]string(nil), wake.ReplyAudience...)
+	}
+	for key, value := range extra {
+		data[key] = value
+	}
+	event := protocol.NewEvent(protocol.EventTypeRoomAction, data)
+	event.SessionKey = protocol.BuildRoomSharedSessionKey(roundValue.ConversationID)
+	event.RoomID = roundValue.RoomID
+	event.ConversationID = roundValue.ConversationID
+	event.AgentID = strings.TrimSpace(wake.SourceAgentID)
+	event.CausedBy = strings.TrimSpace(wake.MessageID)
 	return event
 }

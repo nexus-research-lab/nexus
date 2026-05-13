@@ -631,12 +631,19 @@ func TestRealtimeServiceCreatesImmediateRequestReplyAction(t *testing.T) {
 	}
 	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
 	if event.Data["action_type"] != string(protocol.RoomActionTypeRequestReply) ||
+		event.Data["event_kind"] != "created" ||
 		event.Data["request_id"] != action.RequestID ||
 		event.Data["wake_policy"] != string(protocol.RoomWakePolicyImmediate) {
 		t.Fatalf("request_reply room_action 事件不正确: %+v", event.Data)
 	}
 	if _, ok := event.Data["content"]; ok {
 		t.Fatalf("request_reply websocket 事件不应泄漏正文: %+v", event.Data)
+	}
+	wakeEvent := waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_started" && event.Data["request_id"] == action.RequestID
+	})
+	if wakeEvent.Data["target_agent_id"] != devin.AgentID {
+		t.Fatalf("request_reply wake_started 事件目标不正确: %+v", wakeEvent.Data)
 	}
 
 	messages := waitForRoomHistoryContent(t, cfg.WorkspacePath, roomContext.Conversation.ID, "done")
@@ -703,6 +710,7 @@ func TestRealtimeServiceRecordsRequestReplyWithoutWake(t *testing.T) {
 	}
 	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
 	if event.Data["wake_policy"] != string(protocol.RoomWakePolicyNone) ||
+		event.Data["event_kind"] != "created" ||
 		event.Data["request_id"] != action.RequestID {
 		t.Fatalf("wake_policy none room_action 事件不正确: %+v", event.Data)
 	}
@@ -1005,6 +1013,12 @@ func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
 		strings.Contains(items[0].Content, "排队后的私信") {
 		t.Fatalf("private action 应以脱敏队列项等待目标空闲: %+v", items)
 	}
+	queuedEvent := waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_queued" && event.Data["action_id"] == action.ActionID
+	})
+	if queuedEvent.Data["target_agent_id"] != devin.AgentID {
+		t.Fatalf("private action wake_queued 事件目标不正确: %+v", queuedEvent.Data)
+	}
 
 	release()
 	deadline := time.After(3 * time.Second)
@@ -1089,10 +1103,24 @@ func waitForRoomBroadcastEvent(
 	eventType protocol.EventType,
 ) protocol.EventMessage {
 	t.Helper()
+	return waitForRoomBroadcastEventMatching(t, broadcaster, eventType, func(protocol.EventMessage) bool {
+		return true
+	})
+}
+
+func waitForRoomBroadcastEventMatching(
+	t *testing.T,
+	broadcaster *roomActionBroadcaster,
+	eventType protocol.EventType,
+	matches func(protocol.EventMessage) bool,
+) protocol.EventMessage {
+	t.Helper()
 	deadline := time.After(3 * time.Second)
 	for {
-		if event, ok := broadcaster.Find(eventType); ok {
-			return event
+		for _, event := range broadcaster.Events() {
+			if event.EventType == eventType && matches(event) {
+				return event
+			}
 		}
 		select {
 		case <-deadline:
