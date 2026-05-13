@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -394,6 +395,47 @@ func TestRoomActionCommandRequiresRoomContext(t *testing.T) {
 	)
 	if errText == "" {
 		t.Fatal("缺少 Room context 时应返回错误")
+	}
+}
+
+func TestRoomActionListUsesExplicitLimitForVisibleActions(t *testing.T) {
+	cfg := newCLITestConfig(t)
+	migrateCLISQLite(t, cfg.DatabaseURL)
+
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	for index := 0; index < 25; index++ {
+		if err := actionStore.AppendAction(protocol.RoomActionRecord{
+			ActionID:       fmt.Sprintf("action-%02d", index),
+			RoomID:         "room-visible-list",
+			ConversationID: "conversation-visible-list",
+			ActionType:     protocol.RoomActionTypeMarker,
+			SourceAgentID:  "agent-source",
+			Content:        fmt.Sprintf("visible-%02d", index),
+			Visibility:     protocol.RoomActionVisibilityPublic,
+			ReplyTarget:    protocol.RoomReplyTargetPublicFeed,
+			Timestamp:      int64(index + 1),
+		}); err != nil {
+			t.Fatalf("写入 Room action 失败: %v", err)
+		}
+	}
+
+	payload := runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"list",
+		"--conversation-id",
+		"conversation-visible-list",
+		"--agent-id",
+		"agent-target",
+		"--limit",
+		"25",
+	)
+	if payload["action"] != "room_action_list" || payload["count"] != float64(25) {
+		t.Fatalf("CLI action list 应按显式 limit 返回完整可见投影: %+v", payload)
 	}
 }
 

@@ -66,12 +66,8 @@ func (s *RoomActionStore) ReadContextActions(conversationID string, agentID stri
 	return s.ReadContextActionsAfterCursor(conversationID, agentID, RoomActionCursor{})
 }
 
-// ReadContextActionsAfterCursor 读取目标 agent cursor 之后可见的近期 action。
-func (s *RoomActionStore) ReadContextActionsAfterCursor(
-	conversationID string,
-	agentID string,
-	cursor RoomActionCursor,
-) ([]protocol.RoomActionRecord, error) {
+// ReadVisibleActions 读取目标 agent 可见的全部 action，不裁剪上下文窗口。
+func (s *RoomActionStore) ReadVisibleActions(conversationID string, agentID string) ([]protocol.RoomActionRecord, error) {
 	actions, err := s.ReadActions(conversationID)
 	if err != nil {
 		return nil, err
@@ -82,6 +78,19 @@ func (s *RoomActionStore) ReadContextActionsAfterCursor(
 		if roomActionVisibleToAgent(action, targetAgentID) {
 			visible = append(visible, action)
 		}
+	}
+	return visible, nil
+}
+
+// ReadContextActionsAfterCursor 读取目标 agent cursor 之后可见的近期 action。
+func (s *RoomActionStore) ReadContextActionsAfterCursor(
+	conversationID string,
+	agentID string,
+	cursor RoomActionCursor,
+) ([]protocol.RoomActionRecord, error) {
+	visible, err := s.ReadVisibleActions(conversationID, agentID)
+	if err != nil {
+		return nil, err
 	}
 	visible = roomActionsAfterCursor(visible, cursor)
 	if len(visible) > roomActionContextLimit {

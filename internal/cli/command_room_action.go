@@ -224,7 +224,7 @@ func runRoomActionListCommand(
 			actions, err = store.ReadContextActionsAfterCursor(conversationID, agentID, cursor)
 		}
 	} else {
-		actions, err = store.ReadContextActions(conversationID, agentID)
+		actions, err = store.ReadVisibleActions(conversationID, agentID)
 	}
 	if err != nil {
 		return err
