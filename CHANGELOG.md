@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 固定提示词补齐 `nexusctl room action` 子命令模板，减少 Agent 调用私信、私有笔记和标记动作时拼错 CLI。
 - Room action 新增 `request_reply` 与 `wake_policy=none|immediate`，支持请求指定成员回复并复用 `reply_target` 投影到公区、发送者私域、目标私域或指定受众。
 - Room action WebSocket 事件增加 `event_kind`，可区分 action 创建、目标唤醒开始和目标忙碌入队。
+- `nexusctl room action` 新增 `list` / `cursors` 查询命令，可直接读取 Room action JSONL 与消费游标；默认不回显正文，需显式传 `--include-content`。
 
 ### Fixed
 - Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。

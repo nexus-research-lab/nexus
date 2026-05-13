@@ -235,6 +235,100 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		actions[3].ReplyTarget != protocol.RoomReplyTargetNone {
 		t.Fatalf("CLI audience/none action 未正确落盘: %+v", actions)
 	}
+
+	listPayload := runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"list",
+		"--conversation-id",
+		roomContext.Conversation.ID,
+	)
+	if listPayload["action"] != "room_action_list" ||
+		listPayload["conversation_id"] != roomContext.Conversation.ID ||
+		listPayload["count"] != float64(4) {
+		t.Fatalf("CLI action list 输出不正确: %+v", listPayload)
+	}
+	listItems, ok := listPayload["items"].([]any)
+	if !ok || len(listItems) != 4 {
+		t.Fatalf("CLI action list items 不正确: %+v", listPayload)
+	}
+	if _, exists := asMap(t, listItems[0])["content"]; exists {
+		t.Fatalf("CLI action list 默认不应回显正文: %+v", listItems[0])
+	}
+
+	devinListPayload := runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"list",
+		"--conversation-id",
+		roomContext.Conversation.ID,
+		"--agent-id",
+		devin.AgentID,
+		"--include-content",
+	)
+	if devinListPayload["action"] != "room_action_list" ||
+		devinListPayload["agent_id"] != devin.AgentID ||
+		devinListPayload["count"] != float64(2) {
+		t.Fatalf("CLI agent action list 输出不正确: %+v", devinListPayload)
+	}
+	devinItems, ok := devinListPayload["items"].([]any)
+	if !ok || len(devinItems) != 2 {
+		t.Fatalf("CLI agent action list items 不正确: %+v", devinListPayload)
+	}
+	contents := collectRoomActionContents(t, devinItems)
+	if contents["please-answer-later"] != 1 ||
+		contents["audience-only"] != 1 ||
+		contents["hello"] != 0 ||
+		contents["record-only"] != 0 {
+		t.Fatalf("CLI agent action list 投影内容不正确: %+v", contents)
+	}
+
+	if err = actionStore.AppendActionCursor(workspacestore.RoomActionCursor{
+		RoomID:              roomContext.Room.ID,
+		ConversationID:      roomContext.Conversation.ID,
+		AgentID:             devin.AgentID,
+		RoundID:             "round-devin-1",
+		LastActionID:        actions[2].ActionID,
+		LastActionTimestamp: actions[2].Timestamp,
+		Timestamp:           time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("写入 Room action cursor 失败: %v", err)
+	}
+	cursorPayload := runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"cursors",
+		"--conversation-id",
+		roomContext.Conversation.ID,
+		"--agent-id",
+		devin.AgentID,
+	)
+	if cursorPayload["action"] != "room_action_cursors" ||
+		cursorPayload["count"] != float64(1) {
+		t.Fatalf("CLI action cursors 输出不正确: %+v", cursorPayload)
+	}
+	cursorItems, ok := cursorPayload["items"].([]any)
+	if !ok || len(cursorItems) != 1 {
+		t.Fatalf("CLI action cursors items 不正确: %+v", cursorPayload)
+	}
+	cursorItem := asMap(t, cursorItems[0])
+	if cursorItem["agent_id"] != devin.AgentID ||
+		cursorItem["last_action_id"] != actions[2].ActionID ||
+		cursorItem["round_id"] != "round-devin-1" {
+		t.Fatalf("CLI action cursor 内容不正确: %+v", cursorItem)
+	}
 }
 
 func TestRoomActionCommandRequiresRoomContext(t *testing.T) {
@@ -369,4 +463,19 @@ func readRoomActionWebSocketEvent(t *testing.T, conn *websocket.Conn) protocol.E
 			return event
 		}
 	}
+}
+
+func collectRoomActionContents(t *testing.T, items []any) map[string]int {
+	t.Helper()
+
+	result := map[string]int{}
+	for _, raw := range items {
+		item := asMap(t, raw)
+		content, ok := item["content"].(string)
+		if !ok {
+			t.Fatalf("Room action item 缺少 content: %+v", item)
+		}
+		result[content]++
+	}
+	return result
 }

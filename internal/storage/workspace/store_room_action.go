@@ -3,6 +3,7 @@ package workspace
 import (
 	"errors"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -96,28 +97,51 @@ func (s *RoomActionStore) AppendActionCursor(cursor RoomActionCursor) error {
 
 // ReadActionCursor 读取目标 agent 最新 Room action 消费位置。
 func (s *RoomActionStore) ReadActionCursor(conversationID string, agentID string) (RoomActionCursor, bool, error) {
-	rows, err := s.files.readJSONL(s.paths.RoomConversationActionCursorsPath(conversationID))
-	if errors.Is(err, os.ErrNotExist) {
+	if strings.TrimSpace(agentID) == "" {
 		return RoomActionCursor{}, false, nil
 	}
+	cursors, err := s.ReadActionCursors(conversationID, agentID)
 	if err != nil {
 		return RoomActionCursor{}, false, err
 	}
-	targetAgentID := strings.TrimSpace(agentID)
-	var latest RoomActionCursor
-	for _, row := range rows {
-		cursor := roomActionCursorFromRow(row)
-		if strings.TrimSpace(cursor.AgentID) != targetAgentID ||
-			strings.TrimSpace(cursor.ConversationID) != strings.TrimSpace(conversationID) ||
-			strings.TrimSpace(cursor.LastActionID) == "" {
-			continue
-		}
-		latest = cursor
-	}
-	if strings.TrimSpace(latest.LastActionID) == "" {
+	if len(cursors) == 0 {
 		return RoomActionCursor{}, false, nil
 	}
-	return latest, true, nil
+	return cursors[0], true, nil
+}
+
+// ReadActionCursors 读取每个 agent 最新的 Room action 消费位置。
+func (s *RoomActionStore) ReadActionCursors(conversationID string, agentID string) ([]RoomActionCursor, error) {
+	rows, err := s.files.readJSONL(s.paths.RoomConversationActionCursorsPath(conversationID))
+	if errors.Is(err, os.ErrNotExist) {
+		return []RoomActionCursor{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	targetAgentID := strings.TrimSpace(agentID)
+	latestByAgentID := map[string]RoomActionCursor{}
+	for _, row := range rows {
+		cursor := roomActionCursorFromRow(row)
+		cursorAgentID := strings.TrimSpace(cursor.AgentID)
+		if cursorAgentID == "" ||
+			strings.TrimSpace(cursor.ConversationID) != strings.TrimSpace(conversationID) ||
+			strings.TrimSpace(cursor.LastActionID) == "" ||
+			(targetAgentID != "" && cursorAgentID != targetAgentID) {
+			continue
+		}
+		latestByAgentID[cursorAgentID] = cursor
+	}
+	agentIDs := make([]string, 0, len(latestByAgentID))
+	for cursorAgentID := range latestByAgentID {
+		agentIDs = append(agentIDs, cursorAgentID)
+	}
+	sort.Strings(agentIDs)
+	cursors := make([]RoomActionCursor, 0, len(agentIDs))
+	for _, cursorAgentID := range agentIDs {
+		cursors = append(cursors, latestByAgentID[cursorAgentID])
+	}
+	return cursors, nil
 }
 
 func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) bool {

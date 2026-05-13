@@ -14,6 +14,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	"github.com/spf13/cobra"
 )
@@ -29,15 +30,45 @@ const (
 	nexusInternalRoomAgentIDHeader  = "X-Nexus-Room-Agent-ID"
 )
 
-func newRoomActionCommand(_ *cliServiceProvider) *cobra.Command {
+func newRoomActionCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "action",
 		Short: "创建 Room 内部协作动作",
 	}
+	command.AddCommand(newRoomActionListCommand(services))
+	command.AddCommand(newRoomActionCursorsCommand(services))
 	command.AddCommand(newRoomPrivateMessageCommand())
 	command.AddCommand(newRoomRequestReplyCommand())
 	command.AddCommand(newRoomPrivateNoteCommand())
 	command.AddCommand(newRoomMarkerCommand())
+	return command
+}
+
+func newRoomActionListCommand(services *cliServiceProvider) *cobra.Command {
+	options := roomActionQueryOptions{}
+	command := &cobra.Command{
+		Use:   "list",
+		Short: "读取 Room action JSONL",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRoomActionListCommand(cmd, services, options)
+		},
+	}
+	bindRoomActionQueryFlags(command, &options)
+	command.Flags().BoolVar(&options.includeContent, "include-content", false, "显式输出 action 正文")
+	command.Flags().IntVar(&options.limit, "limit", 50, "最多返回条数")
+	return command
+}
+
+func newRoomActionCursorsCommand(services *cliServiceProvider) *cobra.Command {
+	options := roomActionQueryOptions{}
+	command := &cobra.Command{
+		Use:   "cursors",
+		Short: "读取 Room action 消费游标",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRoomActionCursorsCommand(cmd, services, options)
+		},
+	}
+	bindRoomActionQueryFlags(command, &options)
 	return command
 }
 
@@ -140,12 +171,99 @@ type roomActionCLIOptions struct {
 	internalToken    string
 }
 
+type roomActionQueryOptions struct {
+	conversationID string
+	agentID        string
+	includeContent bool
+	limit          int
+}
+
 func bindRoomActionCommonFlags(command *cobra.Command, options *roomActionCLIOptions) {
 	command.Flags().StringVar(&options.roomID, "room-id", "", "room id，默认读取 NEXUS_ROOM_ID")
 	command.Flags().StringVar(&options.conversationID, "conversation-id", "", "conversation id，默认读取 NEXUS_ROOM_CONVERSATION_ID")
 	command.Flags().StringVar(&options.content, "content", "", "action content")
 	command.Flags().StringArrayVar(&options.audienceAgentIDs, "audience-agent-id", nil, "audience room agent id，可重复")
 	command.Flags().StringVar((*string)(&options.replyTarget), "reply-target", "", "public_feed|sender_private|target_private|audience|none")
+}
+
+func bindRoomActionQueryFlags(command *cobra.Command, options *roomActionQueryOptions) {
+	command.Flags().StringVar(&options.conversationID, "conversation-id", "", "conversation id，默认读取 NEXUS_ROOM_CONVERSATION_ID")
+	command.Flags().StringVar(&options.agentID, "agent-id", "", "只读取投影给指定 agent 的 action 或游标")
+}
+
+func runRoomActionListCommand(
+	_ *cobra.Command,
+	services *cliServiceProvider,
+	options roomActionQueryOptions,
+) error {
+	conversationID := strings.TrimSpace(options.conversationID)
+	if conversationID == "" {
+		conversationID = strings.TrimSpace(os.Getenv(nexusRoomConversationIDEnvName))
+	}
+	if conversationID == "" {
+		return usageErrorf("room action list requires --conversation-id or %s", nexusRoomConversationIDEnvName)
+	}
+	store := workspacestore.NewRoomActionStore(services.cfg.WorkspacePath)
+	agentID := strings.TrimSpace(options.agentID)
+	var (
+		actions []protocol.RoomActionRecord
+		err     error
+	)
+	if agentID == "" {
+		actions, err = store.ReadActions(conversationID)
+	} else {
+		actions, err = store.ReadContextActions(conversationID, agentID)
+	}
+	if err != nil {
+		return err
+	}
+	if options.limit > 0 && len(actions) > options.limit {
+		actions = actions[len(actions)-options.limit:]
+	}
+	items := make([]map[string]any, 0, len(actions))
+	for _, action := range actions {
+		item := roomActionCLIOutputItem(&action, options.includeContent)
+		items = append(items, item)
+	}
+	return emitJSON(map[string]any{
+		"domain":          "room",
+		"action":          "room_action_list",
+		"conversation_id": conversationID,
+		"agent_id":        agentID,
+		"count":           len(items),
+		"items":           items,
+	})
+}
+
+func runRoomActionCursorsCommand(
+	_ *cobra.Command,
+	services *cliServiceProvider,
+	options roomActionQueryOptions,
+) error {
+	conversationID := strings.TrimSpace(options.conversationID)
+	if conversationID == "" {
+		conversationID = strings.TrimSpace(os.Getenv(nexusRoomConversationIDEnvName))
+	}
+	if conversationID == "" {
+		return usageErrorf("room action cursors requires --conversation-id or %s", nexusRoomConversationIDEnvName)
+	}
+	store := workspacestore.NewRoomActionStore(services.cfg.WorkspacePath)
+	cursors, err := store.ReadActionCursors(conversationID, strings.TrimSpace(options.agentID))
+	if err != nil {
+		return err
+	}
+	items := make([]map[string]any, 0, len(cursors))
+	for _, cursor := range cursors {
+		items = append(items, roomActionCursorCLIOutputItem(cursor))
+	}
+	return emitJSON(map[string]any{
+		"domain":          "room",
+		"action":          "room_action_cursors",
+		"conversation_id": conversationID,
+		"agent_id":        strings.TrimSpace(options.agentID),
+		"count":           len(items),
+		"items":           items,
+	})
 }
 
 func runRoomActionCommand(
@@ -281,7 +399,7 @@ func createRoomAction(
 	return &item, nil
 }
 
-func roomActionCLIOutputItem(action *protocol.RoomActionRecord) map[string]any {
+func roomActionCLIOutputItem(action *protocol.RoomActionRecord, includeContent ...bool) map[string]any {
 	if action == nil {
 		return map[string]any{}
 	}
@@ -308,7 +426,22 @@ func roomActionCLIOutputItem(action *protocol.RoomActionRecord) map[string]any {
 	if len(action.AudienceAgentIDs) > 0 {
 		item["audience_agent_ids"] = append([]string(nil), action.AudienceAgentIDs...)
 	}
+	if len(includeContent) > 0 && includeContent[0] {
+		item["content"] = action.Content
+	}
 	return item
+}
+
+func roomActionCursorCLIOutputItem(cursor workspacestore.RoomActionCursor) map[string]any {
+	return map[string]any{
+		"room_id":               cursor.RoomID,
+		"conversation_id":       cursor.ConversationID,
+		"agent_id":              cursor.AgentID,
+		"round_id":              cursor.RoundID,
+		"last_action_id":        cursor.LastActionID,
+		"last_action_timestamp": cursor.LastActionTimestamp,
+		"timestamp":             cursor.Timestamp,
+	}
 }
 
 func normalizeRoomActionCLIIDs(values []string) []string {
