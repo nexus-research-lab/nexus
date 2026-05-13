@@ -27,8 +27,9 @@ const (
 
 // CreateRoomActionRequest 表示创建 Room action 的请求。
 type CreateRoomActionRequest struct {
-	ActionType       RoomActionType  `json:"action_type"`
-	SourceAgentID    string          `json:"source_agent_id,omitempty"`
+	ActionType RoomActionType `json:"action_type"`
+	// SourceAgentID 只能由受控运行时注入，不能从 action JSON body 写入。
+	SourceAgentID    string          `json:"-"`
 	TargetAgentID    string          `json:"target_agent_id,omitempty"`
 	AudienceAgentIDs []string        `json:"audience_agent_ids,omitempty"`
 	Content          string          `json:"content"`
