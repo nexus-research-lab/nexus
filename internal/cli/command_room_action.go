@@ -118,7 +118,6 @@ type roomActionCLIOptions struct {
 func bindRoomActionCommonFlags(command *cobra.Command, options *roomActionCLIOptions) {
 	command.Flags().StringVar(&options.roomID, "room-id", "", "room id，默认读取 NEXUS_ROOM_ID")
 	command.Flags().StringVar(&options.conversationID, "conversation-id", "", "conversation id，默认读取 NEXUS_ROOM_CONVERSATION_ID")
-	command.Flags().StringVar(&options.sourceAgentID, "source-agent-id", "", "source room agent id，默认读取 NEXUS_ROOM_AGENT_ID")
 	command.Flags().StringVar(&options.content, "content", "", "action content")
 	command.Flags().StringArrayVar(&options.audienceAgentIDs, "audience-agent-id", nil, "audience room agent id，可重复")
 	command.Flags().StringVar((*string)(&options.replyTarget), "reply-target", "", "public_feed|sender_private|target_private|audience|none")
@@ -174,7 +173,7 @@ func (o roomActionCLIOptions) validate() error {
 		return usageErrorf("room action requires --conversation-id or %s", nexusRoomConversationIDEnvName)
 	}
 	if strings.TrimSpace(o.sourceAgentID) == "" {
-		return usageErrorf("room action requires --source-agent-id or %s", nexusRoomAgentIDEnvName)
+		return usageErrorf("room action requires %s from Room runtime", nexusRoomAgentIDEnvName)
 	}
 	if strings.TrimSpace(o.content) == "" {
 		return usageErrorf("room action requires --content")

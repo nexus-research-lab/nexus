@@ -200,6 +200,25 @@ func TestRoomActionCommandRequiresRoomContext(t *testing.T) {
 	}
 }
 
+func TestRoomActionCommandDoesNotAcceptSourceAgentFlag(t *testing.T) {
+	errText := runCLICommandError(
+		t,
+		config.Config{Host: "127.0.0.1", Port: 18032, APIPrefix: "/nexus/v1"},
+		map[string]string{nexusctlUserIDEnvName: "user-1"},
+		"--json",
+		"room",
+		"action",
+		"private-note",
+		"--source-agent-id",
+		"agent-1",
+		"--content",
+		"hello",
+	)
+	if !strings.Contains(errText, "unknown flag: --source-agent-id") {
+		t.Fatalf("source_agent_id 不应允许 CLI 手写: %s", errText)
+	}
+}
+
 func TestRoomActionCommandRequiresInternalEndpoint(t *testing.T) {
 	t.Setenv(nexusRoomIDEnvName, "room-1")
 	t.Setenv(nexusRoomConversationIDEnvName, "conversation-1")
