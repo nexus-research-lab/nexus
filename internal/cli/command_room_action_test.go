@@ -90,6 +90,16 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	if payload["action"] != "room_action_create" {
 		t.Fatalf("CLI 输出 action 不正确: %+v", payload)
 	}
+	item, ok := payload["item"].(map[string]any)
+	if !ok {
+		t.Fatalf("CLI 输出 item 不正确: %+v", payload)
+	}
+	if _, exists := item["content"]; exists {
+		t.Fatalf("CLI tool_result 不应回显 private content: %+v", item)
+	}
+	if item["content_chars"] != float64(5) {
+		t.Fatalf("CLI 输出应保留内容长度便于调试: %+v", item)
+	}
 	event := readRoomActionWebSocketEvent(t, conn)
 	if event.EventType != protocol.EventTypeRoomAction {
 		t.Fatalf("未收到 room_action websocket 事件: %+v", event)
@@ -131,9 +141,12 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		"--content",
 		"audience-only",
 	)
-	item, ok := payload["item"].(map[string]any)
+	item, ok = payload["item"].(map[string]any)
 	if !ok || item["reply_target"] != string(protocol.RoomReplyTargetAudience) {
 		t.Fatalf("CLI audience 输出不正确: %+v", payload)
+	}
+	if _, exists := item["content"]; exists {
+		t.Fatalf("CLI audience 输出不应回显正文: %+v", item)
 	}
 	event = readRoomActionWebSocketEvent(t, conn)
 	if event.Data["reply_target"] != string(protocol.RoomReplyTargetAudience) {
@@ -158,6 +171,9 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	item, ok = payload["item"].(map[string]any)
 	if !ok || item["reply_target"] != string(protocol.RoomReplyTargetNone) {
 		t.Fatalf("CLI none 输出不正确: %+v", payload)
+	}
+	if _, exists := item["content"]; exists {
+		t.Fatalf("CLI none 输出不应回显正文: %+v", item)
 	}
 	event = readRoomActionWebSocketEvent(t, conn)
 	if _, exists := event.Data["content"]; exists {

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
@@ -142,7 +143,7 @@ func runRoomActionCommand(
 	return emitJSON(map[string]any{
 		"domain": "room",
 		"action": "room_action_create",
-		"item":   item,
+		"item":   roomActionCLIOutputItem(item),
 	})
 }
 
@@ -250,6 +251,30 @@ func createRoomAction(
 		return nil, err
 	}
 	return &item, nil
+}
+
+func roomActionCLIOutputItem(action *protocol.RoomActionRecord) map[string]any {
+	if action == nil {
+		return map[string]any{}
+	}
+	item := map[string]any{
+		"action_id":       action.ActionID,
+		"room_id":         action.RoomID,
+		"conversation_id": action.ConversationID,
+		"action_type":     string(action.ActionType),
+		"source_agent_id": action.SourceAgentID,
+		"visibility":      action.Visibility,
+		"reply_target":    string(action.ReplyTarget),
+		"content_chars":   utf8.RuneCountInString(action.Content),
+		"timestamp":       action.Timestamp,
+	}
+	if strings.TrimSpace(action.TargetAgentID) != "" {
+		item["target_agent_id"] = action.TargetAgentID
+	}
+	if len(action.AudienceAgentIDs) > 0 {
+		item["audience_agent_ids"] = append([]string(nil), action.AudienceAgentIDs...)
+	}
+	return item
 }
 
 func normalizeRoomActionCLIIDs(values []string) []string {
