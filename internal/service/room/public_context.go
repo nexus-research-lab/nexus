@@ -120,6 +120,25 @@ func (s *RealtimeService) recordRoomPublicCursor(slot *activeRoomSlot, roundValu
 	})
 }
 
+func (s *RealtimeService) recordRoomActionCursor(slot *activeRoomSlot, roundValue *activeRoomRound) error {
+	if s.actions == nil || slot == nil || roundValue == nil {
+		return nil
+	}
+	actionID := strings.TrimSpace(slot.ActionCursorID)
+	if actionID == "" && slot.ActionCursorTS == 0 {
+		return nil
+	}
+	return s.actions.AppendActionCursor(workspacestore.RoomActionCursor{
+		RoomID:              roundValue.RoomID,
+		ConversationID:      roundValue.ConversationID,
+		AgentID:             slot.AgentID,
+		RoundID:             slot.AgentRoundID,
+		LastActionID:        actionID,
+		LastActionTimestamp: slot.ActionCursorTS,
+		Timestamp:           time.Now().UnixMilli(),
+	})
+}
+
 func (s *RealtimeService) roomActionsForSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
@@ -127,5 +146,18 @@ func (s *RealtimeService) roomActionsForSlot(
 	if s.actions == nil || roundValue == nil || slot == nil {
 		return nil, nil
 	}
-	return s.actions.ReadContextActions(roundValue.ConversationID, slot.AgentID)
+	cursor, _, err := s.actions.ReadActionCursor(roundValue.ConversationID, slot.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	actions, err := s.actions.ReadContextActionsAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)
+	if err != nil {
+		return nil, err
+	}
+	if len(actions) > 0 {
+		lastAction := actions[len(actions)-1]
+		slot.ActionCursorID = lastAction.ActionID
+		slot.ActionCursorTS = lastAction.Timestamp
+	}
+	return actions, nil
 }

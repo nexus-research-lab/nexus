@@ -269,12 +269,20 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
 
-	client := newFakeRoomClient()
+	firstClient := newFakeRoomClient()
+	secondClient := newFakeRoomClient()
 	var seenPrivateAction atomic.Bool
-	client.onQuery = func(_ context.Context, prompt string) error {
+	var secondPromptSkippedOldAction atomic.Bool
+	firstClient.onQuery = func(_ context.Context, prompt string) error {
 		seenPrivateAction.Store(strings.Contains(prompt, "<room_actions>") &&
 			strings.Contains(prompt, "只给 Devin 的提醒"))
-		sendFakeAssistantResult(client, "assistant-sdk-action-context", "收到")
+		sendFakeAssistantResult(firstClient, "assistant-sdk-action-context", "收到")
+		return nil
+	}
+	secondClient.onQuery = func(_ context.Context, prompt string) error {
+		secondPromptSkippedOldAction.Store(strings.Contains(prompt, "<latest_trigger>") &&
+			!strings.Contains(prompt, "只给 Devin 的提醒"))
+		sendFakeAssistantResult(secondClient, "assistant-sdk-action-context-2", "收到第二轮")
 		return nil
 	}
 	service := roomsvc.NewRealtimeServiceWithFactory(
@@ -283,7 +291,7 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 		agentService,
 		runtimectx.NewManager(),
 		permissionctx.NewContext(),
-		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+		&fakeRoomFactory{clients: []*fakeRoomClient{firstClient, secondClient}},
 	)
 	if _, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
 		ActionType:    protocol.RoomActionTypePrivateMessage,
@@ -313,6 +321,29 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	waitForRoomActionCursor(t, actionStore, roomContext.Conversation.ID, devin.AgentID)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Devin 再处理一次",
+		RoundID:        "round-action-context-2",
+		ReqID:          "req-action-context-2",
+	}); err != nil {
+		t.Fatalf("发送第二轮 Room 消息失败: %v", err)
+	}
+	deadline = time.After(3 * time.Second)
+	for !secondPromptSkippedOldAction.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("Room action cursor 未阻止旧 private action 重复投影")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 }
 
 func assertRoomActionContents(
@@ -337,6 +368,31 @@ func assertRoomActionContents(
 	for index := range want {
 		if got[index] != want[index] {
 			t.Fatalf("Room action 投影内容不正确: got=%+v want=%+v", got, want)
+		}
+	}
+}
+
+func waitForRoomActionCursor(
+	t *testing.T,
+	store *workspacestore.RoomActionStore,
+	conversationID string,
+	agentID string,
+) workspacestore.RoomActionCursor {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		cursor, ok, err := store.ReadActionCursor(conversationID, agentID)
+		if err != nil {
+			t.Fatalf("读取 Room action cursor 失败: %v", err)
+		}
+		if ok {
+			return cursor
+		}
+		select {
+		case <-deadline:
+			t.Fatal("Room action cursor 未落盘")
+		default:
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }

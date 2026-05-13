@@ -10,6 +10,17 @@ import (
 
 const roomActionContextLimit = 20
 
+// RoomActionCursor 记录某个 Room agent 已消费到的 action 位置。
+type RoomActionCursor struct {
+	RoomID              string
+	ConversationID      string
+	AgentID             string
+	RoundID             string
+	LastActionID        string
+	LastActionTimestamp int64
+	Timestamp           int64
+}
+
 // RoomActionStore 负责 Room action 的 append-only 读写。
 type RoomActionStore struct {
 	paths *Store
@@ -51,6 +62,15 @@ func (s *RoomActionStore) ReadActions(conversationID string) ([]protocol.RoomAct
 
 // ReadContextActions 读取对目标 agent 可见的近期 action。
 func (s *RoomActionStore) ReadContextActions(conversationID string, agentID string) ([]protocol.RoomActionRecord, error) {
+	return s.ReadContextActionsAfterCursor(conversationID, agentID, RoomActionCursor{})
+}
+
+// ReadContextActionsAfterCursor 读取目标 agent cursor 之后可见的近期 action。
+func (s *RoomActionStore) ReadContextActionsAfterCursor(
+	conversationID string,
+	agentID string,
+	cursor RoomActionCursor,
+) ([]protocol.RoomActionRecord, error) {
 	actions, err := s.ReadActions(conversationID)
 	if err != nil {
 		return nil, err
@@ -62,10 +82,42 @@ func (s *RoomActionStore) ReadContextActions(conversationID string, agentID stri
 			visible = append(visible, action)
 		}
 	}
+	visible = roomActionsAfterCursor(visible, cursor)
 	if len(visible) > roomActionContextLimit {
 		visible = visible[len(visible)-roomActionContextLimit:]
 	}
 	return visible, nil
+}
+
+// AppendActionCursor 追加 Room action 消费位置控制行。
+func (s *RoomActionStore) AppendActionCursor(cursor RoomActionCursor) error {
+	return s.files.appendJSONL(s.paths.RoomConversationActionCursorsPath(cursor.ConversationID), roomActionCursorToRow(cursor))
+}
+
+// ReadActionCursor 读取目标 agent 最新 Room action 消费位置。
+func (s *RoomActionStore) ReadActionCursor(conversationID string, agentID string) (RoomActionCursor, bool, error) {
+	rows, err := s.files.readJSONL(s.paths.RoomConversationActionCursorsPath(conversationID))
+	if errors.Is(err, os.ErrNotExist) {
+		return RoomActionCursor{}, false, nil
+	}
+	if err != nil {
+		return RoomActionCursor{}, false, err
+	}
+	targetAgentID := strings.TrimSpace(agentID)
+	var latest RoomActionCursor
+	for _, row := range rows {
+		cursor := roomActionCursorFromRow(row)
+		if strings.TrimSpace(cursor.AgentID) != targetAgentID ||
+			strings.TrimSpace(cursor.ConversationID) != strings.TrimSpace(conversationID) ||
+			strings.TrimSpace(cursor.LastActionID) == "" {
+			continue
+		}
+		latest = cursor
+	}
+	if strings.TrimSpace(latest.LastActionID) == "" {
+		return RoomActionCursor{}, false, nil
+	}
+	return latest, true, nil
 }
 
 func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) bool {
@@ -90,6 +142,30 @@ func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) 
 	}
 }
 
+func roomActionsAfterCursor(actions []protocol.RoomActionRecord, cursor RoomActionCursor) []protocol.RoomActionRecord {
+	if len(actions) == 0 {
+		return nil
+	}
+	cursorActionID := strings.TrimSpace(cursor.LastActionID)
+	if cursorActionID != "" {
+		for index, action := range actions {
+			if strings.TrimSpace(action.ActionID) == cursorActionID {
+				return actions[index+1:]
+			}
+		}
+	}
+	if cursor.LastActionTimestamp <= 0 {
+		return actions
+	}
+	result := make([]protocol.RoomActionRecord, 0, len(actions))
+	for _, action := range actions {
+		if action.Timestamp > cursor.LastActionTimestamp {
+			result = append(result, action)
+		}
+	}
+	return result
+}
+
 func roomActionToRow(action protocol.RoomActionRecord) map[string]any {
 	row := map[string]any{
 		"action_id":       action.ActionID,
@@ -111,6 +187,30 @@ func roomActionToRow(action protocol.RoomActionRecord) map[string]any {
 		row["content"] = action.Content
 	}
 	return row
+}
+
+func roomActionCursorToRow(cursor RoomActionCursor) map[string]any {
+	return map[string]any{
+		"room_id":               strings.TrimSpace(cursor.RoomID),
+		"conversation_id":       strings.TrimSpace(cursor.ConversationID),
+		"agent_id":              strings.TrimSpace(cursor.AgentID),
+		"round_id":              strings.TrimSpace(cursor.RoundID),
+		"last_action_id":        strings.TrimSpace(cursor.LastActionID),
+		"last_action_timestamp": cursor.LastActionTimestamp,
+		"timestamp":             cursor.Timestamp,
+	}
+}
+
+func roomActionCursorFromRow(row map[string]any) RoomActionCursor {
+	return RoomActionCursor{
+		RoomID:              stringFromAny(row["room_id"]),
+		ConversationID:      stringFromAny(row["conversation_id"]),
+		AgentID:             stringFromAny(row["agent_id"]),
+		RoundID:             stringFromAny(row["round_id"]),
+		LastActionID:        stringFromAny(row["last_action_id"]),
+		LastActionTimestamp: int64FromAny(row["last_action_timestamp"]),
+		Timestamp:           int64FromAny(row["timestamp"]),
+	}
 }
 
 func roomActionFromRow(row map[string]any) protocol.RoomActionRecord {
