@@ -44,7 +44,9 @@ func newRoomPrivateMessageCommand() *cobra.Command {
 		Use:   "private-message",
 		Short: "发送 Room 内私域消息",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			options.replyTarget = protocol.RoomReplyTargetTargetPrivate
+			if options.replyTarget == "" {
+				options.replyTarget = protocol.RoomReplyTargetTargetPrivate
+			}
 			return runRoomActionCommand(cmd, options)
 		},
 	}
@@ -61,7 +63,9 @@ func newRoomPrivateNoteCommand() *cobra.Command {
 		Use:   "private-note",
 		Short: "记录当前 Room agent 私有上下文",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			options.replyTarget = protocol.RoomReplyTargetSenderPrivate
+			if options.replyTarget == "" {
+				options.replyTarget = protocol.RoomReplyTargetSenderPrivate
+			}
 			return runRoomActionCommand(cmd, options)
 		},
 	}
@@ -79,6 +83,9 @@ func newRoomMarkerCommand() *cobra.Command {
 		Use:   "marker",
 		Short: "创建 Room 协作标记",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if options.replyTarget != "" {
+				return runRoomActionCommand(cmd, options)
+			}
 			if options.visibility == protocol.RoomActionVisibilityPublic {
 				options.replyTarget = protocol.RoomReplyTargetPublicFeed
 			} else {
@@ -95,16 +102,17 @@ func newRoomMarkerCommand() *cobra.Command {
 }
 
 type roomActionCLIOptions struct {
-	actionType      protocol.RoomActionType
-	roomID          string
-	conversationID  string
-	sourceAgentID   string
-	targetAgentID   string
-	content         string
-	visibility      string
-	replyTarget     protocol.RoomReplyTarget
-	internalAPIBase string
-	internalToken   string
+	actionType       protocol.RoomActionType
+	roomID           string
+	conversationID   string
+	sourceAgentID    string
+	targetAgentID    string
+	audienceAgentIDs []string
+	content          string
+	visibility       string
+	replyTarget      protocol.RoomReplyTarget
+	internalAPIBase  string
+	internalToken    string
 }
 
 func bindRoomActionCommonFlags(command *cobra.Command, options *roomActionCLIOptions) {
@@ -112,6 +120,8 @@ func bindRoomActionCommonFlags(command *cobra.Command, options *roomActionCLIOpt
 	command.Flags().StringVar(&options.conversationID, "conversation-id", "", "conversation id，默认读取 NEXUS_ROOM_CONVERSATION_ID")
 	command.Flags().StringVar(&options.sourceAgentID, "source-agent-id", "", "source room agent id，默认读取 NEXUS_ROOM_AGENT_ID")
 	command.Flags().StringVar(&options.content, "content", "", "action content")
+	command.Flags().StringArrayVar(&options.audienceAgentIDs, "audience-agent-id", nil, "audience room agent id，可重复")
+	command.Flags().StringVar((*string)(&options.replyTarget), "reply-target", "", "public_feed|sender_private|target_private|audience|none")
 }
 
 func runRoomActionCommand(
@@ -191,12 +201,13 @@ func createRoomAction(
 		return nil, usageErrorf("room action requires current user scope")
 	}
 	payload := protocol.CreateRoomActionRequest{
-		ActionType:    options.actionType,
-		SourceAgentID: strings.TrimSpace(options.sourceAgentID),
-		TargetAgentID: strings.TrimSpace(options.targetAgentID),
-		Content:       strings.TrimSpace(options.content),
-		Visibility:    strings.TrimSpace(options.visibility),
-		ReplyTarget:   options.replyTarget,
+		ActionType:       options.actionType,
+		SourceAgentID:    strings.TrimSpace(options.sourceAgentID),
+		TargetAgentID:    strings.TrimSpace(options.targetAgentID),
+		AudienceAgentIDs: normalizeRoomActionCLIIDs(options.audienceAgentIDs),
+		Content:          strings.TrimSpace(options.content),
+		Visibility:       strings.TrimSpace(options.visibility),
+		ReplyTarget:      options.replyTarget,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -240,6 +251,27 @@ func createRoomAction(
 		return nil, err
 	}
 	return &item, nil
+}
+
+func normalizeRoomActionCLIIDs(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" || containsRoomActionCLIID(result, normalized) {
+			continue
+		}
+		result = append(result, normalized)
+	}
+	return result
+}
+
+func containsRoomActionCLIID(values []string, target string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == target {
+			return true
+		}
+	}
+	return false
 }
 
 func roomActionEndpoint(options roomActionCLIOptions) string {

@@ -120,17 +120,19 @@ func (s *RealtimeService) buildRoomActionRecord(
 			replyTarget = protocol.RoomReplyTargetSenderPrivate
 		}
 	case protocol.RoomActionTypeMarker:
-		if visibility == protocol.RoomActionVisibilityPrivate && targetAgentID == "" {
-			targetAgentID = sourceAgentID
-		}
-		if targetAgentID != "" && !roomdomain.ContainsString(memberAgentIDs, targetAgentID) {
-			return nil, ErrRoomMemberNotFound
-		}
 		if replyTarget == "" {
 			replyTarget = protocol.RoomReplyTargetSenderPrivate
 			if visibility == protocol.RoomActionVisibilityPublic {
 				replyTarget = protocol.RoomReplyTargetPublicFeed
 			}
+		}
+		if visibility == protocol.RoomActionVisibilityPrivate &&
+			targetAgentID == "" &&
+			replyTarget == protocol.RoomReplyTargetSenderPrivate {
+			targetAgentID = sourceAgentID
+		}
+		if targetAgentID != "" && !roomdomain.ContainsString(memberAgentIDs, targetAgentID) {
+			return nil, ErrRoomMemberNotFound
 		}
 	}
 	if err = validateRoomReplyTarget(replyTarget, audienceAgentIDs, memberAgentIDs); err != nil {
@@ -225,7 +227,9 @@ func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage 
 	if len(action.AudienceAgentIDs) > 0 {
 		data["audience_agent_ids"] = append([]string(nil), action.AudienceAgentIDs...)
 	}
-	if action.ActionType == protocol.RoomActionTypeMarker && action.Visibility == protocol.RoomActionVisibilityPublic {
+	if action.ActionType == protocol.RoomActionTypeMarker &&
+		action.Visibility == protocol.RoomActionVisibilityPublic &&
+		action.ReplyTarget != protocol.RoomReplyTargetNone {
 		data["content"] = action.Content
 	}
 	event := protocol.NewEvent(protocol.EventTypeRoomAction, data)

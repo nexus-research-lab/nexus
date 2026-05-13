@@ -140,6 +140,109 @@ func TestRealtimeServiceRejectsActionForNonMemberTarget(t *testing.T) {
 	if !errors.Is(err, roomsvc.ErrRoomMemberNotFound) {
 		t.Fatalf("非成员目标应被拒绝: %v", err)
 	}
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateNote,
+		SourceAgentID: outsider.AgentID,
+		Content:       "非成员 source 不应写入",
+	})
+	if !errors.Is(err, roomsvc.ErrRoomMemberNotFound) {
+		t.Fatalf("非成员 source 应被拒绝: %v", err)
+	}
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypeMarker,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{outsider.AgentID},
+		Content:          "非成员 audience 不应写入",
+		ReplyTarget:      protocol.RoomReplyTargetAudience,
+	})
+	if !errors.Is(err, roomsvc.ErrRoomMemberNotFound) {
+		t.Fatalf("非成员 audience 应被拒绝: %v", err)
+	}
+}
+
+func TestRealtimeServiceProjectsAudienceNoneAndPublicMarkerActions(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-projection",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	sam := createTestAgent(t, agentService, ctx, "Sam")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID, sam.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	service := roomsvc.NewRealtimeService(cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext())
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypeMarker,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{devin.AgentID},
+		Content:          "只给 Devin 的 audience 标记",
+		ReplyTarget:      protocol.RoomReplyTargetAudience,
+	})
+	if err != nil {
+		t.Fatalf("创建 audience action 失败: %v", err)
+	}
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, devin.AgentID, []string{"只给 Devin 的 audience 标记"})
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, sam.AgentID, nil)
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypeMarker,
+		SourceAgentID: amy.AgentID,
+		Content:       "公开阶段标记",
+		Visibility:    protocol.RoomActionVisibilityPublic,
+	})
+	if err != nil {
+		t.Fatalf("创建 public marker 失败: %v", err)
+	}
+	if got := broadcaster.Last().Data["content"]; got != "公开阶段标记" {
+		t.Fatalf("public marker 应广播正文: %+v", broadcaster.Last().Data)
+	}
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, sam.AgentID, []string{"公开阶段标记"})
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypeMarker,
+		SourceAgentID: amy.AgentID,
+		Content:       "只记录不投影",
+		Visibility:    protocol.RoomActionVisibilityPublic,
+		ReplyTarget:   protocol.RoomReplyTargetNone,
+	})
+	if err != nil {
+		t.Fatalf("创建 none action 失败: %v", err)
+	}
+	if _, exists := broadcaster.Last().Data["content"]; exists {
+		t.Fatalf("reply_target=none 不应广播正文: %+v", broadcaster.Last().Data)
+	}
+	allActions, err := actionStore.ReadActions(roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取 action log 失败: %v", err)
+	}
+	if len(allActions) != 3 || allActions[2].Content != "只记录不投影" {
+		t.Fatalf("none action 应只落盘: %+v", allActions)
+	}
+	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, devin.AgentID, []string{
+		"只给 Devin 的 audience 标记",
+		"公开阶段标记",
+	})
 }
 
 func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
@@ -208,6 +311,32 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 			t.Fatal("目标 agent prompt 未包含 private Room action")
 		default:
 			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func assertRoomActionContents(
+	t *testing.T,
+	store *workspacestore.RoomActionStore,
+	conversationID string,
+	agentID string,
+	want []string,
+) {
+	t.Helper()
+	actions, err := store.ReadContextActions(conversationID, agentID)
+	if err != nil {
+		t.Fatalf("读取 Room action 失败: %v", err)
+	}
+	got := make([]string, 0, len(actions))
+	for _, action := range actions {
+		got = append(got, action.Content)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Room action 投影数量不正确: got=%+v want=%+v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("Room action 投影内容不正确: got=%+v want=%+v", got, want)
 		}
 	}
 }

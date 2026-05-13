@@ -75,7 +75,8 @@ Room 运行时会在系统提示词中提供成员目录，并在每轮用户消
 11. 创建 Room action 时使用 cd "$NEXUS_PROJECT_ROOT" && go run ./cmd/nexusctl --json room action ...；Room runtime 已注入 room、conversation、source agent、内部控制面地址/token 和用户作用域，不要手写这些字段，不要打印、查询或复述 NEXUS_ROOM_INTERNAL_TOKEN。
 12. private-message 用于给指定成员私域投递，--target-agent-id 必须使用成员目录里的真实 agent_id，不是成员名；暗号、密码、密钥如果后续要让某成员复述、核对或使用，也用 private-message 发给该成员。
 13. private-note 只写给你自己，适合记录后续需要记住但不该公开的上下文；marker --visibility public|private 用于协作标记。
-14. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。`
+14. 需要投影给指定受众集合时使用 --reply-target audience 并为每个受众追加 --audience-agent-id；只想落盘记录、不让任何成员后续看到正文时使用 --reply-target none。
+15. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。`
 }
 
 // BuildMemberDirectoryPrompt 构建 Room 级稳定成员目录提示词。

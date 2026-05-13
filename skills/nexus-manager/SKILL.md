@@ -124,6 +124,8 @@ Room runtime 内会自动注入当前 `room_id`、`conversation_id`、`source_ag
 cd "{project_root}" && go run ./cmd/nexusctl --json room action private-message --target-agent-id 0ed5434a8c13 --content "私下提醒"
 cd "{project_root}" && go run ./cmd/nexusctl --json room action private-note --content "只写给自己的上下文"
 cd "{project_root}" && go run ./cmd/nexusctl --json room action marker --visibility public --content "公开协作标记"
+cd "{project_root}" && go run ./cmd/nexusctl --json room action marker --reply-target audience --audience-agent-id 0ed5434a8c13 --content "只给指定受众的标记"
+cd "{project_root}" && go run ./cmd/nexusctl --json room action marker --reply-target none --content "只落盘不投影"
 ```
 
 #### 删除 Room

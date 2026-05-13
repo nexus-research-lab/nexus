@@ -72,6 +72,9 @@ func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) 
 	if agentID == "" {
 		return false
 	}
+	if action.ReplyTarget == protocol.RoomReplyTargetNone {
+		return false
+	}
 	if action.Visibility == protocol.RoomActionVisibilityPublic || action.ReplyTarget == protocol.RoomReplyTargetPublicFeed {
 		return true
 	}

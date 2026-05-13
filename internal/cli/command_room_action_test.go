@@ -115,6 +115,66 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		actions[0].Content != "hello" {
 		t.Fatalf("CLI 未通过内部 endpoint 创建 action: %+v", actions)
 	}
+
+	payload = runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"marker",
+		"--reply-target",
+		"audience",
+		"--audience-agent-id",
+		devin.AgentID,
+		"--content",
+		"audience-only",
+	)
+	item, ok := payload["item"].(map[string]any)
+	if !ok || item["reply_target"] != string(protocol.RoomReplyTargetAudience) {
+		t.Fatalf("CLI audience 输出不正确: %+v", payload)
+	}
+	event = readRoomActionWebSocketEvent(t, conn)
+	if event.Data["reply_target"] != string(protocol.RoomReplyTargetAudience) {
+		t.Fatalf("audience room_action websocket 事件不正确: %+v", event.Data)
+	}
+
+	payload = runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"marker",
+		"--visibility",
+		"public",
+		"--reply-target",
+		"none",
+		"--content",
+		"record-only",
+	)
+	item, ok = payload["item"].(map[string]any)
+	if !ok || item["reply_target"] != string(protocol.RoomReplyTargetNone) {
+		t.Fatalf("CLI none 输出不正确: %+v", payload)
+	}
+	event = readRoomActionWebSocketEvent(t, conn)
+	if _, exists := event.Data["content"]; exists {
+		t.Fatalf("reply_target none websocket 事件不应泄漏正文: %+v", event.Data)
+	}
+
+	actions, err = actionStore.ReadActions(roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取 Room action 失败: %v", err)
+	}
+	if len(actions) != 3 ||
+		actions[1].ReplyTarget != protocol.RoomReplyTargetAudience ||
+		len(actions[1].AudienceAgentIDs) != 1 ||
+		actions[1].AudienceAgentIDs[0] != devin.AgentID ||
+		actions[2].ReplyTarget != protocol.RoomReplyTargetNone {
+		t.Fatalf("CLI audience/none action 未正确落盘: %+v", actions)
+	}
 }
 
 func TestRoomActionCommandRequiresRoomContext(t *testing.T) {
