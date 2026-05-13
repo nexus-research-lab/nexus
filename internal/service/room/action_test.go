@@ -39,6 +39,17 @@ func (b *roomActionBroadcaster) Last() protocol.EventMessage {
 	return b.events[len(b.events)-1]
 }
 
+func (b *roomActionBroadcaster) Find(eventType protocol.EventType) (protocol.EventMessage, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, event := range b.events {
+		if event.EventType == eventType {
+			return event, true
+		}
+	}
+	return protocol.EventMessage{}, false
+}
+
 func TestRealtimeServiceCreatesPrivateMessageAction(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -293,12 +304,15 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 		permissionctx.NewContext(),
 		&fakeRoomFactory{clients: []*fakeRoomClient{firstClient, secondClient}},
 	)
-	if _, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
 		ActionType:    protocol.RoomActionTypePrivateMessage,
 		SourceAgentID: amy.AgentID,
 		TargetAgentID: devin.AgentID,
 		Content:       "只给 Devin 的提醒",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("创建 private action 失败: %v", err)
 	}
 
@@ -323,7 +337,17 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 	}
 
 	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
-	waitForRoomActionCursor(t, actionStore, roomContext.Conversation.ID, devin.AgentID)
+	cursor := waitForRoomActionCursor(t, actionStore, roomContext.Conversation.ID, devin.AgentID)
+	consumedEvent := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomActionConsumed)
+	if consumedEvent.AgentID != devin.AgentID {
+		t.Fatalf("Room action consumed agent 不正确: %+v", consumedEvent)
+	}
+	if got := consumedEvent.Data["last_action_id"]; got != action.ActionID || got != cursor.LastActionID {
+		t.Fatalf("Room action consumed cursor 不正确: event=%+v cursor=%+v action=%+v", consumedEvent.Data, cursor, action)
+	}
+	if _, exists := consumedEvent.Data["content"]; exists {
+		t.Fatalf("Room action consumed 事件不应包含正文: %+v", consumedEvent.Data)
+	}
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
@@ -340,6 +364,26 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 		select {
 		case <-deadline:
 			t.Fatal("Room action cursor 未阻止旧 private action 重复投影")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func waitForRoomBroadcastEvent(
+	t *testing.T,
+	broadcaster *roomActionBroadcaster,
+	eventType protocol.EventType,
+) protocol.EventMessage {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		if event, ok := broadcaster.Find(eventType); ok {
+			return event
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("未广播 Room 事件: %s", eventType)
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}

@@ -231,6 +231,8 @@ export interface RoomEventPayload {
   content_chars?: number;
   content?: string;
   round_id?: string;
+  last_action_id?: string;
+  last_action_timestamp?: number;
   last_seen_room_seq?: number;
   latest_room_seq?: number;
   buffer_start_room_seq?: number | null;

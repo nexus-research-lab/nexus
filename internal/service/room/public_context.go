@@ -120,15 +120,18 @@ func (s *RealtimeService) recordRoomPublicCursor(slot *activeRoomSlot, roundValu
 	})
 }
 
-func (s *RealtimeService) recordRoomActionCursor(slot *activeRoomSlot, roundValue *activeRoomRound) error {
+func (s *RealtimeService) recordRoomActionCursor(
+	slot *activeRoomSlot,
+	roundValue *activeRoomRound,
+) (workspacestore.RoomActionCursor, bool, error) {
 	if s.actions == nil || slot == nil || roundValue == nil {
-		return nil
+		return workspacestore.RoomActionCursor{}, false, nil
 	}
 	actionID := strings.TrimSpace(slot.ActionCursorID)
 	if actionID == "" && slot.ActionCursorTS == 0 {
-		return nil
+		return workspacestore.RoomActionCursor{}, false, nil
 	}
-	return s.actions.AppendActionCursor(workspacestore.RoomActionCursor{
+	cursor := workspacestore.RoomActionCursor{
 		RoomID:              roundValue.RoomID,
 		ConversationID:      roundValue.ConversationID,
 		AgentID:             slot.AgentID,
@@ -136,7 +139,11 @@ func (s *RealtimeService) recordRoomActionCursor(slot *activeRoomSlot, roundValu
 		LastActionID:        actionID,
 		LastActionTimestamp: slot.ActionCursorTS,
 		Timestamp:           time.Now().UnixMilli(),
-	})
+	}
+	if err := s.actions.AppendActionCursor(cursor); err != nil {
+		return workspacestore.RoomActionCursor{}, false, err
+	}
+	return cursor, true, nil
 }
 
 func (s *RealtimeService) roomActionsForSlot(
@@ -160,4 +167,22 @@ func (s *RealtimeService) roomActionsForSlot(
 		slot.ActionCursorTS = lastAction.Timestamp
 	}
 	return actions, nil
+}
+
+func newRoomActionConsumedEvent(cursor workspacestore.RoomActionCursor) protocol.EventMessage {
+	data := map[string]any{
+		"room_id":               cursor.RoomID,
+		"conversation_id":       cursor.ConversationID,
+		"agent_id":              cursor.AgentID,
+		"round_id":              cursor.RoundID,
+		"last_action_id":        cursor.LastActionID,
+		"last_action_timestamp": cursor.LastActionTimestamp,
+	}
+	event := protocol.NewEvent(protocol.EventTypeRoomActionConsumed, data)
+	event.SessionKey = protocol.BuildRoomSharedSessionKey(cursor.ConversationID)
+	event.RoomID = cursor.RoomID
+	event.ConversationID = cursor.ConversationID
+	event.AgentID = cursor.AgentID
+	event.CausedBy = cursor.RoundID
+	return event
 }

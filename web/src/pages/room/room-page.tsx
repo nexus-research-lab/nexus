@@ -147,6 +147,18 @@ export function RoomPage() {
       return;
     }
 
+    if (event_type === "room_action_consumed") {
+      console.debug("[Room] room_action_consumed", {
+        room_id: data.room_id,
+        conversation_id: data.conversation_id,
+        agent_id: data.agent_id,
+        round_id: data.round_id,
+        last_action_id: data.last_action_id,
+        last_action_timestamp: data.last_action_timestamp,
+      });
+      return;
+    }
+
     if (event_type === "room_resync_required" || event_type === "session_resync_required") {
       void controller.handle_refresh_room_state();
     }

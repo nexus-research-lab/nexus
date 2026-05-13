@@ -319,9 +319,18 @@ func (s *RealtimeService) runSlot(
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		if err := s.recordRoomActionCursor(slot, roundValue); err != nil {
+		actionCursor, actionCursorRecorded, err := s.recordRoomActionCursor(slot, roundValue)
+		if err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
+		}
+		if actionCursorRecorded {
+			s.broadcastSharedEventWithTimeout(
+				slotCtx,
+				roundValue.SessionKey,
+				roundValue.RoomID,
+				newRoomActionConsumedEvent(actionCursor),
+			)
 		}
 	}
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
