@@ -109,7 +109,19 @@ func (r *roundRunner) executeRound(
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
+				return
+			}
+			logger.Debug(
+				"Agent ",
+				runtimectx.BuildSDKMessageLogFieldsWithOptions(
+					incoming,
+					runtimectx.SDKMessageLogOptions{
+						IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
+						IncludeSnapshotData: true,
+					},
+				)...,
+			)
 		},
 		SyncSessionID: func(sessionID string) error {
 			updatedSession, syncErr := r.service.syncSDKSessionID(

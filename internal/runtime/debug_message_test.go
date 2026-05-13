@@ -89,7 +89,7 @@ func TestBuildSDKMessageLogSummaryKeepsToolNameOnly(t *testing.T) {
 		},
 	})
 
-	if summary != `stream tool_use "Bash"` {
+	if summary != `stream content_block_start(tool_use) "Bash"` {
 		t.Fatalf("tool_use start 摘要不符合预期: %s", summary)
 	}
 	if strings.Contains(summary, "SECRET") || strings.Contains(summary, "cat ") {
@@ -194,11 +194,168 @@ func TestBuildSDKMessageLogFieldsIncludesStreamTextDelta(t *testing.T) {
 	if !hasLogField(fields, "delta", "正在输出给用户看的内容") {
 		t.Fatalf("缺少 stream 文本增量: %+v", fields)
 	}
+	if !hasLogField(fields, "stream_event", "content_block_delta") {
+		t.Fatalf("缺少 stream event 类型: %+v", fields)
+	}
+	if !hasLogField(fields, "stream_index", 0) {
+		t.Fatalf("缺少 stream block index: %+v", fields)
+	}
+	if !hasLogField(fields, "stream_delta", "text_delta") {
+		t.Fatalf("缺少 stream delta 类型: %+v", fields)
+	}
 	if hasLogFieldKey(fields, "sdk_session_id") ||
 		hasLogFieldKey(fields, "sdk_message_uuid") ||
 		hasLogFieldKey(fields, "stream_event_type") ||
 		hasLogFieldKey(fields, "stream_delta_type") {
 		t.Fatalf("不应输出冗余 SDK 标识字段: %+v", fields)
+	}
+}
+
+func TestBuildSDKMessageLogFieldsCanHideStreamEvent(t *testing.T) {
+	fields := BuildSDKMessageLogFieldsWithOptions(
+		sdkprotocol.ReceivedMessage{
+			Type: sdkprotocol.MessageTypeStreamEvent,
+			Stream: &sdkprotocol.StreamEvent{
+				Event: map[string]any{
+					"type": "content_block_delta",
+					"delta": map[string]any{
+						"type":     "thinking_delta",
+						"thinking": "不应该出现在日志字段里的思考过程",
+					},
+				},
+			},
+		},
+		SDKMessageLogOptions{IncludeStreamEvent: false, IncludeSnapshotData: true},
+	)
+
+	if len(fields) != 0 {
+		t.Fatalf("关闭 StreamEvent 后不应输出任何 StreamEvent 日志字段: %+v", fields)
+	}
+}
+
+func TestBuildSDKMessageLogSummaryFollowsOfficialStreamFlow(t *testing.T) {
+	cases := []struct {
+		name    string
+		event   map[string]any
+		summary string
+	}{
+		{
+			name: "message_start",
+			event: map[string]any{
+				"type": "message_start",
+				"message": map[string]any{
+					"role":  "assistant",
+					"model": "claude-sonnet-4-5",
+				},
+			},
+			summary: "stream message_start(assistant)",
+		},
+		{
+			name: "content_block_stop",
+			event: map[string]any{
+				"type":  "content_block_stop",
+				"index": 0,
+			},
+			summary: "stream content_block_stop",
+		},
+		{
+			name: "message_delta",
+			event: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "end_turn",
+				},
+			},
+			summary: "stream message_delta(stop_reason=end_turn)",
+		},
+		{
+			name: "message_stop",
+			event: map[string]any{
+				"type": "message_stop",
+			},
+			summary: "stream message_stop",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			summary := BuildSDKMessageLogSummary(sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeStreamEvent,
+				Stream: &sdkprotocol.StreamEvent{
+					Event: tt.event,
+				},
+			})
+			if summary != tt.summary {
+				t.Fatalf("stream flow 摘要不符合预期: got=%q want=%q", summary, tt.summary)
+			}
+		})
+	}
+}
+
+func TestBuildSDKMessageLogFieldsForMessageDelta(t *testing.T) {
+	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason":   "tool_use",
+					"stop_sequence": "ignored",
+				},
+			},
+		},
+	})
+
+	if !hasLogField(fields, "stream_event", "message_delta") {
+		t.Fatalf("缺少 message_delta event 类型: %+v", fields)
+	}
+	if !hasLogField(fields, "stream_stop_reason", "tool_use") {
+		t.Fatalf("缺少 stop_reason: %+v", fields)
+	}
+}
+
+func TestBuildSDKMessageLogFieldsIncludesAssistantSnapshotText(t *testing.T) {
+	fullText := strings.Repeat("完整文本", 80) + "最终结尾"
+	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: fullText},
+				},
+			},
+		},
+	})
+
+	if !hasLogField(fields, "assistant_text", fullText) {
+		t.Fatalf("assistant snapshot 应输出完整文本: %+v", fields)
+	}
+}
+
+func TestBuildSDKMessageLogFieldsCanHideAssistantSnapshotText(t *testing.T) {
+	fields := BuildSDKMessageLogFieldsWithOptions(
+		sdkprotocol.ReceivedMessage{
+			Type: sdkprotocol.MessageTypeAssistant,
+			Assistant: &sdkprotocol.AssistantMessage{
+				Message: sdkprotocol.ConversationEnvelope{
+					Content: []sdkprotocol.ContentBlock{
+						sdkprotocol.TextBlock{Text: "不应该出现在日志字段里的最终正文"},
+					},
+				},
+			},
+		},
+		SDKMessageLogOptions{IncludeStreamEvent: true, IncludeSnapshotData: false},
+	)
+
+	if !hasLogField(fields, "sdk_summary", "assistant snapshot(text)") {
+		t.Fatalf("关闭 snapshot 数据后仍应保留摘要: %+v", fields)
+	}
+	if hasLogFieldKey(fields, "assistant_text") {
+		t.Fatalf("关闭 snapshot 数据后不应输出最终正文: %+v", fields)
+	}
+	for _, field := range fields {
+		if value, ok := field.(string); ok && strings.Contains(value, "不应该出现在日志字段") {
+			t.Fatalf("关闭 snapshot 数据后不应输出最终正文: %+v", fields)
+		}
 	}
 }
 

@@ -24,6 +24,7 @@ type Config struct {
 	LogMaxAgeDays                  int
 	LogMaxBackups                  int
 	LogCompress                    bool
+	MessageDebugStreamEvent        bool
 	APIPrefix                      string
 	WebSocketPath                  string
 	DefaultAgentID                 string
@@ -106,6 +107,7 @@ func Load() Config {
 		LogMaxAgeDays:                  mustInt(getEnv("LOG_MAX_AGE_DAYS", "7")),
 		LogMaxBackups:                  mustInt(getEnv("LOG_MAX_BACKUPS", "7")),
 		LogCompress:                    mustBool(getEnv("LOG_COMPRESS", "true")),
+		MessageDebugStreamEvent:        mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
 		APIPrefix:                      getEnv("API_PREFIX", "/nexus/v1"),
 		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
 		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),

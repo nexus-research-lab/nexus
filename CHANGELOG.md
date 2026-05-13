@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 新增 `MESSAGE_DEBUG_STREAM_EVENT` 配置项，并按官方 `StreamEvent -> AssistantMessage -> ResultMessage` 流程梳理 message debug 日志；debug 默认不记录高频 StreamEvent，开启该配置后才输出流式事件。
+
 ## [0.1.2] - 2026-05-12
 
 ### Added

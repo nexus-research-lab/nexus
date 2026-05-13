@@ -211,6 +211,16 @@ func TestLoadDotEnv_MissingFile(t *testing.T) {
 	}
 }
 
+func TestLoadMessageDebugStreamEvent(t *testing.T) {
+	t.Setenv("MESSAGE_DEBUG_STREAM_EVENT", "true")
+
+	cfg := Load()
+
+	if !cfg.MessageDebugStreamEvent {
+		t.Fatalf("MESSAGE_DEBUG_STREAM_EVENT=true 应开启 StreamEvent 日志")
+	}
+}
+
 func TestLoadDotEnv_Complex(t *testing.T) {
 	content := `# 应用配置
 export APP_NAME=nexus

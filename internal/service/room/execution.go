@@ -257,7 +257,19 @@ func (s *RealtimeService) runSlot(
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			if streamLogger.Enabled(slotCtx, slog.LevelDebug) {
-				streamLogger.Debug("Room slot 收到 SDK 消息", runtimectx.BuildSDKMessageLogFields(incoming)...)
+				if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !s.config.MessageDebugStreamEvent {
+					return
+				}
+				streamLogger.Debug(
+					"Room slot 收到 SDK 消息",
+					runtimectx.BuildSDKMessageLogFieldsWithOptions(
+						incoming,
+						runtimectx.SDKMessageLogOptions{
+							IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
+							IncludeSnapshotData: true,
+						},
+					)...,
+				)
 			}
 		},
 		SyncSessionID: func(sessionID string) error {
