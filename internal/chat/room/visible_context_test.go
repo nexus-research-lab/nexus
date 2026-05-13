@@ -199,6 +199,49 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	}
 }
 
+func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
+	contextValue := BuildVisibleContext(VisibleContextInput{
+		LatestTrigger: Trigger{
+			TriggerType:           "room_action",
+			Content:               "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。",
+			SourceAgentID:         "agent-amy",
+			TargetAgentID:         "agent-devin",
+			ReplyTarget:           protocol.RoomReplyTargetAudience,
+			ReplyAudienceAgentIDs: []string{"agent-sam"},
+		},
+		RoomActions: []protocol.RoomActionRecord{
+			{
+				ActionType:    protocol.RoomActionTypePrivateMessage,
+				SourceAgentID: "agent-amy",
+				TargetAgentID: "agent-devin",
+				Content:       "只给 Devin 的上下文",
+				ReplyTarget:   protocol.RoomReplyTargetAudience,
+			},
+		},
+		AgentNameByID: map[string]string{
+			"agent-amy":   "Amy",
+			"agent-devin": "Devin",
+			"agent-sam":   "Sam",
+		},
+		TargetAgentID: "agent-devin",
+	})
+
+	for _, expected := range []string{
+		"<latest_trigger>",
+		"Amy: 收到一条 Room private_message",
+		"reply_target=audience audience=Sam(agent-sam)",
+		"<room_actions>",
+		"[private_message] Amy -> Devin: 只给 Devin 的上下文",
+	} {
+		if !strings.Contains(contextValue, expected) {
+			t.Fatalf("Room action 动态输入缺少片段 %q:\n%s", expected, contextValue)
+		}
+	}
+	if strings.Contains(contextValue, "trigger_type") || strings.Contains(contextValue, "message_id") {
+		t.Fatalf("Room action 动态输入不应暴露结构字段:\n%s", contextValue)
+	}
+}
+
 func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 	history := []protocol.Message{
 		{"message_id": "m1", "role": "user", "content": "旧消息", "timestamp": int64(1)},

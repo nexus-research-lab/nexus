@@ -425,6 +425,9 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 		if !strings.Contains(prompt, "需要私下回 Amy 的内容") {
 			t.Fatalf("sender_private reply_target 不应影响目标读取原 private_message:\n%s", prompt)
 		}
+		if !strings.Contains(prompt, "reply_target=sender_private") {
+			t.Fatalf("sender_private 触发上下文应标注回复投影:\n%s", prompt)
+		}
 		sendFakeAssistantResult(client, "devin-private-reply-sender", "这是给 Amy 的私下回复")
 		return nil
 	}
@@ -590,6 +593,10 @@ func TestRealtimeServiceProjectsPrivateActionReplyToAudience(t *testing.T) {
 		if !strings.Contains(prompt, "需要回给指定受众") {
 			t.Fatalf("audience reply_target 不应影响目标读取原 private_message:\n%s", prompt)
 		}
+		if !strings.Contains(prompt, "reply_target=audience") ||
+			!strings.Contains(prompt, "audience=Sam("+sam.AgentID+")") {
+			t.Fatalf("audience 触发上下文应标注回复受众:\n%s", prompt)
+		}
 		sendFakeAssistantResult(client, "devin-private-reply-audience", "这是给 Sam 的私下回复")
 		return nil
 	}
@@ -677,6 +684,9 @@ func TestRealtimeServiceSuppressesPrivateActionReplyWhenTargetNone(t *testing.T)
 	client.onQuery = func(_ context.Context, prompt string) error {
 		if !strings.Contains(prompt, "只唤醒不投影回复") {
 			t.Fatalf("none reply_target 不应影响目标读取原 private_message:\n%s", prompt)
+		}
+		if !strings.Contains(prompt, "reply_target=none") {
+			t.Fatalf("none 触发上下文应标注不投影回复:\n%s", prompt)
 		}
 		sendFakeAssistantResult(client, "devin-private-reply-none", "这段回复不应被任何人看到")
 		return nil

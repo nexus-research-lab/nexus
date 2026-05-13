@@ -347,11 +347,13 @@ func buildPublicMentionSlot(
 		triggerType = "public_mention"
 	}
 	trigger := roomTrigger{
-		TriggerType:   triggerType,
-		Content:       strings.TrimSpace(wake.Content),
-		MessageID:     strings.TrimSpace(wake.MessageID),
-		SourceAgentID: strings.TrimSpace(wake.SourceAgentID),
-		TargetAgentID: strings.TrimSpace(wake.TargetAgentID),
+		TriggerType:           triggerType,
+		Content:               strings.TrimSpace(wake.Content),
+		MessageID:             strings.TrimSpace(wake.MessageID),
+		SourceAgentID:         strings.TrimSpace(wake.SourceAgentID),
+		TargetAgentID:         strings.TrimSpace(wake.TargetAgentID),
+		ReplyTarget:           wake.ReplyTarget,
+		ReplyAudienceAgentIDs: append([]string(nil), wake.ReplyAudience...),
 	}
 	return &activeRoomSlot{
 		RoomSessionID:     sessionRecord.ID,

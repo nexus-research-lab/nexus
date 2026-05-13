@@ -48,11 +48,13 @@ type PublicInputBatch struct {
 
 // Trigger 描述 Room round 里唤醒单个成员的直接原因。
 type Trigger struct {
-	TriggerType   string
-	Content       string
-	MessageID     string
-	SourceAgentID string
-	TargetAgentID string
+	TriggerType           string
+	Content               string
+	MessageID             string
+	SourceAgentID         string
+	TargetAgentID         string
+	ReplyTarget           protocol.RoomReplyTarget
+	ReplyAudienceAgentIDs []string
 }
 
 // BuildSystemPrompt 构建 Room 成员稳定系统提示词。
@@ -365,10 +367,53 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 	if sourceName == "" {
 		sourceName = "User"
 	}
+	var line string
 	if content := strings.TrimSpace(trigger.Content); content != "" {
-		return sourceName + ": " + content
+		line = sourceName + ": " + content
+	} else {
+		line = sourceName + ": （无内容）"
 	}
-	return sourceName + ": （无内容）"
+	if projection := formatRoomReplyProjection(trigger, agentNameByID); projection != "" {
+		line += "\n" + projection
+	}
+	return line
+}
+
+func formatRoomReplyProjection(trigger Trigger, agentNameByID map[string]string) string {
+	switch trigger.ReplyTarget {
+	case protocol.RoomReplyTargetPublicFeed:
+		return "reply_target=public_feed（本轮最终回复会进入公区 feed）"
+	case protocol.RoomReplyTargetSenderPrivate:
+		sender := displayAgentName(trigger.SourceAgentID, agentNameByID)
+		return fmt.Sprintf("reply_target=sender_private（本轮最终回复只会投影给 %s，不进入公区）", sender)
+	case protocol.RoomReplyTargetTargetPrivate:
+		return "reply_target=target_private（本轮最终回复只保留在你的私域上下文，不进入公区）"
+	case protocol.RoomReplyTargetAudience:
+		audience := formatReplyAudience(trigger.ReplyAudienceAgentIDs, agentNameByID)
+		if audience == "" {
+			audience = "指定受众"
+		}
+		return fmt.Sprintf("reply_target=audience audience=%s（本轮最终回复只会投影给这些受众，不进入公区）", audience)
+	case protocol.RoomReplyTargetNone:
+		return "reply_target=none（本轮最终回复只结束本次运行，不投影给任何成员，不进入公区）"
+	default:
+		return ""
+	}
+}
+
+func formatReplyAudience(agentIDs []string, agentNameByID map[string]string) string {
+	if len(agentIDs) == 0 {
+		return ""
+	}
+	items := make([]string, 0, len(agentIDs))
+	for _, agentID := range agentIDs {
+		normalizedAgentID := strings.TrimSpace(agentID)
+		if normalizedAgentID == "" {
+			continue
+		}
+		items = append(items, fmt.Sprintf("%s(%s)", displayAgentName(normalizedAgentID, agentNameByID), normalizedAgentID))
+	}
+	return strings.Join(items, ",")
 }
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {
