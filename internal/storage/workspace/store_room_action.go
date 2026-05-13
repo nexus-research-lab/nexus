@@ -124,6 +124,12 @@ func roomActionVisibleToAgent(action protocol.RoomActionRecord, agentID string) 
 	if agentID == "" {
 		return false
 	}
+	switch action.ActionType {
+	case protocol.RoomActionTypePrivateMessage:
+		return action.TargetAgentID == agentID
+	case protocol.RoomActionTypePrivateNote:
+		return action.SourceAgentID == agentID
+	}
 	if action.ReplyTarget == protocol.RoomReplyTargetNone {
 		return false
 	}

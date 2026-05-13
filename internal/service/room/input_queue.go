@@ -322,6 +322,8 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 			TargetAgentID: targetAgentID,
 			Content:       content,
 			MessageID:     firstNonEmpty(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
+			ReplyTarget:   item.ReplyTarget,
+			ReplyAudience: append([]string(nil), item.AudienceAgentIDs...),
 		})
 	}
 	parentRound := &activeRoomRound{

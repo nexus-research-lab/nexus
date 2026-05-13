@@ -420,9 +420,11 @@ func normalizeInputQueueItem(
 	item.SourceAgentID = strings.TrimSpace(item.SourceAgentID)
 	item.SourceMessageID = strings.TrimSpace(item.SourceMessageID)
 	item.TargetAgentIDs = normalizeInputQueueTargets(item.TargetAgentIDs)
+	item.AudienceAgentIDs = normalizeInputQueueTargets(item.AudienceAgentIDs)
 	item.Source = protocol.NormalizeInputQueueSource(string(item.Source))
 	item.Content = strings.TrimSpace(item.Content)
 	item.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy))
+	item.ReplyTarget = protocol.RoomReplyTarget(strings.TrimSpace(string(item.ReplyTarget)))
 	item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
 	item.RootRoundID = strings.TrimSpace(item.RootRoundID)
 	if item.HopIndex < 0 {
@@ -446,24 +448,26 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 		return typed, true
 	case map[string]any:
 		return protocol.InputQueueItem{
-			ID:              stringFromAny(typed["id"]),
-			Scope:           protocol.InputQueueScope(stringFromAny(typed["scope"])),
-			SessionKey:      stringFromAny(typed["session_key"]),
-			RoomID:          stringFromAny(typed["room_id"]),
-			ConversationID:  stringFromAny(typed["conversation_id"]),
-			AgentID:         stringFromAny(typed["agent_id"]),
-			SourceAgentID:   stringFromAny(typed["source_agent_id"]),
-			SourceMessageID: stringFromAny(typed["source_message_id"]),
-			TargetAgentIDs:  stringSliceFromAny(typed["target_agent_ids"]),
-			Source:          protocol.InputQueueSource(stringFromAny(typed["source"])),
-			Content:         stringFromAny(typed["content"]),
-			DeliveryPolicy:  protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
-			OwnerUserID:     stringFromAny(typed["owner_user_id"]),
-			RootRoundID:     stringFromAny(typed["root_round_id"]),
-			HopIndex:        intFromAny(typed["hop_index"]),
-			QueueOrder:      int64FromAny(typed["queue_order"]),
-			CreatedAt:       int64FromAny(typed["created_at"]),
-			UpdatedAt:       int64FromAny(typed["updated_at"]),
+			ID:               stringFromAny(typed["id"]),
+			Scope:            protocol.InputQueueScope(stringFromAny(typed["scope"])),
+			SessionKey:       stringFromAny(typed["session_key"]),
+			RoomID:           stringFromAny(typed["room_id"]),
+			ConversationID:   stringFromAny(typed["conversation_id"]),
+			AgentID:          stringFromAny(typed["agent_id"]),
+			SourceAgentID:    stringFromAny(typed["source_agent_id"]),
+			SourceMessageID:  stringFromAny(typed["source_message_id"]),
+			TargetAgentIDs:   stringSliceFromAny(typed["target_agent_ids"]),
+			AudienceAgentIDs: stringSliceFromAny(typed["audience_agent_ids"]),
+			Source:           protocol.InputQueueSource(stringFromAny(typed["source"])),
+			Content:          stringFromAny(typed["content"]),
+			DeliveryPolicy:   protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
+			ReplyTarget:      protocol.RoomReplyTarget(stringFromAny(typed["reply_target"])),
+			OwnerUserID:      stringFromAny(typed["owner_user_id"]),
+			RootRoundID:      stringFromAny(typed["root_round_id"]),
+			HopIndex:         intFromAny(typed["hop_index"]),
+			QueueOrder:       int64FromAny(typed["queue_order"]),
+			CreatedAt:        int64FromAny(typed["created_at"]),
+			UpdatedAt:        int64FromAny(typed["updated_at"]),
 		}, true
 	default:
 		return protocol.InputQueueItem{}, false

@@ -296,20 +296,22 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			continue
 		}
 		if _, err := s.inputQueue.Enqueue(location.Location, protocol.InputQueueItem{
-			Scope:           protocol.InputQueueScopeRoom,
-			SessionKey:      location.Location.SessionKey,
-			RoomID:          parentRound.RoomID,
-			ConversationID:  parentRound.ConversationID,
-			AgentID:         targetAgentID,
-			SourceAgentID:   strings.TrimSpace(wake.SourceAgentID),
-			SourceMessageID: strings.TrimSpace(wake.MessageID),
-			TargetAgentIDs:  []string{targetAgentID},
-			Source:          normalizeWakeQueueSource(wake),
-			Content:         strings.TrimSpace(wake.Content),
-			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
-			OwnerUserID:     parentRound.OwnerUserID,
-			RootRoundID:     roomRootRoundID(parentRound),
-			HopIndex:        parentRound.HopIndex,
+			Scope:            protocol.InputQueueScopeRoom,
+			SessionKey:       location.Location.SessionKey,
+			RoomID:           parentRound.RoomID,
+			ConversationID:   parentRound.ConversationID,
+			AgentID:          targetAgentID,
+			SourceAgentID:    strings.TrimSpace(wake.SourceAgentID),
+			SourceMessageID:  strings.TrimSpace(wake.MessageID),
+			TargetAgentIDs:   []string{targetAgentID},
+			AudienceAgentIDs: append([]string(nil), wake.ReplyAudience...),
+			Source:           normalizeWakeQueueSource(wake),
+			Content:          strings.TrimSpace(wake.Content),
+			DeliveryPolicy:   protocol.ChatDeliveryPolicyQueue,
+			ReplyTarget:      wake.ReplyTarget,
+			OwnerUserID:      parentRound.OwnerUserID,
+			RootRoundID:      roomRootRoundID(parentRound),
+			HopIndex:         parentRound.HopIndex,
 		}); err != nil {
 			return nil, err
 		}
@@ -363,6 +365,10 @@ func buildPublicMentionSlot(
 		Index:             index,
 		TimestampMS:       time.Now().UnixMilli(),
 		Trigger:           trigger,
+		ReplyTarget:       wake.ReplyTarget,
+		ReplySourceAction: strings.TrimSpace(wake.MessageID),
+		ReplySourceAgent:  strings.TrimSpace(wake.SourceAgentID),
+		ReplyAudience:     append([]string(nil), wake.ReplyAudience...),
 		Done:              make(chan struct{}),
 	}
 }

@@ -51,6 +51,14 @@ func (b *roomActionBroadcaster) Find(eventType protocol.EventType) (protocol.Eve
 	return protocol.EventMessage{}, false
 }
 
+func (b *roomActionBroadcaster) Events() []protocol.EventMessage {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	events := make([]protocol.EventMessage, len(b.events))
+	copy(events, b.events)
+	return events
+}
+
 func TestRealtimeServiceCreatesPrivateMessageAction(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -388,6 +396,170 @@ func TestRealtimeServiceProjectsPrivateActionToTargetPrompt(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-reply-sender",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, prompt string) error {
+		if !strings.Contains(prompt, "需要私下回 Amy 的内容") {
+			t.Fatalf("sender_private reply_target 不应影响目标读取原 private_message:\n%s", prompt)
+		}
+		sendFakeAssistantResult(client, "devin-private-reply-sender", "这是给 Amy 的私下回复")
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateMessage,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "需要私下回 Amy 的内容",
+		ReplyTarget:   protocol.RoomReplyTargetSenderPrivate,
+	})
+	if err != nil {
+		t.Fatalf("创建 sender_private private action 失败: %v", err)
+	}
+	waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomActionConsumed)
+
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	deadline := time.After(3 * time.Second)
+	for {
+		amyActions, err := actionStore.ReadContextActions(roomContext.Conversation.ID, amy.AgentID)
+		if err != nil {
+			t.Fatalf("读取 Amy Room action 失败: %v", err)
+		}
+		if roomActionContentsContain(amyActions, "这是给 Amy 的私下回复") {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("sender_private 回复未投影给发送者: %+v", amyActions)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	devinActions, err := actionStore.ReadContextActions(roomContext.Conversation.ID, devin.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Devin Room action 失败: %v", err)
+	}
+	if roomActionContentsContain(devinActions, "这是给 Amy 的私下回复") {
+		t.Fatalf("sender_private 回复不应再次投影给目标成员: %+v", devinActions)
+	}
+
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取公区历史失败: %v", err)
+	}
+	if strings.Contains(fmt.Sprint(messages), "这是给 Amy 的私下回复") {
+		t.Fatalf("sender_private 回复不应进入公区 feed: %+v", messages)
+	}
+}
+
+func TestRealtimeServiceKeepsPrivateActionFailureOutOfPublicFeed(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-private-failure",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, prompt string) error {
+		if !strings.Contains(prompt, "这条私信会触发失败") {
+			t.Fatalf("target_private 失败前仍应读取原 private_message:\n%s", prompt)
+		}
+		return errors.New("私域失败只应留在目标上下文")
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateMessage,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "这条私信会触发失败",
+		ReplyTarget:   protocol.RoomReplyTargetTargetPrivate,
+	})
+	if err != nil {
+		t.Fatalf("创建 target_private private action 失败: %v", err)
+	}
+	waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeStreamEnd)
+
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取公区历史失败: %v", err)
+	}
+	publicPayload := fmt.Sprint(messages)
+	if strings.Contains(publicPayload, "这条私信会触发失败") || strings.Contains(publicPayload, "私域失败只应留在目标上下文") {
+		t.Fatalf("target_private 失败结果不应进入公区 feed: %+v", messages)
+	}
+	for _, event := range broadcaster.Events() {
+		if event.EventType != protocol.EventTypeMessage && event.EventType != protocol.EventTypeError {
+			continue
+		}
+		eventPayload := fmt.Sprint(event)
+		if strings.Contains(eventPayload, "这条私信会触发失败") || strings.Contains(eventPayload, "私域失败只应留在目标上下文") {
+			t.Fatalf("target_private 失败结果不应广播到公区 websocket: %+v", event)
+		}
+	}
+}
+
 func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -497,6 +669,7 @@ func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
 	if len(items) != 1 ||
 		items[0].Source != protocol.InputQueueSourceAgentRoomAction ||
 		items[0].SourceMessageID != action.ActionID ||
+		items[0].ReplyTarget != protocol.RoomReplyTargetTargetPrivate ||
 		strings.Contains(items[0].Content, "排队后的私信") {
 		t.Fatalf("private action 应以脱敏队列项等待目标空闲: %+v", items)
 	}
@@ -515,6 +688,15 @@ func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
 	if got := consumedEvent.Data["last_action_id"]; got != action.ActionID {
 		t.Fatalf("private action 消费游标不正确: %+v", consumedEvent.Data)
 	}
+}
+
+func roomActionContentsContain(actions []protocol.RoomActionRecord, content string) bool {
+	for _, action := range actions {
+		if action.Content == content {
+			return true
+		}
+	}
+	return false
 }
 
 func waitForRoomBroadcastEvent(

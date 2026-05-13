@@ -31,6 +31,10 @@ type activeRoomSlot struct {
 	PublicCursorTS    int64
 	ActionCursorID    string
 	ActionCursorTS    int64
+	ReplyTarget       protocol.RoomReplyTarget
+	ReplySourceAction string
+	ReplySourceAgent  string
+	ReplyAudience     []string
 	InterruptReason   string
 	QueuedInputs      []roomQueuedInput
 	GuidedInputs      []roomQueuedInput
@@ -69,6 +73,8 @@ type publicMentionWake struct {
 	TargetAgentID string
 	Content       string
 	MessageID     string
+	ReplyTarget   protocol.RoomReplyTarget
+	ReplyAudience []string
 }
 
 type roomQueuedInput struct {

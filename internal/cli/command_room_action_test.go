@@ -84,11 +84,7 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		"--json",
 		"room",
 		"action",
-		"private-message",
-		"--target-agent-id",
-		devin.AgentID,
-		"--reply-target",
-		string(protocol.RoomReplyTargetNone),
+		"private-note",
 		"--content",
 		"hello",
 	)
@@ -112,7 +108,7 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	if event.RoomID != roomContext.Room.ID || event.ConversationID != roomContext.Conversation.ID {
 		t.Fatalf("room_action websocket 事件上下文不正确: %+v", event)
 	}
-	if event.Data["action_type"] != string(protocol.RoomActionTypePrivateMessage) {
+	if event.Data["action_type"] != string(protocol.RoomActionTypePrivateNote) {
 		t.Fatalf("room_action websocket 事件 action_type 不正确: %+v", event.Data)
 	}
 	if _, ok := event.Data["content"]; ok {
@@ -126,7 +122,7 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 	}
 	if len(actions) != 1 ||
 		actions[0].SourceAgentID != amy.AgentID ||
-		actions[0].TargetAgentID != devin.AgentID ||
+		actions[0].TargetAgentID != amy.AgentID ||
 		actions[0].Content != "hello" {
 		t.Fatalf("CLI 未通过内部 endpoint 创建 action: %+v", actions)
 	}

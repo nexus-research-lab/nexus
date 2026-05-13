@@ -19,14 +19,8 @@ func (s *RealtimeService) startRoomActionWake(
 	if contextValue == nil || action.ActionType != protocol.RoomActionTypePrivateMessage {
 		return nil
 	}
-	if action.ReplyTarget == protocol.RoomReplyTargetNone {
-		return nil
-	}
 	targetAgentID := strings.TrimSpace(action.TargetAgentID)
 	if targetAgentID == "" {
-		return nil
-	}
-	if !roomActionWakesTarget(action, targetAgentID) {
 		return nil
 	}
 	parentRound := &activeRoomRound{
@@ -47,20 +41,8 @@ func (s *RealtimeService) startRoomActionWake(
 			TargetAgentID: targetAgentID,
 			Content:       roomPrivateMessageWakeContent,
 			MessageID:     strings.TrimSpace(action.ActionID),
+			ReplyTarget:   action.ReplyTarget,
+			ReplyAudience: append([]string(nil), action.AudienceAgentIDs...),
 		},
 	})
-}
-
-func roomActionWakesTarget(action protocol.RoomActionRecord, targetAgentID string) bool {
-	switch action.ReplyTarget {
-	case "", protocol.RoomReplyTargetTargetPrivate, protocol.RoomReplyTargetPublicFeed:
-		return true
-	case protocol.RoomReplyTargetAudience:
-		for _, agentID := range action.AudienceAgentIDs {
-			if strings.TrimSpace(agentID) == targetAgentID {
-				return true
-			}
-		}
-	}
-	return false
 }
