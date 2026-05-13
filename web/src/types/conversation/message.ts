@@ -225,6 +225,7 @@ export interface EventMessage {
     | "room_member_added"
     | "room_member_removed"
     | "room_deleted"
+    | "room_action"
     | "room_resync_required"
     | "session_resync_required"
     | "chat_ack"

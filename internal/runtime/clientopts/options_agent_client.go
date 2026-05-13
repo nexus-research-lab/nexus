@@ -35,6 +35,7 @@ type AgentClientOptionsInput struct {
 	MaxThinkingTokens  *int
 	MaxTurns           *int
 	MCPServers         map[string]sdkmcp.SDKMCPServer
+	ExtraEnv           map[string]string
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -49,6 +50,7 @@ func BuildAgentClientOptions(
 	}
 	runtimeEnv := runtimeEnvFromConfig(runtimeConfig)
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 
 	permissionMode := input.PermissionMode
 	if permissionMode == "" {

@@ -243,6 +243,9 @@ func PublicAuthRoute(request *http.Request) bool {
 		return true
 	}
 	path := strings.TrimSpace(request.URL.Path)
+	if strings.HasPrefix(path, "/nexus/v1/internal/") {
+		return true
+	}
 	switch path {
 	case "/nexus/v1/health",
 		"/nexus/v1/runtime/options",

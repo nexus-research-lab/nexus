@@ -127,6 +127,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"候选邀请不要多 @",
 		"<nexus_room_no_reply/>",
 		"目标轮数、当前轮次、下一位成员、停止条件",
+		"直接创建 Room action",
+		`cd "$NEXUS_PROJECT_ROOT" && go run ./cmd/nexusctl --json room action`,
+		"不要调用 Skill 工具",
+		"暗号、密码、密钥",
 		"最终总结不要 @ 任何成员",
 	} {
 		if !strings.Contains(systemPrompt, expected) {

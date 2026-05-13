@@ -32,6 +32,7 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 			})
 		},
 	})
+	command.AddCommand(newRoomActionCommand(services))
 
 	command.AddCommand(func() *cobra.Command {
 		var (

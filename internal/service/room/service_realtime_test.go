@@ -13,6 +13,7 @@ import (
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -323,6 +324,8 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"# Nexus Room 公区协作规则",
 		"你正在 Nexus 的多人协作 Room 中参与公开协作",
 		"Room 运行时会在系统提示词中提供成员目录，并在每轮用户消息里提供 public_feed 和 latest_trigger",
+		"直接创建 Room action",
+		`cd "$NEXUS_PROJECT_ROOT" && go run ./cmd/nexusctl --json room action`,
 		"# Nexus Room 成员目录",
 		"<room_member_directory>",
 		"- name=单聊助手 agent_id=" + memberAgent.AgentID,
@@ -338,6 +341,9 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		if strings.Contains(roomSystemPrompt, unexpected) {
 			t.Fatalf("Room 固定规则不应包含动态变量 %q:\n%s", unexpected, roomSystemPrompt)
 		}
+	}
+	if got := factory.LastOptions().Env["NEXUS_PROJECT_ROOT"]; got != appfs.Root() {
+		t.Fatalf("Room runtime 未注入项目根目录: got=%q want=%q", got, appfs.Root())
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)

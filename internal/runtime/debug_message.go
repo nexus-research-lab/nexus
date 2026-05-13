@@ -198,7 +198,9 @@ func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
 			fields = append(
 				fields,
 				"system_model", strings.TrimSpace(message.System.Init.Model),
-				"system_permission_mode", strings.TrimSpace(string(message.System.Init.PermissionMode)),
+				"cmd", strings.TrimSpace(message.System.Init.CWD),
+				"permission_mode", strings.TrimSpace(string(message.System.Init.PermissionMode)),
+				"skills", strings.Join(message.System.Init.Skills, ","),
 			)
 		}
 	case "status":
@@ -221,6 +223,9 @@ func summarizeStreamMessage(message sdkprotocol.ReceivedMessage) string {
 		return "stream"
 	}
 	event := rawMap(message.Stream.Event)
+	if len(event) == 0 {
+		event = rawMap(message.Stream.Data)
+	}
 	eventType := strings.TrimSpace(rawString(event["type"]))
 	if eventType == "" {
 		return "stream"
@@ -231,16 +236,16 @@ func summarizeStreamMessage(message sdkprotocol.ReceivedMessage) string {
 		delta := rawMap(event["delta"])
 		deltaType := strings.TrimSpace(rawString(delta["type"]))
 		if deltaType != "" {
-			return fmt.Sprintf("stream")
+			return "stream content_block_delta(" + deltaType + ")"
 		}
 	case "content_block_start":
 		block := rawMap(event["content_block"])
-		blockType := strings.TrimSpace(rawString(block["type"]))
+		blockType := normalizeSDKBlockType(rawString(block["type"]))
 		if blockType != "" {
 			if blockType == "tool_use" {
 				preview = safeToolName(rawString(block["name"]))
 			}
-			return appendSummaryPreview(fmt.Sprintf("stream"), preview)
+			return appendSummaryPreview("stream "+blockType, preview)
 		}
 	}
 	return appendSummaryPreview("stream "+eventType, preview)

@@ -221,6 +221,15 @@ export interface RoomEventPayload {
   conversation_id?: string;
   agent_id?: string;
   agent_name?: string;
+  action_id?: string;
+  action_type?: "private_message" | "private_note" | "marker";
+  source_agent_id?: string;
+  target_agent_id?: string;
+  audience_agent_ids?: string[];
+  visibility?: "public" | "private";
+  reply_target?: "public_feed" | "sender_private" | "target_private" | "audience" | "none";
+  content_chars?: number;
+  content?: string;
   round_id?: string;
   last_seen_room_seq?: number;
   latest_room_seq?: number;

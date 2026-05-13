@@ -115,6 +115,17 @@ go run "{project_root}/cmd/nexusctl" room add-member abc123 --agent-id translato
 go run "{project_root}/cmd/nexusctl" room remove-member abc123 --agent-id translator
 ```
 
+#### 创建 Room 内部协作动作
+
+Room runtime 内会自动注入当前 `room_id`、`conversation_id`、`source_agent_id`、内部控制面地址/token 和用户作用域；Agent 正常调用时不要额外传这些字段。
+必须先进入项目根目录执行 CLI；`--target-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
+
+```bash
+cd "{project_root}" && go run ./cmd/nexusctl --json room action private-message --target-agent-id 0ed5434a8c13 --content "私下提醒"
+cd "{project_root}" && go run ./cmd/nexusctl --json room action private-note --content "只写给自己的上下文"
+cd "{project_root}" && go run ./cmd/nexusctl --json room action marker --visibility public --content "公开协作标记"
+```
+
 #### 删除 Room
 
 ```bash

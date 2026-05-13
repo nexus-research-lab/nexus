@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
@@ -20,6 +22,11 @@ type roomEventBroadcaster func(context.Context, string, protocol.EventType, map[
 type roomResyncBroadcaster func(context.Context, string, string, string)
 type roomRegistryRemover func(string)
 
+const (
+	internalTokenHeader       = "X-Nexus-Internal-Token"
+	internalScopeUserIDHeader = "X-Nexus-Scope-User-ID"
+)
+
 // Handlers 封装 room 域 HTTP handlers。
 type Handlers struct {
 	api                   *handlershared.API
@@ -29,6 +36,7 @@ type Handlers struct {
 	broadcastRoomEvent    roomEventBroadcaster
 	broadcastRoomResync   roomResyncBroadcaster
 	removeRoomSubscribers roomRegistryRemover
+	internalControlToken  string
 }
 
 // New 创建 room 域 handlers。
@@ -40,6 +48,7 @@ func New(
 	broadcastRoomEvent roomEventBroadcaster,
 	broadcastRoomResync roomResyncBroadcaster,
 	removeRoomSubscribers roomRegistryRemover,
+	internalControlToken string,
 ) *Handlers {
 	return &Handlers{
 		api:                   api,
@@ -49,6 +58,7 @@ func New(
 		broadcastRoomEvent:    broadcastRoomEvent,
 		broadcastRoomResync:   broadcastRoomResync,
 		removeRoomSubscribers: removeRoomSubscribers,
+		internalControlToken:  strings.TrimSpace(internalControlToken),
 	}
 }
 
@@ -174,6 +184,63 @@ func findPrimaryConversationSession(sessions []protocol.SessionRecord) *protocol
 		return nil
 	}
 	return &sessions[0]
+}
+
+// HandleCreateAction 处理 server 进程内资源依赖的 Room 内部 action。
+func (h *Handlers) HandleCreateAction(writer http.ResponseWriter, request *http.Request) {
+	if !h.validInternalToken(request) {
+		h.api.WriteFailure(writer, http.StatusUnauthorized, "内部控制面 token 无效")
+		return
+	}
+	scopeUserID := strings.TrimSpace(request.Header.Get(internalScopeUserIDHeader))
+	if scopeUserID == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少 user scope")
+		return
+	}
+
+	var payload protocol.CreateRoomActionRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	ctx := authsvc.WithPrincipal(request.Context(), &authsvc.Principal{
+		UserID:     scopeUserID,
+		Username:   scopeUserID,
+		Role:       authsvc.RoleOwner,
+		AuthMethod: "nexusctl_internal",
+	})
+	item, err := h.roomRealtime.HandleAction(
+		ctx,
+		chi.URLParam(request, "room_id"),
+		chi.URLParam(request, "conversation_id"),
+		payload,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, roompkg.ErrRoomNotFound),
+			errors.Is(err, roompkg.ErrConversationNotFound):
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		case errors.Is(err, roompkg.ErrRoomMemberNotFound):
+			h.api.WriteFailure(writer, http.StatusForbidden, "Room 成员校验失败")
+		case handlershared.IsClientMessageError(err):
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		default:
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) validInternalToken(request *http.Request) bool {
+	expected := strings.TrimSpace(h.internalControlToken)
+	if expected == "" || request == nil {
+		return false
+	}
+	provided := strings.TrimSpace(request.Header.Get(internalTokenHeader))
+	if provided == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
 }
 
 // HandleCreateRoom 创建 room。

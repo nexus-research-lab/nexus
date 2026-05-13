@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	baseSkillNames      = []string{"memory-manager", "room-collaboration", "scheduled-task-manager"}
-	mainAgentSkillNames = []string{"nexus-manager"}
-	workspaceFiles      = map[string]string{
+	baseSkillNames        = []string{"memory-manager", "scheduled-task-manager"}
+	retiredBaseSkillNames = []string{"room-collaboration"}
+	mainAgentSkillNames   = []string{"nexus-manager"}
+	workspaceFiles        = map[string]string{
 		"agents":  "AGENTS.md",
 		"user":    "USER.md",
 		"memory":  "MEMORY.md",
@@ -73,6 +74,11 @@ func EnsureInitialized(
 		return err
 	}
 
+	for _, skillName := range retiredBaseSkillNames {
+		if err := UndeploySkill(root, skillName); err != nil {
+			return err
+		}
+	}
 	for _, skillName := range managedSkillNames(isMainAgent) {
 		if err := deployManagedSkill(skillName, root, context); err != nil {
 			return err

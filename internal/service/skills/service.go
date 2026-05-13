@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	systemSkillNames   = map[string]struct{}{"memory-manager": {}, "room-collaboration": {}, "scheduled-task-manager": {}}
+	systemSkillNames   = map[string]struct{}{"memory-manager": {}, "scheduled-task-manager": {}}
 	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
 	curatedEntriesOnce sync.Once
 	curatedEntriesData map[string]map[string]string

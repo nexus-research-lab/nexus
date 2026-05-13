@@ -23,8 +23,13 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	}
 	slot.PublicCursorID = batch.LastMessageID
 	slot.PublicCursorTS = batch.LastTimestamp
+	actions, err := s.roomActionsForSlot(roundValue, slot)
+	if err != nil {
+		return "", err
+	}
 	return roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
 		PublicMessages: batch.Messages,
+		RoomActions:    actions,
 		LatestTrigger:  slot.Trigger,
 		AgentNameByID:  agentNameByID,
 		TargetAgentID:  slot.AgentID,
@@ -113,4 +118,14 @@ func (s *RealtimeService) recordRoomPublicCursor(slot *activeRoomSlot, roundValu
 		LastPublicTimestamp: timestamp,
 		Timestamp:           time.Now().UnixMilli(),
 	})
+}
+
+func (s *RealtimeService) roomActionsForSlot(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+) ([]protocol.RoomActionRecord, error) {
+	if s.actions == nil || roundValue == nil || slot == nil {
+		return nil, nil
+	}
+	return s.actions.ReadContextActions(roundValue.ConversationID, slot.AgentID)
 }

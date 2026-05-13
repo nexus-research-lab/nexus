@@ -20,6 +20,7 @@ export type EventType =
   | 'room_member_added'
   | 'room_member_removed'
   | 'room_deleted'
+  | 'room_action'
   | 'session_resync_required'
   | 'room_resync_required'
   | 'stream_start'

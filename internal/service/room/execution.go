@@ -179,6 +179,7 @@ func (s *RealtimeService) runSlot(
 		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
 		MaxTurns:           agentValue.Options.MaxTurns,
 		MCPServers:         mcpServers,
+		ExtraEnv:           s.roomRuntimeEnv(roundValue, slot),
 	})
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)

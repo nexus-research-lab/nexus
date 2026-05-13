@@ -119,15 +119,31 @@ export function RoomPage() {
     await controller.handle_update_conversation_title(conversation_id, title);
   }, [controller]);
 
-  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
+  const handleRoomEvent = useCallback((event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
     if (event_type === "room_deleted") {
-      if (_data.room_id && _data.room_id === params.room_id) {
+      if (data.room_id && data.room_id === params.room_id) {
         set_pending_deleted_room({
-          id: _data.room_id,
+          id: data.room_id,
           room_type: controller.current_room?.room_type === "dm" ? "dm" : "room",
         });
         void controller.handle_refresh_room_state();
       }
+      return;
+    }
+
+    if (event_type === "room_action") {
+      console.debug("[Room] room_action", {
+        action_id: data.action_id,
+        action_type: data.action_type,
+        room_id: data.room_id,
+        conversation_id: data.conversation_id,
+        source_agent_id: data.source_agent_id,
+        target_agent_id: data.target_agent_id,
+        visibility: data.visibility,
+        reply_target: data.reply_target,
+        content_chars: data.content_chars,
+        has_content: typeof data.content === "string" && data.content.length > 0,
+      });
       return;
     }
 
