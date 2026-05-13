@@ -329,6 +329,49 @@ func TestRoomActionCommandUsesRuntimeEnvAndInternalEndpoint(t *testing.T) {
 		cursorItem["round_id"] != "round-devin-1" {
 		t.Fatalf("CLI action cursor 内容不正确: %+v", cursorItem)
 	}
+
+	if err = actionStore.AppendAction(protocol.RoomActionRecord{
+		ActionID:       "action-after-cursor",
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		ActionType:     protocol.RoomActionTypePrivateMessage,
+		SourceAgentID:  amy.AgentID,
+		TargetAgentID:  devin.AgentID,
+		Content:        "after-cursor-private",
+		Visibility:     protocol.RoomActionVisibilityPrivate,
+		ReplyTarget:    protocol.RoomReplyTargetTargetPrivate,
+		Timestamp:      actions[2].Timestamp + 1,
+	}); err != nil {
+		t.Fatalf("写入 cursor 后 Room action 失败: %v", err)
+	}
+	unconsumedPayload := runCLICommandWithEnv(
+		t,
+		cfg,
+		map[string]string{nexusctlUserIDEnvName: authsvc.SystemUserID},
+		"--json",
+		"room",
+		"action",
+		"list",
+		"--conversation-id",
+		roomContext.Conversation.ID,
+		"--agent-id",
+		devin.AgentID,
+		"--after-cursor",
+		"--include-content",
+	)
+	if unconsumedPayload["action"] != "room_action_list" ||
+		unconsumedPayload["count"] != float64(1) ||
+		!asBool(t, unconsumedPayload["after_cursor"]) ||
+		!asBool(t, unconsumedPayload["cursor_found"]) {
+		t.Fatalf("CLI after-cursor action list 输出不正确: %+v", unconsumedPayload)
+	}
+	unconsumedItems, ok := unconsumedPayload["items"].([]any)
+	if !ok || len(unconsumedItems) != 1 {
+		t.Fatalf("CLI after-cursor action list items 不正确: %+v", unconsumedPayload)
+	}
+	if asMap(t, unconsumedItems[0])["content"] != "after-cursor-private" {
+		t.Fatalf("CLI after-cursor action list 内容不正确: %+v", unconsumedPayload)
+	}
 }
 
 func TestRoomActionCommandRequiresRoomContext(t *testing.T) {

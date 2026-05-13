@@ -55,6 +55,7 @@ func newRoomActionListCommand(services *cliServiceProvider) *cobra.Command {
 	}
 	bindRoomActionQueryFlags(command, &options)
 	command.Flags().BoolVar(&options.includeContent, "include-content", false, "显式输出 action 正文")
+	command.Flags().BoolVar(&options.afterCursor, "after-cursor", false, "只返回目标 agent 最新消费游标之后可见的 action")
 	command.Flags().IntVar(&options.limit, "limit", 50, "最多返回条数")
 	return command
 }
@@ -175,6 +176,7 @@ type roomActionQueryOptions struct {
 	conversationID string
 	agentID        string
 	includeContent bool
+	afterCursor    bool
 	limit          int
 }
 
@@ -205,12 +207,22 @@ func runRoomActionListCommand(
 	}
 	store := workspacestore.NewRoomActionStore(services.cfg.WorkspacePath)
 	agentID := strings.TrimSpace(options.agentID)
+	cursorFound := false
+	var cursor workspacestore.RoomActionCursor
 	var (
 		actions []protocol.RoomActionRecord
 		err     error
 	)
 	if agentID == "" {
+		if options.afterCursor {
+			return usageErrorf("room action list --after-cursor requires --agent-id")
+		}
 		actions, err = store.ReadActions(conversationID)
+	} else if options.afterCursor {
+		cursor, cursorFound, err = store.ReadActionCursor(conversationID, agentID)
+		if err == nil {
+			actions, err = store.ReadContextActionsAfterCursor(conversationID, agentID, cursor)
+		}
 	} else {
 		actions, err = store.ReadContextActions(conversationID, agentID)
 	}
@@ -225,14 +237,22 @@ func runRoomActionListCommand(
 		item := roomActionCLIOutputItem(&action, options.includeContent)
 		items = append(items, item)
 	}
-	return emitJSON(map[string]any{
+	output := map[string]any{
 		"domain":          "room",
 		"action":          "room_action_list",
 		"conversation_id": conversationID,
 		"agent_id":        agentID,
 		"count":           len(items),
 		"items":           items,
-	})
+	}
+	if options.afterCursor {
+		output["after_cursor"] = true
+		output["cursor_found"] = cursorFound
+		if cursorFound {
+			output["cursor"] = roomActionCursorCLIOutputItem(cursor)
+		}
+	}
+	return emitJSON(output)
 }
 
 func runRoomActionCursorsCommand(
