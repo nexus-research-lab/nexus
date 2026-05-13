@@ -224,6 +224,54 @@ func TestBuildSDKMessageLogFieldsIncludesThinkingDelta(t *testing.T) {
 	}
 }
 
+func TestBuildSDKMessageLogFieldsRedactsInternalToken(t *testing.T) {
+	rawToken := "bf9d57b983480d82f932a241d19561a8e01fef796ea33df5b95def8d82e55968"
+	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "content_block_delta",
+				"delta": map[string]any{
+					"type": "text_delta",
+					"text": "NEXUS_ROOM_INTERNAL_TOKEN=" + rawToken + " go run ./cmd/nexusctl",
+				},
+			},
+		},
+	})
+
+	for _, field := range fields {
+		value, ok := field.(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(value, rawToken) {
+			t.Fatalf("内部 token 不应进入日志字段: %+v", fields)
+		}
+	}
+	if !hasLogField(fields, "delta", "NEXUS_ROOM_INTERNAL_TOKEN=[redacted] go run ./cmd/nexusctl") {
+		t.Fatalf("内部 token 应被脱敏: %+v", fields)
+	}
+}
+
+func TestRedactSensitiveTextRedactsInternalTokenForms(t *testing.T) {
+	rawToken := "0123456789abcdef0123456789abcdef"
+	cases := []string{
+		"NEXUS_ROOM_INTERNAL_TOKEN=" + rawToken,
+		`{"NEXUS_ROOM_INTERNAL_TOKEN":"` + rawToken + `"}`,
+		"X-Nexus-Internal-Token: " + rawToken,
+		`{"X-Nexus-Internal-Token":"` + rawToken + `"}`,
+	}
+	for _, input := range cases {
+		output := RedactSensitiveText(input)
+		if strings.Contains(output, rawToken) {
+			t.Fatalf("敏感内容未脱敏: input=%q output=%q", input, output)
+		}
+		if !strings.Contains(output, "[redacted]") {
+			t.Fatalf("脱敏占位缺失: input=%q output=%q", input, output)
+		}
+	}
+}
+
 func TestBuildSDKMessageLogFieldsKeepsToolNameOnly(t *testing.T) {
 	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,

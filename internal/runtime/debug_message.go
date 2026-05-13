@@ -36,7 +36,7 @@ func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
 			)
 		}
 	}
-	return fields
+	return redactSDKLogFields(fields)
 }
 
 // BuildSDKMessageLogSummary 生成适合调试视图的单行摘要。
@@ -378,7 +378,7 @@ func rawString(value any) string {
 }
 
 func streamDebugText(value string) string {
-	value = strings.TrimSpace(strings.Join(strings.Fields(value), " "))
+	value = RedactSensitiveText(strings.TrimSpace(strings.Join(strings.Fields(value), " ")))
 	if value == "" {
 		return ""
 	}

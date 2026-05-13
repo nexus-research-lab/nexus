@@ -197,7 +197,7 @@ func (s *RealtimeService) runSlot(
 		if previousStderr != nil {
 			previousStderr(line)
 		}
-		logger.Warn("Agent SDK stderr", "stderr", line)
+		logger.Warn("Agent SDK stderr", "stderr", runtimectx.RedactSensitiveText(line))
 	}
 	client := s.factory.New(options)
 	slot.Client = client
