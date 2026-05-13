@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room `private_message` 创建后会自动唤醒目标成员；目标正忙时先进入 Room 待发送队列，空闲后再消费私域 action。
 - Room action 的 `reply_target` 开始控制目标回复投影：非 `public_feed` 回复不进入公区，`sender_private` 与 `audience` 会写回私域 action log。
 - Room action 唤醒的 `latest_trigger` 会标注本轮回复投影位置，帮助目标成员区分公区回复、发送者私域、受众私域和不投影。
+- Room 固定提示词补齐 `nexusctl room action` 子命令模板，减少 Agent 调用私信、私有笔记和标记动作时拼错 CLI。
 
 ### Fixed
 - Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。
