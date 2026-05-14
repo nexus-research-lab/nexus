@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Check, ChevronDown, Hash, Loader2, Plus, Search, X } from "lucide-react";
 
@@ -82,6 +82,7 @@ export function CreateRoomDialog({
   const [room_skill_error, set_room_skill_error] = useState<string | null>(null);
   const [is_room_skill_menu_open, set_is_room_skill_menu_open] = useState(false);
   const [room_skill_query, set_room_skill_query] = useState("");
+  const room_skill_selector_ref = useRef<HTMLDivElement | null>(null);
   const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
   const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
   // 数组 props 往往每次 render 都是新引用，依赖内容签名，
@@ -167,6 +168,26 @@ export function CreateRoomDialog({
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
   }, [is_open, on_cancel]);
+
+  useEffect(() => {
+    if (!is_open || !is_room_skill_menu_open) {
+      return;
+    }
+    const handle_pointer_down = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node
+        && room_skill_selector_ref.current?.contains(target)
+      ) {
+        return;
+      }
+      set_is_room_skill_menu_open(false);
+    };
+    document.addEventListener("pointerdown", handle_pointer_down, true);
+    return () => {
+      document.removeEventListener("pointerdown", handle_pointer_down, true);
+    };
+  }, [is_open, is_room_skill_menu_open]);
 
   // 搜索过滤
   const filtered_agents = useMemo(() => {
@@ -476,7 +497,7 @@ export function CreateRoomDialog({
               </div>
             </div>
 
-            <div className="relative shrink-0">
+            <div className="relative shrink-0" ref={room_skill_selector_ref}>
               {is_room_skill_menu_open ? (
                 <div
                   className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-[18px] border border-(--modal-card-border) bg-(--modal-dialog-body-background) shadow-[0_18px_48px_rgba(15,23,42,0.2)]"
