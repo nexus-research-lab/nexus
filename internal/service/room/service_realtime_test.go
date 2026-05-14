@@ -330,6 +330,8 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`--wake-policy delayed --delay-seconds <seconds>`,
 		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
+		`延迟唤醒后要把最终回复发布到公区`,
+		`request-reply 指向自己并设置 --reply-target public_feed`,
 		`room action private-note --content "<text>"`,
 		`room action marker --visibility public|private --content "<text>"`,
 		"# Nexus Room 成员目录",

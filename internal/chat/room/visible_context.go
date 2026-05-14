@@ -78,7 +78,7 @@ Room 运行时会在系统提示词中提供成员目录，并在每轮用户消
 12. Room runtime 已注入 room、conversation、source agent、内部控制面地址/token 和用户作用域，不要手写这些字段，不要打印、查询或复述 NEXUS_ROOM_INTERNAL_TOKEN。
 13. private-message 用于给单个成员或一组受众私域投递；单目标用 --target-agent-id，小范围私聊用多个 --audience-agent-id；如果同时提供 target 和 audience，表示只投递并唤醒 target，但让 target 的回复投影给 audience。
 14. private-note 只写给你自己，适合记录后续需要记住但不该公开的上下文；marker --visibility public|private 用于协作标记。
-15. private-message 默认会唤醒目标或受众，若只想投递私域上下文不马上打断流程，使用 --wake-policy none；需要稍后再唤醒目标或自己做汇总时，使用 --wake-policy delayed --delay-seconds <seconds>；小范围私聊默认 reply_target=audience，只有列入 audience 的成员能看到后续私域回复。
+15. private-message 默认会唤醒目标或受众，若只想投递私域上下文不马上打断流程，使用 --wake-policy none；需要稍后再唤醒目标或自己做私域汇总时，使用 --wake-policy delayed --delay-seconds <seconds>；如果延迟唤醒后要把最终回复发布到公区，使用 request-reply 指向自己并设置 --reply-target public_feed --wake-policy delayed --delay-seconds <seconds>，不要用 private-message 自唤醒；小范围私聊默认 reply_target=audience，只有列入 audience 的成员能看到后续私域回复。
 16. 需要投影给指定受众集合时使用 --reply-target audience 并为每个受众追加 --audience-agent-id；只想落盘记录、不让任何成员后续看到正文时使用 --reply-target none；暗号、密码、密钥如果后续要让某成员复述、核对或使用，优先用 request-reply 指定回复投影。
 17. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。`
 }
