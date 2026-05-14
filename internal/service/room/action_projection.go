@@ -81,27 +81,31 @@ func (s *RealtimeService) recordRoomActionReply(
 		return err
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, newRoomActionEvent(action))
-	if roomActionReplyVisibleToAgent(action, slot.AgentID) {
-		slot.ActionCursorID = action.ActionID
-		slot.ActionCursorTS = action.Timestamp
-	}
-	return nil
+	return s.startProjectedRoomActionReplyWake(ctx, roundValue, slot, action)
 }
 
-func roomActionReplyVisibleToAgent(action protocol.RoomActionRecord, agentID string) bool {
-	agentID = strings.TrimSpace(agentID)
-	if agentID == "" {
-		return false
+func (s *RealtimeService) startProjectedRoomActionReplyWake(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	action protocol.RoomActionRecord,
+) error {
+	if roundValue == nil || roundValue.Context == nil || slot == nil {
+		return nil
 	}
+	if !roomActionReplyShouldWake(action, slot.AgentID) {
+		return nil
+	}
+	wakeAction := action
+	wakeAction.WakePolicy = protocol.RoomWakePolicyImmediate
+	return s.runRoomActionWake(ctx, roundValue.Context, wakeAction)
+}
+
+func roomActionReplyShouldWake(action protocol.RoomActionRecord, responderAgentID string) bool {
+	responderAgentID = strings.TrimSpace(responderAgentID)
 	if action.ActionType == protocol.RoomActionTypePrivateMessage {
-		return strings.TrimSpace(action.TargetAgentID) == agentID
-	}
-	if action.ReplyTarget == protocol.RoomReplyTargetAudience {
-		for _, audienceAgentID := range action.AudienceAgentIDs {
-			if strings.TrimSpace(audienceAgentID) == agentID {
-				return true
-			}
-		}
+		targetAgentID := strings.TrimSpace(action.TargetAgentID)
+		return targetAgentID != "" && targetAgentID != responderAgentID
 	}
 	return false
 }

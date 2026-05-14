@@ -763,15 +763,23 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
 
-	client := newFakeRoomClient()
-	client.onQuery = func(_ context.Context, prompt string) error {
+	devinClient := newFakeRoomClient()
+	amyWakeClient := newFakeRoomClient()
+	var amySawReply atomic.Bool
+	devinClient.onQuery = func(_ context.Context, prompt string) error {
 		if !strings.Contains(prompt, "需要私下回 Amy 的内容") {
 			t.Fatalf("sender_private reply_target 不应影响目标读取原 private_message:\n%s", prompt)
 		}
 		if !strings.Contains(prompt, "reply_target=sender_private") {
 			t.Fatalf("sender_private 触发上下文应标注回复投影:\n%s", prompt)
 		}
-		sendFakeAssistantResult(client, "devin-private-reply-sender", "这是给 Amy 的私下回复")
+		sendFakeAssistantResult(devinClient, "devin-private-reply-sender", "这是给 Amy 的私下回复")
+		return nil
+	}
+	amyWakeClient.onQuery = func(_ context.Context, prompt string) error {
+		amySawReply.Store(strings.Contains(prompt, "收到一条 Room private_message") &&
+			strings.Contains(prompt, "这是给 Amy 的私下回复"))
+		sendFakeAssistantResult(amyWakeClient, "amy-private-reply-wake", "<nexus_room_no_reply/>")
 		return nil
 	}
 	service := roomsvc.NewRealtimeServiceWithFactory(
@@ -780,7 +788,7 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 		agentService,
 		runtimectx.NewManager(),
 		permissionctx.NewContext(),
-		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinClient, amyWakeClient}},
 	)
 	broadcaster := &roomActionBroadcaster{}
 	service.SetRoomBroadcaster(broadcaster)
@@ -810,6 +818,15 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 		select {
 		case <-deadline:
 			t.Fatalf("sender_private 回复未投影给发送者: %+v", amyActions)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	deadline = time.After(3 * time.Second)
+	for !amySawReply.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("sender_private 回复落盘后未唤醒发送者")
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
@@ -1376,6 +1393,116 @@ func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
 	consumedEvent := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomActionConsumed)
 	if got := consumedEvent.Data["last_action_id"]; got != action.ActionID {
 		t.Fatalf("private action 消费游标不正确: %+v", consumedEvent.Data)
+	}
+}
+
+func TestRealtimeServiceKeepsQueuedAudienceActionVisibleAfterReply(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-audience-cursor",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	tom := createTestAgent(t, agentService, ctx, "Tom")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, tom.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	currentStarted := make(chan struct{})
+	releaseCurrent := make(chan struct{})
+	var startOnce sync.Once
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			close(releaseCurrent)
+		})
+	}
+	defer release()
+
+	tomCurrentClient := newFakeRoomClient()
+	tomQueuedClient := newFakeRoomClient()
+	var seenQueuedAudienceAction atomic.Bool
+	tomCurrentClient.onQuery = func(queryCtx context.Context, prompt string) error {
+		if !strings.Contains(prompt, "第一条 audience 消息") {
+			t.Fatalf("当前 audience prompt 缺少首条 action:\n%s", prompt)
+		}
+		startOnce.Do(func() {
+			close(currentStarted)
+		})
+		select {
+		case <-releaseCurrent:
+			sendFakeAssistantResult(tomCurrentClient, "tom-current-audience-reply", "Tom 对第一条的回复")
+			return nil
+		case <-queryCtx.Done():
+			return queryCtx.Err()
+		}
+	}
+	tomQueuedClient.onQuery = func(_ context.Context, prompt string) error {
+		seenQueuedAudienceAction.Store(strings.Contains(prompt, "第二条 audience 消息"))
+		sendFakeAssistantResult(tomQueuedClient, "tom-queued-audience-reply", "Tom 已处理第二条")
+		return nil
+	}
+
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{tomCurrentClient, tomQueuedClient}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypePrivateMessage,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{tom.AgentID},
+		Content:          "第一条 audience 消息",
+	})
+	if err != nil {
+		t.Fatalf("创建首条 audience action 失败: %v", err)
+	}
+	select {
+	case <-currentStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("目标 agent 未开始处理首条 audience action")
+	}
+
+	queuedAction, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:       protocol.RoomActionTypePrivateMessage,
+		SourceAgentID:    amy.AgentID,
+		AudienceAgentIDs: []string{tom.AgentID},
+		Content:          "第二条 audience 消息",
+	})
+	if err != nil {
+		t.Fatalf("创建排队 audience action 失败: %v", err)
+	}
+	waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_queued" && event.Data["action_id"] == queuedAction.ActionID
+	})
+
+	release()
+	deadline := time.After(3 * time.Second)
+	for !seenQueuedAudienceAction.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("目标空闲后未看到排队期间创建的 audience action")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
