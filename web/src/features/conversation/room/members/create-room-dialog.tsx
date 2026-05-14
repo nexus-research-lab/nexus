@@ -453,7 +453,10 @@ export function CreateRoomDialog({
 
             <div className="relative shrink-0">
               {is_room_skill_menu_open ? (
-                <div className="soft-scrollbar absolute bottom-full left-0 right-0 z-20 mb-2 max-h-52 overflow-y-auto rounded-xl border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1.5 shadow-[0_14px_34px_rgba(15,23,42,0.14)]">
+                <div
+                  className="surface-popover soft-scrollbar absolute bottom-full left-0 right-0 z-50 mb-2 max-h-52 overflow-y-auto rounded-xl p-1.5 shadow-[0_18px_48px_rgba(15,23,42,0.2)] ring-1 ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]"
+                  role="listbox"
+                >
                   {is_loading_room_skills ? (
                     <div className="flex h-9 items-center gap-2 px-2.5 text-sm text-(--text-soft)">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -472,14 +475,16 @@ export function CreateRoomDialog({
                       const checked = selected_room_skill_name_set.has(skill.name);
                       return (
                         <button
+                          aria-selected={checked}
                           className={cn(
-                            "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition duration-(--motion-duration-fast)",
+                            "flex h-9 w-full items-center gap-2.5 rounded-lg border px-2.5 text-left transition duration-(--motion-duration-fast)",
                             checked
-                              ? "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--text-strong)"
-                              : "text-(--text-default) hover:bg-(--surface-muted-background)",
+                              ? "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_9%,var(--surface-popover-background))] text-(--text-strong)"
+                              : "border-transparent text-(--text-default) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
                           )}
                           key={skill.name}
                           onClick={() => toggle_room_skill(skill.name)}
+                          role="option"
                           type="button"
                         >
                           <span
@@ -487,7 +492,7 @@ export function CreateRoomDialog({
                               "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition duration-(--motion-duration-fast)",
                               checked
                                 ? "border-(--primary) bg-primary text-white"
-                                : "border-(--surface-interactive-hover-border) bg-(--surface-panel-background)",
+                                : "border-(--surface-interactive-hover-border) bg-(--surface-popover-background)",
                             )}
                           >
                             {checked ? <Check className="h-3 w-3" /> : null}
@@ -508,10 +513,10 @@ export function CreateRoomDialog({
                 aria-expanded={is_room_skill_menu_open}
                 aria-haspopup="listbox"
                 className={cn(
-                  "flex min-h-10 w-full items-center gap-2 rounded-xl border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2 text-left transition duration-(--motion-duration-fast)",
+                  "flex min-h-10 w-full items-center gap-2 rounded-xl border bg-(--surface-panel-background) px-3 py-2 text-left transition duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]",
                   is_room_skill_menu_open
-                    ? "border-(--surface-interactive-hover-border) bg-(--surface-muted-background)"
-                    : "hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-muted-background)",
+                    ? "border-[color:color-mix(in_srgb,var(--primary)_34%,var(--divider-subtle-color))] bg-(--surface-muted-background) ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+                    : "border-(--divider-subtle-color) hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] hover:bg-(--surface-muted-background) hover:ring-1 hover:ring-inset hover:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
                 )}
                 onClick={() => set_is_room_skill_menu_open((current) => !current)}
                 type="button"
