@@ -84,6 +84,18 @@ export function RoomPage() {
     await controller.handle_update_room(params);
   }, [controller]);
 
+  const handleDeleteRoom = useCallback(async () => {
+    const current_room = controller.current_room;
+    if (!current_room) {
+      return;
+    }
+    await controller.handle_delete_room();
+    const fallback_route = current_room.room_type === "dm"
+      ? AppRouteBuilders.contacts()
+      : AppRouteBuilders.home();
+    navigate(fallback_route, { replace: true });
+  }, [controller, navigate]);
+
   const handleSelectConversation = useCallback((conversation_id: string) => {
     controller.handle_select_conversation(conversation_id);
     const route_room_id = params.room_id;
@@ -279,6 +291,8 @@ export function RoomPage() {
             room_avatar={controller.current_room.avatar ?? null}
             room_members={controller.room_members}
             current_room_title={controller.current_room_title}
+            current_room_description={controller.current_room_description}
+            room_skill_names={controller.current_room_skill_names}
             current_room_conversations={controller.current_room_conversations}
             current_room_conversation={controller.current_room_conversation}
             current_agent_session_identity={controller.current_agent_session_identity}
@@ -301,6 +315,7 @@ export function RoomPage() {
             on_open_workspace_file={controller.handle_open_workspace_file}
             on_save_agent_options={controller.handle_save_existing_agent_options}
             on_update_room={handleUpdateRoom}
+            on_delete_room={handleDeleteRoom}
             on_update_conversation_title={handleUpdateConversationTitle}
             on_select_conversation={handleSelectConversation}
             on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}

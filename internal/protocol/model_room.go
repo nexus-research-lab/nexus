@@ -39,6 +39,7 @@ type RoomRecord struct {
 	Name        string    `json:"name,omitempty"`
 	Description string    `json:"description"`
 	Avatar      string    `json:"avatar,omitempty"`
+	SkillNames  []string  `json:"skill_names"`
 	CreatedAt   time.Time `json:"created_at,omitempty"`
 	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }

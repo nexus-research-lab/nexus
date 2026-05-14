@@ -50,6 +50,26 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if !containsSkill(items, "scheduled-task-manager") {
 		t.Fatalf("定时任务系统 skill 未暴露: %+v", items)
 	}
+	if containsSkill(items, "room-playbook") {
+		t.Fatalf("room scope skill 不应暴露为 agent 技能: %+v", items)
+	}
+	roomSkills, err := service.ListSkills(ctx, Query{Scope: ScopeRoom})
+	if err != nil {
+		t.Fatalf("读取 room skill 列表失败: %v", err)
+	}
+	roomSkill, ok := findSkill(roomSkills, "room-playbook")
+	if !ok {
+		t.Fatalf("未读取到内置 room skill: %+v", roomSkills)
+	}
+	if roomSkill.Scope != ScopeRoom {
+		t.Fatalf("room skill scope 不正确: %+v", roomSkill)
+	}
+	if _, err = service.GetSkillDetail(ctx, "room-playbook", agentValue.AgentID); err == nil {
+		t.Fatal("room scope skill 不应作为 agent skill 详情读取")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "room-playbook"); err == nil {
+		t.Fatal("room scope skill 不应允许安装到 agent")
+	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "scheduled-task-manager"); err == nil {
 		t.Fatal("系统托管 scheduled-task-manager skill 不应允许手动安装")
 	}

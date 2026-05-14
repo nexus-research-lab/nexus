@@ -16,6 +16,7 @@ export interface RoomRecord {
   name?: string | null;
   description: string;
   avatar?: string | null;
+  skill_names: string[];
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -83,6 +84,7 @@ export interface CreateRoomParams {
   description?: string;
   title?: string;
   avatar?: string;
+  skill_names?: string[];
 }
 
 export interface UpdateRoomParams {
@@ -90,6 +92,7 @@ export interface UpdateRoomParams {
   description?: string;
   title?: string;
   avatar?: string;
+  skill_names?: string[];
 }
 
 export interface CreateRoomConversationParams {

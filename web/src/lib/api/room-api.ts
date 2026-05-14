@@ -59,7 +59,10 @@ function transform_room_context(
   api_context: ApiRoomContextAggregate,
 ): RoomContextAggregate {
   return {
-    room: api_context.room,
+    room: {
+      ...api_context.room,
+      skill_names: api_context.room.skill_names ?? [],
+    },
     members: api_context.members,
     member_agents: (api_context.member_agents ?? []).map(transform_api_agent),
     conversation: api_context.conversation,
@@ -137,17 +140,21 @@ export async function get_room_conversation_messages(
 export async function create_room(
   params: CreateRoomParams,
 ): Promise<RoomContextAggregate> {
+  const body: Record<string, unknown> = {
+    agent_ids: params.agent_ids,
+    name: params.name,
+    description: params.description ?? "",
+    title: params.title,
+    avatar: params.avatar ?? null,
+  };
+  if (params.skill_names !== undefined) {
+    body.skill_names = params.skill_names;
+  }
   const context = await request_api<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms`,
     {
       method: "POST",
-      body: JSON.stringify({
-        agent_ids: params.agent_ids,
-        name: params.name,
-        description: params.description ?? "",
-        title: params.title,
-        avatar: params.avatar ?? null,
-      }),
+      body: JSON.stringify(body),
     },
   );
   notify_room_directory_updated();
@@ -158,16 +165,20 @@ export async function update_room(
   room_id: string,
   params: UpdateRoomParams,
 ): Promise<RoomContextAggregate> {
+  const body: Record<string, unknown> = {
+    name: params.name,
+    description: params.description,
+    title: params.title,
+    avatar: params.avatar ?? null,
+  };
+  if (params.skill_names !== undefined) {
+    body.skill_names = params.skill_names;
+  }
   const context = await request_api<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`,
     {
       method: "PATCH",
-      body: JSON.stringify({
-        name: params.name,
-        description: params.description,
-        title: params.title,
-        avatar: params.avatar ?? null,
-      }),
+      body: JSON.stringify(body),
     },
   );
   notify_room_directory_updated();

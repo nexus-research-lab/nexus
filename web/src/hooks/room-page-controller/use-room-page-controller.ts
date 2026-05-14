@@ -395,6 +395,7 @@ export function useRoomPageController({
     current_room_type: current_room?.room_type ?? "room",
     current_room_title: current_room?.name?.trim() || current_agent?.name || "未命名 room",
     current_room_description: current_room?.description ?? "",
+    current_room_skill_names: current_room?.skill_names ?? [],
     room_members: room_member_agents,
     available_room_agents,
     handle_prepare_room_agent_catalog,

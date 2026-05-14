@@ -7,14 +7,16 @@ type CreateRoomRequest struct {
 	Description string   `json:"description,omitempty"`
 	Title       string   `json:"title,omitempty"`
 	Avatar      string   `json:"avatar,omitempty"`
+	SkillNames  []string `json:"skill_names,omitempty"`
 }
 
 // UpdateRoomRequest 表示更新房间请求。
 type UpdateRoomRequest struct {
-	Name        string  `json:"name,omitempty"`
-	Description string  `json:"description,omitempty"`
-	Title       string  `json:"title,omitempty"`
-	Avatar      *string `json:"avatar,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Title       string    `json:"title,omitempty"`
+	Avatar      *string   `json:"avatar,omitempty"`
+	SkillNames  *[]string `json:"skill_names,omitempty"`
 }
 
 // AddRoomMemberRequest 表示追加成员请求。

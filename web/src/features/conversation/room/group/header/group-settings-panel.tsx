@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Settings, Trash2, X } from "lucide-react";
+import { Loader2, Settings, Trash2, X } from "lucide-react";
 
+import { get_available_skills_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
 import { get_icon_avatar_src, ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -18,6 +19,7 @@ import {
   get_dialog_note_class_name,
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
+import type { SkillInfo } from "@/types/capability/skill";
 import { UpdateRoomParams } from "@/types/conversation/room";
 
 interface RoomSettingsPanelProps {
@@ -26,6 +28,7 @@ interface RoomSettingsPanelProps {
   room_name: string;
   room_description: string;
   room_avatar?: string | null;
+  room_skill_names: string[];
   fallback_avatar: string;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_delete_room: () => Promise<void>;
@@ -38,6 +41,7 @@ export function RoomSettingsPanel({
   room_name,
   room_description,
   room_avatar = "",
+  room_skill_names,
   fallback_avatar,
   on_update_room,
   on_delete_room,
@@ -51,6 +55,10 @@ export function RoomSettingsPanel({
   const [edit_description_value, set_edit_description_value] = useState(room_description);
   const [edit_avatar_value, set_edit_avatar_value] = useState(room_avatar?.trim() ?? "");
   const [is_updating, set_is_updating] = useState(false);
+  const [available_room_skills, set_available_room_skills] = useState<SkillInfo[]>([]);
+  const [enabled_skill_names, set_enabled_skill_names] = useState<string[]>(room_skill_names);
+  const [is_loading_room_skills, set_is_loading_room_skills] = useState(false);
+  const [room_skill_error, set_room_skill_error] = useState<string | null>(null);
 
   // 当对话框打开时重置编辑值
   useEffect(() => {
@@ -58,8 +66,37 @@ export function RoomSettingsPanel({
       set_edit_name_value(room_name);
       set_edit_description_value(room_description);
       set_edit_avatar_value(room_avatar?.trim() ?? "");
+      set_enabled_skill_names(room_skill_names);
     }
-  }, [is_open, room_name, room_description, room_avatar]);
+  }, [is_open, room_name, room_description, room_avatar, room_skill_names]);
+
+  useEffect(() => {
+    if (!is_open) {
+      return;
+    }
+    let is_cancelled = false;
+    set_is_loading_room_skills(true);
+    set_room_skill_error(null);
+    get_available_skills_api({scope: "room"})
+      .then((items) => {
+        if (!is_cancelled) {
+          set_available_room_skills(items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!is_cancelled) {
+          set_room_skill_error(error instanceof Error ? error.message : "Room Skill 加载失败");
+        }
+      })
+      .finally(() => {
+        if (!is_cancelled) {
+          set_is_loading_room_skills(false);
+        }
+      });
+    return () => {
+      is_cancelled = true;
+    };
+  }, [is_open]);
 
   const handle_update_name = async (value: string) => {
     if (!room_id || value.trim() === room_name) {
@@ -115,6 +152,27 @@ export function RoomSettingsPanel({
     }
   };
 
+  const handle_toggle_room_skill = async (skill_name: string) => {
+    if (!room_id || is_updating) {
+      return;
+    }
+    const next_skill_names = enabled_skill_names.includes(skill_name)
+      ? enabled_skill_names.filter((name) => name !== skill_name)
+      : [...enabled_skill_names, skill_name];
+    set_is_updating(true);
+    try {
+      await on_update_room(room_id, {
+        name: edit_name_value.trim() || room_name,
+        description: edit_description_value,
+        avatar: edit_avatar_value,
+        skill_names: next_skill_names,
+      });
+      set_enabled_skill_names(next_skill_names);
+    } finally {
+      set_is_updating(false);
+    }
+  };
+
   const preview_avatar_src = get_icon_avatar_src(edit_avatar_value || fallback_avatar, "room");
 
   const handle_delete_room = async () => {
@@ -140,7 +198,7 @@ export function RoomSettingsPanel({
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <div className="dialog-shell radius-shell-lg w-full max-w-lg animate-in zoom-in-95 duration-(--motion-duration-fast)">
+        <div className="dialog-shell radius-shell-lg flex max-h-[calc(100vh-3rem)] w-full max-w-lg flex-col animate-in zoom-in-95 duration-(--motion-duration-fast)">
           <div className="dialog-header">
             <div className={DIALOG_HEADER_LEADING_CLASS_NAME}>
               <div className={DIALOG_HEADER_ICON_CLASS_NAME}>
@@ -163,7 +221,7 @@ export function RoomSettingsPanel({
             </button>
           </div>
 
-          <div className="dialog-body space-y-4">
+          <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1 space-y-4">
             <section className="dialog-card rounded-[20px] p-4">
               <div className="space-y-2">
                 <label className="dialog-label">
@@ -319,6 +377,63 @@ export function RoomSettingsPanel({
                     disabled={is_updating}
                   />
                 </div>
+              </div>
+            </section>
+
+            <section className="dialog-card rounded-[20px] p-4">
+              <div className="space-y-3">
+                <label className="dialog-label">
+                  Room Skills
+                </label>
+                {is_loading_room_skills ? (
+                  <div className="flex items-center gap-2 rounded-[16px] border border-(--divider-subtle-color) px-4 py-3 text-sm text-(--text-soft)">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    加载 Room Skills...
+                  </div>
+                ) : room_skill_error ? (
+                  <div className="rounded-[16px] border border-red-200 px-4 py-3 text-sm text-red-700">
+                    {room_skill_error}
+                  </div>
+                ) : available_room_skills.length === 0 ? (
+                  <div className="rounded-[16px] border border-(--divider-subtle-color) px-4 py-3 text-sm text-(--text-soft)">
+                    当前没有可启用的 Room Skill。
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {available_room_skills.map((skill) => {
+                      const checked = enabled_skill_names.includes(skill.name);
+                      return (
+                        <button
+                          className={cn(
+                            "flex w-full items-start gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-(--motion-duration-fast)",
+                            checked
+                              ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
+                              : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border)",
+                          )}
+                          disabled={is_updating}
+                          key={skill.name}
+                          onClick={() => handle_toggle_room_skill(skill.name)}
+                          type="button"
+                        >
+                          <input
+                            checked={checked}
+                            className="mt-1 h-4 w-4 accent-(--primary)"
+                            readOnly
+                            type="checkbox"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-(--text-strong)">
+                              {skill.title || skill.name}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-(--text-default)">
+                              {skill.description || skill.name}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </section>
 

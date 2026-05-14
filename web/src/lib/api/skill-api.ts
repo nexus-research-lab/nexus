@@ -24,6 +24,7 @@ interface SkillQueryParams {
   agent_id?: string;
   category_key?: string;
   source_type?: string;
+  scope?: string;
   q?: string;
 }
 
@@ -55,6 +56,7 @@ function normalize_skill_query(
     agent_id: params.agent_id,
     category_key: params.category_key,
     source_type: params.source_type,
+    scope: params.scope,
     q: params.q,
   };
 }

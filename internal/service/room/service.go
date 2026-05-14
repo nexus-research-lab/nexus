@@ -33,7 +33,7 @@ type Repository interface {
 	GetConversationContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
 	FindDMRoomContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
 	CreateRoom(context.Context, roomrepo.CreateRoomBundle) (*protocol.ConversationContextAggregate, error)
-	UpdateRoom(context.Context, string, string, *string, *string, *string, *string) (*protocol.ConversationContextAggregate, error)
+	UpdateRoom(context.Context, string, string, *string, *string, *string, *string, *[]string) (*protocol.ConversationContextAggregate, error)
 	AddRoomMember(context.Context, string, string, roomrepo.AgentRuntimeRef) (*protocol.ConversationContextAggregate, error)
 	RemoveRoomMember(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
 	DeleteRoom(context.Context, string, string) (bool, error)
@@ -50,6 +50,7 @@ type Service struct {
 	repository Repository
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
+	skills     RoomSkillCatalog
 }
 
 // NewService 创建 Room 服务。
@@ -165,6 +166,13 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 	}
 
 	conversationID := roomdomain.NewEntityID()
+	skillNames, err := s.normalizeRoomSkillNames(ctx, request.SkillNames)
+	if err != nil {
+		return nil, err
+	}
+	if normalizedRoomType == protocol.RoomTypeDM && len(skillNames) > 0 {
+		return nil, errors.New("DM room 不支持启用 room skill")
+	}
 	bundle := roomrepo.CreateRoomBundle{
 		Room: protocol.RoomRecord{
 			ID:          roomID,
@@ -173,6 +181,7 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 			Name:        roomName,
 			Description: roomdomain.NormalizeOptionalText(request.Description),
 			Avatar:      roomdomain.NormalizeOptionalText(request.Avatar),
+			SkillNames:  skillNames,
 		},
 		Members: roomdomain.BuildMembers(roomID, ownerUserID, normalizedAgentIDs),
 		Conversation: protocol.ConversationRecord{
@@ -215,6 +224,21 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request protoco
 		avatarValue := roomdomain.NormalizeOptionalText(*request.Avatar)
 		avatarPtr = &avatarValue
 	}
+	var skillNamesPtr *[]string
+	if request.SkillNames != nil {
+		existing, err := s.GetRoom(ctx, roomID)
+		if err != nil {
+			return nil, err
+		}
+		if existing.Room.RoomType == protocol.RoomTypeDM && len(*request.SkillNames) > 0 {
+			return nil, errors.New("DM room 不支持启用 room skill")
+		}
+		skillNames, err := s.normalizeRoomSkillNames(ctx, *request.SkillNames)
+		if err != nil {
+			return nil, err
+		}
+		skillNamesPtr = &skillNames
+	}
 
 	contextValue, err := s.repository.UpdateRoom(
 		ctx,
@@ -224,6 +248,7 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request protoco
 		descriptionPtr,
 		titlePtr,
 		avatarPtr,
+		skillNamesPtr,
 	)
 	if err != nil {
 		return nil, err

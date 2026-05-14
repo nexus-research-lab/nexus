@@ -40,6 +40,7 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 			name        string
 			description string
 			title       string
+			skillNames  []string
 		)
 
 		create := &cobra.Command{
@@ -56,6 +57,7 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 					Name:        name,
 					Description: description,
 					Title:       title,
+					SkillNames:  skillNames,
 				})
 				if err != nil {
 					return err
@@ -71,6 +73,7 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 		create.Flags().StringVar(&name, "name", "", "room name")
 		create.Flags().StringVar(&description, "description", "", "room description")
 		create.Flags().StringVar(&title, "title", "", "conversation title")
+		create.Flags().StringSliceVar(&skillNames, "skill-name", nil, "room skill name")
 		_ = create.MarkFlagRequired("agent-id")
 		return create
 	}())
@@ -151,6 +154,7 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 			name        string
 			description string
 			title       string
+			skillNames  []string
 		)
 		update := &cobra.Command{
 			Use:   "update [room_id]",
@@ -162,11 +166,15 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Core.Room
-				item, err := service.UpdateRoom(commandContext(cmd), args[0], protocol.UpdateRoomRequest{
+				request := protocol.UpdateRoomRequest{
 					Name:        name,
 					Description: description,
 					Title:       title,
-				})
+				}
+				if cmd.Flags().Changed("skill-name") {
+					request.SkillNames = &skillNames
+				}
+				item, err := service.UpdateRoom(commandContext(cmd), args[0], request)
 				if err != nil {
 					return err
 				}
@@ -180,6 +188,7 @@ func newRoomCommand(services *cliServiceProvider) *cobra.Command {
 		update.Flags().StringVar(&name, "name", "", "room name")
 		update.Flags().StringVar(&description, "description", "", "room description")
 		update.Flags().StringVar(&title, "title", "", "conversation title")
+		update.Flags().StringSliceVar(&skillNames, "skill-name", nil, "room skill name")
 		return update
 	}())
 

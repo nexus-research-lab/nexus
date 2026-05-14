@@ -68,6 +68,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	preferencesService := preferencessvc.NewService(cfg)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
+	core.Room.SetSkillCatalog(skillService)
 	connectorService := connectorsvc.NewService(cfg, db)
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()

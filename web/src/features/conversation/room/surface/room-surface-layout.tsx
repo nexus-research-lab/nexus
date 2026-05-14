@@ -37,6 +37,8 @@ interface RoomSurfaceLayoutProps {
   room_members: Agent[];
   available_room_agents: Agent[];
   current_room_title: string;
+  current_room_description: string;
+  room_skill_names: string[];
   current_agent_session_identity: AgentConversationIdentity | null;
   conversation_id: string | null;
   current_room_conversations: RoomConversationView[];
@@ -58,6 +60,7 @@ interface RoomSurfaceLayoutProps {
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_member_manager: () => Promise<void>;
+  on_delete_room: () => Promise<void>;
   on_save_agent_options: (agent_id: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
   on_validate_agent_name: (name: string, agent_id?: string) => Promise<AgentNameValidationResult>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
@@ -97,6 +100,8 @@ function RoomSurfaceLayoutInner({
                                     room_members,
                                     available_room_agents,
                                     current_room_title,
+                                    current_room_description,
+                                    room_skill_names,
                                     current_agent_session_identity,
                                     conversation_id,
                                     current_room_conversations,
@@ -118,6 +123,7 @@ function RoomSurfaceLayoutInner({
                                     on_add_room_member,
                                     on_remove_room_member,
                                     on_open_member_manager,
+                                    on_delete_room,
                                     on_save_agent_options,
                                     on_validate_agent_name,
                                     on_update_room,
@@ -180,6 +186,7 @@ function RoomSurfaceLayoutInner({
                   available_room_agents={available_room_agents}
                   conversation_id={conversation_id}
                   conversations={current_room_conversations}
+                  current_room_description={current_room_description}
                   current_room_title={current_room_title}
                   on_add_room_member={on_add_room_member}
                   on_open_member_manager={on_open_member_manager}
@@ -188,10 +195,12 @@ function RoomSurfaceLayoutInner({
                   on_replay_tour={on_replay_tour}
                   on_remove_room_member={on_remove_room_member}
                   on_select_conversation={on_select_conversation}
+                  on_delete_room={on_delete_room}
                   on_update_room={on_update_room}
                   room_avatar={room_avatar}
                   room_id={room_id}
                   room_members={room_members}
+                  room_skill_names={room_skill_names}
                   todos={current_todos}
                 />
               )}

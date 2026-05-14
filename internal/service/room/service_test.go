@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,11 +14,22 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 )
+
+type fakeRoomSkillCatalog map[string]skillspkg.Detail
+
+func (f fakeRoomSkillCatalog) GetSkillDetail(_ context.Context, skillName string, _ string) (*skillspkg.Detail, error) {
+	detail, ok := f[skillName]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return &detail, nil
+}
 
 func findConversationContext(
 	contexts []protocol.ConversationContextAggregate,
@@ -139,6 +151,75 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 	if len(dmContext.Sessions) != 1 {
 		t.Fatalf("直聊 session 数量不正确: got=%d want=1", len(dmContext.Sessions))
+	}
+}
+
+func TestRoomServicePersistsRoomSkills(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService.SetSkillCatalog(fakeRoomSkillCatalog{
+		"room-playbook": {
+			Info: skillspkg.Info{
+				Name:  "room-playbook",
+				Title: "协作房间规则",
+				Scope: skillspkg.ScopeRoom,
+			},
+			ReadmeMarkdown: "---\nname: room-playbook\n---\n\n# 协作房间规则\n\n房间规则正文",
+		},
+		"agent-only": {
+			Info: skillspkg.Info{
+				Name:  "agent-only",
+				Title: "Agent Only",
+				Scope: "any",
+			},
+		},
+	})
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
+	agentB := createTestAgent(t, agentService, ctx, "测试助手B")
+
+	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:   []string{agentA.AgentID, agentB.AgentID},
+		Name:       "Room Skill 测试",
+		SkillNames: []string{"room-playbook", "room-playbook"},
+	})
+	if err != nil {
+		t.Fatalf("创建带 room skill 的 room 失败: %v", err)
+	}
+	if got, want := mainContext.Room.SkillNames, []string{"room-playbook"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("room skill_names 未按预期归一化: got=%#v want=%#v", got, want)
+	}
+
+	prompt, err := roomService.BuildRoomSkillPrompt(ctx, mainContext.Room.SkillNames)
+	if err != nil {
+		t.Fatalf("构造 room skill prompt 失败: %v", err)
+	}
+	if !strings.Contains(prompt, "房间规则正文") || strings.Contains(prompt, "name: room-playbook") {
+		t.Fatalf("room skill prompt 内容不正确: %s", prompt)
+	}
+
+	emptySkills := []string{}
+	mainContext, err = roomService.UpdateRoom(ctx, mainContext.Room.ID, protocol.UpdateRoomRequest{
+		SkillNames: &emptySkills,
+	})
+	if err != nil {
+		t.Fatalf("清空 room skill 失败: %v", err)
+	}
+	if len(mainContext.Room.SkillNames) != 0 {
+		t.Fatalf("room skill 未清空: %#v", mainContext.Room.SkillNames)
+	}
+
+	if _, err = roomService.UpdateRoom(ctx, mainContext.Room.ID, protocol.UpdateRoomRequest{
+		SkillNames: &[]string{"agent-only"},
+	}); err == nil {
+		t.Fatal("非 room scope skill 不应允许启用到 room")
 	}
 }
 

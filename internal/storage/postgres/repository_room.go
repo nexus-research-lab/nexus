@@ -247,14 +247,15 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, bundle roomrepo.CreateR
 	defer tx.Rollback()
 
 	if _, err = tx.ExecContext(ctx, `
-INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar)
-VALUES ($1, $2, $3, $4, $5, $6)`,
+INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar, skill_names)
+VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		bundle.Room.ID,
 		bundle.Room.OwnerUserID,
 		bundle.Room.RoomType,
 		nullIfEmpty(bundle.Room.Name),
 		bundle.Room.Description,
 		nullIfEmpty(bundle.Room.Avatar),
+		jsoncodec.MarshalStringSlice(bundle.Room.SkillNames),
 	); err != nil {
 		return nil, err
 	}
@@ -319,6 +320,7 @@ func (r *RoomRepository) UpdateRoom(
 	description *string,
 	title *string,
 	avatar *string,
+	skillNames *[]string,
 ) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -342,6 +344,11 @@ func (r *RoomRepository) UpdateRoom(
 	}
 	if avatar != nil {
 		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET avatar = $1, updated_at = now() WHERE id = $2 AND owner_user_id = $3`, nullIfEmpty(*avatar), roomID, ownerUserID); err != nil {
+			return nil, err
+		}
+	}
+	if skillNames != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET skill_names = $1, updated_at = now() WHERE id = $2 AND owner_user_id = $3`, jsoncodec.MarshalStringSlice(*skillNames), roomID, ownerUserID); err != nil {
 			return nil, err
 		}
 	}
@@ -777,7 +784,7 @@ func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQuery
 
 func (r *RoomRepository) loadRoom(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomRecord, error) {
 	query := `
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, created_at, updated_at
 FROM rooms
 WHERE id = $1`
 	args := []any{roomID}
@@ -839,7 +846,7 @@ func (r *RoomRepository) loadRoomsByIDs(
 		return map[string]protocol.RoomRecord{}, nil
 	}
 	query := fmt.Sprintf(`
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, created_at, updated_at
 FROM rooms
 WHERE id IN (%s)`, joinPostgresPlaceholders(1, len(roomIDs)))
 	args := make([]any, 0, len(roomIDs))
@@ -1037,9 +1044,10 @@ func (r *RoomRepository) getContextByConversation(ctx context.Context, ownerUser
 
 func scanRoomRecord(scanner interface{ Scan(...any) error }) (protocol.RoomRecord, error) {
 	var (
-		item      protocol.RoomRecord
-		createdAt time.Time
-		updatedAt time.Time
+		item           protocol.RoomRecord
+		skillNamesJSON string
+		createdAt      time.Time
+		updatedAt      time.Time
 	)
 	err := scanner.Scan(
 		&item.ID,
@@ -1048,11 +1056,16 @@ func scanRoomRecord(scanner interface{ Scan(...any) error }) (protocol.RoomRecor
 		&item.Name,
 		&item.Description,
 		&item.Avatar,
+		&skillNamesJSON,
 		&createdAt,
 		&updatedAt,
 	)
 	if err != nil {
 		return protocol.RoomRecord{}, err
+	}
+	item.SkillNames = jsoncodec.ParseStringSlice(skillNamesJSON)
+	if item.SkillNames == nil {
+		item.SkillNames = []string{}
 	}
 	item.CreatedAt = createdAt
 	item.UpdatedAt = updatedAt
