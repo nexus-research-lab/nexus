@@ -467,10 +467,10 @@ export function CreateRoomDialog({
             <div className="relative shrink-0">
               {is_room_skill_menu_open ? (
                 <div
-                  className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-[18px] border border-(--surface-popover-border) bg-[color:color-mix(in_srgb,var(--surface-popover-background)_94%,white_6%)] shadow-[0_18px_48px_rgba(15,23,42,0.18)]"
+                  className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-[18px] border border-(--modal-card-border) bg-(--modal-dialog-body-background) shadow-[0_18px_48px_rgba(15,23,42,0.2)]"
                   role="listbox"
                 >
-                  <div className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
+                  <div className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) bg-(--modal-dialog-header-background) px-3">
                     <Search className="h-4 w-4 shrink-0 text-(--text-soft)" />
                     <input
                       className="min-w-0 flex-1 bg-transparent text-sm font-medium text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
@@ -504,8 +504,8 @@ export function CreateRoomDialog({
                             className={cn(
                               "flex h-10 w-full items-center gap-3 px-3 text-left text-[14px] font-medium transition duration-(--motion-duration-fast)",
                               checked
-                                ? "text-(--text-strong)"
-                                : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                                ? "bg-(--modal-input-focus-background) text-(--text-strong)"
+                                : "text-(--text-default) hover:bg-(--modal-input-background) hover:text-(--text-strong)",
                             )}
                             key={skill.name}
                             onClick={() => toggle_room_skill(skill.name)}
@@ -530,10 +530,10 @@ export function CreateRoomDialog({
                 aria-expanded={is_room_skill_menu_open}
                 aria-haspopup="listbox"
                 className={cn(
-                  "flex min-h-11 w-full items-center gap-2 rounded-[16px] border bg-(--surface-muted-background) px-3.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] transition duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
+                  "flex min-h-11 w-full items-center gap-2 rounded-[16px] border bg-(--modal-input-background) px-3.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] transition duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
                   is_room_skill_menu_open
-                    ? "border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color))] ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
-                    : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] hover:ring-1 hover:ring-inset hover:ring-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]",
+                    ? "border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color))] bg-(--modal-input-focus-background) ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
+                    : "border-[color:color-mix(in_srgb,var(--modal-input-border)_88%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] hover:bg-(--modal-input-focus-background) hover:ring-1 hover:ring-inset hover:ring-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]",
                 )}
                 onClick={() => set_is_room_skill_menu_open((current) => !current)}
                 type="button"
@@ -542,14 +542,14 @@ export function CreateRoomDialog({
                   {selected_room_skill_names.length > 0 ? (
                     selected_room_skill_names.map((skill_name) => (
                       <span
-                        className="max-w-[11rem] truncate rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 py-0.5 text-[11px] font-semibold text-(--text-strong)"
+                        className="max-w-[11rem] truncate rounded-full border border-(--divider-subtle-color) bg-(--modal-dialog-body-background) px-2 py-0.5 text-[11px] font-semibold text-(--text-strong)"
                         key={skill_name}
                       >
                         {skill_name}
                       </span>
                     ))
                   ) : (
-                    <span className="rounded-full border border-dashed border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-medium text-(--text-soft)">
+                    <span className="rounded-full border border-dashed border-(--divider-subtle-color) bg-(--modal-dialog-body-background) px-2 py-0.5 text-[11px] font-medium text-(--text-soft)">
                       {t("room.skills_none")}
                     </span>
                   )}
