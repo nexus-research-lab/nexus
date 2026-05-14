@@ -81,6 +81,7 @@ export function CreateRoomDialog({
   const [is_loading_room_skills, set_is_loading_room_skills] = useState(false);
   const [room_skill_error, set_room_skill_error] = useState<string | null>(null);
   const [is_room_skill_menu_open, set_is_room_skill_menu_open] = useState(false);
+  const [room_skill_query, set_room_skill_query] = useState("");
   const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
   const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
   // 数组 props 往往每次 render 都是新引用，依赖内容签名，
@@ -117,6 +118,7 @@ export function CreateRoomDialog({
       set_selected_avatar(initial_avatar);
       set_selected_room_skill_names(stable_initial_room_skill_names);
       set_is_room_skill_menu_open(false);
+      set_room_skill_query("");
     }
   }, [
     initial_avatar,
@@ -184,6 +186,17 @@ export function CreateRoomDialog({
     () => new Set(selected_room_skill_names),
     [selected_room_skill_names],
   );
+  const filtered_room_skills = useMemo(() => {
+    const query = room_skill_query.trim().toLowerCase();
+    if (!query) {
+      return available_room_skills;
+    }
+    return available_room_skills.filter((skill) =>
+      skill.name.toLowerCase().includes(query)
+      || skill.title.toLowerCase().includes(query)
+      || skill.description.toLowerCase().includes(query),
+    );
+  }, [available_room_skills, room_skill_query]);
 
   const toggle_agent = useCallback((agent_id: string) => {
     set_selected_ids((prev) => {
@@ -454,57 +467,61 @@ export function CreateRoomDialog({
             <div className="relative shrink-0">
               {is_room_skill_menu_open ? (
                 <div
-                  className="surface-popover soft-scrollbar absolute bottom-full left-0 right-0 z-50 mb-2 max-h-52 overflow-y-auto rounded-xl p-1.5 shadow-[0_18px_48px_rgba(15,23,42,0.2)] ring-1 ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]"
+                  className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-[18px] border border-(--surface-popover-border) bg-[color:color-mix(in_srgb,var(--surface-popover-background)_94%,white_6%)] shadow-[0_18px_48px_rgba(15,23,42,0.18)]"
                   role="listbox"
                 >
+                  <div className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
+                    <Search className="h-4 w-4 shrink-0 text-(--text-soft)" />
+                    <input
+                      className="min-w-0 flex-1 bg-transparent text-sm font-medium text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+                      onChange={(event) => set_room_skill_query(event.target.value)}
+                      onClick={(event) => event.stopPropagation()}
+                      placeholder={t("agent_options.skills.search_placeholder")}
+                      type="text"
+                      value={room_skill_query}
+                    />
+                  </div>
                   {is_loading_room_skills ? (
-                    <div className="flex h-9 items-center gap-2 px-2.5 text-sm text-(--text-soft)">
+                    <div className="flex h-12 items-center gap-2 px-3 text-sm text-(--text-soft)">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       {t("room.skills_loading")}
                     </div>
                   ) : room_skill_error ? (
-                    <div className="rounded-lg border border-red-200 px-2.5 py-2 text-sm text-red-700">
+                    <div className="m-2 rounded-xl border border-red-200 px-3 py-2.5 text-sm text-red-700">
                       {room_skill_error}
                     </div>
-                  ) : available_room_skills.length === 0 ? (
-                    <div className="flex h-9 items-center px-2.5 text-sm text-(--text-soft)">
+                  ) : filtered_room_skills.length === 0 ? (
+                    <div className="flex h-12 items-center px-3 text-sm text-(--text-soft)">
                       {t("room.skills_empty")}
                     </div>
                   ) : (
-                    available_room_skills.map((skill) => {
-                      const checked = selected_room_skill_name_set.has(skill.name);
-                      return (
-                        <button
-                          aria-selected={checked}
-                          className={cn(
-                            "flex h-9 w-full items-center gap-2.5 rounded-lg border px-2.5 text-left transition duration-(--motion-duration-fast)",
-                            checked
-                              ? "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_9%,var(--surface-popover-background))] text-(--text-strong)"
-                              : "border-transparent text-(--text-default) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-                          )}
-                          key={skill.name}
-                          onClick={() => toggle_room_skill(skill.name)}
-                          role="option"
-                          type="button"
-                        >
-                          <span
+                    <div className="soft-scrollbar max-h-60 overflow-y-auto py-1.5">
+                      {filtered_room_skills.map((skill) => {
+                        const checked = selected_room_skill_name_set.has(skill.name);
+                        return (
+                          <button
+                            aria-selected={checked}
                             className={cn(
-                              "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition duration-(--motion-duration-fast)",
+                              "flex h-10 w-full items-center gap-3 px-3 text-left text-[14px] font-medium transition duration-(--motion-duration-fast)",
                               checked
-                                ? "border-(--primary) bg-primary text-white"
-                                : "border-(--surface-interactive-hover-border) bg-(--surface-popover-background)",
+                                ? "text-(--text-strong)"
+                                : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                             )}
+                            key={skill.name}
+                            onClick={() => toggle_room_skill(skill.name)}
+                            role="option"
+                            type="button"
                           >
-                            {checked ? <Check className="h-3 w-3" /> : null}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-semibold">
+                            <span className="min-w-0 flex-1 truncate">
                               {skill.name}
                             </span>
-                          </span>
-                        </button>
-                      );
-                    })
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-(--text-default)">
+                              {checked ? <Check className="h-4 w-4" /> : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               ) : null}
@@ -513,10 +530,10 @@ export function CreateRoomDialog({
                 aria-expanded={is_room_skill_menu_open}
                 aria-haspopup="listbox"
                 className={cn(
-                  "flex min-h-10 w-full items-center gap-2 rounded-xl border bg-(--surface-panel-background) px-3 py-2 text-left transition duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]",
+                  "flex min-h-11 w-full items-center gap-2 rounded-[16px] border bg-(--surface-muted-background) px-3.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] transition duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
                   is_room_skill_menu_open
-                    ? "border-[color:color-mix(in_srgb,var(--primary)_34%,var(--divider-subtle-color))] bg-(--surface-muted-background) ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
-                    : "border-(--divider-subtle-color) hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] hover:bg-(--surface-muted-background) hover:ring-1 hover:ring-inset hover:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
+                    ? "border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color))] ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
+                    : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] hover:ring-1 hover:ring-inset hover:ring-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]",
                 )}
                 onClick={() => set_is_room_skill_menu_open((current) => !current)}
                 type="button"
