@@ -8,7 +8,6 @@ import {
   History,
   Info,
   MessageSquare,
-  Settings,
 } from "lucide-react";
 
 import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
@@ -26,14 +25,12 @@ import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
-import { RoomSettingsPanel } from "./group-settings-panel";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 interface GroupConversationHeaderProps {
   conversation_id: string | null;
   room_id: string | null;
   current_room_title: string | null;
-  current_room_description: string;
   room_skill_names: string[];
   room_avatar?: string | null;
   conversations: RoomConversationView[];
@@ -49,7 +46,6 @@ interface GroupConversationHeaderProps {
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_member_manager: () => Promise<void>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
-  on_delete_room: () => Promise<void>;
 }
 
 function MemberAvatarStack({
@@ -108,7 +104,6 @@ const GroupConversationHeaderView = memo(({
   conversation_id,
   room_id,
   current_room_title,
-  current_room_description,
   room_skill_names,
   room_avatar,
   conversations,
@@ -124,11 +119,9 @@ const GroupConversationHeaderView = memo(({
   on_remove_room_member,
   on_open_member_manager,
   on_update_room,
-  on_delete_room,
 }: GroupConversationHeaderProps) => {
   const { t } = useI18n();
   const [is_member_list_open, set_is_member_list_open] = useState(false);
-  const [is_settings_open, set_is_settings_open] = useState(false);
   const header_title = current_room_title?.trim() || t("room.untitled_collaboration");
   const room_tabs: {
     key: RoomSurfaceTabKey;
@@ -187,10 +180,6 @@ const GroupConversationHeaderView = memo(({
           {t("common.view_guide")}
         </WorkspaceSurfaceToolbarAction>
       ) : null}
-      <WorkspaceSurfaceToolbarAction onClick={() => set_is_settings_open(true)}>
-        <Settings className="h-3.5 w-3.5" />
-        {t("placeholder.settings_title")}
-      </WorkspaceSurfaceToolbarAction>
     </div>
   );
 
@@ -224,10 +213,11 @@ const GroupConversationHeaderView = memo(({
         initial_avatar={room_avatar ?? ""}
         initial_name={header_title}
         initial_selected_agent_ids={member_agent_ids}
+        initial_room_skill_names={room_skill_names}
         is_open={is_member_list_open}
         mode="manage"
         on_cancel={() => set_is_member_list_open(false)}
-        on_confirm={async (next_agent_ids, name, avatar) => {
+        on_confirm={async (next_agent_ids, name, avatar, skill_names) => {
           if (!room_id) {
             return;
           }
@@ -240,6 +230,7 @@ const GroupConversationHeaderView = memo(({
           await on_update_room(room_id, {
             name,
             avatar,
+            skill_names,
           });
 
           for (const agent_id of agent_ids_to_add) {
@@ -252,18 +243,6 @@ const GroupConversationHeaderView = memo(({
 
           set_is_member_list_open(false);
         }}
-      />
-      <RoomSettingsPanel
-        fallback_avatar={resolved_room_avatar_id}
-        is_open={is_settings_open}
-        on_close={() => set_is_settings_open(false)}
-        on_delete_room={on_delete_room}
-        on_update_room={on_update_room}
-        room_avatar={room_avatar}
-        room_description={current_room_description}
-        room_id={room_id}
-        room_name={header_title}
-        room_skill_names={room_skill_names}
       />
     </>
   );

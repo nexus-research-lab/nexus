@@ -9,8 +9,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Check, Hash, Plus, Search, X } from "lucide-react";
+import { Bot, Check, ChevronDown, Hash, Loader2, Plus, Search, X } from "lucide-react";
 
+import { get_available_skills_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
 import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id, ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -24,6 +25,7 @@ import {
 } from "@/shared/ui/dialog/dialog-styles";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import type { SkillInfo } from "@/types/capability/skill";
 
 export interface RoomMemberAgentOption {
   agent_id: string;
@@ -45,13 +47,14 @@ interface CreateRoomDialogProps {
   initial_name?: string;
   initial_avatar?: string;
   initial_selected_agent_ids?: string[];
+  initial_room_skill_names?: string[];
   on_cancel: () => void;
-  on_confirm: (agent_ids: string[], name: string, avatar?: string) => void;
+  on_confirm: (agent_ids: string[], name: string, avatar?: string, skill_names?: string[]) => void;
 }
 
 const MAX_MEMBERS = 10;
-const EMPTY_AGENT_IDS: string[] = [];
-const AGENT_ID_SIGNATURE_SEPARATOR = "\x1f";
+const EMPTY_STRING_LIST: string[] = [];
+const STRING_LIST_SIGNATURE_SEPARATOR = "\x1f";
 
 export function CreateRoomDialog({
   agents,
@@ -64,6 +67,7 @@ export function CreateRoomDialog({
   initial_name = "",
   initial_avatar = "",
   initial_selected_agent_ids,
+  initial_room_skill_names,
   on_cancel,
   on_confirm,
 }: CreateRoomDialogProps) {
@@ -72,19 +76,36 @@ export function CreateRoomDialog({
   const [selected_ids, set_selected_ids] = useState<string[]>([]);
   const [room_name, set_room_name] = useState("");
   const [selected_avatar, set_selected_avatar] = useState("");
-  const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_AGENT_IDS;
+  const [selected_room_skill_names, set_selected_room_skill_names] = useState<string[]>([]);
+  const [available_room_skills, set_available_room_skills] = useState<SkillInfo[]>([]);
+  const [is_loading_room_skills, set_is_loading_room_skills] = useState(false);
+  const [room_skill_error, set_room_skill_error] = useState<string | null>(null);
+  const [is_room_skill_menu_open, set_is_room_skill_menu_open] = useState(false);
+  const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
+  const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
   // 数组 props 往往每次 render 都是新引用，依赖内容签名，
   // 避免弹窗打开时因默认空数组或父层重建数组而反复 setState。
   const initial_selected_ids_signature = useMemo(
-    () => normalized_initial_selected_ids.join(AGENT_ID_SIGNATURE_SEPARATOR),
+    () => normalized_initial_selected_ids.join(STRING_LIST_SIGNATURE_SEPARATOR),
     [normalized_initial_selected_ids],
   );
   const stable_initial_selected_ids = useMemo(
     () =>
       initial_selected_ids_signature === ""
         ? []
-        : initial_selected_ids_signature.split(AGENT_ID_SIGNATURE_SEPARATOR),
+        : initial_selected_ids_signature.split(STRING_LIST_SIGNATURE_SEPARATOR),
     [initial_selected_ids_signature],
+  );
+  const initial_room_skill_names_signature = useMemo(
+    () => normalized_initial_room_skill_names.join(STRING_LIST_SIGNATURE_SEPARATOR),
+    [normalized_initial_room_skill_names],
+  );
+  const stable_initial_room_skill_names = useMemo(
+    () =>
+      initial_room_skill_names_signature === ""
+        ? []
+        : initial_room_skill_names_signature.split(STRING_LIST_SIGNATURE_SEPARATOR),
+    [initial_room_skill_names_signature],
   );
 
   // 打开时重置状态
@@ -94,8 +115,46 @@ export function CreateRoomDialog({
       set_selected_ids(stable_initial_selected_ids);
       set_room_name(initial_name);
       set_selected_avatar(initial_avatar);
+      set_selected_room_skill_names(stable_initial_room_skill_names);
+      set_is_room_skill_menu_open(false);
     }
-  }, [initial_avatar, initial_name, initial_selected_ids_signature, is_open, stable_initial_selected_ids]);
+  }, [
+    initial_avatar,
+    initial_name,
+    initial_room_skill_names_signature,
+    initial_selected_ids_signature,
+    is_open,
+    stable_initial_room_skill_names,
+    stable_initial_selected_ids,
+  ]);
+
+  useEffect(() => {
+    if (!is_open) {
+      return;
+    }
+    let is_cancelled = false;
+    set_is_loading_room_skills(true);
+    set_room_skill_error(null);
+    get_available_skills_api({scope: "room"})
+      .then((items) => {
+        if (!is_cancelled) {
+          set_available_room_skills(items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!is_cancelled) {
+          set_room_skill_error(error instanceof Error ? error.message : t("room.skills_load_error"));
+        }
+      })
+      .finally(() => {
+        if (!is_cancelled) {
+          set_is_loading_room_skills(false);
+        }
+      });
+    return () => {
+      is_cancelled = true;
+    };
+  }, [is_open, t]);
 
   // ESC 关闭
   useEffect(() => {
@@ -121,6 +180,11 @@ export function CreateRoomDialog({
     [agents, selected_id_set],
   );
 
+  const selected_room_skill_name_set = useMemo(
+    () => new Set(selected_room_skill_names),
+    [selected_room_skill_names],
+  );
+
   const toggle_agent = useCallback((agent_id: string) => {
     set_selected_ids((prev) => {
       if (prev.includes(agent_id)) {
@@ -131,10 +195,19 @@ export function CreateRoomDialog({
     });
   }, []);
 
+  const toggle_room_skill = useCallback((skill_name: string) => {
+    set_selected_room_skill_names((prev) => {
+      if (prev.includes(skill_name)) {
+        return prev.filter((name) => name !== skill_name);
+      }
+      return [...prev, skill_name];
+    });
+  }, []);
+
   const handle_create = useCallback(() => {
     if (selected_ids.length === 0 || !room_name.trim()) return;
-    on_confirm(selected_ids, room_name.trim(), selected_avatar || undefined);
-  }, [on_confirm, room_name, selected_avatar, selected_ids]);
+    on_confirm(selected_ids, room_name.trim(), selected_avatar || undefined, selected_room_skill_names);
+  }, [on_confirm, room_name, selected_avatar, selected_ids, selected_room_skill_names]);
 
   if (!is_open) return null;
 
@@ -202,133 +275,67 @@ export function CreateRoomDialog({
             </button>
           </div>
 
-          {/* 内容区：左右两栏 */}
-          <div className="dialog-body flex min-h-0 flex-1 gap-5 overflow-hidden">
-            {/* 左栏：房间信息 */}
-            <div className="flex min-h-0 w-60 shrink-0 flex-col gap-3">
-              <p className="dialog-label">
-                {t("room.settings_title")}
-              </p>
-              <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-                    {preview_avatar_src ? (
-                      <img
-                        alt="room-avatar-preview"
-                        className="h-full w-full object-cover"
-                        src={preview_avatar_src}
-                      />
-                    ) : (
-                      <Hash className="h-4.5 w-4.5 text-(--icon-default)" />
-                    )}
+          {/* 内容区：成员管理 + 底部 Room Skill 标签行 */}
+          <div className="dialog-body flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            <div className="flex min-h-0 flex-1 gap-5 overflow-hidden">
+              {/* 左栏：房间信息 */}
+              <div className="flex min-h-0 w-60 shrink-0 flex-col gap-3">
+                <p className="dialog-label">
+                  {t("room.settings_title")}
+                </p>
+                <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
+                      {preview_avatar_src ? (
+                        <img
+                          alt="room-avatar-preview"
+                          className="h-full w-full object-cover"
+                          src={preview_avatar_src}
+                        />
+                      ) : (
+                        <Hash className="h-4.5 w-4.5 text-(--icon-default)" />
+                      )}
+                    </div>
+                    <input
+                      className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+                      maxLength={64}
+                      onChange={(e) => set_room_name(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && can_create) handle_create(); }}
+                      placeholder={t("room.name_required_placeholder")}
+                      required
+                      type="text"
+                      value={room_name}
+                    />
                   </div>
-                  <input
-                    className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
-                    maxLength={64}
-                    onChange={(e) => set_room_name(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && can_create) handle_create(); }}
-                    placeholder={t("room.name_required_placeholder")}
-                    required
-                    type="text"
-                    value={room_name}
+                  <IconPicker
+                    class_name="mt-3"
+                    disabled={is_creating}
+                    icon_family="room"
+                    layout="row"
+                    icon_size="sm"
+                    max_icons={ROOM_ICON_ID_END - ROOM_ICON_ID_START + 1}
+                    on_select={set_selected_avatar}
+                    show_clear={false}
+                    start_icon_id={ROOM_ICON_ID_START}
+                    value={selected_avatar}
                   />
                 </div>
-                <IconPicker
-                  class_name="mt-3"
-                  disabled={is_creating}
-                  icon_family="room"
-                  layout="row"
-                  icon_size="sm"
-                  max_icons={ROOM_ICON_ID_END - ROOM_ICON_ID_START + 1}
-                  on_select={set_selected_avatar}
-                  show_clear={false}
-                  start_icon_id={ROOM_ICON_ID_START}
-                  value={selected_avatar}
-                />
-              </div>
 
-              <p className="dialog-label">
-                {t("room.selected_members", { count: selected_ids.length, max: MAX_MEMBERS })}
-              </p>
+                <p className="dialog-label">
+                  {t("room.selected_members", { count: selected_ids.length, max: MAX_MEMBERS })}
+                </p>
 
-              <div
-                className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto rounded-2xl border border-(--divider-subtle-color) p-2.5"
-              >
-                {selected_agents.length > 0 ? (
-                  selected_agents.map((agent) => (
-                    <div
-                      key={agent.agent_id}
-                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-black/3"
-                    >
-                      <WorkspaceIconFrame
-                        class_name="h-6 w-6 overflow-hidden text-(--icon-default)"
-                        shape="round"
-                        size="sm"
-                      >
-                        {get_icon_avatar_src(agent.avatar) ? (
-                          <img
-                            alt={agent.name}
-                            className="h-full w-full object-cover"
-                            src={get_icon_avatar_src(agent.avatar) ?? undefined}
-                          />
-                        ) : (
-                          get_initials(agent.name)
-                        )}
-                      </WorkspaceIconFrame>
-                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-strong)">
-                        {agent.name}
-                      </span>
-                      <button
-                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-(--text-soft) transition-colors hover:text-red-500"
-                        onClick={() => toggle_agent(agent.agent_id)}
-                        type="button"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="flex flex-1 items-center justify-center text-[12px] text-(--text-soft)">
-                    {t("room.add_from_left")}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* 右栏：Agent 列表 */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-              {/* 搜索框 */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)" />
-                <input
-                  className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
-                  onChange={(e) => set_search_query(e.target.value)}
-                  placeholder={t("room.search_agent_placeholder")}
-                  type="text"
-                  value={search_query}
-                />
-              </div>
-
-              <p className="dialog-label">
-                {t("room.all_agents", { count: filtered_agents.length })}
-              </p>
-
-              <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-(--divider-subtle-color) p-2.5">
-                <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
-                  {filtered_agents.map((agent) => {
-                    const is_selected = selected_id_set.has(agent.agent_id);
-                    return (
-                      <button
+                <div
+                  className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto rounded-2xl border border-(--divider-subtle-color) p-2.5"
+                >
+                  {selected_agents.length > 0 ? (
+                    selected_agents.map((agent) => (
+                      <div
                         key={agent.agent_id}
-                        className={cn(
-                          "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition-all duration-(--motion-duration-normal)",
-                          is_selected && "dialog-card-active",
-                        )}
-                        onClick={() => toggle_agent(agent.agent_id)}
-                        type="button"
+                        className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-black/3"
                       >
                         <WorkspaceIconFrame
-                          class_name="overflow-hidden text-(--icon-default)"
+                          class_name="h-6 w-6 overflow-hidden text-(--icon-default)"
                           shape="round"
                           size="sm"
                         >
@@ -339,41 +346,203 @@ export function CreateRoomDialog({
                               src={get_icon_avatar_src(agent.avatar) ?? undefined}
                             />
                           ) : (
-                            <Bot className="h-4 w-4" />
+                            get_initials(agent.name)
                           )}
                         </WorkspaceIconFrame>
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-(--text-strong)">
-                            {agent.name}
-                          </p>
-                          <p className="truncate text-[10px] text-(--text-muted)">
-                            {agent.headline?.trim()
-                              || agent.description?.trim()
-                              || agent.status
-                              || t("status.idle")}
-                          </p>
-                        </div>
-
-                        <div
-                          className={cn(
-                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
-                            is_selected
-                              ? "bg-primary text-white"
-                              : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
-                          )}
+                        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-strong)">
+                          {agent.name}
+                        </span>
+                        <button
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-(--text-soft) transition-colors hover:text-red-500"
+                          onClick={() => toggle_agent(agent.agent_id)}
+                          type="button"
                         >
-                          {is_selected ? (
-                            <Check className="h-3 w-3" />
-                          ) : (
-                            <Plus className="h-3 w-3" />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="flex flex-1 items-center justify-center text-[12px] text-(--text-soft)">
+                      {t("room.add_from_left")}
+                    </p>
+                  )}
                 </div>
               </div>
+
+              {/* 右栏：Agent 列表 */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+                {/* 搜索框 */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)" />
+                  <input
+                    className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+                    onChange={(e) => set_search_query(e.target.value)}
+                    placeholder={t("room.search_agent_placeholder")}
+                    type="text"
+                    value={search_query}
+                  />
+                </div>
+
+                <p className="dialog-label">
+                  {t("room.all_agents", { count: filtered_agents.length })}
+                </p>
+
+                <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-(--divider-subtle-color) p-2.5">
+                  <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+                    {filtered_agents.map((agent) => {
+                      const is_selected = selected_id_set.has(agent.agent_id);
+                      return (
+                        <button
+                          key={agent.agent_id}
+                          className={cn(
+                            "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition-all duration-(--motion-duration-normal)",
+                            is_selected && "dialog-card-active",
+                          )}
+                          onClick={() => toggle_agent(agent.agent_id)}
+                          type="button"
+                        >
+                          <WorkspaceIconFrame
+                            class_name="overflow-hidden text-(--icon-default)"
+                            shape="round"
+                            size="sm"
+                          >
+                            {get_icon_avatar_src(agent.avatar) ? (
+                              <img
+                                alt={agent.name}
+                                className="h-full w-full object-cover"
+                                src={get_icon_avatar_src(agent.avatar) ?? undefined}
+                              />
+                            ) : (
+                              <Bot className="h-4 w-4" />
+                            )}
+                          </WorkspaceIconFrame>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-(--text-strong)">
+                              {agent.name}
+                            </p>
+                            <p className="truncate text-[10px] text-(--text-muted)">
+                              {agent.headline?.trim()
+                                || agent.description?.trim()
+                                || agent.status
+                                || t("status.idle")}
+                            </p>
+                          </div>
+
+                          <div
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
+                              is_selected
+                                ? "bg-primary text-white"
+                                : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
+                            )}
+                          >
+                            {is_selected ? (
+                              <Check className="h-3 w-3" />
+                            ) : (
+                              <Plus className="h-3 w-3" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative shrink-0">
+              {is_room_skill_menu_open ? (
+                <div className="soft-scrollbar absolute bottom-full left-0 right-0 z-20 mb-2 max-h-56 overflow-y-auto rounded-2xl border border-(--divider-subtle-color) bg-(--surface-panel-background) p-2 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                  {is_loading_room_skills ? (
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-(--text-soft)">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("room.skills_loading")}
+                    </div>
+                  ) : room_skill_error ? (
+                    <div className="rounded-xl border border-red-200 px-3 py-2 text-sm text-red-700">
+                      {room_skill_error}
+                    </div>
+                  ) : available_room_skills.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-(--text-soft)">
+                      {t("room.skills_empty")}
+                    </div>
+                  ) : (
+                    available_room_skills.map((skill) => {
+                      const checked = selected_room_skill_name_set.has(skill.name);
+                      return (
+                        <button
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition duration-(--motion-duration-fast)",
+                            checked
+                              ? "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--text-strong)"
+                              : "text-(--text-default) hover:bg-black/4",
+                          )}
+                          key={skill.name}
+                          onClick={() => toggle_room_skill(skill.name)}
+                          type="button"
+                        >
+                          <span
+                            className={cn(
+                              "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-[5px] border transition duration-(--motion-duration-fast)",
+                              checked
+                                ? "border-(--primary) bg-primary text-white"
+                                : "border-(--surface-interactive-hover-border) bg-(--surface-panel-background)",
+                            )}
+                          >
+                            {checked ? <Check className="h-3 w-3" /> : null}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold">
+                              {skill.name}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : null}
+              <button
+                aria-label={t("room.skills_label")}
+                aria-expanded={is_room_skill_menu_open}
+                aria-haspopup="listbox"
+                className={cn(
+                  "flex min-h-12 w-full items-center gap-3 rounded-2xl border border-(--divider-subtle-color) px-4 py-2.5 text-left transition duration-(--motion-duration-fast)",
+                  is_room_skill_menu_open
+                    ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]"
+                    : "hover:border-(--surface-interactive-hover-border)",
+                )}
+                onClick={() => set_is_room_skill_menu_open((current) => !current)}
+                type="button"
+              >
+                <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                  {selected_room_skill_names.length > 0 ? (
+                    selected_room_skill_names.map((skill_name) => (
+                      <span
+                        className="max-w-[11rem] truncate rounded-full border border-(--divider-subtle-color) bg-(--surface-muted-background) px-2 py-0.5 text-[11px] font-semibold text-(--text-strong)"
+                        key={skill_name}
+                      >
+                        {skill_name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-(--text-soft)">
+                      {t("room.skills_none")}
+                    </span>
+                  )}
+                </span>
+                {is_loading_room_skills ? (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-(--text-soft)" />
+                ) : (
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-(--text-soft) transition-transform duration-(--motion-duration-fast)",
+                      is_room_skill_menu_open && "rotate-180",
+                    )}
+                  />
+                )}
+              </button>
             </div>
           </div>
 

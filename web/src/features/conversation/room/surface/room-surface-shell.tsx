@@ -21,7 +21,6 @@ interface RoomSurfaceShellProps {
   room_members: Agent[];
   available_room_agents: Agent[];
   current_room_title: string;
-  current_room_description: string;
   room_skill_names: string[];
   current_room_conversation: RoomConversationView | null;
   current_agent_session_identity: AgentConversationIdentity | null;
@@ -44,7 +43,6 @@ interface RoomSurfaceShellProps {
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
   on_open_member_manager: () => Promise<void>;
-  on_delete_room: () => Promise<void>;
   on_save_agent_options: (agent_id: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
   on_validate_agent_name: (name: string, agent_id?: string) => Promise<AgentNameValidationResult>;
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
@@ -66,7 +64,6 @@ export function RoomSurfaceShell({
   room_members,
   available_room_agents,
   current_room_title,
-  current_room_description,
   room_skill_names,
   current_room_conversation,
   current_agent_session_identity,
@@ -89,7 +86,6 @@ export function RoomSurfaceShell({
   on_add_room_member,
   on_remove_room_member,
   on_open_member_manager,
-  on_delete_room,
   on_save_agent_options,
   on_validate_agent_name,
   on_update_room,
@@ -167,7 +163,6 @@ export function RoomSurfaceShell({
       room_avatar={room_avatar}
       room_members={room_members}
       current_room_title={current_room_title}
-      current_room_description={current_room_description}
       room_skill_names={room_skill_names}
       current_agent_session_identity={current_agent_session_identity}
       conversation_id={conversation_id}
@@ -183,7 +178,6 @@ export function RoomSurfaceShell({
       on_add_room_member={on_add_room_member}
       on_open_member_manager={on_open_member_manager}
       on_remove_room_member={on_remove_room_member}
-      on_delete_room={on_delete_room}
       on_save_agent_options={on_save_agent_options}
       on_validate_agent_name={on_validate_agent_name}
       on_change_surface_tab={handle_change_surface_tab}
