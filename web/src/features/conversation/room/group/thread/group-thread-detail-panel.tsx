@@ -141,6 +141,7 @@ export function GroupThreadDetailPanel({
             compact
             current_agent_name={agent_name}
             current_agent_avatar={agent_avatar ?? null}
+            workspace_agent_id={agent_id}
             current_user_avatar={user_avatar ?? null}
             round_id={round_id}
             messages={messages}

@@ -34,7 +34,7 @@ const (
 const ScopeRoom = scopeRoom
 
 var (
-	systemSkillNames   = map[string]struct{}{"memory-manager": {}, "scheduled-task-manager": {}}
+	systemSkillNames   = map[string]struct{}{"imagegen": {}, "memory-manager": {}, "scheduled-task-manager": {}}
 	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
 	curatedEntriesOnce sync.Once
 	curatedEntriesData map[string]map[string]string

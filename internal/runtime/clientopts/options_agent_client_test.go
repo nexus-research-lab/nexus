@@ -2,6 +2,9 @@ package clientopts
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -70,6 +73,23 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
+	workspacePath := "/tmp/workspace"
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	pathItems := strings.Split(options.Env["PATH"], string(os.PathListSeparator))
+	if len(pathItems) == 0 || pathItems[0] != filepath.Join(workspacePath, ".agents", "bin") {
+		t.Fatalf("运行时 PATH 未优先注入 workspace bin: %q", options.Env["PATH"])
+	}
+	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
+		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
 	}
 }
 

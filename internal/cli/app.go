@@ -76,6 +76,7 @@ func New(cfg config.Config) (*cobra.Command, error) {
 	root.AddCommand(newLauncherCommand(services))
 	root.AddCommand(newChannelCommand(services))
 	root.AddCommand(newAutomationCommand(services))
+	root.AddCommand(newImagegenCommand(services))
 	root.AddCommand(newMemoryCommand())
 
 	return root, nil
@@ -145,7 +146,7 @@ func buildScopedCLIContext(
 
 func commandRequiresUserScope(cmd *cobra.Command) bool {
 	switch commandDomain(cmd) {
-	case "", "auth", "user", "memory", "channel", "completion", "help":
+	case "", "auth", "user", "memory", "channel", "imagegen", "completion", "help":
 		return false
 	default:
 		return true

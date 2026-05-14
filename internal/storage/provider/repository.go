@@ -35,6 +35,7 @@ func (r *Repository) List(ctx context.Context) ([]Entity, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT
     id,
+    provider_kind,
     provider,
     display_name,
     auth_token,
@@ -66,6 +67,7 @@ func (r *Repository) GetByProvider(ctx context.Context, provider string) (*Entit
 	row := r.db.QueryRowContext(ctx, `
 SELECT
     id,
+    provider_kind,
     provider,
     display_name,
     auth_token,
@@ -91,9 +93,10 @@ LIMIT 1`, strings.TrimSpace(provider))
 func (r *Repository) Create(ctx context.Context, item Entity) error {
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO provider (
-    id, provider, display_name, auth_token, base_url, model, enabled, is_default, created_at, updated_at
-) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`)`,
+    id, provider_kind, provider, display_name, auth_token, base_url, model, enabled, is_default, created_at, updated_at
+) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`)`,
 		item.ID,
+		item.ProviderKind,
 		item.Provider,
 		item.DisplayName,
 		item.AuthToken,
@@ -130,12 +133,19 @@ WHERE provider = `+r.bind(8),
 	return err
 }
 
-func (r *Repository) UpdateDefaultFlags(ctx context.Context, targetProvider string) error {
+func (r *Repository) UpdateDefaultFlags(ctx context.Context, providerKind string, targetProvider string) error {
+	kind := strings.TrimSpace(providerKind)
 	if strings.TrimSpace(targetProvider) == "" {
 		query := `
 UPDATE provider
 SET is_default = ` + r.falseValue() + `,
     updated_at = ` + r.currentTimestamp()
+		if kind != "" {
+			query += `
+WHERE provider_kind = ` + r.bind(1)
+			_, err := r.db.ExecContext(ctx, query, kind)
+			return err
+		}
 		_, err := r.db.ExecContext(ctx, query)
 		return err
 	}
@@ -143,8 +153,9 @@ SET is_default = ` + r.falseValue() + `,
 UPDATE provider
 SET is_default = CASE WHEN provider = ` + r.bind(1) + ` THEN ` + r.trueValue() + ` ELSE ` + r.falseValue() + ` END,
     updated_at = ` + r.currentTimestamp() + `
-WHERE enabled = ` + r.trueValue()
-	_, err := r.db.ExecContext(ctx, query, strings.TrimSpace(targetProvider))
+WHERE enabled = ` + r.trueValue() + `
+  AND provider_kind = ` + r.bind(2)
+	_, err := r.db.ExecContext(ctx, query, strings.TrimSpace(targetProvider), kind)
 	return err
 }
 
@@ -218,6 +229,7 @@ func scanEntity(scanner interface {
 	var item Entity
 	err := scanner.Scan(
 		&item.ID,
+		&item.ProviderKind,
 		&item.Provider,
 		&item.DisplayName,
 		&item.AuthToken,
@@ -232,6 +244,10 @@ func scanEntity(scanner interface {
 		return Entity{}, err
 	}
 	item.Provider = strings.TrimSpace(item.Provider)
+	item.ProviderKind = strings.TrimSpace(item.ProviderKind)
+	if item.ProviderKind == "" {
+		item.ProviderKind = "llm"
+	}
 	item.DisplayName = strings.TrimSpace(item.DisplayName)
 	item.AuthToken = strings.TrimSpace(item.AuthToken)
 	item.BaseURL = strings.TrimSpace(item.BaseURL)

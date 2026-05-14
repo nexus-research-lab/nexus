@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Provider 支持选择 `llm` / `image_generation` 类型；图片生成 Provider 通过 `nexusctl imagegen` 调用后端 Go 图片生成服务，并保存到当前 Agent workspace。
+- 新增 `imagegen` 系统托管 Skill，参考 OpenAI Codex imagegen sample 收口图片生成、透明背景和 workspace 落地约定。
+- 前端会话消息支持展示结构化 `image` content block，并会把 Markdown 中指向 workspace 的图片路径转成内联预览。
 - 新增 `MESSAGE_DEBUG_STREAM_EVENT` 配置项，并按官方 `StreamEvent -> AssistantMessage -> ResultMessage` 流程梳理 message debug 日志；debug 默认不记录高频 StreamEvent，开启该配置后才输出流式事件。
 - Room `private_message` 创建后会自动唤醒目标成员；目标正忙时先进入 Room 待发送队列，空闲后再消费私域 action。
 - Room action 的 `reply_target` 开始控制目标回复投影：非 `public_feed` 回复不进入公区，`sender_private` 与 `audience` 会写回私域 action log。

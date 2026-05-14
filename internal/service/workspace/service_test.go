@@ -44,6 +44,28 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
+		t.Fatalf("系统托管 imagegen skill 未部署: %v", err)
+	}
+	nexusctlShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")
+	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
+		t.Fatalf("nexusctl shim 未生成: %v", statErr)
+	} else if info.Mode()&0o111 == 0 {
+		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
+	}
+	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
+	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {
+		t.Fatalf("创建 stale imagegen 目录失败: %v", err)
+	}
+	if err = os.WriteFile(staleImagegenScript, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("写入 stale imagegen 脚本失败: %v", err)
+	}
+	if err = EnsureInitialized(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.IsMain, agentValue.CreatedAt); err != nil {
+		t.Fatalf("重新初始化 workspace 失败: %v", err)
+	}
+	if _, err = os.Stat(staleImagegenScript); !os.IsNotExist(err) {
+		t.Fatalf("系统托管 skill 同步后应删除已移除脚本: %v", err)
+	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")); err != nil {
 		t.Fatalf("系统托管 scheduled-task-manager skill 未部署: %v", err)
 	}

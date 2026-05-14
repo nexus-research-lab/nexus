@@ -16,6 +16,13 @@ import (
 
 var providerPattern = regexp.MustCompile(`[^a-z0-9]+`)
 
+const (
+	// ProviderKindLLM 表示对话运行时 Provider。
+	ProviderKindLLM = "llm"
+	// ProviderKindImageGeneration 表示图片生成 Provider。
+	ProviderKindImageGeneration = "image_generation"
+)
+
 // Service 提供 Provider 配置管理与运行时解析。
 type Service struct {
 	repository *providerstore.Repository
@@ -44,7 +51,11 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	}
 	result := make([]Record, 0, len(items))
 	for _, item := range items {
-		result = append(result, toRecord(item, usageCounts[item.Provider]))
+		usageCount := 0
+		if item.ProviderKind == ProviderKindLLM {
+			usageCount = usageCounts[item.Provider]
+		}
+		result = append(result, toRecord(item, usageCount))
 	}
 	return result, nil
 }
@@ -59,7 +70,7 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 		Items: make([]Option, 0, len(items)),
 	}
 	for _, item := range items {
-		if !item.Enabled {
+		if !item.Enabled || item.ProviderKind != ProviderKindLLM {
 			continue
 		}
 		if item.IsDefault {
@@ -82,7 +93,7 @@ func (s *Service) DefaultProvider(ctx context.Context) (*string, error) {
 		return nil, err
 	}
 	for _, item := range items {
-		if item.Enabled && item.IsDefault {
+		if item.Enabled && item.IsDefault && item.ProviderKind == ProviderKindLLM {
 			value := item.Provider
 			return &value, nil
 		}
@@ -103,8 +114,12 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 	if err != nil {
 		return AvailabilityState{}, err
 	}
-	state := AvailabilityState{Total: len(items)}
+	state := AvailabilityState{}
 	for _, item := range items {
+		if item.ProviderKind != ProviderKindLLM {
+			continue
+		}
+		state.Total++
 		if !item.Enabled {
 			continue
 		}
@@ -131,21 +146,22 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error
 	}
 	now := s.now()
 	item := providerstore.Entity{
-		ID:          s.idFactory("provider"),
-		Provider:    normalized.Provider,
-		DisplayName: normalized.DisplayName,
-		AuthToken:   normalized.AuthToken,
-		BaseURL:     normalized.BaseURL,
-		Model:       normalized.Model,
-		Enabled:     normalized.Enabled,
-		IsDefault:   normalized.IsDefault,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:           s.idFactory("provider"),
+		ProviderKind: normalized.ProviderKind,
+		Provider:     normalized.Provider,
+		DisplayName:  normalized.DisplayName,
+		AuthToken:    normalized.AuthToken,
+		BaseURL:      normalized.BaseURL,
+		Model:        normalized.Model,
+		Enabled:      normalized.Enabled,
+		IsDefault:    normalized.IsDefault,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	if err = s.repository.Create(ctx, item); err != nil {
 		return nil, err
 	}
-	if err = s.ensureDefault(ctx, preferredDefault(item)); err != nil {
+	if err = s.ensureDefault(ctx, item.ProviderKind, preferredDefault(item)); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, item.Provider)
@@ -168,7 +184,7 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	if err != nil {
 		return nil, err
 	}
-	if usageCount > 0 && !input.Enabled {
+	if current.ProviderKind == ProviderKindLLM && usageCount > 0 && !input.Enabled {
 		return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能禁用", normalizedProvider, usageCount)
 	}
 	updated, err := normalizeUpdateInput(*current, input)
@@ -179,7 +195,7 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	if err = s.repository.Update(ctx, updated); err != nil {
 		return nil, err
 	}
-	if err = s.ensureDefault(ctx, preferredDefault(updated)); err != nil {
+	if err = s.ensureDefault(ctx, updated.ProviderKind, preferredDefault(updated)); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, normalizedProvider)
@@ -202,13 +218,13 @@ func (s *Service) Delete(ctx context.Context, provider string) error {
 	if err != nil {
 		return err
 	}
-	if usageCount > 0 {
+	if current.ProviderKind == ProviderKindLLM && usageCount > 0 {
 		return fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
 	}
 	if err = s.repository.Delete(ctx, normalizedProvider); err != nil {
 		return err
 	}
-	return s.ensureDefault(ctx, "")
+	return s.ensureDefault(ctx, current.ProviderKind, "")
 }
 
 // Get 读取单个 Provider 配置。
@@ -227,9 +243,13 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 	if item == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
-	usageCount, err := s.repository.UsageCount(ctx, item.Provider)
-	if err != nil {
-		return nil, err
+	usageCount := 0
+	if item.ProviderKind == ProviderKindLLM {
+		var countErr error
+		usageCount, countErr = s.repository.UsageCount(ctx, item.Provider)
+		if countErr != nil {
+			return nil, countErr
+		}
 	}
 	record := toRecord(*item, usageCount)
 	return &record, nil
@@ -249,7 +269,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*c
 	var target *providerstore.Entity
 	if targetProvider != "" {
 		for index := range items {
-			if items[index].Provider == targetProvider {
+			if items[index].Provider == targetProvider && items[index].ProviderKind == ProviderKindLLM {
 				target = &items[index]
 				break
 			}
@@ -259,17 +279,20 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*c
 		}
 	} else {
 		for index := range items {
-			if items[index].Enabled && items[index].IsDefault {
+			if items[index].Enabled && items[index].IsDefault && items[index].ProviderKind == ProviderKindLLM {
 				target = &items[index]
 				break
 			}
 		}
 	}
 	if target == nil {
-		return nil, errors.New("未配置可用的 Provider，请先到 Settings 添加 Provider")
+		return nil, errors.New("未配置可用的 LLM Provider，请先到 Settings 添加 Provider")
 	}
 	if !target.Enabled {
 		return nil, fmt.Errorf("provider=%s 已禁用", target.Provider)
+	}
+	if target.ProviderKind != ProviderKindLLM {
+		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
 	}
 
 	missing := make([]string, 0, 3)
@@ -294,6 +317,53 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*c
 	}, nil
 }
 
+// ResolveImageConfig 解析图片生成最终要使用的 OpenAI 兼容 Provider 配置。
+func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*ImageConfig, error) {
+	items, err := s.listAndNormalize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	targetProvider, err := NormalizeProvider(provider, true)
+	if err != nil {
+		return nil, err
+	}
+
+	target, err := selectImageProvider(items, targetProvider)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, errors.New("未配置可用的图片生成 Provider，请先到 Settings 添加 image_generation Provider")
+	}
+	if !target.Enabled {
+		return nil, fmt.Errorf("provider=%s 已禁用", target.Provider)
+	}
+	if target.ProviderKind != ProviderKindImageGeneration {
+		return nil, fmt.Errorf("provider=%s 不是图片生成 Provider", target.Provider)
+	}
+
+	missing := make([]string, 0, 3)
+	if target.AuthToken == "" {
+		missing = append(missing, "auth_token")
+	}
+	if target.BaseURL == "" {
+		missing = append(missing, "base_url")
+	}
+	if target.Model == "" {
+		missing = append(missing, "model")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("provider=%s 图片生成配置不完整: %s", target.Provider, strings.Join(missing, ", "))
+	}
+	return &ImageConfig{
+		Provider:    target.Provider,
+		DisplayName: target.DisplayName,
+		AuthToken:   target.AuthToken,
+		BaseURL:     target.BaseURL,
+		Model:       target.Model,
+	}, nil
+}
+
 // NormalizeProvider 规整 provider key。
 func NormalizeProvider(provider string, allowEmpty bool) (string, error) {
 	cleaned := strings.ToLower(strings.TrimSpace(provider))
@@ -308,6 +378,29 @@ func NormalizeProvider(provider string, allowEmpty bool) (string, error) {
 		return "", fmt.Errorf("非法的 provider: %s", provider)
 	}
 	return normalized, nil
+}
+
+func normalizeProviderKind(providerKind string) string {
+	switch strings.TrimSpace(providerKind) {
+	case "", ProviderKindLLM:
+		return ProviderKindLLM
+	case ProviderKindImageGeneration:
+		return ProviderKindImageGeneration
+	default:
+		return ProviderKindLLM
+	}
+}
+
+func filterItemsByKind(items []providerstore.Entity, providerKind string) []providerstore.Entity {
+	kind := normalizeProviderKind(providerKind)
+	filtered := make([]providerstore.Entity, 0, len(items))
+	for _, item := range items {
+		if normalizeProviderKind(item.ProviderKind) == kind {
+			item.ProviderKind = kind
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
@@ -325,16 +418,31 @@ func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity,
 	return items, nil
 }
 
-func (s *Service) ensureDefault(ctx context.Context, preferred string) error {
+func (s *Service) ensureDefault(ctx context.Context, providerKind string, preferred string) error {
 	items, err := s.repository.List(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = s.ensureDefaultFromItems(ctx, items, preferred)
+	_, err = s.ensureDefaultFromItems(ctx, filterItemsByKind(items, providerKind), preferred)
 	return err
 }
 
 func (s *Service) ensureDefaultFromItems(ctx context.Context, items []providerstore.Entity, preferred string) (bool, error) {
+	changed := false
+	for _, providerKind := range []string{ProviderKindLLM, ProviderKindImageGeneration} {
+		kindChanged, err := s.ensureDefaultForKind(ctx, filterItemsByKind(items, providerKind), preferred)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || kindChanged
+	}
+	return changed, nil
+}
+
+func (s *Service) ensureDefaultForKind(ctx context.Context, items []providerstore.Entity, preferred string) (bool, error) {
+	if len(items) == 0 {
+		return false, nil
+	}
 	target := strings.TrimSpace(preferred)
 	if target == "" {
 		for _, item := range items {
@@ -367,12 +475,12 @@ func (s *Service) ensureDefaultFromItems(ctx context.Context, items []providerst
 		if currentDefaultCount == 0 {
 			return false, nil
 		}
-		return true, s.repository.UpdateDefaultFlags(ctx, "")
+		return true, s.repository.UpdateDefaultFlags(ctx, items[0].ProviderKind, "")
 	}
 	if currentTargetIsDefault && currentDefaultCount == 1 {
 		return false, nil
 	}
-	return true, s.repository.UpdateDefaultFlags(ctx, target)
+	return true, s.repository.UpdateDefaultFlags(ctx, items[0].ProviderKind, target)
 }
 
 func normalizeCreateInput(input CreateInput) (CreateInput, error) {
@@ -381,13 +489,14 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 		return CreateInput{}, err
 	}
 	result := CreateInput{
-		Provider:    provider,
-		DisplayName: strings.TrimSpace(input.DisplayName),
-		AuthToken:   strings.TrimSpace(input.AuthToken),
-		BaseURL:     strings.TrimSpace(input.BaseURL),
-		Model:       strings.TrimSpace(input.Model),
-		Enabled:     input.Enabled,
-		IsDefault:   input.IsDefault,
+		ProviderKind: normalizeProviderKind(input.ProviderKind),
+		Provider:     provider,
+		DisplayName:  strings.TrimSpace(input.DisplayName),
+		AuthToken:    strings.TrimSpace(input.AuthToken),
+		BaseURL:      strings.TrimSpace(input.BaseURL),
+		Model:        strings.TrimSpace(input.Model),
+		Enabled:      input.Enabled,
+		IsDefault:    input.IsDefault,
 	}
 	if result.DisplayName == "" {
 		return CreateInput{}, errors.New("display_name 不能为空")
@@ -433,6 +542,28 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	return current, nil
 }
 
+func selectImageProvider(items []providerstore.Entity, targetProvider string) (*providerstore.Entity, error) {
+	if targetProvider != "" {
+		for index := range items {
+			if items[index].Provider == targetProvider && items[index].ProviderKind == ProviderKindImageGeneration {
+				return &items[index], nil
+			}
+		}
+		return nil, fmt.Errorf("provider 不存在: %s", targetProvider)
+	}
+	for index := range items {
+		if items[index].Enabled && items[index].ProviderKind == ProviderKindImageGeneration && items[index].IsDefault {
+			return &items[index], nil
+		}
+	}
+	for index := range items {
+		if items[index].Enabled && items[index].ProviderKind == ProviderKindImageGeneration {
+			return &items[index], nil
+		}
+	}
+	return nil, nil
+}
+
 func preferredDefault(item providerstore.Entity) string {
 	if item.Enabled && item.IsDefault {
 		return item.Provider
@@ -445,6 +576,7 @@ func toRecord(item providerstore.Entity, usageCount int) Record {
 	updatedAt := item.UpdatedAt
 	return Record{
 		ID:              item.ID,
+		ProviderKind:    item.ProviderKind,
 		Provider:        item.Provider,
 		DisplayName:     item.DisplayName,
 		AuthTokenMasked: maskToken(item.AuthToken),

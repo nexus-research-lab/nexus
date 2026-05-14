@@ -61,6 +61,7 @@ const PROVIDER_DANGER_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} 
 
 function build_provider_draft(is_first_provider: boolean): ProviderDraft {
   return {
+    provider_kind: "llm",
     provider: "",
     display_name: "",
     auth_token: "",
@@ -73,6 +74,7 @@ function build_provider_draft(is_first_provider: boolean): ProviderDraft {
 
 function to_provider_draft(item: ProviderConfigRecord): ProviderDraft {
   return {
+    provider_kind: item.provider_kind,
     provider: item.provider,
     display_name: item.display_name || item.provider,
     auth_token: "",
@@ -85,6 +87,21 @@ function to_provider_draft(item: ProviderConfigRecord): ProviderDraft {
 
 function get_provider_title(item: ProviderConfigRecord): string {
   return item.display_name || item.provider;
+}
+
+function get_provider_kind_label(provider_kind: ProviderConfigRecord["provider_kind"], t: ReturnType<typeof useI18n>["t"]): string {
+  return provider_kind === "image_generation"
+    ? t("settings.providers.kind_image_generation")
+    : t("settings.providers.kind_llm");
+}
+
+function get_default_provider_title(
+  provider_kind: ProviderConfigRecord["provider_kind"],
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  return provider_kind === "image_generation"
+    ? t("settings.providers.set_default_image_provider")
+    : t("settings.providers.set_default_llm_provider");
 }
 
 function format_provider_token_preview(masked_token?: string | null): string {
@@ -175,7 +192,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   ) => {
     const ordered_items = order_provider_records(items, providers_ref.current);
     set_providers(ordered_items);
-    set_default_agent_provider(ordered_items.find((item) => item.is_default)?.provider);
+    set_default_agent_provider(ordered_items.find((item) => item.provider_kind === "llm" && item.is_default)?.provider);
 
     if (ordered_items.length === 0) {
       set_mode("empty");
@@ -228,8 +245,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (providers.length === 0) {
       set_selected_provider(null);
     }
-    set_draft(build_provider_draft(providers.length === 0));
-  }, [providers.length]);
+    set_draft(build_provider_draft(!providers.some((item) => item.provider_kind === "llm")));
+  }, [providers]);
 
   const handle_cancel = useCallback(() => {
     if (providers.length === 0) {
@@ -248,6 +265,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     try {
       set_pending_default_provider(item.provider);
       await update_provider_config_api(item.provider, {
+        provider_kind: item.provider_kind,
         display_name: get_provider_title(item),
         base_url: item.base_url,
         model: item.model,
@@ -276,6 +294,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       const normalized_provider = draft.provider.trim();
       const normalized_display_name = draft.display_name.trim() || normalized_provider;
       const base_payload: UpdateProviderConfigPayload = {
+        provider_kind: draft.provider_kind,
         display_name: normalized_display_name,
         base_url: draft.base_url.trim(),
         model: draft.model.trim(),
@@ -293,6 +312,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
           provider: normalized_provider,
           auth_token: normalized_auth_token,
           ...base_payload,
+          provider_kind: draft.provider_kind,
         });
 
       await refresh_providers(result.provider);
@@ -356,6 +376,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   {providers.map((item) => {
                     const is_active = item.provider === selected_provider && is_editing;
                     const is_pending_default = pending_default_provider === item.provider;
+                    const is_image_provider = item.provider_kind === "image_generation";
+                    const default_title = get_default_provider_title(item.provider_kind, t);
                     return (
                       <div
                         className={cn(
@@ -380,15 +402,19 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             <span className="block truncate text-sm font-semibold text-(--text-strong)">
                               {get_provider_title(item)}
                             </span>
+                            <span className="mt-0.5 block truncate text-[10px] font-medium text-(--text-muted)">
+                              {get_provider_kind_label(item.provider_kind, t)}
+                            </span>
                           </div>
                           <div className="flex justify-end">
                             <button
-                              aria-label={t("settings.providers.set_default_provider")}
+                              aria-label={default_title}
                               className={cn(
                                 "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
-                                item.is_default
-                                  ? "cursor-default text-primary"
-                                  : "text-(--text-soft) hover:bg-(--surface-interactive-hover-background) hover:text-primary",
+                                item.is_default && !is_image_provider && "cursor-default text-primary",
+                                item.is_default && is_image_provider && "cursor-default text-[rgb(14,165,233)]",
+                                !item.is_default && !is_image_provider && "text-(--text-soft) hover:bg-(--surface-interactive-hover-background) hover:text-primary",
+                                !item.is_default && is_image_provider && "text-(--text-soft) hover:bg-[rgba(14,165,233,0.08)] hover:text-[rgb(14,165,233)]",
                                 is_pending_default && "opacity-(--disabled-opacity)",
                               )}
                               disabled={item.is_default || is_pending_default}
@@ -398,7 +424,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                                   void handle_set_default(item);
                                 }
                               }}
-                              title={t("settings.providers.set_default_provider")}
+                              title={default_title}
                               type="button"
                             >
                               {is_pending_default ? (
@@ -509,6 +535,26 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
                     <label className="space-y-1.5 md:col-span-2">
                       <span className="text-[11px] font-semibold text-(--text-muted)">
+                        {t("settings.providers.kind")}
+                      </span>
+                      <select
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
+                        onChange={(event) => set_draft((current) => ({
+                          ...current,
+                          provider_kind: event.target.value === "image_generation" ? "image_generation" : "llm",
+                          is_default: event.target.value === "image_generation"
+                            ? !providers.some((item) => item.provider_kind === "image_generation")
+                            : !providers.some((item) => item.provider_kind === "llm"),
+                        }))}
+                        value={draft.provider_kind}
+                      >
+                        <option value="llm">{t("settings.providers.kind_llm")}</option>
+                        <option value="image_generation">{t("settings.providers.kind_image_generation")}</option>
+                      </select>
+                    </label>
+
+                    <label className="space-y-1.5 md:col-span-2">
+                      <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.display_name")}
                       </span>
                       <input
@@ -574,6 +620,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         value={draft.auth_token}
                       />
                     </label>
+
                   </div>
                 </div>
 

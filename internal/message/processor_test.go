@@ -184,6 +184,21 @@ func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 	}
 }
 
+func TestNormalizeContentBlocksPreservesImagePayload(t *testing.T) {
+	blocks := normalizeContentBlocks([]sdkprotocol.ContentBlock{
+		sdkprotocol.ImageBlock{
+			Data:     "ZmFrZS1pbWFnZQ==",
+			MIMEType: "image/png",
+		},
+	})
+	if len(blocks) != 1 {
+		t.Fatalf("image block 数量不正确: %+v", blocks)
+	}
+	if blocks[0]["type"] != "image" || blocks[0]["data"] != "ZmFrZS1pbWFnZQ==" || blocks[0]["mime_type"] != "image/png" {
+		t.Fatalf("image block 未保留 data/mime_type: %+v", blocks[0])
+	}
+}
+
 func TestProcessorDoesNotPersistApiRetrySystemMessage(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
@@ -458,6 +473,66 @@ func TestProcessorHandlesToolResultMessage(t *testing.T) {
 	}
 	if blocks[1]["error_code"] != "permission_request_timeout" {
 		t.Fatalf("tool result 未正确附加 error_code: %+v", blocks[1])
+	}
+}
+
+func TestProcessorDropsUnmatchedSuccessfulToolResultMessage(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-unmatched-tool-result",
+		ParentID:   "round-unmatched-tool-result",
+	}, "")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolResultBlock{
+						ToolUseID: "missing-tool",
+						Content:   json.RawMessage(`"ok"`),
+						IsError:   false,
+					},
+				},
+			},
+		},
+	})
+
+	if len(output.DurableMessages) != 0 {
+		t.Fatalf("无匹配 tool_use 的成功 tool_result 不应生成 durable 消息: %+v", output.DurableMessages)
+	}
+}
+
+func TestProcessorKeepsUnmatchedErrorToolResultMessage(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-unmatched-tool-error",
+		ParentID:   "round-unmatched-tool-error",
+	}, "")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolResultBlock{
+						ToolUseID: "missing-tool",
+						Content:   json.RawMessage(`"failed"`),
+						IsError:   true,
+					},
+				},
+			},
+		},
+	})
+
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("无匹配 tool_use 的错误 tool_result 应保留诊断消息: %+v", output)
+	}
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 1 || blocks[0]["type"] != "tool_result" || blocks[0]["is_error"] != true {
+		t.Fatalf("错误 tool_result 内容不正确: %+v", blocks)
 	}
 }
 

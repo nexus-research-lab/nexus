@@ -47,6 +47,9 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if !containsSkill(items, "memory-manager") {
 		t.Fatalf("系统托管 skill 未暴露: %+v", items)
 	}
+	if !containsSkill(items, "imagegen") {
+		t.Fatalf("图片生成系统 skill 未暴露: %+v", items)
+	}
 	if !containsSkill(items, "scheduled-task-manager") {
 		t.Fatalf("定时任务系统 skill 未暴露: %+v", items)
 	}

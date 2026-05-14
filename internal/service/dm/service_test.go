@@ -940,6 +940,100 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissing(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+
+	resumeID := "sdk-legacy-resume-1"
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = resumeID
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-legacy-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	sender := newDMTestSender("sender-legacy-resume")
+	sessionKey := "agent:nexus:ws:dm:legacy-resume-chat"
+	permission.BindSession(sessionKey, sender, "client-legacy-resume", true)
+
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &resumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Legacy Resume Chat",
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("预写入 legacy 会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 legacy resume",
+		RoundID:    "round-legacy-resume",
+		ReqID:      "round-legacy-resume",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Session.ResumeID != resumeID {
+		t.Fatalf("legacy session 缺少 runtime 指纹时仍应 resume: %+v", options)
+	}
+	if options.Model != "glm-5.1" {
+		t.Fatalf("runtime 应使用当前 provider model: %+v", options)
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != resumeID {
+		t.Fatalf("legacy resume 不应被清空或替换: %+v", sessionValue)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeProvider] != "glm" {
+		t.Fatalf("legacy resume 后应补写 runtime provider 指纹: %+v", sessionValue.Options)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeModel] != "glm-5.1" {
+		t.Fatalf("legacy resume 后应补写 runtime model 指纹: %+v", sessionValue.Options)
+	}
+}
+
 func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)

@@ -8,9 +8,10 @@ import { MessageRail, MessageRailBody, MessageRailLabel } from "../ui/message-ra
 interface ThinkingBlockProps {
   thinking: string;
   is_streaming?: boolean;
+  workspace_agent_id?: string | null;
 }
 
-export function ThinkingBlock({ thinking, is_streaming }: ThinkingBlockProps) {
+export function ThinkingBlock({ thinking, is_streaming, workspace_agent_id }: ThinkingBlockProps) {
   const [is_expanded, set_is_expanded] = useState(false);
 
   // 流式思考需要即时可见，历史思考默认保持收起。
@@ -49,6 +50,7 @@ export function ThinkingBlock({ thinking, is_streaming }: ThinkingBlockProps) {
             content={thinking}
             is_streaming={is_streaming}
             class_name="min-w-0 max-w-full overflow-hidden break-all"
+            workspace_agent_id={workspace_agent_id}
           />
         </MessageRailBody>
       ) : null}

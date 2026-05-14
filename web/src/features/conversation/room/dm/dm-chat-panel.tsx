@@ -322,6 +322,7 @@ export function DmChatPanel({
           scroll_ref={scroll_ref}
           current_agent_name={current_agent_name ?? null}
           current_agent_avatar={current_agent_avatar ?? null}
+          workspace_agent_id={session_identity?.agent_id ?? null}
           current_user_avatar={current_user_avatar}
           is_last_round_pending_permissions={pending_permissions}
           is_loading={is_loading}

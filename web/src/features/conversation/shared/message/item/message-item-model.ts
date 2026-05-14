@@ -159,6 +159,7 @@ export function useMessageItemState({
   }, [messages]);
 
   const first_assistant = assistant_messages[0] as AssistantMessage | undefined;
+  const assistant_agent_id = first_assistant?.agent_id ?? null;
   const model = first_assistant?.model;
   const timestamp =
     first_assistant?.timestamp ||
@@ -1098,6 +1099,7 @@ export function useMessageItemState({
     copied_assistant,
     user_message,
     user_content,
+    assistant_agent_id,
     model,
     timestamp,
     stream_status,

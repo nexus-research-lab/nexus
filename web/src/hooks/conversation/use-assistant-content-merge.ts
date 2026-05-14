@@ -178,7 +178,7 @@ function find_last_streamable_block_index(blocks: ContentBlock[]): number {
     if (!block) {
       continue;
     }
-    if (block.type === "text" || block.type === "thinking") {
+    if (block.type === "text" || block.type === "thinking" || block.type === "image") {
       return index;
     }
   }

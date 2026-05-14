@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	baseSkillNames        = []string{"memory-manager", "scheduled-task-manager"}
+	baseSkillNames        = []string{"imagegen", "memory-manager", "scheduled-task-manager"}
 	retiredBaseSkillNames = []string{"room-collaboration"}
 	mainAgentSkillNames   = []string{"nexus-manager"}
 	workspaceFiles        = map[string]string{
@@ -49,6 +49,9 @@ func EnsureInitialized(
 	}
 
 	context := buildTemplateContext(agentID, agentName, root, createdAt)
+	if err := ensureNexusctlShim(root, context); err != nil {
+		return err
+	}
 	for key, relativePath := range workspaceFiles {
 		targetPath := filepath.Join(root, relativePath)
 		if _, err := os.Stat(targetPath); err == nil {
@@ -165,6 +168,9 @@ func deployManagedSkill(skillName string, workspacePath string, context map[stri
 }
 
 func syncDirectory(sourceDir string, targetDir string, context map[string]string) error {
+	if err := os.RemoveAll(targetDir); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return err
 	}
@@ -196,6 +202,35 @@ func syncDirectory(sourceDir string, targetDir string, context map[string]string
 		}
 		return copyFile(path, targetPath)
 	})
+}
+
+func ensureNexusctlShim(workspacePath string, context map[string]string) error {
+	binDir := filepath.Join(workspacePath, ".agents", "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return err
+	}
+	content := renderTemplate(`#!/bin/sh
+set -eu
+
+PROJECT_ROOT="${NEXUS_PROJECT_ROOT:-{project_root}}"
+
+if [ -f "$PROJECT_ROOT/cmd/nexusctl/main.go" ]; then
+  cd "$PROJECT_ROOT"
+  exec go run ./cmd/nexusctl "$@"
+fi
+
+if [ -x "$PROJECT_ROOT/bin/nexusctl" ]; then
+  exec "$PROJECT_ROOT/bin/nexusctl" "$@"
+fi
+
+if [ -x "$PROJECT_ROOT/nexusctl" ]; then
+  exec "$PROJECT_ROOT/nexusctl" "$@"
+fi
+
+echo "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl" >&2
+exit 127
+`, context)
+	return os.WriteFile(filepath.Join(binDir, "nexusctl"), []byte(content), 0o755)
 }
 
 func ensureRelativeSymlink(linkPath string, relativeTarget string) error {

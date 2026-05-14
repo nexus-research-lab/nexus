@@ -2,8 +2,11 @@ package clientopts
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
@@ -12,6 +15,9 @@ import (
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
+
+// NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
+const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
 const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
@@ -49,6 +55,7 @@ func BuildAgentClientOptions(
 		return agentclient.Options{}, err
 	}
 	runtimeEnv := runtimeEnvFromConfig(runtimeConfig)
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 
@@ -150,6 +157,7 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
 		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
+		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 	}
 	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
 		env["ENABLE_TOOL_SEARCH"] = "false"
@@ -203,6 +211,24 @@ func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
 		}
 	}
 	return nil
+}
+
+func workspaceRuntimeEnv(workspacePath string) map[string]string {
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	if trimmedWorkspacePath == "" {
+		return nil
+	}
+	binDir := filepath.Join(trimmedWorkspacePath, ".agents", "bin")
+	env := map[string]string{
+		"NEXUS_PROJECT_ROOT": strings.TrimSpace(appfs.Root()),
+	}
+	currentPath := strings.TrimSpace(os.Getenv("PATH"))
+	if currentPath == "" {
+		env["PATH"] = binDir
+	} else {
+		env["PATH"] = binDir + string(os.PathListSeparator) + currentPath
+	}
+	return env
 }
 
 func mergeRuntimeEnv(

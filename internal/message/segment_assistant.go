@@ -154,6 +154,23 @@ func (s *AssistantSegment) FindToolName(toolUseID string) string {
 	return ""
 }
 
+// HasToolUse 表示当前段是否包含指定工具调用。
+func (s *AssistantSegment) HasToolUse(toolUseID string) bool {
+	trimmedToolUseID := normalizeString(toolUseID)
+	if trimmedToolUseID == "" {
+		return false
+	}
+	for _, block := range s.content {
+		if normalizeString(block["type"]) != "tool_use" {
+			continue
+		}
+		if normalizeString(block["id"]) == trimmedToolUseID {
+			return true
+		}
+	}
+	return false
+}
+
 // MessageID 返回当前 assistant message_id。
 func (s *AssistantSegment) MessageID() string {
 	s.EnsureStarted()
