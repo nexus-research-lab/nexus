@@ -453,18 +453,18 @@ export function CreateRoomDialog({
 
             <div className="relative shrink-0">
               {is_room_skill_menu_open ? (
-                <div className="soft-scrollbar absolute bottom-full left-0 right-0 z-20 mb-2 max-h-56 overflow-y-auto rounded-2xl border border-(--divider-subtle-color) bg-(--surface-panel-background) p-2 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                <div className="soft-scrollbar absolute bottom-full left-0 right-0 z-20 mb-2 max-h-52 overflow-y-auto rounded-xl border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1.5 shadow-[0_14px_34px_rgba(15,23,42,0.14)]">
                   {is_loading_room_skills ? (
-                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-(--text-soft)">
+                    <div className="flex h-9 items-center gap-2 px-2.5 text-sm text-(--text-soft)">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       {t("room.skills_loading")}
                     </div>
                   ) : room_skill_error ? (
-                    <div className="rounded-xl border border-red-200 px-3 py-2 text-sm text-red-700">
+                    <div className="rounded-lg border border-red-200 px-2.5 py-2 text-sm text-red-700">
                       {room_skill_error}
                     </div>
                   ) : available_room_skills.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-(--text-soft)">
+                    <div className="flex h-9 items-center px-2.5 text-sm text-(--text-soft)">
                       {t("room.skills_empty")}
                     </div>
                   ) : (
@@ -473,10 +473,10 @@ export function CreateRoomDialog({
                       return (
                         <button
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition duration-(--motion-duration-fast)",
+                            "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition duration-(--motion-duration-fast)",
                             checked
-                              ? "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--text-strong)"
-                              : "text-(--text-default) hover:bg-black/4",
+                              ? "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--text-strong)"
+                              : "text-(--text-default) hover:bg-(--surface-muted-background)",
                           )}
                           key={skill.name}
                           onClick={() => toggle_room_skill(skill.name)}
@@ -484,7 +484,7 @@ export function CreateRoomDialog({
                         >
                           <span
                             className={cn(
-                              "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-[5px] border transition duration-(--motion-duration-fast)",
+                              "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition duration-(--motion-duration-fast)",
                               checked
                                 ? "border-(--primary) bg-primary text-white"
                                 : "border-(--surface-interactive-hover-border) bg-(--surface-panel-background)",
@@ -493,7 +493,7 @@ export function CreateRoomDialog({
                             {checked ? <Check className="h-3 w-3" /> : null}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold">
+                            <span className="block truncate text-[13px] font-semibold">
                               {skill.name}
                             </span>
                           </span>
@@ -508,10 +508,10 @@ export function CreateRoomDialog({
                 aria-expanded={is_room_skill_menu_open}
                 aria-haspopup="listbox"
                 className={cn(
-                  "flex min-h-12 w-full items-center gap-3 rounded-2xl border border-(--divider-subtle-color) px-4 py-2.5 text-left transition duration-(--motion-duration-fast)",
+                  "flex min-h-10 w-full items-center gap-2 rounded-xl border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2 text-left transition duration-(--motion-duration-fast)",
                   is_room_skill_menu_open
-                    ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]"
-                    : "hover:border-(--surface-interactive-hover-border)",
+                    ? "border-(--surface-interactive-hover-border) bg-(--surface-muted-background)"
+                    : "hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-muted-background)",
                 )}
                 onClick={() => set_is_room_skill_menu_open((current) => !current)}
                 type="button"
@@ -520,14 +520,14 @@ export function CreateRoomDialog({
                   {selected_room_skill_names.length > 0 ? (
                     selected_room_skill_names.map((skill_name) => (
                       <span
-                        className="max-w-[11rem] truncate rounded-full border border-(--divider-subtle-color) bg-(--surface-muted-background) px-2 py-0.5 text-[11px] font-semibold text-(--text-strong)"
+                        className="max-w-[11rem] truncate rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 py-0.5 text-[11px] font-semibold text-(--text-strong)"
                         key={skill_name}
                       >
                         {skill_name}
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs text-(--text-soft)">
+                    <span className="rounded-full border border-dashed border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-medium text-(--text-soft)">
                       {t("room.skills_none")}
                     </span>
                   )}
