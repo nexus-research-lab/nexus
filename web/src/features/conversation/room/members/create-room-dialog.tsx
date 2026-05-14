@@ -217,6 +217,18 @@ export function CreateRoomDialog({
     });
   }, []);
 
+  const remove_room_skill = useCallback((skill_name: string) => {
+    set_selected_room_skill_names((prev) => prev.filter((name) => name !== skill_name));
+  }, []);
+
+  const handle_room_skill_trigger_key_down = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    set_is_room_skill_menu_open((current) => !current);
+  }, []);
+
   const handle_create = useCallback(() => {
     if (selected_ids.length === 0 || !room_name.trim()) return;
     on_confirm(selected_ids, room_name.trim(), selected_avatar || undefined, selected_room_skill_names);
@@ -470,10 +482,10 @@ export function CreateRoomDialog({
                   className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-[18px] border border-(--modal-card-border) bg-(--modal-dialog-body-background) shadow-[0_18px_48px_rgba(15,23,42,0.2)]"
                   role="listbox"
                 >
-                  <div className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) bg-(--modal-dialog-header-background) px-3">
-                    <Search className="h-4 w-4 shrink-0 text-(--text-soft)" />
+                  <div className="flex h-10 items-center gap-2 border-b border-(--divider-subtle-color) bg-(--modal-dialog-header-background) px-3">
+                    <Search className="h-3.5 w-3.5 shrink-0 text-(--text-soft)" />
                     <input
-                      className="min-w-0 flex-1 bg-transparent text-sm font-medium text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+                      className="min-w-0 flex-1 appearance-none bg-transparent text-[13px] font-medium text-(--text-strong) outline-none ring-0 placeholder:text-(--text-soft) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                       onChange={(event) => set_room_skill_query(event.target.value)}
                       onClick={(event) => event.stopPropagation()}
                       placeholder={t("agent_options.skills.search_placeholder")}
@@ -495,14 +507,14 @@ export function CreateRoomDialog({
                       {t("room.skills_empty")}
                     </div>
                   ) : (
-                    <div className="soft-scrollbar max-h-60 overflow-y-auto py-1.5">
+                    <div className="soft-scrollbar max-h-52 overflow-y-auto py-1">
                       {filtered_room_skills.map((skill) => {
                         const checked = selected_room_skill_name_set.has(skill.name);
                         return (
                           <button
                             aria-selected={checked}
                             className={cn(
-                              "flex h-10 w-full items-center gap-3 px-3 text-left text-[14px] font-medium transition duration-(--motion-duration-fast)",
+                              "flex h-8 w-full items-center gap-2.5 px-3 text-left text-[13px] font-medium transition duration-(--motion-duration-fast)",
                               checked
                                 ? "bg-(--modal-input-focus-background) text-(--text-strong)"
                                 : "text-(--text-default) hover:bg-(--modal-input-background) hover:text-(--text-strong)",
@@ -515,8 +527,8 @@ export function CreateRoomDialog({
                             <span className="min-w-0 flex-1 truncate">
                               {skill.name}
                             </span>
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-(--text-default)">
-                              {checked ? <Check className="h-4 w-4" /> : null}
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center text-(--text-default)">
+                              {checked ? <Check className="h-3.5 w-3.5" /> : null}
                             </span>
                           </button>
                         );
@@ -525,7 +537,7 @@ export function CreateRoomDialog({
                   )}
                 </div>
               ) : null}
-              <button
+              <div
                 aria-label={t("room.skills_label")}
                 aria-expanded={is_room_skill_menu_open}
                 aria-haspopup="listbox"
@@ -535,17 +547,33 @@ export function CreateRoomDialog({
                     ? "border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color))] bg-(--modal-input-focus-background) ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
                     : "border-[color:color-mix(in_srgb,var(--modal-input-border)_88%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] hover:bg-(--modal-input-focus-background) hover:ring-1 hover:ring-inset hover:ring-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]",
                 )}
+                onKeyDown={handle_room_skill_trigger_key_down}
                 onClick={() => set_is_room_skill_menu_open((current) => !current)}
-                type="button"
+                role="button"
+                tabIndex={0}
               >
                 <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                   {selected_room_skill_names.length > 0 ? (
                     selected_room_skill_names.map((skill_name) => (
                       <span
-                        className="max-w-[11rem] truncate rounded-full border border-(--divider-subtle-color) bg-(--modal-dialog-body-background) px-2 py-0.5 text-[11px] font-semibold text-(--text-strong)"
+                        className="inline-flex max-w-[11rem] items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--modal-dialog-body-background) py-0.5 pl-2 pr-1 text-[11px] font-semibold text-(--text-strong)"
                         key={skill_name}
                       >
-                        {skill_name}
+                        <span className="min-w-0 truncate">
+                          {skill_name}
+                        </span>
+                        <button
+                          aria-label={`移除 ${skill_name}`}
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-(--text-soft) transition duration-(--motion-duration-fast) hover:bg-(--modal-input-background) hover:text-(--text-strong)"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            remove_room_skill(skill_name);
+                          }}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          type="button"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
                       </span>
                     ))
                   ) : (
@@ -564,7 +592,7 @@ export function CreateRoomDialog({
                     )}
                   />
                 )}
-              </button>
+              </div>
             </div>
           </div>
 
