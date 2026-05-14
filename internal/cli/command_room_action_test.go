@@ -482,6 +482,54 @@ func TestRoomActionPrivateMessageRequiresTargetOrAudience(t *testing.T) {
 
 }
 
+func TestRoomActionDelayedWakeRequiresDelaySeconds(t *testing.T) {
+	t.Setenv(nexusRoomIDEnvName, "room-1")
+	t.Setenv(nexusRoomConversationIDEnvName, "conversation-1")
+	t.Setenv(nexusRoomAgentIDEnvName, "agent-amy")
+	t.Setenv(nexusRoomInternalAPIBaseEnvName, "http://127.0.0.1:18032/nexus/v1")
+	t.Setenv(nexusRoomInternalTokenEnvName, "test-token")
+
+	errText := runCLICommandError(
+		t,
+		config.Config{Host: "127.0.0.1", Port: 18032, APIPrefix: "/nexus/v1"},
+		map[string]string{nexusctlUserIDEnvName: "user-1"},
+		"--json",
+		"room",
+		"action",
+		"private-message",
+		"--target-agent-id",
+		"agent-devin",
+		"--wake-policy",
+		"delayed",
+		"--content",
+		"hello",
+	)
+	if !strings.Contains(errText, "wake-policy=delayed requires --delay-seconds") {
+		t.Fatalf("delayed 缺少 delay-seconds 错误不正确: %s", errText)
+	}
+
+	errText = runCLICommandError(
+		t,
+		config.Config{Host: "127.0.0.1", Port: 18032, APIPrefix: "/nexus/v1"},
+		map[string]string{nexusctlUserIDEnvName: "user-1"},
+		"--json",
+		"room",
+		"action",
+		"private-message",
+		"--target-agent-id",
+		"agent-devin",
+		"--wake-policy",
+		"immediate",
+		"--delay-seconds",
+		"1",
+		"--content",
+		"hello",
+	)
+	if !strings.Contains(errText, "--delay-seconds requires --wake-policy delayed") {
+		t.Fatalf("非 delayed 携带 delay-seconds 错误不正确: %s", errText)
+	}
+}
+
 func TestRoomActionCommandRequiresInternalEndpoint(t *testing.T) {
 	t.Setenv(nexusRoomIDEnvName, "room-1")
 	t.Setenv(nexusRoomConversationIDEnvName, "conversation-1")
@@ -616,6 +664,68 @@ func TestCreateRoomActionSupportsAudiencePrivateMessagePayload(t *testing.T) {
 		item.ReplyTarget != protocol.RoomReplyTargetAudience ||
 		item.WakePolicy != protocol.RoomWakePolicyNone {
 		t.Fatalf("audience private-message 响应不正确: %+v", item)
+	}
+}
+
+func TestCreateRoomActionSupportsDelayedWakePayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("读取请求 body 失败: %v", err)
+		}
+		var payload protocol.CreateRoomActionRequest
+		if err = json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("解析请求 body 失败: %v", err)
+		}
+		if payload.ActionType != protocol.RoomActionTypeRequestReply ||
+			payload.TargetAgentID != "agent-devin" ||
+			payload.WakePolicy != protocol.RoomWakePolicyDelayed ||
+			payload.DelaySeconds != 30 {
+			t.Fatalf("delayed request-reply 请求 body 不正确: %+v", payload)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(writer).Encode(map[string]any{
+			"success": true,
+			"data": protocol.RoomActionRecord{
+				ActionID:       "action-delayed-1",
+				RoomID:         "room-1",
+				ConversationID: "conversation-1",
+				ActionType:     protocol.RoomActionTypeRequestReply,
+				RequestID:      "action-delayed-1",
+				SourceAgentID:  "agent-amy",
+				TargetAgentID:  "agent-devin",
+				Content:        "请稍后回复",
+				Visibility:     protocol.RoomActionVisibilityPrivate,
+				ReplyTarget:    protocol.RoomReplyTargetPublicFeed,
+				WakePolicy:     protocol.RoomWakePolicyDelayed,
+				DelaySeconds:   30,
+			},
+		})
+		if err != nil {
+			t.Fatalf("写入响应失败: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	item, err := createRoomAction(context.Background(), roomActionCLIOptions{
+		actionType:      protocol.RoomActionTypeRequestReply,
+		roomID:          "room-1",
+		conversationID:  "conversation-1",
+		sourceAgentID:   "agent-amy",
+		targetAgentID:   "agent-devin",
+		content:         "请稍后回复",
+		wakePolicy:      protocol.RoomWakePolicyDelayed,
+		delaySeconds:    30,
+		internalAPIBase: server.URL,
+		internalToken:   "token-1",
+	}, "user-1")
+	if err != nil {
+		t.Fatalf("创建 delayed request-reply 失败: %v", err)
+	}
+	output := roomActionCLIOutputItem(item)
+	if output["wake_policy"] != string(protocol.RoomWakePolicyDelayed) ||
+		output["delay_seconds"] != 30 {
+		t.Fatalf("delayed request-reply 输出不正确: %+v", output)
 	}
 }
 

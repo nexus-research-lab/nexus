@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room action WebSocket 事件增加 `event_kind`，可区分 action 创建、目标唤醒开始和目标忙碌入队。
 - `nexusctl room action` 新增 `list` / `cursors` 查询命令，可直接读取 Room action JSONL、消费游标与目标成员 cursor 之后的未消费投影；默认不回显正文，需显式传 `--include-content`。
 - Room `private_message` 支持一次性 `audience_agent_ids` 小范围私域投递，并支持 `wake_policy=none|immediate` 控制是否立即唤醒受众。
+- Room `private_message` 与 `request_reply` 支持 `wake_policy=delayed --delay-seconds <seconds>`，可先落盘私域 action，再由 server 进程稍后唤醒目标成员做汇总或继续追问。
 
 ### Fixed
 - Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。

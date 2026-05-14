@@ -32,6 +32,7 @@ type RoomWakePolicy string
 const (
 	RoomWakePolicyNone      RoomWakePolicy = "none"
 	RoomWakePolicyImmediate RoomWakePolicy = "immediate"
+	RoomWakePolicyDelayed   RoomWakePolicy = "delayed"
 )
 
 // CreateRoomActionRequest 表示创建 Room action 的请求。
@@ -45,6 +46,7 @@ type CreateRoomActionRequest struct {
 	Visibility       string          `json:"visibility,omitempty"`
 	ReplyTarget      RoomReplyTarget `json:"reply_target,omitempty"`
 	WakePolicy       RoomWakePolicy  `json:"wake_policy,omitempty"`
+	DelaySeconds     int             `json:"delay_seconds,omitempty"`
 }
 
 // RoomActionRecord 表示 Room action 的 append-only 持久化记录。
@@ -61,5 +63,6 @@ type RoomActionRecord struct {
 	Visibility       string          `json:"visibility"`
 	ReplyTarget      RoomReplyTarget `json:"reply_target"`
 	WakePolicy       RoomWakePolicy  `json:"wake_policy,omitempty"`
+	DelaySeconds     int             `json:"delay_seconds,omitempty"`
 	Timestamp        int64           `json:"timestamp"`
 }

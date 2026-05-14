@@ -87,7 +87,8 @@ func newRoomPrivateMessageCommand() *cobra.Command {
 	}
 	bindRoomActionCommonFlags(command, &options)
 	command.Flags().StringVar(&options.targetAgentID, "target-agent-id", "", "target room agent id")
-	command.Flags().StringVar((*string)(&options.wakePolicy), "wake-policy", string(protocol.RoomWakePolicyImmediate), "none|immediate")
+	command.Flags().StringVar((*string)(&options.wakePolicy), "wake-policy", string(protocol.RoomWakePolicyImmediate), "none|immediate|delayed")
+	command.Flags().IntVar(&options.delaySeconds, "delay-seconds", 0, "wake-policy=delayed 时延迟唤醒秒数")
 	_ = command.MarkFlagRequired("content")
 	return command
 }
@@ -107,7 +108,8 @@ func newRoomRequestReplyCommand() *cobra.Command {
 	}
 	bindRoomActionCommonFlags(command, &options)
 	command.Flags().StringVar(&options.targetAgentID, "target-agent-id", "", "target room agent id")
-	command.Flags().StringVar((*string)(&options.wakePolicy), "wake-policy", string(protocol.RoomWakePolicyImmediate), "none|immediate")
+	command.Flags().StringVar((*string)(&options.wakePolicy), "wake-policy", string(protocol.RoomWakePolicyImmediate), "none|immediate|delayed")
+	command.Flags().IntVar(&options.delaySeconds, "delay-seconds", 0, "wake-policy=delayed 时延迟唤醒秒数")
 	_ = command.MarkFlagRequired("target-agent-id")
 	_ = command.MarkFlagRequired("content")
 	return command
@@ -168,6 +170,7 @@ type roomActionCLIOptions struct {
 	visibility       string
 	replyTarget      protocol.RoomReplyTarget
 	wakePolicy       protocol.RoomWakePolicy
+	delaySeconds     int
 	internalAPIBase  string
 	internalToken    string
 }
@@ -357,6 +360,13 @@ func (o roomActionCLIOptions) validate() error {
 	if o.actionType == protocol.RoomActionTypeRequestReply && strings.TrimSpace(o.targetAgentID) == "" {
 		return usageErrorf("request-reply requires --target-agent-id")
 	}
+	if o.wakePolicy == protocol.RoomWakePolicyDelayed {
+		if o.delaySeconds <= 0 {
+			return usageErrorf("wake-policy=delayed requires --delay-seconds")
+		}
+	} else if o.delaySeconds != 0 {
+		return usageErrorf("--delay-seconds requires --wake-policy delayed")
+	}
 	return nil
 }
 
@@ -377,6 +387,7 @@ func createRoomAction(
 		Visibility:       strings.TrimSpace(options.visibility),
 		ReplyTarget:      options.replyTarget,
 		WakePolicy:       options.wakePolicy,
+		DelaySeconds:     options.delaySeconds,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -443,6 +454,9 @@ func roomActionCLIOutputItem(action *protocol.RoomActionRecord, includeContent .
 	}
 	if action.WakePolicy != "" {
 		item["wake_policy"] = string(action.WakePolicy)
+	}
+	if action.DelaySeconds > 0 {
+		item["delay_seconds"] = action.DelaySeconds
 	}
 	if strings.TrimSpace(action.TargetAgentID) != "" {
 		item["target_agent_id"] = action.TargetAgentID

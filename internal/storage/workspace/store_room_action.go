@@ -227,6 +227,9 @@ func roomActionToRow(action protocol.RoomActionRecord) map[string]any {
 	if action.WakePolicy != "" {
 		row["wake_policy"] = string(action.WakePolicy)
 	}
+	if action.DelaySeconds > 0 {
+		row["delay_seconds"] = action.DelaySeconds
+	}
 	if strings.TrimSpace(action.TargetAgentID) != "" {
 		row["target_agent_id"] = action.TargetAgentID
 	}
@@ -277,6 +280,7 @@ func roomActionFromRow(row map[string]any) protocol.RoomActionRecord {
 		Visibility:       stringFromAny(row["visibility"]),
 		ReplyTarget:      protocol.RoomReplyTarget(stringFromAny(row["reply_target"])),
 		WakePolicy:       protocol.RoomWakePolicy(stringFromAny(row["wake_policy"])),
+		DelaySeconds:     int(int64FromAny(row["delay_seconds"])),
 		Timestamp:        int64FromAny(row["timestamp"]),
 	}
 }

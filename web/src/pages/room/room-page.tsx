@@ -134,6 +134,7 @@ export function RoomPage() {
     if (event_type === "room_action") {
       console.debug("[Room] room_action", {
         action_id: data.action_id,
+        event_kind: data.event_kind,
         action_type: data.action_type,
         room_id: data.room_id,
         conversation_id: data.conversation_id,
@@ -141,6 +142,8 @@ export function RoomPage() {
         target_agent_id: data.target_agent_id,
         visibility: data.visibility,
         reply_target: data.reply_target,
+        wake_policy: data.wake_policy,
+        delay_seconds: data.delay_seconds,
         content_chars: data.content_chars,
         has_content: typeof data.content === "string" && data.content.length > 0,
       });

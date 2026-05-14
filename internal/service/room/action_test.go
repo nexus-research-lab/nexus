@@ -339,6 +339,104 @@ func TestRealtimeServiceRecordsAudiencePrivateMessageWithoutWake(t *testing.T) {
 	assertRoomActionContents(t, actionStore, roomContext.Conversation.ID, sam.AgentID, []string{"先只投递给小范围成员"})
 }
 
+func TestRealtimeServiceSchedulesDelayedPrivateMessageWake(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-delayed-private",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	var seenDelayedAction atomic.Bool
+	client.onQuery = func(_ context.Context, prompt string) error {
+		seenDelayedAction.Store(strings.Contains(prompt, "<room_actions>") &&
+			strings.Contains(prompt, "稍后提醒 Devin 汇总"))
+		sendFakeAssistantResult(client, "devin-delayed-private", "Devin 稍后收到")
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomActionBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	action, err := service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateMessage,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "稍后提醒 Devin 汇总",
+		WakePolicy:    protocol.RoomWakePolicyDelayed,
+		DelaySeconds:  1,
+	})
+	if err != nil {
+		t.Fatalf("创建 delayed private_message 失败: %v", err)
+	}
+	if action.WakePolicy != protocol.RoomWakePolicyDelayed || action.DelaySeconds != 1 {
+		t.Fatalf("delayed private_message 唤醒参数不正确: %+v", action)
+	}
+	actionStore := workspacestore.NewRoomActionStore(cfg.WorkspacePath)
+	actions, err := actionStore.ReadActions(roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatalf("读取 delayed Room action 失败: %v", err)
+	}
+	if len(actions) != 1 ||
+		actions[0].WakePolicy != protocol.RoomWakePolicyDelayed ||
+		actions[0].DelaySeconds != 1 {
+		t.Fatalf("delayed Room action 未正确落盘: %+v", actions)
+	}
+	createdEvent := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomAction)
+	if createdEvent.Data["event_kind"] != "created" ||
+		createdEvent.Data["wake_policy"] != string(protocol.RoomWakePolicyDelayed) ||
+		createdEvent.Data["delay_seconds"] != 1 {
+		t.Fatalf("delayed private_message created 事件不正确: %+v", createdEvent.Data)
+	}
+	scheduledEvent := waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_scheduled" && event.Data["action_id"] == action.ActionID
+	})
+	if scheduledEvent.Data["target_agent_id"] != devin.AgentID ||
+		scheduledEvent.Data["delay_seconds"] != 1 {
+		t.Fatalf("delayed private_message scheduled 事件不正确: %+v", scheduledEvent.Data)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if seenDelayedAction.Load() {
+		t.Fatal("delayed private_message 不应立即唤醒目标")
+	}
+	waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomAction, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_started" && event.Data["target_agent_id"] == devin.AgentID
+	})
+	deadline := time.After(3 * time.Second)
+	for !seenDelayedAction.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("delayed private_message 未在延迟后唤醒目标")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestRealtimeServiceRejectsActionForNonMemberTarget(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -402,6 +500,55 @@ func TestRealtimeServiceRejectsActionForNonMemberTarget(t *testing.T) {
 	})
 	if !errors.Is(err, roomsvc.ErrRoomMemberNotFound) {
 		t.Fatalf("private_message 非成员 audience 应被拒绝: %v", err)
+	}
+}
+
+func TestRealtimeServiceRejectsInvalidDelayedWakeOptions(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-action-delayed-reject",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	service := roomsvc.NewRealtimeService(cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext())
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateMessage,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "缺少 delay_seconds",
+		WakePolicy:    protocol.RoomWakePolicyDelayed,
+	})
+	if err == nil || !strings.Contains(err.Error(), "delay_seconds") {
+		t.Fatalf("delayed 缺少 delay_seconds 应被拒绝: %v", err)
+	}
+
+	_, err = service.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomActionRequest{
+		ActionType:    protocol.RoomActionTypePrivateMessage,
+		SourceAgentID: amy.AgentID,
+		TargetAgentID: devin.AgentID,
+		Content:       "delay_seconds 不应单独使用",
+		WakePolicy:    protocol.RoomWakePolicyImmediate,
+		DelaySeconds:  1,
+	})
+	if err == nil || !strings.Contains(err.Error(), "delay_seconds") {
+		t.Fatalf("非 delayed 携带 delay_seconds 应被拒绝: %v", err)
 	}
 }
 

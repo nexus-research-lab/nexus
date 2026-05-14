@@ -11,6 +11,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+const roomActionMaxDelaySeconds = 86400
+
 // HandleAction 处理 Room 内部协作动作。
 func (s *RealtimeService) HandleAction(
 	ctx context.Context,
@@ -42,6 +44,8 @@ func (s *RealtimeService) HandleAction(
 		"source_agent_id", action.SourceAgentID,
 		"target_agent_id", action.TargetAgentID,
 		"audience_agent_ids", action.AudienceAgentIDs,
+		"wake_policy", action.WakePolicy,
+		"delay_seconds", action.DelaySeconds,
 		"content_chars", utf8.RuneCountInString(action.Content),
 	)
 	if err = s.startRoomActionWake(ctx, contextValue, *action); err != nil {
@@ -53,6 +57,8 @@ func (s *RealtimeService) HandleAction(
 			"source_agent_id", action.SourceAgentID,
 			"target_agent_id", action.TargetAgentID,
 			"audience_agent_ids", action.AudienceAgentIDs,
+			"wake_policy", action.WakePolicy,
+			"delay_seconds", action.DelaySeconds,
 			"err", err,
 		)
 	}
@@ -113,6 +119,7 @@ func (s *RealtimeService) buildRoomActionRecord(
 	visibility := normalizeRoomActionVisibility(request.Visibility)
 	replyTarget := request.ReplyTarget
 	wakePolicy := request.WakePolicy
+	delaySeconds := request.DelaySeconds
 	audienceAgentIDs := normalizeRoomActionAudience(request.AudienceAgentIDs)
 
 	switch actionType {
@@ -182,6 +189,9 @@ func (s *RealtimeService) buildRoomActionRecord(
 	if err = validateRoomWakePolicy(actionType, wakePolicy); err != nil {
 		return nil, err
 	}
+	if err = validateRoomActionDelay(wakePolicy, delaySeconds); err != nil {
+		return nil, err
+	}
 
 	actionID := newRealtimeID()
 	action := &protocol.RoomActionRecord{
@@ -196,6 +206,7 @@ func (s *RealtimeService) buildRoomActionRecord(
 		Visibility:       visibility,
 		ReplyTarget:      replyTarget,
 		WakePolicy:       wakePolicy,
+		DelaySeconds:     delaySeconds,
 		Timestamp:        time.Now().UnixMilli(),
 	}
 	if action.ActionType == protocol.RoomActionTypeRequestReply {
@@ -280,11 +291,27 @@ func validateRoomWakePolicy(actionType protocol.RoomActionType, wakePolicy proto
 		return errors.New("wake_policy 仅支持 private_message/request_reply")
 	}
 	switch wakePolicy {
-	case protocol.RoomWakePolicyNone, protocol.RoomWakePolicyImmediate:
+	case protocol.RoomWakePolicyNone, protocol.RoomWakePolicyImmediate, protocol.RoomWakePolicyDelayed:
 		return nil
 	default:
 		return errors.New("wake_policy 不支持")
 	}
+}
+
+func validateRoomActionDelay(wakePolicy protocol.RoomWakePolicy, delaySeconds int) error {
+	if wakePolicy == protocol.RoomWakePolicyDelayed {
+		if delaySeconds <= 0 {
+			return errors.New("wake_policy=delayed requires delay_seconds")
+		}
+		if delaySeconds > roomActionMaxDelaySeconds {
+			return errors.New("delay_seconds 超出最大值")
+		}
+		return nil
+	}
+	if delaySeconds != 0 {
+		return errors.New("delay_seconds 仅支持 wake_policy=delayed")
+	}
+	return nil
 }
 
 func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage {
@@ -304,6 +331,9 @@ func newRoomActionEvent(action protocol.RoomActionRecord) protocol.EventMessage 
 	}
 	if action.WakePolicy != "" {
 		data["wake_policy"] = string(action.WakePolicy)
+	}
+	if action.DelaySeconds > 0 {
+		data["delay_seconds"] = action.DelaySeconds
 	}
 	if action.TargetAgentID != "" {
 		data["target_agent_id"] = action.TargetAgentID
@@ -353,5 +383,35 @@ func newRoomActionWakeEvent(
 	event.ConversationID = roundValue.ConversationID
 	event.AgentID = strings.TrimSpace(wake.SourceAgentID)
 	event.CausedBy = strings.TrimSpace(wake.MessageID)
+	return event
+}
+
+func newRoomActionScheduledWakeEvent(action protocol.RoomActionRecord) protocol.EventMessage {
+	data := map[string]any{
+		"action_id":       action.ActionID,
+		"event_kind":      "wake_scheduled",
+		"room_id":         action.RoomID,
+		"conversation_id": action.ConversationID,
+		"action_type":     string(action.ActionType),
+		"source_agent_id": action.SourceAgentID,
+		"reply_target":    string(action.ReplyTarget),
+		"wake_policy":     string(action.WakePolicy),
+		"delay_seconds":   action.DelaySeconds,
+	}
+	if requestID := strings.TrimSpace(action.RequestID); requestID != "" {
+		data["request_id"] = requestID
+	}
+	if targetAgentID := strings.TrimSpace(action.TargetAgentID); targetAgentID != "" {
+		data["target_agent_id"] = targetAgentID
+	}
+	if len(action.AudienceAgentIDs) > 0 {
+		data["audience_agent_ids"] = append([]string(nil), action.AudienceAgentIDs...)
+	}
+	event := protocol.NewEvent(protocol.EventTypeRoomAction, data)
+	event.SessionKey = protocol.BuildRoomSharedSessionKey(action.ConversationID)
+	event.RoomID = action.RoomID
+	event.ConversationID = action.ConversationID
+	event.AgentID = action.SourceAgentID
+	event.CausedBy = strings.TrimSpace(action.ActionID)
 	return event
 }

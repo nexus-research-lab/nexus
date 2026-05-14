@@ -222,7 +222,7 @@ export interface RoomEventPayload {
   agent_id?: string;
   agent_name?: string;
   action_id?: string;
-  event_kind?: "created" | "wake_started" | "wake_queued";
+  event_kind?: "created" | "wake_scheduled" | "wake_started" | "wake_queued";
   action_type?: "private_message" | "request_reply" | "private_note" | "marker";
   request_id?: string;
   source_agent_id?: string;
@@ -230,7 +230,8 @@ export interface RoomEventPayload {
   audience_agent_ids?: string[];
   visibility?: "public" | "private";
   reply_target?: "public_feed" | "sender_private" | "target_private" | "audience" | "none";
-  wake_policy?: "none" | "immediate";
+  wake_policy?: "none" | "immediate" | "delayed";
+  delay_seconds?: number;
   content_chars?: number;
   content?: string;
   round_id?: string;
