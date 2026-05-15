@@ -2,9 +2,9 @@
 
 # Nexus
 
-<p align="center">
-  <em>本地优先的多智能体协作工作台，支持房间、技能、自动化、连接器和独立工作区</em>
-</p>
+**本地部署的多智能体工作台**
+
+把人和多个 AI 智能体组织到同一个工作流里，完整掌控运行状态、权限和工作区数据。
 
 [![Go 1.26+](https://img.shields.io/badge/go-1.26+-00ADD8.svg)](https://go.dev/)
 [![Node.js 22+](https://img.shields.io/badge/node-22+-339933.svg)](https://nodejs.org/)
@@ -16,55 +16,59 @@
 
 </div>
 
+---
+
 <div align="center">
-<img src="./docs/image/launcher.png" alt="Nexus 启动台" width="90%">
+<img src="./docs/image/app.png" alt="Nexus 工作台" width="90%">
 </div>
 
 ---
 
-## 最近重要更新（v0.1.3）
+## 什么是 Nexus
 
-- Linux / Windows 运行包已包含 Go 服务、前端资源、数据库迁移和内置技能，解压后即可启动
-- 图片生成链路成型，支持图片生成 Provider、`imagegen` 技能和会话内图片预览
-- Room 协作动作增强，支持私域消息、定向请求回复、小范围受众投递、延迟唤醒和房间级技能
-- macOS 桌面端 dogfood 链路完成第一阶段，已具备 sidecar、本地窗口、桌面会话凭据和启动诊断
+Nexus 是一个可以自托管的多智能体工作台。你可以在**房间**里让多个 AI 智能体围绕同一个任务协作，也可以通过**直接会话**和单个智能体持续深入地工作。整个系统运行在你自己的机器或服务器上，数据不离开本地。
 
----
-
-## 为什么选择 Nexus？
-
-**Nexus 用来把人和多个智能体组织到同一个真实工作流里。**
-
-- **多智能体房间** — 在一个房间里 @ 智能体、请求回复、投递私域动作，让多个智能体围绕同一件事协作
-- **一对一会话** — 和单个智能体持续对话，保留运行状态、待发送队列、历史记录和工作区上下文
-- **工作区隔离** — 用户、智能体、会话、文件、技能和连接器数据按归属边界隔离
-- **运行态可控** — 支持排队、中断、权限模式切换和执行状态查看，不把后台运行变成黑盒
-- **技能与自动化** — 内置技能、定时任务和 heartbeat 可以让智能体按计划继续工作
-- **连接器基础能力** — 统一管理 OAuth 应用配置和账号连接，为外部频道接入预留运行底座
-- **单端口运行** — Go 服务可直接托管前端，正式运行包不需要额外启动前端服务
+与单纯的对话界面不同，Nexus 提供了完整的运行时控制：你可以排队、中断、切换权限模式，能看到智能体正在做什么，也能随时介入。
 
 ---
 
-## 30 秒快速开始
+## 核心能力
 
-### 使用发布包
+### 多智能体房间
+在一个共享空间里协调多个智能体。@提及、请求回复、发起私域动作——多个智能体可以围绕同一个问题分工推进，结果汇聚到同一个会话线索里。
+
+### 一对一直接会话
+与单个智能体保持持续的工作关系。流式输出、消息排队、运行中断、历史回放，会话状态在关闭后仍然保留。
+
+### 工作区隔离
+每个智能体有独立的工作目录、技能配置和权限边界。用户、智能体、文件和连接器数据按归属严格隔离，不会互相干扰。
+
+### 技能与自动化
+为智能体安装内置技能（图片生成、记忆管理、房间协作规则等），设置定时任务和持续跟进任务，让智能体按计划持续推进工作。
+
+---
+
+## 快速开始
+
+**下载发布包（推荐）**
 
 ```bash
-# 以 Linux x86_64 包为例
+# 解压（以 Linux x86_64 为例）
 tar -xzf nexus-v0.1.3-linux-amd64.tar.gz
 cd nexus-v0.1.3-linux-amd64
 
-# 初始化首个 owner 账号
+# 初始化数据库并创建管理员账号
 ./bin/nexus-migrate up
 printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin --password-stdin
 
-# 启动 Nexus
+# 启动
 ./run-nexus
 ```
 
-打开 `http://localhost:8010`，使用刚创建的 owner 账号登录。
+打开浏览器访问 `http://localhost:8010`，使用刚创建的账号登录。
 
-Windows 包提供 `run-nexus.cmd`：
+<details>
+<summary>Windows</summary>
 
 ```bat
 bin\nexus-migrate.exe up
@@ -72,49 +76,68 @@ echo your-password| bin\nexusctl.exe auth init-owner --username admin --password
 run-nexus.cmd
 ```
 
-### 从源码启动
+</details>
+
+<details>
+<summary>从源码启动（开发模式）</summary>
 
 ```bash
+# 需要 Go 1.26+、Node.js 22+、pnpm 9.15+
 make install
 make dev
 ```
 
-后端默认监听 `http://localhost:8010`，前端开发服务默认监听 `http://localhost:3000`。
+后端监听 `http://localhost:8010`，前端开发服务监听 `http://localhost:3000`。
+
+</details>
 
 ---
 
-## Skills 支持
+## 核心概念
 
-Nexus 内置多组技能，位于 `skills/` 目录：
-
-- `imagegen`：生成图片并把结果保存到当前智能体工作区
-- `nexus-manager`：让智能体通过命令操作 Nexus 的智能体、房间、会话和工作区
-- `room-playbook`：为房间协作提供固定规则和操作指引
-- `scheduled-task-manager`：管理定时任务与 heartbeat 类持续跟进任务
-- `memory-manager`：按约定维护项目记忆文件
-
----
-
-## 功能特性
-
-| 功能 | 描述 |
+| 概念 | 说明 |
 |------|------|
-| 智能体工作区 | 创建智能体、配置模型供应商、管理技能，并隔离工作目录 |
-| 一对一会话 | 支持流式输出、消息排队、中断、历史记录和运行态恢复 |
-| Room 协作 | 多智能体公开讨论、私域动作、定向回复、延迟唤醒和房间级规则 |
-| 权限控制 | 支持多种权限模式，并保留 AskUserQuestion 类用户交互通道 |
-| 图片生成 | 通过图片生成 Provider、`nexusctl imagegen` 和 `imagegen` 技能生成图片 |
-| 定时任务 | 创建、编辑、手动运行定时任务，并查看运行记录 |
-| 连接器 | 管理 OAuth 应用配置和账号连接 |
-| 外部频道 | 提供频道配置、配对和入站消息的基础能力 |
+| **Agent（智能体）** | 独立的 AI 工作单元，有自己的模型配置、技能列表和工作区文件 |
+| **Room（房间）** | 多个智能体和用户共享的协作空间，支持公开消息和私域动作 |
+| **DM（直接会话）** | 与单个智能体的持续对话，保留完整的运行状态和历史 |
+| **Workspace（工作区）** | 每个智能体独立的文件目录，支持浏览、上传、编辑和下载 |
+| **Skill（技能）** | 安装到智能体的能力扩展，可以是内置技能或自定义技能 |
+| **Connector（连接器）** | 用于管理 OAuth 应用配置和外部服务账号连接的模块 |
+
+---
+
+## 内置技能
+
+Nexus 在 `skills/` 目录下提供一组开箱即用的技能：
+
+| 技能 | 功能 |
+|------|------|
+| `imagegen` | 调用图片生成 Provider，将结果保存到智能体工作区 |
+| `nexus-manager` | 让智能体通过命令操作 Nexus 的智能体、房间、会话和工作区 |
+| `room-playbook` | 为房间协作提供固定规则和操作指引 |
+| `scheduled-task-manager` | 管理定时任务与 heartbeat 类持续跟进任务 |
+| `memory-manager` | 按约定维护项目记忆文件 |
+
+---
+
+## 功能全览
+
+| 功能模块 | 说明 |
+|----------|------|
+| 多智能体房间 | 公开消息、私域动作、定向回复、延迟唤醒、房间级技能规则 |
+| 直接会话 | 流式输出、消息排队、运行中断、历史记录、运行态恢复 |
+| 权限控制 | 多种权限模式，保留 AskUserQuestion 类用户交互通道 |
 | 工作区文件 | 浏览、上传、编辑、下载、重命名和删除智能体工作区文件 |
-| 本地部署 | 支持 Go 服务、Docker 部署和 Go + Web 一体运行包 |
+| 图片生成 | 支持独立图片生成 Provider，通过技能和 CLI 调用 |
+| 定时任务 | 创建、编辑、手动运行定时任务，查看运行历史 |
+| 连接器 | 管理 OAuth 应用配置和外部服务账号连接 |
+| 单端口部署 | Go 服务直接托管前端，运行包解压即用，无需额外启动前端 |
 
 ---
 
 ## 发布包
 
-正式发布资产包含源码包和以下可运行服务端包：
+每次正式发布提供以下平台的可运行包：
 
 | 平台 | 格式 |
 |------|------|
@@ -122,75 +145,57 @@ Nexus 内置多组技能，位于 `skills/` 目录：
 | `linux-arm64` | `.tar.gz` |
 | `windows-amd64` | `.zip` |
 
-运行包内包含：
-
-- `bin/nexus-server`
-- `bin/nexus-migrate`
-- `bin/nexusctl`
-- `db/migrations`
-- 内置 `skills`
-- 构建后的 `web/dist`
-- `run-nexus` 或 `run-nexus.cmd`
-
-macOS 桌面应用暂不放进正式发布包，仍按 dogfood 链路单独验证。
+每个包包含：服务端二进制（`nexus-server`、`nexus-migrate`、`nexusctl`）、数据库迁移脚本、内置技能和构建好的前端资源。
 
 ---
 
-## 构建与校验
+## 构建
 
-需要准备：
+**依赖环境**
 
-- Go 1.26.2 或更高版本
-- Node.js 22 或更高版本
-- pnpm 9.15.2 或更高版本
+- Go 1.26.2+
+- Node.js 22+
+- pnpm 9.15.2+
 
-常用命令：
+**常用命令**
 
 | 命令 | 说明 |
 |------|------|
-| `make dev` | 同时启动 Go 后端和前端开发服务 |
-| `make check` | 执行 Go 测试、前端 lint 和前端类型检查 |
+| `make dev` | 同时启动后端和前端开发服务 |
+| `make check` | 执行 Go 测试、前端 lint 和类型检查 |
 | `make db-init` | 执行数据库迁移 |
 | `make gen-protocol-types` | 根据 Go 协议模型重新生成前端类型 |
-| `make package-release` | 为当前平台构建 Go + Web 一体运行包 |
+| `make package-release` | 为当前平台构建可运行包 |
 
-指定目标平台构建：
+**构建指定平台包**
 
 ```bash
-NEXUS_RELEASE_TARGET=linux-amd64 ./scripts/package-release.sh 0.1.3
-NEXUS_RELEASE_TARGET=linux-arm64 ./scripts/package-release.sh 0.1.3
+NEXUS_RELEASE_TARGET=linux-amd64  ./scripts/package-release.sh 0.1.3
+NEXUS_RELEASE_TARGET=linux-arm64  ./scripts/package-release.sh 0.1.3
 NEXUS_RELEASE_TARGET=windows-amd64 ./scripts/package-release.sh 0.1.3
 ```
 
-Nexus 通过 CGO 使用 SQLite。跨平台构建时，需要安装目标平台对应的 C 编译器；GitHub Release workflow 会在打包 Linux ARM64 和 Windows AMD64 产物前自动安装所需工具链。
+> Nexus 通过 CGO 依赖 SQLite。跨平台构建时需要安装目标平台的 C 工具链。
 
 ---
 
-## Go Bridge SDK 依赖
+## Go Bridge SDK
 
 本仓库依赖公开的 Go bridge 模块：
 
-```text
+```
 github.com/nexus-research-lab/nexus-agent-sdk-bridge
 ```
 
-该模块提供 Nexus 需要共享的 client、protocol、permission、hook 和 MCP 契约。默认开源构建不依赖私有 runtime SDK。
-
-检查依赖是否可解析：
+该模块提供客户端、协议、权限、hook 和 MCP 等共享契约。默认开源构建不依赖私有 runtime SDK。
 
 ```bash
+# 检查依赖是否可解析
 make check-bridge-sdk-access
 ```
 
-开发 bridge 时，可以临时指向本地仓库：
+---
 
-```bash
-go mod edit -replace github.com/nexus-research-lab/nexus-agent-sdk-bridge=/path/to/nexus-agent-sdk-bridge
-```
+## 许可证
 
-提交到 `main` 前，应恢复为公开模块版本：
-
-```bash
-go mod edit -dropreplace github.com/nexus-research-lab/nexus-agent-sdk-bridge
-go mod tidy
-```
+Apache License 2.0，详见 [LICENSE](./LICENSE)。
