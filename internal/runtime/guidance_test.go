@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 )
 
 func TestWithPostToolUseGuidanceHookNormalizesEmptyOutput(t *testing.T) {

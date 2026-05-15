@@ -9,9 +9,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
@@ -32,7 +32,7 @@ type AgentClientOptionsInput struct {
 	WorkspacePath      string
 	Provider           string
 	PermissionMode     sdkpermission.Mode
-	PermissionHandler  agentclient.PermissionHandler
+	PermissionHandler  sdkpermission.Handler
 	AllowedTools       []string
 	DisallowedTools    []string
 	SettingSources     []string
@@ -66,7 +66,7 @@ func BuildAgentClientOptions(
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
 
 	options := agentclient.Options{
-		Backend:                agentclient.ProcessBackend(agentclient.ProcessBackendOptions{}),
+		Backend:                agentclient.ProcessBackend(agentclient.ProcessOptions{}),
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
@@ -81,7 +81,7 @@ func BuildAgentClientOptions(
 		Runtime: agentclient.RuntimeOptions{
 			PermissionMode: permissionMode,
 		},
-		Adapters: agentclient.AdapterOptions{
+		Callbacks: agentclient.CallbackOptions{
 			PermissionHandler: permissionHandler,
 		},
 	}
@@ -105,8 +105,8 @@ func BuildAgentClientOptions(
 
 func permissionHandlerForMode(
 	permissionMode sdkpermission.Mode,
-	handler agentclient.PermissionHandler,
-) agentclient.PermissionHandler {
+	handler sdkpermission.Handler,
+) sdkpermission.Handler {
 	if permissionMode != sdkpermission.ModeBypassPermissions || handler == nil {
 		return handler
 	}

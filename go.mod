@@ -9,7 +9,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/nexus-research-lab/nexus-agent-sdk-go v0.1.1-0.20260509095209-a9243a398b02
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.0
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
@@ -28,7 +28,6 @@ require (
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/image v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 )

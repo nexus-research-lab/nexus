@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"

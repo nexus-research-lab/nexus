@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 支持启用 `scope=room` 的 Room Skill，并在运行时把房间级规则注入所有成员上下文。
 
 ### Fixed
+- 会话 `is_active` 改为以 runtime running round 为唯一真相源；`meta.json` 不再持久化 `active`，CC/SDK 进程异常退出或中断失败时会按业务逻辑清理运行态，避免前端误显示“对话中”。
 - Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。
 - `nexusctl room action` 的 JSON 输出不再回显 action 正文，避免私域内容进入工具结果日志。
 - Room action 内部入口改为从受控 header 注入 source agent，避免 action JSON body 接收模型侧手写的 `source_agent_id`。

@@ -148,7 +148,8 @@ func (c *sessionDeliveryChannel) persistMessage(
 		sessionID := strings.TrimSpace(stringValue(message["session_id"]))
 		sessionValue.SessionID = &sessionID
 	}
-	sessionValue.Status = "active"
+	sessionValue.Status = "closed"
+	sessionValue.IsActive = false
 	updated, err := c.files.UpsertSession(workspacePath, sessionValue)
 	if err != nil {
 		return protocol.Session{}, err

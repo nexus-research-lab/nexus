@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"

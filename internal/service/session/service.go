@@ -81,6 +81,7 @@ func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) 
 	if err != nil {
 		return nil, err
 	}
+	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
 	return mergeSessions(fileSessions, roomSessions), nil
 }
 
@@ -100,16 +101,21 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		if item.AgentID != agentID {
 			continue
 		}
-		if shouldHideWorkspaceSession(item) {
+		reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(agentValue.WorkspacePath, item)
+		if reconcileErr != nil {
+			return nil, reconcileErr
+		}
+		if shouldHideWorkspaceSession(reconciled) {
 			continue
 		}
-		filteredFileSessions = append(filteredFileSessions, normalizeSession(item))
+		filteredFileSessions = append(filteredFileSessions, reconciled)
 	}
 
 	roomSessions, err := s.repository.ListRoomSessionsByAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
+	roomSessions = s.applyRuntimeStateToSessions(roomSessions)
 	return mergeSessions(filteredFileSessions, roomSessions), nil
 }
 
@@ -128,21 +134,25 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 		return nil, err
 	}
 	if roomSession != nil {
-		return roomSession, nil
+		normalized := s.applyRuntimeStateToSession(*roomSession)
+		return &normalized, nil
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	item, _, err := s.files.FindSession(workspacePaths, sessionKey)
+	item, workspacePath, err := s.files.FindSession(workspacePaths, sessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if item == nil {
 		return nil, ErrSessionNotFound
 	}
-	normalized := normalizeSession(*item)
+	normalized, err := s.reconcileWorkspaceSessionRuntimeState(workspacePath, *item)
+	if err != nil {
+		return nil, err
+	}
 	return &normalized, nil
 }
 
@@ -177,13 +187,13 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*pr
 		AgentID:      parsed.AgentID,
 		ChannelType:  protocol.NormalizeStoredChannelType(parsed.Channel),
 		ChatType:     protocol.NormalizeSessionChatType(parsed.ChatType),
-		Status:       "active",
+		Status:       "closed",
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        firstNonEmpty(strings.TrimSpace(request.Title), "New Chat"),
 		MessageCount: 0,
 		Options:      map[string]any{},
-		IsActive:     true,
+		IsActive:     false,
 	}))
 	if err != nil {
 		return nil, err
@@ -200,14 +210,23 @@ func (s *Service) UpdateSession(ctx context.Context, rawSessionKey string, reque
 	if item == nil {
 		return nil, ErrSessionNotFound
 	}
+	next := closePersistedSessionMeta(normalizeSession(*item))
 	if request.Title != nil {
-		item.Title = firstNonEmpty(strings.TrimSpace(*request.Title), "New Chat")
+		next.Title = firstNonEmpty(strings.TrimSpace(*request.Title), "New Chat")
 	}
 	if parsed.AgentID != "" {
-		item.AgentID = parsed.AgentID
+		next.AgentID = parsed.AgentID
 	}
-	item.IsActive = item.Status == "active"
-	return s.files.UpsertSession(workspacePath, *item)
+	updated, err := s.files.UpsertSession(workspacePath, next)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		projected := s.applyRuntimeStateToSession(next)
+		return &projected, nil
+	}
+	projected := s.applyRuntimeStateToSession(*updated)
+	return &projected, nil
 }
 
 // UpdateSessionTitle 以最小输入更新会话标题，供跨领域服务复用。
@@ -430,10 +449,14 @@ func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]
 			return nil, listErr
 		}
 		for _, item := range items {
-			if shouldHideWorkspaceSession(item) {
+			reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(workspacePath, item)
+			if reconcileErr != nil {
+				return nil, reconcileErr
+			}
+			if shouldHideWorkspaceSession(reconciled) {
 				continue
 			}
-			result = append(result, normalizeSession(item))
+			result = append(result, reconciled)
 		}
 	}
 	sort.Slice(result, func(i int, j int) bool {
@@ -498,6 +521,57 @@ func (s *Service) activeRoundIDs(sessionKey string) []string {
 		return nil
 	}
 	return s.runtime.GetRunningRoundIDs(sessionKey)
+}
+
+func (s *Service) applyRuntimeStateToSessions(items []protocol.Session) []protocol.Session {
+	result := make([]protocol.Session, 0, len(items))
+	for _, item := range items {
+		result = append(result, s.applyRuntimeStateToSession(item))
+	}
+	return result
+}
+
+func (s *Service) applyRuntimeStateToSession(item protocol.Session) protocol.Session {
+	normalized := normalizeSession(item)
+	if s.runtime == nil {
+		return normalized
+	}
+	if len(s.activeRoundIDs(normalized.SessionKey)) == 0 {
+		normalized.Status = "closed"
+		normalized.IsActive = false
+		return normalized
+	}
+	normalized.Status = "active"
+	normalized.IsActive = true
+	return normalized
+}
+
+func (s *Service) reconcileWorkspaceSessionRuntimeState(
+	workspacePath string,
+	item protocol.Session,
+) (protocol.Session, error) {
+	normalized := normalizeSession(item)
+	if s.runtime == nil || strings.TrimSpace(workspacePath) == "" {
+		return normalized, nil
+	}
+	reconciled := s.applyRuntimeStateToSession(normalized)
+	if reconciled.IsActive || (normalized.Status == reconciled.Status && normalized.IsActive == reconciled.IsActive) {
+		return reconciled, nil
+	}
+	updated, err := s.files.UpsertSession(workspacePath, closePersistedSessionMeta(reconciled))
+	if err != nil {
+		return protocol.Session{}, err
+	}
+	if updated == nil {
+		return reconciled, nil
+	}
+	return normalizeSession(*updated), nil
+}
+
+func closePersistedSessionMeta(item protocol.Session) protocol.Session {
+	item.Status = "closed"
+	item.IsActive = false
+	return item
 }
 
 func mergeSessions(fileSessions []protocol.Session, roomSessions []protocol.Session) []protocol.Session {

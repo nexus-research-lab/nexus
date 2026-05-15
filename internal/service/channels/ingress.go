@@ -12,8 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 var (
@@ -352,7 +351,7 @@ func (s *IngressService) resolveApprovedTools(channel string, explicit []string)
 func (s *IngressService) buildPermissionHandler(
 	agentValue *protocol.Agent,
 	request normalizedIngressRequest,
-) agentclient.PermissionHandler {
+) sdkpermission.Handler {
 	allowedByAgent := normalizeToolSet(agentValue.Options.AllowedTools)
 	approved := request.autoApproveTools
 	if request.channelStored == ChannelTypeInternal && len(approved) == 0 {

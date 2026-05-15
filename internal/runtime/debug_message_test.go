@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func TestBuildSDKMessageLogSummaryForStreamEvent(t *testing.T) {

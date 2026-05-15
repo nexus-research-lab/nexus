@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )

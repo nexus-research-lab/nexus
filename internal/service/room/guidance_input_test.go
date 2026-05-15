@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"

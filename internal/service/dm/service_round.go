@@ -13,9 +13,8 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type dmRoundMapperAdapter struct {
@@ -57,7 +56,7 @@ type roundRunner struct {
 	ownerUserID       string
 	mapper            *dmdomain.MessageMapper
 	permissionMode    sdkpermission.Mode
-	permissionHandler agentclient.PermissionHandler
+	permissionHandler sdkpermission.Handler
 }
 
 func (r *roundRunner) run(ctx context.Context) {
@@ -88,6 +87,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 	}
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
@@ -219,6 +219,7 @@ func (r *roundRunner) failRound(err error) {
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
 	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
+	r.refreshSessionMetaAfterRoundFinished()
 	errorEvent.AgentID = r.agent.AgentID
 	errorEvent.CausedBy = r.roundID
 	if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
@@ -319,6 +320,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		event.DeliveryMode = "durable"
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
+	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
@@ -341,6 +343,22 @@ func (r *roundRunner) persistMessage(message protocol.Message) error {
 		r.session = *updated
 	}
 	return nil
+}
+
+func (r *roundRunner) refreshSessionMetaAfterRoundFinished() {
+	updated, err := r.service.refreshSessionMetaRuntimeState(r.workspacePath, r.session)
+	if err != nil {
+		r.service.loggerFor(context.Background()).Error("DM round 结束后刷新 session meta 失败",
+			"session_key", r.sessionKey,
+			"agent_id", r.agent.AgentID,
+			"round_id", r.roundID,
+			"err", err,
+		)
+		return
+	}
+	if updated != nil {
+		r.session = *updated
+	}
 }
 
 func (r *roundRunner) recordUsage(message protocol.Message) {

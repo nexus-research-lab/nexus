@@ -3,7 +3,7 @@ package tool
 import (
 	"encoding/json"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 )
 
 func jsonResult(payload any) sdkmcp.ToolResult {

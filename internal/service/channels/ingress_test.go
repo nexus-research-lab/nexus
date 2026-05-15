@@ -16,7 +16,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type fakeIngressDMHandler struct {

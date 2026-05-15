@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,10 +26,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type fakeDMClient struct {
@@ -37,6 +38,7 @@ type fakeDMClient struct {
 	messages        chan sdkprotocol.ReceivedMessage
 	interruptCalls  int
 	disconnectCalls int
+	interruptErrors []error
 	disconnectErrs  []error
 	connectErrors   []error
 	queryErrors     []error
@@ -92,6 +94,12 @@ func (c *fakeDMClient) SendContent(_ context.Context, content any, _ *string, _ 
 func (c *fakeDMClient) Interrupt(ctx context.Context) error {
 	c.mu.Lock()
 	c.interruptCalls++
+	if len(c.interruptErrors) > 0 {
+		err := c.interruptErrors[0]
+		c.interruptErrors = c.interruptErrors[1:]
+		c.mu.Unlock()
+		return err
+	}
 	callback := c.onInterrupt
 	c.mu.Unlock()
 	if callback != nil {
@@ -776,7 +784,7 @@ func TestServiceHandleChatBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("bypass 权限模式未透传: %+v", options)
 	}
-	if options.Adapters.PermissionHandler == nil {
+	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
 	}
 }
@@ -1207,6 +1215,48 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	summary, ok := messages[1]["result_summary"].(map[string]any)
 	if !ok || summary["subtype"] != "interrupted" {
 		t.Fatalf("中断后未挂载 interrupted result_summary: %+v", messages)
+	}
+}
+
+func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.interruptErrors = []error{errors.New("os: process already finished")}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-interrupt-stale")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-stale"
+	permission.BindSession(sessionKey, sender, "client-interrupt-stale", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "停止一个已经退出的进程",
+		RoundID:    "round-interrupt-stale",
+		ReqID:      "round-interrupt-stale",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("失效进程中断应被业务层清理而不是返回错误: %v", err)
+	}
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeSessionStatus && event.Data["is_generating"] == false
+	})
+	if len(runtimeManager.GetRunningRoundIDs(sessionKey)) != 0 {
+		t.Fatal("失效进程清理后不应残留 running round")
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if sessionValue.Status != "closed" || sessionValue.IsActive {
+		t.Fatalf("失效进程清理后 session meta 应关闭: %+v events=%+v", sessionValue, events)
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type permissionTestSender struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"

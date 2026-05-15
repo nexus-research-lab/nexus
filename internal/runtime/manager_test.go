@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type fakeRuntimeClient struct {

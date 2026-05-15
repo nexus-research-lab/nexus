@@ -211,8 +211,16 @@ func (s *RealtimeService) interruptActiveSlot(
 	markRoomSlotInterrupted(slot, interruptReason)
 	shouldBroadcast := !slot.isTerminal()
 	if client := slot.getClient(); client != nil {
-		if err := client.Interrupt(ctx); err != nil && !suppressError {
-			return err
+		if err := client.Interrupt(ctx); err != nil {
+			s.loggerFor(ctx).Warn("Room slot 中断 client 失败，继续强制取消",
+				"session_key", roundValue.SessionKey,
+				"room_id", roundValue.RoomID,
+				"conversation_id", roundValue.ConversationID,
+				"agent_id", slot.AgentID,
+				"round_id", slot.AgentRoundID,
+				"msg_id", slot.MsgID,
+				"err", err,
+			)
 		}
 	}
 	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
@@ -265,8 +273,16 @@ func (s *RealtimeService) interruptActiveRound(
 	for _, slot := range roundValue.Slots {
 		markRoomSlotInterrupted(slot, interruptReason)
 		if client := slot.getClient(); client != nil {
-			if err := client.Interrupt(ctx); err != nil && !suppressError {
-				return err
+			if err := client.Interrupt(ctx); err != nil {
+				s.loggerFor(ctx).Warn("Room round 中断 client 失败，继续强制取消",
+					"session_key", roundValue.SessionKey,
+					"room_id", roundValue.RoomID,
+					"conversation_id", roundValue.ConversationID,
+					"agent_id", slot.AgentID,
+					"round_id", slot.AgentRoundID,
+					"msg_id", slot.MsgID,
+					"err", err,
+				)
 			}
 		}
 		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)

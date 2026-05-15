@@ -5,7 +5,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 // EventMapperOptions 描述 SDK 消息到 Nexus 事件的映射策略。

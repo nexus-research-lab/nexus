@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 )
 
 // GuidedInput 是等待注入当前 round 的用户引导。

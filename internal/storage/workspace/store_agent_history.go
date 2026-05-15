@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/nexus-research-lab/nexus/internal/message"

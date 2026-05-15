@@ -9,9 +9,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/message"
@@ -198,8 +198,8 @@ func (s *RealtimeService) runSlot(
 		RoomID:         roundValue.RoomID,
 		ConversationID: roundValue.ConversationID,
 	}))
-	previousStderr := options.Stderr
-	options.Stderr = func(line string) {
+	previousStderr := options.Callbacks.Stderr
+	options.Callbacks.Stderr = func(line string) {
 		if previousStderr != nil {
 			previousStderr(line)
 		}

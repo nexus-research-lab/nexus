@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 const interruptForceCancelDelay = 150 * time.Millisecond
@@ -59,7 +59,7 @@ func WrapSDKClient(options agentclient.Options) Client {
 
 func ensureBridgeBackend(options agentclient.Options) agentclient.Options {
 	if options.Backend == nil {
-		options.Backend = agentclient.ProcessBackend(agentclient.ProcessBackendOptions{})
+		options.Backend = agentclient.ProcessBackend(agentclient.ProcessOptions{})
 	}
 	return options
 }

@@ -279,6 +279,9 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	if sessionValue == nil {
 		t.Fatalf("测试 session 不存在")
 	}
+	if sessionValue.Status != "closed" || sessionValue.IsActive {
+		t.Fatalf("channel delivery 不应把空闲 session 标成 active: %+v", sessionValue)
+	}
 	history := workspacestore.NewAgentHistoryStore(workspacePath)
 	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {

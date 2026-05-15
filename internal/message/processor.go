@@ -8,7 +8,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 // MessageContext 表示单轮消息处理上下文。

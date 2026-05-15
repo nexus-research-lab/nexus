@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func firstNonEmpty(values ...string) string {

@@ -25,9 +25,9 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "github.com/mattn/go-sqlite3"
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 var NewRealtimeServiceWithFactory = roomsvc.NewRealtimeServiceWithFactory
@@ -960,7 +960,7 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("room bypass 权限模式未透传: %+v", options)
 	}
-	if options.Adapters.PermissionHandler == nil {
+	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
 	}
 }

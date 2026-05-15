@@ -9,7 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type fakeRuntimeConfigResolver struct {
@@ -161,11 +161,11 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Adapters.PermissionHandler == nil {
+	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("bypass 模式应保留 AskUserQuestion 交互通道")
 	}
 
-	questionDecision, err := options.Adapters.PermissionHandler(context.Background(), sdkpermission.Request{
+	questionDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: " AskUserQuestion ",
 		Input: map[string]any{
 			"questions": []any{"测试问题"},
@@ -181,7 +181,7 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
 	}
 
-	bypassDecision, err := options.Adapters.PermissionHandler(context.Background(), sdkpermission.Request{
+	bypassDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Bash",
 		Input: map[string]any{
 			"command": "pwd",

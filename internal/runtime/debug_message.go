@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 // SDKMessageLogOptions 控制 SDK 消息调试日志的输出范围。

@@ -7,69 +7,36 @@ Nexus Core is the main application repo for the Nexus stack.
 Common commands:
 
 - `make dev` — run frontend and backend in development mode
-- `make check-private-sdk-access` — verify private Go SDK access before Go commands
+- `make check-bridge-sdk-access` — verify the public Go bridge SDK can be resolved
 - `make check` — run Go checks, frontend lint, and frontend type checks
 - `make db-init` — run local database migrations
 - `make gen-protocol-types` — regenerate frontend protocol types from Go definitions
 
-## Private Go SDK dependency
+## Go bridge SDK dependency
 
-This repository depends on the private Go module:
+This repository depends on the public Go bridge module:
 
-- `github.com/nexus-research-lab/nexus-agent-sdk-go`
+- `github.com/nexus-research-lab/nexus-agent-sdk-bridge`
 
-Before running Go checks or backend commands, configure Go to treat the org as private:
+The bridge module contains the shared client, protocol, permission, hook, and MCP contracts used by Nexus. The private runtime SDK is not required for the default open-source build.
 
-```bash
-go env -w GOPRIVATE=github.com/nexus-research-lab/*
-go env -w GONOSUMDB=github.com/nexus-research-lab/*
-```
-
-### Recommended setup: SSH access
-
-Use SSH for private repository access:
+Verify the bridge dependency before running backend commands:
 
 ```bash
-git config --global url."git@github.com:".insteadOf https://github.com/
-ssh -T git@github.com
+make check-bridge-sdk-access
 ```
 
-Then verify access:
+### Local `replace` during bridge development
+
+When developing the bridge and Nexus together, you can temporarily point Go at a local checkout:
 
 ```bash
-make check-private-sdk-access
+go mod edit -replace github.com/nexus-research-lab/nexus-agent-sdk-bridge=/Users/leemysw/Projects/nexus-agent-sdk/nexus-agent-sdk-bridge
 ```
 
-### Alternative setup: PAT access
-
-If you use HTTPS, configure Git with a GitHub Personal Access Token that can read the private repositories under `nexus-research-lab`.
-
-One common approach is to use Git Credential Manager, the macOS keychain helper, or another credential helper that can supply the token non-interactively.
-
-After credentials are configured, verify access with:
+Before committing or running normal project checks on main, remove the local replace and use the published bridge module version:
 
 ```bash
-make check-private-sdk-access
+go mod edit -dropreplace github.com/nexus-research-lab/nexus-agent-sdk-bridge
+go mod tidy
 ```
-
-### If a failed checkout was cached
-
-If you previously tried with the wrong HTTPS or auth setup, clear the cached module checkout and retry:
-
-```bash
-go clean -modcache
-make check-private-sdk-access
-```
-
-If needed, rerun:
-
-```bash
-go env -w GOPRIVATE=github.com/nexus-research-lab/*
-go env -w GONOSUMDB=github.com/nexus-research-lab/*
-```
-
-### Local `replace` during SDK development
-
-The main branch expects direct access to the private SDK repository.
-
-If `go.mod` contains a local `replace github.com/nexus-research-lab/nexus-agent-sdk-go => /some/path`, remove that local replace before running the normal project checks on main.

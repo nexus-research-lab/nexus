@@ -18,8 +18,8 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 )
 
 const (
