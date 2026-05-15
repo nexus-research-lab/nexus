@@ -5,7 +5,7 @@ include $(ENV_FILE)
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 
-TAG ?= 0.0.1
+TAG ?= 0.1.3
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 AGENT_UID ?= 1001
@@ -17,7 +17,7 @@ BRIDGE_SDK_MODULE ?= github.com/nexus-research-lab/nexus-agent-sdk-bridge
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-backend build-web start stop restart logs logs-all logs-nginx clean status \
+.PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-bridge-sdk-access check-private-sdk-access check-backend check-go check test run-web run-backend run-backend-go \
 	up down log reboot
@@ -149,6 +149,9 @@ build-backend: ## Build backend Docker image
 
 build-web: ## Build frontend + nginx gateway image
 	docker build --progress=plain -f web/Dockerfile -t leemysw/nexus:web-$(TAG) .
+
+package-release: check-bridge-sdk-access ## Build Go + web release package without macOS app
+	./scripts/package-release.sh $(TAG)
 
 start: prepare-host-data ## Start all services with Docker
 	TAG=$(TAG) $(COMPOSE_CMD) up -d --build --force-recreate

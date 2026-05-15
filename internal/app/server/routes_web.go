@@ -8,22 +8,28 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
-// mountWebAppRoutes 在桌面模式下托管 Vite 构建产物，保证 WebView 与 API 同源。
+// mountWebAppRoutes 托管 Vite 构建产物，保证前端与 API 同源。
 func (s *Server) mountWebAppRoutes() {
-	webDistDir := strings.TrimSpace(s.config.WebDistDir)
+	webDistDir, explicit := resolveWebDistDir(s.config.WebDistDir, appfs.Root())
 	if webDistDir == "" {
 		return
 	}
 	root, err := filepath.Abs(webDistDir)
 	if err != nil {
-		s.api.BaseLogger().Warn("Web 产物目录无效，跳过静态托管", "dir", webDistDir, "err", err)
+		if explicit {
+			s.api.BaseLogger().Warn("Web 产物目录无效，跳过静态托管", "dir", webDistDir, "err", err)
+		}
 		return
 	}
 	indexPath := filepath.Join(root, "index.html")
 	if info, statErr := os.Stat(indexPath); statErr != nil || info.IsDir() {
-		s.api.BaseLogger().Warn("Web 产物缺少 index.html，跳过静态托管", "dir", root, "err", statErr)
+		if explicit {
+			s.api.BaseLogger().Warn("Web 产物缺少 index.html，跳过静态托管", "dir", root, "err", statErr)
+		}
 		return
 	}
 
@@ -55,7 +61,23 @@ func (s *Server) mountWebAppRoutes() {
 
 	s.router.Get("/*", handler)
 	s.router.Head("/*", handler)
-	s.api.BaseLogger().Info("已启用桌面 Web 静态托管", "dir", root)
+	s.api.BaseLogger().Info("已启用 Web 静态托管", "dir", root)
+}
+
+func resolveWebDistDir(configuredDir string, appRoot string) (string, bool) {
+	if webDistDir := strings.TrimSpace(configuredDir); webDistDir != "" {
+		return webDistDir, true
+	}
+	root := strings.TrimSpace(appRoot)
+	if root == "" {
+		return "", false
+	}
+	defaultDir := filepath.Join(root, "web", "dist")
+	indexPath := filepath.Join(defaultDir, "index.html")
+	if info, err := os.Stat(indexPath); err == nil && !info.IsDir() {
+		return defaultDir, false
+	}
+	return "", false
 }
 
 func webFallbackPath(root string, relativePath string, indexPath string) string {

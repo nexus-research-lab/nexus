@@ -1,6 +1,56 @@
 package server
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestResolveWebDistDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("explicit dir wins", func(t *testing.T) {
+		t.Parallel()
+		got, explicit := resolveWebDistDir("  /tmp/web-dist  ", "/unused")
+		if got != "/tmp/web-dist" {
+			t.Fatalf("resolveWebDistDir explicit dir = %q, want /tmp/web-dist", got)
+		}
+		if !explicit {
+			t.Fatal("resolveWebDistDir explicit flag = false, want true")
+		}
+	})
+
+	t.Run("default package dist", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		distDir := filepath.Join(root, "web", "dist")
+		if err := os.MkdirAll(distDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(distDir, "index.html"), []byte("<html></html>"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		got, explicit := resolveWebDistDir("", root)
+		if got != distDir {
+			t.Fatalf("resolveWebDistDir default dir = %q, want %q", got, distDir)
+		}
+		if explicit {
+			t.Fatal("resolveWebDistDir explicit flag = true, want false")
+		}
+	})
+
+	t.Run("missing default dist", func(t *testing.T) {
+		t.Parallel()
+		got, explicit := resolveWebDistDir("", t.TempDir())
+		if got != "" {
+			t.Fatalf("resolveWebDistDir missing default = %q, want empty", got)
+		}
+		if explicit {
+			t.Fatal("resolveWebDistDir explicit flag = true, want false")
+		}
+	})
+}
 
 func TestIsAPIRequestPath(t *testing.T) {
 	t.Parallel()

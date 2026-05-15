@@ -7,29 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-15
+
 ### Added
-- macOS 桌面端 dogfood 骨架：新增 Swift shell、本地 Go sidecar 启动、随机端口 runtime config 注入、多窗口入口、桌面会话 token、静态 web/dist 承载、smoke 校验与 zip/sha256/metadata 打包脚本。
-- Provider 支持选择 `llm` / `image_generation` 类型；图片生成 Provider 通过 `nexusctl imagegen` 调用后端 Go 图片生成服务，并保存到当前 Agent workspace。
-- 新增 `imagegen` 系统托管 Skill，参考 OpenAI Codex imagegen sample 收口图片生成、透明背景和 workspace 落地约定。
-- 前端会话消息支持展示结构化 `image` content block，并会把 Markdown 中指向 workspace 的图片路径转成内联预览。
-- 新增 `MESSAGE_DEBUG_STREAM_EVENT` 配置项，并按官方 `StreamEvent -> AssistantMessage -> ResultMessage` 流程梳理 message debug 日志；debug 默认不记录高频 StreamEvent，开启该配置后才输出流式事件。
-- Room `private_message` 创建后会自动唤醒目标成员；目标正忙时先进入 Room 待发送队列，空闲后再消费私域 action。
-- Room action 的 `reply_target` 开始控制目标回复投影：非 `public_feed` 回复不进入公区，`sender_private` 与 `audience` 会写回私域 action log。
-- Room action 唤醒的 `latest_trigger` 会标注本轮回复投影位置，帮助目标成员区分公区回复、发送者私域、受众私域和不投影。
-- Room 固定提示词补齐 `nexusctl room action` 子命令模板，减少 Agent 调用私信、私有笔记和标记动作时拼错 CLI。
-- Room action 新增 `request_reply` 与 `wake_policy=none|immediate`，支持请求指定成员回复并复用 `reply_target` 投影到公区、发送者私域、目标私域或指定受众。
-- Room action WebSocket 事件增加 `event_kind`，可区分 action 创建、目标唤醒开始和目标忙碌入队。
-- `nexusctl room action` 新增 `list` / `cursors` 查询命令，可直接读取 Room action JSONL、消费游标与目标成员 cursor 之后的未消费投影；默认不回显正文，需显式传 `--include-content`。
-- Room `private_message` 支持一次性 `audience_agent_ids` 小范围私域投递，并支持 `wake_policy=none|immediate` 控制是否立即唤醒受众。
-- Room `private_message` 与 `request_reply` 支持 `wake_policy=delayed --delay-seconds <seconds>`，可先落盘私域 action，再由 server 进程稍后唤醒目标成员做汇总或继续追问。
-- Room 支持启用 `scope=room` 的 Room Skill，并在运行时把房间级规则注入所有成员上下文。
+- 发布包进入可直接运行阶段：Linux 与 Windows 运行包内置服务端、前端资源、数据库迁移和内置技能，启动后即可通过同一个本地地址访问 Nexus。
+- 图片生成能力成型：支持独立的图片生成 Provider、内置 `imagegen` 技能，以及会话内图片结果预览。
+- Room 协作动作增强：支持私域消息、请求指定成员回复、小范围受众投递、延迟唤醒和房间级技能规则。
+- 桌面端 dogfood 链路完成第一阶段：本地 sidecar、独立窗口、桌面会话凭据、启动诊断和内部验证包已具备闭环。
 
 ### Fixed
-- 会话 `is_active` 改为以 runtime running round 为唯一真相源；`meta.json` 不再持久化 `active`，CC/SDK 进程异常退出或中断失败时会按业务逻辑清理运行态，避免前端误显示“对话中”。
-- Room 删除链路改为显式清理成员、会话、消息与 round 记录；不依赖 SQLite `foreign_keys` 级联，避免删除 room 或 conversation 后残留数据库记录。
-- `nexusctl room action` 的 JSON 输出不再回显 action 正文，避免私域内容进入工具结果日志。
-- Room action 内部入口改为从受控 header 注入 source agent，避免 action JSON body 接收模型侧手写的 `source_agent_id`。
-- `CreateRoomActionRequest` 的 JSON 契约忽略 `source_agent_id`，确保 source agent 只来自受控运行时注入。
+- 会话运行态以真实执行中的任务为准，减少异常退出或中断失败后仍显示“对话中”的情况。
+- Room 删除会完整清理成员、会话、消息和执行记录，避免残留数据影响后续使用。
+- Room 私域动作的来源身份由运行时统一注入，避免模型侧伪造或误填发送者。
+- 私域动作默认不在工具结果中回显正文，降低协作过程里的信息泄漏风险。
 
 ## [0.1.2] - 2026-05-12
 
