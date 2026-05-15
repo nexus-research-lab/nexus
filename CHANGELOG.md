@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- macOS 桌面端 dogfood 骨架：新增 Swift shell、本地 Go sidecar 启动、随机端口 runtime config 注入、多窗口入口、桌面会话 token、静态 web/dist 承载、smoke 校验与 zip/sha256/metadata 打包脚本。
 - Provider 支持选择 `llm` / `image_generation` 类型；图片生成 Provider 通过 `nexusctl imagegen` 调用后端 Go 图片生成服务，并保存到当前 Agent workspace。
 - 新增 `imagegen` 系统托管 Skill，参考 OpenAI Codex imagegen sample 收口图片生成、透明背景和 workspace 落地约定。
 - 前端会话消息支持展示结构化 `image` content block，并会把 Markdown 中指向 workspace 的图片路径转成内联预览。

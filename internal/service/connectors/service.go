@@ -68,6 +68,11 @@ type OAuthCallbackRequest struct {
 	RedirectURI string `json:"redirect_uri"`
 }
 
+const (
+	oauthRedirectKindWeb     = "web"
+	oauthRedirectKindDesktop = "desktop"
+)
+
 type connectionRecord struct {
 	ConnectorID          string
 	State                string
@@ -83,6 +88,7 @@ type stateRow struct {
 	ConnectorID  string
 	CodeVerifier string
 	RedirectURI  string
+	RedirectKind string
 	ShopDomain   string
 	ExtraJSON    string
 	ExpiresAt    time.Time
@@ -305,6 +311,7 @@ func (s *Service) GetAuthURL(ctx context.Context, ownerUserID string, connectorI
 	if err := s.validateRedirectURI(resolvedRedirectURI); err != nil {
 		return nil, err
 	}
+	redirectKind := oauthRedirectKind(resolvedRedirectURI)
 	var verifier string
 	var challenge string
 	if provider.RequiresPKCE() {
@@ -326,6 +333,7 @@ func (s *Service) GetAuthURL(ctx context.Context, ownerUserID string, connectorI
 		ConnectorID:  entry.ConnectorID,
 		CodeVerifier: verifier,
 		RedirectURI:  resolvedRedirectURI,
+		RedirectKind: redirectKind,
 		ShopDomain:   normalizedExtras["shop"],
 		ExtraJSON:    string(extraJSON),
 		ExpiresAt:    time.Now().Add(s.oauthStateTTL()),
@@ -531,7 +539,7 @@ func (s *Service) connectionState(ctx context.Context, connectorID string) (stri
 
 func (s *Service) insertState(ctx context.Context, row stateRow) error {
 	query := fmt.Sprintf(
-		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, shop_domain, extra_json, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
 		s.bind(1),
 		s.bind(2),
 		s.bind(3),
@@ -539,6 +547,7 @@ func (s *Service) insertState(ctx context.Context, row stateRow) error {
 		s.bind(5),
 		s.bind(6),
 		s.bind(7),
+		s.bind(8),
 	)
 	_, err := s.db.ExecContext(
 		ctx,
@@ -547,6 +556,7 @@ func (s *Service) insertState(ctx context.Context, row stateRow) error {
 		row.ConnectorID,
 		emptyStringAsNil(row.CodeVerifier),
 		row.RedirectURI,
+		connectorFirstNonEmpty(row.RedirectKind, oauthRedirectKind(row.RedirectURI)),
 		emptyStringAsNil(row.ShopDomain),
 		emptyStringAsNil(row.ExtraJSON),
 		row.ExpiresAt,
@@ -559,11 +569,12 @@ func (s *Service) consumeState(ctx context.Context, state string) (*stateRow, er
 		return nil, nil
 	}
 	query := fmt.Sprintf(
-		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING state, connector_id, code_verifier, redirect_uri, shop_domain, extra_json, expires_at",
+		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at",
 		s.bind(1),
 	)
 	var row stateRow
 	var codeVerifier sql.NullString
+	var redirectKind sql.NullString
 	var shopDomain sql.NullString
 	var extraJSON sql.NullString
 	err := s.db.QueryRowContext(ctx, query, strings.TrimSpace(state)).Scan(
@@ -571,6 +582,7 @@ func (s *Service) consumeState(ctx context.Context, state string) (*stateRow, er
 		&row.ConnectorID,
 		&codeVerifier,
 		&row.RedirectURI,
+		&redirectKind,
 		&shopDomain,
 		&extraJSON,
 		&row.ExpiresAt,
@@ -582,6 +594,7 @@ func (s *Service) consumeState(ctx context.Context, state string) (*stateRow, er
 		return nil, err
 	}
 	row.CodeVerifier = codeVerifier.String
+	row.RedirectKind = connectorFirstNonEmpty(redirectKind.String, oauthRedirectKind(row.RedirectURI))
 	row.ShopDomain = shopDomain.String
 	row.ExtraJSON = extraJSON.String
 	return &row, nil
@@ -678,6 +691,17 @@ func (s *Service) validateRedirectURI(raw string) error {
 		}
 	}
 	return errors.New("redirect URI 不在允许列表中")
+}
+
+func oauthRedirectKind(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return oauthRedirectKindWeb
+	}
+	if strings.EqualFold(parsed.Scheme, "nexus") {
+		return oauthRedirectKindDesktop
+	}
+	return oauthRedirectKindWeb
 }
 
 func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {

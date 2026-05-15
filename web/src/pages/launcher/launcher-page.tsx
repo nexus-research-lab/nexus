@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { get_default_agent_id, is_main_agent } from "@/config/options";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { get_launcher_surface_theme_style } from "@/features/launcher/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
-import { AgentOptions } from "@/shared/ui/dialog/agent-options";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import {
+  close_desktop_launcher,
+  is_desktop_bridge_available,
+  open_desktop_route,
+} from "@/lib/desktop-bridge";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
@@ -19,18 +22,63 @@ import {
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
 
+const AgentOptions = lazy(() =>
+  import("@/shared/ui/dialog/agent-options").then((m) => ({ default: m.AgentOptions })),
+);
+const ConfirmDialog = lazy(() =>
+  import("@/shared/ui/dialog/confirm-dialog").then((m) => ({ default: m.ConfirmDialog })),
+);
+
 export function LauncherPage() {
   const { theme } = useTheme();
   const controller = useLauncherPageController();
   const navigate = useNavigate();
+  const location = useLocation();
   const set_active_panel_item = useSidebarStore(
     (state) => state.set_active_panel_item,
   );
   const default_agent_id = get_default_agent_id();
+  const is_desktop_launcher_surface = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("desktop_surface") === "launcher";
+  }, [location.search]);
   const [pending_delete_agent, set_pending_delete_agent] = useState<{
     id: string;
     name: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!is_desktop_launcher_surface || !is_desktop_bridge_available()) {
+      return;
+    }
+
+    const handle_key_down = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
+      event.preventDefault();
+      void close_desktop_launcher().catch((error) => {
+        console.error("[LauncherPage] 关闭桌面启动器失败:", error);
+      });
+    };
+
+    window.addEventListener("keydown", handle_key_down);
+    return () => window.removeEventListener("keydown", handle_key_down);
+  }, [is_desktop_launcher_surface]);
+
+  const open_navigation_route = useCallback(
+    (route: string) => {
+      if (is_desktop_launcher_surface && is_desktop_bridge_available()) {
+        void open_desktop_route(route).catch((error) => {
+          console.error("[LauncherPage] 桌面主窗口导航失败:", error);
+          navigate(route);
+        });
+        return;
+      }
+      navigate(route);
+    },
+    [is_desktop_launcher_surface, navigate],
+  );
 
   const open_agent_dm = useCallback(
     (agent_id: string, initial_prompt?: string) => {
@@ -47,13 +95,13 @@ export function LauncherPage() {
               ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
               : context.room.id,
           );
-          navigate(route);
+          open_navigation_route(route);
         })
         .catch((error) => {
           console.error("[LauncherPage] 打开 Agent DM 失败:", error);
         });
     },
-    [controller, navigate, set_active_panel_item],
+    [controller, open_navigation_route, set_active_panel_item],
   );
 
   const handle_open_main_agent_dm = useCallback(
@@ -95,9 +143,9 @@ export function LauncherPage() {
       const { context, route } =
         await resolve_direct_room_navigation_target(next_agent_id);
       set_active_panel_item(context.room.id);
-      navigate(route);
+      open_navigation_route(route);
     },
-    [controller, navigate, set_active_panel_item],
+    [controller, open_navigation_route, set_active_panel_item],
   );
 
   const handle_request_delete_agent = useCallback(
@@ -139,38 +187,45 @@ export function LauncherPage() {
           conversations={controller.conversations}
           current_agent_id={controller.current_agent_id}
           on_open_main_agent_dm={handle_open_main_agent_dm}
+          on_open_route={open_navigation_route}
           on_select_agent={handle_select_agent}
         />
       </div>
 
-      <AgentOptions
-        agent_id={controller.editing_agent_id ?? undefined}
-        mode={controller.dialog_mode}
-        is_open={controller.is_dialog_open}
-        on_close={() => {
-          controller.set_is_dialog_open(false);
-        }}
-        on_delete={handle_request_delete_agent}
-        on_save={handle_save_agent_options}
-        on_validate_name={controller.handle_validate_agent_name}
-        initial_avatar={controller.dialog_initial_avatar}
-        initial_description={controller.dialog_initial_description}
-        initial_title={controller.dialog_initial_title}
-        initial_options={controller.dialog_initial_options}
-        initial_vibe_tags={controller.dialog_initial_vibe_tags}
-      />
+      <Suspense fallback={null}>
+        {controller.is_dialog_open ? (
+          <AgentOptions
+            agent_id={controller.editing_agent_id ?? undefined}
+            mode={controller.dialog_mode}
+            is_open={controller.is_dialog_open}
+            on_close={() => {
+              controller.set_is_dialog_open(false);
+            }}
+            on_delete={handle_request_delete_agent}
+            on_save={handle_save_agent_options}
+            on_validate_name={controller.handle_validate_agent_name}
+            initial_avatar={controller.dialog_initial_avatar}
+            initial_description={controller.dialog_initial_description}
+            initial_title={controller.dialog_initial_title}
+            initial_options={controller.dialog_initial_options}
+            initial_vibe_tags={controller.dialog_initial_vibe_tags}
+          />
+        ) : null}
 
-      <ConfirmDialog
-        confirm_text="删除成员"
-        is_open={Boolean(pending_delete_agent)}
-        message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
-        on_cancel={() => set_pending_delete_agent(null)}
-        on_confirm={() => {
-          void handle_confirm_delete_agent();
-        }}
-        title="删除成员"
-        variant="danger"
-      />
+        {pending_delete_agent ? (
+          <ConfirmDialog
+            confirm_text="删除成员"
+            is_open={Boolean(pending_delete_agent)}
+            message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
+            on_cancel={() => set_pending_delete_agent(null)}
+            on_confirm={() => {
+              void handle_confirm_delete_agent();
+            }}
+            title="删除成员"
+            variant="danger"
+          />
+        ) : null}
+      </Suspense>
     </>
   );
 }

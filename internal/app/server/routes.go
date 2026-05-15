@@ -9,6 +9,7 @@ func (s *Server) mountRoutes() {
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountPlaceholderRoutes()
+	s.mountWebAppRoutes()
 }
 
 // prefixPath 返回带 config.APIPrefix 前缀的完整路径。

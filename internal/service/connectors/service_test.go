@@ -189,6 +189,34 @@ func TestServiceRejectsRedirectURIOutsideAllowedOrigins(t *testing.T) {
 	}
 }
 
+func TestServiceRecordsDesktopRedirectKind(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	cfg.ConnectorOAuthAllowedOrigins = []string{"http://localhost:3000", "nexus://connectors"}
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	authURL, err := service.GetAuthURL(ctx, auth.SystemUserID, "github", "nexus://connectors/oauth/callback", nil)
+	if err != nil {
+		t.Fatalf("生成桌面授权地址失败: %v", err)
+	}
+
+	var redirectKind string
+	//goland:noinspection SqlResolve
+	if err = db.QueryRowContext(ctx, "SELECT redirect_kind FROM connector_oauth_states WHERE state = ?", authURL.State).Scan(&redirectKind); err != nil {
+		t.Fatalf("查询 OAuth redirect kind 失败: %v", err)
+	}
+	if redirectKind != oauthRedirectKindDesktop {
+		t.Fatalf("redirect kind 不正确: got=%q want=%q", redirectKind, oauthRedirectKindDesktop)
+	}
+}
+
 func TestServiceMultipleAuthURLsDoNotOverwrite(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)

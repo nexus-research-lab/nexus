@@ -15,17 +15,31 @@ import {
   Cable,
   ChevronDown,
   Compass,
+  Download,
   Languages,
   Loader2,
   MessageSquareText,
+  MonitorCog,
   Palette,
+  Keyboard,
   RotateCcw,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { get_user_preferences_api, update_user_preferences_api } from "@/lib/api/settings-preferences-api";
+import {
+  export_desktop_logs,
+  get_desktop_global_shortcut_status,
+  get_desktop_app_version,
+  is_desktop_bridge_available,
+  reset_desktop_global_shortcut_accelerator,
+  set_desktop_global_shortcut_accelerator,
+  set_desktop_global_shortcut_enabled,
+  type DesktopAppVersion,
+  type DesktopGlobalShortcutStatus,
+} from "@/lib/desktop-bridge";
 import { cn } from "@/lib/utils";
 import {
   get_user_preferences,
@@ -47,6 +61,70 @@ import { ProviderSettingsPanel } from "./provider-settings-panel";
 import { PersonalSettingsPanel } from "./personal-settings-panel";
 
 type SettingsTabKey = "general" | "personal" | "providers";
+type DesktopShortcutToggleValue = "enabled" | "disabled";
+
+const DESKTOP_SHORTCUT_MODIFIER_KEYS = new Set([
+  "Alt",
+  "Control",
+  "Meta",
+  "Shift",
+]);
+
+function format_desktop_shortcut_event(event: KeyboardEvent): string | null {
+  if (DESKTOP_SHORTCUT_MODIFIER_KEYS.has(event.key)) {
+    return null;
+  }
+  const key = desktop_shortcut_key_label(event);
+  if (!key) {
+    return null;
+  }
+  const modifiers: string[] = [];
+  if (event.metaKey) {
+    modifiers.push("Command");
+  }
+  if (event.altKey) {
+    modifiers.push("Option");
+  }
+  if (event.ctrlKey) {
+    modifiers.push("Control");
+  }
+  if (event.shiftKey) {
+    modifiers.push("Shift");
+  }
+  if (modifiers.length === 0) {
+    return null;
+  }
+  return [...modifiers, key].join(" + ");
+}
+
+function desktop_shortcut_key_label(event: KeyboardEvent): string | null {
+  if (event.code.startsWith("Key") && event.code.length === 4) {
+    return event.code.slice(3).toUpperCase();
+  }
+  if (event.code.startsWith("Digit") && event.code.length === 6) {
+    return event.code.slice(5);
+  }
+  switch (event.key) {
+    case " ":
+      return "Space";
+    case "Escape":
+      return "Escape";
+    case "Enter":
+      return "Return";
+    case "Tab":
+      return "Tab";
+    case "ArrowLeft":
+      return "Left";
+    case "ArrowRight":
+      return "Right";
+    case "ArrowUp":
+      return "Up";
+    case "ArrowDown":
+      return "Down";
+    default:
+      return null;
+  }
+}
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
@@ -189,6 +267,14 @@ function GeneralSettingsSection() {
   const save_sequence_ref = useRef(0);
   const permission_mode = preferences.default_agent_options.permission_mode ?? "bypassPermissions";
   const selected_permission_mode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permission_mode) ?? AGENT_PERMISSION_MODES[0];
+  const [desktop_available] = useState(() => is_desktop_bridge_available());
+  const [desktop_version, set_desktop_version] = useState<DesktopAppVersion | null>(null);
+  const [desktop_shortcut_status, set_desktop_shortcut_status] =
+    useState<DesktopGlobalShortcutStatus | null>(null);
+  const [desktop_feedback, set_desktop_feedback] = useState<PreferenceFeedback | null>(null);
+  const [exporting_logs, set_exporting_logs] = useState(false);
+  const [is_recording_shortcut, set_is_recording_shortcut] = useState(false);
+  const [desktop_shortcut_saving, set_desktop_shortcut_saving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,6 +308,56 @@ function GeneralSettingsSection() {
       cancelled = true;
     };
   }, [t]);
+
+  useEffect(() => {
+    if (!desktop_available) {
+      return;
+    }
+    let cancelled = false;
+    const load_version = async () => {
+      try {
+        const version = await get_desktop_app_version();
+        if (!cancelled) {
+          set_desktop_version(version);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          set_desktop_feedback({
+            message: error instanceof Error ? error.message : t("settings.desktop.version_failed"),
+          });
+        }
+      }
+    };
+    void load_version();
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop_available, t]);
+
+  useEffect(() => {
+    if (!desktop_available) {
+      return;
+    }
+    let cancelled = false;
+    const load_shortcut_status = async () => {
+      try {
+        const status = await get_desktop_global_shortcut_status();
+        if (!cancelled) {
+          set_desktop_shortcut_status(status);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          set_desktop_feedback({
+            message: error instanceof Error ? error.message : t("settings.desktop.shortcut_status_failed"),
+          });
+        }
+      }
+    };
+    void load_shortcut_status();
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop_available, t]);
 
   const persist_preferences = useCallback(async (next_preferences: UserPreferences) => {
     const sequence = save_sequence_ref.current + 1;
@@ -285,6 +421,137 @@ function GeneralSettingsSection() {
       },
     });
   }, [persist_preferences]);
+
+  const handle_export_logs = useCallback(async () => {
+    try {
+      set_exporting_logs(true);
+      set_desktop_feedback(null);
+      const result = await export_desktop_logs();
+      if (result.cancelled) {
+        return;
+      }
+      set_desktop_feedback({
+        message: result.path
+          ? t("settings.desktop.export_logs_success_with_path").replace("{path}", result.path)
+          : t("settings.desktop.export_logs_success"),
+      });
+    } catch (error) {
+      set_desktop_feedback({
+        message: error instanceof Error ? error.message : t("settings.desktop.export_logs_failed"),
+      });
+    } finally {
+      set_exporting_logs(false);
+    }
+  }, [t]);
+
+  const handle_shortcut_enabled_change = useCallback(async (value: DesktopShortcutToggleValue) => {
+    const enabled = value === "enabled";
+    try {
+      set_desktop_shortcut_saving(true);
+      set_desktop_feedback(null);
+      const status = await set_desktop_global_shortcut_enabled(enabled);
+      set_desktop_shortcut_status(status);
+      if (status.error_message) {
+        set_desktop_feedback({
+          message: t("settings.desktop.shortcut_register_failed").replace("{error}", status.error_message),
+        });
+      }
+    } catch (error) {
+      set_desktop_feedback({
+        message: error instanceof Error ? error.message : t("settings.desktop.shortcut_save_failed"),
+      });
+    } finally {
+      set_desktop_shortcut_saving(false);
+    }
+  }, [t]);
+
+  const handle_shortcut_record_key_down = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!is_recording_shortcut) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === "Escape") {
+      set_is_recording_shortcut(false);
+      return;
+    }
+
+    const accelerator = format_desktop_shortcut_event(event.nativeEvent);
+    if (!accelerator) {
+      set_desktop_feedback({
+        message: t("settings.desktop.shortcut_record_invalid"),
+      });
+      return;
+    }
+
+    void (async () => {
+      try {
+        set_desktop_shortcut_saving(true);
+        set_desktop_feedback(null);
+        const status = await set_desktop_global_shortcut_accelerator(accelerator);
+        set_desktop_shortcut_status(status);
+        if (status.error_message) {
+          set_desktop_feedback({
+            message: t("settings.desktop.shortcut_register_failed").replace("{error}", status.error_message),
+          });
+        }
+      } catch (error) {
+        set_desktop_feedback({
+          message: error instanceof Error ? error.message : t("settings.desktop.shortcut_save_failed"),
+        });
+      } finally {
+        set_is_recording_shortcut(false);
+        set_desktop_shortcut_saving(false);
+      }
+    })();
+  }, [is_recording_shortcut, t]);
+
+  const handle_shortcut_reset = useCallback(async () => {
+    try {
+      set_desktop_shortcut_saving(true);
+      set_is_recording_shortcut(false);
+      set_desktop_feedback(null);
+      const status = await reset_desktop_global_shortcut_accelerator();
+      set_desktop_shortcut_status(status);
+      if (status.error_message) {
+        set_desktop_feedback({
+          message: t("settings.desktop.shortcut_register_failed").replace("{error}", status.error_message),
+        });
+        return;
+      }
+      set_desktop_feedback({
+        message: t("settings.desktop.shortcut_reset_success").replace(
+          "{accelerator}",
+          status.accelerator,
+        ),
+      });
+    } catch (error) {
+      set_desktop_feedback({
+        message: error instanceof Error ? error.message : t("settings.desktop.shortcut_save_failed"),
+      });
+    } finally {
+      set_desktop_shortcut_saving(false);
+    }
+  }, [t]);
+
+  const shortcut_toggle_value: DesktopShortcutToggleValue =
+    desktop_shortcut_status?.enabled === false ? "disabled" : "enabled";
+  const shortcut_description = is_recording_shortcut
+    ? t("settings.desktop.shortcut_recording_description")
+    : desktop_shortcut_status?.error_message
+    ? t("settings.desktop.shortcut_error_description").replace(
+      "{error}",
+      desktop_shortcut_status.error_message,
+    )
+    : desktop_shortcut_status?.registered
+      ? t("settings.desktop.shortcut_registered_description").replace(
+        "{accelerator}",
+        desktop_shortcut_status.accelerator,
+      )
+      : desktop_shortcut_status?.enabled === false
+        ? t("settings.desktop.shortcut_disabled_description")
+        : t("settings.desktop.shortcut_loading_description");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-3">
@@ -414,6 +681,129 @@ function GeneralSettingsSection() {
           </div>
         </div>
       </section>
+
+      {desktop_available ? (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-3 px-1">
+            <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
+              {t("settings.desktop.section_title")}
+            </h2>
+            {desktop_feedback ? (
+              <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
+                {desktop_feedback.message}
+              </span>
+            ) : null}
+          </div>
+          <div className={SETTINGS_CARD_CLASS_NAME}>
+            <div className={SETTINGS_ROW_CLASS_NAME}>
+              <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+                <div className={SETTINGS_ICON_CLASS_NAME}>
+                  <MonitorCog className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                    {t("settings.desktop.version_title")}
+                  </h3>
+                  <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                    {desktop_version
+                      ? t("settings.desktop.version_value")
+                        .replace("{version}", desktop_version.app_version)
+                        .replace("{build}", desktop_version.build_number)
+                      : t("settings.desktop.version_loading")}
+                  </p>
+                </div>
+              </div>
+              <button
+                className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+                disabled={exporting_logs}
+                onClick={handle_export_logs}
+                type="button"
+              >
+                {exporting_logs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                {t("settings.desktop.export_logs")}
+              </button>
+            </div>
+
+            <div className="border-t border-(--divider-subtle-color)" />
+
+            <div className={SETTINGS_ROW_CLASS_NAME}>
+              <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+                <div className={SETTINGS_ICON_CLASS_NAME}>
+                  <Keyboard className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                    {t("settings.desktop.shortcut_title")}
+                  </h3>
+                  <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                    {shortcut_description}
+                  </p>
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                  {desktop_shortcut_saving
+                    ? t("settings.desktop.shortcut_saving")
+                    : t("settings.desktop.shortcut_control_label")}
+                </span>
+                <SettingsSegmentedControl
+                  aria_label={t("settings.desktop.shortcut_title")}
+                  disabled={!desktop_shortcut_status || desktop_shortcut_saving}
+                  on_change={handle_shortcut_enabled_change}
+                  options={[
+                    {
+                      value: "enabled",
+                      label: t("settings.desktop.shortcut_enabled"),
+                    },
+                    {
+                      value: "disabled",
+                      label: t("settings.desktop.shortcut_disabled"),
+                    },
+                  ]}
+                  value={shortcut_toggle_value}
+                />
+                <button
+                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+                  disabled={desktop_shortcut_saving}
+                  onBlur={() => set_is_recording_shortcut(false)}
+                  onClick={() => {
+                    set_is_recording_shortcut(true);
+                    set_desktop_feedback({
+                      message: t("settings.desktop.shortcut_recording"),
+                    });
+                  }}
+                  onKeyDown={handle_shortcut_record_key_down}
+                  type="button"
+                >
+                  <Keyboard className="h-3 w-3" />
+                  {is_recording_shortcut
+                    ? t("settings.desktop.shortcut_recording")
+                    : t("settings.desktop.shortcut_record")}
+                </button>
+                <button
+                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+                  disabled={
+                    desktop_shortcut_saving ||
+                    is_recording_shortcut ||
+                    !desktop_shortcut_status ||
+                    desktop_shortcut_status.is_default
+                  }
+                  onClick={() => {
+                    void handle_shortcut_reset();
+                  }}
+                  type="button"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  {t("settings.desktop.shortcut_reset").replace(
+                    "{accelerator}",
+                    desktop_shortcut_status?.default_accelerator ?? "Option + Space",
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-2.5">
         <div className="flex items-center justify-between gap-3 px-1">

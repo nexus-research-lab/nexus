@@ -6,6 +6,7 @@
  */
 
 import { request_api } from "@/lib/api/http";
+import { get_desktop_runtime_config } from "@/config/desktop-runtime";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
@@ -56,10 +57,18 @@ function resolve_runtime_url(rawUrl: string | undefined, fallbackPath: string, u
 }
 
 export function get_agent_api_base_url(): string {
+  const desktop_url = get_desktop_runtime_config()?.api_base_url?.trim();
+  if (desktop_url) {
+    return desktop_url;
+  }
   return resolve_runtime_url(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
 }
 
 export function get_agent_ws_url(): string {
+  const desktop_url = get_desktop_runtime_config()?.ws_url?.trim();
+  if (desktop_url) {
+    return desktop_url;
+  }
   return resolve_runtime_url(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
 }
 

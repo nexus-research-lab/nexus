@@ -75,6 +75,7 @@ func (s *Server) mountMiddleware(logger *slog.Logger) {
 	s.router.Use(handlershared.RequestContextMiddleware(logger))
 	s.router.Use(handlershared.AccessLogMiddleware())
 	s.router.Use(handlershared.RecoverMiddleware(s.api))
+	s.router.Use(handlershared.DesktopSessionTokenMiddleware(s.api, s.config.DesktopSessionToken, s.config.APIPrefix))
 	s.router.Use(handlershared.AuthMiddleware(s.api, s.services.Auth))
 }
 

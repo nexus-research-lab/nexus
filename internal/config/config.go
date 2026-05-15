@@ -31,6 +31,8 @@ type Config struct {
 	DefaultTimezone                string
 	WorkspacePath                  string
 	CacheFileDir                   string
+	WebDistDir                     string
+	DesktopSessionToken            string
 	PnpmRegistry                   string
 	SkillsAPIURL                   string
 	SkillsAPISearchLimit           int
@@ -114,6 +116,8 @@ func Load() Config {
 		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
 		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
+		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
+		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		PnpmRegistry:                   getEnv("PNPM_REGISTRY", ""),
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsAPISearchLimit:           mustInt(getEnv("SKILLS_API_SEARCH_LIMIT", "20")),

@@ -72,6 +72,7 @@ func NewHandler(
 func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Request) {
 	connection, err := websocket.Accept(writer, request, &websocket.AcceptOptions{
 		OriginPatterns: []string{"*"},
+		Subprotocols:   []string{handlershared.DesktopWebSocketSubprotocol},
 	})
 	if err != nil {
 		return

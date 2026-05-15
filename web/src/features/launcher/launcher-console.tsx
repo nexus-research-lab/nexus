@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
 import { ANIMATIONS } from "@/config/animation-assets";
@@ -32,15 +31,15 @@ export function LauncherConsole({
   conversations,
   current_agent_id,
   on_open_main_agent_dm,
+  on_open_route,
   on_select_agent,
 }: LauncherConsoleProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [isQueryLoading, setIsQueryLoading] = useState(false);
-  const navigate = useNavigate();
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const launcher_tour = useMemo(() => build_launcher_tour(t), [t]);
-  const { start_current_tour } = usePageOnboardingTour({
+  usePageOnboardingTour({
     tour: launcher_tour,
     auto_start_delay_ms: 260,
   });
@@ -68,11 +67,8 @@ export function LauncherConsole({
               return;
             }
             set_active_panel_item(entry.room_id);
-            navigate(
-              AppRouteBuilders.room_conversation(
-                entry.room_id,
-                entry.conversation_id,
-              ),
+            on_open_route(
+              AppRouteBuilders.room_conversation(entry.room_id, entry.conversation_id),
             );
             return;
           }
@@ -81,11 +77,8 @@ export function LauncherConsole({
             on_select_agent(entry.agent_id);
             const context = await ensure_direct_room(entry.agent_id);
             set_active_panel_item(context.room.id);
-            navigate(
-              AppRouteBuilders.room_conversation(
-                context.room.id,
-                context.conversation.id,
-              ),
+            on_open_route(
+              AppRouteBuilders.room_conversation(context.room.id, context.conversation.id),
             );
             return;
           }
@@ -97,11 +90,8 @@ export function LauncherConsole({
           const contexts = await get_room_contexts(entry.room_id);
           if (contexts.length > 0) {
             set_active_panel_item(entry.room_id);
-            navigate(
-              AppRouteBuilders.room_conversation(
-                entry.room_id,
-                contexts[0].conversation.id,
-              ),
+            on_open_route(
+              AppRouteBuilders.room_conversation(entry.room_id, contexts[0].conversation.id),
             );
           }
         } catch (error) {
@@ -109,7 +99,7 @@ export function LauncherConsole({
         }
       })();
     },
-    [navigate, on_select_agent, set_active_panel_item],
+    [on_open_route, on_select_agent, set_active_panel_item],
   );
 
   const handle_submit = useCallback(
@@ -136,7 +126,7 @@ export function LauncherConsole({
               const final_route = action.initial_message
                 ? `${route}?initial=${encodeURIComponent(action.initial_message)}`
                 : route;
-              navigate(final_route);
+              on_open_route(final_route);
             }
             break;
           }
@@ -155,7 +145,7 @@ export function LauncherConsole({
               const final_route = action.initial_message
                 ? `${route}?initial=${encodeURIComponent(action.initial_message)}`
                 : route;
-              navigate(final_route);
+              on_open_route(final_route);
             }
             break;
           }
@@ -169,16 +159,16 @@ export function LauncherConsole({
     [
       query,
       isQueryLoading,
-      navigate,
       on_open_main_agent_dm,
+      on_open_route,
       on_select_agent,
       set_active_panel_item,
     ],
   );
 
   const handle_enter_home = useCallback(() => {
-    navigate(AppRouteBuilders.home());
-  }, [navigate]);
+    on_open_route(AppRouteBuilders.home());
+  }, [on_open_route]);
 
   const handle_input_change = useCallback((value: string) => {
     setQuery(value);

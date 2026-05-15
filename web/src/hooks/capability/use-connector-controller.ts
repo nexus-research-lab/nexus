@@ -13,7 +13,7 @@ import {
   get_connector_detail_api,
   get_connectors_api,
 } from "@/lib/api/connector-api";
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
 import { open_shop_prompt } from "@/features/capability/connectors/shop-domain-prompt";
 import { ConnectorDetail, ConnectorInfo } from "@/types/capability/connector";
 import type { ConnectorDirectoryController } from "@/features/capability/connectors/connectors-view-model";
@@ -117,7 +117,7 @@ export function useConnectorController(): ConnectorDirectoryController {
           }
 
           // 获取 OAuth 授权 URL 并在新窗口打开
-          const redirect_uri = `${window.location.origin}${AppRouteBuilders.connectors_oauth_callback()}`;
+          const redirect_uri = get_connector_oauth_redirect_uri();
           const { auth_url } = await get_connector_auth_url_api(connector_id, redirect_uri, shop);
           if (!auth_url) {
             throw new Error("授权地址为空，请检查连接器配置");

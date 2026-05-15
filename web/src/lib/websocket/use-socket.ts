@@ -13,10 +13,7 @@ import {
   WebSocketSendResult,
 } from "@/types/system/websocket";
 
-export interface UseWebSocketOptions extends Omit<
-  WebSocketConfig,
-  "protocols"
-> {
+export interface UseWebSocketOptions extends WebSocketConfig {
   on_message?: (message: any) => void;
   on_error?: (error: Event) => void;
   on_state_change?: (state: WebSocketState) => void;
@@ -116,6 +113,7 @@ function build_shared_channel_config(
 ): WebSocketConfig {
   return {
     url: options.url,
+    protocols: options.protocols ?? [],
     reconnect: options.reconnect ?? true,
     max_reconnect_attempts: options.max_reconnect_attempts ?? 5,
     reconnect_delay: options.reconnect_delay ?? 1000,
@@ -128,7 +126,8 @@ function build_shared_channel_config(
 function get_or_create_shared_channel(
   options: UseWebSocketOptions,
 ): SharedWebSocketChannel {
-  const existing_channel = shared_channels.get(options.url);
+  const channel_key = build_shared_channel_key(options);
+  const existing_channel = shared_channels.get(channel_key);
   if (existing_channel) {
     return existing_channel;
   }
@@ -136,17 +135,25 @@ function get_or_create_shared_channel(
   const next_channel = new SharedWebSocketChannel(
     build_shared_channel_config(options),
   );
-  shared_channels.set(options.url, next_channel);
+  shared_channels.set(channel_key, next_channel);
   return next_channel;
 }
 
+function build_shared_channel_key(options: UseWebSocketOptions): string {
+  const protocols = Array.isArray(options.protocols)
+    ? options.protocols.join(",")
+    : options.protocols ?? "";
+  return `${options.url}::${protocols}`;
+}
+
 export function useWebSocket(options: UseWebSocketOptions) {
+  const channel_key = build_shared_channel_key(options);
   const [state, setState] = useState<WebSocketState>(
     () =>
-      shared_channels.get(options.url)?.get_snapshot().state ?? "disconnected",
+      shared_channels.get(channel_key)?.get_snapshot().state ?? "disconnected",
   );
   const [error, setError] = useState<Event | null>(
-    () => shared_channels.get(options.url)?.get_snapshot().error ?? null,
+    () => shared_channels.get(channel_key)?.get_snapshot().error ?? null,
   );
   const channel_ref = useRef<SharedWebSocketChannel | null>(null);
   const on_message_ref = useRef(options.on_message);
@@ -173,10 +180,10 @@ export function useWebSocket(options: UseWebSocketOptions) {
   }, []);
 
   useEffect(() => {
-    const cleanup_timer = shared_channel_cleanup_timers.get(options.url);
+    const cleanup_timer = shared_channel_cleanup_timers.get(channel_key);
     if (cleanup_timer) {
       window.clearTimeout(cleanup_timer);
-      shared_channel_cleanup_timers.delete(options.url);
+      shared_channel_cleanup_timers.delete(channel_key);
     }
 
     const channel = get_or_create_shared_channel(options);
@@ -207,19 +214,19 @@ export function useWebSocket(options: UseWebSocketOptions) {
           }
           console.debug("[useWebSocket] Cleaning up shared WebSocket client");
           channel.disconnect();
-          if (shared_channels.get(options.url) === channel) {
-            shared_channels.delete(options.url);
+          if (shared_channels.get(channel_key) === channel) {
+            shared_channels.delete(channel_key);
           }
-          shared_channel_cleanup_timers.delete(options.url);
+          shared_channel_cleanup_timers.delete(channel_key);
         }, SHARED_SOCKET_RELEASE_DELAY_MS);
-        shared_channel_cleanup_timers.set(options.url, next_timer);
+        shared_channel_cleanup_timers.set(channel_key, next_timer);
       }
       if (channel_ref.current === channel) {
         channel_ref.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 维度创建，配置由首个订阅者固定。
-  }, [options.url]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 和 protocol 维度创建，配置由首个订阅者固定。
+  }, [channel_key, options.url]);
 
   const send = useCallback((data: WebSocketMessage): WebSocketSendResult => {
     if (!channel_ref.current) {

@@ -243,6 +243,10 @@ func PublicAuthRoute(request *http.Request) bool {
 		return true
 	}
 	path := strings.TrimSpace(request.URL.Path)
+	// 桌面 App 的 Web 静态资源不属于 API 面，认证只由 `/nexus/v1` 业务接口承担。
+	if path != "/nexus/v1" && !strings.HasPrefix(path, "/nexus/v1/") {
+		return true
+	}
 	if strings.HasPrefix(path, "/nexus/v1/internal/") {
 		return true
 	}
