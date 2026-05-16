@@ -122,36 +122,6 @@ make dev
 
 ---
 
-## 构建
-
-**环境要求**
-
-- Go 1.26.2+
-- Node.js 22+
-- pnpm 9.15.2+
-
-**常用命令**
-
-| 命令 | 说明 |
-|------|------|
-| `make dev` | 启动后端与前端开发服务 |
-| `make check` | 运行 Go 测试、前端 lint 和类型检查 |
-| `make db-init` | 执行数据库迁移 |
-| `make gen-protocol-types` | 从 Go 协议模型重新生成前端类型 |
-| `make package-release` | 为当前平台构建可运行包 |
-
-**构建指定平台**
-
-```bash
-NEXUS_RELEASE_TARGET=linux-amd64  ./scripts/package-release.sh 0.1.3
-NEXUS_RELEASE_TARGET=linux-arm64  ./scripts/package-release.sh 0.1.3
-NEXUS_RELEASE_TARGET=windows-amd64 ./scripts/package-release.sh 0.1.3
-```
-
-Nexus 通过 CGO 依赖 SQLite，跨平台构建需要安装目标平台的 C 工具链。
-
----
-
 ## 发布包
 
 | 平台 | 格式 |
