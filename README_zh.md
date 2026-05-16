@@ -122,18 +122,6 @@ make dev
 
 ---
 
-## 发布包
-
-| 平台 | 格式 |
-|------|------|
-| `linux-amd64` | `.tar.gz` |
-| `linux-arm64` | `.tar.gz` |
-| `windows-amd64` | `.zip` |
-
-每个包含：服务端二进制（`nexus-server`、`nexus-migrate`、`nexusctl`）、数据库迁移脚本、内置技能、构建好的前端资源。
-
----
-
 ## 许可证
 
 Apache License 2.0 · [LICENSE](./LICENSE)
