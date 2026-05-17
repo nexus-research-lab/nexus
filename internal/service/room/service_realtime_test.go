@@ -1248,6 +1248,14 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("目标 agent 空闲后未派发 queued mention")
 	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType != protocol.EventTypeRoundStatus {
+			return false
+		}
+		roundID, _ := event.Data["round_id"].(string)
+		status, _ := event.Data["status"].(string)
+		return strings.HasPrefix(roundID, "room_mention_") && status == "finished"
+	})
 }
 
 func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRuns(t *testing.T) {
@@ -1352,6 +1360,14 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	if len(targetQueueItems) != 0 {
 		t.Fatalf("空闲目标派发后不应残留队列项: %+v", targetQueueItems)
 	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType != protocol.EventTypeRoundStatus {
+			return false
+		}
+		roundID, _ := event.Data["round_id"].(string)
+		status, _ := event.Data["status"].(string)
+		return strings.HasPrefix(roundID, "queue_") && status == "finished"
+	})
 }
 
 func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
