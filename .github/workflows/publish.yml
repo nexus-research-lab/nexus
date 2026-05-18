@@ -95,13 +95,10 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
 
-      - name: Install Cross Toolchains
+      - name: Install Packaging Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            gcc-aarch64-linux-gnu \
-            gcc-mingw-w64-x86-64 \
-            zip
+          sudo apt-get install -y --no-install-recommends rsync zip
 
       - name: Install Frontend Dependencies
         run: |

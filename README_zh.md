@@ -59,12 +59,12 @@ printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin 
 
 ```bash
 # 构建镜像
-docker build -t nexus:latest .
+docker build -f deploy/Dockerfile -t nexus:latest .
 
 # 启动容器
 docker run -d \
   -p 8010:8010 \
-  -v nexus-data:/data \
+  -v nexus-data:/home/agent/.nexus \
   --name nexus \
   nexus:latest
 ```
@@ -72,7 +72,7 @@ docker run -d \
 初始化管理员账号：
 
 ```bash
-docker exec nexus ./bin/nexusctl auth init-owner --username admin --password-stdin
+printf '%s\n' 'your-password' | docker exec -i nexus nexusctl auth init-owner --username admin --password-stdin
 ```
 
 ### 本地开发

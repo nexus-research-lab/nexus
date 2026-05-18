@@ -31,27 +31,6 @@ if [[ "${TARGET_GOOS}" == "windows" ]]; then
   EXE_SUFFIX=".exe"
 fi
 
-configure_cgo_toolchain() {
-  export CGO_ENABLED="${CGO_ENABLED:-1}"
-  case "${TARGET}" in
-    linux-amd64)
-      export CC="${CC:-gcc}"
-      ;;
-    linux-arm64)
-      export CC="${CC:-aarch64-linux-gnu-gcc}"
-      ;;
-    windows-amd64)
-      export CC="${CC:-x86_64-w64-mingw32-gcc}"
-      ;;
-  esac
-
-  if [[ -n "${CC:-}" ]] && ! command -v "${CC}" >/dev/null 2>&1; then
-    echo "missing C compiler for ${TARGET}: ${CC}" >&2
-    echo "Nexus uses SQLite through CGO; install the matching cross compiler or set CC explicitly." >&2
-    exit 1
-  fi
-}
-
 OUTPUT_DIR="${NEXUS_RELEASE_OUTPUT_DIR:-${ROOT_DIR}/dist/release}"
 WORK_DIR="${NEXUS_RELEASE_WORK_DIR:-${ROOT_DIR}/dist/release-work}"
 DIST_NAME="nexus-${TAG}-${TARGET}"
@@ -62,8 +41,7 @@ if [[ "${TARGET_GOOS}" == "windows" ]]; then
 fi
 ARCHIVE_PATH="${OUTPUT_DIR}/${DIST_NAME}.${ARCHIVE_EXT}"
 SHA256_PATH="${ARCHIVE_PATH}.sha256"
-
-configure_cgo_toolchain
+BUILD_CGO_ENABLED="${CGO_ENABLED:-0}"
 
 echo "==> Checking Go dependencies"
 (cd "${ROOT_DIR}" && GIT_TERMINAL_PROMPT=0 go mod download)
@@ -86,10 +64,10 @@ build_binary() {
   local package_path="$2"
   local output_path="${STAGE_DIR}/bin/${name}${EXE_SUFFIX}"
 
-  echo "==> Building ${name} (${TARGET})"
+  echo "==> Building ${name} (${TARGET}, CGO_ENABLED=${BUILD_CGO_ENABLED})"
   (
     cd "${ROOT_DIR}"
-    GOOS="${TARGET_GOOS}" GOARCH="${TARGET_GOARCH}" \
+    CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS="${TARGET_GOOS}" GOARCH="${TARGET_GOARCH}" \
       go build -trimpath -ldflags="-s -w" -o "${output_path}" "${package_path}"
   )
 }

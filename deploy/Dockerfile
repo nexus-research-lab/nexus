@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 ARG GO_IMAGE=golang:1.26.2-bookworm
 ARG NODE_IMAGE=node:22-bookworm-slim
 
@@ -7,7 +8,7 @@ LABEL authors="leemysw"
 LABEL description="Nexus"
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    CGO_ENABLED=1
+    CGO_ENABLED=0
 
 ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
@@ -24,7 +25,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     fi && \
     apt-get update -o Acquire::Retries=3 && \
     apt-get install -y --no-install-recommends \
-    build-essential \
     ca-certificates \
     git && \
     rm -rf /var/lib/apt/lists/*
@@ -48,6 +48,31 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -o /out/nexus-server ./cmd/nexus-server && \
     go build -o /out/nexus-migrate ./cmd/nexus-migrate && \
     go build -o /out/nexusctl ./cmd/nexusctl
+
+FROM ${NODE_IMAGE} AS web-builder
+
+ARG PNPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_VERSION=9.15.2
+ARG VITE_WS_URL=
+ARG VITE_API_URL=
+
+ENV VITE_WS_URL=${VITE_WS_URL} \
+    VITE_API_URL=${VITE_API_URL} \
+    PNPM_HOME=/pnpm \
+    PATH=/pnpm:${PATH}
+
+WORKDIR /src/web
+
+COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/.npmrc ./
+RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+    npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
+    pnpm config set registry "${PNPM_REGISTRY}" && \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile
+
+COPY web/ ./
+RUN pnpm run build
 
 FROM ${NODE_IMAGE} AS runtime
 
@@ -128,6 +153,7 @@ COPY --from=builder /out/nexus-migrate /usr/local/bin/nexus-migrate
 COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
 COPY db /opt/app/db
 COPY skills /opt/app/skills
+COPY --from=web-builder /src/web/dist /opt/app/web/dist
 COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
 COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
 
