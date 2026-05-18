@@ -81,6 +81,7 @@ rsync -a --delete --exclude ".DS_Store" "${ROOT_DIR}/db/" "${STAGE_DIR}/db/"
 rsync -a --delete --exclude ".DS_Store" "${ROOT_DIR}/skills/" "${STAGE_DIR}/skills/"
 rsync -a --delete --exclude ".DS_Store" "${ROOT_DIR}/web/dist/" "${STAGE_DIR}/web/dist/"
 if [[ -d "${ROOT_DIR}/docs/image" ]]; then
+  mkdir -p "${STAGE_DIR}/docs/image"
   rsync -a --delete --exclude ".DS_Store" "${ROOT_DIR}/docs/image/" "${STAGE_DIR}/docs/image/"
 fi
 cp "${ROOT_DIR}/README.md" "${STAGE_DIR}/README.md"
