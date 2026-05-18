@@ -440,7 +440,7 @@ function OnboardingTourOverlay({
               </div>
               <button
                 className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                onClick={() => on_close()}
+                onClick={() => on_close({ completed: true })}
                 type="button"
               >
                 {t("common.skip")}
