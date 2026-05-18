@@ -15,7 +15,7 @@
 ---
 
 <div align="center">
-<img src="./docs/image/app.png" alt="Nexus 工作台" width="90%">
+<img src="./docs/image/launcher.png" alt="Nexus 工作台" width="90%">
 </div>
 
 ---

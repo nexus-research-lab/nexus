@@ -15,15 +15,15 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -228,7 +228,7 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 func migrateWorkspaceSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

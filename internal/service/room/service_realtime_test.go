@@ -24,10 +24,10 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	_ "modernc.org/sqlite"
 )
 
 var NewRealtimeServiceWithFactory = roomsvc.NewRealtimeServiceWithFactory
@@ -2207,7 +2207,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 		t.Fatalf("期望只有一个 room session: %+v", roomContext.Sessions)
 	}
 
-	db, err = sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err = sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

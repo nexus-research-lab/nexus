@@ -31,7 +31,17 @@ func NormalizeSQLDriver(driver string) string {
 	case "postgres", "postgresql", "pg":
 		return "pgx"
 	default:
-		return "sqlite3"
+		return "sqlite"
+	}
+}
+
+// IsSQLiteSQLDriver 判断 database/sql 驱动名是否为 SQLite。
+func IsSQLiteSQLDriver(driver string) bool {
+	switch strings.ToLower(strings.TrimSpace(driver)) {
+	case "sqlite", "sqlite3":
+		return true
+	default:
+		return false
 	}
 }
 

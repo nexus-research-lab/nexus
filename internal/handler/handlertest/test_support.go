@@ -8,8 +8,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 // NewConfig 返回HTTP 服务测试配置。
@@ -34,7 +34,7 @@ func NewConfig(t testing.TB) config.Config {
 // OpenSQLite 打开测试数据库。
 func OpenSQLite(t testing.TB, databaseURL string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

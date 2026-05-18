@@ -15,15 +15,15 @@ import (
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestLauncherQueryAndSuggestions(t *testing.T) {
 	cfg := newLauncherTestConfig(t)
 	migrateLauncherSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -181,7 +181,7 @@ func newLauncherTestConfig(t *testing.T) config.Config {
 func migrateLauncherSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

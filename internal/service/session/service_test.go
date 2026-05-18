@@ -20,8 +20,8 @@ import (
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestSessionServiceLifecycle(t *testing.T) {
@@ -701,7 +701,7 @@ func stringPointer(value string) *string {
 func migrateSessionSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

@@ -23,8 +23,8 @@ import (
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
@@ -239,7 +239,7 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 
 func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 	t.Helper()
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -251,7 +251,7 @@ func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 
 func newDMProviderService(t *testing.T, cfg config.Config) *providercfg.Service {
 	t.Helper()
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开 provider 测试数据库失败: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		t.Fatalf("写入 AGENTS.md 失败: %v", err)
 	}
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -2094,7 +2094,7 @@ func stringPointer(t *testing.T, value *string) string {
 func migrateDMSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

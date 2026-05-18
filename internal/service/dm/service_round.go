@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -94,7 +95,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+	r.dispatchNextInputQueueItem()
 }
 
 func (r *roundRunner) executeRound(
@@ -232,7 +233,7 @@ func (r *roundRunner) failRound(err error) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "error", "error"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+	r.dispatchNextInputQueueItem()
 }
 
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
@@ -327,7 +328,21 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+	r.dispatchNextInputQueueItem()
+}
+
+func (r *roundRunner) dispatchNextInputQueueItem() {
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: r.workspacePath,
+		SessionKey:    r.sessionKey,
+	}
+	go r.service.dispatchNextInputQueueItemAtLocation(
+		contextWithQueueOwner(context.Background(), r.ownerUserID),
+		r.sessionKey,
+		r.agent.AgentID,
+		location,
+	)
 }
 
 func (r *roundRunner) persistMessage(message protocol.Message) error {

@@ -17,8 +17,8 @@ import (
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 type fakeRoomSkillCatalog map[string]skillspkg.Detail
@@ -590,7 +590,7 @@ func assertPathRemoved(t *testing.T, path string) {
 func migrateRoomSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

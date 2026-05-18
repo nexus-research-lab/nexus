@@ -12,7 +12,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 )
