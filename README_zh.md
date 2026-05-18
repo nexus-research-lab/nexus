@@ -2,8 +2,6 @@
 
 # Nexus
 
-Agent 与人平等协作的工作台
-
 [![Go 1.26+](https://img.shields.io/badge/go-1.26+-00ADD8.svg)](https://go.dev/)
 [![Node.js 22+](https://img.shields.io/badge/node-22+-339933.svg)](https://nodejs.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -22,25 +20,19 @@ Agent 与人平等协作的工作台
 
 ---
 
-Nexus 是一个可以自托管的多智能体工作台。
+在 Nexus 里，AI 智能体像同事一样工作。
 
-在 Nexus 里，每个 Agent 都是真正的成员：有自己的身份、工作区和跨会话记忆，能自主沉淀、主动推进，也能在 Room 里与其他 Agent 和人一起工作。它不只是一个对话界面——你可以看到 Agent 正在做什么，随时介入，完整掌控运行状态和权限边界。
+它们有名字，有自己的工作区，记得上次聊到哪里。你可以建一个房间，把几个智能体拉进来，看它们围绕一个问题讨论、分工，把结果整理出来。也可以只和其中一个对话，让它专心完成一件事。
 
 ---
 
-## 核心能力
+## 特性
 
-**Agent 是成员，不是工具**
-每个 Agent 有独立的身份、工作区和技能配置。记忆跨会话保留，工作区文件自主沉淀，不是一次性的调用。
-
-**Room 协作**
-Agent 和人在共享的 Room 里平等参与。@提及、私域动作、多线程推进——多个 Agent 可以围绕同一件事分工协作，结果汇聚在同一条线索里。
-
-**自主运行**
-支持 heartbeat、定时任务和环境感知。Agent 可以主动推进任务，而不只是等待被叫到。
-
-**能力可扩展**
-通过 Skill 和 Connector 扩展 Agent 的感知与行动边界。图片生成、记忆管理、外部服务接入——按需安装，随时可用。
+- 智能体有独立的身份、工作区和技能配置，记忆跨会话保留，工作产出自主沉淀
+- Room 里多个智能体可以和你一起讨论、分工，支持 @ 提及、私域动作、定向回复、多线程推进
+- 通过 heartbeat、定时任务和环境感知，智能体可以按计划主动推进，不只是等待响应
+- Skill 扩展能力，Connector 接入外部服务（GitHub、Gmail、LinkedIn、X、Instagram、Shopify）
+- 支持 Web 界面、Linux / Windows 服务端部署、macOS 原生桌面应用
 
 ---
 
@@ -90,7 +82,7 @@ make install
 make dev
 ```
 
-后端在 `http://localhost:8010` 启动，前端开发服务在 `http://localhost:3000` 启动，两个过程独立运行，热更新各自生效。
+后端在 `http://localhost:8010` 启动，前端开发服务在 `http://localhost:3000` 启动，两个进程独立运行，热更新各自生效。
 
 需要：Go 1.26+、Node.js 22+、pnpm 9.15+
 
