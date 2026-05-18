@@ -128,7 +128,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<nexus_room_no_reply/>",
 		"目标轮数、当前轮次、下一位成员、停止条件",
 		"直接创建 Room action",
-		`cd "$NEXUS_PROJECT_ROOT" && go run ./cmd/nexusctl --json room action`,
+		`nexusctl --json room action`,
 		`room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`--wake-policy delayed --delay-seconds <seconds>`,

@@ -34,11 +34,20 @@ func ResolveWorkspacePath(cfg config.Config, ownerUserID string, agentName strin
 }
 
 func expandHome(path string) string {
-	if strings.HasPrefix(path, "~/") {
+	value := strings.TrimSpace(path)
+	switch {
+	case value == "~":
 		home, err := os.UserHomeDir()
 		if err == nil {
-			return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+			return home
+		}
+	case strings.HasPrefix(value, "~/"), strings.HasPrefix(value, `~\`):
+		home, err := os.UserHomeDir()
+		if err == nil {
+			relative := strings.TrimLeft(value[2:], `/\`)
+			relative = strings.ReplaceAll(relative, `\`, "/")
+			return filepath.Join(home, filepath.FromSlash(relative))
 		}
 	}
-	return path
+	return value
 }

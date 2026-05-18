@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,11 +19,9 @@ import (
 )
 
 func runMigrations(cfg config.Config, logger *slog.Logger) error {
-	driver := storage.NormalizeSQLDriver(cfg.DatabaseDriver)
-	dsn := storage.NormalizeDatabaseURL(cfg.DatabaseURL)
 	dir := "db/migrations/" + storage.MigrationDirName(cfg.DatabaseDriver)
 
-	db, err := sql.Open(driver, dsn)
+	db, err := storage.OpenDB(cfg)
 	if err != nil {
 		return fmt.Errorf("open db for migration: %w", err)
 	}

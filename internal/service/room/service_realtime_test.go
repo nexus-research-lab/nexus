@@ -325,7 +325,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"你正在 Nexus 的多人协作 Room 中参与公开协作",
 		"Room 运行时会在系统提示词中提供成员目录，并在每轮用户消息里提供 public_feed 和 latest_trigger",
 		"直接创建 Room action",
-		`cd "$NEXUS_PROJECT_ROOT" && go run ./cmd/nexusctl --json room action`,
+		`nexusctl --json room action`,
 		`room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`--wake-policy delayed --delay-seconds <seconds>`,

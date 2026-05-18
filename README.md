@@ -38,6 +38,32 @@ They have names, their own workspaces, and remember where you left off. You can 
 
 ## Quick Start
 
+### Install Claude Code
+
+Nexus currently runs agents through `nexus-agent-sdk-bridge`, which launches Claude Code on the machine running the backend. Install Claude Code first and make sure `claude` is available in `PATH`.
+
+```bash
+# macOS / Linux / WSL
+curl -fsSL https://claude.ai/install.sh | bash
+
+# Alternative npm install
+npm install -g @anthropic-ai/claude-code
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+Or install with WinGet:
+
+```powershell
+winget install Anthropic.ClaudeCode
+```
+
+After installation, run `claude` once and complete login. On native Windows, Git for Windows is recommended so Claude Code can use its Bash tool; without it, Claude Code falls back to PowerShell. See the [official Claude Code setup guide](https://code.claude.com/docs/en/getting-started) for the latest platform-specific instructions.
+
 ### Run a Release Package
 
 ```bash
@@ -89,7 +115,7 @@ make dev
 
 The backend starts at `http://localhost:8010`, the frontend dev server at `http://localhost:3000`. Both run independently with hot reload.
 
-Requirements: Go 1.26+, Node.js 22+, pnpm 9.15+
+Requirements: Go 1.26+, Node.js 22+, pnpm 9.15+, and Claude Code available as `claude`
 
 ---
 

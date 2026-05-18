@@ -38,6 +38,32 @@
 
 ## 快速开始
 
+### 安装 Claude Code
+
+Nexus 当前通过 `nexus-agent-sdk-bridge` 启动 Claude Code 来运行 Agent，因此运行后端的机器需要先安装 Claude Code，并确保 `claude` 在 `PATH` 中可用。
+
+```bash
+# macOS / Linux / WSL
+curl -fsSL https://claude.ai/install.sh | bash
+
+# 也可以使用 npm 安装
+npm install -g @anthropic-ai/claude-code
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+也可以使用 WinGet：
+
+```powershell
+winget install Anthropic.ClaudeCode
+```
+
+安装后先运行一次 `claude` 并完成登录。原生 Windows 环境建议安装 Git for Windows，这样 Claude Code 可以使用 Bash 工具；没有 Git for Windows 时会回退到 PowerShell。最新平台安装方式以 [Claude Code 官方安装文档](https://code.claude.com/docs/en/getting-started) 为准。
+
 ### 使用发布包
 
 ```bash
@@ -84,7 +110,7 @@ make dev
 
 后端在 `http://localhost:8010` 启动，前端开发服务在 `http://localhost:3000` 启动，两个进程独立运行，热更新各自生效。
 
-需要：Go 1.26+、Node.js 22+、pnpm 9.15+
+需要：Go 1.26+、Node.js 22+、pnpm 9.15+，并确保 Claude Code 可以通过 `claude` 命令访问。
 
 ---
 
