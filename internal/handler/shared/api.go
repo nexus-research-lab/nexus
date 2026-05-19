@@ -252,6 +252,7 @@ func PublicAuthRoute(request *http.Request) bool {
 	}
 	switch path {
 	case "/nexus/v1/health",
+		"/nexus/v1/system/version",
 		"/nexus/v1/runtime/options",
 		"/nexus/v1/auth/status",
 		"/nexus/v1/auth/login",

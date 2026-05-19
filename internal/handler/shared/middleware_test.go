@@ -108,7 +108,7 @@ func TestDesktopSessionTokenMiddlewareAllowsHealthAndStatic(t *testing.T) {
 		}),
 	)
 
-	for _, path := range []string{"/nexus/v1/health", "/", "/assets/index.js", "/nexus/v1/internal/actions"} {
+	for _, path := range []string{"/nexus/v1/health", "/nexus/v1/system/version", "/", "/assets/index.js", "/nexus/v1/internal/actions"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)

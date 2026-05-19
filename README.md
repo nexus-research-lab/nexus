@@ -89,6 +89,8 @@ echo your-password| bin\nexusctl.exe auth init-owner --username admin --password
 run-nexus.cmd
 ```
 
+To upgrade a release package, open Settings in the Web UI and use the release download link. Download the matching package for your platform, stop Nexus, replace the extracted package directory, then run migration and start Nexus again.
+
 ### Docker
 
 ```bash

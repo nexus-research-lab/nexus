@@ -42,6 +42,10 @@ fi
 ARCHIVE_PATH="${OUTPUT_DIR}/${DIST_NAME}.${ARCHIVE_EXT}"
 SHA256_PATH="${ARCHIVE_PATH}.sha256"
 BUILD_CGO_ENABLED="${CGO_ENABLED:-0}"
+GIT_COMMIT="$(git -C "${ROOT_DIR}" rev-parse --short=12 HEAD 2>/dev/null || true)"
+BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+VERSION_PACKAGE="github.com/nexus-research-lab/nexus/internal/version"
+LDFLAGS="-s -w -X ${VERSION_PACKAGE}.AppVersion=${VERSION} -X ${VERSION_PACKAGE}.GitCommit=${GIT_COMMIT} -X ${VERSION_PACKAGE}.BuildDate=${BUILD_DATE}"
 
 echo "==> Checking Go dependencies"
 (cd "${ROOT_DIR}" && GIT_TERMINAL_PROMPT=0 go mod download)
@@ -68,7 +72,7 @@ build_binary() {
   (
     cd "${ROOT_DIR}"
     CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS="${TARGET_GOOS}" GOARCH="${TARGET_GOARCH}" \
-      go build -trimpath -ldflags="-s -w" -o "${output_path}" "${package_path}"
+      go build -trimpath -ldflags="${LDFLAGS}" -o "${output_path}" "${package_path}"
   )
 }
 

@@ -10,11 +10,35 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	sqlitestorage "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
 )
+
+func TestHandleSystemVersion(t *testing.T) {
+	handler := corehandler.New(handlershared.NewAPI(nil), nil, nil)
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/system/version", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.HandleSystemVersion(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: got=%d", recorder.Code)
+	}
+	var payload struct {
+		Data versionpkg.Info `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if payload.Data.Project != versionpkg.ProjectName || payload.Data.Target == "" {
+		t.Fatalf("版本响应不正确: %+v", payload.Data)
+	}
+}
 
 func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	cfg := handlertest.NewConfig(t)

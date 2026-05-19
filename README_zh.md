@@ -81,6 +81,8 @@ printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin 
 
 打开 `http://localhost:8010`，登录后即可开始。
 
+发布包升级时，在 Web UI 的设置页打开新版本下载入口，下载对应平台的发布包；停止 Nexus 后替换解压目录，再执行迁移并重新启动。
+
 ### Docker 部署
 
 ```bash

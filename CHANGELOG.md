@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 新增 Nexus 版本展示入口：发布包注入版本元数据，`/system/version` 返回当前二进制信息，Web 设置页提供 GitHub Release 下载入口，引导用户手动下载并替换发布包。
+
 ## [0.1.3] - 2026-05-15
 
 ### Added

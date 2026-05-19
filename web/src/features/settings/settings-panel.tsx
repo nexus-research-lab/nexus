@@ -16,10 +16,12 @@ import {
   ChevronDown,
   Compass,
   Download,
+  ExternalLink,
   Languages,
   Loader2,
   MessageSquareText,
   MonitorCog,
+  PackageOpen,
   Palette,
   Keyboard,
   RotateCcw,
@@ -29,6 +31,10 @@ import {
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { get_user_preferences_api, update_user_preferences_api } from "@/lib/api/settings-preferences-api";
+import {
+  get_system_version_api,
+  type SystemVersionInfo,
+} from "@/lib/api/system-api";
 import {
   export_desktop_logs,
   get_desktop_global_shortcut_status,
@@ -177,6 +183,7 @@ const SETTINGS_CONTROL_LABEL_CLASS_NAME = "text-[11px] font-medium text-(--text-
 const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
 const SETTINGS_CONTROL_TEXT_CLASS_NAME = "text-[11px] font-semibold leading-none";
 const SETTINGS_SELECT_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full appearance-none rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 pr-7 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) outline-none transition-colors focus:border-(--surface-interactive-active-border) disabled:opacity-(--disabled-opacity)`;
+const DEFAULT_RELEASE_PAGE_URL = "https://github.com/nexus-research-lab/nexus/releases/latest";
 
 interface SettingsSegmentedControlOption<T extends string> {
   label: string;
@@ -262,6 +269,9 @@ function GeneralSettingsSection() {
   const [preferences_loading, set_preferences_loading] = useState(true);
   const [preferences_saving, set_preferences_saving] = useState(false);
   const [preference_feedback, set_preference_feedback] = useState<PreferenceFeedback | null>(null);
+  const [system_version, set_system_version] = useState<SystemVersionInfo | null>(null);
+  const [system_version_loading, set_system_version_loading] = useState(true);
+  const [system_version_feedback, set_system_version_feedback] = useState<PreferenceFeedback | null>(null);
   const preferences_ref = useRef(preferences);
   const last_saved_preferences_ref = useRef<UserPreferences | null>(null);
   const save_sequence_ref = useRef(0);
@@ -275,6 +285,35 @@ function GeneralSettingsSection() {
   const [exporting_logs, set_exporting_logs] = useState(false);
   const [is_recording_shortcut, set_is_recording_shortcut] = useState(false);
   const [desktop_shortcut_saving, set_desktop_shortcut_saving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load_system_version = async () => {
+      try {
+        set_system_version_loading(true);
+        const result = await get_system_version_api();
+        if (cancelled) {
+          return;
+        }
+        set_system_version(result);
+        set_system_version_feedback(null);
+      } catch (error) {
+        if (!cancelled) {
+          set_system_version_feedback({
+            message: error instanceof Error ? error.message : t("settings.system.version_failed"),
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          set_system_version_loading(false);
+        }
+      }
+    };
+    void load_system_version();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -552,9 +591,56 @@ function GeneralSettingsSection() {
       : desktop_shortcut_status?.enabled === false
         ? t("settings.desktop.shortcut_disabled_description")
         : t("settings.desktop.shortcut_loading_description");
+  const release_page_url = system_version?.release_url || DEFAULT_RELEASE_PAGE_URL;
+  const system_version_description = system_version
+    ? t("settings.system.version_value")
+      .replace("{version}", system_version.version)
+      .replace("{target}", system_version.target)
+    : system_version_loading
+      ? t("settings.system.version_loading")
+      : t("settings.system.version_unavailable");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-3">
+      <section className="space-y-2.5">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
+            {t("settings.system.section_title")}
+          </h2>
+          {system_version_feedback ? (
+            <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
+              {system_version_feedback.message}
+            </span>
+          ) : null}
+        </div>
+        <div className={SETTINGS_CARD_CLASS_NAME}>
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <PackageOpen className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.system.version_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {system_version_description}
+                </p>
+              </div>
+            </div>
+            <a
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
+              href={release_page_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <ExternalLink className="h-3 w-3" />
+              {t("settings.system.download_release")}
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="space-y-2.5">
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.general.section_appearance")}

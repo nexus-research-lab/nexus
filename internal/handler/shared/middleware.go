@@ -257,7 +257,8 @@ func desktopSessionTokenBypass(request *http.Request, apiPrefix string) bool {
 		return true
 	}
 	switch path {
-	case apiPrefix + "/health":
+	case apiPrefix + "/health",
+		apiPrefix + "/system/version":
 		return true
 	}
 	if strings.HasPrefix(path, apiPrefix+"/internal/") {
