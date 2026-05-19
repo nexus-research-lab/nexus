@@ -7,10 +7,10 @@ enum ApplicationMenuBuilder {
     NSApp.mainMenu = mainMenu
 
     mainMenu.addItem(appMenuItem(target: target))
-    mainMenu.addItem(fileMenuItem(target: target))
+    mainMenu.addItem(fileMenuItem())
     mainMenu.addItem(editMenuItem())
     mainMenu.addItem(viewMenuItem(target: target))
-    mainMenu.addItem(windowMenuItem())
+    mainMenu.addItem(windowMenuItem(target: target))
   }
 
   private static func appMenuItem(target: AppDelegate) -> NSMenuItem {
@@ -48,15 +48,9 @@ enum ApplicationMenuBuilder {
     return item
   }
 
-  private static func fileMenuItem(target: AppDelegate) -> NSMenuItem {
+  private static func fileMenuItem() -> NSMenuItem {
     let item = NSMenuItem()
     let menu = NSMenu(title: "文件")
-    menu.addItem(menuItem(
-      "打开启动器",
-      action: #selector(AppDelegate.showLauncher(_:)),
-      target: target
-    ))
-    menu.addItem(.separator())
     menu.addItem(menuItem("关闭窗口", action: #selector(NSWindow.performClose(_:)), key: "w"))
     item.submenu = menu
     return item
@@ -86,9 +80,17 @@ enum ApplicationMenuBuilder {
     return item
   }
 
-  private static func windowMenuItem() -> NSMenuItem {
+  private static func windowMenuItem(target: AppDelegate) -> NSMenuItem {
     let item = NSMenuItem()
     let menu = NSMenu(title: "窗口")
+    menu.addItem(menuItem(
+      "显示启动器",
+      action: #selector(AppDelegate.showLauncher(_:)),
+      key: " ",
+      modifiers: [.option],
+      target: target
+    ))
+    menu.addItem(.separator())
     menu.addItem(menuItem("最小化", action: #selector(NSWindow.miniaturize(_:)), key: "m"))
     menu.addItem(menuItem("缩放", action: #selector(NSWindow.zoom(_:))))
     menu.addItem(.separator())

@@ -8,9 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- GitHub Release 发布流程新增 macOS dogfood app 构建 job，并把 zip、sha256、metadata 作为同一个 tag 的 Release assets 上传。
+- GitHub Release 发布流程新增 macOS app 构建 job，并把 dmg、sha256、metadata 作为同一个 tag 的 Release assets 上传。
 - macOS 桌面 smoke 支持 CI 友好的 launcher 分布式通知兜底和可配置 fallback reveal 容忍度。
-- 新增 macOS dogfood QA 清单，并补充 WebView 外链/阻断、launcher 关闭原因和 WebContent 终止诊断记录。
+- 新增 macOS app QA 清单，并补充 WebView 外链/阻断、launcher 关闭原因和 WebContent 终止诊断记录。
+- Makefile 新增 macOS app 开发、构建、运行、smoke 和打包入口。
+- macOS 桌面新增 Nexus 概念 App 图标，并接入 `.app` bundle。
+
+### Changed
+- macOS 桌面移除“文件 / 打开启动器”菜单项，改为“窗口 / 显示启动器”并展示 `Option + Space` 快捷键。
+- macOS 桌面 launcher 浮层改为紧凑命令面板，设置页新增“返回工作台”入口。
 
 ## [0.1.4] - 2026-05-19
 
@@ -34,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 发布包进入可直接运行阶段：Linux 与 Windows 运行包内置服务端、前端资源、数据库迁移和内置技能，启动后即可通过同一个本地地址访问 Nexus。
 - 图片生成能力成型：支持独立的图片生成 Provider、内置 `imagegen` 技能，以及会话内图片结果预览。
 - Room 协作动作增强：支持私域消息、请求指定成员回复、小范围受众投递、延迟唤醒和房间级技能规则。
-- 桌面端 dogfood 链路完成第一阶段：本地 sidecar、独立窗口、桌面会话凭据、启动诊断和内部验证包已具备闭环。
+- 桌面端内部验证链路完成第一阶段：本地 sidecar、独立窗口、桌面会话凭据、启动诊断和内部验证包已具备闭环。
 
 ### Fixed
 - 会话运行态以真实执行中的任务为准，减少异常退出或中断失败后仍显示“对话中”的情况。

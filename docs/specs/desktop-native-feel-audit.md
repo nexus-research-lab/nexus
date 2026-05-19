@@ -8,7 +8,7 @@
 
 - `Green`：已经实现并通过本地验证。
 - `Yellow`：已有骨架，但还需要体验或异常路径补齐。
-- `Red`：发布 dogfood 前仍缺失。
+- `Red`：发布 macOS app 前仍缺失。
 
 ## 2. 当前审计
 
@@ -26,13 +26,13 @@
 | OAuth desktop redirect | Yellow | 桌面 sidecar 设置 `CONNECTOR_OAUTH_REDIRECT_URI=nexus://connectors/oauth/callback`，后端 state 表记录 `redirect_kind`，前端授权与回调按 desktop runtime 使用相同 redirect URI。 | 真实 provider 联调后转 Green。 |
 | Native bridge | Yellow | 当前支持版本读取、外链打开、日志导出、主窗口路由打开、launcher 关闭和全局快捷键状态读写。 | 用 Go 协议真相源生成 TS / Swift bridge 类型。 |
 | Secure storage | Yellow | macOS shell 在正式签名包中优先用 Keychain 生成并持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。Go sidecar 使用该 key 加密 OAuth client secret 和 connector credentials。 | 正式签名包验证 Keychain 不降级；后续补 bridge 级 `read_secret` / `write_secret`，把需要原生直接访问的敏感字段逐项迁入 Keychain。 |
-| Global shortcut / launcher | Yellow | macOS shell 已用 Carbon 注册全局快捷键，默认 `Option + Space`；设置页可录制自定义组合键、开关快捷键、恢复默认值并显示注册失败原因；独立浮层窗口、原生菜单和 `nexus://launcher` 都可拉起 Web launcher；浮层内搜索、最近项和目标选择都会交回主窗口导航，失焦和 Escape 会关闭浮层；launcher 已使用独立 entry。 | 补更细的快捷键冲突引导和快捷键冲突恢复体验。 |
+| Global shortcut / launcher | Yellow | macOS shell 已用 Carbon 注册全局快捷键，默认 `Option + Space`；窗口菜单提供“显示启动器”并展示同一快捷键；设置页可录制自定义组合键、开关快捷键、恢复默认值并显示注册失败原因；独立紧凑浮层和 `nexus://launcher` 都可拉起 Web launcher；浮层内搜索、最近项和目标选择都会交回主窗口导航，失焦和 Escape 会关闭浮层；launcher 已使用独立 entry。 | 补更细的快捷键冲突引导和快捷键冲突恢复体验。 |
 | Multi-entry WebView | Green | Vite 已输出 `app.html`、`launcher.html`、`settings.html`、`oauth-callback.html` 四个 entry；Swift shell 按窗口和 `nexus://` URL 选择入口，并用 `desktop_route` 传递业务路由；Go sidecar fallback 支持直接刷新 `/`、`/app`、`/settings` 和 OAuth callback；轻入口 router 已拆开，launcher/settings/OAuth 不再预拉彼此页面 chunk；主入口也已把 login、launcher、Lottie loading 和 markdown vendor 从首屏静态依赖中移出。 | 后续继续做真实冷启动计时和多窗口生命周期细化。 |
-| Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-dogfood.sh` 可生成内部 dogfood zip、sha256 和 metadata，并强制跑 smoke；GitHub `Publish Release` 已增加独立 macOS job，把 dogfood app 作为同一个 tag 的 Release asset 上传。 | 无 Developer ID 阶段继续用 ad-hoc dogfood；公开发布前补 Developer ID 签名、公证、DMG/ZIP。 |
+| Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-app.sh` 可生成 zip/dmg、sha256 和 metadata，并强制跑 smoke；GitHub `Publish Release` 已增加独立 macOS job，把 dmg 作为同一个 tag 的 Release asset 上传。 | 无 Developer ID 阶段继续用 ad-hoc 签名；公开发布前补 Developer ID 签名、公证和 staple。 |
 | Updates | Red | 还没有自动更新。 | public beta 前接 Sparkle 或等价方案。 |
 | Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化、外链/阻断、右键菜单抑制、launcher 关闭原因和 WebContent 进程终止；WebContent 终止会额外写 `webcontent-terminated-*.json`；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加符号化 crash report 和更完整的 startup failure UI。 |
 
-## 3. Dogfood 前必须变 Green
+## 3. App 发布前必须变 Green
 
 - App 生命周期：Quit、Close、Dock reopen、重复启动、异常退出都可解释。
 - WebView 边界：外链、OAuth、未知 scheme、右键菜单、复制粘贴、输入法、首屏 ready gate 通过手测。
@@ -42,7 +42,7 @@
 
 ## 4. Public beta 前必须变 Green
 
-- Developer ID 签名、公证、staple；这是 Apple 账号/证书外部依赖，无证书阶段只做内部 dogfood。
+- Developer ID 签名、公证、staple；这是 Apple 账号/证书外部依赖。
 - 自动更新。
 - Keychain：connector credentials encryption key 已完成；开发/ad-hoc 包默认走本地 0600 文件，正式签名包需确认不触发本地文件降级，逐项 secret API 仍需补齐。
 - URL scheme + OAuth redirect kind 真实 provider 闭环。
@@ -54,11 +54,11 @@
 
 2026-05-19：
 
-- GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-dogfood.sh`，并把 zip、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
+- GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-app.sh`，并把 dmg、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
 - 桌面 smoke 脚本在启动前显式向 LaunchServices 注册 `.app`，并在 custom scheme 未投递时回退到 shell 内部的 launcher 分布式通知，避免干净 CI runner 上 `nexus://launcher` 不稳定导致 launcher smoke 失败。
 - GitHub macOS job 开启 `NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK=1`，允许慢 runner 上主窗口先以 `fallback_timeout` reveal，但仍要求后续 `web.ready` 到达，并继续拦截 WebContent crash 和 startup failure；本地默认 smoke 仍保持严格模式。
-- macOS app 发布仍标记为 dogfood：ad-hoc signing、未 notarize、metadata 保留 `developer_id=false` 和 `notarized=false`。
-- 桌面交互 QA 清单新增 `docs/specs/desktop-dogfood-qa-checklist.md`，覆盖 IME、Tab/Escape、复制粘贴、右键菜单、外链、未知 scheme、真实 OAuth provider 和诊断反馈格式。
+- macOS app 发布仍标记签名状态：ad-hoc signing、未 notarize、metadata 保留 `developer_id=false` 和 `notarized=false`。
+- 桌面交互 QA 清单新增 `docs/specs/desktop-app-qa-checklist.md`，覆盖 IME、Tab/Escape、复制粘贴、右键菜单、外链、未知 scheme、真实 OAuth provider 和诊断反馈格式。
 - WebView 外链打开、popup 外链、未知 scheme 阻断、右键菜单抑制和 launcher 关闭原因进入 `Nexus Startup` 时间线；WebContent 终止会额外写 `webcontent-terminated-*.json`，日志导出的 `diagnostics.json` 增加 URL scheme 声明检查。
 
 2026-05-15：
@@ -70,7 +70,7 @@
 - `plutil -lint desktop/macos/.build/app/Nexus.app/Contents/Info.plist`
 - `codesign --verify --deep --strict desktop/macos/.build/app/Nexus.app`
 - `scripts/desktop/smoke-macos-app.sh`
-- `scripts/desktop/package-macos-dogfood.sh`
+- `scripts/desktop/package-macos-app.sh`
 - 打包 `.app` 手动烟测：启动主窗口、打开 `nexus://settings`、确认 settings bundle 与偏好接口返回 200、退出后无 `Nexus` / `nexus-server` 残留。
 - 生命周期补充烟测：启动时写入 `NexusSidecar.pid.json`，正常退出后删除 PID 记录。
 - Multi-entry WebView 烟测：`/` 命中 `launcher` chunk，`/app` 命中 `app` chunk，`/settings` 命中 `settings` chunk，`/capability/connectors/oauth/callback` 命中 `oauth_callback` chunk；`nexus://settings` 和 `nexus://launcher` 均落到对应 HTML entry。
@@ -82,4 +82,4 @@
 - 原生 material 收口：主窗口使用 `NSVisualEffectView.Material.windowBackground`，launcher 使用 `popover` material 和圆角承载面；WKWebView 设置透明 under-page 背景；窗口 occlusion、miniaturize / deminiaturize 进入启动时间线。
 - material / Keychain / launcher 复合 smoke：ad-hoc `.app` 启动时 `sidecar.credentials_key_ready` 156.8ms，`storage=file reason=ad_hoc_signature`，未触发 Keychain 密码弹窗；主窗口 `main_window.created material=windowBackground`，`web.ready source=timer_fallback` 1.47s 后 `main_window.revealed source=web.ready`；`nexus://launcher` 创建 `launcher_window.created material=popover`，`web.ready source=after_paint` 后 reveal；主窗口和 launcher 均记录到 `occlusion_changed`。
 - 桌面 smoke 脚本：新增 `scripts/desktop/smoke-macos-app.sh`，自动启动最终 `.app`、校验 credentials storage、主窗口 ready reveal、launcher ready reveal、material 标记、无 fallback / WebContent crash / startup failure，并确认退出后 bundled sidecar 无残留。
-- 无 Developer ID dogfood 打包：新增 `scripts/desktop/package-macos-dogfood.sh`，固定版本号/构建号后构建 `.app`、校验 plist / codesign、执行 smoke，再输出 `Nexus-macos-<version>-<build>.zip`、`.sha256` 和 `.metadata.json`；metadata 明确 `signing.kind=ad-hoc`、`notarized=false`、`keychain.expected_storage=file`。
+- 无 Developer ID app 打包：新增 `scripts/desktop/package-macos-app.sh`，固定版本号/构建号后构建 `.app`、校验 plist / codesign、执行 smoke，再输出 `Nexus-macos-<version>-<build>` 的 zip 或 dmg、`.sha256` 和 `.metadata.json`；metadata 明确 `signing.kind=ad-hoc`、`notarized=false`、`keychain.expected_storage=file`。

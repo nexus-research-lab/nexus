@@ -189,6 +189,7 @@ export function LauncherPage() {
           on_open_main_agent_dm={handle_open_main_agent_dm}
           on_open_route={open_navigation_route}
           on_select_agent={handle_select_agent}
+          variant={is_desktop_launcher_surface ? "compact" : "full"}
         />
       </div>
 

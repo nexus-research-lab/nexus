@@ -12,6 +12,7 @@
 "use client";
 
 import {
+  ArrowLeft,
   Cable,
   ChevronDown,
   Compass,
@@ -29,7 +30,9 @@ import {
   UserRound,
 } from "lucide-react";
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { get_user_preferences_api, update_user_preferences_api } from "@/lib/api/settings-preferences-api";
 import {
   get_system_version_api,
@@ -40,6 +43,7 @@ import {
   get_desktop_global_shortcut_status,
   get_desktop_app_version,
   is_desktop_bridge_available,
+  open_desktop_route,
   reset_desktop_global_shortcut_accelerator,
   set_desktop_global_shortcut_accelerator,
   set_desktop_global_shortcut_enabled,
@@ -57,7 +61,10 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import {
+  WorkspaceSurfaceHeader,
+  WorkspaceSurfaceToolbarAction,
+} from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
@@ -952,9 +959,20 @@ function GeneralSettingsSection() {
 
 export function SettingsPanel() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [active_tab, set_active_tab] = useState<SettingsTabKey>("general");
   const active_tab_config = SETTINGS_TABS.find((item) => item.key === active_tab) ?? SETTINGS_TABS[0];
   const ActiveIcon = active_tab_config.icon;
+  const handle_back_to_workspace = useCallback(() => {
+    if (is_desktop_bridge_available()) {
+      void open_desktop_route(APP_ROUTE_PATHS.home).catch((error) => {
+        console.error("[SettingsPanel] 桌面返回工作台失败:", error);
+        navigate(APP_ROUTE_PATHS.home);
+      });
+      return;
+    }
+    navigate(APP_ROUTE_PATHS.home);
+  }, [navigate]);
 
   return (
     <WorkspaceSurfaceScaffold
@@ -972,6 +990,12 @@ export function SettingsPanel() {
             icon: item.icon,
           }))}
           title={t("settings.title")}
+          trailing={(
+            <WorkspaceSurfaceToolbarAction onClick={handle_back_to_workspace}>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {t("settings.back_to_workspace")}
+            </WorkspaceSurfaceToolbarAction>
+          )}
         />
       )}
     >

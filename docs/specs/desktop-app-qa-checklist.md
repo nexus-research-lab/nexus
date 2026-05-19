@@ -1,17 +1,17 @@
-# Desktop Dogfood QA Checklist
+# Desktop App QA Checklist
 
-本文档用于记录 macOS dogfood 包的人工验收步骤。自动化 smoke 负责确认 `.app` 能启动、sidecar 能监听、主窗口和 launcher 能 reveal；这里覆盖更接近真实桌面使用的输入、导航、OAuth 和诊断行为。
+本文档用于记录 macOS app 包的人工验收步骤。自动化 smoke 负责确认 `.app` 能启动、sidecar 能监听、主窗口和 launcher 能 reveal；这里覆盖更接近真实桌面使用的输入、导航、OAuth 和诊断行为。
 
 ## 1. 前置条件
 
-1. 从 GitHub workflow artifact 或 Release asset 下载 `Nexus-macos-<version>-<build>.zip` 与对应 `.sha256`。
+1. 从 GitHub workflow artifact 或 Release asset 下载 `Nexus-macos-<version>-<build>.dmg` 与对应 `.sha256`。
 2. 在同一目录执行：
 
 ```bash
-shasum -a 256 -c Nexus-macos-<version>-<build>.zip.sha256
+shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 ```
 
-3. 解压后把 `Nexus.app` 放到 `/Applications`，首次启动用 Finder 右键 Open。
+3. 打开 dmg 后把 `Nexus.app` 拖到 `/Applications`，首次启动用 Finder 右键 Open。
 4. 记录测试机器信息：macOS 版本、芯片、输入法、是否外接屏、包版本、build number。
 
 ## 2. 桌面交互
@@ -22,9 +22,10 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.zip.sha256
 | Dock reopen | 关闭主窗口后点击 Dock 图标 | 主窗口重新出现，sidecar 不重启。 |
 | Cmd+W | 主窗口按 `Command+W` | 只隐藏窗口，不退出应用。 |
 | Cmd+Q | 按 `Command+Q` | App 退出，`nexus-server` 无残留。 |
-| Launcher | 按 `Option+Space`、菜单打开启动器、执行 `open nexus://launcher` | 三种入口都能打开 launcher。 |
+| Launcher | 按 `Option+Space`、窗口菜单选择“显示启动器”、执行 `open nexus://launcher` | 三种入口都能打开紧凑 launcher 面板，不再弹出完整首页。 |
 | Launcher Escape | launcher 获焦时按 `Escape` | launcher 关闭，主窗口状态不丢失。 |
 | Launcher 失焦 | 打开 launcher 后点击其他窗口 | launcher 自动关闭。 |
+| 设置页返回 | 从菜单或 `nexus://settings` 进入设置后点击“返回工作台” | 回到主工作区，视觉上有明确返回路径。 |
 | 文本输入 | 在设置页、搜索框、会话输入框输入英文、中文拼音、标点和换行 | IME 候选窗位置正常，提交文字不丢字符。 |
 | 键盘导航 | 使用 `Tab` / `Shift+Tab` 在表单和按钮之间移动 | 焦点顺序可解释，焦点不会丢到不可见区域。 |
 | 编辑快捷键 | `Command+A/C/X/V/Z/Shift+Command+Z` | 文本选择、复制、剪切、粘贴、撤销和重做符合 macOS 预期。 |
@@ -54,10 +55,10 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.zip.sha256
 
 ## 5. 记录格式
 
-每轮 dogfood QA 用以下格式记录到 issue、PR 或发布检查单：
+每轮 macOS app QA 用以下格式记录到 issue、PR 或发布检查单：
 
 ```text
-Nexus macOS dogfood QA
+Nexus macOS app QA
 Version:
 Build:
 Commit:
@@ -73,7 +74,7 @@ Failed:
 - [场景] 复现步骤 / 期望 / 实际 / 日志路径
 
 Artifacts:
-- app zip:
+- app dmg:
 - sha256:
 - diagnostics zip:
 ```

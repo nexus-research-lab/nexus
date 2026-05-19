@@ -60,17 +60,18 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
 
-      - name: Build macOS Dogfood App
+      - name: Build macOS DMG
         env:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
-          NEXUS_DESKTOP_DOGFOOD_OUTPUT_DIR: ${{ runner.temp }}/macos-artifacts
+          NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/macos-artifacts
+          NEXUS_DESKTOP_PACKAGE_FORMAT: dmg
           NEXUS_DESKTOP_VERSION: ${{ steps.tag.outputs.version }}
           NEXUS_DESKTOP_BUILD_NUMBER: ${{ github.run_number }}
           NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
           NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
           NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
         run: |
-          scripts/desktop/package-macos-dogfood.sh
+          scripts/desktop/package-macos-app.sh
 
       - name: Upload macOS App Assets
         uses: actions/upload-artifact@v7
@@ -78,9 +79,9 @@ jobs:
           name: nexus-${{ steps.tag.outputs.tag }}-macos-app
           if-no-files-found: error
           path: |
-            ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.zip
-            ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.zip.sha256
-            ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.metadata.json
+            ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg
+            ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.sha256
+            ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.metadata.json
 
   release:
     needs: macos_app
@@ -203,9 +204,9 @@ jobs:
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.tar.gz
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.zip
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.sha256
-            ${{ runner.temp }}/artifacts/Nexus-macos-*.zip
-            ${{ runner.temp }}/artifacts/Nexus-macos-*.zip.sha256
-            ${{ runner.temp }}/artifacts/Nexus-macos-*.metadata.json
+            ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg
+            ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.sha256
+            ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.metadata.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -218,6 +219,6 @@ jobs:
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.tar.gz
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.zip
             ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.sha256
-            ${{ runner.temp }}/artifacts/Nexus-macos-*.zip
-            ${{ runner.temp }}/artifacts/Nexus-macos-*.zip.sha256
-            ${{ runner.temp }}/artifacts/Nexus-macos-*.metadata.json
+            ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg
+            ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.sha256
+            ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.metadata.json

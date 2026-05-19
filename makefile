@@ -20,6 +20,7 @@ BRIDGE_SDK_MODULE ?= github.com/nexus-research-lab/nexus-agent-sdk-bridge
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-bridge-sdk-access check-private-sdk-access check-backend check-go check test run-web run-backend run-backend-go \
+	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check \
 	up down log reboot
 
 # Show help
@@ -115,6 +116,31 @@ check-backend: check-go ## Alias of Go backend checks
 check: check-go lint-web typecheck-web ## Run basic validation checks
 
 test: check ## Alias of check
+
+app-build-dev: ## 构建 macOS 桌面开发版 shell
+	./scripts/desktop/build-macos-dev.sh
+
+app-run-dev: ## 构建并运行 macOS 桌面开发版 shell
+	./scripts/desktop/run-macos-dev.sh
+
+app-build: ## 构建 ad-hoc macOS .app
+	./scripts/desktop/build-macos-app.sh
+
+app-run: ## 构建并运行 ad-hoc macOS .app
+	./scripts/desktop/run-macos-app.sh
+
+app-smoke: ## 烟测已组装的 macOS .app
+	./scripts/desktop/smoke-macos-app.sh
+
+app-package: ## 构建 macOS app zip、sha256 和 metadata
+	NEXUS_DESKTOP_PACKAGE_FORMAT=zip ./scripts/desktop/package-macos-app.sh
+
+app-dmg: ## 构建 macOS app dmg、sha256 和 metadata
+	NEXUS_DESKTOP_PACKAGE_FORMAT=dmg ./scripts/desktop/package-macos-app.sh
+
+build-dmg: app-dmg ## app-dmg 的别名
+
+app-check: app-smoke ## 构建并烟测 macOS .app
 
 # Docker commands
 build: ## Build Docker images

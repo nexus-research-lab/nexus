@@ -13,7 +13,8 @@ APP_BUNDLE="${APP_BUILD_DIR}/${APP_NAME}.app"
 CONTENTS_DIR="${APP_BUNDLE}/Contents"
 MACOS_CONTENTS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
-SIDECAR_BUILD_PATH="${APP_BUILD_DIR}/nexus-server"
+SIDECAR_BUILD_DIR="${APP_BUILD_DIR}/.intermediates"
+SIDECAR_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-server"
 SWIFT_PRODUCT="NexusDesktop"
 
 echo "==> Building web/dist"
@@ -22,7 +23,7 @@ pnpm install --frozen-lockfile
 NEXUS_DESKTOP_BUILD=1 pnpm build
 
 echo "==> Building Go sidecar"
-mkdir -p "${APP_BUILD_DIR}"
+mkdir -p "${SIDECAR_BUILD_DIR}"
 cd "${ROOT_DIR}"
 CGO_ENABLED="${CGO_ENABLED:-1}" go build \
   -trimpath \
@@ -36,10 +37,12 @@ SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --show-bi
 
 echo "==> Assembling ${APP_BUNDLE}"
 rm -rf "${APP_BUNDLE}"
+rm -f "${APP_BUILD_DIR}/nexus-server" "${APP_BUILD_DIR}/.DS_Store"
 mkdir -p "${MACOS_CONTENTS_DIR}" "${RESOURCES_DIR}"
 
 cp "${SWIFT_BIN_PATH}/${SWIFT_PRODUCT}" "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
 cp "${SIDECAR_BUILD_PATH}" "${MACOS_CONTENTS_DIR}/nexus-server"
+cp "${MACOS_DIR}/Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
   "${MACOS_CONTENTS_DIR}/nexus-server"
 
@@ -63,5 +66,8 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   codesign --force --sign - "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" >/dev/null
   codesign --force --deep --sign - "${APP_BUNDLE}" >/dev/null
 fi
+
+rm -rf "${SIDECAR_BUILD_DIR}"
+rm -f "${APP_BUILD_DIR}/.DS_Store"
 
 echo "==> Built ${APP_BUNDLE}"

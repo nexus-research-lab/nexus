@@ -227,7 +227,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
       )
       let window = NSPanel(
-        contentRect: NSRect(x: 0, y: 0, width: 900, height: 620),
+        contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
         styleMask: [.titled, .closable, .fullSizeContentView],
         backing: .buffered,
         defer: false

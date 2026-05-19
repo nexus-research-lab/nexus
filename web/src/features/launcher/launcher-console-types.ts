@@ -14,6 +14,7 @@ export interface LauncherConsoleProps {
   on_open_main_agent_dm: (initial_prompt?: string) => void;
   on_open_route: (route: string) => void;
   on_select_agent: (agent_id: string) => void;
+  variant?: "full" | "compact";
 }
 
 export interface RecentLauncherEntry {

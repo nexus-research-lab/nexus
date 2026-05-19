@@ -290,36 +290,36 @@ nexus://connectors/oauth/callback
 
 ## 9. 发布链路
 
-当前 `Publish Release` workflow 已经负责同一个 tag 下的源码包、Linux/Windows 可运行包、release notes 和 GitHub Release 创建。macOS dogfood 包也属于同一个 Release asset 集合，因此先复用同一个 workflow，但拆成独立 `macos_app` job 运行在 macOS runner 上；最终 `release` job 统一下载并上传全部 assets，避免两个 workflow 同时创建或追加同一个 Release。
+当前 `Publish Release` workflow 已经负责同一个 tag 下的源码包、Linux/Windows 可运行包、release notes 和 GitHub Release 创建。macOS app 包也属于同一个 Release asset 集合，因此先复用同一个 workflow，但拆成独立 `macos_app` job 运行在 macOS runner 上；最终 `release` job 统一下载并上传全部 assets，避免两个 workflow 同时创建或追加同一个 Release。
 
 流水线：
 
 1. Checkout tag。
 2. macOS job 设置 Go / Node / pnpm。
-3. 执行 `scripts/desktop/package-macos-dogfood.sh`，CI 环境允许慢 runner 触发主窗口 fallback reveal，但仍必须等到 `web.ready`、launcher ready、无 WebContent crash 和无 startup failure。
+3. 执行 `scripts/desktop/package-macos-app.sh`，CI 环境允许慢 runner 触发主窗口 fallback reveal，但仍必须等到 `web.ready`、launcher ready、无 WebContent crash 和无 startup failure。
 4. 脚本构建 `web/dist`、Go sidecar 与 Swift shell，并组装 `.app`。
 5. 脚本执行 ad-hoc codesign、plist/codesign 校验和桌面 smoke。
-6. 脚本生成 `Nexus-macos-<version>-<build>.zip`、`.sha256` 与 `.metadata.json`。
+6. 脚本生成 `Nexus-macos-<version>-<build>.dmg`、`.sha256` 与 `.metadata.json`。
 7. macOS job 上传临时 workflow artifact。
 8. Ubuntu release job 继续生成源码包与 Linux/Windows 可运行包。
 9. Ubuntu release job 下载 macOS artifact，并统一上传到 GitHub Release。
 
-等 Developer ID、Notary、公证 staple、DMG、Sparkle appcast 都进入正式发布阶段后，再考虑拆成独立 `publish-macos-app.yml` 或可复用 workflow。那时 macOS 发布线会有独立证书、secret、失败重试和更新通道，不应继续伪装成当前 dogfood 包。
+等 Developer ID、Notary、公证 staple 和 Sparkle appcast 都进入正式发布阶段后，再考虑拆成独立 `publish-macos-app.yml` 或可复用 workflow。那时 macOS 发布线会有独立证书、secret、失败重试和更新通道。
 
-没有 Developer ID 时，先走内部 dogfood 链路，不伪装成正式公开发布：
+没有 Developer ID 时，先走 ad-hoc 签名链路，不伪装成正式公证发布：
 
-1. 本地执行 `scripts/desktop/package-macos-dogfood.sh`。
+1. 本地执行 `scripts/desktop/package-macos-app.sh`。
 2. 脚本固定版本号和构建号，生成 ad-hoc 签名 `.app`。
 3. 执行 plist / codesign 校验和桌面 smoke。
-4. 输出 zip、sha256 和 metadata。
+4. 输出 zip 或 dmg、sha256 和 metadata。
 5. metadata 必须标记 `signing.kind=ad-hoc`、`notarized=false`，并记录源码 commit 与 dirty 状态。
 6. 分发前校验 sha256；测试机首次打开使用 Finder 右键 Open，或在可信内部机器上清理 quarantine。
 
-第一版 dogfood 可以本地构建 `.app` 和 zip，但 public beta 前签名、公证和自动更新必须完成。
+第一版可以本地构建 `.app` 和 zip/dmg，但 public beta 前签名、公证和自动更新必须完成。
 
 ## 10. 验收标准
 
-### 10.1 Dogfood 版本
+### 10.1 App 版本
 
 - 双击 `Nexus.app` 可以启动。
 - 首次启动可以完成 owner/bootstrap。
@@ -330,7 +330,7 @@ nexus://connectors/oauth/callback
 - OAuth 回调能回到 App。
 - 日志可以从 App 内导出。
 - 本地数据目录不污染仓库。
-- `docs/specs/desktop-dogfood-qa-checklist.md` 中的桌面交互、OAuth 和诊断清单有明确通过/失败记录。
+- `docs/specs/desktop-app-qa-checklist.md` 中的桌面交互、OAuth 和诊断清单有明确通过/失败记录。
 
 ### 10.2 Public beta
 
@@ -362,11 +362,11 @@ nexus://connectors/oauth/callback
 - Go sidecar 随 shell 启停。
 - Shell 注入 API / WS 地址。
 
-### 阶段 2：Dogfood App Bundle
+### 阶段 2：App Bundle
 
 - 生成 `Nexus.app` bundle。
 - Bundle 内包含 Swift shell、Go sidecar、`web/dist`、`db/migrations`。
-- 使用 ad-hoc 签名支持本机 dogfood。
+- 使用 ad-hoc 签名支持本机验证。
 - 从 bundle 直接启动，不能依赖 `go run`、仓库根目录或开发端口。
 - App 退出、SIGTERM / SIGINT 终止时必须同步停止 Go sidecar。
 
@@ -385,13 +385,13 @@ nexus://connectors/oauth/callback
 - Keychain。
 - 原生文件选择 / 通知 / 外部链接。
 - WebView 白屏、右键菜单、输入法、焦点、滚动修正。
-- 维护 dogfood QA checklist，记录 IME、Tab/Escape、复制粘贴、外链、未知 scheme、OAuth 和诊断反馈结果。
+- 维护 macOS app QA checklist，记录 IME、Tab/Escape、复制粘贴、外链、未知 scheme、OAuth 和诊断反馈结果。
 
-### 阶段 5a：无 Developer ID dogfood 发布
+### 阶段 5a：无 Developer ID app 发布
 
 - 构建 ad-hoc `.app`。
 - 运行桌面 smoke。
-- 生成 zip、sha256、metadata。
+- 生成 zip/dmg、sha256、metadata。
 - 文档写清 Gatekeeper 限制、安装路径、数据目录、日志目录和重置方式。
 
 ### 阶段 5b：正式发布
