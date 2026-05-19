@@ -3,6 +3,7 @@ using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
+using Nexus.Desktop.Update;
 using Nexus.Desktop.Window;
 
 namespace Nexus.Desktop;
@@ -12,6 +13,7 @@ public partial class App : Application
     private readonly DesktopStartupTimeline startupTimeline = new();
     private DesktopSingleInstanceCoordinator? singleInstance;
     private SidecarSupervisor? sidecar;
+    private DesktopUpdateChecker? updateChecker;
     private MainWindow? mainWindow;
     private DesktopWebRoute? pendingActivationRoute;
 
@@ -40,6 +42,8 @@ public partial class App : Application
                 ?? DesktopProtocolRouter.RouteFromActivationMessage(DesktopProtocolRouter.ActivationMessage(e.Args));
             pendingActivationRoute = null;
             await mainWindow.ShowRouteAsync(launchRoute);
+            updateChecker = new DesktopUpdateChecker(startupTimeline);
+            updateChecker.CheckOnLaunchIfNeeded(mainWindow);
         }
         catch (Exception exception)
         {

@@ -53,8 +53,18 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $logPath) | Out-Nu
 $marker = "windows_smoke_$([Guid]::NewGuid().ToString('N'))"
 Add-Content -Path $logPath -Value "[$marker] smoke_start"
 
-Write-Host "==> Starting $appExe"
-$process = Start-Process -FilePath $appExe -WorkingDirectory $AppDir -PassThru
+$previousDisableUpdateCheck = $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK
+try {
+  $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK = "1"
+  Write-Host "==> Starting $appExe"
+  $process = Start-Process -FilePath $appExe -WorkingDirectory $AppDir -PassThru
+} finally {
+  if ($null -eq $previousDisableUpdateCheck) {
+    Remove-Item Env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK -ErrorAction SilentlyContinue
+  } else {
+    $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK = $previousDisableUpdateCheck
+  }
+}
 
 try {
   Wait-Until {

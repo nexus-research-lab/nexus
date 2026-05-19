@@ -9,7 +9,7 @@
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/`。
 
-第一阶段已支持 unsigned Inno Setup 安装器；托盘、全局快捷键和自动更新在后续阶段补齐。
+第一阶段已支持 unsigned Inno Setup 安装器和启动后更新检测；托盘、全局快捷键和自动下载安装更新在后续阶段补齐。
 
 ## 构建
 
@@ -86,4 +86,5 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 - 桌面运行数据统一写入 `~/.nexus`，数据库位于 `~/.nexus/data/nexus.db`，日志位于 `~/.nexus/logs`。
 - sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `~/.nexus/config/connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
 - 桥接接口先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；日志导出会带 `diagnostics.json`，启动失败会写 `startup-failure-*.json`。
-- GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows app zip、installer exe、sha256 与 metadata。当前 zip 和安装器均未签名；托盘、签名和自动更新在后续阶段补齐。
+- 应用启动后会按 24 小时节流检测 GitHub Release 中的 Windows metadata；发现新版本时提示打开下载页。可设置 `NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1` 禁用检测。
+- GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows app zip、installer exe、sha256 与 metadata。当前 zip 和安装器均未签名；托盘、签名和自动下载安装更新在后续阶段补齐。
