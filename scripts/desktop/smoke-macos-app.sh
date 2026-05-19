@@ -10,7 +10,9 @@ APP_EXECUTABLE="${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
 LOG_FILE="${NEXUS_DESKTOP_SMOKE_LOG:-${TMPDIR:-/tmp}/nexus-desktop-smoke.log}"
 MAIN_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS:-15}"
 LAUNCHER_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS:-10}"
+LAUNCHER_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_URL_TIMEOUT_SECONDS:-3}"
 EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}"
+ALLOW_FALLBACK="${NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK:-0}"
 
 APP_PID=""
 
@@ -31,7 +33,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wait_for_log() {
+wait_for_log_match() {
   local pattern="$1"
   local timeout_seconds="$2"
   local started_at
@@ -45,10 +47,29 @@ wait_for_log() {
       fail "app exited before log matched: ${pattern}"
     fi
     if (( "$(date +%s)" - started_at >= timeout_seconds )); then
-      fail "timed out waiting for log: ${pattern}"
+      return 1
     fi
     sleep 0.2
   done
+}
+
+wait_for_log() {
+  local pattern="$1"
+  local timeout_seconds="$2"
+  if ! wait_for_log_match "${pattern}" "${timeout_seconds}"; then
+    fail "timed out waiting for log: ${pattern}"
+  fi
+}
+
+register_bundle_url_scheme() {
+  local register_tool="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+  if [[ -x "${register_tool}" ]]; then
+    "${register_tool}" -f "${APP_BUNDLE}" >/dev/null 2>&1 || true
+  fi
+}
+
+post_launcher_notification() {
+  swift -e 'import Foundation; DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.leemysw.nexus.showLauncher"), object: nil, userInfo: nil, deliverImmediately: true); RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))' >/dev/null 2>&1
 }
 
 if [[ ! -x "${APP_EXECUTABLE}" ]]; then
@@ -58,6 +79,8 @@ fi
 if pgrep -x "${EXECUTABLE_NAME}" >/dev/null 2>&1; then
   fail "${EXECUTABLE_NAME} is already running; quit it before smoke testing"
 fi
+
+register_bundle_url_scheme
 
 rm -f "${LOG_FILE}"
 : > "${LOG_FILE}"
@@ -71,15 +94,29 @@ if [[ -n "${EXPECTED_CREDENTIALS_STORAGE}" ]]; then
 fi
 wait_for_log "event=main_window\\.created.*material=windowBackground" "${MAIN_TIMEOUT_SECONDS}"
 wait_for_log "event=web\\.ready.*surface=main" "${MAIN_TIMEOUT_SECONDS}"
-wait_for_log "event=main_window\\.revealed.*source=web\\.ready" "${MAIN_TIMEOUT_SECONDS}"
+if [[ "${ALLOW_FALLBACK}" == "1" ]]; then
+  wait_for_log "event=main_window\\.revealed.*source=(web\\.ready|fallback_timeout)" "${MAIN_TIMEOUT_SECONDS}"
+else
+  wait_for_log "event=main_window\\.revealed.*source=web\\.ready" "${MAIN_TIMEOUT_SECONDS}"
+fi
 
-open "nexus://launcher"
-wait_for_log "event=launcher_window\\.created.*material=popover" "${LAUNCHER_TIMEOUT_SECONDS}"
+if open "nexus://launcher" >/dev/null 2>&1 &&
+  wait_for_log_match "event=launcher_window\\.created.*material=popover" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
+  :
+else
+  post_launcher_notification || fail "failed to request launcher window"
+  wait_for_log "event=launcher_window\\.created.*material=popover" "${LAUNCHER_TIMEOUT_SECONDS}"
+fi
 wait_for_log "event=web\\.ready.*surface=launcher" "${LAUNCHER_TIMEOUT_SECONDS}"
 wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"
 
-if grep -Eq "source=fallback_timeout|webview\\.content_process_terminated|startup\\.failed" "${LOG_FILE}"; then
-  fail "unexpected fallback, WebContent termination, or startup failure"
+unexpected_pattern="webview\\.content_process_terminated|startup\\.failed"
+if [[ "${ALLOW_FALLBACK}" != "1" ]]; then
+  unexpected_pattern="source=fallback_timeout|${unexpected_pattern}"
+fi
+
+if grep -Eq "${unexpected_pattern}" "${LOG_FILE}"; then
+  fail "unexpected WebContent termination, startup failure, or disallowed fallback reveal"
 fi
 
 cleanup

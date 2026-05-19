@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- GitHub Release 发布流程新增 macOS dogfood app 构建 job，并把 zip、sha256、metadata 作为同一个 tag 的 Release assets 上传。
+- macOS 桌面 smoke 支持 CI 友好的 launcher 分布式通知兜底和可配置 fallback reveal 容忍度。
+
 ## [0.1.4] - 2026-05-19
 
 ### Added

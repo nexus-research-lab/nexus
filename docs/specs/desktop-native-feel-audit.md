@@ -28,7 +28,7 @@
 | Secure storage | Yellow | macOS shell 在正式签名包中优先用 Keychain 生成并持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。Go sidecar 使用该 key 加密 OAuth client secret 和 connector credentials。 | 正式签名包验证 Keychain 不降级；后续补 bridge 级 `read_secret` / `write_secret`，把需要原生直接访问的敏感字段逐项迁入 Keychain。 |
 | Global shortcut / launcher | Yellow | macOS shell 已用 Carbon 注册全局快捷键，默认 `Option + Space`；设置页可录制自定义组合键、开关快捷键、恢复默认值并显示注册失败原因；独立浮层窗口、原生菜单和 `nexus://launcher` 都可拉起 Web launcher；浮层内搜索、最近项和目标选择都会交回主窗口导航，失焦和 Escape 会关闭浮层；launcher 已使用独立 entry。 | 补更细的快捷键冲突引导和快捷键冲突恢复体验。 |
 | Multi-entry WebView | Green | Vite 已输出 `app.html`、`launcher.html`、`settings.html`、`oauth-callback.html` 四个 entry；Swift shell 按窗口和 `nexus://` URL 选择入口，并用 `desktop_route` 传递业务路由；Go sidecar fallback 支持直接刷新 `/`、`/app`、`/settings` 和 OAuth callback；轻入口 router 已拆开，launcher/settings/OAuth 不再预拉彼此页面 chunk；主入口也已把 login、launcher、Lottie loading 和 markdown vendor 从首屏静态依赖中移出。 | 后续继续做真实冷启动计时和多窗口生命周期细化。 |
-| Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-dogfood.sh` 可生成内部 dogfood zip、sha256 和 metadata，并强制跑 smoke。 | 无 Developer ID 阶段继续用 ad-hoc dogfood；公开发布前补 Developer ID 签名、公证、DMG/ZIP。 |
+| Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-dogfood.sh` 可生成内部 dogfood zip、sha256 和 metadata，并强制跑 smoke；GitHub `Publish Release` 已增加独立 macOS job，把 dogfood app 作为同一个 tag 的 Release asset 上传。 | 无 Developer ID 阶段继续用 ad-hoc dogfood；公开发布前补 Developer ID 签名、公证、DMG/ZIP。 |
 | Updates | Red | 还没有自动更新。 | public beta 前接 Sparkle 或等价方案。 |
 | Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化和 WebContent 进程终止；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加 crash report 和更完整的 startup failure UI。 |
 
@@ -51,6 +51,13 @@
 - 崩溃日志与可诊断启动失败报告。
 
 ## 5. 最近验证快照
+
+2026-05-19：
+
+- GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-dogfood.sh`，并把 zip、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
+- 桌面 smoke 脚本在启动前显式向 LaunchServices 注册 `.app`，并在 custom scheme 未投递时回退到 shell 内部的 launcher 分布式通知，避免干净 CI runner 上 `nexus://launcher` 不稳定导致 launcher smoke 失败。
+- GitHub macOS job 开启 `NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK=1`，允许慢 runner 上主窗口先以 `fallback_timeout` reveal，但仍要求后续 `web.ready` 到达，并继续拦截 WebContent crash 和 startup failure；本地默认 smoke 仍保持严格模式。
+- macOS app 发布仍标记为 dogfood：ad-hoc signing、未 notarize、metadata 保留 `developer_id=false` 和 `notarized=false`。
 
 2026-05-15：
 

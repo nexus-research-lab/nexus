@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private static let showMainWindowNotification = Notification.Name("com.leemysw.nexus.showMainWindow")
+  private static let showLauncherNotification = Notification.Name("com.leemysw.nexus.showLauncher")
 
   private let startupTimeline = DesktopStartupTimeline()
   private var singleInstanceGuard: SingleInstanceGuard?
@@ -34,6 +35,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self,
       selector: #selector(showMainWindowFromDistributedNotification(_:)),
       name: Self.showMainWindowNotification,
+      object: nil
+    )
+    DistributedNotificationCenter.default().addObserver(
+      self,
+      selector: #selector(showLauncherFromDistributedNotification(_:)),
+      name: Self.showLauncherNotification,
       object: nil
     )
 
@@ -214,6 +221,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @objc
   private func showMainWindowFromDistributedNotification(_ notification: Notification) {
     windowManager?.showMainWindow()
+  }
+
+  @objc
+  private func showLauncherFromDistributedNotification(_ notification: Notification) {
+    windowManager?.showLauncher()
   }
 
   private func notifyRunningInstance() {

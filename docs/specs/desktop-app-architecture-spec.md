@@ -290,29 +290,21 @@ nexus://connectors/oauth/callback
 
 ## 9. 发布链路
 
-当前 `Publish Release` workflow 只负责源码包、release notes 和 sha256，不承担编译。桌面 App 应新增独立 workflow，不修改当前源码包发布职责。
-
-建议新增：
-
-```text
-.github/workflows/publish-macos-app.yml
-```
+当前 `Publish Release` workflow 已经负责同一个 tag 下的源码包、Linux/Windows 可运行包、release notes 和 GitHub Release 创建。macOS dogfood 包也属于同一个 Release asset 集合，因此先复用同一个 workflow，但拆成独立 `macos_app` job 运行在 macOS runner 上；最终 `release` job 统一下载并上传全部 assets，避免两个 workflow 同时创建或追加同一个 Release。
 
 流水线：
 
 1. Checkout tag。
-2. 校验私有 Go SDK 凭据。
-3. `make check`。
-4. `cd web && pnpm install --frozen-lockfile && pnpm build`。
-5. `go build` 生成 `nexus-server` 和必要 CLI。
-6. 构建 Swift shell，dogfood 阶段可先用 SwiftPM 组装 `.app`。
-7. 复制 `web/dist`、migrations、skills、Go binary 到 bundle。
-8. Developer ID 签名。
-9. Notary 公证并 staple。
-10. 生成 `.dmg` / `.zip`。
-11. 生成 sha256。
-12. 上传 GitHub Release artifact。
-13. 更新 Sparkle appcast。
+2. macOS job 设置 Go / Node / pnpm。
+3. 执行 `scripts/desktop/package-macos-dogfood.sh`，CI 环境允许慢 runner 触发主窗口 fallback reveal，但仍必须等到 `web.ready`、launcher ready、无 WebContent crash 和无 startup failure。
+4. 脚本构建 `web/dist`、Go sidecar 与 Swift shell，并组装 `.app`。
+5. 脚本执行 ad-hoc codesign、plist/codesign 校验和桌面 smoke。
+6. 脚本生成 `Nexus-macos-<version>-<build>.zip`、`.sha256` 与 `.metadata.json`。
+7. macOS job 上传临时 workflow artifact。
+8. Ubuntu release job 继续生成源码包与 Linux/Windows 可运行包。
+9. Ubuntu release job 下载 macOS artifact，并统一上传到 GitHub Release。
+
+等 Developer ID、Notary、公证 staple、DMG、Sparkle appcast 都进入正式发布阶段后，再考虑拆成独立 `publish-macos-app.yml` 或可复用 workflow。那时 macOS 发布线会有独立证书、secret、失败重试和更新通道，不应继续伪装成当前 dogfood 包。
 
 没有 Developer ID 时，先走内部 dogfood 链路，不伪装成正式公开发布：
 
