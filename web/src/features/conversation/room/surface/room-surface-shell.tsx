@@ -102,7 +102,6 @@ export function RoomSurfaceShell({
   const [active_surface_tab, set_active_surface_tab] = useState<RoomSurfaceTabKey>("chat");
 
   const handle_select_conversation_in_shell = useCallback((conversation_id: string) => {
-    set_active_surface_tab("chat");
     on_select_conversation(conversation_id);
   }, [on_select_conversation]);
 
@@ -111,7 +110,7 @@ export function RoomSurfaceShell({
       if (next_tab === "chat") {
         return "chat";
       }
-      return current_tab === next_tab ? "chat" : next_tab;
+      return next_tab;
     });
   }, []);
 
