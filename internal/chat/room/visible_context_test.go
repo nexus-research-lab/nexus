@@ -135,6 +135,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
 		`延迟唤醒后要把最终回复发布到公区`,
 		`request-reply 指向自己并设置 --reply-target public_feed`,
+		"latest_trigger 标注“群主默认接管”",
 		"收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求",
 		"不要为了回答这个请求再调用 room action 或 CLI",
 		"不要公开复述 private_message、request_reply、private_note 中的正文",

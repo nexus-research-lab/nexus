@@ -332,6 +332,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
 		`延迟唤醒后要把最终回复发布到公区`,
 		`request-reply 指向自己并设置 --reply-target public_feed`,
+		"latest_trigger 标注“群主默认接管”",
 		"收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求",
 		"不要为了回答这个请求再调用 room action 或 CLI",
 		"不要公开复述 private_message、request_reply、private_note 中的正文",
@@ -446,6 +447,80 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 	if usageSummary.SessionCount != 1 || usageSummary.MessageCount != 1 {
 		t.Fatalf("room usage 计数不正确: %+v", usageSummary)
+	}
+}
+
+func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-host-default",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:             []string{amy.AgentID, devin.AgentID},
+		Name:                 "群主接管测试房间",
+		HostAgentID:          amy.AgentID,
+		HostAutoReplyEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	hostPrompt := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) error {
+		hostPrompt <- prompt
+		go sendFakeAssistantResult(client, "amy-room-host-default", "@Devin 请你处理这条需求。")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	service := roomsvc.NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimectx.NewManager(), permission, factory)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-host-default")
+	permission.BindSession(sharedSessionKey, sender, "client-host-default", true)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "帮我拆一下这个需求",
+		RoundID:        "room-round-host-default",
+		ReqID:          "room-round-host-default",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "room-round-host-default" &&
+			event.Data["status"] == "finished"
+	})
+	select {
+	case prompt := <-hostPrompt:
+		if !strings.Contains(prompt, "群主默认接管") || !strings.Contains(prompt, "帮我拆一下这个需求") {
+			t.Fatalf("群主 prompt 缺少默认接管上下文: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("未 @ 消息没有唤醒群主")
+	}
+	if !hasChatAckPendingAgent(events, amy.AgentID) {
+		t.Fatalf("事件流缺少群主 pending slot: %+v", events)
+	}
+	if hasChatAckPendingAgent(events, devin.AgentID) {
+		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)
 	}
 }
 

@@ -33,6 +33,8 @@ interface GroupConversationHeaderProps {
   current_room_title: string | null;
   room_skill_names: string[];
   room_avatar?: string | null;
+  room_host_agent_id?: string | null;
+  room_host_auto_reply_enabled: boolean;
   conversations: RoomConversationView[];
   room_members: Agent[];
   available_room_agents: Agent[];
@@ -106,6 +108,8 @@ const GroupConversationHeaderView = memo(({
   current_room_title,
   room_skill_names,
   room_avatar,
+  room_host_agent_id,
+  room_host_auto_reply_enabled,
   conversations,
   room_members,
   available_room_agents,
@@ -210,13 +214,15 @@ const GroupConversationHeaderView = memo(({
         dialog_subtitle={t("room.manage_dialog_subtitle")}
         dialog_title={t("room.manage_dialog_title")}
         initial_avatar={room_avatar ?? ""}
+        initial_host_agent_id={room_host_agent_id ?? null}
+        initial_host_auto_reply_enabled={room_host_auto_reply_enabled}
         initial_name={header_title}
         initial_selected_agent_ids={member_agent_ids}
         initial_room_skill_names={room_skill_names}
         is_open={is_member_list_open}
         mode="manage"
         on_cancel={() => set_is_member_list_open(false)}
-        on_confirm={async (next_agent_ids, name, avatar, skill_names) => {
+        on_confirm={async (next_agent_ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled) => {
           if (!room_id) {
             return;
           }
@@ -226,15 +232,17 @@ const GroupConversationHeaderView = memo(({
           const agent_ids_to_add = next_agent_ids.filter((agent_id) => !current_agent_id_set.has(agent_id));
           const agent_ids_to_remove = member_agent_ids.filter((agent_id) => !next_agent_id_set.has(agent_id));
 
+          for (const agent_id of agent_ids_to_add) {
+            await on_add_room_member(agent_id);
+          }
+
           await on_update_room(room_id, {
             name,
             avatar,
             skill_names,
+            host_agent_id,
+            host_auto_reply_enabled,
           });
-
-          for (const agent_id of agent_ids_to_add) {
-            await on_add_room_member(agent_id);
-          }
 
           for (const agent_id of agent_ids_to_remove) {
             await on_remove_room_member(agent_id);

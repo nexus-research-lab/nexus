@@ -449,6 +449,11 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 		}
 	}
 	if len(targetAgentIDs) == 0 {
+		if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByIDFromInputLocations(locationsByAgentID)); ok {
+			targetAgentIDs = []string{hostAgentID}
+		}
+	}
+	if len(targetAgentIDs) == 0 {
 		return workspacestore.InputQueueLocation{}, nil, errors.New("room input_queue content must mention target agent")
 	}
 
@@ -467,6 +472,18 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 		return workspacestore.InputQueueLocation{}, nil, errors.New("room input_queue target agent not found")
 	}
 	return locationsByAgentID[cleanTargets[0]].Location, cleanTargets, nil
+}
+
+func agentNameByIDFromInputLocations(locations map[string]roomInputQueueLocation) map[string]string {
+	result := make(map[string]string, len(locations))
+	for agentID := range locations {
+		normalizedAgentID := strings.TrimSpace(agentID)
+		if normalizedAgentID == "" {
+			continue
+		}
+		result[normalizedAgentID] = normalizedAgentID
+	}
+	return result
 }
 
 func (s *RealtimeService) roomInputQueueItems(ctx context.Context, contextValue *protocol.ConversationContextAggregate) ([]protocol.InputQueueItem, error) {

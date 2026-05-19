@@ -280,6 +280,8 @@ export function RoomPage() {
             room_members={controller.room_members}
             current_room_title={controller.current_room_title}
             room_skill_names={controller.current_room_skill_names}
+            room_host_agent_id={controller.current_room.host_agent_id ?? null}
+            room_host_auto_reply_enabled={controller.current_room.host_auto_reply_enabled ?? false}
             current_room_conversations={controller.current_room_conversations}
             current_room_conversation={controller.current_room_conversation}
             current_agent_session_identity={controller.current_agent_session_identity}

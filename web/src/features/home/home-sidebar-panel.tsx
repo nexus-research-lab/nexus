@@ -630,10 +630,19 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     name: string,
     avatar?: string,
     skill_names?: string[],
+    host_agent_id?: string | null,
+    host_auto_reply_enabled?: boolean,
   ) => {
     set_is_creating_room(true);
     try {
-      const context = await create_room({ agent_ids, name, avatar, skill_names });
+      const context = await create_room({
+        agent_ids,
+        name,
+        avatar,
+        skill_names,
+        host_agent_id,
+        host_auto_reply_enabled,
+      });
       set_is_create_room_open(false);
       refresh_directory();
       navigate(AppRouteBuilders.room(context.room.id));
@@ -738,7 +747,8 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}
-        on_confirm={(ids, name, avatar, skill_names) => void handle_confirm_create_room(ids, name, avatar, skill_names)}
+        on_confirm={(ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled) =>
+          void handle_confirm_create_room(ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled)}
       />
     </div>
   );

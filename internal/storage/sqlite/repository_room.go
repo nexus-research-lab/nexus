@@ -247,8 +247,8 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, bundle roomrepo.CreateR
 	defer tx.Rollback()
 
 	if _, err = tx.ExecContext(ctx, `
-INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar, skill_names)
-VALUES (?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar, skill_names, host_agent_id, host_auto_reply_enabled)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		bundle.Room.ID,
 		bundle.Room.OwnerUserID,
 		bundle.Room.RoomType,
@@ -256,6 +256,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		bundle.Room.Description,
 		nullIfEmpty(bundle.Room.Avatar),
 		jsoncodec.MarshalStringSlice(bundle.Room.SkillNames),
+		nullIfEmpty(bundle.Room.HostAgentID),
+		bundle.Room.HostAutoReplyEnabled,
 	); err != nil {
 		return nil, err
 	}
@@ -321,6 +323,8 @@ func (r *RoomRepository) UpdateRoom(
 	title *string,
 	avatar *string,
 	skillNames *[]string,
+	hostAgentID *string,
+	hostAutoReplyEnabled *bool,
 ) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -349,6 +353,16 @@ func (r *RoomRepository) UpdateRoom(
 	}
 	if skillNames != nil {
 		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET skill_names = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_user_id = ?`, jsoncodec.MarshalStringSlice(*skillNames), roomID, ownerUserID); err != nil {
+			return nil, err
+		}
+	}
+	if hostAgentID != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET host_agent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_user_id = ?`, nullIfEmpty(*hostAgentID), roomID, ownerUserID); err != nil {
+			return nil, err
+		}
+	}
+	if hostAutoReplyEnabled != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET host_auto_reply_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_user_id = ?`, *hostAutoReplyEnabled, roomID, ownerUserID); err != nil {
 			return nil, err
 		}
 	}
@@ -477,6 +491,16 @@ WHERE room_id = ? AND member_type = 'agent' AND member_agent_id = ?`,
 		agentID,
 	); err != nil {
 		return nil, err
+	}
+	if roomAggregate.Room.HostAgentID == agentID {
+		if _, err = tx.ExecContext(ctx, `
+UPDATE rooms
+SET host_agent_id = NULL,
+    host_auto_reply_enabled = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND owner_user_id = ?`, roomID, ownerUserID); err != nil {
+			return nil, err
+		}
 	}
 
 	if err = deleteRoomAgentSessionDependents(ctx, tx, roomID, agentID); err != nil {
@@ -787,7 +811,7 @@ func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQuery
 
 func (r *RoomRepository) loadRoom(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomRecord, error) {
 	query := `
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, created_at, updated_at
 FROM rooms
 WHERE id = ?`
 	args := []any{roomID}
@@ -849,7 +873,7 @@ func (r *RoomRepository) loadRoomsByIDs(
 		return map[string]protocol.RoomRecord{}, nil
 	}
 	query := fmt.Sprintf(`
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, created_at, updated_at
 FROM rooms
 WHERE id IN (%s) AND owner_user_id = ?`, joinPlaceholders("?", len(roomIDs)))
 	args := make([]any, 0, len(roomIDs)+1)
@@ -1059,6 +1083,8 @@ func scanRoomRecord(scanner interface{ Scan(...any) error }) (protocol.RoomRecor
 		&item.Description,
 		&item.Avatar,
 		&skillNamesJSON,
+		&item.HostAgentID,
+		&item.HostAutoReplyEnabled,
 		&createdAt,
 		&updatedAt,
 	)

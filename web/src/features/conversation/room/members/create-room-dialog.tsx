@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Check, ChevronDown, Hash, Loader2, Plus, Search, X } from "lucide-react";
+import { Bot, Check, ChevronDown, Crown, Hash, Loader2, Plus, Search, X } from "lucide-react";
 
 import { get_available_skills_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
@@ -48,8 +48,17 @@ interface CreateRoomDialogProps {
   initial_avatar?: string;
   initial_selected_agent_ids?: string[];
   initial_room_skill_names?: string[];
+  initial_host_agent_id?: string | null;
+  initial_host_auto_reply_enabled?: boolean;
   on_cancel: () => void;
-  on_confirm: (agent_ids: string[], name: string, avatar?: string, skill_names?: string[]) => void;
+  on_confirm: (
+    agent_ids: string[],
+    name: string,
+    avatar?: string,
+    skill_names?: string[],
+    host_agent_id?: string | null,
+    host_auto_reply_enabled?: boolean,
+  ) => void;
 }
 
 const MAX_MEMBERS = 10;
@@ -68,6 +77,8 @@ export function CreateRoomDialog({
   initial_avatar = "",
   initial_selected_agent_ids,
   initial_room_skill_names,
+  initial_host_agent_id = null,
+  initial_host_auto_reply_enabled = false,
   on_cancel,
   on_confirm,
 }: CreateRoomDialogProps) {
@@ -82,6 +93,8 @@ export function CreateRoomDialog({
   const [room_skill_error, set_room_skill_error] = useState<string | null>(null);
   const [is_room_skill_menu_open, set_is_room_skill_menu_open] = useState(false);
   const [room_skill_query, set_room_skill_query] = useState("");
+  const [selected_host_agent_id, set_selected_host_agent_id] = useState<string>("");
+  const [host_auto_reply_enabled, set_host_auto_reply_enabled] = useState(false);
   const room_skill_selector_ref = useRef<HTMLDivElement | null>(null);
   const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
   const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
@@ -118,11 +131,15 @@ export function CreateRoomDialog({
       set_room_name(initial_name);
       set_selected_avatar(initial_avatar);
       set_selected_room_skill_names(stable_initial_room_skill_names);
+      set_selected_host_agent_id(initial_host_agent_id?.trim() ?? "");
+      set_host_auto_reply_enabled(initial_host_auto_reply_enabled);
       set_is_room_skill_menu_open(false);
       set_room_skill_query("");
     }
   }, [
     initial_avatar,
+    initial_host_agent_id,
+    initial_host_auto_reply_enabled,
     initial_name,
     initial_room_skill_names_signature,
     initial_selected_ids_signature,
@@ -203,6 +220,19 @@ export function CreateRoomDialog({
     [agents, selected_id_set],
   );
 
+  useEffect(() => {
+    if (selected_ids.length === 0) {
+      set_selected_host_agent_id("");
+      set_host_auto_reply_enabled(false);
+      return;
+    }
+    if (selected_host_agent_id && selected_ids.includes(selected_host_agent_id)) {
+      return;
+    }
+    set_selected_host_agent_id("");
+    set_host_auto_reply_enabled(false);
+  }, [selected_host_agent_id, selected_ids]);
+
   const selected_room_skill_name_set = useMemo(
     () => new Set(selected_room_skill_names),
     [selected_room_skill_names],
@@ -242,6 +272,13 @@ export function CreateRoomDialog({
     set_selected_room_skill_names((prev) => prev.filter((name) => name !== skill_name));
   }, []);
 
+  const handle_change_host_agent = useCallback((agent_id: string) => {
+    set_selected_host_agent_id(agent_id);
+    if (!agent_id) {
+      set_host_auto_reply_enabled(false);
+    }
+  }, []);
+
   const handle_room_skill_trigger_key_down = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Enter" && event.key !== " ") {
       return;
@@ -252,8 +289,15 @@ export function CreateRoomDialog({
 
   const handle_create = useCallback(() => {
     if (selected_ids.length === 0 || !room_name.trim()) return;
-    on_confirm(selected_ids, room_name.trim(), selected_avatar || undefined, selected_room_skill_names);
-  }, [on_confirm, room_name, selected_avatar, selected_ids, selected_room_skill_names]);
+    on_confirm(
+      selected_ids,
+      room_name.trim(),
+      selected_avatar || undefined,
+      selected_room_skill_names,
+      selected_host_agent_id || null,
+      host_auto_reply_enabled && selected_host_agent_id !== "",
+    );
+  }, [host_auto_reply_enabled, on_confirm, room_name, selected_avatar, selected_host_agent_id, selected_ids, selected_room_skill_names]);
 
   if (!is_open) return null;
 
@@ -365,6 +409,38 @@ export function CreateRoomDialog({
                     start_icon_id={ROOM_ICON_ID_START}
                     value={selected_avatar}
                   />
+                </div>
+
+                <div className="rounded-[16px] border border-(--divider-subtle-color) bg-(--modal-input-background) px-3 py-2.5">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold text-(--text-muted)">
+                    <Crown className="h-3.5 w-3.5 text-primary" />
+                    <span>群主</span>
+                  </div>
+                  <select
+                    className="dialog-input h-9 w-full rounded-xl px-2.5 text-[12px] font-medium text-(--text-strong) outline-none disabled:cursor-not-allowed disabled:opacity-55"
+                    disabled={selected_agents.length === 0 || is_creating}
+                    onChange={(event) => handle_change_host_agent(event.target.value)}
+                    value={selected_host_agent_id}
+                  >
+                    <option value="">未设置</option>
+                    {selected_agents.map((agent) => (
+                      <option key={agent.agent_id} value={agent.agent_id}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="mt-2 flex items-start gap-2 rounded-xl px-1 py-1 text-[11px] font-medium text-(--text-default)">
+                    <input
+                      checked={host_auto_reply_enabled}
+                      className="mt-0.5 h-3.5 w-3.5 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
+                      disabled={!selected_host_agent_id || is_creating}
+                      onChange={(event) => set_host_auto_reply_enabled(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span className="leading-4">
+                      用户未 @ 发言时由群主接管，可直接回答或 @ 委派成员。
+                    </span>
+                  </label>
                 </div>
 
                 <p className="dialog-label">

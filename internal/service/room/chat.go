@@ -43,6 +43,12 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 		targetResolution = "single_member_default"
 	}
+	if len(targetAgentIDs) == 0 {
+		if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByID); ok {
+			targetAgentIDs = []string{hostAgentID}
+			targetResolution = "room_host_default"
+		}
+	}
 	s.loggerFor(ctx).Info("受理 Room 会话消息",
 		"session_key", sessionKey,
 		"room_id", roomID,
@@ -200,8 +206,12 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		sessionsByAgent[item.AgentID] = item
 	}
 
+	initialTriggerType := "public_chat"
+	if targetResolution == "room_host_default" {
+		initialTriggerType = "room_host_default"
+	}
 	initialTrigger := roomTrigger{
-		TriggerType: "public_chat",
+		TriggerType: initialTriggerType,
 		Content:     strings.TrimSpace(request.Content),
 		MessageID:   request.RoundID,
 	}
@@ -290,6 +300,23 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)
 	return nil
+}
+
+func resolveRoomHostDefaultTarget(
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) (string, bool) {
+	if contextValue == nil || !contextValue.Room.HostAutoReplyEnabled {
+		return "", false
+	}
+	hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
+	if hostAgentID == "" {
+		return "", false
+	}
+	if _, ok := agentNameByID[hostAgentID]; !ok {
+		return "", false
+	}
+	return hostAgentID, true
 }
 
 func (s *RealtimeService) scheduleTitleGeneration(

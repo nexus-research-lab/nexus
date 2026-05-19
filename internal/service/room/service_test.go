@@ -59,10 +59,12 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	agentC := createTestAgent(t, agentService, ctx, "测试助手C")
 
 	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
-		Name:     "产品讨论",
-		Title:    "主对话",
-		Avatar:   "7",
+		AgentIDs:             []string{agentA.AgentID, agentB.AgentID},
+		Name:                 "产品讨论",
+		Title:                "主对话",
+		Avatar:               "7",
+		HostAgentID:          agentA.AgentID,
+		HostAutoReplyEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
@@ -82,6 +84,9 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if mainContext.Room.Avatar != "7" {
 		t.Fatalf("room avatar 不正确: got=%q want=%q", mainContext.Room.Avatar, "7")
 	}
+	if mainContext.Room.HostAgentID != agentA.AgentID || !mainContext.Room.HostAutoReplyEnabled {
+		t.Fatalf("room 群主设置不正确: %+v", mainContext.Room)
+	}
 
 	rooms, err := roomService.ListRooms(ctx, 20)
 	if err != nil {
@@ -95,14 +100,21 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 
 	updatedAvatar := "12"
+	disableHostAutoReply := false
+	nextHostAgentID := agentB.AgentID
 	mainContext, err = roomService.UpdateRoom(ctx, mainContext.Room.ID, protocol.UpdateRoomRequest{
-		Avatar: &updatedAvatar,
+		Avatar:               &updatedAvatar,
+		HostAgentID:          &nextHostAgentID,
+		HostAutoReplyEnabled: &disableHostAutoReply,
 	})
 	if err != nil {
 		t.Fatalf("更新 room avatar 失败: %v", err)
 	}
 	if mainContext.Room.Avatar != updatedAvatar {
 		t.Fatalf("更新后 room avatar 不正确: got=%q want=%q", mainContext.Room.Avatar, updatedAvatar)
+	}
+	if mainContext.Room.HostAgentID != agentB.AgentID || mainContext.Room.HostAutoReplyEnabled {
+		t.Fatalf("更新后 room 群主设置不正确: %+v", mainContext.Room)
 	}
 
 	topicContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{})
@@ -220,6 +232,56 @@ func TestRoomServicePersistsRoomSkills(t *testing.T) {
 		SkillNames: &[]string{"agent-only"},
 	}); err == nil {
 		t.Fatal("非 room scope skill 不应允许启用到 room")
+	}
+}
+
+func TestRoomServiceValidatesRoomHostSettings(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
+	agentB := createTestAgent(t, agentService, ctx, "测试助手B")
+	agentC := createTestAgent(t, agentService, ctx, "测试助手C")
+
+	if _, err = roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:             []string{agentA.AgentID, agentB.AgentID},
+		Name:                 "无群主接管房间",
+		HostAutoReplyEnabled: true,
+	}); err == nil {
+		t.Fatal("启用群主接管时必须要求设置群主")
+	}
+
+	if _, err = roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:    []string{agentA.AgentID, agentB.AgentID},
+		Name:        "群主非成员房间",
+		HostAgentID: agentC.AgentID,
+	}); err == nil {
+		t.Fatal("非成员不应允许成为群主")
+	}
+
+	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:             []string{agentA.AgentID, agentB.AgentID},
+		Name:                 "群主校验房间",
+		HostAgentID:          agentA.AgentID,
+		HostAutoReplyEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	updatedContext, err := roomService.RemoveRoomMember(ctx, mainContext.Room.ID, agentA.AgentID)
+	if err != nil {
+		t.Fatalf("移除群主失败: %v", err)
+	}
+	if updatedContext.Room.HostAgentID != "" || updatedContext.Room.HostAutoReplyEnabled {
+		t.Fatalf("移除群主成员后应清空群主接管设置: %+v", updatedContext.Room)
 	}
 }
 

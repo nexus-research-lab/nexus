@@ -38,6 +38,8 @@ interface RoomSurfaceLayoutProps {
   available_room_agents: Agent[];
   current_room_title: string;
   room_skill_names: string[];
+  room_host_agent_id?: string | null;
+  room_host_auto_reply_enabled: boolean;
   current_agent_session_identity: AgentConversationIdentity | null;
   conversation_id: string | null;
   current_room_conversations: RoomConversationView[];
@@ -99,6 +101,8 @@ function RoomSurfaceLayoutInner({
                                     available_room_agents,
                                     current_room_title,
                                     room_skill_names,
+                                    room_host_agent_id,
+                                    room_host_auto_reply_enabled,
                                     current_agent_session_identity,
                                     conversation_id,
                                     current_room_conversations,
@@ -192,6 +196,8 @@ function RoomSurfaceLayoutInner({
                   on_select_conversation={on_select_conversation}
                   on_update_room={on_update_room}
                   room_avatar={room_avatar}
+                  room_host_agent_id={room_host_agent_id}
+                  room_host_auto_reply_enabled={room_host_auto_reply_enabled}
                   room_id={room_id}
                   room_members={room_members}
                   room_skill_names={room_skill_names}

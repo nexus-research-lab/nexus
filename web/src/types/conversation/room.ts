@@ -17,6 +17,8 @@ export interface RoomRecord {
   description: string;
   avatar?: string | null;
   skill_names: string[];
+  host_agent_id?: string | null;
+  host_auto_reply_enabled: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -85,6 +87,8 @@ export interface CreateRoomParams {
   title?: string;
   avatar?: string;
   skill_names?: string[];
+  host_agent_id?: string | null;
+  host_auto_reply_enabled?: boolean;
 }
 
 export interface UpdateRoomParams {
@@ -93,6 +97,8 @@ export interface UpdateRoomParams {
   title?: string;
   avatar?: string;
   skill_names?: string[];
+  host_agent_id?: string | null;
+  host_auto_reply_enabled?: boolean;
 }
 
 export interface CreateRoomConversationParams {
