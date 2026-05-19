@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Diagnostics;
+using System.IO;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Bridge;
@@ -48,15 +49,27 @@ internal sealed class WebViewHost
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopBridgeScript.Make());
 
-        bridgeHandler = new DesktopBridgeHandler(core, runtime, OpenRouteAsync);
+        bridgeHandler = new DesktopBridgeHandler(core, runtime, startupTimeline, OpenRouteAsync);
         core.WebMessageReceived += async (_, args) => await HandleWebMessageAsync(args);
         core.NavigationStarting += HandleNavigationStarting;
         core.NavigationCompleted += (_, _) => startupTimeline.Mark("webview.navigation_completed");
         core.NewWindowRequested += HandleNewWindowRequested;
-        core.ProcessFailed += (_, args) => startupTimeline.Mark("webview.process_failed", new Dictionary<string, string>
+        core.ProcessFailed += (_, args) =>
         {
-            ["kind"] = args.ProcessFailedKind.ToString(),
-        });
+            startupTimeline.Mark("webview.process_failed", new Dictionary<string, string>
+            {
+                ["kind"] = args.ProcessFailedKind.ToString(),
+            });
+            DesktopDiagnosticsReport.WriteRuntimeIssue(
+                prefix: "webview-process-failed",
+                reason: args.ProcessFailedKind.ToString(),
+                runtime: runtime,
+                startupTimeline: startupTimeline,
+                details: new Dictionary<string, object?>
+                {
+                    ["process_failed_kind"] = args.ProcessFailedKind.ToString(),
+                });
+        };
         startupTimeline.Mark("webview.initialize_ready");
     }
 

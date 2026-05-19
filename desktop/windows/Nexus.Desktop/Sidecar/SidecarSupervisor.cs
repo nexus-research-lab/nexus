@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 

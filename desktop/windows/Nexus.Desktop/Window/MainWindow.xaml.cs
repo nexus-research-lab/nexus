@@ -30,12 +30,16 @@ public partial class MainWindow : System.Windows.Window
         {
             startupTimeline.Mark("main_window.create_begin");
             webViewHost = new WebViewHost(MainWebView, runtime, startupTimeline);
+            Show();
+            Activate();
             await webViewHost.InitializeAsync();
             startupTimeline.Mark("main_window.created");
         }
-
-        Show();
-        Activate();
+        else
+        {
+            Show();
+            Activate();
+        }
         await webViewHost.LoadRouteAsync(route);
     }
 }

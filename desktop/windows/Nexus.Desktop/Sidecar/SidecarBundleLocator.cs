@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Nexus.Desktop.Sidecar;
 
 internal sealed record SidecarBundle(

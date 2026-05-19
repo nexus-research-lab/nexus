@@ -1,6 +1,6 @@
 # Desktop App QA Checklist
 
-本文档用于记录 macOS app 包的人工验收步骤。自动化 smoke 负责确认 `.app` 能启动、sidecar 能监听、默认 launcher 和显式主窗口都能 reveal；这里覆盖更接近真实桌面使用的输入、导航、OAuth 和诊断行为。
+本文档用于记录桌面 app 包的人工验收步骤。自动化 smoke 负责确认 app 能启动、sidecar 能监听、默认 launcher 能 ready、退出后 sidecar 无残留；这里覆盖更接近真实桌面使用的输入、导航、OAuth 和诊断行为。
 
 ## 1. 前置条件
 
@@ -56,16 +56,46 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 | 外链/阻断排查 | 重测外链和未知 scheme | `Nexus Startup` 时间线包含 external open / blocked navigation 事件。 |
 | 更新检测排查 | 重测启动后自动检测和菜单手动检测 | `Nexus Startup` 时间线包含 `update_check.started` 以及 `update_check.result` 或 `update_check.failed`。 |
 
-## 5. 记录格式
+## 5. Windows App QA
+
+### 5.1 前置条件
+
+1. 从 GitHub workflow artifact 或 Release asset 下载 `Nexus-windows-<version>-<build>.zip` 与对应 `.sha256`。
+2. 在同一目录执行：
+
+```powershell
+$hash = (Get-FileHash -Algorithm SHA256 .\Nexus-windows-<version>-<build>.zip).Hash.ToLowerInvariant()
+$expected = (Get-Content .\Nexus-windows-<version>-<build>.zip.sha256).Split(" ")[0].ToLowerInvariant()
+if ($hash -ne $expected) { throw "sha256 mismatch" }
+```
+
+3. 解压 zip，运行 `Nexus\Nexus.exe`。若要验证 URL scheme，运行 `Nexus\register-nexus-protocol.ps1`。
+4. 记录测试机器信息：Windows 版本、WebView2 Runtime 版本、输入法、是否外接屏、包版本、build number。
+
+### 5.2 验收重点
+
+| 场景 | 操作 | 期望 |
+| --- | --- | --- |
+| 默认入口 | 双击 `Nexus.exe` | 首屏显示 launcher，不直接进入 `/app` 工作台。 |
+| 退出清理 | 关闭主窗口 | App 退出，`nexus-server.exe` 无残留。 |
+| URL 唤起 | 执行 `start nexus://open` 和 `start nexus://settings` | 已运行实例被唤起，分别进入 launcher 和设置页。 |
+| OAuth 回调 | 触发 `nexus://connectors/oauth/callback?...` | WebView 打开 OAuth callback entry，日志不记录 code/state/token value。 |
+| 外链 | 点击 `https` / `mailto` 外链 | 交给系统默认应用打开，不在 WebView2 内跳走。 |
+| 未知 scheme | 触发非允许 scheme | 被阻断，应用不崩溃，日志有 `webview.navigation_blocked`。 |
+| 手动导出日志 | 设置页触发日志导出 | zip 内包含 `diagnostics.json` 和 `logs/`。 |
+| 启动失败 | 临时破坏 `Resources\Web\app.html` 后启动 | `%LOCALAPPDATA%\Nexus\Logs\startup-failure-*.json` 存在，错误弹窗提示路径。 |
+
+## 6. 记录格式
 
 每轮 macOS app QA 用以下格式记录到 issue、PR 或发布检查单：
 
 ```text
-Nexus macOS app QA
+Nexus desktop app QA
+Platform:
 Version:
 Build:
 Commit:
-macOS:
+OS:
 Hardware:
 Input methods:
 External displays:

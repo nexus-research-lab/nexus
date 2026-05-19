@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
+using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
 
@@ -11,12 +13,18 @@ internal sealed class DesktopBridgeHandler
 {
     private readonly CoreWebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
+    private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<string, Task> openRoute;
 
-    public DesktopBridgeHandler(CoreWebView2 webView, SidecarRuntimeConfig runtime, Func<string, Task> openRoute)
+    public DesktopBridgeHandler(
+        CoreWebView2 webView,
+        SidecarRuntimeConfig runtime,
+        DesktopStartupTimeline startupTimeline,
+        Func<string, Task> openRoute)
     {
         this.webView = webView;
         this.runtime = runtime;
+        this.startupTimeline = startupTimeline;
         this.openRoute = openRoute;
     }
 
@@ -104,7 +112,7 @@ internal sealed class DesktopBridgeHandler
         return new { opened = true };
     }
 
-    private static object ExportLogs()
+    private object ExportLogs()
     {
         Directory.CreateDirectory(DesktopPaths.LogsDirectory);
         string exportsDirectory = Path.Combine(DesktopPaths.ApplicationDataDirectory, "exports");
@@ -124,6 +132,10 @@ internal sealed class DesktopBridgeHandler
             writer.WriteLine($"exported_at={DateTimeOffset.Now:O}");
             writer.WriteLine("platform=windows");
         }
+        AddTextEntry(
+            archive,
+            "diagnostics.json",
+            DesktopDiagnosticsReport.Make(runtime, "manual_export", startupTimeline));
 
         return new { cancelled = false, path = zipPath };
     }
