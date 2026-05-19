@@ -100,7 +100,11 @@ fi
 
 wait_for_log "event=launcher_window\\.created.*material=popover" "${LAUNCHER_TIMEOUT_SECONDS}"
 wait_for_log "event=web\\.ready.*surface=launcher" "${LAUNCHER_TIMEOUT_SECONDS}"
-wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"
+if [[ "${ALLOW_FALLBACK}" == "1" ]]; then
+  wait_for_log "event=launcher_window\\.revealed.*source=(web\\.ready|fallback_timeout)" "${LAUNCHER_TIMEOUT_SECONDS}"
+else
+  wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"
+fi
 
 if open "nexus://open" >/dev/null 2>&1 &&
   wait_for_log_match "event=main_window\\.created.*material=windowBackground" "${MAIN_URL_TIMEOUT_SECONDS}"; then
@@ -125,7 +129,11 @@ else
   wait_for_log "event=launcher_window\\.show_existing.*was_visible=false" "${LAUNCHER_TIMEOUT_SECONDS}"
 fi
 wait_for_log "event=web\\.ready.*surface=launcher" "${LAUNCHER_TIMEOUT_SECONDS}"
-wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"
+if [[ "${ALLOW_FALLBACK}" == "1" ]]; then
+  wait_for_log "event=launcher_window\\.revealed.*source=(web\\.ready|fallback_timeout)" "${LAUNCHER_TIMEOUT_SECONDS}"
+else
+  wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"
+fi
 
 unexpected_pattern="webview\\.content_process_terminated|startup\\.failed"
 if [[ "${ALLOW_FALLBACK}" != "1" ]]; then
