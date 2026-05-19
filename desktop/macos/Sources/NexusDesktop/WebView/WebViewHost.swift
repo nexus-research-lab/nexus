@@ -91,13 +91,25 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     if DesktopExternalURLPolicy.canOpen(url) {
       do {
         try DesktopExternalURLPolicy.open(url)
+        startupTimeline?.mark("webview.external_url_opened", metadata: webMetadata(
+          url: url,
+          extra: ["navigation_type": navigationType(navigationAction.navigationType)]
+        ))
       } catch {
+        startupTimeline?.mark("webview.external_url_failed", metadata: webMetadata(
+          url: url,
+          extra: ["error": error.localizedDescription]
+        ))
         NSLog("[Nexus WebView] external URL open failed: \(error.localizedDescription)")
       }
       decisionHandler(.cancel)
       return
     }
 
+    startupTimeline?.mark("webview.navigation_blocked", metadata: webMetadata(
+      url: url,
+      extra: ["reason": "unsupported_scheme"]
+    ))
     NSLog("[Nexus WebView] blocked navigation: \(url.absoluteString)")
     decisionHandler(.cancel)
   }
@@ -119,9 +131,19 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     if DesktopExternalURLPolicy.canOpen(url) {
       do {
         try DesktopExternalURLPolicy.open(url)
+        startupTimeline?.mark("webview.popup_external_url_opened", metadata: webMetadata(url: url))
       } catch {
+        startupTimeline?.mark("webview.popup_external_url_failed", metadata: webMetadata(
+          url: url,
+          extra: ["error": error.localizedDescription]
+        ))
         NSLog("[Nexus WebView] popup URL open failed: \(error.localizedDescription)")
       }
+    } else {
+      startupTimeline?.mark("webview.popup_blocked", metadata: webMetadata(
+        url: url,
+        extra: ["reason": "unsupported_scheme"]
+      ))
     }
     return nil
   }
@@ -153,7 +175,17 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     let targetURL = webView.url ?? lastRequestedURL
-    startupTimeline?.mark("webview.content_process_terminated", metadata: webMetadata(url: targetURL))
+    var metadata = webMetadata(url: targetURL)
+    if let diagnosticsURL = DesktopDiagnosticsReport.writeRuntimeIssue(
+      prefix: "webcontent-terminated",
+      reason: "WebContent process terminated",
+      runtime: runtime,
+      startupTimeline: startupTimeline,
+      details: metadata
+    ) {
+      metadata["diagnostics_path"] = diagnosticsURL.path
+    }
+    startupTimeline?.mark("webview.content_process_terminated", metadata: metadata)
     NSLog("[Nexus WebView] content process terminated, reloading current route.")
     webView.reload()
   }
@@ -163,7 +195,8 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     contextMenuItemsForElement elementInfo: [String: Any],
     defaultMenuItems: [NSMenuItem]
   ) -> [NSMenuItem] {
-    []
+    startupTimeline?.mark("webview.context_menu_suppressed", metadata: ["surface": surfaceName])
+    return []
   }
 
   private func isInternalNavigation(_ url: URL) -> Bool {
@@ -189,7 +222,32 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     if let queryKeys = queryKeys(url: url) {
       metadata["query_keys"] = queryKeys
     }
+    if let scheme = url.scheme?.lowercased(), !scheme.isEmpty {
+      metadata["scheme"] = scheme
+    }
+    if let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines), !host.isEmpty {
+      metadata["host"] = host
+    }
     return metadata
+  }
+
+  private func navigationType(_ type: WKNavigationType) -> String {
+    switch type {
+    case .linkActivated:
+      return "link_activated"
+    case .formSubmitted:
+      return "form_submitted"
+    case .backForward:
+      return "back_forward"
+    case .reload:
+      return "reload"
+    case .formResubmitted:
+      return "form_resubmitted"
+    case .other:
+      return "other"
+    @unknown default:
+      return "unknown"
+    }
   }
 
   private func queryKeys(url: URL) -> String? {

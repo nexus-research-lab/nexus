@@ -18,8 +18,8 @@
 | Single instance | Green | 使用 `~/Library/Application Support/Nexus/NexusDesktop.lock` 做单实例锁；重复启动会通知已运行实例拉起主窗口。 | public beta 前补多用户/多 bundle identifier 策略。 |
 | Dock and reopen behavior | Green | Dock 点击和重复启动都会重新显示主窗口。 | 多窗口后补 settings / launcher 恢复策略。 |
 | Standard macOS menus | Green | 已补 About、Settings、Hide、Quit、Edit、Window、Reload 等标准菜单；启动器入口保留在菜单中，具体全局快捷键由设置页管理。 | 后续按 macOS Human Interface Guidelines 做菜单分组精修。 |
-| System WebView boundary | Yellow | WKWebView 只允许同源本地页面留在内部；外部 `http` / `https` / `mailto` 统一交给系统打开，未知 scheme 阻断；首屏由 React ready signal 后再 reveal；ready signal 已处理隐藏窗口 rAF 可能被节流的问题；窗口内容已由 `NSVisualEffectView` material 承载，WebView 背景透明。 | 补真实输入法与键盘导航验证。 |
-| Default browser affordances | Yellow | 默认右键菜单已关闭，返回/前进手势关闭。 | 继续核对链接预览、拖拽、文本输入、IME、Tab / Escape。 |
+| System WebView boundary | Yellow | WKWebView 只允许同源本地页面留在内部；外部 `http` / `https` / `mailto` 统一交给系统打开，未知 scheme 阻断；首屏由 React ready signal 后再 reveal；ready signal 已处理隐藏窗口 rAF 可能被节流的问题；窗口内容已由 `NSVisualEffectView` material 承载，WebView 背景透明；外链打开、popup 外链、未知 scheme 阻断会写入启动时间线。 | 补真实输入法与键盘导航验证。 |
+| Default browser affordances | Yellow | 默认右键菜单已关闭，返回/前进手势关闭；右键菜单抑制和 launcher 关闭原因会进入诊断时间线。 | 继续核对链接预览、拖拽、文本输入、IME、Tab / Escape。 |
 | Runtime config injection | Green | Shell 在 document start 注入 API、WebSocket、session token、版本和平台信息。 | 后续把 bridge schema 迁到协议生成。 |
 | Local API protection | Green | Go sidecar 已校验桌面 session token；HTTP 使用 header，WebSocket 可通过 subprotocol 或 WKWebView 本地 cookie 通过校验。 | 增加 token rotate / sidecar restart 设计。 |
 | URL scheme | Yellow | `Info.plist` 注册 `nexus://`，shell 能把 OAuth callback 转到 WebView 回调页。 | 联调真实 provider，确认 provider 后台已登记 custom scheme。 |
@@ -30,7 +30,7 @@
 | Multi-entry WebView | Green | Vite 已输出 `app.html`、`launcher.html`、`settings.html`、`oauth-callback.html` 四个 entry；Swift shell 按窗口和 `nexus://` URL 选择入口，并用 `desktop_route` 传递业务路由；Go sidecar fallback 支持直接刷新 `/`、`/app`、`/settings` 和 OAuth callback；轻入口 router 已拆开，launcher/settings/OAuth 不再预拉彼此页面 chunk；主入口也已把 login、launcher、Lottie loading 和 markdown vendor 从首屏静态依赖中移出。 | 后续继续做真实冷启动计时和多窗口生命周期细化。 |
 | Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-dogfood.sh` 可生成内部 dogfood zip、sha256 和 metadata，并强制跑 smoke；GitHub `Publish Release` 已增加独立 macOS job，把 dogfood app 作为同一个 tag 的 Release asset 上传。 | 无 Developer ID 阶段继续用 ad-hoc dogfood；公开发布前补 Developer ID 签名、公证、DMG/ZIP。 |
 | Updates | Red | 还没有自动更新。 | public beta 前接 Sparkle 或等价方案。 |
-| Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化和 WebContent 进程终止；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加 crash report 和更完整的 startup failure UI。 |
+| Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化、外链/阻断、右键菜单抑制、launcher 关闭原因和 WebContent 进程终止；WebContent 终止会额外写 `webcontent-terminated-*.json`；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加符号化 crash report 和更完整的 startup failure UI。 |
 
 ## 3. Dogfood 前必须变 Green
 
@@ -58,6 +58,8 @@
 - 桌面 smoke 脚本在启动前显式向 LaunchServices 注册 `.app`，并在 custom scheme 未投递时回退到 shell 内部的 launcher 分布式通知，避免干净 CI runner 上 `nexus://launcher` 不稳定导致 launcher smoke 失败。
 - GitHub macOS job 开启 `NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK=1`，允许慢 runner 上主窗口先以 `fallback_timeout` reveal，但仍要求后续 `web.ready` 到达，并继续拦截 WebContent crash 和 startup failure；本地默认 smoke 仍保持严格模式。
 - macOS app 发布仍标记为 dogfood：ad-hoc signing、未 notarize、metadata 保留 `developer_id=false` 和 `notarized=false`。
+- 桌面交互 QA 清单新增 `docs/specs/desktop-dogfood-qa-checklist.md`，覆盖 IME、Tab/Escape、复制粘贴、右键菜单、外链、未知 scheme、真实 OAuth provider 和诊断反馈格式。
+- WebView 外链打开、popup 外链、未知 scheme 阻断、右键菜单抑制和 launcher 关闭原因进入 `Nexus Startup` 时间线；WebContent 终止会额外写 `webcontent-terminated-*.json`，日志导出的 `diagnostics.json` 增加 URL scheme 声明检查。
 
 2026-05-15：
 

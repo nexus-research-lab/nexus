@@ -23,7 +23,8 @@
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/Library/Logs/Nexus` 写入 `startup-failure-*.json`。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
 - 窗口遮挡、最小化和恢复事件会进入启动时间线，便于继续验证 occlusion 下的 WebView 行为。
-- WebView 内容进程终止时，Shell 会记录 `webview.content_process_terminated` 并 reload 当前路由，避免 WebContent crash 后停在空白窗口。
+- WebView 内容进程终止时，Shell 会记录 `webview.content_process_terminated`、写入 `~/Library/Logs/Nexus/webcontent-terminated-*.json` 并 reload 当前路由，避免 WebContent crash 后停在空白窗口。
+- Shell 会记录外链打开、未知 scheme 阻断、右键菜单抑制和 launcher 关闭原因，便于 dogfood QA 追踪 native 行为。
 - 前端 ready signal 会带 source 和 performance marks；隐藏窗口 rAF 被节流时会用短 timer 兜底，避免主窗口等待 ready 时只能靠原生 fallback reveal。sidecar 会记录桌面 Web 静态资源请求摘要；两边都只记录 path 和 query key，不记录 OAuth code/state/token 等 query value。
 - 首屏通过前端 ready signal 后再显示窗口，避免直接暴露 WebView 白屏。
 - 桌面 OAuth 默认使用 `nexus://connectors/oauth/callback`，由 shell 转回本地 WebView 回调页。
@@ -43,6 +44,7 @@ scripts/desktop/package-macos-dogfood.sh
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口 ready reveal、launcher reveal、material 标记和退出后 sidecar 无残留。
 `package-macos-dogfood.sh` 会先构建 `.app`、跑 smoke，再输出内部 dogfood zip、sha256 和 metadata。
+人工 dogfood 验收步骤维护在 `docs/specs/desktop-dogfood-qa-checklist.md`。
 
 本地验证 Keychain 时可以显式设置：
 

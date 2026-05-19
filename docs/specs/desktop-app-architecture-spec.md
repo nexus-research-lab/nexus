@@ -330,6 +330,7 @@ nexus://connectors/oauth/callback
 - OAuth 回调能回到 App。
 - 日志可以从 App 内导出。
 - 本地数据目录不污染仓库。
+- `docs/specs/desktop-dogfood-qa-checklist.md` 中的桌面交互、OAuth 和诊断清单有明确通过/失败记录。
 
 ### 10.2 Public beta
 
@@ -384,6 +385,7 @@ nexus://connectors/oauth/callback
 - Keychain。
 - 原生文件选择 / 通知 / 外部链接。
 - WebView 白屏、右键菜单、输入法、焦点、滚动修正。
+- 维护 dogfood QA checklist，记录 IME、Tab/Escape、复制粘贴、外链、未知 scheme、OAuth 和诊断反馈结果。
 
 ### 阶段 5a：无 Developer ID dogfood 发布
 

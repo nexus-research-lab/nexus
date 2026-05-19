@@ -4,7 +4,8 @@ enum DesktopDiagnosticsReport {
   static func make(
     runtime: SidecarRuntimeConfig?,
     reason: String? = nil,
-    startupTimeline: DesktopStartupTimeline? = nil
+    startupTimeline: DesktopStartupTimeline? = nil,
+    details: [String: Any] = [:]
   ) throws -> String {
     var payload: [String: Any] = [
       "generated_at": ISO8601DateFormatter().string(from: Date()),
@@ -23,6 +24,9 @@ enum DesktopDiagnosticsReport {
     if let startupTimeline {
       payload["startup_timeline"] = startupTimeline.snapshot()
     }
+    if !details.isEmpty {
+      payload["details"] = details
+    }
     return try jsonString(payload)
   }
 
@@ -36,6 +40,32 @@ enum DesktopDiagnosticsReport {
       return fileURL
     } catch {
       NSLog("[Nexus Diagnostics] failed to write startup diagnostics: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  static func writeRuntimeIssue(
+    prefix: String,
+    reason: String,
+    runtime: SidecarRuntimeConfig?,
+    startupTimeline: DesktopStartupTimeline? = nil,
+    details: [String: Any] = [:]
+  ) -> URL? {
+    do {
+      let directory = logsDirectory()
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let safePrefix = sanitizedFilePrefix(prefix)
+      let fileURL = directory.appendingPathComponent("\(safePrefix)-\(timestampString()).json")
+      let text = try make(
+        runtime: runtime,
+        reason: reason,
+        startupTimeline: startupTimeline,
+        details: details
+      )
+      try text.write(to: fileURL, atomically: true, encoding: .utf8)
+      return fileURL
+    } catch {
+      NSLog("[Nexus Diagnostics] failed to write runtime diagnostics: \(error.localizedDescription)")
       return nil
     }
   }
@@ -56,6 +86,7 @@ enum DesktopDiagnosticsReport {
       "bundle_path": bundle.bundleURL.path,
       "resource_path": bundle.resourceURL?.path ?? "",
       "executable_path": bundle.executableURL?.path ?? "",
+      "url_schemes": urlSchemesPayload(bundle: bundle),
     ]
   }
 
@@ -121,6 +152,7 @@ enum DesktopDiagnosticsReport {
       ),
       "bundled_web_index_exists": bundledResourceExists(relativePath: "Web/index.html"),
       "bundled_sidecar_exists": bundledExecutableExists(name: "nexus-server"),
+      "nexus_url_scheme_declared": declaredURLSchemes(bundle: Bundle.main).contains("nexus"),
     ]
   }
 
@@ -148,6 +180,31 @@ enum DesktopDiagnosticsReport {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyyMMdd-HHmmss"
     return formatter.string(from: Date())
+  }
+
+  private static func urlSchemesPayload(bundle: Bundle) -> [String] {
+    declaredURLSchemes(bundle: bundle)
+  }
+
+  private static func declaredURLSchemes(bundle: Bundle) -> [String] {
+    guard let urlTypes = bundle.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else {
+      return []
+    }
+    return urlTypes
+      .flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+      .filter { !$0.isEmpty }
+      .sorted()
+  }
+
+  private static func sanitizedFilePrefix(_ prefix: String) -> String {
+    let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+    let value = prefix
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .unicodeScalars
+      .map { allowed.contains($0) ? Character($0) : "-" }
+    let text = String(value).trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+    return text.isEmpty ? "runtime-issue" : text
   }
 
   private static func jsonString(_ value: Any) throws -> String {

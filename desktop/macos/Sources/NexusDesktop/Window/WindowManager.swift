@@ -41,7 +41,13 @@ final class WindowManager: NSObject, NSWindowDelegate {
     showLauncherWindow()
   }
 
-  func closeLauncher() {
+  func closeLauncher(reason: String = "programmatic") {
+    if let launcherWindow {
+      startupTimeline.mark("launcher_window.closed", metadata: [
+        "reason": reason,
+        "was_visible": launcherWindow.isVisible ? "true" : "false",
+      ])
+    }
     launcherWindow?.orderOut(nil)
   }
 
@@ -67,7 +73,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     if sender === launcherWindow {
-      closeLauncher()
+      closeLauncher(reason: "window_close")
       return false
     }
     sender.orderOut(nil)
@@ -79,7 +85,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
           window === launcherWindow else {
       return
     }
-    closeLauncher()
+    closeLauncher(reason: "resign_key")
   }
 
   func windowDidChangeOcclusionState(_ notification: Notification) {
@@ -112,7 +118,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     switch route.presentation {
     case .main:
       showMainWindow(route: route)
-      closeLauncher()
+      closeLauncher(reason: "open_route")
     case .launcher:
       showLauncherWindow()
     }
@@ -143,7 +149,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
           self?.open(route: route)
         },
         closeLauncher: { [weak self] in
-          self?.closeLauncher()
+          self?.closeLauncher(reason: "bridge")
         },
         globalShortcutStatusProvider: globalShortcutStatusProvider,
         globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
@@ -213,7 +219,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
           self?.open(route: route)
         },
         closeLauncher: { [weak self] in
-          self?.closeLauncher()
+          self?.closeLauncher(reason: "bridge")
         },
         globalShortcutStatusProvider: globalShortcutStatusProvider,
         globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
@@ -325,7 +331,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         return event
       }
       if self.launcherWindow?.isKeyWindow == true, event.keyCode == 53 {
-        self.closeLauncher()
+        self.closeLauncher(reason: "escape")
         return nil
       }
       return event
