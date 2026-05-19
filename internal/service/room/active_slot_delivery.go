@@ -106,7 +106,7 @@ func isActiveDeliverySlot(slot *activeRoomSlot) bool {
 	if slot == nil {
 		return false
 	}
-	switch slot.Status {
+	switch slot.getStatus() {
 	case "finished", "error", "cancelled":
 		return false
 	default:
