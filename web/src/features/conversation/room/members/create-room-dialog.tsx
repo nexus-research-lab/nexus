@@ -411,34 +411,36 @@ export function CreateRoomDialog({
                   />
                 </div>
 
-                <div className="rounded-[16px] border border-(--divider-subtle-color) bg-(--modal-input-background) px-3 py-2.5">
-                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold text-(--text-muted)">
-                    <Crown className="h-3.5 w-3.5 text-primary" />
-                    <span>群主</span>
+                <div className="rounded-[14px] border border-(--divider-subtle-color) bg-(--modal-input-background) px-2.5 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-(--text-muted)">
+                      <Crown className="h-3.5 w-3.5 text-primary" />
+                      <span>群主</span>
+                    </div>
+                    <select
+                      className="dialog-input h-8 min-w-0 flex-1 rounded-[10px] px-2 text-[12px] font-medium text-(--text-strong) outline-none disabled:cursor-not-allowed disabled:opacity-55"
+                      disabled={selected_agents.length === 0 || is_creating}
+                      onChange={(event) => handle_change_host_agent(event.target.value)}
+                      value={selected_host_agent_id}
+                    >
+                      <option value="">未设置</option>
+                      {selected_agents.map((agent) => (
+                        <option key={agent.agent_id} value={agent.agent_id}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    className="dialog-input h-9 w-full rounded-xl px-2.5 text-[12px] font-medium text-(--text-strong) outline-none disabled:cursor-not-allowed disabled:opacity-55"
-                    disabled={selected_agents.length === 0 || is_creating}
-                    onChange={(event) => handle_change_host_agent(event.target.value)}
-                    value={selected_host_agent_id}
-                  >
-                    <option value="">未设置</option>
-                    {selected_agents.map((agent) => (
-                      <option key={agent.agent_id} value={agent.agent_id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
-                  <label className="mt-2 flex items-start gap-2 rounded-xl px-1 py-1 text-[11px] font-medium text-(--text-default)">
+                  <label className="mt-1.5 flex items-center gap-2 px-0.5 text-[11px] font-medium text-(--text-default)">
                     <input
                       checked={host_auto_reply_enabled}
-                      className="mt-0.5 h-3.5 w-3.5 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
+                      className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
                       disabled={!selected_host_agent_id || is_creating}
                       onChange={(event) => set_host_auto_reply_enabled(event.target.checked)}
                       type="checkbox"
                     />
-                    <span className="leading-4">
-                      用户未 @ 发言时由群主接管，可直接回答或 @ 委派成员。
+                    <span className="min-w-0 truncate">
+                      未 @ 时由群主接管，可回答或委派
                     </span>
                   </label>
                 </div>
