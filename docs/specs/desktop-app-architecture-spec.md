@@ -322,7 +322,7 @@ nexus://connectors/oauth/callback
 5. 脚本执行 ad-hoc codesign、plist/codesign 校验和桌面 smoke。
 6. 脚本生成 `Nexus-macos-<version>-<build>.dmg`、`.sha256` 与 `.metadata.json`。
 7. macOS job 上传临时 workflow artifact。
-8. Windows job 执行 `scripts/desktop/package-windows-app.ps1`，生成 unsigned app zip、sha256 与 metadata。
+8. Windows job 执行 `scripts/desktop/package-windows-app.ps1`，生成 self-contained app zip、Inno Setup 安装器、sha256 与 metadata；配置 Windows 签名 secret 时同步做 Authenticode 签名。
 9. Ubuntu release job 继续生成源码包与 Linux/Windows 可运行包。
 10. Ubuntu release job 下载 macOS / Windows app artifacts，并统一上传到 GitHub Release。
 
@@ -339,15 +339,15 @@ nexus://connectors/oauth/callback
 
 第一版可以本地构建 `.app` 和 zip/dmg，但 public beta 前签名、公证和自动更新必须完成。
 
-Windows 原生 app 发布链路进入第一阶段闭环：`scripts/package-release.sh` 仍产出 Windows 可运行服务包，`desktop/windows` 产出独立的 WPF/WebView2 app zip，并作为同一个 GitHub Release 的 app asset 上传。当前包仍是 unsigned zip，不是安装器。
+Windows 原生 app 发布链路进入第一阶段闭环：`scripts/package-release.sh` 仍产出 Windows 可运行服务包，`desktop/windows` 产出独立的 WPF/WebView2 app zip 与 Inno Setup 安装器，并作为同一个 GitHub Release 的 app asset 上传。当前默认构建为 `win-x64`，shell 使用 self-contained .NET，安装器会内置 WebView2 Evergreen Runtime bootstrapper；没有配置签名证书时仍会产出 unsigned 包。
 
 ```powershell
 pwsh scripts/desktop/package-windows-app.ps1
 ```
 
-该脚本会调用 `build-windows-app.ps1` 构建 `web/dist`、交叉编译 `nexus-server.exe`，再通过 `dotnet publish` 组装 WPF/WebView2 shell；随后调用 `smoke-windows-app.ps1` 验证 launcher ready、sidecar 存在和退出清理，最后输出 `Nexus-windows-<version>-<build>.zip`、`.zip.sha256` 和 `.zip.metadata.json`。
+该脚本会调用 `build-windows-app.ps1` 构建 `web/dist`、交叉编译并注入版本信息到 `nexus-server.exe`，再通过 `dotnet publish --self-contained true` 组装 WPF/WebView2 shell；随后按需签名 app exe 与 sidecar，调用 `smoke-windows-app.ps1` 验证 launcher ready、sidecar 存在和退出清理，最后输出 `Nexus-windows-<version>-<build>.zip`、`.zip.sha256`、`.zip.metadata.json`、`NexusSetup-<version>-<build>.exe` 和安装器 `.sha256`。
 
-GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest` 上执行同一 package 脚本，并把 Windows app zip、sha256、metadata 交给最终 `release` job 与 macOS dmg、Linux/Windows 可运行服务包一并上传。后续公开发布前仍需补齐代码签名、安装器、自动更新、卸载/升级策略和更完整的 Windows QA 记录。
+GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest` 上执行同一 package 脚本，并把 Windows app zip、installer、sha256、metadata 交给最终 `release` job 与 macOS dmg、Linux/Windows 可运行服务包一并上传。后续公开发布前仍需补齐真实签名证书、自动更新、升级策略和更完整的 Windows QA 记录。
 
 ## 10. 验收标准
 

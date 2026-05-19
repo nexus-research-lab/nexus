@@ -9,11 +9,11 @@
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/`。
 
-第一阶段已支持 unsigned Inno Setup 安装器；托盘、全局快捷键和自动更新在后续阶段补齐。
+第一阶段已支持 Inno Setup 安装器、WebView2 Evergreen Runtime bootstrapper、可选 Authenticode 签名和 portable zip；托盘、全局快捷键和自动更新在后续阶段补齐。
 
 ## 构建
 
-需要 Windows、.NET 8 SDK、WebView2 Runtime、Go、Node.js 和 pnpm。生成安装器还需要 Inno Setup 6：
+构建需要 Windows、.NET 8 SDK、Go、Node.js 和 pnpm。生成安装器还需要 Inno Setup 6；安装器会内置 Microsoft Edge WebView2 Evergreen bootstrapper，便携 zip 仍要求目标机器已安装 WebView2 Runtime：
 
 ```powershell
 winget install --id JRSoftware.InnoSetup -e
@@ -47,7 +47,15 @@ pwsh scripts/desktop/smoke-windows-app.ps1
 pwsh scripts/desktop/package-windows-app.ps1
 ```
 
-只需要 zip 便携包时可加 `-SkipInstaller`。
+package 脚本默认用 self-contained .NET 发布 shell，当前只支持 `win-x64`。只需要 zip 便携包时可加 `-SkipInstaller`。
+
+如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe` 和安装器：
+
+```powershell
+$env:NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64 = "<base64 pfx>"
+$env:NEXUS_WINDOWS_SIGNING_CERT_PASSWORD = "<pfx password>"
+$env:NEXUS_WINDOWS_TIMESTAMP_SERVER = "http://timestamp.digicert.com"
+```
 
 默认输出：
 
@@ -86,4 +94,4 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 - 桌面运行数据统一写入 `~/.nexus`，数据库位于 `~/.nexus/data/nexus.db`，日志位于 `~/.nexus/logs`。
 - sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `~/.nexus/config/connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
 - 桥接接口先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；日志导出会带 `diagnostics.json`，启动失败会写 `startup-failure-*.json`。
-- GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows app zip、installer exe、sha256 与 metadata。当前 zip 和安装器均未签名；托盘、签名和自动更新在后续阶段补齐。
+- GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows app zip、installer exe、sha256 与 metadata；未配置 Windows 签名证书时产物会明确标记为 unsigned。托盘和自动更新在后续阶段补齐。
