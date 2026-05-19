@@ -95,7 +95,7 @@ func webFallbackPath(root string, relativePath string, indexPath string) string 
 func webFallbackFileName(relativePath string) string {
 	switch {
 	case relativePath == "":
-		return "launcher.html"
+		return "index.html"
 	case relativePath == "settings":
 		return "settings.html"
 	case relativePath == "capability/connectors/oauth/callback":

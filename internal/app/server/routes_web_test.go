@@ -110,7 +110,7 @@ func TestWebFallbackFileName(t *testing.T) {
 		relativePath string
 		want         string
 	}{
-		{name: "root launcher", relativePath: "", want: "launcher.html"},
+		{name: "root app entry", relativePath: "", want: "index.html"},
 		{name: "settings entry", relativePath: "settings", want: "settings.html"},
 		{
 			name:         "oauth callback entry",
