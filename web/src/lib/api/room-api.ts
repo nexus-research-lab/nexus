@@ -139,6 +139,27 @@ export async function get_room_conversation_messages(
   };
 }
 
+export async function upload_room_conversation_attachment_api(
+  room_id: string,
+  conversation_id: string,
+  file: File,
+  path?: string,
+): Promise<{ path: string; name: string; size: number }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (path) {
+    formData.append("path", path);
+  }
+
+  return request_api<{ path: string; name: string; size: number }>(
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/attachments/upload`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+}
+
 export async function create_room(
   params: CreateRoomParams,
 ): Promise<RoomContextAggregate> {

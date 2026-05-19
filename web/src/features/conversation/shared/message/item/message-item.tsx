@@ -63,6 +63,7 @@ function MessageItemInner({
         compact={compact}
         user_message={state.user_message}
         user_content={state.user_content}
+        user_attachments={state.user_attachments}
         current_user_avatar={current_user_avatar}
         copied_user={state.copied_user}
         on_copy_user={state.handle_copy_user}

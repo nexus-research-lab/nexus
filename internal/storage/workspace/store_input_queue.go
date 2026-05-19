@@ -356,7 +356,7 @@ func replayInputQueueRows(
 		switch action {
 		case inputQueueActionEnqueue:
 			item, ok := inputQueueItemFromAny(row["item"])
-			if !ok || strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.Content) == "" {
+			if !ok || strings.TrimSpace(item.ID) == "" || !protocol.HasChatInput(item.Content, item.Attachments) {
 				continue
 			}
 			item = normalizeInputQueueItem(location, item, normalizeInputQueueTimestamp(row["timestamp"]))
@@ -424,6 +424,7 @@ func normalizeInputQueueItem(
 	item.RequestID = strings.TrimSpace(item.RequestID)
 	item.Source = protocol.NormalizeInputQueueSource(string(item.Source))
 	item.Content = strings.TrimSpace(item.Content)
+	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, item.AgentID)
 	item.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy))
 	item.ReplyTarget = protocol.RoomReplyTarget(strings.TrimSpace(string(item.ReplyTarget)))
 	item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
@@ -462,6 +463,7 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			RequestID:        stringFromAny(typed["request_id"]),
 			Source:           protocol.InputQueueSource(stringFromAny(typed["source"])),
 			Content:          stringFromAny(typed["content"]),
+			Attachments:      protocol.ChatAttachmentsFromAny(typed["attachments"]),
 			DeliveryPolicy:   protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
 			ReplyTarget:      protocol.RoomReplyTarget(stringFromAny(typed["reply_target"])),
 			OwnerUserID:      stringFromAny(typed["owner_user_id"]),

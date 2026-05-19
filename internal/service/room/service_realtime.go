@@ -44,13 +44,15 @@ func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Cl
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。
 type ChatRequest struct {
-	SessionKey     string
-	RoomID         string
-	ConversationID string
-	Content        string
-	RoundID        string
-	ReqID          string
-	DeliveryPolicy protocol.ChatDeliveryPolicy
+	SessionKey        string
+	RoomID            string
+	ConversationID    string
+	AttachmentAgentID string
+	Content           string
+	Attachments       []protocol.ChatAttachment
+	RoundID           string
+	ReqID             string
+	DeliveryPolicy    protocol.ChatDeliveryPolicy
 }
 
 // InterruptRequest 表示 Room 会话中断请求。

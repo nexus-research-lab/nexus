@@ -28,6 +28,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		return err
 	}
 	roomID := firstNonEmpty(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
+	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
+	runtimeTriggerContent, err := s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments)
+	if err != nil {
+		return err
+	}
 
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
 	if err != nil {
@@ -60,6 +65,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		"target_resolution", targetResolution,
 		"content_chars", utf8.RuneCountInString(strings.TrimSpace(request.Content)),
 		"content_preview", logx.PreviewText(request.Content, 240),
+		"attachment_count", len(attachments),
 	)
 
 	history, err := s.roomHistory.ReadMessages(conversationID, nil)
@@ -79,6 +85,9 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		"timestamp":       time.Now().UnixMilli(),
 	}
 	userMessage["delivery_policy"] = string(deliveryPolicy)
+	if len(attachments) > 0 {
+		userMessage["attachments"] = attachments
+	}
 	if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
 		return err
 	}
@@ -142,6 +151,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			conversationID,
 			targetAgentIDs,
 			strings.TrimSpace(request.Content),
+			attachments,
 			request.RoundID,
 			authctx.OwnerUserID(ctx),
 		)
@@ -176,6 +186,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			conversationID,
 			targetAgentIDs,
 			strings.TrimSpace(request.Content),
+			runtimeTriggerContent,
 			request.RoundID,
 		)
 		if guideErr != nil {
@@ -214,7 +225,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	}
 	initialTrigger := roomTrigger{
 		TriggerType: initialTriggerType,
-		Content:     strings.TrimSpace(request.Content),
+		Content:     runtimeTriggerContent,
 		MessageID:   request.RoundID,
 	}
 	activeRound := &activeRoomRound{
@@ -362,7 +373,7 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 	if strings.TrimSpace(request.RoundID) == "" {
 		return "", "", errors.New("round_id is required")
 	}
-	if strings.TrimSpace(request.Content) == "" {
+	if !protocol.HasChatInput(request.Content, request.Attachments) {
 		return "", "", errors.New("content is required")
 	}
 	conversationID := firstNonEmpty(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))

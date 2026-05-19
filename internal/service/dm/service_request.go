@@ -36,6 +36,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		}
 		agentID = defaultAgent.AgentID
 	}
+	request.Attachments = s.normalizeChatAttachments(request.Attachments, agentID)
 
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
 	if err != nil {
@@ -76,6 +77,10 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 			return err
 		}
 	}
+	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, request.Content, request.Attachments)
+	if err != nil {
+		return err
+	}
 
 	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
@@ -110,6 +115,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		roundID:           request.RoundID,
 		reqID:             dmdomain.FirstNonEmpty(request.ReqID, request.RoundID),
 		content:           strings.TrimSpace(request.Content),
+		runtimeContent:    runtimeContent,
 		client:            client,
 		runtimeProvider:   runtimeProvider,
 		runtimeModel:      runtimeModel,
@@ -126,9 +132,10 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"req_id", runner.reqID,
 		"content_chars", utf8.RuneCountInString(runner.content),
 		"content_preview", logx.PreviewText(runner.content, 240),
+		"attachment_count", len(request.Attachments),
 	)
 
-	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy); err != nil {
+	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments); err != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
 			s.loggerFor(ctx).Warn("DM 轮次标记失败后刷新 session meta 失败",
@@ -174,7 +181,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy)
+		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments)
 	}
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, request.RoundID, "running", ""))
 	s.broadcastSessionStatus(ctx, sessionKey)
@@ -192,14 +199,19 @@ func (s *Service) queueRunningInput(
 	initialMessageCount int,
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
+	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
 	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
 	if len(runningRoundIDs) == 0 {
 		return false, runtimectx.ErrNoRunningRound
 	}
-	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, content); err != nil {
+	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
+	if err != nil {
 		return false, err
 	}
-	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue); err != nil {
+	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent); err != nil {
+		return false, err
+	}
+	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments); err != nil {
 		s.loggerFor(ctx).Error("DM 排队消息持久化失败",
 			"session_key", sessionKey,
 			"agent_id", agentValue.AgentID,
@@ -220,7 +232,7 @@ func (s *Service) queueRunningInput(
 	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue)
+		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments)
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
@@ -242,7 +254,12 @@ func (s *Service) guideRunningInput(
 	request Request,
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
-	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, content)
+	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
+	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
+	if err != nil {
+		return false, err
+	}
+	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent)
 	if err != nil {
 		return false, err
 	}
@@ -520,7 +537,7 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	if err != nil {
 		return "", protocol.SessionKey{}, err
 	}
-	if strings.TrimSpace(request.Content) == "" {
+	if !protocol.HasChatInput(request.Content, request.Attachments) {
 		return "", protocol.SessionKey{}, errors.New("content is required")
 	}
 	if strings.TrimSpace(request.RoundID) == "" {

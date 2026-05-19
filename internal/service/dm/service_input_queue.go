@@ -18,6 +18,7 @@ type InputQueueRequest struct {
 	Action         string
 	ItemID         string
 	Content        string
+	Attachments    []protocol.ChatAttachment
 	OrderedIDs     []string
 	DeliveryPolicy protocol.ChatDeliveryPolicy
 }
@@ -33,7 +34,8 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 	switch action {
 	case "enqueue", "":
 		content := strings.TrimSpace(request.Content)
-		if content == "" {
+		attachments := protocol.NormalizeChatAttachments(request.Attachments, request.AgentID)
+		if !protocol.HasChatInput(content, attachments) {
 			return errors.New("content is required")
 		}
 		ownerUserID := authctx.OwnerUserID(ctx)
@@ -43,6 +45,7 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 			AgentID:        inputQueueLocationAgentID(location),
 			Source:         protocol.InputQueueSourceUser,
 			Content:        content,
+			Attachments:    attachments,
 			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
 			OwnerUserID:    ownerUserID,
 		})
@@ -176,6 +179,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		SessionKey:           normalizedSessionKey,
 		AgentID:              dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
 		Content:              item.Content,
+		Attachments:          item.Attachments,
 		RoundID:              "queue_" + item.ID,
 		ReqID:                "queue_" + item.ID,
 		DeliveryPolicy:       protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),

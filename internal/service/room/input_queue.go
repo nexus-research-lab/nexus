@@ -20,6 +20,7 @@ type InputQueueRequest struct {
 	Action         string
 	ItemID         string
 	Content        string
+	Attachments    []protocol.ChatAttachment
 	OrderedIDs     []string
 	DeliveryPolicy protocol.ChatDeliveryPolicy
 }
@@ -45,7 +46,8 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 	switch action {
 	case "enqueue", "":
 		content := strings.TrimSpace(request.Content)
-		if content == "" {
+		attachments := s.normalizeChatAttachments(request.Attachments, "", contextValue.Room.ID, contextValue.Conversation.ID)
+		if !protocol.HasChatInput(content, attachments) {
 			return errors.New("content is required")
 		}
 		location, targetAgentIDs, err := s.resolveRoomInputQueuePrimaryLocation(ctx, contextValue, content)
@@ -62,6 +64,7 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 			TargetAgentIDs: targetAgentIDs,
 			Source:         protocol.InputQueueSourceUser,
 			Content:        content,
+			Attachments:    attachments,
 			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
 			OwnerUserID:    ownerUserID,
 		}); err != nil {
@@ -235,6 +238,7 @@ func (s *RealtimeService) dispatchInputQueueItem(
 		RoomID:         roomID,
 		ConversationID: conversationID,
 		Content:        item.Content,
+		Attachments:    item.Attachments,
 		RoundID:        "queue_" + item.ID,
 		ReqID:          "queue_" + item.ID,
 		DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
@@ -300,7 +304,11 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 		return errors.New("content is required")
 	}
 	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
-		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, roomID, conversationID, targetAgentIDs, content, "queue_"+item.ID)
+		runtimeContent, renderErr := s.renderRuntimeContentWithAttachments(ctx, content, item.Attachments)
+		if renderErr != nil {
+			return renderErr
+		}
+		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, roomID, conversationID, targetAgentIDs, content, runtimeContent, "queue_"+item.ID)
 		if err != nil {
 			return err
 		}

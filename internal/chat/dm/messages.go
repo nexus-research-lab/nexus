@@ -14,6 +14,7 @@ func BuildUserRoundMarker(
 	roundID string,
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
+	attachments []protocol.ChatAttachment,
 ) protocol.Message {
 	messageValue := protocol.Message{
 		"message_id":  strings.TrimSpace(roundID),
@@ -26,6 +27,9 @@ func BuildUserRoundMarker(
 	}
 	if strings.TrimSpace(string(deliveryPolicy)) != "" {
 		messageValue["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(string(deliveryPolicy)))
+	}
+	if normalizedAttachments := protocol.NormalizeChatAttachments(attachments, sessionValue.AgentID); len(normalizedAttachments) > 0 {
+		messageValue["attachments"] = normalizedAttachments
 	}
 	return messageValue
 }

@@ -52,6 +52,7 @@ type transcriptEntry struct {
 type transcriptRoundMarker struct {
 	RoundID        string
 	Content        string
+	Attachments    []protocol.ChatAttachment
 	Timestamp      int64
 	DeliveryPolicy string
 }
@@ -146,17 +147,34 @@ func (s *AgentHistoryStore) AppendRoundMarker(
 	timestamp int64,
 	deliveryPolicies ...string,
 ) error {
+	var deliveryPolicy string
+	if len(deliveryPolicies) > 0 {
+		deliveryPolicy = strings.TrimSpace(deliveryPolicies[0])
+	}
+	return s.AppendRoundMarkerWithAttachments(workspacePath, sessionKey, roundID, content, timestamp, deliveryPolicy, nil)
+}
+
+// AppendRoundMarkerWithAttachments 记录一条带附件 metadata 的 transcript round 对齐标记。
+func (s *AgentHistoryStore) AppendRoundMarkerWithAttachments(
+	workspacePath string,
+	sessionKey string,
+	roundID string,
+	content string,
+	timestamp int64,
+	deliveryPolicy string,
+	attachments []protocol.ChatAttachment,
+) error {
 	row := map[string]any{
 		overlayKindField: overlayKindRoundMarker,
 		"round_id":       strings.TrimSpace(roundID),
 		"content":        strings.TrimSpace(content),
 		"timestamp":      timestamp,
 	}
-	if len(deliveryPolicies) > 0 {
-		deliveryPolicy := strings.TrimSpace(deliveryPolicies[0])
-		if deliveryPolicy != "" {
-			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
-		}
+	if deliveryPolicy != "" {
+		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
+	}
+	if normalizedAttachments := protocol.NormalizeChatAttachments(attachments, ""); len(normalizedAttachments) > 0 {
+		row["attachments"] = normalizedAttachments
 	}
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
@@ -325,6 +343,7 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
 				RoundID:        stringFromAny(row["round_id"]),
 				Content:        stringFromAny(row["content"]),
+				Attachments:    protocol.ChatAttachmentsFromAny(row["attachments"]),
 				Timestamp:      messageTimestamp(protocol.Message(row)),
 				DeliveryPolicy: stringFromAny(row["delivery_policy"]),
 			})
@@ -396,6 +415,9 @@ func materializeRoundMarkerMessages(
 		}
 		if strings.TrimSpace(marker.DeliveryPolicy) != "" {
 			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))
+		}
+		if normalizedAttachments := protocol.NormalizeChatAttachments(marker.Attachments, agentID); len(normalizedAttachments) > 0 {
+			row["attachments"] = normalizedAttachments
 		}
 		rows = append(rows, row)
 	}
@@ -569,6 +591,19 @@ func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) str
 		builder.WriteString(strconv.Itoa(len(marker.Content)))
 		builder.WriteString(":")
 		builder.WriteString(marker.Content)
+		builder.WriteString("|")
+		for _, attachment := range protocol.NormalizeChatAttachments(marker.Attachments, "") {
+			builder.WriteString(string(attachment.Scope))
+			builder.WriteString(":")
+			builder.WriteString(attachment.RoomID)
+			builder.WriteString(":")
+			builder.WriteString(attachment.ConversationID)
+			builder.WriteString(":")
+			builder.WriteString(attachment.WorkspaceAgentID)
+			builder.WriteString(":")
+			builder.WriteString(attachment.WorkspacePath)
+			builder.WriteString("|")
+		}
 		builder.WriteString("|")
 		builder.WriteString(strconv.FormatInt(marker.Timestamp, 10))
 		builder.WriteString("|")
@@ -777,6 +812,7 @@ func projectTranscriptChain(
 				decoded.SessionID,
 				entry.Data,
 				marker.Content,
+				marker.Attachments,
 				marker.DeliveryPolicy,
 				entryTimestamp,
 			)
@@ -1097,6 +1133,7 @@ func buildTranscriptUserMessage(
 	sessionID string,
 	entry map[string]any,
 	contentOverride string,
+	attachments []protocol.ChatAttachment,
 	deliveryPolicy string,
 	timestamp int64,
 ) *protocol.Message {
@@ -1118,6 +1155,9 @@ func buildTranscriptUserMessage(
 	}
 	if strings.TrimSpace(deliveryPolicy) != "" {
 		payload["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
+	}
+	if normalizedAttachments := protocol.NormalizeChatAttachments(attachments, agentID); len(normalizedAttachments) > 0 {
+		payload["attachments"] = normalizedAttachments
 	}
 	return &payload
 }

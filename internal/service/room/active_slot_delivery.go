@@ -17,6 +17,7 @@ func (s *RealtimeService) enqueueForActiveAgentSlots(
 	conversationID string,
 	targetAgentIDs []string,
 	content string,
+	attachments []protocol.ChatAttachment,
 	roundID string,
 	ownerUserID string,
 ) (map[string]struct{}, error) {
@@ -43,6 +44,7 @@ func (s *RealtimeService) enqueueForActiveAgentSlots(
 			TargetAgentIDs:  []string{agentID},
 			Source:          protocol.InputQueueSourceUser,
 			Content:         strings.TrimSpace(content),
+			Attachments:     protocol.NormalizeChatAttachments(attachments, agentID),
 			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 			OwnerUserID:     strings.TrimSpace(ownerUserID),
 			RootRoundID:     strings.TrimSpace(roundID),
@@ -139,6 +141,7 @@ func (s *RealtimeService) guideActiveAgentSlots(
 	conversationID string,
 	targetAgentIDs []string,
 	content string,
+	runtimeContent string,
 	roundID string,
 ) (map[string]struct{}, error) {
 	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)
@@ -147,7 +150,7 @@ func (s *RealtimeService) guideActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		slot.enqueueGuidedInput(roundID, content)
+		slot.enqueueGuidedInput(roundID, runtimeContent)
 		guidanceMessage := buildRoomGuidanceMessage(sessionKey, roomID, conversationID, slot, roundID, content)
 		s.broadcastSlotGuidanceMessage(ctx, sessionKey, roomID, conversationID, roundID, guidanceMessage)
 		guidedAgentIDs[agentID] = struct{}{}

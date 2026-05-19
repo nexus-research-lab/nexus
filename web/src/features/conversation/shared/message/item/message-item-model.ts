@@ -207,6 +207,12 @@ export function useMessageItemState({
     }
     return typeof user_message.content === "string" ? user_message.content : "";
   }, [user_message]);
+  const user_attachments = useMemo(() => {
+    if (!user_message || user_message.role !== "user") {
+      return [];
+    }
+    return user_message.attachments ?? [];
+  }, [user_message]);
 
   const {
     matched_pending_permissions_by_tool_use_id,
@@ -1099,6 +1105,7 @@ export function useMessageItemState({
     copied_assistant,
     user_message,
     user_content,
+    user_attachments,
     assistant_agent_id,
     model,
     timestamp,

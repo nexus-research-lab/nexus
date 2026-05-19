@@ -106,10 +106,26 @@ export interface BaseMessage {
   delivery_mode?: "durable" | "ephemeral";
 }
 
+export type MessageAttachmentKind = "text" | "image" | "file";
+export type MessageAttachmentScope = "agent_workspace" | "room_conversation";
+
+export interface MessageAttachment {
+  file_name: string;
+  workspace_path: string;
+  workspace_agent_id?: string;
+  room_id?: string;
+  conversation_id?: string;
+  scope?: MessageAttachmentScope;
+  kind: MessageAttachmentKind;
+  mime_type?: string | null;
+  size?: number;
+}
+
 export interface UserMessage extends BaseMessage {
   role: "user";
   content: string;
   delivery_policy?: "queue" | "guide" | "interrupt" | "auto";
+  attachments?: MessageAttachment[];
 }
 
 export interface AgentMessage {

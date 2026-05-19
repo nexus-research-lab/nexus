@@ -51,6 +51,7 @@ type roundRunner struct {
 	roundID           string
 	reqID             string
 	content           string
+	runtimeContent    string
 	client            runtimectx.Client
 	runtimeProvider   string
 	runtimeModel      string
@@ -103,7 +104,7 @@ func (r *roundRunner) executeRound(
 	logger *slog.Logger,
 ) (runtimectx.RoundExecutionResult, error) {
 	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
-		Query:  r.content,
+		Query:  r.runtimeContent,
 		Client: r.client,
 		Mapper: dmRoundMapperAdapter{mapper: r.mapper},
 		InterruptReason: func() string {
