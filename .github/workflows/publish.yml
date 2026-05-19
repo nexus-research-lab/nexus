@@ -145,7 +145,11 @@ jobs:
           NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}\windows-artifacts
           NEXUS_DESKTOP_VERSION: ${{ steps.tag.outputs.version }}
           NEXUS_DESKTOP_BUILD_NUMBER: ${{ github.run_number }}
+          NEXUS_DESKTOP_SELF_CONTAINED: "true"
           NEXUS_DESKTOP_SMOKE_TIMEOUT_SECONDS: "75"
+          NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX_BASE64 }}
+          NEXUS_WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+          NEXUS_WINDOWS_TIMESTAMP_SERVER: ${{ vars.WINDOWS_TIMESTAMP_SERVER || 'http://timestamp.digicert.com' }}
         run: |
           pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/desktop/package-windows-app.ps1
 

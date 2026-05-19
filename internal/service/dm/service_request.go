@@ -120,7 +120,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runtimeProvider:   runtimeProvider,
 		runtimeModel:      runtimeModel,
 		ownerUserID:       authctx.OwnerUserID(ctx),
-		mapper:            dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID),
+		mapper:            dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,
 	}

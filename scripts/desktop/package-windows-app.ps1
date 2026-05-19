@@ -12,10 +12,20 @@ param(
   [string]$InstallerName = $env:NEXUS_DESKTOP_INSTALLER_NAME,
   [string]$InstallerOutputPath = $env:NEXUS_DESKTOP_INSTALLER_OUTPUT_PATH,
   [string]$InnoSetupCompiler = $env:NEXUS_INNO_SETUP_COMPILER,
+  [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
+  [string]$WebView2BootstrapperPath = $env:NEXUS_WEBVIEW2_BOOTSTRAPPER_PATH,
+  [string]$WebView2BootstrapperUrl = $(if ($env:NEXUS_WEBVIEW2_BOOTSTRAPPER_URL) { $env:NEXUS_WEBVIEW2_BOOTSTRAPPER_URL } else { "https://go.microsoft.com/fwlink/p/?LinkId=2124703" }),
+  [string]$SigningCertificatePath = $env:NEXUS_WINDOWS_SIGNING_CERTIFICATE_PATH,
+  [string]$SigningCertificateBase64 = $env:NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64,
+  [string]$SigningCertificatePassword = $env:NEXUS_WINDOWS_SIGNING_CERT_PASSWORD,
+  [string]$TimestampServer = $(if ($env:NEXUS_WINDOWS_TIMESTAMP_SERVER) { $env:NEXUS_WINDOWS_TIMESTAMP_SERVER } else { "http://timestamp.digicert.com" }),
+  [string]$SignToolPath = $env:NEXUS_SIGNTOOL_PATH,
   [int]$SmokeTimeoutSeconds = 75,
   [switch]$SkipBuild,
   [switch]$SkipSmoke,
-  [switch]$SkipInstaller
+  [switch]$SkipInstaller,
+  [switch]$SkipSigning,
+  [switch]$SkipWebView2Bootstrapper
 )
 
 $ErrorActionPreference = "Stop"
@@ -72,6 +82,31 @@ function Resolve-ExecutableFileName([string]$name) {
   return "$name.exe"
 }
 
+function Resolve-Bool([string]$value, [bool]$defaultValue) {
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $defaultValue
+  }
+
+  switch ($value.Trim().ToLowerInvariant()) {
+    "1" { return $true }
+    "true" { return $true }
+    "yes" { return $true }
+    "on" { return $true }
+    "0" { return $false }
+    "false" { return $false }
+    "no" { return $false }
+    "off" { return $false }
+  }
+
+  throw "Invalid boolean value: $value"
+}
+
+function Assert-SupportedRuntimeIdentifier([string]$runtimeIdentifier) {
+  if ($runtimeIdentifier -ne "win-x64") {
+    throw "Unsupported Windows RuntimeIdentifier '$runtimeIdentifier'. Current installer and sidecar package only support win-x64."
+  }
+}
+
 function Resolve-InnoSetupCompiler([string]$compilerPath) {
   if (-not [string]::IsNullOrWhiteSpace($compilerPath)) {
     if (Test-Path -LiteralPath $compilerPath) {
@@ -110,6 +145,129 @@ Use -SkipInstaller to build only the portable zip.
 "@
 }
 
+function Resolve-WebView2Bootstrapper(
+  [string]$bootstrapperPath,
+  [string]$bootstrapperUrl,
+  [string]$outputDir,
+  [bool]$skipDownload
+) {
+  if ($skipDownload) {
+    return ""
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($bootstrapperPath)) {
+    if (-not (Test-Path -LiteralPath $bootstrapperPath)) {
+      throw "Missing WebView2 bootstrapper: $bootstrapperPath"
+    }
+    return (Resolve-Path -LiteralPath $bootstrapperPath).Path
+  }
+
+  if ([string]::IsNullOrWhiteSpace($bootstrapperUrl)) {
+    throw "WebView2 bootstrapper URL is empty. Set NEXUS_WEBVIEW2_BOOTSTRAPPER_URL or use -SkipWebView2Bootstrapper with -SkipInstaller."
+  }
+
+  New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+  $downloadPath = Join-Path $outputDir "MicrosoftEdgeWebView2Setup.exe"
+  Write-Host "==> Downloading WebView2 Evergreen bootstrapper"
+  Invoke-WebRequest -Uri $bootstrapperUrl -OutFile $downloadPath
+  return (Resolve-Path -LiteralPath $downloadPath).Path
+}
+
+function Resolve-SignTool([string]$signToolPath) {
+  if (-not [string]::IsNullOrWhiteSpace($signToolPath)) {
+    if (Test-Path -LiteralPath $signToolPath) {
+      return (Resolve-Path -LiteralPath $signToolPath).Path
+    }
+
+    $command = Get-Command $signToolPath -ErrorAction SilentlyContinue
+    if ($command) {
+      return $command.Source
+    }
+  }
+
+  foreach ($commandName in @("signtool.exe", "signtool")) {
+    $command = Get-Command $commandName -ErrorAction SilentlyContinue
+    if ($command) {
+      return $command.Source
+    }
+  }
+
+  $kitRoots = @()
+  if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+    $kitRoots += (Join-Path ${env:ProgramFiles(x86)} "Windows Kits/10/bin")
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+    $kitRoots += (Join-Path $env:ProgramFiles "Windows Kits/10/bin")
+  }
+  $kitRoots = $kitRoots | Where-Object { Test-Path -LiteralPath $_ }
+
+  foreach ($root in $kitRoots) {
+    $candidate = Get-ChildItem -Path $root -Filter "signtool.exe" -Recurse -ErrorAction SilentlyContinue |
+      Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
+      Sort-Object FullName -Descending |
+      Select-Object -First 1
+    if ($candidate) {
+      return $candidate.FullName
+    }
+  }
+
+  throw "signtool.exe is required when Windows signing certificate variables are configured."
+}
+
+function Resolve-SigningCertificatePath(
+  [string]$certificatePath,
+  [string]$certificateBase64,
+  [string]$outputDir
+) {
+  if (-not [string]::IsNullOrWhiteSpace($certificatePath)) {
+    if (-not (Test-Path -LiteralPath $certificatePath)) {
+      throw "Missing Windows signing certificate: $certificatePath"
+    }
+    return (Resolve-Path -LiteralPath $certificatePath).Path
+  }
+
+  if ([string]::IsNullOrWhiteSpace($certificateBase64)) {
+    return ""
+  }
+
+  New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+  $certificateOutputPath = Join-Path $outputDir "windows-signing-cert.pfx"
+  [System.IO.File]::WriteAllBytes($certificateOutputPath, [Convert]::FromBase64String($certificateBase64))
+  return (Resolve-Path -LiteralPath $certificateOutputPath).Path
+}
+
+function Invoke-WindowsSigning(
+  [string]$path,
+  [string]$toolPath,
+  [string]$certificatePath,
+  [string]$certificatePassword,
+  [string]$timestampServer
+) {
+  if ([string]::IsNullOrWhiteSpace($certificatePath)) {
+    return
+  }
+
+  if (-not (Test-Path -LiteralPath $path)) {
+    throw "Missing file to sign: $path"
+  }
+
+  $arguments = @("sign", "/fd", "SHA256")
+  if (-not [string]::IsNullOrWhiteSpace($timestampServer)) {
+    $arguments += @("/tr", $timestampServer, "/td", "SHA256")
+  }
+  $arguments += @("/f", $certificatePath)
+  if (-not [string]::IsNullOrWhiteSpace($certificatePassword)) {
+    $arguments += @("/p", $certificatePassword)
+  }
+  $arguments += $path
+
+  Write-Host "==> Signing $(Split-Path -Leaf $path)"
+  & $toolPath @arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "signtool failed for $path with exit code $LASTEXITCODE"
+  }
+}
+
 function ConvertTo-InnoValue([string]$value) {
   return $value.Replace('"', '""')
 }
@@ -124,7 +282,8 @@ function Write-InnoSetupScript(
   [string]$StagedAppDir,
   [string]$ReadmePath,
   [string]$MetadataPath,
-  [string]$IconPath
+  [string]$IconPath,
+  [string]$WebView2BootstrapperPath
 ) {
   $escapedAppName = ConvertTo-InnoValue $AppName
   $escapedExecutableFileName = ConvertTo-InnoValue $ExecutableFileName
@@ -135,6 +294,7 @@ function Write-InnoSetupScript(
   $escapedReadmePath = ConvertTo-InnoValue $ReadmePath
   $escapedMetadataPath = ConvertTo-InnoValue $MetadataPath
   $escapedIconPath = ConvertTo-InnoValue $IconPath
+  $escapedWebView2BootstrapperPath = ConvertTo-InnoValue $WebView2BootstrapperPath
 
   @"
 [Setup]
@@ -168,6 +328,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "$escapedSourceAppGlob"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "$escapedReadmePath"; DestDir: "{app}"; DestName: "PACKAGE-README.txt"; Flags: ignoreversion
 Source: "$escapedMetadataPath"; DestDir: "{app}"; Flags: ignoreversion
+Source: "$escapedWebView2BootstrapperPath"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebView2Setup.exe"; Flags: ignoreversion deleteafterinstall; Check: not IsWebView2Installed
 
 [Icons]
 Name: "{autoprograms}\$escapedAppName"; Filename: "{app}\$escapedExecutableFileName"; WorkingDir: "{app}"; IconFilename: "{app}\$escapedExecutableFileName"
@@ -180,7 +341,8 @@ Root: HKCU; Subkey: "Software\Classes\nexus\DefaultIcon"; ValueType: string; Val
 Root: HKCU; Subkey: "Software\Classes\nexus\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\$escapedExecutableFileName"" ""%1"""; Flags: uninsdeletekey
 
 [Run]
-Filename: "{app}\$escapedExecutableFileName"; Description: "Launch $escapedAppName"; Flags: nowait postinstall skipifsilent
+Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft Edge WebView2 Runtime..."; Flags: waituntilterminated; Check: not IsWebView2Installed
+Filename: "{app}\$escapedExecutableFileName"; Description: "Launch $escapedAppName"; Flags: nowait postinstall skipifsilent; Check: IsWebView2Installed
 
 [Code]
 function IsWebView2Installed(): Boolean;
@@ -196,10 +358,6 @@ end;
 function InitializeSetup(): Boolean;
 begin
   Result := True;
-  if not IsWebView2Installed() then
-  begin
-    MsgBox('Microsoft Edge WebView2 Runtime is required by Nexus. Install it before launching the app if the WebView does not open.', mbInformation, MB_OK);
-  end;
 end;
 "@ | Set-Content -Encoding UTF8 -Path $Path
 }
@@ -210,8 +368,11 @@ if ($env:NEXUS_DESKTOP_SMOKE_TIMEOUT_SECONDS) {
 
 $rootDir = Resolve-RootDir
 $windowsDir = Join-Path $rootDir "desktop/windows"
+Assert-SupportedRuntimeIdentifier $RuntimeIdentifier
 $appVersion = Resolve-AppVersion $rootDir $Version
 $resolvedBuildNumber = Resolve-BuildNumber $rootDir $BuildNumber
+$packageSelfContained = Resolve-Bool $SelfContained $true
+$packageSelfContainedValue = $packageSelfContained.ToString().ToLowerInvariant()
 $createdAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $commitSha = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "HEAD") -fallback "unknown"
 $commitShort = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "--short", "HEAD") -fallback "unknown"
@@ -246,6 +407,19 @@ if ([string]::IsNullOrWhiteSpace($MetadataPath)) {
 }
 $metadataStagingPath = Join-Path $stagingDir "PACKAGE-METADATA.json"
 $buildInstaller = -not $SkipInstaller -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_INSTALLER -ne "1"
+$signingCertificateResolvedPath = ""
+$resolvedSignToolPath = ""
+$signingWorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ("nexus-windows-signing-" + [Guid]::NewGuid().ToString("N"))
+if (-not $SkipSigning) {
+  $signingCertificateResolvedPath = Resolve-SigningCertificatePath `
+    -certificatePath $SigningCertificatePath `
+    -certificateBase64 $SigningCertificateBase64 `
+    -outputDir $signingWorkDir
+  if (-not [string]::IsNullOrWhiteSpace($signingCertificateResolvedPath)) {
+    $resolvedSignToolPath = Resolve-SignTool $SignToolPath
+  }
+}
+$signingEnabled = -not [string]::IsNullOrWhiteSpace($signingCertificateResolvedPath)
 
 if ((-not $SkipBuild) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_BUILD -ne "1") {
   & (Join-Path $rootDir "scripts/desktop/build-windows-app.ps1") `
@@ -255,12 +429,31 @@ if ((-not $SkipBuild) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_BUILD -ne "1") {
     -ExecutableName $ExecutableName `
     -OutputDir $AppBuildDir `
     -Version $appVersion `
-    -BuildNumber $resolvedBuildNumber
+    -BuildNumber $resolvedBuildNumber `
+    -SelfContained $packageSelfContainedValue
 }
 
 $appExe = Join-Path $AppBuildDir $executableFileName
 if (-not (Test-Path -LiteralPath $appExe)) {
   throw "Missing Windows app executable: $appExe"
+}
+
+if ($signingEnabled) {
+  $shellBinaryBaseName = [System.IO.Path]::GetFileNameWithoutExtension($executableFileName)
+  $signTargets = @(
+    $appExe,
+    (Join-Path $AppBuildDir "$shellBinaryBaseName.dll"),
+    (Join-Path $AppBuildDir "Resources/nexus-server.exe")
+  ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
+
+  foreach ($signTarget in $signTargets) {
+    Invoke-WindowsSigning `
+      -path $signTarget `
+      -toolPath $resolvedSignToolPath `
+      -certificatePath $signingCertificateResolvedPath `
+      -certificatePassword $SigningCertificatePassword `
+      -timestampServer $TimestampServer
+  }
 }
 
 if ((-not $SkipSmoke) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE -ne "1") {
@@ -281,6 +474,8 @@ New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 Copy-Item -Recurse -Force -Path (Join-Path $AppBuildDir "*") -Destination $stagedAppDir
 
 $readmePath = Join-Path $stagingDir "README.txt"
+$packageSigningLabel = if ($signingEnabled) { "Authenticode-signed" } else { "unsigned" }
+$installerSigningLabel = if ($signingEnabled) { "Authenticode-signed" } else { "unsigned" }
 @"
 Nexus Windows app package
 
@@ -289,17 +484,28 @@ Build: $resolvedBuildNumber
 Commit: $commitShort
 Created: $createdAt
 
-This package is an unsigned portable zip. The release also provides an unsigned installer when built without -SkipInstaller.
+This package is a $packageSigningLabel portable zip. The release also provides a $installerSigningLabel installer when built without -SkipInstaller.
 After verifying the sha256 file, unzip the package and run:
   $AppName\$executableFileName
 
-WebView2 Runtime is required. The app stores local data under:
+WebView2 Runtime is required for the portable zip. The installer bundles the Evergreen bootstrapper. The app stores local data under:
   ~/.nexus
 
 To reset app data, quit Nexus first, then remove that directory.
 To register nexus:// for the unzipped directory, run:
   $AppName\register-nexus-protocol.ps1
 "@ | Set-Content -Encoding UTF8 -Path $readmePath
+
+$webView2BootstrapperUrlForMetadata = $null
+if ($buildInstaller -and (-not $SkipWebView2Bootstrapper)) {
+  $webView2BootstrapperUrlForMetadata = $WebView2BootstrapperUrl
+}
+$signingKind = "unsigned"
+$signingTimestampServer = $null
+if ($signingEnabled) {
+  $signingKind = "authenticode"
+  $signingTimestampServer = $TimestampServer
+}
 
 $metadata = [ordered]@{
   app_name = $AppName
@@ -309,15 +515,27 @@ $metadata = [ordered]@{
   version = $appVersion
   build_number = $resolvedBuildNumber
   created_at = $createdAt
+  runtime = [ordered]@{
+    dotnet_self_contained = $packageSelfContained
+    runtime_identifier = $RuntimeIdentifier
+    supported_runtime_identifiers = @("win-x64")
+  }
+  dependencies = [ordered]@{
+    webview2 = [ordered]@{
+      installer_bootstrapper = $buildInstaller
+      bootstrapper_url = $webView2BootstrapperUrlForMetadata
+    }
+  }
   source = [ordered]@{
     commit = $commitSha
     short_commit = $commitShort
     dirty = $sourceDirty
   }
   signing = [ordered]@{
-    kind = "unsigned"
-    code_signed = $false
+    kind = $signingKind
+    code_signed = $signingEnabled
     installer = $buildInstaller
+    timestamp_server = $signingTimestampServer
   }
   credentials = [ordered]@{
     expected_storage = "dpapi"
@@ -333,7 +551,7 @@ $metadata = [ordered]@{
     file = (Split-Path -Leaf $InstallerOutputPath)
     format = "exe"
     tool = "inno-setup"
-    code_signed = $false
+    code_signed = $signingEnabled
   }
   validation = [ordered]@{
     build_script = "scripts/desktop/build-windows-app.ps1"
@@ -350,11 +568,20 @@ $hash = (Get-FileHash -Algorithm SHA256 $artifactPath).Hash.ToLowerInvariant()
 "$hash  $(Split-Path -Leaf $artifactPath)" | Set-Content -Encoding ASCII -Path $sha256Path
 
 if ($buildInstaller) {
+  if ($SkipWebView2Bootstrapper) {
+    throw "Windows installer requires the WebView2 Evergreen bootstrapper. Use -SkipInstaller for zip-only packages."
+  }
+
   $compilerPath = Resolve-InnoSetupCompiler $InnoSetupCompiler
   $iconPath = Join-Path $windowsDir "Nexus.Desktop/Resources/AppIcon.ico"
   if (-not (Test-Path -LiteralPath $iconPath)) {
     throw "Missing Windows installer icon: $iconPath"
   }
+  $resolvedWebView2BootstrapperPath = Resolve-WebView2Bootstrapper `
+    -bootstrapperPath $WebView2BootstrapperPath `
+    -bootstrapperUrl $WebView2BootstrapperUrl `
+    -outputDir $OutputDir `
+    -skipDownload $false
 
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $InstallerOutputPath) | Out-Null
   Write-InnoSetupScript `
@@ -367,7 +594,8 @@ if ($buildInstaller) {
     -StagedAppDir $stagedAppDir `
     -ReadmePath $readmePath `
     -MetadataPath $metadataStagingPath `
-    -IconPath $iconPath
+    -IconPath $iconPath `
+    -WebView2BootstrapperPath $resolvedWebView2BootstrapperPath
 
   Write-Host "==> Building Windows installer"
   & $compilerPath "/Qp" $installerScriptPath
@@ -376,6 +604,15 @@ if ($buildInstaller) {
   }
   if (-not (Test-Path -LiteralPath $InstallerOutputPath)) {
     throw "Missing Windows installer artifact: $InstallerOutputPath"
+  }
+
+  if ($signingEnabled) {
+    Invoke-WindowsSigning `
+      -path $InstallerOutputPath `
+      -toolPath $resolvedSignToolPath `
+      -certificatePath $signingCertificateResolvedPath `
+      -certificatePassword $SigningCertificatePassword `
+      -timestampServer $TimestampServer
   }
 
   $installerHash = (Get-FileHash -Algorithm SHA256 $InstallerOutputPath).Hash.ToLowerInvariant()
@@ -389,3 +626,5 @@ if ($buildInstaller) {
   Write-Host "installer: $InstallerOutputPath"
   Write-Host "installer sha256: $installerSha256Path"
 }
+
+Remove-Item -Recurse -Force $signingWorkDir -ErrorAction SilentlyContinue

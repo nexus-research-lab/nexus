@@ -58,8 +58,8 @@
 - Windows shell 已具备 Go sidecar 监管骨架：随机 loopback 端口、`NEXUS_DESKTOP_SESSION_TOKEN`、`WEB_DIST_DIR`、SQLite 本地数据目录、日志目录、DPAPI connector credentials key 和 OAuth custom scheme 环境变量均由壳注入。
 - Windows bridge 先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；当前不注册全局快捷键，也不暴露启动器快捷键配置。
 - Windows 生命周期骨架已补单实例 mutex、named pipe 二次启动唤起、`nexus://launcher/open/settings/connectors/oauth/callback` 路由解析，以及 WebView2 外链打开、未知 scheme 阻断和 WebContent process failed 时间线。
-- Windows 构建入口新增 `scripts/desktop/build-windows-app.ps1`、`scripts/desktop/smoke-windows-app.ps1`、`scripts/desktop/package-windows-app.ps1`、`make app-win-build`、`make app-win-smoke` 和 `make app-win-package`，默认组装到 `desktop/windows/.build/app/Nexus/`，package 脚本会构建、烟测并输出 zip、sha256 和 metadata。
-- GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest` 上执行 Windows app package 脚本，并把 `Nexus-windows-*.zip`、`.sha256` 和 `.metadata.json` 交给最终 `release` job 上传到同一个 GitHub Release。
+- Windows 构建入口新增 `scripts/desktop/build-windows-app.ps1`、`scripts/desktop/smoke-windows-app.ps1`、`scripts/desktop/package-windows-app.ps1`、`make app-win-build`、`make app-win-smoke` 和 `make app-win-package`，默认组装到 `desktop/windows/.build/app/Nexus/`，package 脚本会构建、烟测并输出 self-contained zip、Inno Setup 安装器、sha256 和 metadata。
+- GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest` 上执行 Windows app package 脚本，并把 `Nexus-windows-*.zip`、`NexusSetup-*.exe`、`.sha256` 和 `.metadata.json` 交给最终 `release` job 上传到同一个 GitHub Release；配置 Windows 签名 secret 时会自动做 Authenticode 签名。
 - Windows 诊断闭环补齐：日志导出 zip 增加 `diagnostics.json`，启动失败会写 `startup-failure-*.json` 并在错误弹窗提示路径，WebView2 process failed 会额外写 `webview-process-failed-*.json`。
 - GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-app.sh`，并把 dmg、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
 - 默认入口改为 launcher：冷启动、Dock reopen、重复启动已有实例、`nexus://open` 和 `nexus://launcher` 都不再直接进入 `/app`。

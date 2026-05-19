@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // AssistantSegment 维护单段 assistant 输出状态。
@@ -154,6 +156,23 @@ func (s *AssistantSegment) FindToolName(toolUseID string) string {
 	return ""
 }
 
+// FindToolUse 返回指定 tool_use 的完整内容块。
+func (s *AssistantSegment) FindToolUse(toolUseID string) map[string]any {
+	trimmedToolUseID := normalizeString(toolUseID)
+	if trimmedToolUseID == "" {
+		return nil
+	}
+	for _, block := range s.content {
+		if normalizeString(block["type"]) != "tool_use" {
+			continue
+		}
+		if normalizeString(block["id"]) == trimmedToolUseID {
+			return cloneMap(block)
+		}
+	}
+	return nil
+}
+
 // HasToolUse 表示当前段是否包含指定工具调用。
 func (s *AssistantSegment) HasToolUse(toolUseID string) bool {
 	trimmedToolUseID := normalizeString(toolUseID)
@@ -273,6 +292,11 @@ func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
 				s.content[index] = block
 				return
 			}
+		case protocol.ContentBlockTypeWorkspaceFileArtifact:
+			if workspaceFileArtifactKey(current) == workspaceFileArtifactKey(block) {
+				s.content[index] = block
+				return
+			}
 		case "text":
 			if rawString(current["text"]) == rawString(block["text"]) {
 				s.content[index] = block
@@ -281,6 +305,18 @@ func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
 		}
 	}
 	s.content = append(s.content, block)
+}
+
+func workspaceFileArtifactKey(block map[string]any) string {
+	if id := normalizeString(block["id"]); id != "" {
+		return id
+	}
+	sourceToolUseID := normalizeString(block["source_tool_use_id"])
+	path := normalizeString(block["path"])
+	if sourceToolUseID == "" || path == "" {
+		return ""
+	}
+	return sourceToolUseID + ":" + path
 }
 
 func (s *AssistantSegment) resolveLogicalIndex(rawIndex int, blockType string) int {

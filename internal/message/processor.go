@@ -17,6 +17,7 @@ type MessageContext struct {
 	RoomID         string
 	ConversationID string
 	AgentID        string
+	WorkspacePath  string
 	RoundID        string
 	ParentID       string
 }
@@ -338,7 +339,9 @@ func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage
 		if !p.shouldKeepToolResultBlock(block) {
 			continue
 		}
-		enrichedBlocks = append(enrichedBlocks, p.enrichToolResultBlock(block))
+		enrichedBlock := p.enrichToolResultBlock(block)
+		enrichedBlocks = append(enrichedBlocks, enrichedBlock)
+		enrichedBlocks = append(enrichedBlocks, p.workspaceFileArtifactsForToolResult(enrichedBlock)...)
 	}
 	if len(enrichedBlocks) == 0 {
 		return nil

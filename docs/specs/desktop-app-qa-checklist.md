@@ -60,17 +60,20 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 
 ### 5.1 前置条件
 
-1. 从 GitHub workflow artifact 或 Release asset 下载 `Nexus-windows-<version>-<build>.zip` 与对应 `.sha256`。
+1. 从 GitHub workflow artifact 或 Release asset 下载 `Nexus-windows-<version>-<build>.zip`、`NexusSetup-<version>-<build>.exe` 与对应 `.sha256`。
 2. 在同一目录执行：
 
 ```powershell
 $hash = (Get-FileHash -Algorithm SHA256 .\Nexus-windows-<version>-<build>.zip).Hash.ToLowerInvariant()
 $expected = (Get-Content .\Nexus-windows-<version>-<build>.zip.sha256).Split(" ")[0].ToLowerInvariant()
 if ($hash -ne $expected) { throw "sha256 mismatch" }
+$installerHash = (Get-FileHash -Algorithm SHA256 .\NexusSetup-<version>-<build>.exe).Hash.ToLowerInvariant()
+$installerExpected = (Get-Content .\NexusSetup-<version>-<build>.exe.sha256).Split(" ")[0].ToLowerInvariant()
+if ($installerHash -ne $installerExpected) { throw "installer sha256 mismatch" }
 ```
 
-3. 解压 zip，运行 `Nexus\Nexus.exe`。若要验证 URL scheme，运行 `Nexus\register-nexus-protocol.ps1`。
-4. 记录测试机器信息：Windows 版本、WebView2 Runtime 版本、输入法、是否外接屏、包版本、build number。
+3. 优先运行 `NexusSetup-<version>-<build>.exe` 验证安装器、WebView2 bootstrapper、开始菜单快捷方式和 `nexus://` 注册；便携包路径再解压 zip，运行 `Nexus\Nexus.exe`，必要时执行 `Nexus\register-nexus-protocol.ps1`。
+4. 记录测试机器信息：Windows 版本、WebView2 Runtime 版本、输入法、是否外接屏、包版本、build number、安装器是否签名。
 
 ### 5.2 验收重点
 
@@ -83,7 +86,7 @@ if ($hash -ne $expected) { throw "sha256 mismatch" }
 | 外链 | 点击 `https` / `mailto` 外链 | 交给系统默认应用打开，不在 WebView2 内跳走。 |
 | 未知 scheme | 触发非允许 scheme | 被阻断，应用不崩溃，日志有 `webview.navigation_blocked`。 |
 | 手动导出日志 | 设置页触发日志导出 | zip 内包含 `diagnostics.json` 和 `logs/`。 |
-| 启动失败 | 临时破坏 `Resources\Web\app.html` 后启动 | `%LOCALAPPDATA%\Nexus\Logs\startup-failure-*.json` 存在，错误弹窗提示路径。 |
+| 启动失败 | 临时破坏 `Resources\Web\app.html` 后启动 | `~\.nexus\logs\startup-failure-*.json` 存在，错误弹窗提示路径。 |
 
 ## 6. 记录格式
 

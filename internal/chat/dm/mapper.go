@@ -13,13 +13,14 @@ type MessageMapper struct {
 }
 
 // NewMessageMapper 创建 DM 消息映射器。
-func NewMessageMapper(sessionKey string, agentID string, roundID string) *MessageMapper {
+func NewMessageMapper(sessionKey string, agentID string, roundID string, workspacePath ...string) *MessageMapper {
 	return &MessageMapper{EventMapper: message.NewEventMapper(message.EventMapperOptions{
 		Context: message.MessageContext{
-			SessionKey: sessionKey,
-			AgentID:    agentID,
-			RoundID:    roundID,
-			ParentID:   roundID,
+			SessionKey:    sessionKey,
+			AgentID:       agentID,
+			WorkspacePath: FirstNonEmpty(workspacePath...),
+			RoundID:       roundID,
+			ParentID:      roundID,
 		},
 		IncludeStreamLifecycle: true,
 	})}

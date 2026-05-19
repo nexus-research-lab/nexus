@@ -6,6 +6,7 @@ param(
   [string]$OutputDir = "",
   [string]$Version = "",
   [string]$BuildNumber = "",
+  [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
   [switch]$CreateArchive
 )
 
@@ -59,12 +60,52 @@ function Convert-FileVersion([string]$version, [string]$buildNumber) {
   return "$($parts[0]).$($parts[1]).$($parts[2]).$buildValue"
 }
 
+function Resolve-Bool([string]$value, [bool]$defaultValue) {
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $defaultValue
+  }
+
+  switch ($value.Trim().ToLowerInvariant()) {
+    "1" { return $true }
+    "true" { return $true }
+    "yes" { return $true }
+    "on" { return $true }
+    "0" { return $false }
+    "false" { return $false }
+    "no" { return $false }
+    "off" { return $false }
+  }
+
+  throw "Invalid boolean value: $value"
+}
+
+function Resolve-WindowsGoArch([string]$runtimeIdentifier) {
+  switch ($runtimeIdentifier) {
+    "win-x64" { return "amd64" }
+  }
+
+  throw "Unsupported Windows RuntimeIdentifier '$runtimeIdentifier'. Current desktop package only supports win-x64."
+}
+
+function Resolve-GitValue([string]$rootDir, [string[]]$arguments, [string]$fallback) {
+  $value = & git -C $rootDir @arguments 2>$null
+  if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($value)) {
+    return ($value | Select-Object -First 1).Trim()
+  }
+  return $fallback
+}
+
 $rootDir = Resolve-RootDir
 $windowsDir = Join-Path $rootDir "desktop/windows"
 $projectPath = Join-Path $windowsDir "Nexus.Desktop/Nexus.Desktop.csproj"
 $appVersion = Resolve-AppVersion $rootDir $Version
 $resolvedBuildNumber = Resolve-BuildNumber $rootDir $BuildNumber
 $fileVersion = Convert-FileVersion $appVersion $resolvedBuildNumber
+$publishSelfContained = Resolve-Bool $SelfContained $false
+$publishSelfContainedValue = $publishSelfContained.ToString().ToLowerInvariant()
+$goArch = Resolve-WindowsGoArch $RuntimeIdentifier
+$gitCommit = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "--short=12", "HEAD") -fallback "unknown"
+$buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
   $OutputDir = Join-Path $windowsDir ".build/app/$AppName"
@@ -96,8 +137,10 @@ $previousGoarch = $env:GOARCH
 try {
   $env:CGO_ENABLED = if ($env:CGO_ENABLED) { $env:CGO_ENABLED } else { "0" }
   $env:GOOS = "windows"
-  $env:GOARCH = "amd64"
-  go build -trimpath -ldflags "-s -w" -o $sidecarPath ./cmd/nexus-server
+  $env:GOARCH = $goArch
+  $versionPackage = "github.com/nexus-research-lab/nexus/internal/version"
+  $ldflags = "-s -w -X $versionPackage.AppVersion=$appVersion -X $versionPackage.GitCommit=$gitCommit -X $versionPackage.BuildDate=$buildDate"
+  go build -trimpath -ldflags $ldflags -o $sidecarPath ./cmd/nexus-server
 } finally {
   if ($null -eq $previousCgoEnabled) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $previousCgoEnabled }
   if ($null -eq $previousGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $previousGoos }
@@ -109,7 +152,7 @@ Write-Host "==> Publishing Windows shell"
 dotnet publish $projectPath `
   -c $Configuration `
   -r $RuntimeIdentifier `
-  --self-contained false `
+  --self-contained $publishSelfContainedValue `
   -p:NexusDesktopVersion=$appVersion `
   -p:NexusDesktopBuildNumber=$resolvedBuildNumber `
   -p:NexusDesktopFileVersion=$fileVersion `
