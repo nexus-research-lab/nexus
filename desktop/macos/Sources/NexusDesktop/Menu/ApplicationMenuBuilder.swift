@@ -21,6 +21,7 @@ enum ApplicationMenuBuilder {
     let menu = NSMenu(title: appName)
 
     menu.addItem(menuItem("关于 \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), target: NSApp))
+    menu.addItem(menuItem("检查更新...", action: #selector(AppDelegate.checkForUpdates(_:)), target: target))
     menu.addItem(.separator())
     menu.addItem(menuItem("设置...", action: #selector(AppDelegate.showPreferences(_:)), key: ",", target: target))
     menu.addItem(.separator())

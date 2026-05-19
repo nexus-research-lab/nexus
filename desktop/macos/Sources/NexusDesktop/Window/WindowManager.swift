@@ -8,6 +8,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private let globalShortcutEnabledUpdater: (Bool) -> [String: Any]
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
   private let globalShortcutAcceleratorResetter: () -> [String: Any]
+  private let onMainWindowRevealed: () -> Void
   private var mainWindow: NSWindow?
   private var mainWebViewHost: WebViewHost?
   private var mainWindowRevealed = false
@@ -18,7 +19,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
     globalShortcutStatusProvider: @escaping () -> [String: Any],
     globalShortcutEnabledUpdater: @escaping (Bool) -> [String: Any],
     globalShortcutAcceleratorUpdater: @escaping (String) -> [String: Any],
-    globalShortcutAcceleratorResetter: @escaping () -> [String: Any]
+    globalShortcutAcceleratorResetter: @escaping () -> [String: Any],
+    onMainWindowRevealed: @escaping () -> Void
   ) {
     self.runtime = runtime
     self.startupTimeline = startupTimeline
@@ -26,6 +28,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     self.globalShortcutEnabledUpdater = globalShortcutEnabledUpdater
     self.globalShortcutAcceleratorUpdater = globalShortcutAcceleratorUpdater
     self.globalShortcutAcceleratorResetter = globalShortcutAcceleratorResetter
+    self.onMainWindowRevealed = onMainWindowRevealed
     super.init()
   }
 
@@ -177,6 +180,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       context.duration = 0.12
       mainWindow.animator().alphaValue = 1
     }
+    onMainWindowRevealed()
   }
 
   private func installInitialRevealFallback() {

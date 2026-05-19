@@ -390,13 +390,14 @@ nexus://connectors/oauth/callback
 - 运行桌面 smoke。
 - 生成 zip/dmg、sha256、metadata。
 - 文档写清 Gatekeeper 限制、安装路径、数据目录、日志目录和重置方式。
+- 原生壳可检测 GitHub Release / macOS metadata，在启动后按 24 小时节流静默检查，并通过应用菜单“检查更新...”手动触发；发现新版本时只提示打开下载页，不自动安装。
 
 ### 阶段 5b：正式发布
 
 - Xcode archive。
 - 签名、公证。
 - `.dmg` / `.zip`。
-- Sparkle appcast。
+- Sparkle appcast 和更新包签名。
 - GitHub Release artifact。
 
 ## 12. 明确不做

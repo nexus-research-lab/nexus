@@ -89,7 +89,7 @@ register_bundle_url_scheme
 rm -f "${LOG_FILE}"
 : > "${LOG_FILE}"
 
-"${APP_EXECUTABLE}" >"${LOG_FILE}" 2>&1 &
+NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1 "${APP_EXECUTABLE}" >"${LOG_FILE}" 2>&1 &
 APP_PID="$!"
 
 wait_for_log "event=sidecar\\.credentials_key_ready" "${MAIN_TIMEOUT_SECONDS}"

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- macOS 原生菜单新增“检查更新...”，启动后会按 24 小时节流后台检测 GitHub Release，并在发现新版本时提示打开下载页。
+
 ## [0.1.5] - 2026-05-19
 
 ### Added

@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private static let showLauncherNotification = Notification.Name("com.leemysw.nexus.showLauncher")
 
   private let startupTimeline = DesktopStartupTimeline()
+  private lazy var updateChecker = DesktopUpdateChecker(startupTimeline: startupTimeline)
   private var singleInstanceGuard: SingleInstanceGuard?
   private var sidecar: SidecarSupervisor?
   private var windowManager: WindowManager?
@@ -88,6 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     windowManager?.reloadMainWindow()
   }
 
+  @objc
+  func checkForUpdates(_ sender: Any?) {
+    updateChecker.checkNowFromMenu()
+  }
+
   private func start() async {
     do {
       startupTimeline.mark("desktop.start_begin")
@@ -108,6 +114,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         globalShortcutAcceleratorResetter: { [weak self] in
           self?.resetGlobalShortcutAccelerator() ?? [:]
+        },
+        onMainWindowRevealed: { [weak self] in
+          self?.updateChecker.checkOnLaunchIfNeeded()
         }
       )
       windowManager = manager
