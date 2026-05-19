@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       )
       windowManager = manager
       startupTimeline.mark("window_manager.ready")
+      GlobalShortcutPreferences.disableDefaultLauncherShortcut()
       applyGlobalShortcutPreference()
       drainPendingStartupActions(manager: manager)
     } catch {
@@ -160,6 +161,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     globalShortcutLastError = nil
 
     guard GlobalShortcutPreferences.launcherEnabled else {
+      return
+    }
+
+    guard GlobalShortcutPreferences.launcherAccelerator != GlobalShortcutPreferences.defaultLauncherAccelerator else {
+      GlobalShortcutPreferences.launcherEnabled = false
       return
     }
 
@@ -219,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func resetGlobalShortcutAccelerator() -> [String: Any] {
     GlobalShortcutPreferences.resetLauncherAccelerator()
-    GlobalShortcutPreferences.launcherEnabled = true
+    GlobalShortcutPreferences.launcherEnabled = false
     applyGlobalShortcutPreference()
     return globalShortcutStatus()
   }

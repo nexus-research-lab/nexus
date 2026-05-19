@@ -15,16 +15,15 @@
 - Shell 会把本地 session token 同步进 WKWebView cookie store，保证 WebSocket 握手也能通过本地 API 校验。
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/Library/Application Support/Nexus/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动、Dock 重新打开和重复启动已有实例默认显示 launcher，只有显式路由才进入 `/app` 工作台。
-- Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，launcher 使用 `popover` material 和圆角承载面，WKWebView under-page 背景保持透明。
-- Shell 默认注册 `Option + Space` 全局快捷键，可从系统任意位置唤起独立紧凑 launcher 浮层；窗口菜单也会展示“显示启动器”入口，浮层支持失焦隐藏和 Escape 关闭。
-- 设置页可读取全局快捷键注册状态、显示冲突失败原因，并录制、开关或恢复默认快捷键。
-- Shell 会按窗口职责加载 `app.html`、`launcher.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；sidecar 静态 fallback 支持直接刷新这些业务路径，轻入口不会预拉主工作区页面 chunk，主入口也不会在首屏预拉 launcher、login、Lottie、markdown、settings、OAuth 或 Room 重型 chunk。
-- 最小 native bridge 已支持版本读取、外链打开、日志导出、主窗口路由打开、launcher 关闭和全局快捷键状态读写。
+- Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
+- Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
+- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/` launcher 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/app`、`/settings` 和 OAuth callback。
+- 最小 native bridge 已支持版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/Library/Logs/Nexus` 写入 `startup-failure-*.json`。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
 - 窗口遮挡、最小化和恢复事件会进入启动时间线，便于继续验证 occlusion 下的 WebView 行为。
 - WebView 内容进程终止时，Shell 会记录 `webview.content_process_terminated`、写入 `~/Library/Logs/Nexus/webcontent-terminated-*.json` 并 reload 当前路由，避免 WebContent crash 后停在空白窗口。
-- Shell 会记录外链打开、未知 scheme 阻断、右键菜单抑制和 launcher 关闭原因，便于桌面 QA 追踪 native 行为。
+- Shell 会记录外链打开、未知 scheme 阻断和右键菜单抑制，便于桌面 QA 追踪 native 行为。
 - 前端 ready signal 会带 source 和 performance marks；隐藏窗口 rAF 被节流时会用短 timer 兜底，避免主窗口等待 ready 时只能靠原生 fallback reveal。sidecar 会记录桌面 Web 静态资源请求摘要；两边都只记录 path 和 query key，不记录 OAuth code/state/token 等 query value。
 - 首屏通过前端 ready signal 后再显示窗口，避免直接暴露 WebView 白屏。
 - 桌面 OAuth 默认使用 `nexus://connectors/oauth/callback`，由 shell 转回本地 WebView 回调页。
@@ -44,7 +43,7 @@ scripts/desktop/package-macos-app.sh
 `run-macos-dev.sh` 会先构建前端，再启动 Swift shell。首次启动会初始化桌面专用 SQLite 数据库。
 `generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
-`smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、默认 launcher ready reveal、显式打开主窗口 ready reveal、material 标记和退出后 sidecar 无残留。
+`smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
 `package-macos-app.sh` 会先构建 `.app`、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
 人工 macOS app 验收步骤维护在 `docs/specs/desktop-app-qa-checklist.md`。
 

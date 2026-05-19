@@ -7,7 +7,6 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
   private let runtime: SidecarRuntimeConfig
   private let startupTimeline: DesktopStartupTimeline?
   private let openRoute: (DesktopWebRoute) -> Void
-  private let closeLauncher: () -> Void
   private let globalShortcutStatusProvider: () -> [String: Any]
   private let globalShortcutEnabledUpdater: (Bool) -> [String: Any]
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
@@ -17,7 +16,6 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     runtime: SidecarRuntimeConfig,
     startupTimeline: DesktopStartupTimeline?,
     openRoute: @escaping (DesktopWebRoute) -> Void,
-    closeLauncher: @escaping () -> Void,
     globalShortcutStatusProvider: @escaping () -> [String: Any],
     globalShortcutEnabledUpdater: @escaping (Bool) -> [String: Any],
     globalShortcutAcceleratorUpdater: @escaping (String) -> [String: Any],
@@ -26,7 +24,6 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     self.runtime = runtime
     self.startupTimeline = startupTimeline
     self.openRoute = openRoute
-    self.closeLauncher = closeLauncher
     self.globalShortcutStatusProvider = globalShortcutStatusProvider
     self.globalShortcutEnabledUpdater = globalShortcutEnabledUpdater
     self.globalShortcutAcceleratorUpdater = globalShortcutAcceleratorUpdater
@@ -82,11 +79,6 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         self.openRoute(route)
       }
       return ["opened": true]
-    case "app.close_launcher":
-      DispatchQueue.main.async {
-        self.closeLauncher()
-      }
-      return ["closed": true]
     case "app.get_global_shortcut_status":
       return globalShortcutStatusProvider()
     case "app.set_global_shortcut_enabled":

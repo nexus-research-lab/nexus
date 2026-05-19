@@ -1,13 +1,7 @@
 import Foundation
 
-enum DesktopWebPresentation {
-  case main
-  case launcher
-}
-
 enum DesktopWebEntry {
   case app
-  case launcher
   case settings
   case oauthCallback
 
@@ -15,8 +9,6 @@ enum DesktopWebEntry {
     switch self {
     case .app:
       return "/app.html"
-    case .launcher:
-      return "/launcher.html"
     case .settings:
       return "/settings.html"
     case .oauthCallback:
@@ -29,21 +21,18 @@ struct DesktopWebRoute {
   let path: String
   let percentEncodedQuery: String?
   let percentEncodedFragment: String?
-  let presentation: DesktopWebPresentation
   let entry: DesktopWebEntry
 
   init(
     path: String,
     percentEncodedQuery: String? = nil,
     percentEncodedFragment: String? = nil,
-    presentation: DesktopWebPresentation = .main,
     entry: DesktopWebEntry? = nil
   ) {
     self.path = path
     self.percentEncodedQuery = percentEncodedQuery
     self.percentEncodedFragment = percentEncodedFragment
-    self.presentation = presentation
-    self.entry = entry ?? Self.defaultEntry(path: path, presentation: presentation)
+    self.entry = entry ?? Self.defaultEntry(path: path)
   }
 
   func url(runtime: SidecarRuntimeConfig) -> URL {
@@ -97,10 +86,7 @@ struct DesktopWebRoute {
     return value
   }
 
-  private static func defaultEntry(path: String, presentation: DesktopWebPresentation) -> DesktopWebEntry {
-    if presentation == .launcher {
-      return .launcher
-    }
+  private static func defaultEntry(path: String) -> DesktopWebEntry {
     switch path {
     case "/settings":
       return .settings
@@ -122,12 +108,7 @@ enum DesktopURLRouter {
       return DesktopWebRoute(path: "/settings", entry: .settings)
     }
     if isLauncherURL(url) {
-      return DesktopWebRoute(
-        path: "/",
-        percentEncodedQuery: "desktop_surface=launcher",
-        presentation: .launcher,
-        entry: .launcher
-      )
+      return DesktopWebRoute(path: "/", entry: .app)
     }
     if isConnectorOAuthCallbackURL(url) {
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -139,7 +120,7 @@ enum DesktopURLRouter {
       )
     }
     if url.host?.lowercased() == "open" || url.host == nil && url.path.isEmpty {
-      return DesktopWebRoute(path: "/app", entry: .app)
+      return DesktopWebRoute(path: "/", entry: .app)
     }
     return nil
   }

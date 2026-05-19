@@ -11,10 +11,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var mainWindow: NSWindow?
   private var mainWebViewHost: WebViewHost?
   private var mainWindowRevealed = false
-  private var launcherWindow: NSPanel?
-  private var launcherWebViewHost: WebViewHost?
-  private var launcherWindowRevealed = false
-  private var launcherKeyDownMonitor: Any?
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -34,21 +30,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func showMainWindow() {
-    showMainWindow(route: nil)
+    showMainWindow(route: DesktopWebRoute(path: "/", entry: .app))
   }
 
   func showLauncher() {
-    showLauncherWindow()
-  }
-
-  func closeLauncher(reason: String = "programmatic") {
-    if let launcherWindow {
-      startupTimeline.mark("launcher_window.closed", metadata: [
-        "reason": reason,
-        "was_visible": launcherWindow.isVisible ? "true" : "false",
-      ])
-    }
-    launcherWindow?.orderOut(nil)
+    showMainWindow(route: DesktopWebRoute(path: "/", entry: .app))
   }
 
   func showSettings() {
@@ -56,10 +42,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func reloadMainWindow() {
-    if launcherWindow?.isKeyWindow == true {
-      launcherWebViewHost?.reload()
-      return
-    }
     mainWebViewHost?.reload()
   }
 
@@ -67,25 +49,18 @@ final class WindowManager: NSObject, NSWindowDelegate {
     guard let route = DesktopURLRouter.webRoute(for: url) else {
       return false
     }
+    startupTimeline.mark("app.url_route", metadata: [
+      "host": url.host?.lowercased() ?? "",
+      "path": url.path,
+      "route_path": route.path,
+    ])
     open(route: route)
     return true
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    if sender === launcherWindow {
-      closeLauncher(reason: "window_close")
-      return false
-    }
     sender.orderOut(nil)
     return false
-  }
-
-  func windowDidResignKey(_ notification: Notification) {
-    guard let window = notification.object as? NSWindow,
-          window === launcherWindow else {
-      return
-    }
-    closeLauncher(reason: "resign_key")
   }
 
   func windowDidChangeOcclusionState(_ notification: Notification) {
@@ -115,13 +90,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func open(route: DesktopWebRoute) {
-    switch route.presentation {
-    case .main:
-      showMainWindow(route: route)
-      closeLauncher(reason: "open_route")
-    case .launcher:
-      showLauncherWindow()
-    }
+    showMainWindow(route: route)
   }
 
   private func showMainWindow(route: DesktopWebRoute?) {
@@ -147,9 +116,6 @@ final class WindowManager: NSObject, NSWindowDelegate {
         },
         openRoute: { [weak self] route in
           self?.open(route: route)
-        },
-        closeLauncher: { [weak self] in
-          self?.closeLauncher(reason: "bridge")
         },
         globalShortcutStatusProvider: globalShortcutStatusProvider,
         globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
@@ -190,99 +156,13 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
-  private func showLauncherWindow() {
-    let route = DesktopWebRoute(
-      path: "/",
-      percentEncodedQuery: "desktop_surface=launcher",
-      presentation: .launcher,
-      entry: .launcher
-    )
-    if let launcherWindow {
-      startupTimeline.mark("launcher_window.show_existing", metadata: [
-        "was_visible": launcherWindow.isVisible ? "true" : "false",
-      ])
-      launcherWebViewHost?.load(route.url(runtime: runtime))
-      launcherWindow.center()
-      launcherWindow.makeKeyAndOrderFront(nil)
-      NSApp.activate()
-      return
-    }
-
-    do {
-      startupTimeline.mark("launcher_window.create_begin")
-      launcherWindowRevealed = false
-      let host = try WebViewHost(
-        runtime: runtime,
-        surfaceName: "launcher",
-        startupTimeline: startupTimeline,
-        onWebReady: { [weak self] in
-          self?.revealLauncherWindowIfNeeded(source: "web.ready")
-        },
-        openRoute: { [weak self] route in
-          self?.open(route: route)
-        },
-        closeLauncher: { [weak self] in
-          self?.closeLauncher(reason: "bridge")
-        },
-        globalShortcutStatusProvider: globalShortcutStatusProvider,
-        globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
-        globalShortcutAcceleratorUpdater: globalShortcutAcceleratorUpdater,
-        globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
-      )
-      let window = NSPanel(
-        contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
-        styleMask: [.titled, .closable, .fullSizeContentView],
-        backing: .buffered,
-        defer: false
-      )
-      window.title = "Nexus Launcher"
-      window.titleVisibility = .hidden
-      window.titlebarAppearsTransparent = true
-      window.isMovableByWindowBackground = true
-      window.isReleasedWhenClosed = false
-      window.delegate = self
-      window.level = .floating
-      window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-      window.backgroundColor = .clear
-      window.isOpaque = false
-      window.hasShadow = true
-      window.alphaValue = 0
-      window.standardWindowButton(.closeButton)?.isHidden = true
-      window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-      window.standardWindowButton(.zoomButton)?.isHidden = true
-      window.center()
-      window.contentView = DesktopWindowSurface(
-        webContentView: host.webView,
-        material: .popover,
-        cornerRadius: 18
-      )
-      window.makeKeyAndOrderFront(nil)
-      NSApp.activate()
-      startupTimeline.mark("launcher_window.created", metadata: [
-        "material": "popover",
-      ])
-      host.load(route.url(runtime: runtime))
-
-      launcherWebViewHost = host
-      launcherWindow = window
-      installLauncherKeyDownMonitor()
-      installLauncherRevealFallback()
-    } catch {
-      let alert = NSAlert(error: error)
-      alert.runModal()
-    }
-  }
-
   private func defaultMainRoute() -> DesktopWebRoute {
-    DesktopWebRoute(path: "/app", entry: .app)
+    DesktopWebRoute(path: "/", entry: .app)
   }
 
   private func surfaceName(for window: NSWindow) -> String? {
     if window === mainWindow {
       return "main"
-    }
-    if window === launcherWindow {
-      return "launcher"
     }
     return nil
   }
@@ -299,45 +179,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
-  private func revealLauncherWindowIfNeeded(source: String) {
-    guard !launcherWindowRevealed, let launcherWindow else {
-      return
-    }
-    launcherWindowRevealed = true
-    startupTimeline.mark("launcher_window.revealed", metadata: ["source": source])
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = 0.10
-      launcherWindow.animator().alphaValue = 1
-    }
-  }
-
   private func installInitialRevealFallback() {
     Task { @MainActor in
       try? await Task.sleep(nanoseconds: 3_000_000_000)
       revealMainWindowIfNeeded(source: "fallback_timeout")
-    }
-  }
-
-  private func installLauncherRevealFallback() {
-    Task { @MainActor in
-      try? await Task.sleep(nanoseconds: 2_000_000_000)
-      revealLauncherWindowIfNeeded(source: "fallback_timeout")
-    }
-  }
-
-  private func installLauncherKeyDownMonitor() {
-    guard launcherKeyDownMonitor == nil else {
-      return
-    }
-    launcherKeyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      guard let self else {
-        return event
-      }
-      if self.launcherWindow?.isKeyWindow == true, event.keyCode == 53 {
-        self.closeLauncher(reason: "escape")
-        return nil
-      }
-      return event
     }
   }
 }

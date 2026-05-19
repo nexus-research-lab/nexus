@@ -86,8 +86,6 @@ enum ApplicationMenuBuilder {
     menu.addItem(menuItem(
       "显示启动器",
       action: #selector(AppDelegate.showLauncher(_:)),
-      key: " ",
-      modifiers: [.option],
       target: target
     ))
     menu.addItem(.separator())

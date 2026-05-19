@@ -15,7 +15,7 @@ enum GlobalShortcutPreferences {
   static var launcherEnabled: Bool {
     get {
       guard UserDefaults.standard.object(forKey: launcherEnabledKey) != nil else {
-        return true
+        return false
       }
       return UserDefaults.standard.bool(forKey: launcherEnabledKey)
     }
@@ -26,6 +26,12 @@ enum GlobalShortcutPreferences {
 
   static func resetLauncherAccelerator() {
     launcherAccelerator = defaultLauncherAccelerator
+  }
+
+  static func disableDefaultLauncherShortcut() {
+    if launcherAccelerator == defaultLauncherAccelerator {
+      launcherEnabled = false
+    }
   }
 
   private static let launcherEnabledKey = "launcher.globalShortcut.enabled"

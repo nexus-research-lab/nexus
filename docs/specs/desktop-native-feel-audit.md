@@ -16,21 +16,21 @@
 | --- | --- | --- | --- |
 | Native shell owns lifecycle | Green | Swift AppKit shell 已启动 Go sidecar，并在 Quit / SIGTERM / SIGINT 时停止 sidecar；关闭窗口仅隐藏，不杀进程；启动前会按 PID 记录清理崩溃后遗留的 bundled sidecar；启动失败会写诊断报告；WebView 内容进程终止会记录时间线并自动 reload。 | 后续补 crash report。 |
 | Single instance | Green | 使用 `~/Library/Application Support/Nexus/NexusDesktop.lock` 做单实例锁；重复启动会通知已运行实例拉起 launcher。 | public beta 前补多用户/多 bundle identifier 策略。 |
-| Dock and reopen behavior | Green | 冷启动、Dock 点击和重复启动默认显示 launcher；显式 `nexus://open` 或 launcher 内导航才进入 `/app` 主工作台。 | 多窗口后补 settings / launcher 恢复策略。 |
-| Standard macOS menus | Green | 已补 About、Settings、Hide、Quit、Edit、Window、Reload 等标准菜单；启动器入口保留在菜单中，具体全局快捷键由设置页管理。 | 后续按 macOS Human Interface Guidelines 做菜单分组精修。 |
+| Dock and reopen behavior | Green | 冷启动、Dock 点击、重复启动、`nexus://open` 和 `nexus://launcher` 都默认显示主窗口完整 launcher 首页；用户在 launcher 内选择进入工作台后才进入 `/app`。 | 多窗口后补 settings / launcher 恢复策略。 |
+| Standard macOS menus | Green | 已补 About、Settings、Hide、Quit、Edit、Window、Reload 等标准菜单；启动器入口保留在菜单中。 | 后续按 macOS Human Interface Guidelines 做菜单分组精修。 |
 | System WebView boundary | Yellow | WKWebView 只允许同源本地页面留在内部；外部 `http` / `https` / `mailto` 统一交给系统打开，未知 scheme 阻断；首屏由 React ready signal 后再 reveal；ready signal 已处理隐藏窗口 rAF 可能被节流的问题；窗口内容已由 `NSVisualEffectView` material 承载，WebView 背景透明；外链打开、popup 外链、未知 scheme 阻断会写入启动时间线。 | 补真实输入法与键盘导航验证。 |
-| Default browser affordances | Yellow | 默认右键菜单已关闭，返回/前进手势关闭；右键菜单抑制和 launcher 关闭原因会进入诊断时间线。 | 继续核对链接预览、拖拽、文本输入、IME、Tab / Escape。 |
+| Default browser affordances | Yellow | 默认右键菜单已关闭，返回/前进手势关闭；右键菜单抑制会进入诊断时间线。 | 继续核对链接预览、拖拽、文本输入、IME、Tab / Escape。 |
 | Runtime config injection | Green | Shell 在 document start 注入 API、WebSocket、session token、版本和平台信息。 | 后续把 bridge schema 迁到协议生成。 |
 | Local API protection | Green | Go sidecar 已校验桌面 session token；HTTP 使用 header，WebSocket 可通过 subprotocol 或 WKWebView 本地 cookie 通过校验。 | 增加 token rotate / sidecar restart 设计。 |
 | URL scheme | Yellow | `Info.plist` 注册 `nexus://`，shell 能把 OAuth callback 转到 WebView 回调页。 | 联调真实 provider，确认 provider 后台已登记 custom scheme。 |
 | OAuth desktop redirect | Yellow | 桌面 sidecar 设置 `CONNECTOR_OAUTH_REDIRECT_URI=nexus://connectors/oauth/callback`，后端 state 表记录 `redirect_kind`，前端授权与回调按 desktop runtime 使用相同 redirect URI。 | 真实 provider 联调后转 Green。 |
-| Native bridge | Yellow | 当前支持版本读取、外链打开、日志导出、主窗口路由打开、launcher 关闭和全局快捷键状态读写。 | 用 Go 协议真相源生成 TS / Swift bridge 类型。 |
+| Native bridge | Yellow | 当前支持版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。 | 用 Go 协议真相源生成 TS / Swift bridge 类型。 |
 | Secure storage | Yellow | macOS shell 在正式签名包中优先用 Keychain 生成并持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。Go sidecar 使用该 key 加密 OAuth client secret 和 connector credentials。 | 正式签名包验证 Keychain 不降级；后续补 bridge 级 `read_secret` / `write_secret`，把需要原生直接访问的敏感字段逐项迁入 Keychain。 |
-| Global shortcut / launcher | Yellow | macOS shell 已用 Carbon 注册全局快捷键，默认 `Option + Space`；窗口菜单提供“显示启动器”并展示同一快捷键；设置页可录制自定义组合键、开关快捷键、恢复默认值并显示注册失败原因；独立紧凑浮层和 `nexus://launcher` 都可拉起 Web launcher；浮层内搜索、最近项和目标选择都会交回主窗口导航，失焦和 Escape 会关闭浮层；launcher 已使用独立 entry。 | 补更细的快捷键冲突引导和快捷键冲突恢复体验。 |
-| Multi-entry WebView | Green | Vite 已输出 `app.html`、`launcher.html`、`settings.html`、`oauth-callback.html` 四个 entry；Swift shell 按窗口和 `nexus://` URL 选择入口，并用 `desktop_route` 传递业务路由；Go sidecar fallback 支持直接刷新 `/`、`/app`、`/settings` 和 OAuth callback；轻入口 router 已拆开，launcher/settings/OAuth 不再预拉彼此页面 chunk；主入口也已把 login、launcher、Lottie loading 和 markdown vendor 从首屏静态依赖中移出。 | 后续继续做真实冷启动计时和多窗口生命周期细化。 |
+| Global shortcut / launcher | Yellow | `Option + Space` 不再默认注册，历史默认组合会在启动时关闭；窗口菜单和 `nexus://launcher` 都把主窗口导航到完整 launcher 首页；设置页已移除启动器快捷键配置。 | 后续若恢复全局快捷键，再补冲突引导和恢复体验。 |
+| Multi-entry WebView | Green | Vite 已输出 `app.html`、`settings.html`、`oauth-callback.html` 三个桌面 entry；Swift shell 按窗口和 `nexus://` URL 选择入口，并用 `desktop_route` 传递业务路由；Go sidecar fallback 支持直接刷新 `/`、`/app`、`/settings` 和 OAuth callback；settings/OAuth 轻入口已拆开，不预拉主工作区页面 chunk。 | 后续继续做真实冷启动计时和多窗口生命周期细化。 |
 | Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-app.sh` 可生成 zip/dmg、sha256 和 metadata，并强制跑 smoke；GitHub `Publish Release` 已增加独立 macOS job，把 dmg 作为同一个 tag 的 Release asset 上传。 | 无 Developer ID 阶段继续用 ad-hoc 签名；公开发布前补 Developer ID 签名、公证和 staple。 |
 | Updates | Red | 还没有自动更新。 | public beta 前接 Sparkle 或等价方案。 |
-| Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化、外链/阻断、右键菜单抑制、launcher 关闭原因和 WebContent 进程终止；WebContent 终止会额外写 `webcontent-terminated-*.json`；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加符号化 crash report 和更完整的 startup failure UI。 |
+| Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化、外链/阻断、右键菜单抑制和 WebContent 进程终止；WebContent 终止会额外写 `webcontent-terminated-*.json`；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加符号化 crash report 和更完整的 startup failure UI。 |
 
 ## 3. App 发布前必须变 Green
 
@@ -55,13 +55,13 @@
 2026-05-19：
 
 - GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-app.sh`，并把 dmg、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
-- 默认入口改为 launcher：冷启动、Dock reopen 和重复启动已有实例都不再直接进入 `/app`；smoke 先验证 launcher ready，再通过显式 `nexus://open` 验证主工作台 ready。
-- 本地 smoke 记录：`launcher_window.created` 0.99s，launcher `web.ready location_path=/ source=after_paint` 1.98s，`launcher_window.revealed source=web.ready`；显式打开主窗口后 `main_window.created` 2.36s，主窗口 `web.ready location_path=/app source=after_paint` 2.85s；再唤起 launcher 记录 `launcher_window.show_existing was_visible=false`。
-- 桌面 smoke 脚本在启动前显式向 LaunchServices 注册 `.app`，并在 custom scheme 未投递时回退到 shell 内部的 launcher 分布式通知，避免干净 CI runner 上 `nexus://launcher` 不稳定导致 launcher smoke 失败。
+- 默认入口改为 launcher：冷启动、Dock reopen、重复启动已有实例、`nexus://open` 和 `nexus://launcher` 都不再直接进入 `/app`。
+- 本轮调整后，默认 launcher 不再是紧凑浮层，而是主窗口 `/` 完整首页；smoke 改为验证 `main_window.created` + `web.ready location_path=/`，再分别通过 `nexus://open` 和 `nexus://launcher` 验证仍回到 `/`。
+- 桌面 smoke 脚本在启动前显式向 LaunchServices 注册 `.app`，并在 custom scheme 未投递时回退到 shell 内部的 launcher 分布式通知，避免干净 CI runner 上 `nexus://launcher` 不稳定导致 smoke 失败。
 - GitHub macOS job 开启 `NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK=1`，允许慢 runner 上主窗口先以 `fallback_timeout` reveal，但仍要求后续 `web.ready` 到达，并继续拦截 WebContent crash 和 startup failure；本地默认 smoke 仍保持严格模式。
 - macOS app 发布仍标记签名状态：ad-hoc signing、未 notarize、metadata 保留 `developer_id=false` 和 `notarized=false`。
 - 桌面交互 QA 清单新增 `docs/specs/desktop-app-qa-checklist.md`，覆盖 IME、Tab/Escape、复制粘贴、右键菜单、外链、未知 scheme、真实 OAuth provider 和诊断反馈格式。
-- WebView 外链打开、popup 外链、未知 scheme 阻断、右键菜单抑制和 launcher 关闭原因进入 `Nexus Startup` 时间线；WebContent 终止会额外写 `webcontent-terminated-*.json`，日志导出的 `diagnostics.json` 增加 URL scheme 声明检查。
+- WebView 外链打开、popup 外链、未知 scheme 阻断和右键菜单抑制进入 `Nexus Startup` 时间线；WebContent 终止会额外写 `webcontent-terminated-*.json`，日志导出的 `diagnostics.json` 增加 URL scheme 声明检查。
 
 2026-05-15：
 

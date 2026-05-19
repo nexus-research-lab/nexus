@@ -1,18 +1,13 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { lazy, Suspense, useCallback, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { get_default_agent_id, is_main_agent } from "@/config/options";
 import { LauncherConsole } from "@/features/launcher/launcher-console";
 import { get_launcher_surface_theme_style } from "@/features/launcher/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
-import {
-  close_desktop_launcher,
-  is_desktop_bridge_available,
-  open_desktop_route,
-} from "@/lib/desktop-bridge";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
@@ -33,51 +28,20 @@ export function LauncherPage() {
   const { theme } = useTheme();
   const controller = useLauncherPageController();
   const navigate = useNavigate();
-  const location = useLocation();
   const set_active_panel_item = useSidebarStore(
     (state) => state.set_active_panel_item,
   );
   const default_agent_id = get_default_agent_id();
-  const is_desktop_launcher_surface = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get("desktop_surface") === "launcher";
-  }, [location.search]);
   const [pending_delete_agent, set_pending_delete_agent] = useState<{
     id: string;
     name: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (!is_desktop_launcher_surface || !is_desktop_bridge_available()) {
-      return;
-    }
-
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) {
-        return;
-      }
-      event.preventDefault();
-      void close_desktop_launcher().catch((error) => {
-        console.error("[LauncherPage] 关闭桌面启动器失败:", error);
-      });
-    };
-
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_desktop_launcher_surface]);
-
   const open_navigation_route = useCallback(
     (route: string) => {
-      if (is_desktop_launcher_surface && is_desktop_bridge_available()) {
-        void open_desktop_route(route).catch((error) => {
-          console.error("[LauncherPage] 桌面主窗口导航失败:", error);
-          navigate(route);
-        });
-        return;
-      }
       navigate(route);
     },
-    [is_desktop_launcher_surface, navigate],
+    [navigate],
   );
 
   const open_agent_dm = useCallback(
@@ -189,7 +153,6 @@ export function LauncherPage() {
           on_open_main_agent_dm={handle_open_main_agent_dm}
           on_open_route={open_navigation_route}
           on_select_agent={handle_select_agent}
-          variant={is_desktop_launcher_surface ? "compact" : "full"}
         />
       </div>
 

@@ -3,7 +3,6 @@ export type DesktopBridgeKind =
   | "app.open_external_url"
   | "app.export_logs"
   | "app.open_route"
-  | "app.close_launcher"
   | "app.get_global_shortcut_status"
   | "app.set_global_shortcut_enabled"
   | "app.set_global_shortcut_accelerator"
@@ -65,10 +64,6 @@ export async function export_desktop_logs(): Promise<DesktopExportLogsResult> {
 
 export async function open_desktop_route(route: string): Promise<void> {
   await invoke_desktop_bridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
-}
-
-export async function close_desktop_launcher(): Promise<void> {
-  await invoke_desktop_bridge<Record<string, never>, { closed: boolean }>("app.close_launcher", {});
 }
 
 export async function get_desktop_global_shortcut_status(): Promise<DesktopGlobalShortcutStatus> {

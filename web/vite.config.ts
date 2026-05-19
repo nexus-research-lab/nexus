@@ -3,7 +3,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const LIGHT_DESKTOP_ENTRY_HTML = new Set([
-  "launcher.html",
   "settings.html",
   "oauth-callback.html",
 ]);
@@ -73,7 +72,6 @@ export default defineConfig({
       input: {
         index: path.resolve(__dirname, "index.html"),
         app: path.resolve(__dirname, "app.html"),
-        launcher: path.resolve(__dirname, "launcher.html"),
         settings: path.resolve(__dirname, "settings.html"),
         oauth_callback: path.resolve(__dirname, "oauth-callback.html"),
       },

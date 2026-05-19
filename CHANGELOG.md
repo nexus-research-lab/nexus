@@ -7,12 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Room 创建与管理支持设置群主，并可启用未 @ 公区消息由群主默认接管后回答或委派成员。
-
 ## [0.1.5] - 2026-05-19
 
 ### Added
+- Room 创建与管理支持设置群主，并可启用未 @ 公区消息由群主默认接管后回答或委派成员。
 - GitHub Release 发布流程新增 macOS app 构建 job，并把 dmg、sha256、metadata 作为同一个 tag 的 Release assets 上传。
 - macOS 桌面 smoke 支持 CI 友好的 launcher 分布式通知兜底和可配置 fallback reveal 容忍度。
 - 新增 macOS app QA 清单，并补充 WebView 外链/阻断、launcher 关闭原因和 WebContent 终止诊断记录。
@@ -21,14 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - 重做侧边栏聊天工作台：联系人、能力入口、最近会话与 launcher 控制台的信息结构更清晰。
-- macOS 桌面移除“文件 / 打开启动器”菜单项，改为“窗口 / 显示启动器”并展示 `Option + Space` 快捷键。
-- macOS 桌面 launcher 浮层改为紧凑命令面板，设置页新增“返回工作台”入口。
+- macOS app 默认启动和 `nexus://launcher` 统一打开主窗口完整 launcher 首页，移除独立紧凑 launcher 浮层，关闭 `Option + Space` 默认全局唤起，并移除设置页里的启动器快捷键配置。
 
 ### Fixed
 - 修复 Room slot 状态并发访问风险，并稳定 Room 异步清理测试。
 - 修复 `nexus-server --help` 会提前触发迁移的问题。
 - 修复聊天区侧栏 tab 激活态在路由切换后丢失的问题。
 - 修复 macOS app 已运行时再次打开不会唤起 launcher 的问题。
+- 修正 macOS smoke 对默认 launcher 路由的校验，确保启动和 URL 唤起都落到 `/`。
 
 ## [0.1.4] - 2026-05-19
 

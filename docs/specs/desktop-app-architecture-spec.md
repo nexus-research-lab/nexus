@@ -67,8 +67,8 @@ Rust core 适合承载文件索引、模糊搜索、CPU 密集任务、跨端共
 Native Shell 是桌面 App 的主进程。它不承载业务逻辑，只负责 WebView 无法可靠完成的系统职责：
 
 - App 生命周期：启动、恢复、隐藏、退出、单实例。
-- 窗口管理：launcher、主工作区、settings、OAuth callback 结果窗口。
-- 全局快捷键：唤起 launcher 或主窗口。
+- 窗口管理：主窗口 launcher / 工作台、settings、OAuth callback 结果窗口。
+- 全局快捷键：默认关闭，设置页暂不暴露启动器快捷键配置。
 - 菜单栏 / Dock：状态、偏好设置、退出入口。
 - 系统集成：URL scheme、通知、剪贴板、原生文件选择、拖拽文件 URL。
 - 安全存储：Keychain 保存本地 token、connector client secret 这类敏感字段。
@@ -83,16 +83,15 @@ WebView 是 React 前端的渲染面，不是浏览器容器。
 
 桌面端当前已经拆成多 entry：
 
-- `launcher.html`：唤起入口，首屏轻、热启动快。
-- `app.html`：连续工作区，承载 `/app`、Room、Contacts、Skills、Connectors。
+- `app.html`：主窗口入口，承载 `/` launcher、`/app`、Room、Contacts、Skills、Connectors。
 - `settings.html`：设置窗口，未来可以独立生命周期。
 - `oauth-callback.html`：OAuth 回调完成页，减少主窗口路由污染。
 
-多 entry 的目标是让不同窗口按需加载，不让一个巨大 SPA 成为所有窗口的冷启动成本。
+多 entry 的目标是让系统窗口按需加载，不让一个巨大 SPA 成为 settings / OAuth 轻窗口的冷启动成本。
 
-Shell 通过物理 HTML entry 承载窗口职责，通过 `desktop_route` query 传递原始业务路由。Go sidecar 的静态 fallback 负责把直接访问或刷新后的业务路径重新落回正确 entry：`/` 使用 `launcher.html`，`/app` 和连续工作区路由使用 `app.html`，`/settings` 使用 `settings.html`，OAuth callback 使用 `oauth-callback.html`。
+Shell 通过物理 HTML entry 承载窗口职责，通过 `desktop_route` query 传递原始业务路由。Go sidecar 的静态 fallback 负责把直接访问或刷新后的业务路径重新落回正确 entry：`/` 与 `/app` 和连续工作区路由使用 `app.html`，`/settings` 使用 `settings.html`，OAuth callback 使用 `oauth-callback.html`。
 
-轻入口使用独立 router 和收窄的 `modulepreload` 白名单：launcher、settings、OAuth callback 不互相静态引用页面组件，也不预拉主工作区页面 chunk；主 `app.html` 保持更积极的预加载，用于连续工作区的导航体验。
+轻入口使用独立 router 和收窄的 `modulepreload` 白名单：settings、OAuth callback 不互相静态引用页面组件，也不预拉主工作区页面 chunk；主 `app.html` 保持更积极的预加载，用于 launcher 与连续工作区的导航体验。
 
 主入口也必须控制首屏静态依赖。`app.html` 不应因为兜底路由、loading 动画或桌面轻窗口而预拉 launcher、settings、OAuth callback、Room、markdown renderer、Lottie runtime 等非首屏重型 chunk。loading fallback 使用 CSS-only 实现；Lottie、markdown、OAuth dialog 这类功能依赖留在页面级 lazy chunk 内。
 
@@ -116,7 +115,7 @@ WebView 必须遵守 native feel 约束：
 
 启动日志不得记录 OAuth code、state、token 或完整 query value。需要诊断路由时只记录 path 和 query key。
 
-macOS shell 使用原生 material view 作为 WebView 的承载面，而不是把 WebView 直接塞进窗口。主工作区使用 `windowBackground` material，launcher 浮层使用 `popover` material，并保持 WebView under-page 背景透明。窗口遮挡、最小化和恢复事件必须进入时间线，用于后续判断 hidden / occluded 状态下的 timer 和 reload 行为。
+macOS shell 使用原生 material view 作为 WebView 的承载面，而不是把 WebView 直接塞进窗口。主窗口使用 `windowBackground` material，并保持 WebView under-page 背景透明。窗口遮挡、最小化和恢复事件必须进入时间线，用于后续判断 hidden / occluded 状态下的 timer 和 reload 行为。
 
 ### 3.3 Go Sidecar
 
@@ -162,7 +161,6 @@ Nexus.app/
       Web/
         index.html
         app.html
-        launcher.html
         settings.html
         oauth-callback.html
         assets/
@@ -230,7 +228,6 @@ internal/protocol/desktop/
 - `app.export_logs`
 - `app.get_app_version`
 - `app.open_route`
-- `app.close_launcher`
 - `app.get_global_shortcut_status`
 - `app.set_global_shortcut_enabled`
 - `app.set_global_shortcut_accelerator`
@@ -296,7 +293,7 @@ nexus://connectors/oauth/callback
 
 1. Checkout tag。
 2. macOS job 设置 Go / Node / pnpm。
-3. 执行 `scripts/desktop/package-macos-app.sh`，CI 环境允许慢 runner 触发主窗口 fallback reveal，但仍必须等到 `web.ready`、launcher ready、无 WebContent crash 和无 startup failure。
+3. 执行 `scripts/desktop/package-macos-app.sh`，CI 环境允许慢 runner 触发主窗口 fallback reveal，但仍必须等到默认 launcher route、显式 `/app` route 的 `web.ready`，且无 WebContent crash 和无 startup failure。
 4. 脚本构建 `web/dist`、Go sidecar 与 Swift shell，并组装 `.app`。
 5. 脚本执行 ad-hoc codesign、plist/codesign 校验和桌面 smoke。
 6. 脚本生成 `Nexus-macos-<version>-<build>.dmg`、`.sha256` 与 `.metadata.json`。
@@ -338,7 +335,7 @@ nexus://connectors/oauth/callback
 - Sparkle 或等价自动更新可用。
 - 崩溃日志有符号化路径。
 - Keychain 管理敏感 token。
-- 全局快捷键可配置。
+- 全局快捷键默认关闭，当前设置页不暴露配置入口。
 - 多屏唤起位置正确。
 - 冷启动无明显白屏 / 黑屏闪烁。
 - Pinyin IME、Tab、Escape、复制粘贴、滚动行为通过手测。

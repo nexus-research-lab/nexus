@@ -22,10 +22,10 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 | Dock reopen | 关闭窗口后点击 Dock 图标 | launcher 重新出现，sidecar 不重启。 |
 | Cmd+W | 主窗口按 `Command+W` | 只隐藏窗口，不退出应用。 |
 | Cmd+Q | 按 `Command+Q` | App 退出，`nexus-server` 无残留。 |
-| Launcher | 按 `Option+Space`、窗口菜单选择“显示启动器”、执行 `open nexus://launcher` | 三种入口都能打开紧凑 launcher 面板，不再弹出完整首页。 |
-| 进入工作台 | 在 launcher 选择进入工作台，或执行 `open nexus://open` | 打开 `/app` 主工作台，并关闭 launcher 浮层。 |
-| Launcher Escape | launcher 获焦时按 `Escape` | launcher 关闭，主窗口状态不丢失。 |
-| Launcher 失焦 | 打开 launcher 后点击其他窗口 | launcher 自动关闭。 |
+| Launcher | 窗口菜单选择“显示启动器”，或执行 `open nexus://launcher` | 主窗口显示完整 launcher 首页，不出现紧凑浮层。 |
+| 全局快捷键 | 首次安装后按 `Option+Space` | 不应唤起 Nexus；设置页不展示启动器快捷键配置。 |
+| URL 唤起 | 执行 `open nexus://open` | 主窗口显示完整 launcher 首页。 |
+| 进入工作台 | 在 launcher 选择进入工作台 | 主窗口导航到 `/app` 工作台。 |
 | 设置页返回 | 从菜单或 `nexus://settings` 进入设置后点击“返回工作台” | 回到主工作区，视觉上有明确返回路径。 |
 | 文本输入 | 在设置页、搜索框、会话输入框输入英文、中文拼音、标点和换行 | IME 候选窗位置正常，提交文字不丢字符。 |
 | 键盘导航 | 使用 `Tab` / `Shift+Tab` 在表单和按钮之间移动 | 焦点顺序可解释，焦点不会丢到不可见区域。 |
