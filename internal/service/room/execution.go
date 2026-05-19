@@ -9,9 +9,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/message"
@@ -151,6 +151,12 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt())
+	roomSkillPrompt, err := s.rooms.BuildRoomSkillPrompt(slotCtx, roundValue.Context.Room.SkillNames)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
+	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
@@ -179,6 +185,7 @@ func (s *RealtimeService) runSlot(
 		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
 		MaxTurns:           agentValue.Options.MaxTurns,
 		MCPServers:         mcpServers,
+		ExtraEnv:           s.roomRuntimeEnv(roundValue, slot),
 	})
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -191,12 +198,12 @@ func (s *RealtimeService) runSlot(
 		RoomID:         roundValue.RoomID,
 		ConversationID: roundValue.ConversationID,
 	}))
-	previousStderr := options.Stderr
-	options.Stderr = func(line string) {
+	previousStderr := options.Callbacks.Stderr
+	options.Callbacks.Stderr = func(line string) {
 		if previousStderr != nil {
 			previousStderr(line)
 		}
-		logger.Warn("Agent SDK stderr", "stderr", line)
+		logger.Warn("Agent SDK stderr", "stderr", runtimectx.RedactSensitiveText(line))
 	}
 	client := s.factory.New(options)
 	slot.setClient(client)
@@ -256,7 +263,19 @@ func (s *RealtimeService) runSlot(
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			if streamLogger.Enabled(slotCtx, slog.LevelDebug) {
-				streamLogger.Debug("Room slot 收到 SDK 消息", runtimectx.BuildSDKMessageLogFields(incoming)...)
+				if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !s.config.MessageDebugStreamEvent {
+					return
+				}
+				streamLogger.Debug(
+					"Room slot 收到 SDK 消息",
+					runtimectx.BuildSDKMessageLogFieldsWithOptions(
+						incoming,
+						runtimectx.SDKMessageLogOptions{
+							IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
+							IncludeSnapshotData: true,
+						},
+					)...,
+				)
 			}
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -275,6 +294,14 @@ func (s *RealtimeService) runSlot(
 			if slot.shouldSuppressOutput() {
 				return nil
 			}
+			if !roomSlotPublishesPublicOutput(slot) {
+				if !protocol.IsTranscriptNativeMessage(protocol.Message(messageValue)) {
+					if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
 			if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
 				return err
 			}
@@ -286,6 +313,9 @@ func (s *RealtimeService) runSlot(
 			return nil
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
+			if roomSlotShouldDropPublicOutputEvent(slot, event) {
+				return nil
+			}
 			for _, readyEvent := range roomEventsReadyForEmission(slot, event) {
 				s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, readyEvent)
 			}
@@ -308,15 +338,34 @@ func (s *RealtimeService) runSlot(
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
 	if !slot.shouldSuppressOutput() {
-		if err := s.collectPublicMentionWakes(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
+		if err := s.recordRoomActionReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
+		}
+		if roomSlotPublishesPublicOutput(slot) {
+			if err := s.collectPublicMentionWakes(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
+				s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+				return
+			}
 		}
 	}
 	if slot.getStatus() == "finished" {
 		if err := s.recordRoomPublicCursor(slot, roundValue, slot.PublicCursorID, slot.PublicCursorTS); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
+		}
+		actionCursor, actionCursorRecorded, err := s.recordRoomActionCursor(slot, roundValue)
+		if err != nil {
+			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+			return
+		}
+		if actionCursorRecorded {
+			s.broadcastSharedEventWithTimeout(
+				slotCtx,
+				roundValue.SessionKey,
+				roundValue.RoomID,
+				newRoomActionConsumedEvent(actionCursor),
+			)
 		}
 	}
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
@@ -409,24 +458,26 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 		"is_error":        true,
 		"timestamp":       time.Now().UnixMilli(),
 	}
-	_ = s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage)
 	_ = s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey))
-	projectedMessage := message.ProjectResultMessage(nil, resultMessage)
-	if mapper != nil {
-		projectedMessage = mapper.ProjectResultMessage(resultMessage)
-	}
-	s.broadcastSharedEventWithTimeout(
-		ctx,
-		roundValue.SessionKey,
-		roundValue.RoomID,
-		roomdomain.WrapMessageEvent(
+	if roomSlotPublishesPublicOutput(slot) {
+		_ = s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage)
+		projectedMessage := message.ProjectResultMessage(nil, resultMessage)
+		if mapper != nil {
+			projectedMessage = mapper.ProjectResultMessage(resultMessage)
+		}
+		s.broadcastSharedEventWithTimeout(
+			ctx,
+			roundValue.SessionKey,
 			roundValue.RoomID,
-			roundValue.ConversationID,
-			projectedMessage,
-			slot.AgentRoundID,
-		),
-	)
-	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), slot.AgentRoundID))
+			roomdomain.WrapMessageEvent(
+				roundValue.RoomID,
+				roundValue.ConversationID,
+				projectedMessage,
+				slot.AgentRoundID,
+			),
+		)
+		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), slot.AgentRoundID))
+	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamEnd,
 		roundValue.SessionKey,
@@ -531,29 +582,31 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 			resultMessage["session_id"] = sessionID
 		}
 	}
-	if err := s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage); err != nil {
-		s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
-			"s", roundValue.SessionKey,
-			"r", roundValue.RoomID,
-			"c", roundValue.ConversationID,
-			"err", err,
-		)
-	} else {
-		projectedMessage := message.ProjectResultMessage(nil, resultMessage)
-		if mapper != nil {
-			projectedMessage = mapper.ProjectResultMessage(resultMessage)
-		}
-		s.broadcastSharedEvent(
-			context.Background(),
-			roundValue.SessionKey,
-			roundValue.RoomID,
-			roomdomain.WrapMessageEvent(
+	if roomSlotPublishesPublicOutput(slot) {
+		if err := s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage); err != nil {
+			s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
+				"s", roundValue.SessionKey,
+				"r", roundValue.RoomID,
+				"c", roundValue.ConversationID,
+				"err", err,
+			)
+		} else {
+			projectedMessage := message.ProjectResultMessage(nil, resultMessage)
+			if mapper != nil {
+				projectedMessage = mapper.ProjectResultMessage(resultMessage)
+			}
+			s.broadcastSharedEvent(
+				context.Background(),
+				roundValue.SessionKey,
 				roundValue.RoomID,
-				roundValue.ConversationID,
-				projectedMessage,
-				slot.AgentRoundID,
-			),
-		)
+				roomdomain.WrapMessageEvent(
+					roundValue.RoomID,
+					roundValue.ConversationID,
+					projectedMessage,
+					slot.AgentRoundID,
+				),
+			)
+		}
 	}
 	if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey)); err != nil {
 		s.loggerFor(context.Background()).Error("Room interrupted 私有结果持久化失败",

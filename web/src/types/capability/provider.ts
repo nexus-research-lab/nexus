@@ -11,6 +11,7 @@
 
 export interface ProviderConfigRecord {
   id: string;
+  provider_kind: "llm" | "image_generation";
   provider: string;
   display_name: string;
   auth_token_masked: string;
@@ -35,6 +36,7 @@ export interface ProviderOptionsResponse {
 }
 
 export interface ProviderConfigPayload {
+  provider_kind: "llm" | "image_generation";
   provider: string;
   display_name: string;
   auth_token: string;
@@ -45,6 +47,7 @@ export interface ProviderConfigPayload {
 }
 
 export interface UpdateProviderConfigPayload {
+  provider_kind?: "llm" | "image_generation";
   display_name: string;
   auth_token?: string;
   base_url: string;

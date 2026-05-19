@@ -247,14 +247,15 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, bundle roomrepo.CreateR
 	defer tx.Rollback()
 
 	if _, err = tx.ExecContext(ctx, `
-INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar)
-VALUES (?, ?, ?, ?, ?, ?)`,
+INSERT INTO rooms (id, owner_user_id, room_type, name, description, avatar, skill_names)
+VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		bundle.Room.ID,
 		bundle.Room.OwnerUserID,
 		bundle.Room.RoomType,
 		nullIfEmpty(bundle.Room.Name),
 		bundle.Room.Description,
 		nullIfEmpty(bundle.Room.Avatar),
+		jsoncodec.MarshalStringSlice(bundle.Room.SkillNames),
 	); err != nil {
 		return nil, err
 	}
@@ -319,6 +320,7 @@ func (r *RoomRepository) UpdateRoom(
 	description *string,
 	title *string,
 	avatar *string,
+	skillNames *[]string,
 ) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -342,6 +344,11 @@ func (r *RoomRepository) UpdateRoom(
 	}
 	if avatar != nil {
 		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET avatar = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_user_id = ?`, nullIfEmpty(*avatar), roomID, ownerUserID); err != nil {
+			return nil, err
+		}
+	}
+	if skillNames != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE rooms SET skill_names = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_user_id = ?`, jsoncodec.MarshalStringSlice(*skillNames), roomID, ownerUserID); err != nil {
 			return nil, err
 		}
 	}
@@ -472,13 +479,7 @@ WHERE room_id = ? AND member_type = 'agent' AND member_agent_id = ?`,
 		return nil, err
 	}
 
-	if _, err = tx.ExecContext(ctx, `
-DELETE FROM sessions
-WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)
-  AND agent_id = ?`,
-		roomID,
-		agentID,
-	); err != nil {
+	if err = deleteRoomAgentSessionDependents(ctx, tx, roomID, agentID); err != nil {
 		return nil, err
 	}
 
@@ -499,12 +500,28 @@ WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)
 
 // DeleteRoom 删除房间。
 func (r *RoomRepository) DeleteRoom(ctx context.Context, ownerUserID string, roomID string) (bool, error) {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM rooms WHERE id = ? AND owner_user_id = ?`, roomID, ownerUserID)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	roomValue, err := r.loadRoom(ctx, tx, ownerUserID, roomID)
+	if err != nil || roomValue == nil {
+		return false, err
+	}
+	if err = deleteRoomDependents(ctx, tx, roomID); err != nil {
+		return false, err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM rooms WHERE id = ? AND owner_user_id = ?`, roomID, ownerUserID)
 	if err != nil {
 		return false, err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
 		return false, err
 	}
 	return affected > 0, nil
@@ -656,6 +673,9 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, ownerUserID str
 		}
 	}
 
+	if err = deleteConversationDependents(ctx, tx, conversationID); err != nil {
+		return nil, err
+	}
 	result, err := tx.ExecContext(ctx, `DELETE FROM conversations WHERE id = ? AND room_id = ?`, conversationID, roomID)
 	if err != nil {
 		return nil, err
@@ -677,6 +697,79 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, ownerUserID str
 	return r.getContextByConversation(ctx, ownerUserID, roomID, fallbackConversationID)
 }
 
+func deleteRoomDependents(ctx context.Context, tx *sql.Tx, roomID string) error {
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM rounds
+WHERE session_id IN (
+    SELECT s.id FROM sessions s
+    JOIN conversations c ON c.id = s.conversation_id
+    WHERE c.room_id = ?
+)
+OR trigger_message_id IN (
+    SELECT m.id FROM messages m
+    JOIN conversations c ON c.id = m.conversation_id
+    WHERE c.room_id = ?
+)`, roomID, roomID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM messages
+WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)`, roomID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM sessions
+WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)`, roomID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM conversations WHERE room_id = ?`, roomID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM members WHERE room_id = ?`, roomID)
+	return err
+}
+
+func deleteConversationDependents(ctx context.Context, tx *sql.Tx, conversationID string) error {
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM rounds
+WHERE session_id IN (SELECT id FROM sessions WHERE conversation_id = ?)
+OR trigger_message_id IN (SELECT id FROM messages WHERE conversation_id = ?)`, conversationID, conversationID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE conversation_id = ?`, conversationID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE conversation_id = ?`, conversationID)
+	return err
+}
+
+func deleteRoomAgentSessionDependents(ctx context.Context, tx *sql.Tx, roomID string, agentID string) error {
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM rounds
+WHERE session_id IN (
+    SELECT s.id FROM sessions s
+    JOIN conversations c ON c.id = s.conversation_id
+    WHERE c.room_id = ? AND s.agent_id = ?
+)`, roomID, agentID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+UPDATE messages
+SET session_id = NULL
+WHERE session_id IN (
+    SELECT s.id FROM sessions s
+    JOIN conversations c ON c.id = s.conversation_id
+    WHERE c.room_id = ? AND s.agent_id = ?
+)`, roomID, agentID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+DELETE FROM sessions
+WHERE conversation_id IN (SELECT id FROM conversations WHERE room_id = ?)
+  AND agent_id = ?`, roomID, agentID)
+	return err
+}
+
 func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomAggregate, error) {
 	roomValue, err := r.loadRoom(ctx, querier, ownerUserID, roomID)
 	if err != nil || roomValue == nil {
@@ -694,7 +787,7 @@ func (r *RoomRepository) getRoomAggregate(ctx context.Context, querier roomQuery
 
 func (r *RoomRepository) loadRoom(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomRecord, error) {
 	query := `
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, created_at, updated_at
 FROM rooms
 WHERE id = ?`
 	args := []any{roomID}
@@ -756,7 +849,7 @@ func (r *RoomRepository) loadRoomsByIDs(
 		return map[string]protocol.RoomRecord{}, nil
 	}
 	query := fmt.Sprintf(`
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, created_at, updated_at
 FROM rooms
 WHERE id IN (%s) AND owner_user_id = ?`, joinPlaceholders("?", len(roomIDs)))
 	args := make([]any, 0, len(roomIDs)+1)
@@ -953,9 +1046,10 @@ func (r *RoomRepository) getContextByConversation(ctx context.Context, ownerUser
 
 func scanRoomRecord(scanner interface{ Scan(...any) error }) (protocol.RoomRecord, error) {
 	var (
-		item      protocol.RoomRecord
-		createdAt time.Time
-		updatedAt time.Time
+		item           protocol.RoomRecord
+		skillNamesJSON string
+		createdAt      time.Time
+		updatedAt      time.Time
 	)
 	err := scanner.Scan(
 		&item.ID,
@@ -964,11 +1058,16 @@ func scanRoomRecord(scanner interface{ Scan(...any) error }) (protocol.RoomRecor
 		&item.Name,
 		&item.Description,
 		&item.Avatar,
+		&skillNamesJSON,
 		&createdAt,
 		&updatedAt,
 	)
 	if err != nil {
 		return protocol.RoomRecord{}, err
+	}
+	item.SkillNames = jsoncodec.ParseStringSlice(skillNamesJSON)
+	if item.SkillNames == nil {
+		item.SkillNames = []string{}
 	}
 	item.CreatedAt = createdAt
 	item.UpdatedAt = updatedAt

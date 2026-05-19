@@ -132,7 +132,7 @@ export type AgentConversationDeliveryPolicy = 'queue' | 'guide' | 'interrupt' | 
 export type AgentConversationDefaultDeliveryPolicy = 'queue' | 'interrupt';
 
 export type InputQueueScope = 'dm' | 'room';
-export type InputQueueSource = 'user' | 'agent_public_mention';
+export type InputQueueSource = 'user' | 'agent_public_mention' | 'agent_room_action';
 
 export interface InputQueueItem {
   id: string;
@@ -221,7 +221,22 @@ export interface RoomEventPayload {
   conversation_id?: string;
   agent_id?: string;
   agent_name?: string;
+  action_id?: string;
+  event_kind?: "created" | "wake_scheduled" | "wake_started" | "wake_queued";
+  action_type?: "private_message" | "request_reply" | "private_note" | "marker";
+  request_id?: string;
+  source_agent_id?: string;
+  target_agent_id?: string;
+  audience_agent_ids?: string[];
+  visibility?: "public" | "private";
+  reply_target?: "public_feed" | "sender_private" | "target_private" | "audience" | "none";
+  wake_policy?: "none" | "immediate" | "delayed";
+  delay_seconds?: number;
+  content_chars?: number;
+  content?: string;
   round_id?: string;
+  last_action_id?: string;
+  last_action_timestamp?: number;
   last_seen_room_seq?: number;
   latest_room_seq?: number;
   buffer_start_room_seq?: number | null;

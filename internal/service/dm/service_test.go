@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,13 +23,13 @@ import (
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type fakeDMClient struct {
@@ -37,6 +38,7 @@ type fakeDMClient struct {
 	messages        chan sdkprotocol.ReceivedMessage
 	interruptCalls  int
 	disconnectCalls int
+	interruptErrors []error
 	disconnectErrs  []error
 	connectErrors   []error
 	queryErrors     []error
@@ -92,6 +94,12 @@ func (c *fakeDMClient) SendContent(_ context.Context, content any, _ *string, _ 
 func (c *fakeDMClient) Interrupt(ctx context.Context) error {
 	c.mu.Lock()
 	c.interruptCalls++
+	if len(c.interruptErrors) > 0 {
+		err := c.interruptErrors[0]
+		c.interruptErrors = c.interruptErrors[1:]
+		c.mu.Unlock()
+		return err
+	}
 	callback := c.onInterrupt
 	c.mu.Unlock()
 	if callback != nil {
@@ -231,7 +239,7 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 
 func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 	t.Helper()
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -243,7 +251,7 @@ func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 
 func newDMProviderService(t *testing.T, cfg config.Config) *providercfg.Service {
 	t.Helper()
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开 provider 测试数据库失败: %v", err)
 	}
@@ -384,7 +392,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		t.Fatalf("写入 AGENTS.md 失败: %v", err)
 	}
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -776,7 +784,7 @@ func TestServiceHandleChatBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
 		t.Fatalf("bypass 权限模式未透传: %+v", options)
 	}
-	if options.Adapters.PermissionHandler == nil {
+	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
 	}
 }
@@ -937,6 +945,100 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	options := factory.LastOptions()
 	if options.Session.ResumeID != resumeID {
 		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
+	}
+}
+
+func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissing(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Model:       "glm-5.1",
+		Enabled:     true,
+		IsDefault:   true,
+	}); err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+
+	resumeID := "sdk-legacy-resume-1"
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = resumeID
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-legacy-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	sender := newDMTestSender("sender-legacy-resume")
+	sessionKey := "agent:nexus:ws:dm:legacy-resume-chat"
+	permission.BindSession(sessionKey, sender, "client-legacy-resume", true)
+
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &resumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Legacy Resume Chat",
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("预写入 legacy 会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 legacy resume",
+		RoundID:    "round-legacy-resume",
+		ReqID:      "round-legacy-resume",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Session.ResumeID != resumeID {
+		t.Fatalf("legacy session 缺少 runtime 指纹时仍应 resume: %+v", options)
+	}
+	if options.Model != "glm-5.1" {
+		t.Fatalf("runtime 应使用当前 provider model: %+v", options)
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != resumeID {
+		t.Fatalf("legacy resume 不应被清空或替换: %+v", sessionValue)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeProvider] != "glm" {
+		t.Fatalf("legacy resume 后应补写 runtime provider 指纹: %+v", sessionValue.Options)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeModel] != "glm-5.1" {
+		t.Fatalf("legacy resume 后应补写 runtime model 指纹: %+v", sessionValue.Options)
 	}
 }
 
@@ -1113,6 +1215,48 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	summary, ok := messages[1]["result_summary"].(map[string]any)
 	if !ok || summary["subtype"] != "interrupted" {
 		t.Fatalf("中断后未挂载 interrupted result_summary: %+v", messages)
+	}
+}
+
+func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.interruptErrors = []error{errors.New("os: process already finished")}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-interrupt-stale")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-stale"
+	permission.BindSession(sessionKey, sender, "client-interrupt-stale", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "停止一个已经退出的进程",
+		RoundID:    "round-interrupt-stale",
+		ReqID:      "round-interrupt-stale",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("失效进程中断应被业务层清理而不是返回错误: %v", err)
+	}
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeSessionStatus && event.Data["is_generating"] == false
+	})
+	if len(runtimeManager.GetRunningRoundIDs(sessionKey)) != 0 {
+		t.Fatal("失效进程清理后不应残留 running round")
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if sessionValue.Status != "closed" || sessionValue.IsActive {
+		t.Fatalf("失效进程清理后 session meta 应关闭: %+v events=%+v", sessionValue, events)
 	}
 }
 
@@ -1950,7 +2094,7 @@ func stringPointer(t *testing.T, value *string) string {
 func migrateDMSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

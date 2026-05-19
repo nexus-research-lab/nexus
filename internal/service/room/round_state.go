@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -29,6 +29,13 @@ type activeRoomSlot struct {
 	Trigger           roomTrigger
 	PublicCursorID    string
 	PublicCursorTS    int64
+	ActionCursorID    string
+	ActionCursorTS    int64
+	ReplyTarget       protocol.RoomReplyTarget
+	ReplySourceAction string
+	ReplySourceAgent  string
+	ReplyRequestID    string
+	ReplyAudience     []string
 	InterruptReason   string
 	QueuedInputs      []roomQueuedInput
 	GuidedInputs      []roomQueuedInput
@@ -61,10 +68,15 @@ type activeRoomRound struct {
 type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
+	TriggerType   string
+	QueueSource   protocol.InputQueueSource
 	SourceAgentID string
 	TargetAgentID string
 	Content       string
 	MessageID     string
+	RequestID     string
+	ReplyTarget   protocol.RoomReplyTarget
+	ReplyAudience []string
 }
 
 type roomQueuedInput struct {

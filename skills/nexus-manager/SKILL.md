@@ -7,7 +7,7 @@ description: 管理 Nexus 的 Agent、Room、Workspace 与 Skill 系统操作。
 
 管理 Nexus 平台的 Agent、Room、Workspace 与 Skill。通过 CLI 工具执行系统操作。
 
-CLI 工具路径：`go run "{project_root}/cmd/nexusctl"`
+CLI 工具：`nexusctl`（运行时已注入 PATH）
 
 ## CLI 输出约定
 
@@ -21,13 +21,13 @@ CLI 工具路径：`go run "{project_root}/cmd/nexusctl"`
 
 ```bash
 # Agent 正常调用
-go run "{project_root}/cmd/nexusctl" --json agent list
+nexusctl --json agent list
 
 # 排查问题时再打开诊断
-go run "{project_root}/cmd/nexusctl" --json --verbose agent list
+nexusctl --json --verbose agent list
 
 # 人工查看时使用格式化输出
-go run "{project_root}/cmd/nexusctl" --pretty agent list
+nexusctl --pretty agent list
 ```
 
 ## 核心概念
@@ -46,25 +46,25 @@ go run "{project_root}/cmd/nexusctl" --pretty agent list
 #### 列出成员
 
 ```bash
-go run "{project_root}/cmd/nexusctl" agent list
+nexusctl agent list
 ```
 
 #### 创建成员
 
 ```bash
-go run "{project_root}/cmd/nexusctl" agent create --name "Research"
+nexusctl agent create --name "Research"
 ```
 
 #### 读取成员详情
 
 ```bash
-go run "{project_root}/cmd/nexusctl" agent get research
+nexusctl agent get research
 ```
 
 #### 读取成员会话
 
 ```bash
-go run "{project_root}/cmd/nexusctl" session list --agent-id research
+nexusctl session list --agent-id research
 ```
 
 ### Room 管理
@@ -72,37 +72,37 @@ go run "{project_root}/cmd/nexusctl" session list --agent-id research
 #### 查看 Room 列表
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room list
+nexusctl room list
 ```
 
 #### 读取 Room
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room get abc123
+nexusctl room get abc123
 ```
 
 #### 读取 Room 上下文
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room contexts abc123
+nexusctl room contexts abc123
 ```
 
 #### 创建 Room
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room create --agent-id research --agent-id writer --name "内容团队" --title "Kickoff" --description "内容生产协作空间"
+nexusctl room create --agent-id research --agent-id writer --name "内容团队" --title "Kickoff" --description "内容生产协作空间"
 ```
 
 #### 更新 Room
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room update abc123 --name "内容团队" --title "本周计划"
+nexusctl room update abc123 --name "内容团队" --title "本周计划"
 ```
 
 #### 向 Room 追加成员
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room add-member abc123 --agent-id translator
+nexusctl room add-member abc123 --agent-id translator
 ```
 
 - `--room_id` 和 `--agent_id` 均必填。
@@ -112,13 +112,26 @@ go run "{project_root}/cmd/nexusctl" room add-member abc123 --agent-id translato
 #### 移除 Room 成员
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room remove-member abc123 --agent-id translator
+nexusctl room remove-member abc123 --agent-id translator
+```
+
+#### 创建 Room 内部协作动作
+
+Room runtime 内会自动注入当前 `room_id`、`conversation_id`、`source_agent_id`、内部控制面地址/token 和用户作用域；Agent 正常调用时不要额外传这些字段。
+运行时 PATH 已注入 `nexusctl`；`--target-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
+
+```bash
+nexusctl --json room action private-message --target-agent-id 0ed5434a8c13 --content "私下提醒"
+nexusctl --json room action private-note --content "只写给自己的上下文"
+nexusctl --json room action marker --visibility public --content "公开协作标记"
+nexusctl --json room action marker --reply-target audience --audience-agent-id 0ed5434a8c13 --content "只给指定受众的标记"
+nexusctl --json room action marker --reply-target none --content "只落盘不投影"
 ```
 
 #### 删除 Room
 
 ```bash
-go run "{project_root}/cmd/nexusctl" room delete abc123
+nexusctl room delete abc123
 ```
 
 ### Workspace 操作
@@ -126,38 +139,38 @@ go run "{project_root}/cmd/nexusctl" room delete abc123
 #### 列出工作区文件
 
 ```bash
-go run "{project_root}/cmd/nexusctl" workspace list --agent-id research
+nexusctl workspace list --agent-id research
 ```
 
 #### 读取工作区文件
 
 ```bash
-go run "{project_root}/cmd/nexusctl" workspace get --agent-id research --path "RUNBOOK.md"
+nexusctl workspace get --agent-id research --path "RUNBOOK.md"
 ```
 
 #### 更新工作区文件
 
 ```bash
-go run "{project_root}/cmd/nexusctl" workspace update --agent-id research --path "RUNBOOK.md" --content "# 新计划"
+nexusctl workspace update --agent-id research --path "RUNBOOK.md" --content "# 新计划"
 ```
 
 #### 创建工作区条目
 
 ```bash
-go run "{project_root}/cmd/nexusctl" workspace create --agent-id research --path "notes/todo.md" --type file --content "- kickoff"
-go run "{project_root}/cmd/nexusctl" workspace create --agent-id research --path "notes" --type directory
+nexusctl workspace create --agent-id research --path "notes/todo.md" --type file --content "- kickoff"
+nexusctl workspace create --agent-id research --path "notes" --type directory
 ```
 
 #### 重命名工作区条目
 
 ```bash
-go run "{project_root}/cmd/nexusctl" workspace rename --agent-id research --path "notes/todo.md" --new-path "notes/plan.md"
+nexusctl workspace rename --agent-id research --path "notes/todo.md" --new-path "notes/plan.md"
 ```
 
 #### 删除工作区条目
 
 ```bash
-go run "{project_root}/cmd/nexusctl" workspace delete --agent-id research --path "notes/plan.md"
+nexusctl workspace delete --agent-id research --path "notes/plan.md"
 ```
 
 ### Skill 管理
@@ -165,25 +178,25 @@ go run "{project_root}/cmd/nexusctl" workspace delete --agent-id research --path
 #### 列出 Skill
 
 ```bash
-go run "{project_root}/cmd/nexusctl" skill list
+nexusctl skill list
 ```
 
 #### 读取成员 Skill 状态
 
 ```bash
-go run "{project_root}/cmd/nexusctl" skill agent-list --agent-id research
+nexusctl skill agent-list --agent-id research
 ```
 
 #### 安装 Skill
 
 ```bash
-go run "{project_root}/cmd/nexusctl" skill install --agent-id research --skill-name planner
+nexusctl skill install --agent-id research --skill-name planner
 ```
 
 #### 卸载 Skill
 
 ```bash
-go run "{project_root}/cmd/nexusctl" skill uninstall --agent-id research --skill-name planner
+nexusctl skill uninstall --agent-id research --skill-name planner
 ```
 
 ## Workspace 规则

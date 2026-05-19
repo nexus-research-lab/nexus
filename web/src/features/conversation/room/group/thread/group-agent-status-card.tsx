@@ -35,6 +35,7 @@ interface GroupAgentStatusCardProps {
 
 /** 紧凑型 Agent 状态卡片 — 每个 Agent 在 Round 中的摘要 */
 function GroupAgentStatusCardInner({
+  agent_id,
   agent_name,
   agent_avatar,
   messages,
@@ -225,6 +226,7 @@ function GroupAgentStatusCardInner({
               content={preview}
               variant="summary"
               class_name="line-clamp-1 text-(--text-strong)"
+              workspace_agent_id={agent_id}
             />
           ) : (
             <p

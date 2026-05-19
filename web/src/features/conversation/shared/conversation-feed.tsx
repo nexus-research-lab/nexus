@@ -16,6 +16,7 @@ interface ConversationFeedProps {
   compact?: boolean;
   current_agent_name: string | null;
   current_agent_avatar?: string | null;
+  workspace_agent_id?: string | null;
   current_user_avatar?: string | null;
   /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
   agent_name_map?: Record<string, string>;
@@ -70,6 +71,15 @@ function resolve_round_agent_avatar(
   return undefined;
 }
 
+/** Markdown 中的 workspace 图片必须使用产出该消息的 Agent workspace。 */
+function resolve_round_agent_id(messages: Message[]): string | null {
+  const assistant_msg = messages.find((message) => message.role === "assistant");
+  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
+    return assistant_msg.agent_id;
+  }
+  return null;
+}
+
 export const ConversationFeed = memo(function ConversationFeed({
   bottom_anchor_ref,
   feed_ref,
@@ -77,6 +87,7 @@ export const ConversationFeed = memo(function ConversationFeed({
   compact = false,
   current_agent_name,
   current_agent_avatar,
+  workspace_agent_id,
   current_user_avatar,
   agent_name_map,
   agent_avatar_map,
@@ -104,6 +115,7 @@ export const ConversationFeed = memo(function ConversationFeed({
         compact={compact}
         current_agent_name={current_agent_name}
         current_agent_avatar={current_agent_avatar}
+        workspace_agent_id={workspace_agent_id}
         current_user_avatar={current_user_avatar}
         agent_name_map={agent_name_map}
         agent_avatar_map={agent_avatar_map}
@@ -134,6 +146,7 @@ export const ConversationFeed = memo(function ConversationFeed({
         const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
         const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
+        const round_workspace_agent_id = resolve_round_agent_id(roundMessages) ?? workspace_agent_id ?? null;
 
         return (
           <MessageItem
@@ -141,6 +154,7 @@ export const ConversationFeed = memo(function ConversationFeed({
             compact={compact}
             current_agent_name={round_agent_name}
             current_agent_avatar={round_agent_avatar}
+            workspace_agent_id={round_workspace_agent_id}
             current_user_avatar={current_user_avatar}
             round_id={roundId}
             messages={roundMessages}
@@ -171,6 +185,7 @@ function VirtualFeed({
   compact,
   current_agent_name,
   current_agent_avatar,
+  workspace_agent_id,
   current_user_avatar,
   agent_name_map,
   agent_avatar_map,
@@ -247,6 +262,7 @@ function VirtualFeed({
           const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
           const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
           const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
+          const round_workspace_agent_id = resolve_round_agent_id(roundMessages) ?? workspace_agent_id ?? null;
 
           return (
             <div
@@ -258,6 +274,7 @@ function VirtualFeed({
                 compact={compact}
                 current_agent_name={round_agent_name}
                 current_agent_avatar={round_agent_avatar}
+                workspace_agent_id={round_workspace_agent_id}
                 current_user_avatar={current_user_avatar}
                 round_id={roundId}
                 messages={roundMessages}

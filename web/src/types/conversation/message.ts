@@ -38,6 +38,25 @@ export interface ThinkingContent {
   signature?: string | null;
 }
 
+export interface ImageContent {
+  type: "image";
+  data?: string;
+  mime_type?: string | null;
+  alt?: string | null;
+  path?: string | null;
+  url?: string | null;
+  uri?: string | null;
+  source?: {
+    type?: string;
+    data?: string;
+    media_type?: string;
+    mime_type?: string;
+    url?: string;
+    uri?: string;
+    path?: string;
+  } | null;
+}
+
 export interface TaskProgressContent {
   type: "task_progress";
   task_id: string;
@@ -68,6 +87,7 @@ export type ContentBlock =
   | ToolUseContent
   | ToolResultContent
   | ThinkingContent
+  | ImageContent
   | TaskProgressContent
   | SystemEventContent;
 
@@ -225,6 +245,8 @@ export interface EventMessage {
     | "room_member_added"
     | "room_member_removed"
     | "room_deleted"
+    | "room_action"
+    | "room_action_consumed"
     | "room_resync_required"
     | "session_resync_required"
     | "chat_ack"

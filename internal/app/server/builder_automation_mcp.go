@@ -8,7 +8,7 @@ import (
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/agent"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 )
 
 // newAutomationMCPBuilder 返回 DM/Room 实时链路所需的 MCPServerBuilder。

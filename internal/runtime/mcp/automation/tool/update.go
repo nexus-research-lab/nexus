@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"

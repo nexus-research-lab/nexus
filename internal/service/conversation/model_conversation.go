@@ -3,8 +3,7 @@ package conversation
 import (
 	"context"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // UnifiedRequest 表示统一会话入站请求。
@@ -17,7 +16,7 @@ type UnifiedRequest struct {
 	RoundID           string
 	ReqID             string
 	PermissionMode    sdkpermission.Mode
-	PermissionHandler agentclient.PermissionHandler
+	PermissionHandler sdkpermission.Handler
 }
 
 // UnifiedInterruptRequest 表示统一中断请求。

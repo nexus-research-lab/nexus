@@ -22,6 +22,7 @@ function MessageItemInner({
   compact = false,
   current_agent_name,
   current_agent_avatar,
+  workspace_agent_id,
   current_user_avatar,
   on_edit_user_message,
   on_open_workspace_file,
@@ -67,6 +68,7 @@ function MessageItemInner({
         on_copy_user={state.handle_copy_user}
         on_edit_user_message={on_edit_user_message}
         on_open_workspace_file={on_open_workspace_file}
+        workspace_agent_id={workspace_agent_id}
       />
 
       <MessageAssistantSection
@@ -77,6 +79,7 @@ function MessageItemInner({
         permission_read_only_reason={permission_read_only_reason}
         on_permission_response={on_permission_response}
         on_open_workspace_file={on_open_workspace_file}
+        workspace_agent_id={workspace_agent_id}
         hidden_tool_names={hidden_tool_names}
         assistant_header_action={assistant_header_action}
         assistant_content_mode={assistant_content_mode}
@@ -95,6 +98,7 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.compact !== next.compact) return false;
   if (prev.current_agent_name !== next.current_agent_name) return false;
   if (prev.current_agent_avatar !== next.current_agent_avatar) return false;
+  if (prev.workspace_agent_id !== next.workspace_agent_id) return false;
   if (prev.current_user_avatar !== next.current_user_avatar) return false;
   if (prev.pending_permissions !== next.pending_permissions) return false;
   if (prev.can_respond_to_permissions !== next.can_respond_to_permissions) return false;

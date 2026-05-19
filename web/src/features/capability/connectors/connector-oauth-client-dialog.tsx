@@ -9,6 +9,7 @@ import {
   get_connector_oauth_client_api,
   upsert_connector_oauth_client_api,
 } from "@/lib/api/connector-api";
+import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
 import {
   DIALOG_ICON_BUTTON_CLASS_NAME,
   get_dialog_action_class_name,
@@ -133,7 +134,7 @@ export function ConnectorOAuthClientDialog({
               </a>{" "}
               新建 OAuth App，Callback URL 填：
               <code className="ml-1 rounded bg-(--surface-inset-background) px-1.5 py-0.5 text-[11px]">
-                {window.location.origin}/capability/connectors/oauth/callback
+                {get_connector_oauth_redirect_uri()}
               </code>
             </div>
           ) : null}

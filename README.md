@@ -1,75 +1,152 @@
-# Nexus Core
+<div align="center">
 
-Nexus Core is the main application repo for the Nexus stack.
+# Nexus
 
-## Development
+[![Go 1.26+](https://img.shields.io/badge/go-1.26+-00ADD8.svg)](https://go.dev/)
+[![Node.js 22+](https://img.shields.io/badge/node-22+-339933.svg)](https://nodejs.org/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-Common commands:
+<p align="center">
+  <a href="./README_zh.md">中文</a> | <strong>English</strong>
+</p>
 
-- `make dev` — run frontend and backend in development mode
-- `make check-private-sdk-access` — verify private Go SDK access before Go commands
-- `make check` — run Go checks, frontend lint, and frontend type checks
-- `make db-init` — run local database migrations
-- `make gen-protocol-types` — regenerate frontend protocol types from Go definitions
+</div>
 
-## Private Go SDK dependency
+---
 
-This repository depends on the private Go module:
+<div align="center">
+<img src="./docs/image/launcher.png" alt="Nexus workspace" width="90%">
+</div>
 
-- `github.com/nexus-research-lab/nexus-agent-sdk-go`
+---
 
-Before running Go checks or backend commands, configure Go to treat the org as private:
+In Nexus, AI agents work like colleagues.
 
-```bash
-go env -w GOPRIVATE=github.com/nexus-research-lab/*
-go env -w GONOSUMDB=github.com/nexus-research-lab/*
-```
+They have names, their own workspaces, and remember where you left off. You can create a room, pull in a few agents, and watch them discuss, divide tasks, and organize results around a problem. Or you can work with just one agent in a focused conversation.
 
-### Recommended setup: SSH access
+---
 
-Use SSH for private repository access:
+## Features
 
-```bash
-git config --global url."git@github.com:".insteadOf https://github.com/
-ssh -T git@github.com
-```
+- Agents have independent identities, workspaces, and skill configurations. Memory persists across sessions; work output accumulates over time
+- Rooms let multiple agents collaborate with you through @mentions, private actions, targeted replies, and multi-threaded workflows
+- Through heartbeat, scheduled tasks, and environment awareness, agents can proactively drive work forward instead of just responding
+- Skills extend capabilities; Connectors integrate external services (GitHub, Gmail, LinkedIn, X, Instagram, Shopify)
+- Supports web interface, Linux/Windows server deployment, and native macOS desktop app
 
-Then verify access:
+---
 
-```bash
-make check-private-sdk-access
-```
+## Quick Start
 
-### Alternative setup: PAT access
+### Install Claude Code
 
-If you use HTTPS, configure Git with a GitHub Personal Access Token that can read the private repositories under `nexus-research-lab`.
-
-One common approach is to use Git Credential Manager, the macOS keychain helper, or another credential helper that can supply the token non-interactively.
-
-After credentials are configured, verify access with:
+Nexus currently runs agents through `nexus-agent-sdk-bridge`, which launches Claude Code on the machine running the backend. Install Claude Code first and make sure `claude` is available in `PATH`.
 
 ```bash
-make check-private-sdk-access
+# macOS / Linux / WSL
+curl -fsSL https://claude.ai/install.sh | bash
+
+# Alternative npm install
+npm install -g @anthropic-ai/claude-code
 ```
 
-### If a failed checkout was cached
+On Windows PowerShell:
 
-If you previously tried with the wrong HTTPS or auth setup, clear the cached module checkout and retry:
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+Or install with WinGet:
+
+```powershell
+winget install Anthropic.ClaudeCode
+```
+
+After installation, run `claude` once and complete login. On native Windows, Git for Windows is recommended so Claude Code can use its Bash tool; without it, Claude Code falls back to PowerShell. See the [official Claude Code setup guide](https://code.claude.com/docs/en/getting-started) for the latest platform-specific instructions.
+
+### Run a Release Package
 
 ```bash
-go clean -modcache
-make check-private-sdk-access
+# Linux x86_64 example
+tar -xzf nexus-v0.1.4-linux-amd64.tar.gz
+cd nexus-v0.1.4-linux-amd64
+
+# Initialize database and create admin account
+./bin/nexus-migrate up
+printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin --password-stdin
+
+# Start
+./run-nexus
 ```
 
-If needed, rerun:
+Open `http://localhost:8010` and sign in.
+
+Windows packages include `run-nexus.cmd`:
+
+```bat
+bin\nexus-migrate.exe up
+echo your-password| bin\nexusctl.exe auth init-owner --username admin --password-stdin
+run-nexus.cmd
+```
+
+To upgrade a release package, open Settings in the Web UI and use the release download link. Download the matching package for your platform, stop Nexus, replace the extracted package directory, then run migration and start Nexus again.
+
+### Docker
 
 ```bash
-go env -w GOPRIVATE=github.com/nexus-research-lab/*
-go env -w GONOSUMDB=github.com/nexus-research-lab/*
+docker build -f deploy/Dockerfile -t nexus:latest .
+docker run -d \
+  -p 8010:8010 \
+  -v nexus-data:/home/agent/.nexus \
+  --name nexus \
+  nexus:latest
 ```
 
-### Local `replace` during SDK development
+Create the admin account:
 
-The main branch expects direct access to the private SDK repository.
+```bash
+printf '%s\n' 'your-password' | docker exec -i nexus nexusctl auth init-owner --username admin --password-stdin
+```
 
-If `go.mod` contains a local `replace github.com/nexus-research-lab/nexus-agent-sdk-go => /some/path`, remove that local replace before running the normal project checks on main.
+### Local Development
+
+```bash
+make install
+make dev
+```
+
+The backend starts at `http://localhost:8010`, the frontend dev server at `http://localhost:3000`. Both run independently with hot reload.
+
+Requirements: Go 1.26+, Node.js 22+, pnpm 9.15+, and Claude Code available as `claude`
+
+---
+
+## Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Agent** | A workspace member with identity, workspace, skills, and cross-session memory |
+| **Room** | A collaboration space where agents and humans work in a shared context |
+| **DM** | A persistent conversation with a single agent, preserving full runtime state |
+| **Workspace** | An isolated file directory where each agent stores its work output |
+| **Skill** | A capability extension installed on an agent — built-in or custom |
+| **Connector** | Manages OAuth app configurations and external service account connections |
+| **Main Agent** | A reserved system agent responsible for default entry and platform-level orchestration |
+
+---
+
+## Built-in Skills
+
+| Skill | Description |
+|-------|-------------|
+| `imagegen` | Generate images via an image-generation provider and save results to the workspace |
+| `nexus-manager` | Operate Nexus agents, rooms, sessions, and workspaces from an agent context |
+| `room-playbook` | Provide fixed rules and operation guides for room collaboration |
+| `scheduled-task-manager` | Manage scheduled tasks and heartbeat-style follow-up tasks |
+| `memory-manager` | Maintain project memory files through a structured workflow |
+
+---
+
+## License
+
+Apache License 2.0 · [LICENSE](./LICENSE)

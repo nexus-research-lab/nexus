@@ -11,8 +11,9 @@ import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircl
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './code-block';
-import { ToolResultContent, ToolUseContent } from '@/types/conversation/message';
-import { PermissionRiskLevel, PermissionUpdate } from '@/types/conversation/permission';
+import { ImageBlock } from "./image-block";
+import { type ImageContent, type ToolResultContent, type ToolUseContent } from '@/types/conversation/message';
+import { type PermissionRiskLevel, type PermissionUpdate } from '@/types/conversation/permission';
 
 interface ToolPermissionRequest {
   request_id: string;
@@ -35,6 +36,8 @@ interface ToolBlockProps {
   permission_request?: ToolPermissionRequest;
   interaction_disabled?: boolean;
   interaction_disabled_reason?: string;
+  on_open_workspace_file?: (path: string) => void;
+  workspace_agent_id?: string | null;
 }
 
 // ==================== 辅助函数 ====================
@@ -167,6 +170,14 @@ const get_result_summary = (content: any): string => {
   return 'JSON 数据';
 };
 
+function is_image_content(value: unknown): value is ImageContent {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    (value as { type?: unknown }).type === "image",
+  );
+}
+
 const TOOL_TONE_STYLES: Record<string, string> = {
   default: 'text-(--icon-muted)',
   error: 'text-(--destructive)',
@@ -205,6 +216,8 @@ export function ToolBlock({
   permission_request,
   interaction_disabled = false,
   interaction_disabled_reason,
+  on_open_workspace_file,
+  workspace_agent_id,
 }: ToolBlockProps) {
   const {
     is_open: isExpanded,
@@ -475,6 +488,25 @@ export function ToolBlock({
               <pre className="message-cjk-font px-0 py-0 text-xs whitespace-pre-wrap break-all text-(--text-strong)">
                 {tool_result.content}
               </pre>
+            ) : Array.isArray(tool_result.content) && tool_result.content.some(is_image_content) ? (
+              <div className="space-y-2">
+                {tool_result.content.map((item, index) => (
+                  is_image_content(item) ? (
+                    <ImageBlock
+                      key={`tool-result-image-${index}`}
+                      block={item}
+                      on_open_workspace_file={on_open_workspace_file}
+                      workspace_agent_id={workspace_agent_id}
+                    />
+                  ) : (
+                    <CodeBlock
+                      key={`tool-result-json-${index}`}
+                      language="json"
+                      value={JSON.stringify(item, null, 2)}
+                    />
+                  )
+                ))}
+              </div>
             ) : (
               <CodeBlock language="json" value={JSON.stringify(tool_result.content, null, 2)} />
             )}

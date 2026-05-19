@@ -16,7 +16,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type stubAgentResolver struct {
@@ -279,6 +279,9 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	if sessionValue == nil {
 		t.Fatalf("测试 session 不存在")
 	}
+	if sessionValue.Status != "closed" || sessionValue.IsActive {
+		t.Fatalf("channel delivery 不应把空闲 session 标成 active: %+v", sessionValue)
+	}
 	history := workspacestore.NewAgentHistoryStore(workspacePath)
 	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {
@@ -401,7 +404,7 @@ func TestNewRouterHonorsChannelEnabledFlags(t *testing.T) {
 func newChannelTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_")))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_")))
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

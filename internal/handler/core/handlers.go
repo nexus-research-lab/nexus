@@ -9,6 +9,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -49,6 +50,11 @@ func (h *Handlers) HandleHealth(writer http.ResponseWriter, request *http.Reques
 			"status": "ok",
 		},
 	})
+}
+
+// HandleSystemVersion 返回当前二进制版本信息。
+func (h *Handlers) HandleSystemVersion(writer http.ResponseWriter, request *http.Request) {
+	h.api.WriteSuccess(writer, versionpkg.Current())
 }
 
 // HandleRuntimeOptions 返回前端启动所需运行时选项。

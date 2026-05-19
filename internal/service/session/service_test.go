@@ -20,8 +20,8 @@ import (
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestSessionServiceLifecycle(t *testing.T) {
@@ -224,6 +224,73 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 	}
 	if _, exists := messages[1]["stream_status"]; exists {
 		t.Fatalf("活跃 round 不应把 assistant 快照强制终止: %+v", messages[1])
+	}
+}
+
+func TestSessionServiceReconcilesStaleActiveWorkspaceMeta(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	runtimeManager := runtimectx.NewManager()
+	sessionService.SetRuntimeManager(runtimeManager)
+
+	ctx := context.Background()
+	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "残留活跃状态助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "stale-"+agentA.AgentID, "")
+	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey})
+	if err != nil {
+		t.Fatalf("创建 session 失败: %v", err)
+	}
+	if created.Status != "closed" || created.IsActive {
+		t.Fatalf("新建空闲 session 应为 closed: %+v", created)
+	}
+
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	created.Status = "active"
+	created.IsActive = true
+	if _, err := store.UpsertSession(agentA.WorkspacePath, *created); err != nil {
+		t.Fatalf("写入残留 active meta 失败: %v", err)
+	}
+
+	reconciled, err := sessionService.GetSession(ctx, dmKey)
+	if err != nil {
+		t.Fatalf("读取 session 失败: %v", err)
+	}
+	if reconciled.Status != "closed" || reconciled.IsActive {
+		t.Fatalf("无运行 round 时应纠正为 closed: %+v", reconciled)
+	}
+	persisted, _, err := store.FindSession([]string{agentA.WorkspacePath}, dmKey)
+	if err != nil {
+		t.Fatalf("读取持久化 meta 失败: %v", err)
+	}
+	if persisted == nil || persisted.Status != "closed" || persisted.IsActive {
+		t.Fatalf("残留 active meta 未持久化纠正: %+v", persisted)
+	}
+
+	runtimeManager.StartRound(dmKey, "round_running", nil)
+	active, err := sessionService.GetSession(ctx, dmKey)
+	if err != nil {
+		t.Fatalf("读取运行中 session 失败: %v", err)
+	}
+	if active.Status != "active" || !active.IsActive {
+		t.Fatalf("有运行 round 时应回到 active: %+v", active)
+	}
+	runtimeManager.MarkRoundFinished(dmKey, "round_running")
+
+	agentSessions, err := sessionService.ListAgentSessions(ctx, agentA.AgentID)
+	if err != nil {
+		t.Fatalf("读取 agent sessions 失败: %v", err)
+	}
+	if len(agentSessions) != 1 || agentSessions[0].Status != "closed" || agentSessions[0].IsActive {
+		t.Fatalf("运行 round 结束后列表应纠正为 closed: %+v", agentSessions)
 	}
 }
 
@@ -634,7 +701,7 @@ func stringPointer(value string) *string {
 func migrateSessionSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

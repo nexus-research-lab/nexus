@@ -12,10 +12,10 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type dmRoundMapperAdapter struct {
@@ -57,7 +57,7 @@ type roundRunner struct {
 	ownerUserID       string
 	mapper            *dmdomain.MessageMapper
 	permissionMode    sdkpermission.Mode
-	permissionHandler agentclient.PermissionHandler
+	permissionHandler sdkpermission.Handler
 }
 
 func (r *roundRunner) run(ctx context.Context) {
@@ -88,13 +88,14 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 	}
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+	r.dispatchNextInputQueueItem()
 }
 
 func (r *roundRunner) executeRound(
@@ -109,7 +110,19 @@ func (r *roundRunner) executeRound(
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			logger.Debug("Agent ", runtimectx.BuildSDKMessageLogFields(incoming)...)
+			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
+				return
+			}
+			logger.Debug(
+				"Agent ",
+				runtimectx.BuildSDKMessageLogFieldsWithOptions(
+					incoming,
+					runtimectx.SDKMessageLogOptions{
+						IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
+						IncludeSnapshotData: true,
+					},
+				)...,
+			)
 		},
 		SyncSessionID: func(sessionID string) error {
 			updatedSession, syncErr := r.service.syncSDKSessionID(
@@ -207,6 +220,7 @@ func (r *roundRunner) failRound(err error) {
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
 	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
+	r.refreshSessionMetaAfterRoundFinished()
 	errorEvent.AgentID = r.agent.AgentID
 	errorEvent.CausedBy = r.roundID
 	if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
@@ -219,7 +233,7 @@ func (r *roundRunner) failRound(err error) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "error", "error"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+	r.dispatchNextInputQueueItem()
 }
 
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
@@ -307,13 +321,28 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		event.DeliveryMode = "durable"
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
+	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	go r.service.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), r.ownerUserID), r.sessionKey, r.agent.AgentID)
+	r.dispatchNextInputQueueItem()
+}
+
+func (r *roundRunner) dispatchNextInputQueueItem() {
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: r.workspacePath,
+		SessionKey:    r.sessionKey,
+	}
+	go r.service.dispatchNextInputQueueItemAtLocation(
+		contextWithQueueOwner(context.Background(), r.ownerUserID),
+		r.sessionKey,
+		r.agent.AgentID,
+		location,
+	)
 }
 
 func (r *roundRunner) persistMessage(message protocol.Message) error {
@@ -329,6 +358,22 @@ func (r *roundRunner) persistMessage(message protocol.Message) error {
 		r.session = *updated
 	}
 	return nil
+}
+
+func (r *roundRunner) refreshSessionMetaAfterRoundFinished() {
+	updated, err := r.service.refreshSessionMetaRuntimeState(r.workspacePath, r.session)
+	if err != nil {
+		r.service.loggerFor(context.Background()).Error("DM round 结束后刷新 session meta 失败",
+			"session_key", r.sessionKey,
+			"agent_id", r.agent.AgentID,
+			"round_id", r.roundID,
+			"err", err,
+		)
+		return
+	}
+	if updated != nil {
+		r.session = *updated
+	}
 }
 
 func (r *roundRunner) recordUsage(message protocol.Message) {

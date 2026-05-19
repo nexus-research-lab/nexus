@@ -74,6 +74,15 @@ function resolve_round_agent_avatar(
   return undefined;
 }
 
+/** Markdown 中的 workspace 文件按产出它的 Agent workspace 下载。 */
+function resolve_round_agent_id(messages: Message[]): string | null {
+  const assistant_msg = messages.find((message) => message.role === "assistant");
+  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
+    return assistant_msg.agent_id;
+  }
+  return null;
+}
+
 export const GroupConversationFeed = memo(function GroupConversationFeed({
   bottom_anchor_ref,
   feed_ref,
@@ -170,12 +179,14 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         // 纯用户轮次或尚未分配到 Agent 的轮次，沿用 MessageItem。
         const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
         const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
+        const round_workspace_agent_id = resolve_round_agent_id(roundMessages);
         return (
           <MessageItem
             key={roundId}
             compact={compact}
             current_agent_name={round_agent_name}
             current_agent_avatar={round_agent_avatar}
+            workspace_agent_id={round_workspace_agent_id}
             current_user_avatar={current_user_avatar}
             round_id={roundId}
             messages={roundMessages}
@@ -313,6 +324,7 @@ function VirtualFeed({
                   compact={compact}
                   current_agent_name={resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name}
                   current_agent_avatar={resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar}
+                  workspace_agent_id={resolve_round_agent_id(roundMessages)}
                   current_user_avatar={current_user_avatar}
                   round_id={roundId}
                   messages={roundMessages}

@@ -69,7 +69,7 @@ func BuildDefaultMainAgentRecord(cfg config.Config, ownerUserID string) agentrep
 		ownerUserID,
 		name,
 		agentID,
-		ResolveWorkspacePath(cfg, ownerUserID, name),
+		ResolveWorkspacePath(cfg, ownerUserID, agentID),
 		"active",
 		true,
 	)

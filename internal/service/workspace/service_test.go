@@ -3,9 +3,11 @@ package workspace
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,15 +17,15 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -44,17 +46,49 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
-	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "room-collaboration", "SKILL.md")); err != nil {
-		t.Fatalf("系统托管 room-collaboration skill 未部署: %v", err)
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
+		t.Fatalf("系统托管 imagegen skill 未部署: %v", err)
+	}
+	nexusctlShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")
+	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
+		t.Fatalf("nexusctl shim 未生成: %v", statErr)
+	} else if info.Mode()&0o111 == 0 {
+		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
+	}
+	nexusctlCmdShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl.cmd")
+	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
+	if err != nil {
+		t.Fatalf("Windows nexusctl shim 未生成: %v", err)
+	}
+	if !strings.Contains(string(cmdPayload), "nexusctl.exe") {
+		t.Fatalf("Windows nexusctl shim 未查找 exe: %s", cmdPayload)
+	}
+	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
+	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {
+		t.Fatalf("创建 stale imagegen 目录失败: %v", err)
+	}
+	if err = os.WriteFile(staleImagegenScript, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("写入 stale imagegen 脚本失败: %v", err)
+	}
+	if err = EnsureInitialized(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.IsMain, agentValue.CreatedAt); err != nil {
+		t.Fatalf("重新初始化 workspace 失败: %v", err)
+	}
+	if _, err = os.Stat(staleImagegenScript); !os.IsNotExist(err) {
+		t.Fatalf("系统托管 skill 同步后应删除已移除脚本: %v", err)
 	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")); err != nil {
 		t.Fatalf("系统托管 scheduled-task-manager skill 未部署: %v", err)
 	}
-	claudeSkillLink := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "room-collaboration")
+	claudeSkillLink := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "scheduled-task-manager")
 	if info, statErr := os.Lstat(claudeSkillLink); statErr != nil {
-		t.Fatalf("room-collaboration skill 的 Claude 链接未生成: %v", statErr)
+		t.Fatalf("scheduled-task-manager skill 的 Claude 链接未生成: %v", statErr)
 	} else if info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("room-collaboration skill 的 Claude 入口应为符号链接: %s", claudeSkillLink)
+		if !info.IsDir() {
+			t.Fatalf("scheduled-task-manager skill 的 Claude 入口应为符号链接或镜像目录: %s", claudeSkillLink)
+		}
+		if _, err = os.Stat(filepath.Join(claudeSkillLink, "SKILL.md")); err != nil {
+			t.Fatalf("scheduled-task-manager skill 的 Claude 镜像目录缺少 SKILL.md: %v", err)
+		}
 	}
 
 	updated, err := workspaceService.UpdateFile(ctx, agentValue.AgentID, "notes/todo.md", "hello workspace")
@@ -96,11 +130,66 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 }
 
+func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testing.T) {
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(filepath.Join(sourceDir, "scripts"), 0o755); err != nil {
+		t.Fatalf("创建 skill 源目录失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "SKILL.md"), []byte("# {agent_name}\n"), 0o644); err != nil {
+		t.Fatalf("写入 skill 模板失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "scripts", "run.txt"), []byte("ok"), 0o644); err != nil {
+		t.Fatalf("写入 skill 附件失败: %v", err)
+	}
+
+	originalCreateSymlink := createSymlink
+	createSymlink = func(string, string) error {
+		return errors.New("symlink unavailable")
+	}
+	t.Cleanup(func() {
+		createSymlink = originalCreateSymlink
+	})
+
+	workspacePath := filepath.Join(t.TempDir(), "workspace")
+	renderContext := map[string]string{
+		"agent_name":   "测试助手",
+		"project_root": "/tmp/nexus",
+		"workspace":    workspacePath,
+	}
+	if err := DeploySkill("demo-skill", sourceDir, workspacePath, renderContext); err != nil {
+		t.Fatalf("部署 skill fallback 失败: %v", err)
+	}
+
+	claudeSkillDir := filepath.Join(workspacePath, ".claude", "skills", "demo-skill")
+	if info, err := os.Lstat(claudeSkillDir); err != nil {
+		t.Fatalf("Claude skill 镜像目录未生成: %v", err)
+	} else if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		t.Fatalf("Claude skill fallback 应生成普通目录: mode=%s", info.Mode())
+	}
+	payload, err := os.ReadFile(filepath.Join(claudeSkillDir, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("读取 Claude skill 镜像失败: %v", err)
+	}
+	if !strings.Contains(string(payload), "测试助手") {
+		t.Fatalf("Claude skill 镜像未渲染模板: %s", payload)
+	}
+	if _, err = os.Stat(filepath.Join(workspacePath, ".agents", "skills", "demo-skill", "scripts", "run.txt")); err != nil {
+		t.Fatalf(".agents skill 副本不完整: %v", err)
+	}
+
+	if err = UndeploySkill(workspacePath, "demo-skill"); err != nil {
+		t.Fatalf("卸载 fallback skill 失败: %v", err)
+	}
+	if _, err = os.Stat(claudeSkillDir); !os.IsNotExist(err) {
+		t.Fatalf("卸载后 Claude skill 镜像应被删除: %v", err)
+	}
+}
+
 func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -209,7 +298,7 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 func migrateWorkspaceSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

@@ -34,6 +34,7 @@ func (h *Handlers) HandleListSkills(writer http.ResponseWriter, request *http.Re
 		AgentID:     request.URL.Query().Get("agent_id"),
 		CategoryKey: request.URL.Query().Get("category_key"),
 		SourceType:  request.URL.Query().Get("source_type"),
+		Scope:       request.URL.Query().Get("scope"),
 		Q:           request.URL.Query().Get("q"),
 	})
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {

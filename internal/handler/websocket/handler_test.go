@@ -2,6 +2,7 @@ package websocket_test
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -57,6 +58,41 @@ func TestWebSocketSessionBindingAndControl(t *testing.T) {
 	if first.EventType != protocol.EventTypeSessionStatus {
 		t.Fatalf("应收到 session_status，实际: %+v", first)
 	}
+}
+
+func TestWebSocketDesktopSessionToken(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	cfg.DesktopSessionToken = "desktop-token"
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, response, err := websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "unexpected success")
+		t.Fatal("缺少桌面 token 的 websocket 不应连接成功")
+	}
+	if response == nil || response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("缺少桌面 token 应返回 401，response=%v err=%v", response, err)
+	}
+
+	conn, _, err = websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		Subprotocols: []string{"nexus.desktop.v1", "nexus.desktop.token.desktop-token"},
+	})
+	if err != nil {
+		t.Fatalf("带桌面 token 的 websocket 应连接成功: %v", err)
+	}
+	_ = conn.Close(websocket.StatusNormalClosure, "test done")
 }
 
 func readEventMessage(t *testing.T, conn *websocket.Conn) protocol.EventMessage {

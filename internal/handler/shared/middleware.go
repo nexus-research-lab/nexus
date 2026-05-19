@@ -3,6 +3,7 @@ package shared
 import (
 	"bufio"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -16,6 +17,20 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+)
+
+const (
+	// DesktopSessionTokenHeader 是桌面 shell 注入到 HTTP API 请求里的本地会话凭据。
+	DesktopSessionTokenHeader = "X-Nexus-Desktop-Token"
+
+	// DesktopSessionTokenCookie 是 WKWebView WebSocket 握手使用的本地会话凭据。
+	DesktopSessionTokenCookie = "nexus_desktop_token"
+
+	// DesktopWebSocketSubprotocol 是桌面 WebSocket 握手协商出的非敏感子协议。
+	DesktopWebSocketSubprotocol = "nexus.desktop.v1"
+
+	// DesktopSessionTokenProtocolPrefix 是 WebSocket 握手使用的子协议 token 前缀。
+	DesktopSessionTokenProtocolPrefix = "nexus.desktop.token."
 )
 
 // responseRecorder 负责在不破坏 websocket/hijack 能力的前提下记录状态码和字节数。
@@ -167,6 +182,25 @@ func RecoverMiddleware(api *API) func(http.Handler) http.Handler {
 	}
 }
 
+// DesktopSessionTokenMiddleware 校验桌面 App 本地 API 面的一次性会话 token。
+func DesktopSessionTokenMiddleware(api *API, token string, apiPrefix string) func(http.Handler) http.Handler {
+	expectedToken := strings.TrimSpace(token)
+	normalizedAPIPrefix := normalizeAPIPrefix(apiPrefix)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if expectedToken == "" || desktopSessionTokenBypass(request, normalizedAPIPrefix) {
+				next.ServeHTTP(writer, request)
+				return
+			}
+			if !validDesktopSessionToken(request, expectedToken) {
+				api.WriteFailure(writer, http.StatusUnauthorized, "桌面会话 token 无效")
+				return
+			}
+			next.ServeHTTP(writer, request)
+		})
+	}
+}
+
 // AuthMiddleware 把认证状态写入请求上下文。
 func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -195,6 +229,74 @@ func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Han
 			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}
+}
+
+func normalizeAPIPrefix(prefix string) string {
+	value := strings.TrimSpace(prefix)
+	if value == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	if len(value) > 1 {
+		value = strings.TrimRight(value, "/")
+	}
+	return value
+}
+
+func desktopSessionTokenBypass(request *http.Request, apiPrefix string) bool {
+	if request == nil {
+		return true
+	}
+	if request.Method == http.MethodOptions {
+		return true
+	}
+	path := strings.TrimSpace(request.URL.Path)
+	if path != apiPrefix && !strings.HasPrefix(path, apiPrefix+"/") {
+		return true
+	}
+	switch path {
+	case apiPrefix + "/health",
+		apiPrefix + "/system/version":
+		return true
+	}
+	if strings.HasPrefix(path, apiPrefix+"/internal/") {
+		return true
+	}
+	return false
+}
+
+func validDesktopSessionToken(request *http.Request, expectedToken string) bool {
+	providedToken := strings.TrimSpace(request.Header.Get(DesktopSessionTokenHeader))
+	if providedToken == "" {
+		providedToken = desktopSessionTokenFromProtocolHeader(request.Header.Get("Sec-WebSocket-Protocol"))
+	}
+	if providedToken == "" {
+		providedToken = desktopSessionTokenFromCookie(request)
+	}
+	if providedToken == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) == 1
+}
+
+func desktopSessionTokenFromProtocolHeader(rawHeader string) string {
+	for _, part := range strings.Split(rawHeader, ",") {
+		value := strings.TrimSpace(part)
+		if strings.HasPrefix(value, DesktopSessionTokenProtocolPrefix) {
+			return strings.TrimPrefix(value, DesktopSessionTokenProtocolPrefix)
+		}
+	}
+	return ""
+}
+
+func desktopSessionTokenFromCookie(request *http.Request) string {
+	cookie, err := request.Cookie(DesktopSessionTokenCookie)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cookie.Value)
 }
 
 // ClientIP 返回请求来源 IP。

@@ -12,8 +12,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestAuthAndUserCommands(t *testing.T) {
@@ -265,6 +265,8 @@ func newCLITestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18032,
@@ -281,7 +283,7 @@ func newCLITestConfig(t *testing.T) config.Config {
 func migrateCLISQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开 CLI 测试数据库失败: %v", err)
 	}

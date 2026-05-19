@@ -2,16 +2,22 @@ package clientopts
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
+
+// NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
+const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
 const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
@@ -26,7 +32,7 @@ type AgentClientOptionsInput struct {
 	WorkspacePath      string
 	Provider           string
 	PermissionMode     sdkpermission.Mode
-	PermissionHandler  agentclient.PermissionHandler
+	PermissionHandler  sdkpermission.Handler
 	AllowedTools       []string
 	DisallowedTools    []string
 	SettingSources     []string
@@ -35,6 +41,7 @@ type AgentClientOptionsInput struct {
 	MaxThinkingTokens  *int
 	MaxTurns           *int
 	MCPServers         map[string]sdkmcp.SDKMCPServer
+	ExtraEnv           map[string]string
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -48,7 +55,9 @@ func BuildAgentClientOptions(
 		return agentclient.Options{}, err
 	}
 	runtimeEnv := runtimeEnvFromConfig(runtimeConfig)
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 
 	permissionMode := input.PermissionMode
 	if permissionMode == "" {
@@ -57,7 +66,7 @@ func BuildAgentClientOptions(
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
 
 	options := agentclient.Options{
-		Backend:                agentclient.ProcessBackend(agentclient.ProcessBackendOptions{}),
+		Backend:                agentclient.ProcessBackend(agentclient.ProcessOptions{}),
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
@@ -72,7 +81,7 @@ func BuildAgentClientOptions(
 		Runtime: agentclient.RuntimeOptions{
 			PermissionMode: permissionMode,
 		},
-		Adapters: agentclient.AdapterOptions{
+		Callbacks: agentclient.CallbackOptions{
 			PermissionHandler: permissionHandler,
 		},
 	}
@@ -96,8 +105,8 @@ func BuildAgentClientOptions(
 
 func permissionHandlerForMode(
 	permissionMode sdkpermission.Mode,
-	handler agentclient.PermissionHandler,
-) agentclient.PermissionHandler {
+	handler sdkpermission.Handler,
+) sdkpermission.Handler {
 	if permissionMode != sdkpermission.ModeBypassPermissions || handler == nil {
 		return handler
 	}
@@ -148,6 +157,7 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
 		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
+		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 	}
 	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
 		env["ENABLE_TOOL_SEARCH"] = "false"
@@ -201,6 +211,24 @@ func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
 		}
 	}
 	return nil
+}
+
+func workspaceRuntimeEnv(workspacePath string) map[string]string {
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	if trimmedWorkspacePath == "" {
+		return nil
+	}
+	binDir := filepath.Join(trimmedWorkspacePath, ".agents", "bin")
+	env := map[string]string{
+		"NEXUS_PROJECT_ROOT": strings.TrimSpace(appfs.Root()),
+	}
+	currentPath := strings.TrimSpace(os.Getenv("PATH"))
+	if currentPath == "" {
+		env["PATH"] = binDir
+	} else {
+		env["PATH"] = binDir + string(os.PathListSeparator) + currentPath
+	}
+	return env
 }
 
 func mergeRuntimeEnv(

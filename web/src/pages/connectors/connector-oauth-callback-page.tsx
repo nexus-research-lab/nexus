@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
+import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
 import { complete_connector_o_auth_api } from "@/lib/api/connector-api";
 
 /** OAuth 回调专用页面，位于弹窗内，负责把结果回传给 opener 并自行关闭。 */
@@ -44,7 +45,7 @@ export function ConnectorOAuthCallbackPage() {
       return;
     }
 
-    complete_connector_o_auth_api(code, state, `${window.location.origin}${location.pathname}`)
+    complete_connector_o_auth_api(code, state, get_connector_oauth_redirect_uri())
       .then(() => post_and_close("connector-oauth:success", "连接成功"))
       .catch((err: unknown) => {
         const text = err instanceof Error ? err.message : "OAuth 连接失败";

@@ -2,76 +2,83 @@ package agent
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-func (s *Service) syncWorkspacePath(currentPath string, targetPath string) error {
-	source := strings.TrimSpace(currentPath)
-	target := strings.TrimSpace(targetPath)
-	if source == "" || target == "" || source == target {
-		if target == "" {
-			return nil
+const maxAgentIDWorkspaceAttempts = 8
+
+func (s *Service) createAgentWorkspacePath(ownerUserID string) (string, string, error) {
+	for range maxAgentIDWorkspaceAttempts {
+		agentID := NewAgentID()
+		workspacePath := ResolveWorkspacePath(s.config, ownerUserID, agentID)
+		if err := os.Mkdir(workspacePath, 0o755); err == nil {
+			return agentID, workspacePath, nil
+		} else if err != nil {
+			if errors.Is(err, os.ErrExist) {
+				continue
+			}
+			return "", "", err
 		}
-		return os.MkdirAll(target, 0o755)
 	}
-	sourceInfo, err := os.Stat(source)
-	if os.IsNotExist(err) {
-		return os.MkdirAll(target, 0o755)
-	} else if err != nil {
-		return err
-	}
-	if targetInfo, err := os.Stat(target); err == nil {
-		if os.SameFile(sourceInfo, targetInfo) {
-			return renameWorkspacePath(source, target)
-		}
-		return errors.New("目标工作区目录已存在")
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
-	}
-	return renameWorkspacePath(source, target)
+	return "", "", fmt.Errorf("无法生成可用的 agent 工作区目录")
 }
 
-func sameWorkspacePath(left string, right string) (bool, error) {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if left == "" || right == "" {
+func syncWorkspaceAgentIdentity(workspacePath string, agentID string, oldName string, newName string) (bool, error) {
+	if NormalizeName(oldName) == NormalizeName(newName) {
 		return false, nil
 	}
-	if filepath.Clean(left) == filepath.Clean(right) {
-		return true, nil
+	workspacePath = strings.TrimSpace(workspacePath)
+	if workspacePath == "" || strings.TrimSpace(agentID) == "" {
+		return false, nil
 	}
-	leftInfo, err := os.Stat(left)
+	agentsPath := filepath.Join(workspacePath, "AGENTS.md")
+	content, err := os.ReadFile(agentsPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
 	if err != nil {
+		return false, err
+	}
+
+	nextContent, changed := replaceWorkspaceAgentIdentityLine(string(content), agentID, oldName, newName)
+	if !changed {
 		return false, nil
 	}
-	rightInfo, err := os.Stat(right)
+	info, err := os.Stat(agentsPath)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
-	return os.SameFile(leftInfo, rightInfo), nil
+	return true, os.WriteFile(agentsPath, []byte(nextContent), info.Mode())
 }
 
-func renameWorkspacePath(source string, target string) error {
-	if filepath.Clean(source) == filepath.Clean(target) {
-		return os.MkdirAll(target, 0o755)
-	}
-	if err := os.Rename(source, target); err == nil {
-		return nil
-	}
+func rollbackWorkspaceAgentIdentity(workspacePath string, agentID string, oldName string, newName string) error {
+	_, err := syncWorkspaceAgentIdentity(workspacePath, agentID, oldName, newName)
+	return err
+}
 
-	parent := filepath.Dir(target)
-	temporaryPath := filepath.Join(parent, "."+filepath.Base(target)+".rename-"+NewAgentID())
-	if err := os.Rename(source, temporaryPath); err != nil {
-		return err
+func replaceWorkspaceAgentIdentityLine(content string, agentID string, oldName string, newName string) (string, bool) {
+	oldLine := workspaceAgentIdentityLine(oldName, agentID)
+	newLine := workspaceAgentIdentityLine(newName, agentID)
+	lines := strings.SplitAfter(content, "\n")
+	for index, line := range lines {
+		body := strings.TrimRight(line, "\r\n")
+		ending := strings.TrimPrefix(line, body)
+		if body == oldLine || isWorkspaceAgentIdentityLine(body, agentID) {
+			lines[index] = newLine + ending
+			return strings.Join(lines, ""), true
+		}
 	}
-	if err := os.Rename(temporaryPath, target); err != nil {
-		_ = os.Rename(temporaryPath, source)
-		return err
-	}
-	return nil
+	return content, false
+}
+
+func workspaceAgentIdentityLine(agentName string, agentID string) string {
+	return fmt.Sprintf("当前 Agent 标识：%s（%s）", NormalizeName(agentName), strings.TrimSpace(agentID))
+}
+
+func isWorkspaceAgentIdentityLine(line string, agentID string) bool {
+	return strings.HasPrefix(line, "当前 Agent 标识：") &&
+		strings.Contains(line, "（"+strings.TrimSpace(agentID)+"）")
 }

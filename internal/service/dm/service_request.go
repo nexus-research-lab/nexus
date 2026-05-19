@@ -16,9 +16,9 @@ import (
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-go/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-go/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // HandleChat 处理一条 DM 写请求。
@@ -128,6 +128,14 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy); err != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
+		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
+			s.loggerFor(ctx).Warn("DM 轮次标记失败后刷新 session meta 失败",
+				"session_key", sessionKey,
+				"agent_id", agentID,
+				"round_id", request.RoundID,
+				"err", closeErr,
+			)
+		}
 		s.permission.CancelRequestsForSession(sessionKey, "轮次标记持久化失败")
 		s.loggerFor(ctx).Error("DM 轮次标记持久化失败",
 			"session_key", sessionKey,
@@ -140,6 +148,14 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 	if updatedSession, syncErr := s.refreshSessionMetaAfterRoundMarker(runner.workspacePath, runner.session); syncErr != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
+		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
+			s.loggerFor(ctx).Warn("DM 轮次元数据失败后刷新 session meta 失败",
+				"session_key", sessionKey,
+				"agent_id", agentID,
+				"round_id", request.RoundID,
+				"err", closeErr,
+			)
+		}
 		s.permission.CancelRequestsForSession(sessionKey, "会话元数据持久化失败")
 		s.loggerFor(ctx).Error("DM 轮次元数据持久化失败",
 			"session_key", sessionKey,
@@ -285,9 +301,38 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
 	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey, resultText)
 	if err != nil {
-		return err
+		if len(roundIDs) == 0 {
+			return err
+		}
+		s.loggerFor(ctx).Warn("DM 中断运行态失败，按失效进程清理",
+			"session_key", sessionKey,
+			"round_ids", roundIDs,
+			"err", err,
+		)
+		if closeErr := s.runtime.CloseSession(context.Background(), sessionKey); closeErr != nil {
+			s.loggerFor(ctx).Warn("DM 清理失效运行态 client 失败",
+				"session_key", sessionKey,
+				"err", closeErr,
+			)
+		}
+		s.permission.CancelRequestsForSession(sessionKey, resultText)
+		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
+			s.loggerFor(ctx).Warn("DM 中断失败后刷新 session meta 失败",
+				"session_key", sessionKey,
+				"err", closeErr,
+			)
+		}
+		s.broadcastSessionStatus(ctx, sessionKey)
+		return nil
 	}
 	if len(roundIDs) == 0 {
+		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
+			s.loggerFor(ctx).Warn("DM 中断空闲会话后刷新 session meta 失败",
+				"session_key", sessionKey,
+				"err", closeErr,
+			)
+		}
+		s.broadcastSessionStatus(ctx, sessionKey)
 		return nil
 	}
 	s.loggerFor(ctx).Warn("中断 DM 会话运行轮次",
@@ -296,6 +341,12 @@ func (s *Service) interruptSession(ctx context.Context, sessionKey string, resul
 		"reason", resultText,
 	)
 	s.permission.CancelRequestsForSession(sessionKey, resultText)
+	if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
+		s.loggerFor(ctx).Warn("DM 中断后刷新 session meta 失败",
+			"session_key", sessionKey,
+			"err", closeErr,
+		)
+	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	return nil
 }
@@ -360,12 +411,22 @@ func (s *Service) ensureClient(
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
 	}, sessionItem)
-	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, agentValue.Options.Provider, options)
+	runtimeProvider := resolvedRuntimeProvider(agentValue.Options.Provider, options)
+	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
 		return nil, "", "", err
 	}
-	return client, strings.TrimSpace(agentValue.Options.Provider), strings.TrimSpace(options.Model), nil
+	return client, runtimeProvider, strings.TrimSpace(options.Model), nil
+}
+
+func resolvedRuntimeProvider(provider string, options agentclient.Options) string {
+	if options.Env != nil {
+		if resolved := strings.TrimSpace(options.Env[clientopts.NexusRuntimeProviderEnvName]); resolved != "" {
+			return resolved
+		}
+	}
+	return strings.TrimSpace(provider)
 }
 
 func (s *Service) resolveReusableSDKSessionID(
@@ -381,31 +442,56 @@ func (s *Service) resolveReusableSDKSessionID(
 	}
 	expectedProvider := strings.TrimSpace(provider)
 	expectedModel := strings.TrimSpace(options.Model)
-	actualProvider, _ := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
-	actualModel, _ := sessionItem.Options[protocol.OptionRuntimeModel].(string)
-	if strings.TrimSpace(actualProvider) == expectedProvider && strings.TrimSpace(actualModel) == expectedModel {
+	actualProvider, hasProviderFingerprint := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
+	actualModel, hasModelFingerprint := sessionItem.Options[protocol.OptionRuntimeModel].(string)
+	actualProvider = strings.TrimSpace(actualProvider)
+	actualModel = strings.TrimSpace(actualModel)
+	hasFingerprint := hasProviderFingerprint || hasModelFingerprint
+	if hasFingerprint &&
+		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
+		(!hasModelFingerprint || actualModel == expectedModel) {
+		if !hasProviderFingerprint || !hasModelFingerprint {
+			s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedProvider, expectedModel)
+		}
+		return resumeID
+	}
+	if !hasFingerprint {
+		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedProvider, expectedModel)
 		return resumeID
 	}
 	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过过期 SDK session resume",
 		"session_key", sessionItem.SessionKey,
-		"old_provider", strings.TrimSpace(actualProvider),
+		"old_provider", actualProvider,
 		"new_provider", expectedProvider,
-		"old_model", strings.TrimSpace(actualModel),
+		"old_model", actualModel,
 		"new_model", expectedModel,
 	)
-	sessionItem.SessionID = nil
+	s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedProvider, expectedModel)
+	return ""
+}
+
+func (s *Service) persistSDKSessionFingerprint(
+	ctx context.Context,
+	workspacePath string,
+	sessionItem protocol.Session,
+	clearSessionID bool,
+	provider string,
+	model string,
+) {
+	if clearSessionID {
+		sessionItem.SessionID = nil
+	}
 	if sessionItem.Options == nil {
 		sessionItem.Options = map[string]any{}
 	}
-	sessionItem.Options[protocol.OptionRuntimeProvider] = expectedProvider
-	sessionItem.Options[protocol.OptionRuntimeModel] = expectedModel
+	sessionItem.Options[protocol.OptionRuntimeProvider] = strings.TrimSpace(provider)
+	sessionItem.Options[protocol.OptionRuntimeModel] = strings.TrimSpace(model)
 	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
 		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
 			"session_key", sessionItem.SessionKey,
 			"err", err,
 		)
 	}
-	return ""
 }
 
 func (s *Service) acquireRuntimeClient(

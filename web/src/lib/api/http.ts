@@ -8,6 +8,7 @@
  */
 
 import { ApiResponse } from "@/types/system/api";
+import { apply_desktop_request_headers } from "@/config/desktop-runtime";
 
 export const AUTH_REQUIRED_EVENT = "nexus:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -298,6 +299,7 @@ export async function request_api<T>(
     ...request_init
   } = init ?? {};
   const { body, headers } = normalize_request_payload(init);
+  apply_desktop_request_headers(input, headers);
   const { signal, cleanup, did_timeout } = build_abort_signal(
     init?.signal,
     timeout_ms ?? DEFAULT_REQUEST_TIMEOUT_MS,

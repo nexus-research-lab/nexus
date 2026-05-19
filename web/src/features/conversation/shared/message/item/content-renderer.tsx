@@ -15,6 +15,7 @@ import { PendingPermission, PermissionDecisionPayload } from "@/types/conversati
 
 import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
 import { CodeBlock } from "../blocks/code-block";
+import { ImageBlock } from "../blocks/image-block";
 import { ThinkingBlock } from "../blocks/thinking-block";
 import { ToolBlock } from "../blocks/tool-block";
 import { ToolUseErrorBlock } from "../blocks/tool-use-error-block";
@@ -26,7 +27,6 @@ import {
   MessageRail,
   MessageRailBody,
   MessageRailLabel,
-  MessageResultLabel,
 } from "../ui/message-rail";
 import {
   DEFAULT_TIMELINE_DOT_TOP,
@@ -46,6 +46,7 @@ interface ContentRendererProps {
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
   on_open_workspace_file?: (path: string) => void;
+  workspace_agent_id?: string | null;
   hidden_tool_names?: string[];
   class_name?: string;
   show_timeline_dots?: boolean;
@@ -127,6 +128,7 @@ export function ContentRenderer(
     can_respond_to_permissions = true,
     permission_read_only_reason,
     on_open_workspace_file,
+    workspace_agent_id,
     hidden_tool_names = [],
     class_name,
     show_timeline_dots = false,
@@ -138,6 +140,7 @@ export function ContentRenderer(
         content={content}
         is_streaming={is_streaming}
         on_open_workspace_file={on_open_workspace_file}
+        workspace_agent_id={workspace_agent_id}
       />
     );
 
@@ -235,6 +238,7 @@ export function ContentRenderer(
               is_streaming={blockIsStreaming}
               fallback_activity_state={blockIsStreaming ? "replying" : null}
               on_open_workspace_file={on_open_workspace_file}
+              workspace_agent_id={workspace_agent_id}
             />,
           );
         }
@@ -246,7 +250,22 @@ export function ContentRenderer(
         if (block.type === 'thinking') {
           return wrap_block(
             index,
-            <ThinkingBlock thinking={block.thinking || ''} is_streaming={blockIsStreaming} />,
+            <ThinkingBlock
+              thinking={block.thinking || ''}
+              is_streaming={blockIsStreaming}
+              workspace_agent_id={workspace_agent_id}
+            />,
+          );
+        }
+
+        if (block.type === 'image') {
+          return wrap_block(
+            index,
+            <ImageBlock
+              block={block}
+              on_open_workspace_file={on_open_workspace_file}
+              workspace_agent_id={workspace_agent_id}
+            />,
           );
         }
 
@@ -364,6 +383,8 @@ export function ContentRenderer(
                 } : undefined}
                 interaction_disabled={!can_respond_to_permissions}
                 interaction_disabled_reason={permission_read_only_reason}
+                on_open_workspace_file={on_open_workspace_file}
+                workspace_agent_id={workspace_agent_id}
               />
             </div>
           ));
@@ -371,31 +392,7 @@ export function ContentRenderer(
 
         // 独立的 tool_result（没有对应的 tool_use）
         if (block.type === 'tool_result') {
-          return wrap_block(index, (
-            <MessageRail>
-              <div className="ml-4">
-                <MessageResultLabel
-                  data-timeline-anchor
-                  tone={block.is_error ? "error" : "success"}
-                >
-                  {block.is_error ? (
-                    <span>Error</span>
-                  ) : (
-                    <span>Result</span>
-                  )}
-                </MessageResultLabel>
-                <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-                  {typeof block.content === 'string' ? (
-                    <pre className="px-0 py-0 text-xs text-(--text-default) whitespace-pre-wrap break-words">
-                      {block.content}
-                    </pre>
-                  ) : (
-                    <CodeBlock language="json" value={JSON.stringify(block.content, null, 2)} />
-                  )}
-                </div>
-              </div>
-            </MessageRail>
-          ));
+          return null;
         }
 
         return null;

@@ -27,6 +27,8 @@ const (
 	EventTypeRoomMemberAdded           EventType = "room_member_added"
 	EventTypeRoomMemberRemoved         EventType = "room_member_removed"
 	EventTypeRoomDeleted               EventType = "room_deleted"
+	EventTypeRoomAction                EventType = "room_action"
+	EventTypeRoomActionConsumed        EventType = "room_action_consumed"
 	EventTypeRoomResyncRequired        EventType = "room_resync_required"
 	EventTypeSessionResyncRequired     EventType = "session_resync_required"
 	EventTypeStreamStart               EventType = "stream_start"

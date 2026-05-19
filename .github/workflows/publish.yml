@@ -14,13 +14,16 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -79,21 +82,64 @@ jobs:
 
           sha256sum "${ARTIFACT_DIR}/nexus-${TAG}.tar.gz" > "${ARTIFACT_DIR}/nexus-${TAG}.sha256"
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+
+      - name: Install Packaging Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rsync zip
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd web
+          pnpm install --frozen-lockfile
+
+      - name: Build Frontend
+        run: |
+          cd web
+          pnpm run build
+
+      - name: Build Runnable Release Packages
+        env:
+          NEXUS_RELEASE_OUTPUT_DIR: ${{ runner.temp }}/artifacts
+          NEXUS_RELEASE_SKIP_PNPM_INSTALL: "1"
+          NEXUS_RELEASE_SKIP_WEB_BUILD: "1"
+        run: |
+          for target in linux-amd64 linux-arm64 windows-amd64; do
+            NEXUS_RELEASE_TARGET="${target}" ./scripts/package-release.sh "${{ steps.tag.outputs.version }}"
+          done
+
       - name: Upload Release Assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nexus-${{ steps.tag.outputs.tag }}
           path: |
-            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.tar.gz
-            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.sha256
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.tar.gz
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.zip
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.sha256
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ${{ steps.tag.outputs.tag }}
           body_path: release_notes.md
           generate_release_notes: false
           files: |
-            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.tar.gz
-            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}.sha256
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.tar.gz
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.zip
+            ${{ runner.temp }}/artifacts/nexus-${{ steps.tag.outputs.tag }}*.sha256

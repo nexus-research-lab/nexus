@@ -13,7 +13,7 @@ export interface SkillInfo {
     name: string;
     title: string;
     description: string;
-    scope: "main" | "any";
+    scope: "main" | "any" | "room";
     tags: string[];
     category_key: string;
     category_name: string;

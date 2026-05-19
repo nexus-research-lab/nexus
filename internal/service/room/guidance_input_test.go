@@ -2,10 +2,11 @@ package room
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-go/hook"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -93,9 +94,10 @@ func TestRoomSlotGuidanceHookConsumesInputQueueGuidance(t *testing.T) {
 
 func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.T) {
 	storeRoot := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(storeRoot, ".nexus"))
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
-	conversationID := "conversation-guide-public-delta"
+	conversationID := "4b114cfed67a"
 	agentID := "agent-1"
 	location := workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,

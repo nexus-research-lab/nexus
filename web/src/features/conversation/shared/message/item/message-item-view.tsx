@@ -50,6 +50,7 @@ interface MessageUserSectionProps {
   on_copy_user: () => Promise<void>;
   on_edit_user_message?: (message_id: string, new_content: string) => void;
   on_open_workspace_file?: (path: string) => void;
+  workspace_agent_id?: string | null;
 }
 
 export function MessageUserSection({
@@ -61,6 +62,7 @@ export function MessageUserSection({
   on_copy_user,
   on_edit_user_message,
   on_open_workspace_file,
+  workspace_agent_id,
 }: MessageUserSectionProps) {
   const [is_edit_dialog_open, set_is_edit_dialog_open] = useState(false);
 
@@ -136,6 +138,7 @@ export function MessageUserSection({
               <ContentRenderer
                 content={user_content}
                 on_open_workspace_file={on_open_workspace_file}
+                workspace_agent_id={workspace_agent_id}
                 class_name={cn(
                   "text-left text-(--text-strong)",
                   compact
@@ -178,6 +181,7 @@ interface PendingPermissionListProps {
   can_respond_to_permissions: boolean;
   permission_read_only_reason?: string;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  workspace_agent_id?: string | null;
 }
 
 function PendingPermissionList({
@@ -186,6 +190,7 @@ function PendingPermissionList({
   can_respond_to_permissions,
   permission_read_only_reason,
   on_permission_response,
+  workspace_agent_id,
 }: PendingPermissionListProps) {
   if (permissions.length === 0) {
     return null;
@@ -233,6 +238,7 @@ function PendingPermissionList({
           }}
           interaction_disabled={!can_respond_to_permissions}
           interaction_disabled_reason={permission_read_only_reason}
+          workspace_agent_id={workspace_agent_id}
         />
       ))}
     </div>
@@ -247,6 +253,7 @@ interface MessageAssistantSectionProps {
   permission_read_only_reason?: string;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_open_workspace_file?: (path: string) => void;
+  workspace_agent_id?: string | null;
   hidden_tool_names?: string[];
   assistant_header_action?: ReactNode;
   assistant_content_mode:
@@ -265,6 +272,7 @@ export function MessageAssistantSection({
   permission_read_only_reason,
   on_permission_response,
   on_open_workspace_file,
+  workspace_agent_id,
   hidden_tool_names = ["TodoWrite"],
   assistant_header_action,
   assistant_content_mode,
@@ -275,6 +283,7 @@ export function MessageAssistantSection({
   }
 
   const is_room_thread_mode = assistant_content_mode === "room_thread";
+  const content_workspace_agent_id = state.assistant_agent_id ?? workspace_agent_id;
   const pending_permission_block = (
     <PendingPermissionList
       permissions={state.unmatched_pending_permissions}
@@ -282,6 +291,7 @@ export function MessageAssistantSection({
       can_respond_to_permissions={can_respond_to_permissions}
       permission_read_only_reason={permission_read_only_reason}
       on_permission_response={on_permission_response}
+      workspace_agent_id={content_workspace_agent_id}
     />
   );
 
@@ -395,6 +405,7 @@ export function MessageAssistantSection({
                     can_respond_to_permissions={can_respond_to_permissions}
                     permission_read_only_reason={permission_read_only_reason}
                     on_open_workspace_file={on_open_workspace_file}
+                    workspace_agent_id={content_workspace_agent_id}
                     hidden_tool_names={hidden_tool_names}
                     show_timeline_dots
                   />
@@ -444,6 +455,7 @@ export function MessageAssistantSection({
                           permission_read_only_reason
                         }
                         on_open_workspace_file={on_open_workspace_file}
+                        workspace_agent_id={content_workspace_agent_id}
                         hidden_tool_names={hidden_tool_names}
                         class_name="ml-1"
                         show_timeline_dots
@@ -465,6 +477,7 @@ export function MessageAssistantSection({
                     }
                     fallback_activity_state={state.live_activity_state}
                     on_open_workspace_file={on_open_workspace_file}
+                    workspace_agent_id={content_workspace_agent_id}
                   />
                 </div>
               ) : null}

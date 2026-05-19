@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func firstNonEmpty(values ...string) string {
@@ -133,6 +133,14 @@ func cloneBlockPayload(block sdkprotocol.ContentBlock) map[string]any {
 			result["signature"] = signature
 		}
 	}
+	if value, ok := sdkprotocol.AsImageBlock(block); ok {
+		if data := strings.TrimSpace(value.Data); data != "" {
+			result["data"] = data
+		}
+		if mimeType := strings.TrimSpace(value.MIMEType); mimeType != "" {
+			result["mime_type"] = mimeType
+		}
+	}
 	if value, ok := sdkprotocol.AsToolUseBlock(block); ok {
 		if id := strings.TrimSpace(value.ID); id != "" {
 			result["id"] = id
@@ -200,6 +208,11 @@ func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.Conte
 		if value, ok := sdkprotocol.AsThinkingBlock(block); ok {
 			payload["thinking"] = value.Thinking
 			payload["signature"] = emptyToNil(value.Signature)
+		}
+	case "image":
+		if value, ok := sdkprotocol.AsImageBlock(block); ok {
+			payload["data"] = value.Data
+			payload["mime_type"] = emptyToNil(value.MIMEType)
 		}
 	case "tool_use":
 		if value, ok := sdkprotocol.AsToolUseBlock(block); ok {

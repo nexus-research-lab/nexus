@@ -248,10 +248,11 @@ export const HomePanelContent = memo(function HomePanelContent() {
     agent_ids: string[],
     name: string,
     avatar?: string,
+    skill_names?: string[],
   ) => {
     set_is_creating_room(true);
     try {
-      const context = await create_room({ agent_ids, name, avatar });
+      const context = await create_room({ agent_ids, name, avatar, skill_names });
       set_is_create_room_open(false);
       void refresh_directory();
       // 创建后直接导航到新 Room
@@ -394,7 +395,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}
-        on_confirm={(ids, name, avatar) => void handle_confirm_create_room(ids, name, avatar)}
+        on_confirm={(ids, name, avatar, skill_names) => void handle_confirm_create_room(ids, name, avatar, skill_names)}
       />
     </div>
   );

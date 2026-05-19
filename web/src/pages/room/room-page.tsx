@@ -119,15 +119,46 @@ export function RoomPage() {
     await controller.handle_update_conversation_title(conversation_id, title);
   }, [controller]);
 
-  const handleRoomEvent = useCallback((event_type: string, _data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
+  const handleRoomEvent = useCallback((event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
     if (event_type === "room_deleted") {
-      if (_data.room_id && _data.room_id === params.room_id) {
+      if (data.room_id && data.room_id === params.room_id) {
         set_pending_deleted_room({
-          id: _data.room_id,
+          id: data.room_id,
           room_type: controller.current_room?.room_type === "dm" ? "dm" : "room",
         });
         void controller.handle_refresh_room_state();
       }
+      return;
+    }
+
+    if (event_type === "room_action") {
+      console.debug("[Room] room_action", {
+        action_id: data.action_id,
+        event_kind: data.event_kind,
+        action_type: data.action_type,
+        room_id: data.room_id,
+        conversation_id: data.conversation_id,
+        source_agent_id: data.source_agent_id,
+        target_agent_id: data.target_agent_id,
+        visibility: data.visibility,
+        reply_target: data.reply_target,
+        wake_policy: data.wake_policy,
+        delay_seconds: data.delay_seconds,
+        content_chars: data.content_chars,
+        has_content: typeof data.content === "string" && data.content.length > 0,
+      });
+      return;
+    }
+
+    if (event_type === "room_action_consumed") {
+      console.debug("[Room] room_action_consumed", {
+        room_id: data.room_id,
+        conversation_id: data.conversation_id,
+        agent_id: data.agent_id,
+        round_id: data.round_id,
+        last_action_id: data.last_action_id,
+        last_action_timestamp: data.last_action_timestamp,
+      });
       return;
     }
 
@@ -248,6 +279,7 @@ export function RoomPage() {
             room_avatar={controller.current_room.avatar ?? null}
             room_members={controller.room_members}
             current_room_title={controller.current_room_title}
+            room_skill_names={controller.current_room_skill_names}
             current_room_conversations={controller.current_room_conversations}
             current_room_conversation={controller.current_room_conversation}
             current_agent_session_identity={controller.current_agent_session_identity}

@@ -57,6 +57,7 @@ function GroupCompletedReply(
       <MessageItem
         current_agent_name={agent_name}
         current_agent_avatar={agent_avatar}
+        workspace_agent_id={agent_id}
         round_id={`${round_id}:${agent_id}`}
         messages={messages_for_render}
         assistant_content_mode="room_result"

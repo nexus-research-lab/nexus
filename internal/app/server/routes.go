@@ -9,6 +9,7 @@ func (s *Server) mountRoutes() {
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountPlaceholderRoutes()
+	s.mountWebAppRoutes()
 }
 
 // prefixPath 返回带 config.APIPrefix 前缀的完整路径。
@@ -19,6 +20,7 @@ func (s *Server) prefixPath(p string) string {
 // mountCoreRoutes 挂载 HTTP 基础能力路由。
 func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/health"), s.handlers.core.HandleHealth)
+	s.router.Get(s.prefixPath("/system/version"), s.handlers.core.HandleSystemVersion)
 	s.router.Get(s.prefixPath("/auth/status"), s.handlers.auth.HandleAuthStatus)
 	s.router.Post(s.prefixPath("/auth/login"), s.handlers.auth.HandleAuthLogin)
 	s.router.Post(s.prefixPath("/auth/logout"), s.handlers.auth.HandleAuthLogout)
@@ -79,6 +81,7 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/messages"), s.handlers.room.HandleConversationMessages)
 	s.router.Patch(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleUpdateConversation)
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleDeleteConversation)
+	s.router.Post(s.prefixPath("/internal/rooms/{room_id}/conversations/{conversation_id}/actions"), s.handlers.room.HandleCreateAction)
 
 	s.router.Post(s.prefixPath("/launcher/query"), s.handlers.launcher.HandleLauncherQuery)
 	s.router.Get(s.prefixPath("/launcher/bootstrap"), s.handlers.launcher.HandleLauncherBootstrap)

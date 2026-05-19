@@ -86,7 +86,25 @@ func (s *SessionFileStore) UpsertSession(workspacePath string, item protocol.Ses
 	if err != nil {
 		return nil, err
 	}
-	if err = os.WriteFile(metaPath, payload, 0o644); err != nil {
+	tempFile, err := os.CreateTemp(filepath.Dir(metaPath), ".meta-*.tmp")
+	if err != nil {
+		return nil, err
+	}
+	tempPath := tempFile.Name()
+	defer func() { _ = os.Remove(tempPath) }()
+	if _, err = tempFile.Write(payload); err != nil {
+		_ = tempFile.Close()
+		return nil, err
+	}
+	if err = tempFile.Chmod(0o644); err != nil {
+		_ = tempFile.Close()
+		return nil, err
+	}
+	if err = tempFile.Close(); err != nil {
+		return nil, err
+	}
+	// 先写临时文件再 rename，避免并发 meta 刷新时读到半截 JSON。
+	if err = os.Rename(tempPath, metaPath); err != nil {
 		return nil, err
 	}
 	created, _, err := s.FindSession([]string{workspacePath}, item.SessionKey)

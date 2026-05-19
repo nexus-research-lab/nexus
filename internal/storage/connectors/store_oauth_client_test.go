@@ -10,7 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func TestOAuthClientStoreGetEmpty(t *testing.T) {
@@ -81,7 +81,7 @@ func TestOAuthClientStoreWrongKeyReturnsDecryptError(t *testing.T) {
 		t.Fatalf("写入 OAuth client 失败: %v", err)
 	}
 
-	wrongStore := NewOAuthClientStore(store.db, "sqlite3", []byte("abcdefghijklmnopqrstuvwxyz123456"))
+	wrongStore := NewOAuthClientStore(store.db, "sqlite", []byte("abcdefghijklmnopqrstuvwxyz123456"))
 	_, err := wrongStore.Get(ctx, "user-1", "github")
 	if err == nil {
 		t.Fatal("错误 key 解密应失败")
@@ -92,7 +92,7 @@ func TestOAuthClientStoreRequiresEncryptionKey(t *testing.T) {
 	db := newOAuthClientStoreDB(t)
 	defer db.Close()
 
-	store := NewOAuthClientStore(db, "sqlite3", nil)
+	store := NewOAuthClientStore(db, "sqlite", nil)
 	err := store.Upsert(context.Background(), OAuthClient{
 		OwnerUserID:  "user-1",
 		ConnectorID:  "github",
@@ -112,7 +112,7 @@ func newOAuthClientStoreForTest(t *testing.T) (*OAuthClientStore, func()) {
 	if err != nil {
 		t.Fatalf("解析测试密钥失败: %v", err)
 	}
-	return NewOAuthClientStore(db, "sqlite3", key), func() {
+	return NewOAuthClientStore(db, "sqlite", key), func() {
 		_ = db.Close()
 	}
 }
@@ -121,7 +121,7 @@ func newOAuthClientStoreDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	databaseURL := filepath.Join(t.TempDir(), "connectors.db")
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

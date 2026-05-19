@@ -21,6 +21,7 @@ interface RoomSurfaceShellProps {
   room_members: Agent[];
   available_room_agents: Agent[];
   current_room_title: string;
+  room_skill_names: string[];
   current_room_conversation: RoomConversationView | null;
   current_agent_session_identity: AgentConversationIdentity | null;
   conversation_id: string | null;
@@ -63,6 +64,7 @@ export function RoomSurfaceShell({
   room_members,
   available_room_agents,
   current_room_title,
+  room_skill_names,
   current_room_conversation,
   current_agent_session_identity,
   conversation_id,
@@ -161,6 +163,7 @@ export function RoomSurfaceShell({
       room_avatar={room_avatar}
       room_members={room_members}
       current_room_title={current_room_title}
+      room_skill_names={room_skill_names}
       current_agent_session_identity={current_agent_session_identity}
       conversation_id={conversation_id}
       current_room_conversations={current_room_conversations}

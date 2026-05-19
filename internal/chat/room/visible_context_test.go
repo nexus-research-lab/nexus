@@ -127,6 +127,21 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"候选邀请不要多 @",
 		"<nexus_room_no_reply/>",
 		"目标轮数、当前轮次、下一位成员、停止条件",
+		"直接创建 Room action",
+		`nexusctl --json room action`,
+		`room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
+		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
+		`--wake-policy delayed --delay-seconds <seconds>`,
+		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
+		`延迟唤醒后要把最终回复发布到公区`,
+		`request-reply 指向自己并设置 --reply-target public_feed`,
+		"收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求",
+		"不要为了回答这个请求再调用 room action 或 CLI",
+		"不要公开复述 private_message、request_reply、private_note 中的正文",
+		`room action private-note --content "<text>"`,
+		`room action marker --visibility public|private --content "<text>"`,
+		"不要调用 Skill 工具",
+		"暗号、密码、密钥",
 		"最终总结不要 @ 任何成员",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
@@ -192,6 +207,49 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		strings.Contains(contextValue, "collaboration_actions") ||
 		strings.Contains(contextValue, "request-reply") {
 		t.Fatalf("Room 公区 prompt 不应注入私聊或协作动作实现:\n%s", contextValue)
+	}
+}
+
+func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
+	contextValue := BuildVisibleContext(VisibleContextInput{
+		LatestTrigger: Trigger{
+			TriggerType:           "room_action",
+			Content:               "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。",
+			SourceAgentID:         "agent-amy",
+			TargetAgentID:         "agent-devin",
+			ReplyTarget:           protocol.RoomReplyTargetAudience,
+			ReplyAudienceAgentIDs: []string{"agent-sam"},
+		},
+		RoomActions: []protocol.RoomActionRecord{
+			{
+				ActionType:    protocol.RoomActionTypePrivateMessage,
+				SourceAgentID: "agent-amy",
+				TargetAgentID: "agent-devin",
+				Content:       "只给 Devin 的上下文",
+				ReplyTarget:   protocol.RoomReplyTargetAudience,
+			},
+		},
+		AgentNameByID: map[string]string{
+			"agent-amy":   "Amy",
+			"agent-devin": "Devin",
+			"agent-sam":   "Sam",
+		},
+		TargetAgentID: "agent-devin",
+	})
+
+	for _, expected := range []string{
+		"<latest_trigger>",
+		"Amy: 收到一条 Room private_message",
+		"reply_target=audience audience=Sam(agent-sam)",
+		"<room_actions>",
+		"[private_message] Amy -> Devin: 只给 Devin 的上下文",
+	} {
+		if !strings.Contains(contextValue, expected) {
+			t.Fatalf("Room action 动态输入缺少片段 %q:\n%s", expected, contextValue)
+		}
+	}
+	if strings.Contains(contextValue, "trigger_type") || strings.Contains(contextValue, "message_id") {
+		t.Fatalf("Room action 动态输入不应暴露结构字段:\n%s", contextValue)
 	}
 }
 

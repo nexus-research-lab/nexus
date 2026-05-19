@@ -13,10 +13,10 @@ import (
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type fakeIngressDMHandler struct {
@@ -154,7 +154,7 @@ func newIngressTestConfig(t *testing.T) config.Config {
 func migrateIngressSQLite(t *testing.T, databaseURL string) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", databaseURL)
+	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

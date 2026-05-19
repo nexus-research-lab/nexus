@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 // SystemMessageSummary 表示系统消息面向前端的统一摘要。

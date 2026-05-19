@@ -2,11 +2,14 @@ package clientopts
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type fakeRuntimeConfigResolver struct {
@@ -70,6 +73,23 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
+	workspacePath := "/tmp/workspace"
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	pathItems := strings.Split(options.Env["PATH"], string(os.PathListSeparator))
+	if len(pathItems) == 0 || pathItems[0] != filepath.Join(workspacePath, ".agents", "bin") {
+		t.Fatalf("运行时 PATH 未优先注入 workspace bin: %q", options.Env["PATH"])
+	}
+	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
+		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
 	}
 }
 
@@ -141,11 +161,11 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Adapters.PermissionHandler == nil {
+	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("bypass 模式应保留 AskUserQuestion 交互通道")
 	}
 
-	questionDecision, err := options.Adapters.PermissionHandler(context.Background(), sdkpermission.Request{
+	questionDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: " AskUserQuestion ",
 		Input: map[string]any{
 			"questions": []any{"测试问题"},
@@ -161,7 +181,7 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
 	}
 
-	bypassDecision, err := options.Adapters.PermissionHandler(context.Background(), sdkpermission.Request{
+	bypassDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Bash",
 		Input: map[string]any{
 			"command": "pwd",

@@ -12,8 +12,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestServiceSetupOwnerLoginLogoutAndResetPassword(t *testing.T) {
@@ -218,7 +218,7 @@ func newAuthTestDB(t *testing.T) (config.Config, *sql.DB) {
 		DatabaseURL:    filepath.Join(root, "auth.db"),
 	}
 
-	db, err := sql.Open("sqlite3", cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开认证测试数据库失败: %v", err)
 	}

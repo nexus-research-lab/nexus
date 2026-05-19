@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-19
+
+### Added
+- 新增 Nexus 版本展示入口：发布包注入版本号、Git commit 与构建时间，`/system/version` 返回当前二进制信息，Web 设置页提供 GitHub Release 下载入口。
+- 补充 Windows 发布包运行说明，明确 Claude Code、PowerShell、WinGet 与 Git for Windows 的安装路径。
+
+### Changed
+- Agent workspace 目录改为按 `agent_id` 生成，改名时不再移动目录，只同步数据库名称与工作区 `AGENTS.md` 身份标识。
+- Workspace 初始化增强 Windows 兼容：补充 `nexusctl.cmd` 入口，Claude skill 链接在目录 symlink 不可用时会镜像目录。
+- 跳过新手引导时立即记为已读，避免后续反复出现同一导览。
+
+### Fixed
+- 修复发布包首页点击“进入工作台”后仍停留在 Launcher 的问题。
+- 修复 Windows 下 Agent 改名时因 workspace 目录被占用导致失败的问题。
+- 修复 SQLite URL 中 `~` 与 Windows 路径分隔符展开不完整，以及 SQLite 父目录不存在时打开数据库失败的问题。
+
+## [0.1.3] - 2026-05-15
+
+### Added
+- 发布包进入可直接运行阶段：Linux 与 Windows 运行包内置服务端、前端资源、数据库迁移和内置技能，启动后即可通过同一个本地地址访问 Nexus。
+- 图片生成能力成型：支持独立的图片生成 Provider、内置 `imagegen` 技能，以及会话内图片结果预览。
+- Room 协作动作增强：支持私域消息、请求指定成员回复、小范围受众投递、延迟唤醒和房间级技能规则。
+- 桌面端 dogfood 链路完成第一阶段：本地 sidecar、独立窗口、桌面会话凭据、启动诊断和内部验证包已具备闭环。
+
+### Fixed
+- 会话运行态以真实执行中的任务为准，减少异常退出或中断失败后仍显示“对话中”的情况。
+- Room 删除会完整清理成员、会话、消息和执行记录，避免残留数据影响后续使用。
+- Room 私域动作的来源身份由运行时统一注入，避免模型侧伪造或误填发送者。
+- 私域动作默认不在工具结果中回显正文，降低协作过程里的信息泄漏风险。
+
 ## [0.1.2] - 2026-05-12
 
 ### Added

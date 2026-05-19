@@ -11,7 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // OpenDB 打开当前配置对应的数据库连接。
@@ -20,7 +20,7 @@ func OpenDB(cfg config.Config) (*sql.DB, error) {
 	dsn := NormalizeDatabaseURL(cfg.DatabaseURL)
 
 	// SQLite 场景需要提前创建父目录，否则第一次启动会直接报错。
-	if driver == "sqlite3" {
+	if IsSQLiteSQLDriver(driver) {
 		if err := ensureParentDir(dsn); err != nil {
 			return nil, err
 		}
@@ -42,7 +42,7 @@ func OpenDB(cfg config.Config) (*sql.DB, error) {
 }
 
 func configureConnectionPool(db *sql.DB, driver string) error {
-	if driver == "sqlite3" {
+	if IsSQLiteSQLDriver(driver) {
 		// SQLite 只有单写者，收敛连接数能避免多连接写入互相抢锁。
 		db.SetMaxOpenConns(1)
 		db.SetMaxIdleConns(1)

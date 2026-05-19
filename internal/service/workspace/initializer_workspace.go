@@ -13,9 +13,11 @@ import (
 )
 
 var (
-	baseSkillNames      = []string{"memory-manager", "room-collaboration", "scheduled-task-manager"}
-	mainAgentSkillNames = []string{"nexus-manager"}
-	workspaceFiles      = map[string]string{
+	baseSkillNames        = []string{"imagegen", "memory-manager", "scheduled-task-manager"}
+	retiredBaseSkillNames = []string{"room-collaboration"}
+	mainAgentSkillNames   = []string{"nexus-manager"}
+	createSymlink         = os.Symlink
+	workspaceFiles        = map[string]string{
 		"agents":  "AGENTS.md",
 		"user":    "USER.md",
 		"memory":  "MEMORY.md",
@@ -48,6 +50,9 @@ func EnsureInitialized(
 	}
 
 	context := buildTemplateContext(agentID, agentName, root, createdAt)
+	if err := ensureNexusctlShim(root, context); err != nil {
+		return err
+	}
 	for key, relativePath := range workspaceFiles {
 		targetPath := filepath.Join(root, relativePath)
 		if _, err := os.Stat(targetPath); err == nil {
@@ -73,6 +78,11 @@ func EnsureInitialized(
 		return err
 	}
 
+	for _, skillName := range retiredBaseSkillNames {
+		if err := UndeploySkill(root, skillName); err != nil {
+			return err
+		}
+	}
 	for _, skillName := range managedSkillNames(isMainAgent) {
 		if err := deployManagedSkill(skillName, root, context); err != nil {
 			return err
@@ -93,7 +103,7 @@ func DeploySkill(skillName string, sourceDir string, workspacePath string, conte
 	if err := syncDirectory(sourceDir, agentsSkillDir, context); err != nil {
 		return err
 	}
-	return ensureRelativeSymlink(claudeSkillLink, filepath.Join("..", "..", ".agents", "skills", skillName))
+	return ensureClaudeSkillEntry(sourceDir, claudeSkillLink, filepath.Join("..", "..", ".agents", "skills", skillName), context)
 }
 
 // UndeploySkill 从 workspace 中移除指定 skill。
@@ -103,7 +113,7 @@ func UndeploySkill(workspacePath string, skillName string) error {
 	if err := os.RemoveAll(targetDir); err != nil {
 		return err
 	}
-	if err := os.Remove(claudeSkillLink); err != nil && !os.IsNotExist(err) {
+	if err := os.RemoveAll(claudeSkillLink); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -159,6 +169,9 @@ func deployManagedSkill(skillName string, workspacePath string, context map[stri
 }
 
 func syncDirectory(sourceDir string, targetDir string, context map[string]string) error {
+	if err := os.RemoveAll(targetDir); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return err
 	}
@@ -192,6 +205,83 @@ func syncDirectory(sourceDir string, targetDir string, context map[string]string
 	})
 }
 
+func ensureNexusctlShim(workspacePath string, context map[string]string) error {
+	binDir := filepath.Join(workspacePath, ".agents", "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return err
+	}
+	content := renderTemplate(`#!/bin/sh
+set -eu
+
+PROJECT_ROOT="${NEXUS_PROJECT_ROOT:-{project_root}}"
+
+if [ -f "$PROJECT_ROOT/cmd/nexusctl/main.go" ]; then
+  cd "$PROJECT_ROOT"
+  exec go run ./cmd/nexusctl "$@"
+fi
+
+if [ -x "$PROJECT_ROOT/bin/nexusctl" ]; then
+  exec "$PROJECT_ROOT/bin/nexusctl" "$@"
+fi
+
+if [ -x "$PROJECT_ROOT/bin/nexusctl.exe" ]; then
+  exec "$PROJECT_ROOT/bin/nexusctl.exe" "$@"
+fi
+
+if [ -x "$PROJECT_ROOT/nexusctl" ]; then
+  exec "$PROJECT_ROOT/nexusctl" "$@"
+fi
+
+if [ -x "$PROJECT_ROOT/nexusctl.exe" ]; then
+  exec "$PROJECT_ROOT/nexusctl.exe" "$@"
+fi
+
+echo "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl" >&2
+exit 127
+`, context)
+	if err := os.WriteFile(filepath.Join(binDir, "nexusctl"), []byte(content), 0o755); err != nil {
+		return err
+	}
+	cmdContent := renderTemplate(`@echo off
+setlocal
+
+set "PROJECT_ROOT=%NEXUS_PROJECT_ROOT%"
+if "%PROJECT_ROOT%"=="" set "PROJECT_ROOT={project_root}"
+
+if exist "%PROJECT_ROOT%\cmd\nexusctl\main.go" (
+  cd /d "%PROJECT_ROOT%"
+  go run ./cmd/nexusctl %*
+  exit /b %ERRORLEVEL%
+)
+
+if exist "%PROJECT_ROOT%\bin\nexusctl.exe" (
+  "%PROJECT_ROOT%\bin\nexusctl.exe" %*
+  exit /b %ERRORLEVEL%
+)
+
+if exist "%PROJECT_ROOT%\nexusctl.exe" (
+  "%PROJECT_ROOT%\nexusctl.exe" %*
+  exit /b %ERRORLEVEL%
+)
+
+echo nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl 1>&2
+exit /b 127
+`, context)
+	return os.WriteFile(filepath.Join(binDir, "nexusctl.cmd"), []byte(cmdContent), 0o755)
+}
+
+func ensureClaudeSkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {
+	err := ensureRelativeSymlink(entryPath, relativeTarget)
+	if err == nil {
+		return nil
+	}
+	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给 Claude Code 读取。
+	if mirrorErr := syncDirectory(sourceDir, entryPath, context); mirrorErr != nil {
+		return fmt.Errorf("创建 Claude skill symlink 失败: %w；镜像目录也失败: %v", err, mirrorErr)
+	}
+	return nil
+}
+
 func ensureRelativeSymlink(linkPath string, relativeTarget string) error {
 	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
 		return err
@@ -203,14 +293,12 @@ func ensureRelativeSymlink(linkPath string, relativeTarget string) error {
 		if err = os.Remove(linkPath); err != nil {
 			return err
 		}
-	} else if err == nil {
-		// no-op
 	} else if _, statErr := os.Stat(linkPath); statErr == nil {
 		if err = os.RemoveAll(linkPath); err != nil {
 			return err
 		}
 	}
-	return os.Symlink(relativeTarget, linkPath)
+	return createSymlink(relativeTarget, linkPath)
 }
 
 func copyFile(sourcePath string, targetPath string) error {

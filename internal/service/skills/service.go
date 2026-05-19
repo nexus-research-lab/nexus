@@ -27,10 +27,14 @@ const (
 	sourceTypeWorkspace = "workspace"
 	scopeMain           = "main"
 	scopeAny            = "any"
+	scopeRoom           = "room"
 )
 
+// ScopeRoom 表示 Room 级 skill，只能由房间启用，不能安装到单个 Agent。
+const ScopeRoom = scopeRoom
+
 var (
-	systemSkillNames   = map[string]struct{}{"memory-manager": {}, "room-collaboration": {}, "scheduled-task-manager": {}}
+	systemSkillNames   = map[string]struct{}{"imagegen": {}, "memory-manager": {}, "scheduled-task-manager": {}}
 	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
 	curatedEntriesOnce sync.Once
 	curatedEntriesData map[string]map[string]string
@@ -72,6 +76,7 @@ type Query struct {
 	AgentID     string
 	CategoryKey string
 	SourceType  string
+	Scope       string
 	Q           string
 }
 
@@ -133,7 +138,7 @@ func (s *Service) ListSkills(ctx context.Context, query Query) ([]Info, error) {
 	needle := strings.ToLower(strings.TrimSpace(query.Q))
 	for _, record := range records {
 		detail := record.Detail
-		if detail.Scope == scopeMain && query.AgentID != "" && !isMainAgent {
+		if !skillVisibleForQuery(detail.Scope, query.Scope, query.AgentID, isMainAgent) {
 			continue
 		}
 		detail.Installed = installedNames[detail.Name]
@@ -167,7 +172,7 @@ func (s *Service) CountSkills(ctx context.Context, query Query) (int, error) {
 	count := 0
 	for _, record := range records {
 		detail := record.Detail
-		if detail.Scope == scopeMain && query.AgentID != "" && !isMainAgent {
+		if !skillVisibleForQuery(detail.Scope, query.Scope, query.AgentID, isMainAgent) {
 			continue
 		}
 		detail.Installed = installedNames[detail.Name]
@@ -199,6 +204,9 @@ func (s *Service) GetSkillDetail(ctx context.Context, skillName string, agentID 
 	if detail.Scope == scopeMain && agentID != "" && !isMainAgent {
 		return nil, errors.New("skill not found")
 	}
+	if detail.Scope == scopeRoom && agentID != "" {
+		return nil, errors.New("skill not found")
+	}
 	detail.Installed = installedNames[detail.Name]
 	return &detail, nil
 }
@@ -206,6 +214,21 @@ func (s *Service) GetSkillDetail(ctx context.Context, skillName string, agentID 
 // GetAgentSkills 返回 Agent 可见的技能列表。
 func (s *Service) GetAgentSkills(ctx context.Context, agentID string) ([]Info, error) {
 	return s.ListSkills(ctx, Query{AgentID: agentID})
+}
+
+func skillVisibleForQuery(scope string, queryScope string, agentID string, isMainAgent bool) bool {
+	normalizedScope := strings.TrimSpace(scope)
+	normalizedQueryScope := strings.TrimSpace(queryScope)
+	if normalizedQueryScope != "" {
+		return normalizedScope == normalizedQueryScope
+	}
+	if agentID == "" {
+		return true
+	}
+	if normalizedScope == scopeRoom {
+		return false
+	}
+	return normalizedScope != scopeMain || isMainAgent
 }
 
 // InstallSkill 为 Agent 部署 skill。
@@ -230,6 +253,9 @@ func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName st
 	}
 	if record.Detail.Scope == scopeMain && !isMainAgent {
 		return nil, errors.New("该 skill 仅允许主智能体安装")
+	}
+	if record.Detail.Scope == scopeRoom {
+		return nil, errors.New("room scope skill 不能安装到 agent")
 	}
 	if err = s.deploySkillToWorkspace(agentValue, record); err != nil {
 		return nil, err
@@ -783,8 +809,12 @@ func matchSkillQuery(detail Detail, query string) bool {
 }
 
 func defaultSkillScope(scope string) string {
-	if strings.TrimSpace(scope) == scopeMain {
+	normalized := strings.TrimSpace(scope)
+	if normalized == scopeMain {
 		return scopeMain
+	}
+	if normalized == scopeRoom {
+		return scopeRoom
 	}
 	return scopeAny
 }

@@ -210,8 +210,9 @@ func (s *RealtimeService) dispatchInputQueueItem(
 	conversationID string,
 	item protocol.InputQueueItem,
 ) error {
-	if item.Source == protocol.InputQueueSourceAgentPublicMention {
-		return s.dispatchAgentPublicMentionQueueItem(
+	if item.Source == protocol.InputQueueSourceAgentPublicMention ||
+		item.Source == protocol.InputQueueSourceAgentRoomAction {
+		return s.dispatchAgentWakeQueueItem(
 			contextWithQueueOwner(ctx, item.OwnerUserID),
 			sessionKey,
 			roomID,
@@ -282,7 +283,7 @@ func (s *RealtimeService) dispatchRoomPublicTriggerQueueItem(
 	return s.startPublicMentionRound(ctx, parentRound, wakes)
 }
 
-func (s *RealtimeService) dispatchAgentPublicMentionQueueItem(
+func (s *RealtimeService) dispatchAgentWakeQueueItem(
 	ctx context.Context,
 	sessionKey string,
 	roomID string,
@@ -315,10 +316,15 @@ func (s *RealtimeService) dispatchAgentPublicMentionQueueItem(
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {
 		wakes = append(wakes, publicMentionWake{
+			TriggerType:   inputQueueWakeTriggerType(item),
+			QueueSource:   protocol.NormalizeInputQueueSource(string(item.Source)),
 			SourceAgentID: strings.TrimSpace(item.SourceAgentID),
 			TargetAgentID: targetAgentID,
 			Content:       content,
 			MessageID:     firstNonEmpty(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
+			RequestID:     strings.TrimSpace(item.RequestID),
+			ReplyTarget:   item.ReplyTarget,
+			ReplyAudience: append([]string(nil), item.AudienceAgentIDs...),
 		})
 	}
 	parentRound := &activeRoomRound{
@@ -333,6 +339,13 @@ func (s *RealtimeService) dispatchAgentPublicMentionQueueItem(
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
 	}
 	return s.startPublicMentionRound(ctx, parentRound, wakes)
+}
+
+func inputQueueWakeTriggerType(item protocol.InputQueueItem) string {
+	if item.Source == protocol.InputQueueSourceAgentRoomAction {
+		return "room_action"
+	}
+	return "public_mention"
 }
 
 func (s *RealtimeService) canDispatchInputQueueItem(sessionKey string, conversationID string, item protocol.InputQueueItem) bool {

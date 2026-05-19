@@ -29,6 +29,7 @@ func (s *Service) ensureSession(
 	if item != nil {
 		if roomSession != nil {
 			merged := dmdomain.MergeRoomBackedSession(*item, *roomSession)
+			merged = closePersistedSessionMeta(merged)
 			if !dmdomain.SessionsEqual(*item, merged) {
 				updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, merged)
 				if updateErr != nil {
@@ -45,7 +46,7 @@ func (s *Service) ensureSession(
 	}
 
 	if roomSession != nil {
-		updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, *roomSession)
+		updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, closePersistedSessionMeta(*roomSession))
 		if updateErr != nil {
 			return protocol.Session{}, updateErr
 		}
@@ -61,12 +62,12 @@ func (s *Service) ensureSession(
 		AgentID:      agentValue.AgentID,
 		ChannelType:  protocol.NormalizeStoredChannelType(parsed.Channel),
 		ChatType:     protocol.NormalizeSessionChatType(parsed.ChatType),
-		Status:       "active",
+		Status:       "closed",
 		CreatedAt:    now,
 		LastActivity: now,
 		Title:        "New Chat",
 		Options:      map[string]any{},
-		IsActive:     true,
+		IsActive:     false,
 	})
 	if err != nil {
 		return protocol.Session{}, err
@@ -110,6 +111,7 @@ func (s *Service) refreshSessionMetaAfterRoundMarker(
 	workspacePath string,
 	current protocol.Session,
 ) (*protocol.Session, error) {
+	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
 	return s.files.UpsertSession(workspacePath, current)
@@ -121,10 +123,45 @@ func (s *Service) refreshSessionMetaAfterMessage(
 	message protocol.Message,
 ) (*protocol.Session, error) {
 	current.SessionID = dmdomain.PreferSessionID(current.SessionID, dmdomain.NormalizeString(message["session_id"]))
-	current.Status = "active"
+	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
 	return s.files.UpsertSession(workspacePath, current)
+}
+
+func (s *Service) refreshSessionMetaRuntimeState(
+	workspacePath string,
+	current protocol.Session,
+) (*protocol.Session, error) {
+	current = closePersistedSessionMeta(current)
+	current.LastActivity = time.Now().UTC()
+	return s.files.UpsertSession(workspacePath, current)
+}
+
+func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessionKey string) error {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if strings.TrimSpace(parsed.AgentID) == "" {
+		return nil
+	}
+	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
+	if err != nil {
+		return err
+	}
+	item, _, err := s.files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return nil
+	}
+	_, err = s.refreshSessionMetaRuntimeState(agentValue.WorkspacePath, *item)
+	return err
+}
+
+func closePersistedSessionMeta(current protocol.Session) protocol.Session {
+	current.Status = "closed"
+	current.IsActive = false
+	return current
 }
 
 func (s *Service) recordRoundMarker(

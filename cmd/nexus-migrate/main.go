@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 )
@@ -102,21 +100,12 @@ func buildCreateCommand(cfg config.Config) *cobra.Command {
 }
 
 func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
-	driver := storage.NormalizeSQLDriver(cfg.DatabaseDriver)
-	dsn := storage.NormalizeDatabaseURL(cfg.DatabaseURL)
 	if err := goose.SetDialect(storage.GooseDialect(cfg.DatabaseDriver)); err != nil {
 		return nil, "", err
 	}
 
-	db, err := sql.Open(driver, dsn)
+	db, err := storage.OpenDB(cfg)
 	if err != nil {
-		return nil, "", err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err = db.PingContext(ctx); err != nil {
-		_ = db.Close()
 		return nil, "", err
 	}
 

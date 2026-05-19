@@ -24,12 +24,15 @@ type Config struct {
 	LogMaxAgeDays                  int
 	LogMaxBackups                  int
 	LogCompress                    bool
+	MessageDebugStreamEvent        bool
 	APIPrefix                      string
 	WebSocketPath                  string
 	DefaultAgentID                 string
 	DefaultTimezone                string
 	WorkspacePath                  string
 	CacheFileDir                   string
+	WebDistDir                     string
+	DesktopSessionToken            string
 	PnpmRegistry                   string
 	SkillsAPIURL                   string
 	SkillsAPISearchLimit           int
@@ -106,12 +109,15 @@ func Load() Config {
 		LogMaxAgeDays:                  mustInt(getEnv("LOG_MAX_AGE_DAYS", "7")),
 		LogMaxBackups:                  mustInt(getEnv("LOG_MAX_BACKUPS", "7")),
 		LogCompress:                    mustBool(getEnv("LOG_COMPRESS", "true")),
+		MessageDebugStreamEvent:        mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
 		APIPrefix:                      getEnv("API_PREFIX", "/nexus/v1"),
 		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
 		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),
 		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
 		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
+		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
+		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		PnpmRegistry:                   getEnv("PNPM_REGISTRY", ""),
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsAPISearchLimit:           mustInt(getEnv("SKILLS_API_SEARCH_LIMIT", "20")),

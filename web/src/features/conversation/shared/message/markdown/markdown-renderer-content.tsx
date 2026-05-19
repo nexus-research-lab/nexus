@@ -12,6 +12,7 @@ import {
   MARKDOWN_PLUGINS,
   normalize_markdown_content,
   REHYPE_PLUGINS,
+  useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
 } from "./markdown-renderer-shared";
 
@@ -20,6 +21,7 @@ interface MarkdownRendererProps {
   class_name?: string;
   is_streaming?: boolean;
   on_open_workspace_file?: (path: string) => void;
+  workspace_agent_id?: string | null;
   variant?: "body" | "summary";
 }
 
@@ -28,12 +30,14 @@ export function MarkdownRendererContent({
   class_name,
   is_streaming = false,
   on_open_workspace_file,
+  workspace_agent_id,
   variant = "body",
 }: MarkdownRendererProps) {
-  const resolve_file_path = useMarkdownFileResolver();
+  const resolve_file_path = useMarkdownFileResolver(workspace_agent_id);
+  const current_agent_id = useMarkdownCurrentAgentID(workspace_agent_id);
   const markdown_components = variant === "summary"
-    ? create_markdown_summary_components(resolve_file_path, on_open_workspace_file)
-    : create_markdown_components(resolve_file_path, on_open_workspace_file);
+    ? create_markdown_summary_components(resolve_file_path, on_open_workspace_file, current_agent_id)
+    : create_markdown_components(resolve_file_path, on_open_workspace_file, current_agent_id);
   const normalized_content = normalize_markdown_content(content, resolve_file_path, on_open_workspace_file);
 
   return (

@@ -1,9 +1,18 @@
-import { AssistantMessage, Message, StreamMessage, ThinkingContent, TextContent } from '@/types';
+import {
+  type AssistantMessage,
+  type ImageContent,
+  type Message,
+  type StreamMessage,
+  type ThinkingContent,
+  type TextContent,
+} from '@/types';
 
 function is_stream_renderable_block(
   block: StreamMessage['content_block'],
-): block is TextContent | ThinkingContent {
-  return block?.type === 'text' || block?.type === 'thinking';
+): block is TextContent | ThinkingContent | ImageContent {
+  return block?.type === 'text' ||
+    block?.type === 'thinking' ||
+    block?.type === 'image';
 }
 
 function normalize_assistant_messages(messages: Message[]): Message[] {

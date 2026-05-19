@@ -18,6 +18,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
+import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent/agent";
@@ -36,6 +37,7 @@ type ResolveWorkspaceFilePath = (value: string) => string | null;
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 const WORKSPACE_ABSOLUTE_FILE_PATTERN = /(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/(?<agent>[^/\s`"'，。；！？]+)\/(?<relative>[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}))/;
 const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入到|生成到|created at|saved to|written to)\s*)[`"']?(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/[^/\s`"'，。；！？]+\/[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}|[A-Za-z0-9_.-][A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,10})[`"']?(?<suffix>.*)$/i;
+const WORKSPACE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
 
 export const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkBreaks];
 export const REHYPE_PLUGINS = [rehypeKatex];
@@ -57,7 +59,9 @@ export interface MarkdownFileArtifactSegment {
 export type MarkdownContentSegment = MarkdownTextSegment | MarkdownFileArtifactSegment;
 
 function normalize_workspace_reference(value: string): string {
-  return value.replace(/^[("'`【]+|[)"'`】,，。；：:!?]+$/g, "");
+  return value
+    .replace(/%60/gi, "`")
+    .replace(/^[("'`【]+|[)"'`】,，。；：:!?]+$/g, "");
 }
 
 function looks_like_workspace_file_reference(value: string): boolean {
@@ -102,7 +106,7 @@ function clickable_workspace_artifact_path(path: string): string {
   return match.groups.relative;
 }
 
-function resolve_workspace_artifact_path(
+export function resolve_workspace_artifact_path(
   path: string,
   resolve_file_path: ResolveWorkspaceFilePath,
 ): string | null {
@@ -110,12 +114,23 @@ function resolve_workspace_artifact_path(
   if (WORKSPACE_ABSOLUTE_FILE_PATTERN.test(normalized)) {
     return clickable_workspace_artifact_path(normalized);
   }
-  return resolve_file_path(normalized);
+  const resolved_path = resolve_file_path(normalized);
+  if (resolved_path) {
+    return resolved_path;
+  }
+  if (is_workspace_image_path(normalized) && looks_like_workspace_file_reference(normalized)) {
+    return normalized.replace(/^\.\//, "");
+  }
+  return null;
 }
 
 function normalize_artifact_label(prefix: string): string {
   const label = prefix.trim().replace(/[：:，,]$/, "").trim();
   return label || "已保存到";
+}
+
+function is_workspace_image_path(path: string): boolean {
+  return WORKSPACE_IMAGE_EXTENSION_PATTERN.test(path.trim());
 }
 
 export function split_markdown_file_artifacts(
@@ -201,12 +216,13 @@ function WorkspaceFileButton({
   );
 }
 
-export function useMarkdownFileResolver(): ResolveWorkspaceFilePath {
+export function useMarkdownFileResolver(workspace_agent_id?: string | null): ResolveWorkspaceFilePath {
   const current_agent_id = useAgentStore((state) => state.current_agent_id);
   const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
+  const resolved_agent_id = workspace_agent_id?.trim() || current_agent_id || "";
   const agent_files = useMemo(
-    () => files_by_agent[current_agent_id ?? ""] ?? [],
-    [current_agent_id, files_by_agent],
+    () => files_by_agent[resolved_agent_id] ?? [],
+    [files_by_agent, resolved_agent_id],
   );
 
   return useCallback(
@@ -215,20 +231,59 @@ export function useMarkdownFileResolver(): ResolveWorkspaceFilePath {
   );
 }
 
+export function useMarkdownCurrentAgentID(workspace_agent_id?: string | null): string | null {
+  const current_agent_id = useAgentStore((state) => state.current_agent_id);
+  return workspace_agent_id?.trim() || current_agent_id;
+}
+
 export function normalize_markdown_content(
   content: string,
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
 ): string {
-  return content.replace(WORKSPACE_FILE_PATTERN, (match) => {
-    const resolved_path = resolve_file_path(match);
+  return content.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
+    if (
+      is_inside_inline_code(content, offset) ||
+      is_inside_markdown_link_destination(content, offset, match.length)
+    ) {
+      return match;
+    }
+    const resolved_path = resolve_workspace_artifact_path(match, resolve_file_path);
     return resolved_path && on_open_workspace_file ? `\`${match}\`` : match;
   });
+}
+
+function is_inside_inline_code(content: string, offset: number): boolean {
+  const before = content.slice(0, offset);
+  return (before.match(/`/g)?.length ?? 0) % 2 === 1;
+}
+
+function is_inside_markdown_link_destination(
+  content: string,
+  offset: number,
+  length: number,
+): boolean {
+  const before = content.slice(0, offset);
+  const open_paren_index = before.lastIndexOf("(");
+  if (open_paren_index < 0 || before.lastIndexOf(")") > open_paren_index) {
+    return false;
+  }
+
+  const before_destination = before.slice(0, open_paren_index).trimEnd();
+  if (!before_destination.endsWith("]")) {
+    return false;
+  }
+
+  const after = content.slice(offset + length);
+  const close_paren_index = after.indexOf(")");
+  const newline_index = after.search(/\r?\n/);
+  return close_paren_index >= 0 && (newline_index < 0 || close_paren_index < newline_index);
 }
 
 export function create_markdown_components(
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
+  current_agent_id?: string | null,
 ): Components {
   return {
     pre({ children }) {
@@ -241,7 +296,7 @@ export function create_markdown_components(
         return <CodeBlock language={language} value={value} />;
       }
 
-      const resolved_path = resolve_file_path(value);
+      const resolved_path = resolve_workspace_artifact_path(value, resolve_file_path);
       if (resolved_path && on_open_workspace_file) {
         return (
           <WorkspaceFileButton
@@ -294,7 +349,34 @@ export function create_markdown_components(
       );
     },
     img({ alt, src }) {
-      return <img alt={alt || ""} className="my-4 h-auto max-w-full rounded-[18px] border border-white/40 object-cover" loading="lazy" src={src || ""} />;
+      const raw_src = String(src || "").trim();
+      const resolved_path = resolve_workspace_artifact_path(raw_src, resolve_file_path);
+      const image_src = resolved_path && current_agent_id
+        ? get_workspace_file_preview_url(current_agent_id, resolved_path)
+        : raw_src;
+      const image = (
+        <img
+          alt={alt || ""}
+          className="my-4 h-auto max-w-full rounded-[8px] border border-(--divider-subtle-color) object-contain"
+          loading="lazy"
+          src={image_src}
+        />
+      );
+
+      if (resolved_path && on_open_workspace_file) {
+        return (
+          <button
+            className="block max-w-full text-left"
+            onClick={() => on_open_workspace_file(resolved_path)}
+            title={resolved_path}
+            type="button"
+          >
+            {image}
+          </button>
+        );
+      }
+
+      return image;
     },
     h1({ children }) {
       return <h1 data-markdown-anchor className="mb-4 mt-6 max-w-full break-words text-2xl font-bold text-foreground first:mt-0">{children}</h1>;
@@ -329,8 +411,9 @@ export function create_markdown_components(
 export function create_markdown_summary_components(
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
+  current_agent_id?: string | null,
 ): Components {
-  const base_components = create_markdown_components(resolve_file_path, on_open_workspace_file);
+  const base_components = create_markdown_components(resolve_file_path, on_open_workspace_file, current_agent_id);
 
   return {
     ...base_components,

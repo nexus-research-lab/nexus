@@ -5,23 +5,48 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+// SDKMessageLogOptions 控制 SDK 消息调试日志的输出范围。
+type SDKMessageLogOptions struct {
+	IncludeStreamEvent  bool
+	IncludeSnapshotData bool
+}
+
+// DefaultSDKMessageLogOptions 返回兼容历史行为的 SDK 消息日志选项。
+func DefaultSDKMessageLogOptions() SDKMessageLogOptions {
+	return SDKMessageLogOptions{
+		IncludeStreamEvent:  true,
+		IncludeSnapshotData: true,
+	}
+}
 
 // BuildSDKMessageLogFields 生成 SDK 消息调试日志字段。
 func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
+	return BuildSDKMessageLogFieldsWithOptions(message, DefaultSDKMessageLogOptions())
+}
+
+// BuildSDKMessageLogFieldsWithOptions 按选项生成 SDK 消息调试日志字段。
+func BuildSDKMessageLogFieldsWithOptions(
+	message sdkprotocol.ReceivedMessage,
+	options SDKMessageLogOptions,
+) []any {
 	fields := []any{
 		"sdk_summary", BuildSDKMessageLogSummary(message),
 	}
 
 	switch message.Type {
 	case sdkprotocol.MessageTypeUser:
-		fields = append(fields, buildUserMessageFields(message)...)
+		fields = append(fields, buildUserMessageFields(message, options.IncludeSnapshotData)...)
 	case sdkprotocol.MessageTypeAssistant:
-		fields = append(fields, buildAssistantMessageFields(message)...)
+		fields = append(fields, buildAssistantMessageFields(message, options.IncludeSnapshotData)...)
 	case sdkprotocol.MessageTypeResult:
 		fields = append(fields, buildResultMessageFields(message)...)
 	case sdkprotocol.MessageTypeStreamEvent:
+		if !options.IncludeStreamEvent {
+			return nil
+		}
 		fields = append(fields, buildStreamEventFields(message)...)
 	case sdkprotocol.MessageTypeToolProgress:
 		fields = append(fields, buildToolProgressFields(message)...)
@@ -36,7 +61,7 @@ func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
 			)
 		}
 	}
-	return fields
+	return redactSDKLogFields(fields)
 }
 
 // BuildSDKMessageLogSummary 生成适合调试视图的单行摘要。
@@ -63,7 +88,7 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 	}
 }
 
-func buildUserMessageFields(message sdkprotocol.ReceivedMessage) []any {
+func buildUserMessageFields(message sdkprotocol.ReceivedMessage, includeSnapshotData bool) []any {
 	if message.User == nil {
 		return nil
 	}
@@ -86,10 +111,13 @@ func buildUserMessageFields(message sdkprotocol.ReceivedMessage) []any {
 	if toolErrors > 0 {
 		fields = append(fields, "tool_errors", toolErrors)
 	}
+	if includeSnapshotData {
+		fields = append(fields, buildContentSnapshotFields("user", message.User.Message.Content)...)
+	}
 	return fields
 }
 
-func buildAssistantMessageFields(message sdkprotocol.ReceivedMessage) []any {
+func buildAssistantMessageFields(message sdkprotocol.ReceivedMessage, includeSnapshotData bool) []any {
 	if message.Assistant == nil {
 		return nil
 	}
@@ -102,6 +130,35 @@ func buildAssistantMessageFields(message sdkprotocol.ReceivedMessage) []any {
 	}
 	if errText := strings.TrimSpace(message.Assistant.Error); errText != "" {
 		fields = append(fields, "assistant_error", errText)
+	}
+	if includeSnapshotData {
+		fields = append(fields, buildContentSnapshotFields("assistant", message.Assistant.Message.Content)...)
+	}
+	return fields
+}
+
+func buildContentSnapshotFields(prefix string, blocks []sdkprotocol.ContentBlock) []any {
+	textParts := make([]string, 0, len(blocks))
+	thinkingParts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		if textBlock, ok := sdkprotocol.AsTextBlock(block); ok {
+			if text := messageDebugText(textBlock.Text); text != "" {
+				textParts = append(textParts, text)
+			}
+			continue
+		}
+		if thinkingBlock, ok := sdkprotocol.AsThinkingBlock(block); ok {
+			if thinking := messageDebugText(thinkingBlock.Thinking); thinking != "" {
+				thinkingParts = append(thinkingParts, thinking)
+			}
+		}
+	}
+	fields := []any{}
+	if len(textParts) > 0 {
+		fields = append(fields, prefix+"_text", strings.Join(textParts, "\n\n"))
+	}
+	if len(thinkingParts) > 0 {
+		fields = append(fields, prefix+"_thinking", strings.Join(thinkingParts, "\n\n"))
 	}
 	return fields
 }
@@ -138,37 +195,51 @@ func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
 	if eventType == "" {
 		return nil
 	}
+	fields := []any{"stream_event", eventType}
+	fields = appendRawLogField(fields, "stream_index", event["index"])
 	switch eventType {
+	case "message_start":
+		startMessage := rawMap(event["message"])
+		fields = appendRawLogField(fields, "stream_role", startMessage["role"])
+		fields = appendRawLogField(fields, "stream_model", startMessage["model"])
 	case "content_block_start":
 		block := rawMap(event["content_block"])
 		blockType := normalizeSDKBlockType(rawString(block["type"]))
+		fields = appendRawLogField(fields, "stream_block", blockType)
 		switch blockType {
 		case "text":
 			if text := streamDebugText(rawString(block["text"])); text != "" {
-				return []any{"stream_text", text}
+				fields = append(fields, "stream_text", text)
 			}
 		case "tool_use":
 			if toolName := safeToolName(firstNonEmpty(rawString(block["name"]), rawString(block["id"]))); toolName != "" {
-				return []any{"tool", toolName}
+				fields = append(fields, "tool", toolName)
 			}
 		}
 	case "content_block_delta":
 		delta := rawMap(event["delta"])
 		deltaType := strings.TrimSpace(rawString(delta["type"]))
+		fields = appendRawLogField(fields, "stream_delta", deltaType)
 		switch deltaType {
 		case "text_delta":
 			text := rawString(delta["text"])
 			if preview := streamDebugText(text); preview != "" {
-				return []any{"delta", preview}
+				fields = append(fields, "delta", preview)
 			}
 		case "thinking_delta":
 			text := firstNonEmpty(rawString(delta["thinking"]), rawString(delta["text"]))
 			if preview := streamDebugText(text); preview != "" {
-				return []any{"thinking", preview}
+				fields = append(fields, "thinking", preview)
 			}
 		}
+	case "content_block_stop":
+	case "message_delta":
+		delta := rawMap(event["delta"])
+		fields = appendRawLogField(fields, "stream_stop_reason", delta["stop_reason"])
+		fields = appendRawLogField(fields, "stream_stop_sequence", delta["stop_sequence"])
+	case "message_stop":
 	}
-	return nil
+	return fields
 }
 
 func buildToolProgressFields(message sdkprotocol.ReceivedMessage) []any {
@@ -198,7 +269,9 @@ func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
 			fields = append(
 				fields,
 				"system_model", strings.TrimSpace(message.System.Init.Model),
-				"system_permission_mode", strings.TrimSpace(string(message.System.Init.PermissionMode)),
+				"cmd", strings.TrimSpace(message.System.Init.CWD),
+				"permission_mode", strings.TrimSpace(string(message.System.Init.PermissionMode)),
+				"skills", strings.Join(message.System.Init.Skills, ","),
 			)
 		}
 	case "status":
@@ -221,26 +294,41 @@ func summarizeStreamMessage(message sdkprotocol.ReceivedMessage) string {
 		return "stream"
 	}
 	event := rawMap(message.Stream.Event)
+	if len(event) == 0 {
+		event = rawMap(message.Stream.Data)
+	}
 	eventType := strings.TrimSpace(rawString(event["type"]))
 	if eventType == "" {
 		return "stream"
 	}
 	preview := ""
 	switch eventType {
+	case "message_start":
+		startMessage := rawMap(event["message"])
+		role := strings.TrimSpace(rawString(startMessage["role"]))
+		if role != "" {
+			return "stream message_start(" + role + ")"
+		}
 	case "content_block_delta":
 		delta := rawMap(event["delta"])
 		deltaType := strings.TrimSpace(rawString(delta["type"]))
 		if deltaType != "" {
-			return fmt.Sprintf("stream")
+			return "stream content_block_delta(" + deltaType + ")"
 		}
 	case "content_block_start":
 		block := rawMap(event["content_block"])
-		blockType := strings.TrimSpace(rawString(block["type"]))
+		blockType := normalizeSDKBlockType(rawString(block["type"]))
 		if blockType != "" {
 			if blockType == "tool_use" {
 				preview = safeToolName(rawString(block["name"]))
 			}
-			return appendSummaryPreview(fmt.Sprintf("stream"), preview)
+			return appendSummaryPreview("stream content_block_start("+blockType+")", preview)
+		}
+	case "message_delta":
+		delta := rawMap(event["delta"])
+		stopReason := strings.TrimSpace(rawString(delta["stop_reason"]))
+		if stopReason != "" {
+			return "stream message_delta(stop_reason=" + stopReason + ")"
 		}
 	}
 	return appendSummaryPreview("stream "+eventType, preview)
@@ -372,8 +460,49 @@ func rawString(value any) string {
 	}
 }
 
+func appendRawLogField(fields []any, key string, value any) []any {
+	if strings.TrimSpace(key) == "" {
+		return fields
+	}
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return fields
+		}
+		return append(fields, key, strings.TrimSpace(typed))
+	case int:
+		return append(fields, key, typed)
+	case int8:
+		return append(fields, key, typed)
+	case int16:
+		return append(fields, key, typed)
+	case int32:
+		return append(fields, key, typed)
+	case int64:
+		return append(fields, key, typed)
+	case uint:
+		return append(fields, key, typed)
+	case uint8:
+		return append(fields, key, typed)
+	case uint16:
+		return append(fields, key, typed)
+	case uint32:
+		return append(fields, key, typed)
+	case uint64:
+		return append(fields, key, typed)
+	case float32:
+		return append(fields, key, typed)
+	case float64:
+		return append(fields, key, typed)
+	case bool:
+		return append(fields, key, typed)
+	default:
+		return fields
+	}
+}
+
 func streamDebugText(value string) string {
-	value = strings.TrimSpace(strings.Join(strings.Fields(value), " "))
+	value = RedactSensitiveText(strings.TrimSpace(strings.Join(strings.Fields(value), " ")))
 	if value == "" {
 		return ""
 	}
@@ -383,6 +512,10 @@ func streamDebugText(value string) string {
 	}
 	runes := []rune(value)
 	return string(runes[:maxRunes]) + "..."
+}
+
+func messageDebugText(value string) string {
+	return RedactSensitiveText(value)
 }
 
 func safeToolName(value string) string {
