@@ -20,7 +20,7 @@ BRIDGE_SDK_MODULE ?= github.com/nexus-research-lab/nexus-agent-sdk-bridge
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-bridge-sdk-access check-private-sdk-access check-backend check-go check test run-web run-backend run-backend-go \
-	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check \
+	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-smoke app-win-package \
 	up down log reboot
 
 # Show help
@@ -141,6 +141,15 @@ app-dmg: ## 构建 macOS app dmg、sha256 和 metadata
 build-dmg: app-dmg ## app-dmg 的别名
 
 app-check: app-smoke ## 构建并烟测 macOS .app
+
+app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
+	pwsh scripts/desktop/build-windows-app.ps1
+
+app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
+	pwsh scripts/desktop/smoke-windows-app.ps1
+
+app-win-package: ## 构建 Windows WPF/WebView2 桌面 app zip 和 sha256
+	pwsh scripts/desktop/build-windows-app.ps1 -CreateArchive
 
 # Docker commands
 build: ## Build Docker images

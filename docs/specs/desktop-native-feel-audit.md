@@ -54,6 +54,11 @@
 
 2026-05-19：
 
+- Windows 原生壳进入第一阶段：新增 `desktop/windows/Nexus.Desktop`，使用 WPF + WebView2 承载 `web/dist/app.html`，默认 `desktop_route=/` 显示完整 launcher。
+- Windows shell 已具备 Go sidecar 监管骨架：随机 loopback 端口、`NEXUS_DESKTOP_SESSION_TOKEN`、`WEB_DIST_DIR`、SQLite 本地数据目录、日志目录、DPAPI connector credentials key 和 OAuth custom scheme 环境变量均由壳注入。
+- Windows bridge 先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；当前不注册全局快捷键，也不暴露启动器快捷键配置。
+- Windows 生命周期骨架已补单实例 mutex、named pipe 二次启动唤起、`nexus://launcher/open/settings/connectors/oauth/callback` 路由解析，以及 WebView2 外链打开、未知 scheme 阻断和 WebContent process failed 时间线。
+- Windows 构建入口新增 `scripts/desktop/build-windows-app.ps1`、`scripts/desktop/smoke-windows-app.ps1`、`make app-win-build`、`make app-win-smoke` 和 `make app-win-package`，默认组装到 `desktop/windows/.build/app/Nexus/`，可额外输出 zip/sha256。当前机器缺少 `dotnet` 和 `pwsh`，本轮只能做静态验证，实际 WPF/WebView2 构建与 smoke 需要在 Windows 环境补跑。
 - GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-app.sh`，并把 dmg、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
 - 默认入口改为 launcher：冷启动、Dock reopen、重复启动已有实例、`nexus://open` 和 `nexus://launcher` 都不再直接进入 `/app`。
 - 本轮调整后，默认 launcher 不再是紧凑浮层，而是主窗口 `/` 完整首页；smoke 改为验证 `main_window.created` + `web.ready location_path=/`，再分别通过 `nexus://open` 和 `nexus://launcher` 验证仍回到 `/`。

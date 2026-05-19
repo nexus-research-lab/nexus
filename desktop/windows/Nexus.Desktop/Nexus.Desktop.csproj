@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Nexus</AssemblyName>
+    <RootNamespace>Nexus.Desktop</RootNamespace>
+    <Version>$(NexusDesktopVersion)</Version>
+    <FileVersion>$(NexusDesktopFileVersion)</FileVersion>
+    <AssemblyVersion>$(NexusDesktopAssemblyVersion)</AssemblyVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NexusDesktopVersion Condition="'$(NexusDesktopVersion)' == ''">0.0.0</NexusDesktopVersion>
+    <NexusDesktopBuildNumber Condition="'$(NexusDesktopBuildNumber)' == ''">0</NexusDesktopBuildNumber>
+    <NexusDesktopFileVersion Condition="'$(NexusDesktopFileVersion)' == ''">0.0.0.0</NexusDesktopFileVersion>
+    <NexusDesktopAssemblyVersion Condition="'$(NexusDesktopAssemblyVersion)' == ''">0.0.0.0</NexusDesktopAssemblyVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>NexusBuildNumber</_Parameter1>
+      <_Parameter2>$(NexusDesktopBuildNumber)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

@@ -35,7 +35,7 @@ Go Sidecar
 
 Nexus 的桌面形态需要原生窗口、全局快捷键、菜单栏、系统通知、URL scheme、Keychain、自动更新和多屏焦点行为。这些能力在 Electron / Tauri 抽象层里可以做，但越到 native feel 的细节越会被抽象层限制。
 
-第一阶段只做 macOS 时，更合理的选择是直接使用 Swift + AppKit，把跨平台抽象留到未来 Windows shell，而不是先引入一层桌面运行时。
+第一阶段只做 macOS 时，更合理的选择是直接使用 Swift + AppKit，把跨平台抽象留到未来 Windows shell，而不是先引入一层桌面运行时。Windows 开始实施后也延续同一判断：新增 `desktop/windows` 原生壳，不把 macOS shell 包成跨平台中间层。
 
 ### 2.2 为什么不是 Raycast 的 Node backend
 
@@ -174,6 +174,28 @@ Nexus.app/
 
 `index.html` 保留给浏览器开发和历史兼容；桌面窗口优先加载对应 entry。
 
+Windows 第一阶段组装结构：
+
+```text
+desktop/windows/.build/app/Nexus/
+  Nexus.exe                 # C# / WPF shell
+  Microsoft.Web.WebView2.*  # WebView2 runtime binding
+  Resources/
+    nexus-server.exe        # Go sidecar
+    Web/
+      app.html
+      settings.html
+      oauth-callback.html
+      assets/
+    db/
+      migrations/
+    skills/
+```
+
+Windows 壳负责启动 `Resources/nexus-server.exe`，并用 WebView2 document start script 注入 `window.__NEXUS_DESKTOP_RUNTIME__`。开发模式如果找不到 bundled resources，可从仓库根目录用 `go run ./cmd/nexus-server` 启动，便于壳层调试；正式包必须使用 `Resources` 内资源，不依赖仓库。
+
+Windows 壳第一阶段还承担单实例与基础 URL 唤起：主实例持有本机 mutex 并监听 named pipe，重复启动时把 `nexus://` 参数转给主实例；`nexus://launcher` / `nexus://open` 打开完整 launcher，`nexus://settings` 打开设置，`nexus://connectors/oauth/callback` 映射到 OAuth 回调 entry。
+
 ## 5. 本地目录约定
 
 桌面 App 不使用仓库根目录作为运行数据目录。
@@ -200,6 +222,20 @@ Keychain 策略按签名形态区分：
 - 正式签名包默认使用 macOS Keychain，保证长期身份稳定。
 - 开发模式和 ad-hoc 本地包默认使用 `~/Library/Application Support/Nexus/config/connector-credentials.key`，文件权限为 0600。ad-hoc 包每次构建都会改变代码签名身份，Keychain 旧 ACL 可能反复要求用户输入密码，不能放在启动热路径。
 - `NEXUS_DESKTOP_KEYCHAIN_MODE=keychain|file|auto` 可覆盖默认策略，便于验证正式签名包和回归本地文件路径。
+
+Windows：
+
+```text
+%LOCALAPPDATA%\Nexus\
+  nexus.db
+  workspace\
+  cache\
+  logs\
+  exports\
+  config\
+```
+
+Windows 第一阶段优先用 DPAPI current user 保护 connector credentials encryption key，保存到 `%LOCALAPPDATA%\Nexus\config\connector-credentials.dpapi`。如果 DPAPI 不可用，才降级到 `%LOCALAPPDATA%\Nexus\config\connector-credentials.key` 文件。正式安装器阶段仍需明确升级、卸载和多 Windows 用户下的密钥生命周期。
 
 ## 6. Bridge 与协议
 
@@ -314,6 +350,14 @@ nexus://connectors/oauth/callback
 
 第一版可以本地构建 `.app` 和 zip/dmg，但 public beta 前签名、公证和自动更新必须完成。
 
+Windows 发布链路先不并入 GitHub Release 的正式 app asset。当前 `scripts/package-release.sh` 只产出 Windows 可运行服务包；`desktop/windows` 是下一条原生 app 线，第一阶段只提供本地构建脚本：
+
+```powershell
+pwsh scripts/desktop/build-windows-app.ps1
+```
+
+该脚本构建 `web/dist`、交叉编译 `nexus-server.exe`，再通过 `dotnet publish` 组装 WPF/WebView2 shell。加上 `-CreateArchive` 后会额外生成 zip 与 sha256。当前还有 `scripts/desktop/smoke-windows-app.ps1` 做本地 smoke，验证 launcher ready、sidecar 存在和退出清理。等 Windows 侧补齐安装器、签名、自动更新和 QA 清单后，再决定是复用当前 `Publish Release` workflow 的独立 job，还是拆出独立 Windows app workflow。
+
 ## 10. 验收标准
 
 ### 10.1 App 版本
@@ -344,7 +388,7 @@ nexus://connectors/oauth/callback
 ### 10.3 v1.0
 
 - macOS App 发布链路完全自动化。
-- Windows shell 是否启动进入单独决策。
+- Windows shell 发布链路完成签名、安装器、更新和 smoke。
 - bridge schema 有版本兼容策略。
 - 升级、回滚、卸载、迁移、断网、权限拒绝都有测试记录。
 - native feel audit 中 A 到 G 类阻塞项必须全部为 green。
@@ -399,6 +443,17 @@ nexus://connectors/oauth/callback
 - `.dmg` / `.zip`。
 - Sparkle appcast 和更新包签名。
 - GitHub Release artifact。
+
+### 阶段 6：Windows 原生壳
+
+- 新增 `desktop/windows`。
+- 使用 C# + WPF + WebView2 建立原生 shell。
+- 复用 Go sidecar、`web/dist`、migrations 和内置 skills。
+- Shell 选择随机 loopback 端口，并注入 API / WS / session token / 版本 / 平台。
+- 默认加载完整 launcher `/`，进入工作台后再切换 `/app`。
+- Bridge 第一阶段覆盖版本读取、外链打开、日志导出、主窗口路由和快捷键状态占位。
+- 第一阶段使用 DPAPI 保存 connector credentials encryption key，并补单实例、基础协议唤起、smoke 脚本和 zip 打包。
+- 后续补托盘/任务栏语义、安装器、签名、自动更新和 Windows QA 清单。
 
 ## 12. 明确不做
 
