@@ -148,7 +148,7 @@ app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1
 
-app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app zip、sha256 和 metadata
+app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app zip、installer、sha256 和 metadata
 	pwsh scripts/desktop/package-windows-app.ps1
 
 # Docker commands

@@ -133,7 +133,12 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
 
-      - name: Build Windows App Zip
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build Windows App Package
         shell: pwsh
         env:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}\windows-app\Nexus
@@ -153,6 +158,8 @@ jobs:
             ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.zip
             ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.zip.sha256
             ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.zip.metadata.json
+            ${{ runner.temp }}/windows-artifacts/NexusSetup-*.exe
+            ${{ runner.temp }}/windows-artifacts/NexusSetup-*.exe.sha256
 
   release:
     needs:
@@ -289,6 +296,8 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-windows-*.zip
             ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.sha256
             ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.metadata.json
+            ${{ runner.temp }}/artifacts/NexusSetup-*.exe
+            ${{ runner.temp }}/artifacts/NexusSetup-*.exe.sha256
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -307,3 +316,5 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-windows-*.zip
             ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.sha256
             ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.metadata.json
+            ${{ runner.temp }}/artifacts/NexusSetup-*.exe
+            ${{ runner.temp }}/artifacts/NexusSetup-*.exe.sha256
