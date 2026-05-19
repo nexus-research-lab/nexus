@@ -68,8 +68,8 @@ After installation, run `claude` once and complete login. On native Windows, Git
 
 ```bash
 # Linux x86_64 example
-tar -xzf nexus-v0.1.4-linux-amd64.tar.gz
-cd nexus-v0.1.4-linux-amd64
+tar -xzf nexus-v0.1.5-linux-amd64.tar.gz
+cd nexus-v0.1.5-linux-amd64
 
 # Initialize database and create admin account
 ./bin/nexus-migrate up
@@ -88,6 +88,8 @@ bin\nexus-migrate.exe up
 echo your-password| bin\nexusctl.exe auth init-owner --username admin --password-stdin
 run-nexus.cmd
 ```
+
+macOS app packages are published in the same GitHub Release as `Nexus-macos-<version>-<build>.dmg`. The current app package is ad-hoc signed and not notarized; verify the sha256 file before installing, then use Finder right-click Open for trusted builds if macOS blocks the first launch.
 
 To upgrade a release package, open Settings in the Web UI and use the release download link. Download the matching package for your platform, stop Nexus, replace the extracted package directory, then run migration and start Nexus again.
 

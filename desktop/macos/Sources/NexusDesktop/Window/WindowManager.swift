@@ -198,6 +198,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
       entry: .launcher
     )
     if let launcherWindow {
+      startupTimeline.mark("launcher_window.show_existing", metadata: [
+        "was_visible": launcherWindow.isVisible ? "true" : "false",
+      ])
       launcherWebViewHost?.load(route.url(runtime: runtime))
       launcherWindow.center()
       launcherWindow.makeKeyAndOrderFront(nil)

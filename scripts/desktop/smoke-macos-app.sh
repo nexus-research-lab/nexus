@@ -9,6 +9,7 @@ APP_BUNDLE="${APP_BUILD_DIR}/${APP_NAME}.app"
 APP_EXECUTABLE="${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
 LOG_FILE="${NEXUS_DESKTOP_SMOKE_LOG:-${TMPDIR:-/tmp}/nexus-desktop-smoke.log}"
 MAIN_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS:-15}"
+MAIN_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_URL_TIMEOUT_SECONDS:-3}"
 LAUNCHER_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS:-10}"
 LAUNCHER_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_URL_TIMEOUT_SECONDS:-3}"
 EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}"
@@ -72,6 +73,10 @@ post_launcher_notification() {
   swift -e 'import Foundation; DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.leemysw.nexus.showLauncher"), object: nil, userInfo: nil, deliverImmediately: true); RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))' >/dev/null 2>&1
 }
 
+post_main_window_notification() {
+  swift -e 'import Foundation; DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.leemysw.nexus.showMainWindow"), object: nil, userInfo: nil, deliverImmediately: true); RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))' >/dev/null 2>&1
+}
+
 if [[ ! -x "${APP_EXECUTABLE}" ]]; then
   "${ROOT_DIR}/scripts/desktop/build-macos-app.sh"
 fi
@@ -92,6 +97,18 @@ wait_for_log "event=sidecar\\.credentials_key_ready" "${MAIN_TIMEOUT_SECONDS}"
 if [[ -n "${EXPECTED_CREDENTIALS_STORAGE}" ]]; then
   wait_for_log "event=sidecar\\.credentials_key_ready.*storage=${EXPECTED_CREDENTIALS_STORAGE}" "${MAIN_TIMEOUT_SECONDS}"
 fi
+
+wait_for_log "event=launcher_window\\.created.*material=popover" "${LAUNCHER_TIMEOUT_SECONDS}"
+wait_for_log "event=web\\.ready.*surface=launcher" "${LAUNCHER_TIMEOUT_SECONDS}"
+wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"
+
+if open "nexus://open" >/dev/null 2>&1 &&
+  wait_for_log_match "event=main_window\\.created.*material=windowBackground" "${MAIN_URL_TIMEOUT_SECONDS}"; then
+  :
+else
+  post_main_window_notification || fail "failed to request main window"
+  wait_for_log "event=main_window\\.created.*material=windowBackground" "${MAIN_TIMEOUT_SECONDS}"
+fi
 wait_for_log "event=main_window\\.created.*material=windowBackground" "${MAIN_TIMEOUT_SECONDS}"
 wait_for_log "event=web\\.ready.*surface=main" "${MAIN_TIMEOUT_SECONDS}"
 if [[ "${ALLOW_FALLBACK}" == "1" ]]; then
@@ -101,11 +118,11 @@ else
 fi
 
 if open "nexus://launcher" >/dev/null 2>&1 &&
-  wait_for_log_match "event=launcher_window\\.created.*material=popover" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
+  wait_for_log_match "event=launcher_window\\.show_existing.*was_visible=false" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
   :
 else
   post_launcher_notification || fail "failed to request launcher window"
-  wait_for_log "event=launcher_window\\.created.*material=popover" "${LAUNCHER_TIMEOUT_SECONDS}"
+  wait_for_log "event=launcher_window\\.show_existing.*was_visible=false" "${LAUNCHER_TIMEOUT_SECONDS}"
 fi
 wait_for_log "event=web\\.ready.*surface=launcher" "${LAUNCHER_TIMEOUT_SECONDS}"
 wait_for_log "event=launcher_window\\.revealed.*source=web\\.ready" "${LAUNCHER_TIMEOUT_SECONDS}"

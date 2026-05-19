@@ -68,8 +68,8 @@ winget install Anthropic.ClaudeCode
 
 ```bash
 # 解压（以 Linux x86_64 为例）
-tar -xzf nexus-v0.1.4-linux-amd64.tar.gz
-cd nexus-v0.1.4-linux-amd64
+tar -xzf nexus-v0.1.5-linux-amd64.tar.gz
+cd nexus-v0.1.5-linux-amd64
 
 # 初始化数据库，创建管理员账号
 ./bin/nexus-migrate up
@@ -80,6 +80,8 @@ printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin 
 ```
 
 打开 `http://localhost:8010`，登录后即可开始。
+
+macOS app 包会在同一个 GitHub Release 中发布，文件名形如 `Nexus-macos-<version>-<build>.dmg`。当前包是 ad-hoc 签名，尚未公证；安装前先校验 sha256，若首次启动被 macOS 拦截，可信构建可通过 Finder 右键 Open 打开。
 
 发布包升级时，在 Web UI 的设置页打开新版本下载入口，下载对应平台的发布包；停止 Nexus 后替换解压目录，再执行迁移并重新启动。
 

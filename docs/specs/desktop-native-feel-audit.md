@@ -15,8 +15,8 @@
 | 类别 | 状态 | 当前结论 | 下一步 |
 | --- | --- | --- | --- |
 | Native shell owns lifecycle | Green | Swift AppKit shell 已启动 Go sidecar，并在 Quit / SIGTERM / SIGINT 时停止 sidecar；关闭窗口仅隐藏，不杀进程；启动前会按 PID 记录清理崩溃后遗留的 bundled sidecar；启动失败会写诊断报告；WebView 内容进程终止会记录时间线并自动 reload。 | 后续补 crash report。 |
-| Single instance | Green | 使用 `~/Library/Application Support/Nexus/NexusDesktop.lock` 做单实例锁；重复启动会通知已运行实例拉起主窗口。 | public beta 前补多用户/多 bundle identifier 策略。 |
-| Dock and reopen behavior | Green | Dock 点击和重复启动都会重新显示主窗口。 | 多窗口后补 settings / launcher 恢复策略。 |
+| Single instance | Green | 使用 `~/Library/Application Support/Nexus/NexusDesktop.lock` 做单实例锁；重复启动会通知已运行实例拉起 launcher。 | public beta 前补多用户/多 bundle identifier 策略。 |
+| Dock and reopen behavior | Green | 冷启动、Dock 点击和重复启动默认显示 launcher；显式 `nexus://open` 或 launcher 内导航才进入 `/app` 主工作台。 | 多窗口后补 settings / launcher 恢复策略。 |
 | Standard macOS menus | Green | 已补 About、Settings、Hide、Quit、Edit、Window、Reload 等标准菜单；启动器入口保留在菜单中，具体全局快捷键由设置页管理。 | 后续按 macOS Human Interface Guidelines 做菜单分组精修。 |
 | System WebView boundary | Yellow | WKWebView 只允许同源本地页面留在内部；外部 `http` / `https` / `mailto` 统一交给系统打开，未知 scheme 阻断；首屏由 React ready signal 后再 reveal；ready signal 已处理隐藏窗口 rAF 可能被节流的问题；窗口内容已由 `NSVisualEffectView` material 承载，WebView 背景透明；外链打开、popup 外链、未知 scheme 阻断会写入启动时间线。 | 补真实输入法与键盘导航验证。 |
 | Default browser affordances | Yellow | 默认右键菜单已关闭，返回/前进手势关闭；右键菜单抑制和 launcher 关闭原因会进入诊断时间线。 | 继续核对链接预览、拖拽、文本输入、IME、Tab / Escape。 |
@@ -55,6 +55,8 @@
 2026-05-19：
 
 - GitHub `Publish Release` workflow 复用现有发布入口，新增 `macos_app` job 在 macOS runner 上执行 `scripts/desktop/package-macos-app.sh`，并把 dmg、sha256、metadata 交给最终 `release` job 统一上传到同一个 GitHub Release。
+- 默认入口改为 launcher：冷启动、Dock reopen 和重复启动已有实例都不再直接进入 `/app`；smoke 先验证 launcher ready，再通过显式 `nexus://open` 验证主工作台 ready。
+- 本地 smoke 记录：`launcher_window.created` 0.99s，launcher `web.ready location_path=/ source=after_paint` 1.98s，`launcher_window.revealed source=web.ready`；显式打开主窗口后 `main_window.created` 2.36s，主窗口 `web.ready location_path=/app source=after_paint` 2.85s；再唤起 launcher 记录 `launcher_window.show_existing was_visible=false`。
 - 桌面 smoke 脚本在启动前显式向 LaunchServices 注册 `.app`，并在 custom scheme 未投递时回退到 shell 内部的 launcher 分布式通知，避免干净 CI runner 上 `nexus://launcher` 不稳定导致 launcher smoke 失败。
 - GitHub macOS job 开启 `NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK=1`，允许慢 runner 上主窗口先以 `fallback_timeout` reveal，但仍要求后续 `web.ready` 到达，并继续拦截 WebContent crash 和 startup failure；本地默认 smoke 仍保持严格模式。
 - macOS app 发布仍标记签名状态：ad-hoc signing、未 notarize、metadata 保留 `developer_id=false` 和 `notarized=false`。

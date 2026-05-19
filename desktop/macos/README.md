@@ -14,7 +14,7 @@
 - Shell 会在 `~/Library/Application Support/Nexus/NexusSidecar.pid.json` 记录当前 sidecar；下次启动前会清理同 bundle 路径下的崩溃遗留进程。
 - Shell 会把本地 session token 同步进 WKWebView cookie store，保证 WebSocket 握手也能通过本地 API 校验。
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/Library/Application Support/Nexus/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
-- Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme。
+- Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动、Dock 重新打开和重复启动已有实例默认显示 launcher，只有显式路由才进入 `/app` 工作台。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，launcher 使用 `popover` material 和圆角承载面，WKWebView under-page 背景保持透明。
 - Shell 默认注册 `Option + Space` 全局快捷键，可从系统任意位置唤起独立紧凑 launcher 浮层；窗口菜单也会展示“显示启动器”入口，浮层支持失焦隐藏和 Escape 关闭。
 - 设置页可读取全局快捷键注册状态、显示冲突失败原因，并录制、开关或恢复默认快捷键。
@@ -44,7 +44,7 @@ scripts/desktop/package-macos-app.sh
 `run-macos-dev.sh` 会先构建前端，再启动 Swift shell。首次启动会初始化桌面专用 SQLite 数据库。
 `generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
-`smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口 ready reveal、launcher reveal、material 标记和退出后 sidecar 无残留。
+`smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、默认 launcher ready reveal、显式打开主窗口 ready reveal、material 标记和退出后 sidecar 无残留。
 `package-macos-app.sh` 会先构建 `.app`、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
 人工 macOS app 验收步骤维护在 `docs/specs/desktop-app-qa-checklist.md`。
 

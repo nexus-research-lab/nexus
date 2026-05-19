@@ -1,6 +1,6 @@
 # Desktop App QA Checklist
 
-本文档用于记录 macOS app 包的人工验收步骤。自动化 smoke 负责确认 `.app` 能启动、sidecar 能监听、主窗口和 launcher 能 reveal；这里覆盖更接近真实桌面使用的输入、导航、OAuth 和诊断行为。
+本文档用于记录 macOS app 包的人工验收步骤。自动化 smoke 负责确认 `.app` 能启动、sidecar 能监听、默认 launcher 和显式主窗口都能 reveal；这里覆盖更接近真实桌面使用的输入、导航、OAuth 和诊断行为。
 
 ## 1. 前置条件
 
@@ -18,11 +18,12 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 
 | 场景 | 操作 | 期望 |
 | --- | --- | --- |
-| 主窗口启动 | 打开 `Nexus.app` | 首屏不出现长期白屏或黑屏；进入主窗口后可操作。 |
-| Dock reopen | 关闭主窗口后点击 Dock 图标 | 主窗口重新出现，sidecar 不重启。 |
+| 默认入口 | 打开 `Nexus.app` | 首屏不出现长期白屏或黑屏；默认显示 launcher，不直接进入 `/app` 工作台。 |
+| Dock reopen | 关闭窗口后点击 Dock 图标 | launcher 重新出现，sidecar 不重启。 |
 | Cmd+W | 主窗口按 `Command+W` | 只隐藏窗口，不退出应用。 |
 | Cmd+Q | 按 `Command+Q` | App 退出，`nexus-server` 无残留。 |
 | Launcher | 按 `Option+Space`、窗口菜单选择“显示启动器”、执行 `open nexus://launcher` | 三种入口都能打开紧凑 launcher 面板，不再弹出完整首页。 |
+| 进入工作台 | 在 launcher 选择进入工作台，或执行 `open nexus://open` | 打开 `/app` 主工作台，并关闭 launcher 浮层。 |
 | Launcher Escape | launcher 获焦时按 `Escape` | launcher 关闭，主窗口状态不丢失。 |
 | Launcher 失焦 | 打开 launcher 后点击其他窗口 | launcher 自动关闭。 |
 | 设置页返回 | 从菜单或 `nexus://settings` 进入设置后点击“返回工作台” | 回到主工作区，视觉上有明确返回路径。 |

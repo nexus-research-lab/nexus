@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    windowManager?.showMainWindow()
+    windowManager?.showLauncher()
     return true
   }
 
@@ -120,32 +120,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func drainPendingStartupActions(manager: WindowManager) {
-    if shouldShowSettingsAfterStart {
-      shouldShowSettingsAfterStart = false
-      manager.showSettings()
-    } else {
-      manager.showMainWindow()
-    }
+    let showSettings = shouldShowSettingsAfterStart
+    shouldShowSettingsAfterStart = false
 
-    guard !pendingApplicationURLs.isEmpty else {
-      return
-    }
     let urls = pendingApplicationURLs
     pendingApplicationURLs.removeAll()
-    handleApplicationURLs(urls)
-  }
 
-  private func handleApplicationURLs(_ urls: [URL]) {
-    guard let windowManager else {
-      pendingApplicationURLs.append(contentsOf: urls)
-      return
+    if showSettings {
+      manager.showSettings()
     }
 
+    let handledURL = handleApplicationURLs(urls)
+    if !showSettings && !handledURL {
+      manager.showLauncher()
+    }
+  }
+
+  @discardableResult
+  private func handleApplicationURLs(_ urls: [URL]) -> Bool {
+    guard let windowManager else {
+      pendingApplicationURLs.append(contentsOf: urls)
+      return false
+    }
+
+    var handled = false
     for url in urls {
-      if !windowManager.handleApplicationURL(url) {
+      if windowManager.handleApplicationURL(url) {
+        handled = true
+      } else {
         NSLog("[Nexus App] unsupported application URL: \(url.absoluteString)")
       }
     }
+    return handled
   }
 
   private func applyGlobalShortcutPreference() {
@@ -230,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func notifyRunningInstance() {
     DistributedNotificationCenter.default().postNotificationName(
-      Self.showMainWindowNotification,
+      Self.showLauncherNotification,
       object: nil,
       userInfo: nil,
       deliverImmediately: true

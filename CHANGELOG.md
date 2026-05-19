@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-05-19
+
 ### Added
 - GitHub Release 发布流程新增 macOS app 构建 job，并把 dmg、sha256、metadata 作为同一个 tag 的 Release assets 上传。
 - macOS 桌面 smoke 支持 CI 友好的 launcher 分布式通知兜底和可配置 fallback reveal 容忍度。
@@ -15,8 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS 桌面新增 Nexus 概念 App 图标，并接入 `.app` bundle。
 
 ### Changed
+- 重做侧边栏聊天工作台：联系人、能力入口、最近会话与 launcher 控制台的信息结构更清晰。
 - macOS 桌面移除“文件 / 打开启动器”菜单项，改为“窗口 / 显示启动器”并展示 `Option + Space` 快捷键。
 - macOS 桌面 launcher 浮层改为紧凑命令面板，设置页新增“返回工作台”入口。
+
+### Fixed
+- 修复 Room slot 状态并发访问风险，并稳定 Room 异步清理测试。
+- 修复 `nexus-server --help` 会提前触发迁移的问题。
+- 修复聊天区侧栏 tab 激活态在路由切换后丢失的问题。
+- 修复 macOS app 已运行时再次打开不会唤起 launcher 的问题。
 
 ## [0.1.4] - 2026-05-19
 
