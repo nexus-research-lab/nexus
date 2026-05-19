@@ -2,7 +2,11 @@ package message
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"strconv"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -473,6 +477,117 @@ func TestProcessorHandlesToolResultMessage(t *testing.T) {
 	}
 	if blocks[1]["error_code"] != "permission_request_timeout" {
 		t.Fatalf("tool result 未正确附加 error_code: %+v", blocks[1])
+	}
+}
+
+func TestProcessorAddsWorkspaceFileArtifactForFileToolResult(t *testing.T) {
+	workspacePath := t.TempDir()
+	processor := NewProcessor(MessageContext{
+		SessionKey:    "agent:nexus:ws:dm:test",
+		AgentID:       "nexus",
+		WorkspacePath: workspacePath,
+		RoundID:       "round-file-artifact",
+		ParentID:      "round-file-artifact",
+	}, "")
+
+	targetPath := filepath.Join(workspacePath, "reports", "summary.md")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID: "assistant-file-artifact-1",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{
+						ID:    "tool-write-1",
+						Name:  "Write",
+						Input: json.RawMessage(`{"file_path":` + strconv.Quote(targetPath) + `}`),
+					},
+				},
+			},
+		},
+	})
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolResultBlock{
+						ToolUseID: "tool-write-1",
+						Content:   json.RawMessage(`"ok"`),
+						IsError:   false,
+					},
+				},
+			},
+		},
+	})
+
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("file artifact 未生成 durable assistant 消息: %+v", output)
+	}
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 3 {
+		t.Fatalf("file artifact 内容块数量不正确: %+v", blocks)
+	}
+	artifact := blocks[2]
+	if artifact["type"] != protocol.ContentBlockTypeWorkspaceFileArtifact {
+		t.Fatalf("第三块应为 workspace_file_artifact: %+v", artifact)
+	}
+	if artifact["path"] != "reports/summary.md" || artifact["display_path"] != "reports/summary.md" {
+		t.Fatalf("artifact 路径应转成 workspace 相对路径: %+v", artifact)
+	}
+	if artifact["source_tool_use_id"] != "tool-write-1" || artifact["source_tool_name"] != "Write" {
+		t.Fatalf("artifact 来源工具不正确: %+v", artifact)
+	}
+	if artifact["workspace_agent_id"] != "nexus" || artifact["scope"] != protocol.WorkspaceFileArtifactScopeAgentWorkspace {
+		t.Fatalf("artifact workspace 归属不正确: %+v", artifact)
+	}
+}
+
+func TestProcessorDoesNotAddWorkspaceFileArtifactForFailedToolResult(t *testing.T) {
+	workspacePath := t.TempDir()
+	processor := NewProcessor(MessageContext{
+		SessionKey:    "agent:nexus:ws:dm:test",
+		AgentID:       "nexus",
+		WorkspacePath: workspacePath,
+		RoundID:       "round-file-artifact-error",
+		ParentID:      "round-file-artifact-error",
+	}, "")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID: "assistant-file-artifact-error-1",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{
+						ID:    "tool-edit-1",
+						Name:  "Edit",
+						Input: json.RawMessage(`{"file_path":"notes.md"}`),
+					},
+				},
+			},
+		},
+	})
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolResultBlock{
+						ToolUseID: "tool-edit-1",
+						Content:   json.RawMessage(`"failed"`),
+						IsError:   true,
+					},
+				},
+			},
+		},
+	})
+
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 2 {
+		t.Fatalf("失败 tool_result 不应追加 artifact: %+v", blocks)
 	}
 }
 

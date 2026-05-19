@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 桌面 app 的运行数据目录统一为 `~/.nexus`，macOS 与 Windows 不再分别使用 `Application Support/Nexus` 或 `%LOCALAPPDATA%\Nexus`。
 - 聊天附件改为结构化 metadata 传递，正文不再拼接文件清单或内容摘录，DM/Room 待发送队列和历史回放会保留附件信息；Room 群聊附件上传到 conversation 级公共目录。
+- 文件类工具执行成功后会写入结构化工作区文件产物，并在聊天区提供单击打开入口。
 
 ## [0.1.5] - 2026-05-19
 

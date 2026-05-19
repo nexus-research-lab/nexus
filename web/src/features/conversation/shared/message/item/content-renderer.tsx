@@ -19,6 +19,7 @@ import { ImageBlock } from "../blocks/image-block";
 import { ThinkingBlock } from "../blocks/thinking-block";
 import { ToolBlock } from "../blocks/tool-block";
 import { ToolUseErrorBlock } from "../blocks/tool-use-error-block";
+import { WorkspaceFileArtifactBlock } from "../blocks/workspace-file-artifacts";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
 import {
@@ -307,6 +308,15 @@ export function ContentRenderer(
           ));
         }
 
+        if (block.type === 'workspace_file_artifact') {
+          return wrap_block(index, (
+            <WorkspaceFileArtifactBlock
+              artifact={block}
+              on_open_workspace_file={on_open_workspace_file}
+            />
+          ));
+        }
+
         if (block.type === 'tool_use') {
           // 特殊处理 AskUserQuestion 工具
           if (block.name === 'AskUserQuestion') {
@@ -474,6 +484,10 @@ function resolve_activity_state({
 
   if (latest_visible_block.type === 'text') {
     return has_streaming_text_block(content, streaming_block_indexes) ? 'replying' : (fallback_activity_state ?? 'replying');
+  }
+
+  if (latest_visible_block.type === 'workspace_file_artifact') {
+    return fallback_activity_state ?? 'executing';
   }
 
   return fallback_activity_state ?? 'thinking';

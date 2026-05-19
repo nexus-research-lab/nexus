@@ -34,6 +34,8 @@ import type {
 } from "@/types/conversation/permission";
 
 import { ToolBlock } from "../blocks/tool-block";
+import { useWorkspaceFileArtifactsFromContent } from "../blocks/workspace-file-artifact-utils";
+import { WorkspaceFileArtifactList } from "../blocks/workspace-file-artifacts";
 import { MessageStats } from "../ui/message-stats";
 import {
   MessageActionButton,
@@ -43,7 +45,12 @@ import {
 import { ContentRenderer } from "./content-renderer";
 import { format_message_time } from "./message-item-support";
 import type { MessageItemState } from "./message-item-types";
-import type { MessageAttachment } from "@/types/conversation/message";
+import type {
+  ContentBlock,
+  MessageAttachment,
+} from "@/types/conversation/message";
+
+const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
 interface MessageUserSectionProps {
   compact: boolean;
@@ -381,12 +388,18 @@ export function MessageAssistantSection({
   assistant_content_mode,
   state,
 }: MessageAssistantSectionProps) {
+  const is_room_thread_mode = assistant_content_mode === "room_thread";
+  const content_workspace_agent_id = state.assistant_agent_id ?? workspace_agent_id;
+  const collapsed_process_file_artifacts = useWorkspaceFileArtifactsFromContent(
+    state.should_render_process_callchain && !state.is_process_expanded
+      ? state.process_projection.content
+      : EMPTY_CONTENT_BLOCKS,
+  );
+
   if (state.should_hide_assistant_content) {
     return null;
   }
 
-  const is_room_thread_mode = assistant_content_mode === "room_thread";
-  const content_workspace_agent_id = state.assistant_agent_id ?? workspace_agent_id;
   const pending_permission_block = (
     <PendingPermissionList
       permissions={state.unmatched_pending_permissions}
@@ -539,6 +552,15 @@ export function MessageAssistantSection({
                       )}
                     </div>
                   </button>
+
+                  {!state.is_process_expanded ? (
+                    <WorkspaceFileArtifactList
+                      artifacts={collapsed_process_file_artifacts}
+                      class_name="ml-5 pb-1"
+                      label="生成文件"
+                      on_open_workspace_file={on_open_workspace_file}
+                    />
+                  ) : null}
 
                   {state.is_process_expanded ? (
                     <div className="pt-1">

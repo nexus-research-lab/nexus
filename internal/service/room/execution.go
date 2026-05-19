@@ -120,7 +120,15 @@ func (s *RealtimeService) runSlot(
 		"s", roundValue.SessionKey,
 		"a", slot.AgentID,
 	)
-	mapper := roomdomain.NewSlotMessageMapper(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, slot.AgentID, slot.MsgID, slot.AgentRoundID)
+	mapper := roomdomain.NewSlotMessageMapper(
+		roundValue.SessionKey,
+		roundValue.RoomID,
+		roundValue.ConversationID,
+		slot.AgentID,
+		slot.MsgID,
+		slot.AgentRoundID,
+		agentValue.WorkspacePath,
+	)
 	slot.setStatus("running")
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)

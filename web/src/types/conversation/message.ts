@@ -66,6 +66,19 @@ export interface TaskProgressContent {
   usage?: Record<string, any>;
 }
 
+export interface WorkspaceFileArtifactContent {
+  type: "workspace_file_artifact";
+  id?: string;
+  path: string;
+  display_path?: string | null;
+  label?: string | null;
+  operation?: string | null;
+  scope?: MessageAttachmentScope;
+  workspace_agent_id?: string | null;
+  source_tool_use_id?: string | null;
+  source_tool_name?: string | null;
+}
+
 export type SystemEventTone = "neutral" | "warning";
 export type SystemEventIcon = "retry" | "progress" | "status" | "guide";
 
@@ -89,6 +102,7 @@ export type ContentBlock =
   | ThinkingContent
   | ImageContent
   | TaskProgressContent
+  | WorkspaceFileArtifactContent
   | SystemEventContent;
 
 export interface BaseMessage {

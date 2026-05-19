@@ -20,6 +20,7 @@ func NewSlotMessageMapper(
 	agentID string,
 	slotMessageID string,
 	agentRoundID string,
+	workspacePath ...string,
 ) *SlotMessageMapper {
 	return &SlotMessageMapper{EventMapper: message.NewEventMapper(message.EventMapperOptions{
 		Context: message.MessageContext{
@@ -27,6 +28,7 @@ func NewSlotMessageMapper(
 			RoomID:         roomID,
 			ConversationID: conversationID,
 			AgentID:        agentID,
+			WorkspacePath:  firstNonEmpty(workspacePath...),
 			RoundID:        agentRoundID,
 			ParentID:       slotMessageID,
 		},
