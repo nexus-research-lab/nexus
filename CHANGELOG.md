@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Windows 桌面应用新增启动后更新检测，按 24 小时节流读取 GitHub Release 的 Windows metadata，发现新版本时提示打开下载页。
+- Windows 桌面应用启动更新检测补齐下载安装链路：按 24 小时节流读取 GitHub Release 的 Windows metadata，发现新版本时可下载 `NexusSetup-*.exe` 与 sha256，校验通过后再提示启动安装器。
 - Windows 桌面发布链路新增 Inno Setup 安装包，输出 `NexusSetup-<version>-<build>.exe`、sha256，并注册开始菜单、可选桌面快捷方式和 `nexus://` 协议。
 - Windows 桌面应用接入 Nexus app 图标，打包后的 `Nexus.exe` 会显示独立应用图标。
 - macOS 原生菜单新增“检查更新...”，启动后会按 24 小时节流后台检测 GitHub Release，并在发现新版本时提示打开下载页。

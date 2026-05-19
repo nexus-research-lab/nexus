@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -14,6 +15,8 @@ namespace Nexus.Desktop.Update;
 internal sealed class DesktopUpdateChecker
 {
     private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(24);
+    private static readonly TimeSpan MetadataRequestTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan DownloadRequestTimeout = TimeSpan.FromMinutes(10);
     private static readonly Uri LatestReleaseUrl = new("https://api.github.com/repos/nexus-research-lab/nexus/releases/latest");
     private static readonly Uri FallbackReleasePageUrl = new("https://github.com/nexus-research-lab/nexus/releases/latest");
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -109,6 +112,8 @@ internal sealed class DesktopUpdateChecker
                 ["latest_version"] = latest.Version,
                 ["latest_build"] = latest.BuildNumber ?? string.Empty,
                 ["source"] = latest.Source,
+                ["installer_asset"] = latest.InstallerFileName ?? string.Empty,
+                ["sha256_asset"] = latest.InstallerSha256FileName ?? string.Empty,
             });
 
             if (hasUpdate)
@@ -135,20 +140,10 @@ internal sealed class DesktopUpdateChecker
     private async Task<DesktopReleaseInfo> FetchLatestReleaseAsync()
     {
         GitHubRelease release = await FetchJsonAsync<GitHubRelease>(LatestReleaseUrl);
-        GitHubReleaseAsset? metadataAsset = release.Assets.FirstOrDefault(asset =>
-        {
-            string name = asset.Name.ToLowerInvariant();
-            return name.Contains("windows", StringComparison.Ordinal) && name.EndsWith(".metadata.json", StringComparison.Ordinal);
-        });
-        GitHubReleaseAsset? downloadAsset = release.Assets.FirstOrDefault(asset =>
-        {
-            string name = asset.Name.ToLowerInvariant();
-            return name.StartsWith("nexussetup-", StringComparison.Ordinal) && name.EndsWith(".exe", StringComparison.Ordinal);
-        }) ?? release.Assets.FirstOrDefault(asset =>
-        {
-            string name = asset.Name.ToLowerInvariant();
-            return name.Contains("windows", StringComparison.Ordinal) && name.EndsWith(".zip", StringComparison.Ordinal);
-        });
+        GitHubReleaseAsset? metadataAsset = FindWindowsMetadataAsset(release.Assets);
+        GitHubReleaseAsset? installerAsset = FindWindowsInstallerAsset(release.Assets);
+        GitHubReleaseAsset? installerSha256Asset = FindWindowsInstallerSha256Asset(release.Assets, installerAsset);
+        GitHubReleaseAsset? zipAsset = FindWindowsZipAsset(release.Assets);
 
         if (metadataAsset?.BrowserDownloadUrl is not null)
         {
@@ -160,7 +155,11 @@ internal sealed class DesktopUpdateChecker
                     metadata.BuildNumber,
                     release.Name,
                     release.HtmlUrl ?? FallbackReleasePageUrl,
-                    downloadAsset?.BrowserDownloadUrl,
+                    installerAsset?.Name,
+                    installerAsset?.BrowserDownloadUrl,
+                    installerSha256Asset?.Name,
+                    installerSha256Asset?.BrowserDownloadUrl,
+                    zipAsset?.BrowserDownloadUrl,
                     release.PublishedAt,
                     release.Prerelease,
                     "github_release_metadata");
@@ -179,7 +178,11 @@ internal sealed class DesktopUpdateChecker
             null,
             release.Name,
             release.HtmlUrl ?? FallbackReleasePageUrl,
-            downloadAsset?.BrowserDownloadUrl,
+            installerAsset?.Name,
+            installerAsset?.BrowserDownloadUrl,
+            installerSha256Asset?.Name,
+            installerSha256Asset?.BrowserDownloadUrl,
+            zipAsset?.BrowserDownloadUrl,
             release.PublishedAt,
             release.Prerelease,
             "github_release");
@@ -187,11 +190,10 @@ internal sealed class DesktopUpdateChecker
 
     private async Task<T> FetchJsonAsync<T>(Uri url)
     {
-        using HttpRequestMessage request = new(HttpMethod.Get, url);
+        using HttpRequestMessage request = CreateGitHubRequest(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        request.Headers.UserAgent.ParseAdd($"Nexus-Windows/{currentVersion.Version}");
 
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(15));
+        using CancellationTokenSource timeout = new(MetadataRequestTimeout);
         using HttpResponseMessage response = await httpClient.SendAsync(request, timeout.Token);
         if (!response.IsSuccessStatusCode)
         {
@@ -210,35 +212,256 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        await owner.Dispatcher.InvokeAsync(() =>
+        UpdatePromptAction action = await owner.Dispatcher.InvokeAsync(() => PromptForUpdate(owner, latest));
+        switch (action)
         {
-            startupTimeline.Mark("update_check.prompt_shown", new Dictionary<string, string>
+            case UpdatePromptAction.DownloadAndInstall:
+                await DownloadAndOfferInstallAsync(owner, latest);
+                break;
+            case UpdatePromptAction.OpenReleasePage:
+                OpenReleasePage(latest, "prompt");
+                break;
+            case UpdatePromptAction.Later:
+            default:
+                break;
+        }
+    }
+
+    private UpdatePromptAction PromptForUpdate(System.Windows.Window owner, DesktopReleaseInfo latest)
+    {
+        startupTimeline.Mark("update_check.prompt_shown", new Dictionary<string, string>
+        {
+            ["latest_version"] = latest.Version,
+            ["latest_build"] = latest.BuildNumber ?? string.Empty,
+            ["can_download_installer"] = latest.CanDownloadInstaller.ToString(),
+        });
+
+        MessageBoxResult result = MessageBox.Show(
+            owner,
+            UpdateAvailableMessage(latest),
+            "发现 Nexus 新版本",
+            latest.CanDownloadInstaller ? MessageBoxButton.YesNoCancel : MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+
+        if (!latest.CanDownloadInstaller)
+        {
+            return result == MessageBoxResult.Yes ? UpdatePromptAction.OpenReleasePage : UpdatePromptAction.Later;
+        }
+
+        return result switch
+        {
+            MessageBoxResult.Yes => UpdatePromptAction.DownloadAndInstall,
+            MessageBoxResult.No => UpdatePromptAction.OpenReleasePage,
+            _ => UpdatePromptAction.Later,
+        };
+    }
+
+    private async Task DownloadAndOfferInstallAsync(System.Windows.Window owner, DesktopReleaseInfo latest)
+    {
+        if (!latest.CanDownloadInstaller)
+        {
+            startupTimeline.Mark("update_check.download_unavailable", new Dictionary<string, string>
+            {
+                ["latest_version"] = latest.Version,
+                ["has_installer"] = (latest.InstallerDownloadUrl is not null).ToString(),
+                ["has_sha256"] = (latest.InstallerSha256Url is not null).ToString(),
+            });
+            await ShowManualDownloadOnlyAsync(owner, latest);
+            return;
+        }
+
+        startupTimeline.Mark("update_check.download_started", new Dictionary<string, string>
+        {
+            ["latest_version"] = latest.Version,
+            ["latest_build"] = latest.BuildNumber ?? string.Empty,
+            ["installer_asset"] = latest.InstallerFileName ?? string.Empty,
+        });
+
+        try
+        {
+            DownloadedUpdate downloadedUpdate = await DownloadAndVerifyUpdateAsync(latest);
+            startupTimeline.Mark("update_check.download_verified", new Dictionary<string, string>
+            {
+                ["latest_version"] = latest.Version,
+                ["installer_asset"] = latest.InstallerFileName ?? string.Empty,
+                ["sha256"] = downloadedUpdate.Sha256Hash,
+            });
+            await PromptInstallAsync(owner, latest, downloadedUpdate);
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("update_check.download_failed", new Dictionary<string, string>
+            {
+                ["latest_version"] = latest.Version,
+                ["error"] = exception.Message,
+            });
+            await ShowDownloadFailedAsync(owner, latest, exception);
+        }
+    }
+
+    private async Task<DownloadedUpdate> DownloadAndVerifyUpdateAsync(DesktopReleaseInfo latest)
+    {
+        string installerFileName = latest.InstallerFileName
+            ?? throw new InvalidOperationException("当前 Release 缺少 Windows 安装器文件名。");
+        Uri installerUrl = latest.InstallerDownloadUrl
+            ?? throw new InvalidOperationException("当前 Release 缺少 Windows 安装器下载地址。");
+        Uri sha256Url = latest.InstallerSha256Url
+            ?? throw new InvalidOperationException("当前 Release 缺少 Windows 安装器 sha256 文件。");
+
+        string updateDir = Path.Combine(
+            DesktopPaths.CacheDirectory,
+            "updates",
+            SafePathSegment($"{latest.Version}-{latest.BuildNumber ?? "unknown"}"));
+        Directory.CreateDirectory(updateDir);
+
+        string installerPath = Path.Combine(updateDir, SafePathSegment(installerFileName));
+        string sha256FileName = string.IsNullOrWhiteSpace(latest.InstallerSha256FileName)
+            ? $"{installerFileName}.sha256"
+            : latest.InstallerSha256FileName;
+        string sha256Path = Path.Combine(updateDir, SafePathSegment(sha256FileName));
+
+        await DownloadFileAsync(installerUrl, installerPath);
+        await DownloadFileAsync(sha256Url, sha256Path);
+
+        string expectedHash = ReadExpectedSha256(sha256Path, installerFileName);
+        string actualHash = ComputeSha256(installerPath);
+        if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
+        {
+            TryDeleteFile(installerPath);
+            throw new InvalidOperationException("下载的安装器 sha256 校验未通过，已丢弃本地文件。");
+        }
+
+        return new DownloadedUpdate(installerPath, sha256Path, actualHash.ToLowerInvariant());
+    }
+
+    private async Task DownloadFileAsync(Uri url, string destinationPath)
+    {
+        string temporaryPath = $"{destinationPath}.download";
+        TryDeleteFile(temporaryPath);
+
+        using HttpRequestMessage request = CreateGitHubRequest(HttpMethod.Get, url);
+        using CancellationTokenSource timeout = new(DownloadRequestTimeout);
+        using HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            timeout.Token);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"更新文件下载失败，HTTP {(int)response.StatusCode}。");
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        await using (Stream source = await response.Content.ReadAsStreamAsync(timeout.Token))
+        await using (FileStream destination = File.Create(temporaryPath))
+        {
+            await source.CopyToAsync(destination, timeout.Token);
+        }
+
+        File.Move(temporaryPath, destinationPath, overwrite: true);
+    }
+
+    private async Task PromptInstallAsync(
+        System.Windows.Window owner,
+        DesktopReleaseInfo latest,
+        DownloadedUpdate downloadedUpdate)
+    {
+        if (owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() =>
+        {
+            startupTimeline.Mark("update_check.install_prompt_shown", new Dictionary<string, string>
             {
                 ["latest_version"] = latest.Version,
                 ["latest_build"] = latest.BuildNumber ?? string.Empty,
+                ["installer_path"] = downloadedUpdate.InstallerPath,
             });
 
-            MessageBoxResult result = MessageBox.Show(
+            return MessageBox.Show(
                 owner,
-                UpdateAvailableMessage(latest),
-                "发现 Nexus 新版本",
+                InstallReadyMessage(latest, downloadedUpdate),
+                "Nexus 更新已就绪",
                 MessageBoxButton.YesNo,
-                MessageBoxImage.Information);
+                MessageBoxImage.Question);
+        });
 
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
 
-            startupTimeline.Mark("update_check.release_page_opened", new Dictionary<string, string>
-            {
-                ["latest_version"] = latest.Version,
-            });
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = latest.ReleasePageUrl.ToString(),
-                UseShellExecute = true,
-            });
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = downloadedUpdate.InstallerPath,
+            WorkingDirectory = Path.GetDirectoryName(downloadedUpdate.InstallerPath)!,
+            UseShellExecute = true,
+        });
+        startupTimeline.Mark("update_check.installer_started", new Dictionary<string, string>
+        {
+            ["latest_version"] = latest.Version,
+            ["installer_path"] = downloadedUpdate.InstallerPath,
+        });
+
+        if (!owner.Dispatcher.HasShutdownStarted)
+        {
+            await owner.Dispatcher.InvokeAsync(() => Application.Current.Shutdown(0));
+        }
+    }
+
+    private async Task ShowManualDownloadOnlyAsync(System.Windows.Window owner, DesktopReleaseInfo latest)
+    {
+        if (owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+            owner,
+            "当前 Release 缺少可自动校验的 Windows 安装器或 sha256 文件。是否打开下载页手动处理？",
+            "Nexus 更新暂不可自动下载",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information));
+        if (result == MessageBoxResult.Yes)
+        {
+            OpenReleasePage(latest, "download_unavailable");
+        }
+    }
+
+    private async Task ShowDownloadFailedAsync(
+        System.Windows.Window owner,
+        DesktopReleaseInfo latest,
+        Exception exception)
+    {
+        if (owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+            owner,
+            $"更新下载或校验失败：{exception.Message}{Environment.NewLine}{Environment.NewLine}是否打开 Release 页面手动下载？",
+            "Nexus 更新下载失败",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning));
+        if (result == MessageBoxResult.Yes)
+        {
+            OpenReleasePage(latest, "download_failed");
+        }
+    }
+
+    private void OpenReleasePage(DesktopReleaseInfo latest, string reason)
+    {
+        startupTimeline.Mark("update_check.release_page_opened", new Dictionary<string, string>
+        {
+            ["latest_version"] = latest.Version,
+            ["reason"] = reason,
+        });
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = latest.ReleasePageUrl.ToString(),
+            UseShellExecute = true,
         });
     }
 
@@ -259,8 +482,27 @@ internal sealed class DesktopUpdateChecker
         }
 
         lines.Add(string.Empty);
-        lines.Add("当前阶段不会自动安装更新。选择“是”打开下载页后，请校验对应的 sha256 文件。");
+        if (latest.CanDownloadInstaller)
+        {
+            lines.Add("选择“是”将下载安装器和 sha256 文件，校验通过后再询问是否启动安装。");
+            lines.Add("选择“否”将打开 Release 页面；选择“取消”稍后再说。");
+        }
+        else
+        {
+            lines.Add("当前 Release 缺少 Windows 安装器或 sha256 文件。选择“是”打开下载页手动处理。");
+        }
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private string InstallReadyMessage(DesktopReleaseInfo latest, DownloadedUpdate downloadedUpdate)
+    {
+        return string.Join(
+            Environment.NewLine,
+            $"Nexus {latest.DisplayText} 已下载并通过 sha256 校验。",
+            $"安装器：{Path.GetFileName(downloadedUpdate.InstallerPath)}",
+            $"sha256：{downloadedUpdate.Sha256Hash}",
+            string.Empty,
+            "是否现在启动安装器？Nexus 将退出，安装器会继续完成更新。");
     }
 
     private UpdateCheckState LoadState()
@@ -301,6 +543,131 @@ internal sealed class DesktopUpdateChecker
             });
         }
     }
+
+    private HttpRequestMessage CreateGitHubRequest(HttpMethod method, Uri url)
+    {
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.UserAgent.ParseAdd($"Nexus-Windows/{currentVersion.Version}");
+        return request;
+    }
+
+    private static GitHubReleaseAsset? FindWindowsMetadataAsset(IEnumerable<GitHubReleaseAsset> assets) =>
+        assets.FirstOrDefault(asset =>
+        {
+            string name = asset.Name.ToLowerInvariant();
+            return name.Contains("windows", StringComparison.Ordinal) && name.EndsWith(".metadata.json", StringComparison.Ordinal);
+        });
+
+    private static GitHubReleaseAsset? FindWindowsInstallerAsset(IEnumerable<GitHubReleaseAsset> assets) =>
+        assets.FirstOrDefault(asset =>
+        {
+            string name = asset.Name.ToLowerInvariant();
+            return name.StartsWith("nexussetup-", StringComparison.Ordinal) && name.EndsWith(".exe", StringComparison.Ordinal);
+        });
+
+    private static GitHubReleaseAsset? FindWindowsInstallerSha256Asset(
+        IEnumerable<GitHubReleaseAsset> assets,
+        GitHubReleaseAsset? installerAsset)
+    {
+        if (installerAsset is not null)
+        {
+            GitHubReleaseAsset? exactMatch = assets.FirstOrDefault(asset =>
+                string.Equals(asset.Name, $"{installerAsset.Name}.sha256", StringComparison.OrdinalIgnoreCase));
+            if (exactMatch is not null)
+            {
+                return exactMatch;
+            }
+        }
+
+        return assets.FirstOrDefault(asset =>
+        {
+            string name = asset.Name.ToLowerInvariant();
+            return name.StartsWith("nexussetup-", StringComparison.Ordinal) && name.EndsWith(".exe.sha256", StringComparison.Ordinal);
+        });
+    }
+
+    private static GitHubReleaseAsset? FindWindowsZipAsset(IEnumerable<GitHubReleaseAsset> assets) =>
+        assets.FirstOrDefault(asset =>
+        {
+            string name = asset.Name.ToLowerInvariant();
+            return name.Contains("windows", StringComparison.Ordinal) && name.EndsWith(".zip", StringComparison.Ordinal);
+        });
+
+    private static string ReadExpectedSha256(string sha256Path, string installerFileName)
+    {
+        string? fallbackHash = null;
+        foreach (string line in File.ReadLines(sha256Path))
+        {
+            string trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                continue;
+            }
+
+            string[] parts = trimmed.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0)
+            {
+                continue;
+            }
+
+            string hash = parts[0].TrimStart('\uFEFF');
+            if (!IsSha256Hash(hash))
+            {
+                continue;
+            }
+
+            if (parts.Length == 1)
+            {
+                return hash;
+            }
+
+            string publishedFileName = string.Join(" ", parts.Skip(1)).Trim().TrimStart('*');
+            if (string.Equals(Path.GetFileName(publishedFileName), installerFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return hash;
+            }
+
+            fallbackHash ??= hash;
+        }
+
+        return fallbackHash ?? throw new InvalidOperationException("sha256 文件中没有找到有效的 SHA256 值。");
+    }
+
+    private static bool IsSha256Hash(string value) =>
+        value.Length == 64 && value.All(character =>
+            char.IsAsciiHexDigit(character));
+
+    private static string ComputeSha256(string filePath)
+    {
+        using SHA256 sha256 = SHA256.Create();
+        using FileStream stream = File.OpenRead(filePath);
+        return Convert.ToHexString(sha256.ComputeHash(stream)).ToLowerInvariant();
+    }
+
+    private static string SafePathSegment(string value)
+    {
+        string sanitized = string.Join(
+            "_",
+            value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return string.IsNullOrWhiteSpace(sanitized) ? "latest" : sanitized;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
 }
 
 internal sealed class UpdateCheckState
@@ -328,11 +695,20 @@ internal sealed record DesktopReleaseInfo(
     string? BuildNumber,
     string? ReleaseName,
     Uri ReleasePageUrl,
-    Uri? DownloadUrl,
+    string? InstallerFileName,
+    Uri? InstallerDownloadUrl,
+    string? InstallerSha256FileName,
+    Uri? InstallerSha256Url,
+    Uri? FallbackDownloadUrl,
     string? PublishedAt,
     bool IsPrerelease,
     string Source)
 {
+    public bool CanDownloadInstaller =>
+        !string.IsNullOrWhiteSpace(InstallerFileName) &&
+        InstallerDownloadUrl is not null &&
+        InstallerSha256Url is not null;
+
     public string DisplayText => string.IsNullOrWhiteSpace(BuildNumber)
         ? $"版本 {Version}"
         : $"版本 {Version}，构建 {BuildNumber}";
@@ -354,6 +730,15 @@ internal sealed record DesktopReleaseInfo(
             int.TryParse(current.BuildNumber, out int currentBuild) &&
             latestBuild > currentBuild;
     }
+}
+
+internal sealed record DownloadedUpdate(string InstallerPath, string Sha256Path, string Sha256Hash);
+
+internal enum UpdatePromptAction
+{
+    Later,
+    OpenReleasePage,
+    DownloadAndInstall,
 }
 
 internal sealed class ComparableVersion : IComparable<ComparableVersion>
