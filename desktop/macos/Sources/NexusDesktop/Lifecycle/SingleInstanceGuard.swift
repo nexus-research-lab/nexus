@@ -15,7 +15,7 @@ final class SingleInstanceGuard {
 
   static func acquire() throws -> SingleInstanceGuard {
     let fileManager = FileManager.default
-    let directory = applicationSupportDirectory()
+    let directory = DesktopPaths.rootDirectory
     try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
     let lockPath = directory.appendingPathComponent("NexusDesktop.lock").path
@@ -37,9 +37,4 @@ final class SingleInstanceGuard {
     return SingleInstanceGuard(fileDescriptor: descriptor)
   }
 
-  private static func applicationSupportDirectory() -> URL {
-    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-    return base.appendingPathComponent("Nexus", isDirectory: true)
-  }
 }

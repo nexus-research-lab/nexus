@@ -16,7 +16,7 @@ final class SidecarSupervisor {
     port = try SidecarPortAllocator.allocate()
     runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
     orphanReaper = SidecarOrphanReaper(
-      pidFileURL: Self.sidecarPIDFileURL(),
+      pidFileURL: DesktopPaths.sidecarPIDFileURL,
       expectedExecutablePath: locator.command
     )
     startupTimeline?.mark("sidecar.config_resolved", metadata: [
@@ -70,25 +70,17 @@ final class SidecarSupervisor {
 
   private func buildEnvironment() throws -> [String: String] {
     var environment = ProcessInfo.processInfo.environment
-    let dataDir = applicationSupportDirectory()
-    let logDir = logsDirectory()
-    let configDir = dataDir.appendingPathComponent("config", isDirectory: true)
-    let workspaceDir = dataDir.appendingPathComponent("workspace", isDirectory: true)
-    let cacheDir = dataDir.appendingPathComponent("cache", isDirectory: true)
-
-    for directory in [dataDir, logDir, configDir, workspaceDir, cacheDir] {
-      try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    }
+    try DesktopPaths.createRuntimeDirectories()
 
     environment["NEXUS_APP_MODE"] = "desktop"
     environment["NEXUS_APP_ROOT"] = locator.appRootURL.path
-    environment["NEXUS_CONFIG_DIR"] = configDir.path
+    environment["NEXUS_CONFIG_DIR"] = DesktopPaths.configDirectory.path
     environment["HOST"] = "127.0.0.1"
     environment["PORT"] = "\(port)"
     environment["NEXUS_DESKTOP_SESSION_TOKEN"] = runtimeConfig.sessionToken
     environment["WEB_DIST_DIR"] = locator.webDistURL.path
     environment["DATABASE_DRIVER"] = "sqlite"
-    environment["DATABASE_URL"] = dataDir.appendingPathComponent("nexus.db").path
+    environment["DATABASE_URL"] = DesktopPaths.dataDirectory.appendingPathComponent("nexus.db").path
     let credentialsKeyMode = connectorCredentialsKeyMode(environment: environment)
     startupTimeline?.mark("sidecar.credentials_key_begin", metadata: [
       "mode": credentialsKeyMode.rawValue,
@@ -100,9 +92,9 @@ final class SidecarSupervisor {
       "reason": credentialsKey.reason,
       "storage": credentialsKey.storage,
     ])
-    environment["WORKSPACE_PATH"] = workspaceDir.path
-    environment["CACHE_FILE_DIR"] = cacheDir.path
-    environment["LOG_PATH"] = logDir.appendingPathComponent("sidecar.log").path
+    environment["WORKSPACE_PATH"] = DesktopPaths.workspaceDirectory.path
+    environment["CACHE_FILE_DIR"] = DesktopPaths.cacheDirectory.path
+    environment["LOG_PATH"] = DesktopPaths.logsDirectory.appendingPathComponent("sidecar.log").path
     environment["LOG_STDOUT"] = "true"
     environment["LOG_FILE_ENABLED"] = "true"
     environment["DISCORD_ENABLED"] = "false"
@@ -149,23 +141,4 @@ final class SidecarSupervisor {
     }
   }
 
-  private func applicationSupportDirectory() -> URL {
-    Self.applicationSupportDirectory()
-  }
-
-  private static func sidecarPIDFileURL() -> URL {
-    applicationSupportDirectory().appendingPathComponent("NexusSidecar.pid.json")
-  }
-
-  private static func applicationSupportDirectory() -> URL {
-    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-    return base.appendingPathComponent("Nexus", isDirectory: true)
-  }
-
-  private func logsDirectory() -> URL {
-    let base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library")
-    return base.appendingPathComponent("Logs/Nexus", isDirectory: true)
-  }
 }

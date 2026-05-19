@@ -51,7 +51,7 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 | 场景 | 操作 | 期望 |
 | --- | --- | --- |
 | 手动导出日志 | 设置页触发日志导出 | zip 内包含 `diagnostics.json` 和 `Logs/`。 |
-| 启动失败 | 临时破坏 bundle 资源后启动 | `~/Library/Logs/Nexus/startup-failure-*.json` 存在，错误弹窗提示路径。 |
+| 启动失败 | 临时破坏 bundle 资源后启动 | `~/.nexus/logs/startup-failure-*.json` 存在，错误弹窗提示路径。 |
 | WebContent 终止 | 若出现 WebContent crash 或系统杀进程 | 自动 reload 当前 route，并写入 `webcontent-terminated-*.json`。 |
 | 外链/阻断排查 | 重测外链和未知 scheme | `Nexus Startup` 时间线包含 external open / blocked navigation 事件。 |
 | 更新检测排查 | 重测启动后自动检测和菜单手动检测 | `Nexus Startup` 时间线包含 `update_check.started` 以及 `update_check.result` 或 `update_check.failed`。 |

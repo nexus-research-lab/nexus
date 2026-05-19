@@ -84,9 +84,9 @@ rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_N
   printf 'If macOS blocks the app because it is not notarized, use Finder right-click Open for trusted builds.\n'
   printf 'For local test machines only, quarantine can also be removed with:\n'
   printf '  xattr -dr com.apple.quarantine /Applications/%s.app\n\n' "${APP_NAME}"
-  printf 'Data directory: ~/Library/Application Support/Nexus\n'
-  printf 'Log directory: ~/Library/Logs/Nexus\n'
-  printf 'To reset app data, quit Nexus first, then remove those directories.\n'
+  printf 'Data directory: ~/.nexus\n'
+  printf 'Log directory: ~/.nexus/logs\n'
+  printf 'To reset app data, quit Nexus first, then remove ~/.nexus.\n'
 } > "${STAGING_DIR}/README.txt"
 
 PACKAGE_APP_NAME="${APP_NAME}" \

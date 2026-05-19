@@ -99,7 +99,7 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["NEXUS_DESKTOP_SESSION_TOKEN"] = runtime.SessionToken;
         startInfo.Environment["WEB_DIST_DIR"] = locator.WebDistDirectory;
         startInfo.Environment["DATABASE_DRIVER"] = "sqlite";
-        startInfo.Environment["DATABASE_URL"] = Path.Combine(DesktopPaths.ApplicationDataDirectory, "nexus.db");
+        startInfo.Environment["DATABASE_URL"] = Path.Combine(DesktopPaths.DataDirectory, "nexus.db");
         startInfo.Environment["CONNECTOR_CREDENTIALS_KEY"] = credentialsKey.Value;
         startInfo.Environment["WORKSPACE_PATH"] = DesktopPaths.WorkspaceDirectory;
         startInfo.Environment["CACHE_FILE_DIR"] = DesktopPaths.CacheDirectory;
@@ -116,6 +116,7 @@ internal sealed class SidecarSupervisor : IDisposable
     private static void PrepareDirectories()
     {
         Directory.CreateDirectory(DesktopPaths.ApplicationDataDirectory);
+        Directory.CreateDirectory(DesktopPaths.DataDirectory);
         Directory.CreateDirectory(DesktopPaths.ConfigDirectory);
         Directory.CreateDirectory(DesktopPaths.WorkspaceDirectory);
         Directory.CreateDirectory(DesktopPaths.CacheDirectory);

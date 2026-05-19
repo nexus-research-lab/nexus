@@ -59,5 +59,6 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 ## 当前边界
 
 - 目前只在仓库内落了骨架；非 Windows 环境无法本地运行 WPF/WebView2。
-- sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `%LOCALAPPDATA%\Nexus\config\connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
+- 桌面运行数据统一写入 `~/.nexus`，数据库位于 `~/.nexus/data/nexus.db`，日志位于 `~/.nexus/logs`。
+- sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `~/.nexus/config/connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
 - 桥接接口先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；安装器、托盘和自动更新在后续阶段补齐。

@@ -45,9 +45,9 @@ public sealed class DesktopStartupTimeline
     private static string ResolveLogPath()
     {
         return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Nexus",
-            "Logs",
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".nexus",
+            "logs",
             "shell.log");
     }
 }

@@ -189,12 +189,7 @@ enum DesktopKeychainStore {
   }
 
   private static func localFallbackKeyURL() -> URL {
-    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-    return base
-      .appendingPathComponent("Nexus", isDirectory: true)
-      .appendingPathComponent("config", isDirectory: true)
-      .appendingPathComponent("connector-credentials.key")
+    DesktopPaths.connectorCredentialsFallbackKeyURL
   }
 
   private static func isCurrentCodeAdHocSigned() -> Bool {

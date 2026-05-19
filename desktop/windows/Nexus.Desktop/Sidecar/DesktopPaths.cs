@@ -2,14 +2,18 @@ namespace Nexus.Desktop.Sidecar;
 
 internal static class DesktopPaths
 {
-    public static string ApplicationDataDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nexus");
+    public static string RootDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nexus");
 
-    public static string ConfigDirectory => Path.Combine(ApplicationDataDirectory, "config");
+    public static string DataDirectory => Path.Combine(RootDirectory, "data");
 
-    public static string WorkspaceDirectory => Path.Combine(ApplicationDataDirectory, "workspace");
+    public static string ApplicationDataDirectory => RootDirectory;
 
-    public static string CacheDirectory => Path.Combine(ApplicationDataDirectory, "cache");
+    public static string ConfigDirectory => Path.Combine(RootDirectory, "config");
 
-    public static string LogsDirectory => Path.Combine(ApplicationDataDirectory, "Logs");
+    public static string WorkspaceDirectory => Path.Combine(RootDirectory, "workspace");
+
+    public static string CacheDirectory => Path.Combine(RootDirectory, "cache");
+
+    public static string LogsDirectory => Path.Combine(RootDirectory, "logs");
 }

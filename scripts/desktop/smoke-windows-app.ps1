@@ -48,7 +48,7 @@ if (-not (Test-Path $appExe)) {
   throw "Missing Windows app executable: $appExe"
 }
 
-$logPath = Join-Path $env:LOCALAPPDATA "Nexus/Logs/shell.log"
+$logPath = Join-Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)) ".nexus/logs/shell.log"
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $logPath) | Out-Null
 $marker = "windows_smoke_$([Guid]::NewGuid().ToString('N'))"
 Add-Content -Path $logPath -Value "[$marker] smoke_start"
