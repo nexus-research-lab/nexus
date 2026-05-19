@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - 新增 Nexus 版本展示入口：发布包注入版本元数据，`/system/version` 返回当前二进制信息，Web 设置页提供 GitHub Release 下载入口，引导用户手动下载并替换发布包。
 
+### Changed
+- Agent workspace 目录改为按 `agent_id` 生成，改名时不再移动目录，只同步数据库名称与工作区 `AGENTS.md` 身份标识，避免 Windows 目录占用导致改名失败。
+
 ## [0.1.3] - 2026-05-15
 
 ### Added

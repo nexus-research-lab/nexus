@@ -16,6 +16,7 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -135,6 +136,75 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	if updated.Name != "Sam" {
 		t.Fatalf("大小写改名未生效: %+v", updated)
 	}
+}
+
+func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "chatbuddy"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if filepath.Base(created.WorkspacePath) != agentpkg.BuildWorkspaceDirName(created.AgentID) {
+		t.Fatalf("workspace 目录应使用 agent_id: got=%s agent_id=%s", created.WorkspacePath, created.AgentID)
+	}
+	workspaceMarker := filepath.Join(created.WorkspacePath, "marker.txt")
+	if err = os.WriteFile(workspaceMarker, []byte("ok"), 0o644); err != nil {
+		t.Fatalf("写入 workspace 标记失败: %v", err)
+	}
+	agentsFile := filepath.Join(created.WorkspacePath, "AGENTS.md")
+	oldIdentity := agentIdentityLine("chatbuddy", created.AgentID)
+	if err = os.WriteFile(agentsFile, []byte("# AGENTS.md\n\n"+oldIdentity+"\n"), 0o644); err != nil {
+		t.Fatalf("写入 AGENTS.md 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(cfg.WorkspacePath, "chat"), 0o755); err != nil {
+		t.Fatalf("创建冲突候选目录失败: %v", err)
+	}
+
+	validation, err := service.ValidateName(ctx, "chat", created.AgentID)
+	if err != nil {
+		t.Fatalf("编辑态名称校验失败: %v", err)
+	}
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("agent_id 目录模式不应被同名目录阻断: %+v", validation)
+	}
+
+	nextName := "chat"
+	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{Name: &nextName})
+	if err != nil {
+		t.Fatalf("改名失败: %v", err)
+	}
+	if updated.Name != "chat" {
+		t.Fatalf("改名未生效: %+v", updated)
+	}
+	if updated.WorkspacePath != created.WorkspacePath {
+		t.Fatalf("改名不应移动 workspace_path: got=%s want=%s", updated.WorkspacePath, created.WorkspacePath)
+	}
+	if _, err = os.Stat(filepath.Join(updated.WorkspacePath, "marker.txt")); err != nil {
+		t.Fatalf("workspace 内容应保留在原目录: %v", err)
+	}
+	agentsContent, err := os.ReadFile(agentsFile)
+	if err != nil {
+		t.Fatalf("读取 AGENTS.md 失败: %v", err)
+	}
+	newIdentity := agentIdentityLine("chat", created.AgentID)
+	if !strings.Contains(string(agentsContent), newIdentity) {
+		t.Fatalf("AGENTS.md 未同步新名称: got=%s want=%s", string(agentsContent), newIdentity)
+	}
+	if strings.Contains(string(agentsContent), oldIdentity) {
+		t.Fatalf("AGENTS.md 不应保留旧身份行: %s", string(agentsContent))
+	}
+}
+
+func agentIdentityLine(agentName string, agentID string) string {
+	return "当前 Agent 标识：" + agentName + "（" + agentID + "）"
 }
 
 func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {

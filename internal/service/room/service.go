@@ -535,7 +535,7 @@ func (s *Service) resolveAgentWorkspacePath(ctx context.Context, agentID string)
 	if strings.TrimSpace(agentValue.WorkspacePath) != "" {
 		return strings.TrimSpace(agentValue.WorkspacePath), nil
 	}
-	return agentsvc.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name), nil
+	return agentsvc.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.AgentID), nil
 }
 
 func (s *Service) normalizeDirectAgentIDs(ctx context.Context, agentIDs []string) ([]string, error) {

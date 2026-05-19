@@ -497,7 +497,7 @@ func (s *Service) resolveWorkspacePaths(ctx context.Context, agentID string) ([]
 	for _, agentValue := range agents {
 		workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
 		if workspacePath == "" {
-			workspacePath = agentsvc.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.Name)
+			workspacePath = agentsvc.ResolveWorkspacePath(s.config, agentValue.OwnerUserID, agentValue.AgentID)
 		}
 		if _, exists := seen[workspacePath]; exists {
 			continue

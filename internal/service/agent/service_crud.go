@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -101,8 +102,6 @@ func (s *Service) validateName(
 		return response, nil
 	}
 
-	workspacePath := ResolveWorkspacePath(s.config, ownerUserID, normalized)
-	response.WorkspacePath = workspacePath
 	response.IsValid = true
 
 	exists, err := s.repository.ExistsActiveAgentName(ctx, ownerUserID, normalized, excludeAgentID)
@@ -114,38 +113,8 @@ func (s *Service) validateName(
 		return response, nil
 	}
 
-	if _, err = os.Stat(workspacePath); err == nil {
-		ownedByExcludedAgent, ownErr := s.workspacePathBelongsToExcludedAgent(ctx, ownerUserID, workspacePath, excludeAgentID)
-		if ownErr != nil {
-			return response, ownErr
-		}
-		if !ownedByExcludedAgent {
-			response.Reason = "同名工作区目录已存在，请更换名称"
-			return response, nil
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return response, err
-	}
-
 	response.IsAvailable = true
 	return response, nil
-}
-
-func (s *Service) workspacePathBelongsToExcludedAgent(
-	ctx context.Context,
-	ownerUserID string,
-	workspacePath string,
-	excludeAgentID string,
-) (bool, error) {
-	excludeAgentID = strings.TrimSpace(excludeAgentID)
-	if excludeAgentID == "" {
-		return false, nil
-	}
-	existing, err := s.repository.GetAgent(ctx, excludeAgentID, ownerUserID)
-	if err != nil || existing == nil {
-		return false, err
-	}
-	return sameWorkspacePath(existing.WorkspacePath, workspacePath)
 }
 
 // CreateAgent 创建普通 Agent。
@@ -163,21 +132,26 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 		return nil, errors.New(validation.Reason)
 	}
 
-	agentID := NewAgentID()
+	agentID, workspacePath, err := s.createAgentWorkspacePath(ownerUserID)
+	if err != nil {
+		return nil, err
+	}
 	record := BuildCreateRecord(
 		s.config,
 		request,
 		ownerUserID,
 		validation.NormalizedName,
 		agentID,
-		validation.WorkspacePath,
+		workspacePath,
 		"active",
 		false,
 	)
-	if err = os.MkdirAll(validation.WorkspacePath, 0o755); err != nil {
+	created, err := s.repository.CreateAgent(ctx, record)
+	if err != nil {
+		_ = os.RemoveAll(workspacePath)
 		return nil, err
 	}
-	return s.repository.CreateAgent(ctx, record)
+	return created, nil
 }
 
 // UpdateAgent 更新 Agent 配置。
@@ -200,7 +174,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 	}
 
 	normalizedName := existing.Name
-	workspacePath := existing.WorkspacePath
 	if request.Name != nil {
 		candidate := NormalizeName(*request.Name)
 		if candidate != existing.Name {
@@ -215,7 +188,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 				return nil, errors.New(validation.Reason)
 			}
 			normalizedName = validation.NormalizedName
-			workspacePath = validation.WorkspacePath
 		}
 	}
 
@@ -237,7 +209,8 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		vibeTags = append([]string(nil), request.VibeTags...)
 	}
 
-	if err = s.syncWorkspacePath(existing.WorkspacePath, workspacePath); err != nil {
+	identitySynced, err := syncWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, existing.Name, normalizedName)
+	if err != nil {
 		return nil, err
 	}
 
@@ -246,7 +219,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		OwnerUserID:         updateOwnerUserID,
 		Slug:                BuildWorkspaceDirName(normalizedName),
 		Name:                normalizedName,
-		WorkspacePath:       workspacePath,
+		WorkspacePath:       existing.WorkspacePath,
 		Avatar:              avatar,
 		Description:         description,
 		VibeTagsJSON:        mustJSONString(vibeTags, "[]"),
@@ -260,6 +233,11 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources, "[]"),
 	})
 	if err != nil {
+		if identitySynced {
+			if rollbackErr := rollbackWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, normalizedName, existing.Name); rollbackErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("回滚 AGENTS.md 身份标识失败: %w", rollbackErr))
+			}
+		}
 		return nil, err
 	}
 	if updated == nil {

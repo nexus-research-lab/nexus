@@ -29,8 +29,8 @@ func UserWorkspaceBasePath(cfg config.Config, ownerUserID string) string {
 }
 
 // ResolveWorkspacePath 计算 Agent workspace 路径。
-func ResolveWorkspacePath(cfg config.Config, ownerUserID string, agentName string) string {
-	return filepath.Join(UserWorkspaceBasePath(cfg, ownerUserID), BuildWorkspaceDirName(agentName))
+func ResolveWorkspacePath(cfg config.Config, ownerUserID string, agentID string) string {
+	return filepath.Join(UserWorkspaceBasePath(cfg, ownerUserID), BuildWorkspaceDirName(agentID))
 }
 
 func expandHome(path string) string {

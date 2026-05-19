@@ -26,9 +26,9 @@ func TestResolveWorkspacePathSimplifiesUserScope(t *testing.T) {
 		WorkspacePath: filepath.Join(t.TempDir(), "workspace"),
 	}
 
-	workspacePath := ResolveWorkspacePath(cfg, "user-123", "writer-agent")
+	workspacePath := ResolveWorkspacePath(cfg, "user-123", "agent_abc123")
 
-	expected := filepath.Join(cfg.WorkspacePath, "user-123", "writer-agent")
+	expected := filepath.Join(cfg.WorkspacePath, "user-123", "agent_abc123")
 	if workspacePath != expected {
 		t.Fatalf("多用户路径不正确: got=%s want=%s", workspacePath, expected)
 	}
