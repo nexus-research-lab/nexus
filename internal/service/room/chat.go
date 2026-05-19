@@ -10,6 +10,7 @@ import (
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
@@ -58,6 +59,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		"target_agents", append([]string(nil), targetAgentIDs...),
 		"target_resolution", targetResolution,
 		"content_chars", utf8.RuneCountInString(strings.TrimSpace(request.Content)),
+		"content_preview", logx.PreviewText(request.Content, 240),
 	)
 
 	history, err := s.roomHistory.ReadMessages(conversationID, nil)

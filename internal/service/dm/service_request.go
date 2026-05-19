@@ -8,6 +8,7 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -124,6 +125,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"round_id", request.RoundID,
 		"req_id", runner.reqID,
 		"content_chars", utf8.RuneCountInString(runner.content),
+		"content_preview", logx.PreviewText(runner.content, 240),
 	)
 
 	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy); err != nil {
@@ -226,6 +228,8 @@ func (s *Service) queueRunningInput(
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
 		"running_round_ids", runningRoundIDs,
+		"content_chars", utf8.RuneCountInString(content),
+		"content_preview", logx.PreviewText(content, 240),
 	)
 	return true, nil
 }
@@ -254,6 +258,8 @@ func (s *Service) guideRunningInput(
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
 		"running_round_ids", runningRoundIDs,
+		"content_chars", utf8.RuneCountInString(content),
+		"content_preview", logx.PreviewText(content, 240),
 	)
 	return true, nil
 }

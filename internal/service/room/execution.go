@@ -14,6 +14,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -257,6 +258,7 @@ func (s *RealtimeService) runSlot(
 				logger.Info("发送已排队的 Room 消息",
 					"queued_round_id", input.RoundID,
 					"content_chars", utf8.RuneCountInString(input.Content),
+					"content_preview", logx.PreviewText(input.Content, 240),
 				)
 			}
 			return nil

@@ -3,7 +3,9 @@ package room
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -55,6 +57,8 @@ func (s *RealtimeService) enqueueForActiveAgentSlots(
 			"round_id", roundID,
 			"active_round_id", slot.AgentRoundID,
 			"msg_id", slot.MsgID,
+			"content_chars", utf8.RuneCountInString(strings.TrimSpace(content)),
+			"content_preview", logx.PreviewText(content, 240),
 		)
 	}
 	return queuedAgentIDs, nil
@@ -156,6 +160,8 @@ func (s *RealtimeService) guideActiveAgentSlots(
 			"round_id", roundID,
 			"active_round_id", slot.AgentRoundID,
 			"msg_id", slot.MsgID,
+			"content_chars", utf8.RuneCountInString(strings.TrimSpace(content)),
+			"content_preview", logx.PreviewText(content, 240),
 		)
 	}
 	return guidedAgentIDs, nil
