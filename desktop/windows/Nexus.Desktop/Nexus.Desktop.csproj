@@ -11,6 +11,7 @@
     <FileVersion>$(NexusDesktopFileVersion)</FileVersion>
     <AssemblyVersion>$(NexusDesktopAssemblyVersion)</AssemblyVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup>
