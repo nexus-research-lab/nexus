@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-19
+
 ### Added
-- 新增 Nexus 版本展示入口：发布包注入版本元数据，`/system/version` 返回当前二进制信息，Web 设置页提供 GitHub Release 下载入口，引导用户手动下载并替换发布包。
+- 新增 Nexus 版本展示入口：发布包注入版本号、Git commit 与构建时间，`/system/version` 返回当前二进制信息，Web 设置页提供 GitHub Release 下载入口。
+- 补充 Windows 发布包运行说明，明确 Claude Code、PowerShell、WinGet 与 Git for Windows 的安装路径。
 
 ### Changed
-- Agent workspace 目录改为按 `agent_id` 生成，改名时不再移动目录，只同步数据库名称与工作区 `AGENTS.md` 身份标识，避免 Windows 目录占用导致改名失败。
+- Agent workspace 目录改为按 `agent_id` 生成，改名时不再移动目录，只同步数据库名称与工作区 `AGENTS.md` 身份标识。
+- Workspace 初始化增强 Windows 兼容：补充 `nexusctl.cmd` 入口，Claude skill 链接在目录 symlink 不可用时会镜像目录。
+- 跳过新手引导时立即记为已读，避免后续反复出现同一导览。
+
+### Fixed
+- 修复发布包首页点击“进入工作台”后仍停留在 Launcher 的问题。
+- 修复 Windows 下 Agent 改名时因 workspace 目录被占用导致失败的问题。
+- 修复 SQLite URL 中 `~` 与 Windows 路径分隔符展开不完整，以及 SQLite 父目录不存在时打开数据库失败的问题。
 
 ## [0.1.3] - 2026-05-15
 
