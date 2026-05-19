@@ -21,6 +21,10 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	if err != nil {
 		return "", err
 	}
+	runtimeMessages, err := s.renderRuntimeAttachmentMessages(ctx, batch.Messages)
+	if err != nil {
+		return "", err
+	}
 	slot.PublicCursorID = batch.LastMessageID
 	slot.PublicCursorTS = batch.LastTimestamp
 	actions, err := s.roomActionsForSlot(roundValue, slot)
@@ -28,7 +32,7 @@ func (s *RealtimeService) buildSlotVisibleContext(
 		return "", err
 	}
 	return roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
-		PublicMessages: batch.Messages,
+		PublicMessages: runtimeMessages,
 		RoomActions:    actions,
 		LatestTrigger:  slot.Trigger,
 		AgentNameByID:  agentNameByID,
@@ -52,6 +56,10 @@ func (s *RealtimeService) buildSlotGuidedPublicContext(
 	if err != nil {
 		return "", err
 	}
+	runtimeMessages, err := s.renderRuntimeAttachmentMessages(ctx, batch.Messages)
+	if err != nil {
+		return "", err
+	}
 	if strings.TrimSpace(batch.LastMessageID) != "" || batch.LastTimestamp > 0 {
 		slot.PublicCursorID = batch.LastMessageID
 		slot.PublicCursorTS = batch.LastTimestamp
@@ -60,7 +68,7 @@ func (s *RealtimeService) buildSlotGuidedPublicContext(
 		}
 	}
 	return roomdomain.BuildGuidedPublicInputContext(roomdomain.VisibleContextInput{
-		PublicMessages: batch.Messages,
+		PublicMessages: runtimeMessages,
 		LatestTrigger:  trigger,
 		AgentNameByID:  agentNameByID,
 		TargetAgentID:  slot.AgentID,

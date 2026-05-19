@@ -71,9 +71,7 @@ enum DesktopDiagnosticsReport {
   }
 
   static func logsDirectory() -> URL {
-    let base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library")
-    return base.appendingPathComponent("Logs/Nexus", isDirectory: true)
+    DesktopPaths.logsDirectory
   }
 
   private static func appPayload() -> [String: Any] {
@@ -124,31 +122,29 @@ enum DesktopDiagnosticsReport {
   }
 
   private static func pathsPayload() -> [String: Any] {
-    let appSupport = applicationSupportDirectory()
-    let config = appSupport.appendingPathComponent("config", isDirectory: true)
     return [
-      "application_support_dir": appSupport.path,
+      "root_dir": DesktopPaths.rootDirectory.path,
+      "data_dir": DesktopPaths.dataDirectory.path,
       "logs_dir": logsDirectory().path,
-      "config_dir": config.path,
-      "workspace_dir": appSupport.appendingPathComponent("workspace", isDirectory: true).path,
-      "cache_dir": appSupport.appendingPathComponent("cache", isDirectory: true).path,
-      "sidecar_pid_record": appSupport.appendingPathComponent("NexusSidecar.pid.json").path,
-      "connector_credentials_fallback_key": config.appendingPathComponent("connector-credentials.key").path,
+      "config_dir": DesktopPaths.configDirectory.path,
+      "workspace_dir": DesktopPaths.workspaceDirectory.path,
+      "cache_dir": DesktopPaths.cacheDirectory.path,
+      "sidecar_pid_record": DesktopPaths.sidecarPIDFileURL.path,
+      "connector_credentials_fallback_key": DesktopPaths.connectorCredentialsFallbackKeyURL.path,
     ]
   }
 
   private static func checksPayload() -> [String: Any] {
     let fileManager = FileManager.default
-    let appSupport = applicationSupportDirectory()
-    let config = appSupport.appendingPathComponent("config", isDirectory: true)
     return [
-      "application_support_exists": fileManager.fileExists(atPath: appSupport.path),
+      "root_dir_exists": fileManager.fileExists(atPath: DesktopPaths.rootDirectory.path),
+      "data_dir_exists": fileManager.fileExists(atPath: DesktopPaths.dataDirectory.path),
       "logs_dir_exists": fileManager.fileExists(atPath: logsDirectory().path),
       "sidecar_pid_record_exists": fileManager.fileExists(
-        atPath: appSupport.appendingPathComponent("NexusSidecar.pid.json").path
+        atPath: DesktopPaths.sidecarPIDFileURL.path
       ),
       "connector_credentials_fallback_key_exists": fileManager.fileExists(
-        atPath: config.appendingPathComponent("connector-credentials.key").path
+        atPath: DesktopPaths.connectorCredentialsFallbackKeyURL.path
       ),
       "bundled_web_index_exists": bundledResourceExists(relativePath: "Web/index.html"),
       "bundled_sidecar_exists": bundledExecutableExists(name: "nexus-server"),
@@ -168,12 +164,6 @@ enum DesktopDiagnosticsReport {
       return false
     }
     return FileManager.default.isExecutableFile(atPath: executableDir.appendingPathComponent(name).path)
-  }
-
-  private static func applicationSupportDirectory() -> URL {
-    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-    return base.appendingPathComponent("Nexus", isDirectory: true)
   }
 
   private static func timestampString() -> String {

@@ -79,6 +79,7 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/members/{agent_id}"), s.handlers.room.HandleRemoveRoomMember)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations"), s.handlers.room.HandleCreateConversation)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/messages"), s.handlers.room.HandleConversationMessages)
+	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/attachments/upload"), s.handlers.room.HandleUploadConversationAttachment)
 	s.router.Patch(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleUpdateConversation)
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleDeleteConversation)
 	s.router.Post(s.prefixPath("/internal/rooms/{room_id}/conversations/{conversation_id}/actions"), s.handlers.room.HandleCreateAction)

@@ -13,6 +13,7 @@ import { get_session_key_identity } from '@/lib/conversation/session-key';
 import {
   AssistantMessage,
   ChatAckData,
+  MessageAttachment,
   Message,
   RoundLifecycleStatus,
   SessionStatusEventPayload,
@@ -113,6 +114,7 @@ export interface UseAgentConversationReturn {
   enqueue_input_queue_message: (
     content: string,
     delivery_policy?: AgentConversationDeliveryPolicy,
+    attachments?: MessageAttachment[],
   ) => Promise<void>;
   delete_input_queue_message: (item_id: string) => Promise<void>;
   guide_input_queue_message: (item_id: string) => Promise<void>;
@@ -146,6 +148,7 @@ export interface InputQueueItem {
   target_agent_ids?: string[];
   source: InputQueueSource;
   content: string;
+  attachments?: MessageAttachment[];
   delivery_policy: AgentConversationDeliveryPolicy;
   owner_user_id?: string;
   root_round_id?: string;
@@ -161,6 +164,7 @@ export interface InputQueueEventPayload {
 
 export interface AgentConversationSendOptions {
   delivery_policy?: AgentConversationDeliveryPolicy;
+  attachments?: MessageAttachment[];
 }
 
 export interface ConversationSnapshot {

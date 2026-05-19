@@ -1652,8 +1652,9 @@ export function useAgentConversation(
     async (
       content: string,
       delivery_policy: AgentConversationDeliveryPolicy = "queue",
+      attachments: AgentConversationSendOptions["attachments"] = [],
     ) => {
-      send_enqueue_input_queue_message(content, action_context, delivery_policy);
+      send_enqueue_input_queue_message(content, action_context, delivery_policy, attachments);
     },
     [action_context],
   );

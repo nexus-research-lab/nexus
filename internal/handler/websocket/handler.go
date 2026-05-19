@@ -376,19 +376,22 @@ func (h *Handler) handleControlMessage(
 		var err error
 		if parsed.Kind == protocol.SessionKeyKindRoom && h.roomRealtime != nil {
 			err = h.roomRealtime.HandleChat(ctx, roompkg.ChatRequest{
-				SessionKey:     sessionKey,
-				RoomID:         handlershared.StringValue(inbound["room_id"]),
-				ConversationID: handlershared.StringValue(inbound["conversation_id"]),
-				Content:        handlershared.StringValue(inbound["content"]),
-				RoundID:        handlershared.StringValue(inbound["round_id"]),
-				ReqID:          handlershared.StringValue(inbound["req_id"]),
-				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(handlershared.StringValue(inbound["delivery_policy"])),
+				SessionKey:        sessionKey,
+				RoomID:            handlershared.StringValue(inbound["room_id"]),
+				ConversationID:    handlershared.StringValue(inbound["conversation_id"]),
+				AttachmentAgentID: handlershared.StringValue(inbound["agent_id"]),
+				Content:           handlershared.StringValue(inbound["content"]),
+				Attachments:       protocol.ChatAttachmentsFromAny(inbound["attachments"]),
+				RoundID:           handlershared.StringValue(inbound["round_id"]),
+				ReqID:             handlershared.StringValue(inbound["req_id"]),
+				DeliveryPolicy:    protocol.NormalizeChatDeliveryPolicy(handlershared.StringValue(inbound["delivery_policy"])),
 			})
 		} else {
 			err = h.dm.HandleChat(ctx, dmsvc.Request{
 				SessionKey:     sessionKey,
 				AgentID:        handlershared.StringValue(inbound["agent_id"]),
 				Content:        handlershared.StringValue(inbound["content"]),
+				Attachments:    protocol.ChatAttachmentsFromAny(inbound["attachments"]),
 				RoundID:        handlershared.StringValue(inbound["round_id"]),
 				ReqID:          handlershared.StringValue(inbound["req_id"]),
 				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(handlershared.StringValue(inbound["delivery_policy"])),
@@ -436,6 +439,7 @@ func (h *Handler) handleControlMessage(
 				Action:         action,
 				ItemID:         handlershared.StringValue(inbound["item_id"]),
 				Content:        handlershared.StringValue(inbound["content"]),
+				Attachments:    protocol.ChatAttachmentsFromAny(inbound["attachments"]),
 				OrderedIDs:     stringSliceValue(inbound["ordered_ids"]),
 				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(handlershared.StringValue(inbound["delivery_policy"])),
 			})
@@ -446,6 +450,7 @@ func (h *Handler) handleControlMessage(
 				Action:         action,
 				ItemID:         handlershared.StringValue(inbound["item_id"]),
 				Content:        handlershared.StringValue(inbound["content"]),
+				Attachments:    protocol.ChatAttachmentsFromAny(inbound["attachments"]),
 				OrderedIDs:     stringSliceValue(inbound["ordered_ids"]),
 				DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(handlershared.StringValue(inbound["delivery_policy"])),
 			})

@@ -30,6 +30,7 @@ type Request struct {
 	SessionKey           string
 	AgentID              string
 	Content              string
+	Attachments          []protocol.ChatAttachment
 	RoundID              string
 	ReqID                string
 	DeliveryPolicy       protocol.ChatDeliveryPolicy

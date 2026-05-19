@@ -34,6 +34,7 @@ type InputQueueItem struct {
 	RequestID        string             `json:"request_id,omitempty"`
 	Source           InputQueueSource   `json:"source"`
 	Content          string             `json:"content"`
+	Attachments      []ChatAttachment   `json:"attachments,omitempty"`
 	DeliveryPolicy   ChatDeliveryPolicy `json:"delivery_policy"`
 	ReplyTarget      RoomReplyTarget    `json:"reply_target,omitempty"`
 	OwnerUserID      string             `json:"owner_user_id,omitempty"`

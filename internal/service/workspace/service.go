@@ -341,45 +341,75 @@ func (s *Service) UploadFile(ctx context.Context, agentID string, filename strin
 	if err != nil {
 		return nil, err
 	}
+	result, content, err := uploadFileToRoot(
+		agentValue.WorkspacePath,
+		filename,
+		destination,
+		reader,
+		func(path string) {
+			if s.live != nil {
+				s.live.SuppressWatcher(agentValue.AgentID, path)
+			}
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if s.live != nil {
+		if snapshot, ok := tryDecodeTextSnapshot(result.Path, content); ok {
+			s.live.EmitAPIWrite(agentValue.AgentID, result.Path, snapshot)
+		}
+	}
+	return result, nil
+}
+
+// UploadFileToRoot 上传单个文件到指定根目录，调用方负责保证根目录归属。
+func UploadFileToRoot(root string, filename string, destination string, reader io.Reader) (*UploadResult, error) {
+	result, _, err := uploadFileToRoot(root, filename, destination, reader, nil)
+	return result, err
+}
+
+func uploadFileToRoot(
+	root string,
+	filename string,
+	destination string,
+	reader io.Reader,
+	beforeWrite func(string),
+) (*UploadResult, []byte, error) {
 	safeName := normalizeUploadName(filename)
 	if safeName == "" {
 		safeName = "uploaded_file"
 	}
 	content, err := io.ReadAll(io.LimitReader(reader, maxUploadSize+1))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(content) > maxUploadSize {
-		return nil, errors.New("文件大小超过限制 (20MB)")
+		return nil, nil, errors.New("文件大小超过限制 (20MB)")
 	}
 
 	relativePath := buildUploadTargetPath(strings.TrimSpace(destination), safeName)
-	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	targetPath, normalizedPath, err := resolveWorkspacePath(root, relativePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if normalizedPath, targetPath, err = ensureUniqueWorkspaceFile(targetPath, normalizedPath); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if s.live != nil {
-		s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)
+	if beforeWrite != nil {
+		beforeWrite(normalizedPath)
 	}
 	if err = os.WriteFile(targetPath, content, 0o644); err != nil {
-		return nil, err
-	}
-	if s.live != nil {
-		if snapshot, ok := tryDecodeTextSnapshot(normalizedPath, content); ok {
-			s.live.EmitAPIWrite(agentValue.AgentID, normalizedPath, snapshot)
-		}
+		return nil, nil, err
 	}
 	return &UploadResult{
 		Path: normalizedPath,
 		Name: filepath.Base(normalizedPath),
 		Size: int64(len(content)),
-	}, nil
+	}, content, nil
 }
 
 // GetFileForDownload 返回下载所需的真实文件路径和文件名。

@@ -1,12 +1,14 @@
 "use client";
 
-import { ChangeEvent, KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, ClipboardEvent, KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
   CornerDownRight,
+  File as FileIcon,
   FileText,
   GripVertical,
+  Image as ImageIcon,
   Paperclip,
   Send,
   StopCircle,
@@ -39,6 +41,8 @@ import {
 } from "./composer-styles";
 import {
   COMPOSER_ATTACHMENT_ACCEPT,
+  ComposerAttachmentKind,
+  get_composer_attachment_kind,
   get_attachment_rejection_reason,
   PreparedComposerAttachment,
 } from "./composer-attachments";
@@ -47,6 +51,7 @@ import { MentionTargetItem, MentionTargetPopover } from "./mention-popover";
 interface AttachmentFile {
   id: string;
   file: File;
+  kind: ComposerAttachmentKind;
 }
 
 interface ComposerPanelProps {
@@ -56,11 +61,13 @@ interface ComposerPanelProps {
   on_send_message: (
     content: string,
     delivery_policy: AgentConversationDeliveryPolicy,
+    attachments?: PreparedComposerAttachment[],
   ) => void | Promise<void>;
   input_queue_items?: InputQueueItem[];
   on_enqueue_message?: (
     content: string,
     delivery_policy: AgentConversationDeliveryPolicy,
+    attachments?: PreparedComposerAttachment[],
   ) => void | Promise<void>;
   on_delete_queued_message?: (item_id: string) => void | Promise<void>;
   on_guide_queued_message?: (item_id: string) => void | Promise<void>;
@@ -89,6 +96,71 @@ const IME_COMPOSITION_KEY_CODE = 229;
 const COMPOSITION_END_ENTER_GUARD_MS = 80;
 const PENDING_QUEUE_AUTO_SCROLL_ZONE_PX = 28;
 const PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX = 10;
+const MAX_COMPOSER_ATTACHMENTS = 6;
+
+const CLIPBOARD_IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/bmp": "bmp",
+  "image/svg+xml": "svg",
+};
+
+function create_attachment_id() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+function get_attachment_kind_label(kind: ComposerAttachmentKind) {
+  if (kind === "image") {
+    return "图片";
+  }
+  if (kind === "text") {
+    return "文本文件";
+  }
+  return "工作文件";
+}
+
+function get_attachment_icon(kind: ComposerAttachmentKind) {
+  if (kind === "image") {
+    return ImageIcon;
+  }
+  if (kind === "text") {
+    return FileText;
+  }
+  return FileIcon;
+}
+
+function build_pasted_image_file(file: File, index: number): File {
+  if (!file.type.startsWith("image/")) {
+    return file;
+  }
+
+  const extension = CLIPBOARD_IMAGE_EXTENSION_BY_MIME[file.type] ?? "png";
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return new File(
+    [file],
+    `pasted-image-${timestamp}-${index + 1}.${extension}`,
+    {
+      lastModified: Date.now(),
+      type: file.type,
+    },
+  );
+}
+
+function get_clipboard_files(clipboard_data: DataTransfer): File[] {
+  const files_from_items = Array.from(clipboard_data.items)
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file))
+    .map(build_pasted_image_file);
+
+  if (files_from_items.length > 0) {
+    return files_from_items;
+  }
+
+  return Array.from(clipboard_data.files).map(build_pasted_image_file);
+}
 
 function is_caret_on_first_line(target: HTMLTextAreaElement) {
   const selection_start = target.selectionStart ?? 0;
@@ -106,33 +178,6 @@ function is_caret_on_last_line(target: HTMLTextAreaElement) {
     return false;
   }
   return !target.value.slice(selection_end).includes("\n");
-}
-
-function build_message_with_attachments(
-  content: string,
-  attachments: PreparedComposerAttachment[],
-) {
-  if (attachments.length === 0) {
-    return content.trim();
-  }
-
-  const attachment_manifest = attachments
-    .map((attachment) => `- ${attachment.file_name}（工作区文件：${attachment.workspace_path}）`)
-    .join("\n");
-  const attachment_blocks = attachments.map((attachment) => [
-    `文件《${attachment.file_name}》内容摘录：`,
-    "```text",
-    attachment.excerpt,
-    "```",
-    attachment.truncated ? "注：消息里只附带前 12000 个字符，完整内容已写入工作区文件。" : null,
-  ].filter(Boolean).join("\n"));
-
-  return [
-    content.trim(),
-    "已附加文本文件：",
-    attachment_manifest,
-    ...attachment_blocks,
-  ].filter(Boolean).join("\n\n");
 }
 
 function reorder_pending_messages(
@@ -332,8 +377,9 @@ const ComposerPanelView = memo(({
   const dispatch_message = useCallback(async (
     content: string,
     policy: AgentConversationDeliveryPolicy,
+    prepared_attachments: PreparedComposerAttachment[],
   ) => {
-    await on_send_message(content, policy);
+    await on_send_message(content, policy, prepared_attachments);
   }, [on_send_message]);
 
   const handle_send = useCallback(async () => {
@@ -346,7 +392,7 @@ const ComposerPanelView = memo(({
       return;
     }
 
-    let next_message = trimmed_input;
+    let prepared_attachments: PreparedComposerAttachment[] = [];
     if (attachments.length > 0) {
       if (!on_prepare_attachments) {
         setAttachmentError(t("composer.unsupported_attachment"));
@@ -356,8 +402,7 @@ const ComposerPanelView = memo(({
       setIsPreparingAttachments(true);
       setAttachmentError(null);
       try {
-        const prepared_attachments = await on_prepare_attachments(attachments.map((attachment) => attachment.file));
-        next_message = build_message_with_attachments(trimmed_input, prepared_attachments);
+        prepared_attachments = await on_prepare_attachments(attachments.map((attachment) => attachment.file));
       } catch (error) {
         setAttachmentError(error instanceof Error ? error.message : t("composer.attachment_failed"));
         return;
@@ -378,12 +423,12 @@ const ComposerPanelView = memo(({
         if (!on_enqueue_message) {
           return;
         }
-        await on_enqueue_message?.(next_message, default_delivery_policy);
+        await on_enqueue_message(trimmed_input, default_delivery_policy, prepared_attachments);
       } else {
         const delivery_policy = is_loading || input_queue_items.length > 0
           ? default_delivery_policy
           : "queue";
-        await dispatch_message(next_message, delivery_policy);
+        await dispatch_message(trimmed_input, delivery_policy, prepared_attachments);
       }
       setInput("");
       setAttachments([]);
@@ -525,25 +570,31 @@ const ComposerPanelView = memo(({
     }
   };
 
-  const handle_file_select = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) {
+  const append_attachment_files = useCallback((files: File[]) => {
+    if (files.length === 0) {
       return;
     }
 
     const next_attachments: AttachmentFile[] = [];
     const rejected_files: string[] = [];
 
-    Array.from(files).forEach((file) => {
+    files.forEach((file) => {
       const rejection_reason = get_attachment_rejection_reason(file);
       if (rejection_reason) {
         rejected_files.push(rejection_reason);
         return;
       }
 
+      const kind = get_composer_attachment_kind(file);
+      if (!kind) {
+        rejected_files.push(t("composer.attachment_format_unsupported"));
+        return;
+      }
+
       next_attachments.push({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        id: create_attachment_id(),
         file,
+        kind,
       });
     });
 
@@ -554,13 +605,32 @@ const ComposerPanelView = memo(({
     }
 
     if (next_attachments.length > 0) {
-      setAttachments((prev) => [...prev, ...next_attachments].slice(0, 6));
+      setAttachments((prev) => [...prev, ...next_attachments].slice(0, MAX_COMPOSER_ATTACHMENTS));
     }
+  }, [t]);
+
+  const handle_file_select = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) {
+      return;
+    }
+
+    append_attachment_files(Array.from(files));
 
     if (file_input_ref.current) {
       file_input_ref.current.value = "";
     }
   };
+
+  const handle_paste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted_files = get_clipboard_files(event.clipboardData);
+    if (pasted_files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    append_attachment_files(pasted_files);
+  }, [append_attachment_files]);
 
   const remove_attachment = (id: string) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
@@ -692,7 +762,14 @@ const ComposerPanelView = memo(({
                       <GripVertical className="h-3.5 w-3.5" />
                     </span>
                     <p className="line-clamp-1 min-w-0 flex-1 text-[12px] leading-5 text-(--text-strong)">
-                      {message.content}
+                      {message.content.trim() ? (
+                        message.content
+                      ) : message.attachments && message.attachments.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-(--text-muted)">
+                          <Paperclip className="h-3 w-3 shrink-0" />
+                          {message.attachments.map((attachment) => attachment.file_name || attachment.workspace_path).join("、")}
+                        </span>
+                      ) : null}
                     </p>
                     <button
                       aria-label={is_guidance_waiting ? t("composer.cancel_guidance") : t("composer.mark_guidance")}
@@ -726,8 +803,15 @@ const ComposerPanelView = memo(({
         {attachments.length > 0 ? (
           <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
             {attachments.map((attachment) => (
-              <div key={attachment.id} className={COMPOSER_ATTACHMENT_CLASS_NAME}>
-                <FileText size={16} className="text-accent" />
+              <div
+                key={attachment.id}
+                className={COMPOSER_ATTACHMENT_CLASS_NAME}
+                title={`${get_attachment_kind_label(attachment.kind)}：${attachment.file.name}`}
+              >
+                {(() => {
+                  const AttachmentIcon = get_attachment_icon(attachment.kind);
+                  return <AttachmentIcon size={16} className="text-accent" />;
+                })()}
                 <span className="max-w-[120px] truncate text-xs text-foreground/70">
                   {attachment.file.name}
                 </span>
@@ -796,6 +880,7 @@ const ComposerPanelView = memo(({
               ignore_next_enter_after_composition_ref.current = false;
             }}
             onKeyDown={handle_key_down}
+            onPaste={handle_paste}
             placeholder={resolved_placeholder}
             rows={1}
             value={input}

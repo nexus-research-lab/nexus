@@ -40,7 +40,16 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 			}
 		}
 
-		sourceRoundID, triggerContent := latestGuidanceTrigger(queuedInputs, queueItems)
+		runtimeQueueItems := make([]protocol.InputQueueItem, 0, len(queueItems))
+		for _, item := range queueItems {
+			runtimeContent, renderErr := s.renderRuntimeContentWithAttachments(ctx, item.Content, item.Attachments)
+			if renderErr != nil {
+				return sdkhook.Output{}, renderErr
+			}
+			item.Content = runtimeContent
+			runtimeQueueItems = append(runtimeQueueItems, item)
+		}
+		sourceRoundID, triggerContent := latestGuidanceTrigger(queuedInputs, runtimeQueueItems)
 		inputs := make([]runtimectx.GuidedInput, 0, 1+len(queuedInputs)+len(queueItems))
 		if roundValue != nil && roundValue.Context != nil {
 			agentNameByID, _, directoryErr := s.buildAgentDirectory(ctx, roundValue.Context)
@@ -67,7 +76,7 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 				})
 			}
 		}
-		inputs = appendUnanchoredGuidanceQueueItems(inputs, queueItems)
+		inputs = appendUnanchoredGuidanceQueueItems(inputs, runtimeQueueItems)
 		if len(inputs) == 0 {
 			for _, item := range queuedInputs {
 				inputs = append(inputs, runtimectx.GuidedInput{
@@ -75,7 +84,7 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 					Content: item.Content,
 				})
 			}
-			for _, item := range queueItems {
+			for _, item := range runtimeQueueItems {
 				sourceRoundID := "queue_" + strings.TrimSpace(item.ID)
 				inputs = append(inputs, runtimectx.GuidedInput{
 					RoundID: sourceRoundID,

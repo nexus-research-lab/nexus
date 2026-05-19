@@ -15,7 +15,7 @@
 | 类别 | 状态 | 当前结论 | 下一步 |
 | --- | --- | --- | --- |
 | Native shell owns lifecycle | Green | Swift AppKit shell 已启动 Go sidecar，并在 Quit / SIGTERM / SIGINT 时停止 sidecar；关闭窗口仅隐藏，不杀进程；启动前会按 PID 记录清理崩溃后遗留的 bundled sidecar；启动失败会写诊断报告；WebView 内容进程终止会记录时间线并自动 reload。 | 后续补 crash report。 |
-| Single instance | Green | 使用 `~/Library/Application Support/Nexus/NexusDesktop.lock` 做单实例锁；重复启动会通知已运行实例拉起 launcher。 | public beta 前补多用户/多 bundle identifier 策略。 |
+| Single instance | Green | 使用 `~/.nexus/NexusDesktop.lock` 做单实例锁；重复启动会通知已运行实例拉起 launcher。 | public beta 前补多用户/多 bundle identifier 策略。 |
 | Dock and reopen behavior | Green | 冷启动、Dock 点击、重复启动、`nexus://open` 和 `nexus://launcher` 都默认显示主窗口完整 launcher 首页；用户在 launcher 内选择进入工作台后才进入 `/app`。 | 多窗口后补 settings / launcher 恢复策略。 |
 | Standard macOS menus | Green | 已补 About、Settings、Hide、Quit、Edit、Window、Reload 等标准菜单；启动器入口保留在菜单中。 | 后续按 macOS Human Interface Guidelines 做菜单分组精修。 |
 | System WebView boundary | Yellow | WKWebView 只允许同源本地页面留在内部；外部 `http` / `https` / `mailto` 统一交给系统打开，未知 scheme 阻断；首屏由 React ready signal 后再 reveal；ready signal 已处理隐藏窗口 rAF 可能被节流的问题；窗口内容已由 `NSVisualEffectView` material 承载，WebView 背景透明；外链打开、popup 外链、未知 scheme 阻断会写入启动时间线。 | 补真实输入法与键盘导航验证。 |
@@ -30,7 +30,7 @@
 | Multi-entry WebView | Green | Vite 已输出 `app.html`、`settings.html`、`oauth-callback.html` 三个桌面 entry；Swift shell 按窗口和 `nexus://` URL 选择入口，并用 `desktop_route` 传递业务路由；Go sidecar fallback 支持直接刷新 `/`、`/app`、`/settings` 和 OAuth callback；settings/OAuth 轻入口已拆开，不预拉主工作区页面 chunk。 | 后续继续做真实冷启动计时和多窗口生命周期细化。 |
 | Packaging | Yellow | 本地脚本可生成包含 Swift shell、Go sidecar、`web/dist`、migrations、内置 skills 的 `.app`，并做 ad-hoc 签名；`package-macos-app.sh` 可生成 zip/dmg、sha256 和 metadata，并强制跑 smoke；GitHub `Publish Release` 已增加独立 macOS job，把 dmg 作为同一个 tag 的 Release asset 上传。 | 无 Developer ID 阶段继续用 ad-hoc 签名；公开发布前补 Developer ID 签名、公证和 staple。 |
 | Updates | Yellow | macOS 原生壳已支持启动后按 24 小时节流检测 GitHub Release / macOS metadata，应用菜单提供“检查更新...”手动入口，发现新版本时用原生弹窗提示打开下载页；当前不会自动下载或安装。 | public beta 前接 Sparkle 或等价方案，并完成 Developer ID 签名、公证、appcast 和更新包签名。 |
-| Diagnostics | Yellow | 日志写入 `~/Library/Logs/Nexus`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化、外链/阻断、右键菜单抑制和 WebContent 进程终止；WebContent 终止会额外写 `webcontent-terminated-*.json`；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加符号化 crash report 和更完整的 startup failure UI。 |
+| Diagnostics | Yellow | 日志写入 `~/.nexus/logs`，设置页可触发日志导出；导出包包含机器可读 `diagnostics.json`，启动失败会落 `startup-failure-*.json` 并在错误弹窗中提示路径；Swift shell 已记录 `Nexus Startup` 时间线，覆盖 sidecar、window、WebView navigation、Web ready/reveal、窗口遮挡/最小化、外链/阻断、右键菜单抑制和 WebContent 进程终止；WebContent 终止会额外写 `webcontent-terminated-*.json`；Web ready payload 带 performance marks，Go 静态托管记录桌面 Web 资源请求摘要。 | 加符号化 crash report 和更完整的 startup failure UI。 |
 
 ## 3. App 发布前必须变 Green
 

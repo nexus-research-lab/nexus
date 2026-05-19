@@ -18,6 +18,9 @@ import {
   Copy,
   CornerDownRight,
   Edit2,
+  File,
+  FileText,
+  Image as ImageIcon,
   Square,
   User,
   Wrench,
@@ -40,11 +43,13 @@ import {
 import { ContentRenderer } from "./content-renderer";
 import { format_message_time } from "./message-item-support";
 import type { MessageItemState } from "./message-item-types";
+import type { MessageAttachment } from "@/types/conversation/message";
 
 interface MessageUserSectionProps {
   compact: boolean;
   user_message: MessageItemState["user_message"];
   user_content: string;
+  user_attachments: MessageAttachment[];
   current_user_avatar?: string | null;
   copied_user: boolean;
   on_copy_user: () => Promise<void>;
@@ -53,10 +58,101 @@ interface MessageUserSectionProps {
   workspace_agent_id?: string | null;
 }
 
+function get_user_attachment_icon(kind: MessageAttachment["kind"]) {
+  if (kind === "image") {
+    return ImageIcon;
+  }
+  if (kind === "text") {
+    return FileText;
+  }
+  return File;
+}
+
+function get_user_attachment_kind_label(kind: MessageAttachment["kind"]) {
+  if (kind === "image") {
+    return "图片";
+  }
+  if (kind === "text") {
+    return "文本";
+  }
+  return "文件";
+}
+
+function MessageAttachmentList({
+  attachments,
+  on_open_workspace_file,
+  workspace_agent_id,
+}: {
+  attachments: MessageAttachment[];
+  on_open_workspace_file?: (path: string) => void;
+  workspace_agent_id?: string | null;
+}) {
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+      {attachments.map((attachment, index) => {
+        const Icon = get_user_attachment_icon(attachment.kind);
+        const can_open =
+          Boolean(on_open_workspace_file) &&
+          Boolean(attachment.workspace_path) &&
+          Boolean(workspace_agent_id) &&
+          attachment.workspace_agent_id === workspace_agent_id;
+        const title = `${attachment.file_name || attachment.workspace_path} · ${attachment.workspace_path}`;
+        const class_name = cn(
+          "inline-flex max-w-[260px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+          "border-(--divider-subtle-color) bg-(--surface-inset-background) text-(--text-muted)",
+          can_open
+            ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
+            : "cursor-default",
+        );
+        const content = (
+          <>
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 truncate">
+              {attachment.file_name || attachment.workspace_path}
+            </span>
+            <span className="shrink-0 text-[10px] text-(--text-faint)">
+              {get_user_attachment_kind_label(attachment.kind)}
+            </span>
+          </>
+        );
+
+        if (!can_open) {
+          return (
+            <span
+              key={`${attachment.workspace_path}-${index}`}
+              className={class_name}
+              title={title}
+            >
+              {content}
+            </span>
+          );
+        }
+
+        return (
+          <button
+            key={`${attachment.workspace_path}-${index}`}
+            type="button"
+            className={class_name}
+            title={title}
+            onClick={() => on_open_workspace_file?.(attachment.workspace_path)}
+          >
+            {content}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MessageUserSection({
   compact,
   user_message,
   user_content,
+  user_attachments,
   current_user_avatar,
   copied_user,
   on_copy_user,
@@ -135,16 +231,23 @@ export function MessageUserSection({
             </div>
 
             <div className="ml-auto w-fit max-w-full rounded-2xl px-4 py-3">
-              <ContentRenderer
-                content={user_content}
+              {user_content.trim() ? (
+                <ContentRenderer
+                  content={user_content}
+                  on_open_workspace_file={on_open_workspace_file}
+                  workspace_agent_id={workspace_agent_id}
+                  class_name={cn(
+                    "text-left text-(--text-strong)",
+                    compact
+                      ? "text-[15px] leading-6 [&_.katex-display]:my-2"
+                      : "text-[16px] leading-7 [&_.katex-display]:my-3",
+                  )}
+                />
+              ) : null}
+              <MessageAttachmentList
+                attachments={user_attachments}
                 on_open_workspace_file={on_open_workspace_file}
                 workspace_agent_id={workspace_agent_id}
-                class_name={cn(
-                  "text-left text-(--text-strong)",
-                  compact
-                    ? "text-[15px] leading-6 [&_.katex-display]:my-2"
-                    : "text-[16px] leading-7 [&_.katex-display]:my-3",
-                )}
               />
             </div>
           </div>

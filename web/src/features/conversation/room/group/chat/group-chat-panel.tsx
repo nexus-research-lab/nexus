@@ -22,7 +22,10 @@ import { Agent } from "@/types/agent/agent";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
-import { prepare_workspace_text_attachments } from "@/features/conversation/shared/composer-attachments";
+import {
+  prepare_room_conversation_attachments,
+  type PreparedComposerAttachment,
+} from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
@@ -330,10 +333,11 @@ export function GroupChatPanel({
   const handle_send_message = async (
     content: string,
     delivery_policy: AgentConversationDeliveryPolicy,
+    attachments: PreparedComposerAttachment[] = [],
   ) => {
-    if (!content.trim()) return;
+    if (!content.trim() && attachments.length === 0) return;
     scroll_to_bottom("auto");
-    await send_message(content, { delivery_policy });
+    await send_message(content, { delivery_policy, attachments });
   };
 
   const handle_stop_message = useCallback(
@@ -342,12 +346,12 @@ export function GroupChatPanel({
   );
   const handle_prepare_attachments = useCallback(
     async (files: File[]) => {
-      if (!agent_id) {
-        throw new Error("当前主理 Agent 尚未就绪，暂时无法附加文件。");
+      if (!room_id || !conversation_id) {
+        throw new Error("当前 Room 会话尚未就绪，暂时无法附加文件。");
       }
-      return prepare_workspace_text_attachments(agent_id, files);
+      return prepare_room_conversation_attachments(room_id, conversation_id, files);
     },
-    [agent_id],
+    [conversation_id, room_id],
   );
 
   useEffect(() => {

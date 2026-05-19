@@ -41,8 +41,9 @@ export async function send_session_message(
   const conversation_id = identity?.conversation_id;
   const chat_type = identity?.chat_type;
   const resolved_session_key = session_key || active_session_key_ref.current;
+  const attachments = options.attachments ?? [];
 
-  if (!content.trim()) {
+  if (!content.trim() && attachments.length === 0) {
     return null;
   }
   if (!resolved_session_key) {
@@ -70,6 +71,7 @@ export async function send_session_message(
     content,
     timestamp: Date.now(),
     delivery_policy,
+    ...(attachments.length > 0 ? { attachments } : {}),
     ...(chat_type === 'group' ? { room_id: room_id ?? undefined, conversation_id: conversation_id ?? undefined } : {}),
   };
 
@@ -82,6 +84,9 @@ export async function send_session_message(
     req_id: round_id,  // echo'd back in chat_ack for correlation
     delivery_policy,
   };
+  if (attachments.length > 0) {
+    ws_payload.attachments = attachments;
+  }
 
   // Room 消息附加 room 上下文
   if (chat_type === 'group') {
@@ -152,8 +157,9 @@ export function enqueue_input_queue_message(
   content: string,
   context: AgentConversationActionContext,
   delivery_policy: AgentConversationDeliveryPolicy = 'queue',
+  attachments: AgentConversationSendOptions["attachments"] = [],
 ): void {
-  if (!content.trim()) {
+  if (!content.trim() && attachments.length === 0) {
     return;
   }
   send_input_queue_payload(context, {
@@ -161,6 +167,7 @@ export function enqueue_input_queue_message(
     action: 'enqueue',
     content,
     delivery_policy,
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
 

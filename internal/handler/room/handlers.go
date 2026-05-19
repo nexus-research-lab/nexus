@@ -175,6 +175,40 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 	h.api.WriteSuccess(writer, items)
 }
 
+// HandleUploadConversationAttachment 上传 Room conversation 级公共附件。
+func (h *Handlers) HandleUploadConversationAttachment(writer http.ResponseWriter, request *http.Request) {
+	file, header, err := request.FormFile("file")
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少上传文件")
+		return
+	}
+	defer file.Close()
+
+	item, err := h.roomService.UploadConversationAttachment(
+		request.Context(),
+		chi.URLParam(request, "room_id"),
+		chi.URLParam(request, "conversation_id"),
+		header.Filename,
+		request.FormValue("path"),
+		file,
+	)
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrConversationNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "路径") ||
+			strings.Contains(err.Error(), "限制") ||
+			strings.Contains(err.Error(), "DM conversation") {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 func findPrimaryConversationSession(sessions []protocol.SessionRecord) *protocol.SessionRecord {
 	for index := range sessions {
 		if sessions[index].IsPrimary {
