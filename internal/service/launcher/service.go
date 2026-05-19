@@ -187,14 +187,17 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	}
 
 	agentItems := make([]BootstrapAgent, 0, len(agents))
+	agentByID := make(map[string]protocol.Agent, len(agents))
 	for _, agentValue := range agents {
+		agentByID[agentValue.AgentID] = agentValue
 		if agentValue.IsMain {
 			continue
 		}
 		agentItems = append(agentItems, BootstrapAgent{
-			ID:     agentValue.AgentID,
-			Name:   agentValue.Name,
-			Avatar: agentValue.Avatar,
+			ID:          agentValue.AgentID,
+			Name:        agentValue.Name,
+			Avatar:      agentValue.Avatar,
+			Description: agentValue.Description,
 		})
 	}
 
@@ -210,6 +213,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 			DMTargetAgentID: firstRoomAgentID(roomValue),
 			CreatedAt:       isoString(roomValue.Room.CreatedAt),
 			UpdatedAt:       isoString(roomValue.Room.UpdatedAt),
+			Members:         buildBootstrapRoomMembers(roomValue, agentByID),
 		})
 	}
 
@@ -227,6 +231,28 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		Rooms:         roomItems,
 		Conversations: conversationItems,
 	}, nil
+}
+
+func buildBootstrapRoomMembers(
+	roomValue protocol.RoomAggregate,
+	agentByID map[string]protocol.Agent,
+) []BootstrapRoomMember {
+	members := make([]BootstrapRoomMember, 0, len(roomValue.Members))
+	for _, member := range roomValue.Members {
+		if member.MemberType != protocol.MemberTypeAgent {
+			continue
+		}
+		agentValue, ok := agentByID[member.MemberAgentID]
+		if !ok {
+			continue
+		}
+		members = append(members, BootstrapRoomMember{
+			ID:     agentValue.AgentID,
+			Name:   agentValue.Name,
+			Avatar: agentValue.Avatar,
+		})
+	}
+	return members
 }
 
 func buildBootstrapConversations(
@@ -256,6 +282,7 @@ func buildBootstrapConversations(
 			RoomType:       roomType,
 			Title:          normalizeBootstrapConversationTitle(item.Title, roomType),
 			LastActivity:   isoString(lastActivity),
+			MessageCount:   item.MessageCount,
 		})
 	}
 	return items

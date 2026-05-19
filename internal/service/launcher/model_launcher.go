@@ -29,6 +29,14 @@ type SuggestionsResponse struct {
 
 // BootstrapAgent 表示 Launcher 首屏所需的 Agent 摘要。
 type BootstrapAgent struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Avatar      string `json:"avatar,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// BootstrapRoomMember 表示侧栏绘制群聊头像所需的成员摘要。
+type BootstrapRoomMember struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Avatar string `json:"avatar,omitempty"`
@@ -36,13 +44,14 @@ type BootstrapAgent struct {
 
 // BootstrapRoom 表示 Launcher 首屏所需的 Room 摘要。
 type BootstrapRoom struct {
-	ID              string `json:"id"`
-	RoomType        string `json:"room_type"`
-	Name            string `json:"name,omitempty"`
-	Avatar          string `json:"avatar,omitempty"`
-	DMTargetAgentID string `json:"dm_target_agent_id,omitempty"`
-	CreatedAt       string `json:"created_at,omitempty"`
-	UpdatedAt       string `json:"updated_at,omitempty"`
+	ID              string                `json:"id"`
+	RoomType        string                `json:"room_type"`
+	Name            string                `json:"name,omitempty"`
+	Avatar          string                `json:"avatar,omitempty"`
+	DMTargetAgentID string                `json:"dm_target_agent_id,omitempty"`
+	CreatedAt       string                `json:"created_at,omitempty"`
+	UpdatedAt       string                `json:"updated_at,omitempty"`
+	Members         []BootstrapRoomMember `json:"members,omitempty"`
 }
 
 // BootstrapConversation 表示 Launcher 推荐区使用的会话摘要。
@@ -54,6 +63,7 @@ type BootstrapConversation struct {
 	RoomType       string `json:"room_type"`
 	Title          string `json:"title"`
 	LastActivity   string `json:"last_activity"`
+	MessageCount   int    `json:"message_count,omitempty"`
 }
 
 // BootstrapResponse 表示 Launcher 首屏数据。

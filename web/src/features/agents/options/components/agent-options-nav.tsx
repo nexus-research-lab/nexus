@@ -49,22 +49,27 @@ export function AgentOptionsNav({
 
   if (variant === "inline") {
     return (
-      <div className="flex items-center justify-between gap-4 border-b dialog-divider px-6 py-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <div className="flex h-[41px] min-w-0 items-center justify-between gap-4 border-b dialog-divider px-6">
+        <nav
+          aria-label="Agent 配置切换"
+          className="soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-0.5"
+        >
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = active_tab === item.key;
             const label = t(item.label_key);
             return (
               <button
+                aria-current={isActive ? "page" : undefined}
+                aria-pressed={isActive}
                 key={item.key}
                 onClick={() => on_tab_change(item.key)}
                 title={label}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-[color,background,border-color] duration-(--motion-duration-normal)",
+                  "inline-flex h-full shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
                   isActive
-                    ? "border border-primary/18 bg-primary/8 text-primary"
-                    : "border border-transparent text-(--text-muted) hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                    ? "border-(--surface-interactive-active-border) text-(--text-strong)"
+                    : "text-(--text-default) hover:text-(--text-strong)",
                 )}
                 type="button"
               >
@@ -73,7 +78,7 @@ export function AgentOptionsNav({
               </button>
             );
           })}
-        </div>
+        </nav>
         {trailing ? (
           <div className="ml-4 flex shrink-0 items-center gap-2">
             {trailing}

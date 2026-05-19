@@ -79,13 +79,14 @@ export function ConnectorsDirectory() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_class_name="px-5 py-5 xl:px-6"
         body_scrollable
         header={<ConnectorsHeader ctrl={ctrl} />}
         stable_gutter
       >
-        <ConnectorsSearchBar ctrl={ctrl} />
-        <ConnectorsGrid ctrl={ctrl} />
+        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
+          <ConnectorsSearchBar ctrl={ctrl} />
+          <ConnectorsGrid ctrl={ctrl} />
+        </div>
       </WorkspaceSurfaceScaffold>
 
       {/* 详情弹窗 */}

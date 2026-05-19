@@ -21,6 +21,13 @@ export interface LauncherAgentSummary {
   id: string;
   name: string;
   avatar?: string;
+  description?: string | null;
+}
+
+export interface LauncherRoomMemberSummary {
+  id: string;
+  name: string;
+  avatar?: string;
 }
 
 export interface LauncherRoomSummary {
@@ -31,6 +38,7 @@ export interface LauncherRoomSummary {
   dm_target_agent_id?: string;
   created_at?: string;
   updated_at?: string;
+  members?: LauncherRoomMemberSummary[];
 }
 
 export interface LauncherConversationSummary {
@@ -41,6 +49,7 @@ export interface LauncherConversationSummary {
   room_type: "dm" | "room";
   title: string;
   last_activity: string;
+  message_count?: number;
 }
 
 export interface LauncherBootstrapResponse {

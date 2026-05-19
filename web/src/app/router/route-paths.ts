@@ -23,6 +23,7 @@ export const AppRouteBuilders = {
   room_conversation: (room_id: string, conversation_id: string) =>
     `/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
   contacts: () => APP_ROUTE_PATHS.contacts,
+  contact_agent: (agent_id: string) => `${APP_ROUTE_PATHS.contacts}?agent=${encodeURIComponent(agent_id)}`,
   skills: () => APP_ROUTE_PATHS.skills,
   skill_detail: (skill_name: string) => `/capability/skills/${encodeURIComponent(skill_name)}`,
   connectors: () => APP_ROUTE_PATHS.connectors,

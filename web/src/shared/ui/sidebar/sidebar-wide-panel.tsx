@@ -8,7 +8,18 @@
  * 宽度从 store 读取，右边缘可拖拽调整（180–400px）。
  */
 
-import { Compass, LogOut, MessageSquare, Rocket, Settings, Wrench } from "lucide-react";
+import {
+  Compass,
+  LogOut,
+  MessageCircle,
+  MessageSquare,
+  Puzzle,
+  Rocket,
+  Settings,
+  type LucideIcon,
+  Users2,
+  Wrench,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -16,7 +27,10 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_default_agent_avatar, get_default_agent_id, is_main_agent } from "@/config/options";
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
-import { HomePanelContent } from "@/features/home/home-sidebar-panel";
+import {
+  ChatSidebarPanelContent,
+  ContactsSidebarPanelContent,
+} from "@/features/home/home-sidebar-panel";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
@@ -29,7 +43,6 @@ import {
 } from "@/shared/ui/onboarding/onboarding-guide-center";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { set_requested_tour_id } from "@/shared/ui/onboarding/tour-state";
-import { CollapsibleSection } from "@/shared/ui/sidebar/collapsible-section";
 import {
   build_sidebar_navigation_tour,
   SIDEBAR_NAVIGATION_TOUR_ID,
@@ -53,9 +66,20 @@ import {
 } from "@/features/conversation/room/room-tour";
 import { SKILLS_TOUR_ID } from "@/features/capability/skills/skills-tour";
 
-const CAPABILITY_SECTION_COUNT = 5;
 const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
 const MODAL_ROOT_SELECTOR = "[data-modal-root='true']";
+
+type SidebarPrimaryTab = "chat" | "contacts" | "capabilities";
+
+function derive_primary_tab_from_path(pathname: string): SidebarPrimaryTab {
+  if (pathname.startsWith(AppRouteBuilders.contacts())) {
+    return "contacts";
+  }
+  if (pathname.startsWith("/capability/")) {
+    return "capabilities";
+  }
+  return "chat";
+}
 
 export function SidebarWidePanel() {
   const { t } = useI18n();
@@ -75,13 +99,16 @@ export function SidebarWidePanel() {
   const agents = useAgentStore((s) => s.agents);
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const nexus_room_id = useSidebarStore((s) => s.nexus_room_id);
+  const chat_badge_count = useSidebarStore((s) => s.chat_badge_count);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
+  const set_chat_badge_count = useSidebarStore((s) => s.set_chat_badge_count);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
   const root_ref = useRef<HTMLDivElement | null>(null);
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
   const [is_guide_center_open, set_is_guide_center_open] = useState(false);
   const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
+  const active_primary_tab = derive_primary_tab_from_path(location.pathname);
   const prefers_reduced_motion = usePrefersReducedMotion();
   const default_agent_id = get_default_agent_id();
   const nexus_agent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
@@ -94,6 +121,27 @@ export function SidebarWidePanel() {
     [t],
   );
   const has_auto_started_tour_ref = useRef(false);
+
+  const refresh_chat_badge_count = useCallback(() => {
+    void get_launcher_bootstrap_api()
+      .then((payload) => {
+        const next_count = payload.conversations.filter(
+          (conversation) => (conversation.message_count ?? 0) > 0,
+        ).length;
+        set_chat_badge_count(next_count);
+      })
+      .catch(() => {
+        set_chat_badge_count(0);
+      });
+  }, [set_chat_badge_count]);
+
+  useEffect(() => {
+    refresh_chat_badge_count();
+    window.addEventListener("focus", refresh_chat_badge_count);
+    return () => {
+      window.removeEventListener("focus", refresh_chat_badge_count);
+    };
+  }, [refresh_chat_badge_count]);
   const is_dm_tour_registered = is_tour_registered(DM_CONVERSATION_TOUR_ID);
   const registered_room_tour_id = useMemo(() => {
     if (is_tour_registered(ROOM_CONVERSATION_TOUR_ID)) {
@@ -211,6 +259,24 @@ export function SidebarWidePanel() {
       console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
     });
   }, [default_agent_id, navigate, set_active_panel_item]);
+
+  const handle_select_primary_tab = useCallback((tab: SidebarPrimaryTab) => {
+    if (tab === "chat") {
+      if (!location.pathname.startsWith("/rooms/")) {
+        navigate(AppRouteBuilders.home());
+      }
+      return;
+    }
+
+    if (tab === "contacts") {
+      set_active_panel_item(null);
+      navigate(AppRouteBuilders.contacts());
+      return;
+    }
+
+    set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
+    navigate(AppRouteBuilders.skills());
+  }, [location.pathname, navigate, set_active_panel_item]);
 
   useEffect(() => {
     register_tour(sidebar_navigation_tour);
@@ -418,6 +484,18 @@ export function SidebarWidePanel() {
     t,
   ]);
 
+  const primary_tabs: {
+    key: SidebarPrimaryTab;
+    label: string;
+    icon: LucideIcon;
+    anchor: string;
+    badge_count?: number;
+  }[] = [
+    { key: "chat", label: t("sidebar.tab_chat"), icon: MessageCircle, anchor: SIDEBAR_TOUR_ANCHORS.chat_tab, badge_count: chat_badge_count },
+    { key: "contacts", label: t("sidebar.tab_contacts"), icon: Users2, anchor: SIDEBAR_TOUR_ANCHORS.contacts_tab },
+    { key: "capabilities", label: t("sidebar.tab_capabilities"), icon: Puzzle, anchor: SIDEBAR_TOUR_ANCHORS.capabilities_tab },
+  ];
+
   return (
     <div
       className={cn(
@@ -523,19 +601,62 @@ export function SidebarWidePanel() {
         </div>
       </div>
 
-      {/* 面板内容 */}
-      <div className="soft-scrollbar scrollbar-stable-gutter flex-1 overflow-y-auto px-2.5 py-2.5">
-        <HomePanelContent />
-
-        <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities}>
-          <CollapsibleSection
-            count={CAPABILITY_SECTION_COUNT}
-            section_id="sidebar-capabilities"
-            title={t("sidebar.capabilities")}
-          >
-            <CapabilitiesPanelContent />
-          </CollapsibleSection>
+      {/* 一级 Tab：聊天、联系人、能力 */}
+      <div className="border-b divider-subtle px-3 py-2">
+        <div className="grid grid-cols-3 gap-1 rounded-[14px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] p-1">
+          {primary_tabs.map((tab) => {
+            const Icon = tab.icon;
+            const is_active = active_primary_tab === tab.key;
+            return (
+              <button
+                aria-current={is_active ? "page" : undefined}
+                aria-pressed={is_active}
+                className={cn(
+                  "flex h-9 items-center justify-center gap-1.5 rounded-[11px] text-[13px] font-medium transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
+                  is_active
+                    ? "bg-[color:color-mix(in_srgb,var(--primary)_14%,var(--surface-elevated-background))] text-(--primary) shadow-[0_8px_22px_color-mix(in_srgb,var(--primary)_10%,transparent)]"
+                    : "text-(--text-muted) hover:text-(--text-strong)",
+                )}
+                data-tour-anchor={tab.anchor}
+                key={tab.key}
+                onClick={() => handle_select_primary_tab(tab.key)}
+                type="button"
+              >
+                <span className="relative flex h-4 w-4 items-center justify-center">
+                  <Icon
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      is_active && "fill-(--primary) stroke-(--primary)",
+                    )}
+                  />
+                  {tab.badge_count ? (
+                    <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[rgb(255,76,84)] px-1 text-[10px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,76,84,0.28)]">
+                      {tab.badge_count > 99 ? "99+" : tab.badge_count}
+                    </span>
+                  ) : null}
+                </span>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
+      </div>
+
+      {/* 面板内容 */}
+      <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col overflow-y-auto py-2.5">
+        {active_primary_tab === "chat" ? (
+          <ChatSidebarPanelContent />
+        ) : null}
+
+        {active_primary_tab === "contacts" ? (
+          <ContactsSidebarPanelContent />
+        ) : null}
+
+        {active_primary_tab === "capabilities" ? (
+          <div className="flex min-h-0 flex-1 flex-col px-2" data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities_list}>
+            <CapabilitiesPanelContent />
+          </div>
+        ) : null}
       </div>
 
       <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">

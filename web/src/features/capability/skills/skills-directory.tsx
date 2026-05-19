@@ -58,7 +58,6 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
       />
 
       <WorkspaceSurfaceScaffold
-        body_class_name="px-5 py-5 xl:px-6"
         body_scrollable
         header={(
           <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
@@ -67,13 +66,15 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
         )}
         stable_gutter
       >
-        <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
-          <SkillsSearchBar ctrl={ctrl} />
-        </div>
+        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
+          <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
+            <SkillsSearchBar ctrl={ctrl} />
+          </div>
 
-        <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
-          {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
-          {ctrl.discovery_mode === "catalog" && <SkillsCatalogGrid ctrl={ctrl} />}
+          <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
+            {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
+            {ctrl.discovery_mode === "catalog" && <SkillsCatalogGrid ctrl={ctrl} />}
+          </div>
         </div>
       </WorkspaceSurfaceScaffold>
 

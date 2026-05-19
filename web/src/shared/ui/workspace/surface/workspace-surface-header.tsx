@@ -56,6 +56,8 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   active_tab,
   on_change_tab,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
+  const has_secondary_row = density === "compact" || tabs.length > 0 || Boolean(tabs_trailing);
+
   return (
     <div className={SURFACE_HEADER_CLASS_NAME} data-density={density}>
       <div className={cn(
@@ -101,46 +103,50 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         ) : null}
       </div>
 
-      {tabs.length || tabs_trailing ? (
+      {has_secondary_row ? (
         <div className={cn(
           "flex min-w-0 px-5 xl:px-6",
           density === "compact"
             ? cn(COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS, "items-center gap-3")
             : "items-end gap-4 pb-0.5",
         )}>
-          <nav
-            aria-label="视图切换"
-            className={cn(
-              "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
-              density === "compact" ? "items-center gap-3" : "items-center gap-4",
-            )}
-            data-tour-anchor={tabs_nav_anchor}
-          >
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const is_active = active_tab === tab.key;
-              return (
-                <button
-                  aria-pressed={is_active}
-                  aria-current={is_active ? "page" : undefined}
-                  data-tour-anchor={tab.anchor}
-                  key={tab.key}
-                  className={cn(
-                    "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
-                    is_active
-                      ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                      : "text-(--text-default) hover:text-(--text-strong)",
-                    density === "compact" && "h-8 text-[10.5px]",
-                  )}
-                  onClick={() => on_change_tab?.(tab.key)}
-                  type="button"
-                >
-                  {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
+          {tabs.length > 0 ? (
+            <nav
+              aria-label="视图切换"
+              className={cn(
+                "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
+                density === "compact" ? "items-center gap-3" : "items-center gap-4",
+              )}
+              data-tour-anchor={tabs_nav_anchor}
+            >
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const is_active = active_tab === tab.key;
+                return (
+                  <button
+                    aria-pressed={is_active}
+                    aria-current={is_active ? "page" : undefined}
+                    data-tour-anchor={tab.anchor}
+                    key={tab.key}
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
+                      is_active
+                        ? "border-(--surface-interactive-active-border) text-(--text-strong)"
+                        : "text-(--text-default) hover:text-(--text-strong)",
+                      density === "compact" && "h-8 text-[10.5px]",
+                    )}
+                    onClick={() => on_change_tab?.(tab.key)}
+                    type="button"
+                  >
+                    {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          ) : (
+            <div className="min-w-0 flex-1" />
+          )}
           {tabs_trailing ? (
             <div className="shrink-0">
               {tabs_trailing}

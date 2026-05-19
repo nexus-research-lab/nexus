@@ -13,9 +13,10 @@ import {
   type LucideIcon,
   Puzzle,
   Radio,
+  Search,
   Users2,
 } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -40,6 +41,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const summary_refresh_in_flight_ref = useRef(false);
+  const [query, set_query] = useState("");
   const [summary, set_summary] = useState<CapabilitySummary>({
     skills_count: 0,
     connected_connectors_count: 0,
@@ -167,24 +169,53 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     t,
   ]);
 
+  const filtered_capability_items = useMemo(() => {
+    const normalized_query = query.trim().toLowerCase();
+    if (!normalized_query) {
+      return capability_items;
+    }
+    return capability_items.filter((item) =>
+      `${item.label} ${item.meta}`.toLowerCase().includes(normalized_query),
+    );
+  }, [capability_items, query]);
+
   return (
-    <Fragment>
-      {capability_items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <SidebarListItem
-            icon={<Icon className="h-4 w-4" />}
-            is_active={active_panel_item_id === item.id}
-            key={item.id}
-            label={item.label}
-            meta={item.meta}
-            on_click={() => {
-              set_active_panel_item(item.id);
-              navigate(item.path);
-            }}
-          />
-        );
-      })}
-    </Fragment>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <label className="relative block pb-2">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-[calc(50%+4px)] text-(--icon-muted)" />
+        <input
+          className="h-9 w-full rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] pl-8 pr-3 text-[13px] text-(--text-strong) outline-none transition-[border-color,background] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_92%,transparent)] focus:bg-(--surface-elevated-background) focus:shadow-none"
+          onChange={(event) => set_query(event.target.value)}
+          placeholder={t("sidebar.search_capabilities")}
+          type="search"
+          value={query}
+        />
+      </label>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-1">
+        {filtered_capability_items.length > 0 ? (
+          filtered_capability_items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <SidebarListItem
+                icon={<Icon className="h-4 w-4" />}
+                is_active={active_panel_item_id === item.id}
+                key={item.id}
+                label={item.label}
+                meta={item.meta}
+                on_click={() => {
+                  set_active_panel_item(item.id);
+                  navigate(item.path);
+                }}
+              />
+            );
+          })
+        ) : (
+          <div className="px-2.5 py-4 text-[12px] text-(--text-muted)">
+            {t("sidebar.no_matching_capabilities")}
+          </div>
+        )}
+      </div>
+    </div>
   );
 });

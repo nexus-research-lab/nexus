@@ -7,7 +7,7 @@ import {
   Hash,
   History,
   Info,
-  MessageSquare,
+  type LucideIcon,
 } from "lucide-react";
 
 import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
@@ -126,10 +126,9 @@ const GroupConversationHeaderView = memo(({
   const room_tabs: {
     key: RoomSurfaceTabKey;
     label: string;
-    icon: typeof MessageSquare;
+    icon: LucideIcon;
     anchor?: string;
   }[] = [
-    { key: "chat", label: t("room.chat"), icon: MessageSquare, anchor: CONVERSATION_TOUR_ANCHORS.tab_chat },
     { key: "history", label: t("room.history"), icon: History, anchor: CONVERSATION_TOUR_ANCHORS.tab_history },
     { key: "workspace", label: t("room.workspace"), icon: FolderTree, anchor: CONVERSATION_TOUR_ANCHORS.tab_workspace },
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },

@@ -42,14 +42,6 @@ export function build_dm_conversation_tour(
         placement: "bottom",
       },
       {
-        id: "chat-tab",
-        title: t("room.tour_tab_chat_title"),
-        description: t("room.tour_tab_chat_description"),
-        target: CONVERSATION_TOUR_ANCHORS.tab_chat,
-        image: "/nexus/listening.png",
-        placement: "bottom",
-      },
-      {
         id: "history-tab",
         title: t("room.tour_tab_history_title"),
         description: t("room.tour_tab_history_description"),
@@ -123,14 +115,6 @@ export function build_room_conversation_tour(
         placement: "bottom",
       },
       {
-        id: "chat-tab",
-        title: t("room.tour_tab_chat_title"),
-        description: t("room.tour_tab_chat_description"),
-        target: CONVERSATION_TOUR_ANCHORS.tab_chat,
-        image: "/nexus/listening.png",
-        placement: "bottom",
-      },
-      {
         id: "history-tab",
         title: t("room.tour_tab_history_title"),
         description: t("room.tour_tab_history_description"),
@@ -201,14 +185,6 @@ export function build_room_empty_conversation_tour(
         description: t("room.tour_member_manage_description"),
         target: CONVERSATION_TOUR_ANCHORS.member_manage,
         image: "/nexus/discussing.png",
-        placement: "bottom",
-      },
-      {
-        id: "chat-tab",
-        title: t("room.tour_tab_chat_title"),
-        description: t("room.tour_tab_chat_description"),
-        target: CONVERSATION_TOUR_ANCHORS.tab_chat,
-        image: "/nexus/listening.png",
         placement: "bottom",
       },
       {

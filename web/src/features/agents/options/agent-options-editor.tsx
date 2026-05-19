@@ -55,6 +55,9 @@ export interface AgentOptionsEditorProps {
   show_delete_button?: boolean;
   variant?: "dialog" | "inline";
   content_max_width_class_name?: string;
+  active_tab?: TabKey;
+  on_tab_change?: (tab: TabKey) => void;
+  hide_inline_nav?: boolean;
 }
 
 /** 扩展选项 */
@@ -85,6 +88,9 @@ export function AgentOptionsEditor({
   show_delete_button = true,
   variant = "dialog",
   content_max_width_class_name = "max-w-[920px]",
+  active_tab,
+  on_tab_change,
+  hide_inline_nav = false,
 }: AgentOptionsEditorProps) {
   const { t } = useI18n();
   const sourceOptions = initial_options as AgentDialogInitialOptions;
@@ -94,7 +100,9 @@ export function AgentOptionsEditor({
   );
 
   // ---- 导航状态 ----
-  const [activeTab, setActiveTab] = useState<TabKey>("identity");
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<TabKey>("identity");
+  const activeTab = active_tab ?? uncontrolledActiveTab;
+  const setActiveTab = on_tab_change ?? setUncontrolledActiveTab;
 
   // ---- Identity 状态 ----
   const [title, setTitle] = useState(initial_title || t("agent_options.default_name"));
@@ -132,7 +140,7 @@ export function AgentOptionsEditor({
   useEffect(() => {
     if (!is_active) return;
     const opts = initial_options as AgentDialogInitialOptions;
-    setActiveTab("identity");
+    setUncontrolledActiveTab("identity");
     setTitle(initial_resolved_title);
     setAvatar(initial_avatar);
     setDescription(initial_description);
@@ -368,46 +376,48 @@ export function AgentOptionsEditor({
   );
 
   if (variant === "inline") {
-    const inline_content_width_class_name =
-      activeTab === "identity" ? content_max_width_class_name : "max-w-none";
+    const inline_content_width_class_name = content_max_width_class_name;
+    const save_button = (
+      <button
+        className={get_dialog_action_class_name(canSave ? "primary" : "default", "compact")}
+        onClick={() => {
+          void handle_save();
+        }}
+        disabled={!canSave}
+        type="button"
+      >
+        {isSaving
+          ? t("common.saving")
+          : mode === "create"
+            ? t("agent_options.title_create")
+            : t("agent_options.save_changes")}
+      </button>
+    );
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <AgentOptionsNav
-          active_tab={activeTab}
-          on_tab_change={setActiveTab}
-          variant="inline"
-          trailing={(
-            <button
-              className={get_dialog_action_class_name(canSave ? "primary" : "default", "compact")}
-              onClick={() => {
-                void handle_save();
-              }}
-              disabled={!canSave}
-              type="button"
-            >
-              {isSaving
-                ? t("common.saving")
-                : mode === "create"
-                  ? t("agent_options.title_create")
-                  : t("agent_options.save_changes")}
-            </button>
-          )}
-        />
+        {!hide_inline_nav ? (
+          <AgentOptionsNav
+            active_tab={activeTab}
+            on_tab_change={setActiveTab}
+            variant="inline"
+            trailing={save_button}
+          />
+        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={cn(
               "w-full px-6 py-5",
               inline_content_width_class_name,
-              activeTab === "identity" && "mx-auto"
+              "mx-auto"
             )}
           >
             {content}
           </div>
         </div>
 
-        {canDelete || (show_cancel_button && on_cancel) ? (
+        {canDelete || (show_cancel_button && on_cancel) || hide_inline_nav ? (
           <div className="flex items-center justify-end border-t dialog-divider px-6 py-3">
             {canDelete ? (
               <button
@@ -432,6 +442,7 @@ export function AgentOptionsEditor({
                 {t("common.cancel")}
               </button>
             ) : null}
+            {hide_inline_nav ? save_button : null}
           </div>
         ) : null}
       </div>

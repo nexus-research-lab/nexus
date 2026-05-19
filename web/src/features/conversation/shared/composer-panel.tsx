@@ -167,7 +167,7 @@ const ComposerPanelView = memo(({
   disabled = false,
   allow_send_while_loading = false,
   queue_when_session_busy = true,
-  placeholder = "继续描述目标、补充上下文，或直接开始协作…",
+  placeholder,
   max_length = 10000,
   room_members = [],
   mention_unavailable_agent_ids = [],
@@ -176,6 +176,7 @@ const ComposerPanelView = memo(({
   tour_anchor,
 }: ComposerPanelProps) => {
   const { t } = useI18n();
+  const resolved_placeholder = placeholder ?? t("composer.default_placeholder");
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
@@ -348,7 +349,7 @@ const ComposerPanelView = memo(({
     let next_message = trimmed_input;
     if (attachments.length > 0) {
       if (!on_prepare_attachments) {
-        setAttachmentError("当前会话暂不支持附件。");
+        setAttachmentError(t("composer.unsupported_attachment"));
         return;
       }
 
@@ -358,7 +359,7 @@ const ComposerPanelView = memo(({
         const prepared_attachments = await on_prepare_attachments(attachments.map((attachment) => attachment.file));
         next_message = build_message_with_attachments(trimmed_input, prepared_attachments);
       } catch (error) {
-        setAttachmentError(error instanceof Error ? error.message : "附件整理失败，请稍后重试。");
+        setAttachmentError(error instanceof Error ? error.message : t("composer.attachment_failed"));
         return;
       } finally {
         setIsPreparingAttachments(false);
@@ -407,6 +408,7 @@ const ComposerPanelView = memo(({
     on_enqueue_message,
     on_prepare_attachments,
     queue_when_session_busy,
+    t,
   ]);
 
   const remove_pending_message = useCallback(async (id: string) => {
@@ -546,7 +548,7 @@ const ComposerPanelView = memo(({
     });
 
     if (rejected_files.length > 0) {
-      setAttachmentError(rejected_files[0] ?? "附件格式不受支持。");
+      setAttachmentError(rejected_files[0] ?? t("composer.attachment_format_unsupported"));
     } else {
       setAttachmentError(null);
     }
@@ -589,7 +591,7 @@ const ComposerPanelView = memo(({
       <input
         ref={file_input_ref}
         accept={COMPOSER_ATTACHMENT_ACCEPT}
-        aria-label="选择附件文件"
+        aria-label={t("composer.choose_attachment_file")}
         className="hidden"
         multiple
         onChange={handle_file_select}
@@ -606,11 +608,11 @@ const ComposerPanelView = memo(({
           >
             <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-(--text-soft)">
               <span className="inline-flex items-center gap-1.5">
-                待发送队列
+                {t("composer.pending_queue")}
                 <span className="tabular-nums">{input_queue_items.length}</span>
               </span>
               <button
-                aria-label={is_pending_queue_collapsed ? "展开待发送队列" : "收起待发送队列"}
+                aria-label={is_pending_queue_collapsed ? t("composer.expand_pending_queue") : t("composer.collapse_pending_queue")}
                 className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
                 onClick={() => set_is_pending_queue_collapsed((current) => !current)}
                 type="button"
@@ -684,7 +686,7 @@ const ComposerPanelView = memo(({
                     }}
                   >
                     <span
-                      aria-label="拖动调整顺序"
+                      aria-label={t("composer.drag_to_reorder")}
                       className="inline-flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-(--text-soft) active:cursor-grabbing"
                     >
                       <GripVertical className="h-3.5 w-3.5" />
@@ -693,7 +695,7 @@ const ComposerPanelView = memo(({
                       {message.content}
                     </p>
                     <button
-                      aria-label={is_guidance_waiting ? "取消引导" : "引导当前 round"}
+                      aria-label={is_guidance_waiting ? t("composer.cancel_guidance") : t("composer.mark_guidance")}
                       className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
                       disabled={disabled || is_queue_action_running}
                       onClick={() => {
@@ -702,10 +704,10 @@ const ComposerPanelView = memo(({
                       type="button"
                     >
                       <CornerDownRight className="h-3 w-3" />
-                      {is_guidance_waiting ? "取消引导" : "引导"}
+                      {is_guidance_waiting ? t("composer.cancel_guide_action") : t("composer.guide_action")}
                     </button>
                     <button
-                      aria-label="删除待发送消息"
+                      aria-label={t("composer.delete_pending")}
                       className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:text-(--destructive)"
                       onClick={() => {
                         void remove_pending_message(message.id);
@@ -730,7 +732,7 @@ const ComposerPanelView = memo(({
                   {attachment.file.name}
                 </span>
                 <button
-                  aria-label="移除附件"
+                  aria-label={t("composer.remove_attachment")}
                   className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
                   onClick={() => remove_attachment(attachment.id)}
                 >
@@ -743,7 +745,7 @@ const ComposerPanelView = memo(({
 
         <div className={cn("flex items-end gap-2", composer_input_row_padding_class)}>
           <button
-            aria-label="添加附件"
+            aria-label={t("composer.add_attachment")}
             className={COMPOSER_ACTION_BUTTON_CLASS_NAME}
             disabled={is_input_locked || is_preparing_attachments}
             onClick={() => file_input_ref.current?.click()}
@@ -794,14 +796,14 @@ const ComposerPanelView = memo(({
               ignore_next_enter_after_composition_ref.current = false;
             }}
             onKeyDown={handle_key_down}
-            placeholder={placeholder}
+            placeholder={resolved_placeholder}
             rows={1}
             value={input}
           />
 
           {should_show_stop_button ? (
             <button
-              aria-label="停止生成"
+              aria-label={t("composer.stop_generation")}
               className={COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME}
               onClick={on_stop}
               type="button"
@@ -810,7 +812,7 @@ const ComposerPanelView = memo(({
             </button>
           ) : (
             <button
-              aria-label="发送消息"
+              aria-label={t("composer.send_message")}
               className={COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME}
               disabled={is_send_disabled}
               onClick={() => {
@@ -840,12 +842,12 @@ const ComposerPanelView = memo(({
               <span className="flex items-center gap-2 text-emerald-900/90">
                 <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
                 <span className="animate-pulse">{t("status.replying")}…</span>
-                <span className="text-(--text-soft)">[ESC 停止]</span>
+                <span className="text-(--text-soft)">[{t("composer.esc_stop")}]</span>
               </span>
             ) : is_preparing_attachments ? (
               <span className="flex items-center gap-2 text-(--text-default)">
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
-                <span>正在整理附件并同步到工作区…</span>
+                <span>{t("composer.preparing_attachments")}</span>
               </span>
             ) : attachment_error ? (
               <span className="text-(--destructive)">{attachment_error}</span>
@@ -853,16 +855,16 @@ const ComposerPanelView = memo(({
               <>
                 <span className="flex items-center gap-1">
                   <kbd>Enter</kbd>
-                  <span>{queue_when_session_busy && (is_loading || input_queue_items.length > 0) ? "入队" : "发送"}</span>
+                  <span>{queue_when_session_busy && (is_loading || input_queue_items.length > 0) ? t("composer.enter_queue") : t("composer.enter_send")}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <kbd>Shift</kbd>
                   <span>+</span>
                   <kbd>Enter</kbd>
-                  <span>换行</span>
+                  <span>{t("composer.shift_enter_newline")}</span>
                 </span>
                 <span className="hidden sm:inline text-(--text-soft)">
-                  附件仅支持文本文件
+                  {t("composer.text_attachment_only")}
                 </span>
               </>
             )}
@@ -888,7 +890,10 @@ const ComposerPanelView = memo(({
             ) : null}
             {history_index >= 0 ? (
               <div className="text-[10px] text-(--text-default)">
-                历史 {history_index + 1}/{input_history.length}
+                {t("composer.history_position", {
+                  current: history_index + 1,
+                  total: input_history.length,
+                })}
               </div>
             ) : null}
           </div>

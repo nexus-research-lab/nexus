@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
 import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
 import { create_room, ensure_direct_room } from "@/lib/api/room-api";
@@ -18,6 +19,7 @@ import { get_initial_agent_options, is_main_agent } from "@/config/options";
 
 export function ContactsPage() {
   const navigate = useNavigate();
+  const [search_params] = useSearchParams();
   const agents = useAgentStore((state) => state.agents);
   const create_agent = useAgentStore((state) => state.create_agent);
   const update_agent = useAgentStore((state) => state.update_agent);
@@ -39,12 +41,20 @@ export function ContactsPage() {
     () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
+  const selected_agent_id = search_params.get("agent");
 
   const editing_agent = useMemo(
     () =>
       regular_agents.find((agent) => agent.agent_id === editing_agent_id) ??
       null,
     [editing_agent_id, regular_agents],
+  );
+  const selected_agent = useMemo(
+    () =>
+      selected_agent_id
+        ? regular_agents.find((agent) => agent.agent_id === selected_agent_id) ?? null
+        : null,
+    [regular_agents, selected_agent_id],
   );
   const dialog_initial_title = useMemo(
     () => (dialog_mode === "edit" ? editing_agent?.name : undefined),
@@ -157,14 +167,49 @@ export function ContactsPage() {
     [create_agent, dialog_mode, editing_agent_id, update_agent],
   );
 
+  const handle_save_agent_options = useCallback(
+    async (
+      agent_id: string,
+      title: string,
+      options: AgentConfigOptions,
+      identity: AgentIdentityDraft,
+    ) => {
+      await update_agent(agent_id, {
+        name: title,
+        options: {
+          provider: options.provider,
+          permission_mode: options.permission_mode,
+          allowed_tools: options.allowed_tools,
+          disallowed_tools: options.disallowed_tools,
+          setting_sources: options.setting_sources,
+        },
+        avatar: identity.avatar,
+        description: identity.description,
+        vibe_tags: identity.vibe_tags,
+      });
+    },
+    [update_agent],
+  );
+
+  const handle_validate_agent_detail_name = useCallback(
+    async (name: string, agent_id?: string) => {
+      return validate_agent_name_api(name, agent_id);
+    },
+    [],
+  );
+
   const handle_confirm_delete_agent = useCallback(async () => {
     if (!pending_delete_agent) {
       return;
     }
 
-    await delete_agent(pending_delete_agent.id);
+    const deleted_agent_id = pending_delete_agent.id;
+    await delete_agent(deleted_agent_id);
     set_pending_delete_agent(null);
-  }, [delete_agent, pending_delete_agent]);
+    if (selected_agent_id === deleted_agent_id) {
+      navigate(AppRouteBuilders.contacts(), { replace: true });
+    }
+  }, [delete_agent, navigate, pending_delete_agent, selected_agent_id]);
 
   const handle_request_delete_agent = useCallback(
     (agent_id: string) => {
@@ -185,6 +230,15 @@ export function ContactsPage() {
     void load_agents_from_server();
   }, [load_agents_from_server]);
 
+  useEffect(() => {
+    if (!selected_agent_id || loading) {
+      return;
+    }
+    if (!regular_agents.some((agent) => agent.agent_id === selected_agent_id)) {
+      navigate(AppRouteBuilders.contacts(), { replace: true });
+    }
+  }, [loading, navigate, regular_agents, selected_agent_id]);
+
   // 加载中 — 内联 loading，外层布局由路由层提供
   if (loading && !regular_agents.length) {
     return (
@@ -202,13 +256,25 @@ export function ContactsPage() {
   return (
     <>
       <WorkspacePageFrame content_padding_class_name="p-0">
-        <ContactsDirectory
-          agents={regular_agents}
-          on_create_agent={handle_open_create_agent}
-          on_create_team={handle_create_team}
-          on_edit_agent={handle_open_edit_agent}
-          on_open_direct_room={handle_open_direct_room}
-        />
+        {selected_agent ? (
+          <ContactsAgentDetail
+            agent={selected_agent}
+            on_back={() => navigate(AppRouteBuilders.contacts())}
+            on_create_team={handle_create_team}
+            on_delete_agent={handle_request_delete_agent}
+            on_open_direct_room={handle_open_direct_room}
+            on_save_agent_options={handle_save_agent_options}
+            on_validate_agent_name={handle_validate_agent_detail_name}
+          />
+        ) : (
+          <ContactsDirectory
+            agents={regular_agents}
+            on_create_agent={handle_open_create_agent}
+            on_create_team={handle_create_team}
+            on_edit_agent={handle_open_edit_agent}
+            on_open_direct_room={handle_open_direct_room}
+          />
+        )}
       </WorkspacePageFrame>
 
       <AgentOptions

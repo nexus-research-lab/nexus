@@ -1,144 +1,311 @@
 /**
- * Home 面板内容
+ * 聊天式侧边栏内容。
  *
- * 工作台侧边栏面板，包含 2 个分区：
- * - Rooms（所有非 DM 类型的 Room）
- * - Agents（成员目录，标题进入成员管理，子项进入对应私信）
- *
- * 数据源使用轻量 bootstrap 摘要，避免为了侧边栏列表拉全量 Agent/Room 数据。
+ * 左侧面板从导航树收敛为三个真实工作入口：
+ * - 聊天：统一承载 Room 与 DM。
+ * - 联系人：管理 Agent，并提供发起 DM 的快捷动作。
+ * - 能力：由侧边栏顶层 Tab 承载，不再混在聊天列表里。
  */
 
 import {
   Hash,
+  MessageCircle,
   MessageSquarePlus,
   Plus,
+  Search,
+  Trash2,
   UserPlus,
+  Users2,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_agent_ws_url, is_main_agent } from "@/config/options";
-import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
-import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
-import { get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
-import { useWebSocket } from "@/lib/websocket";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
+import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { create_room, delete_room, subscribe_room_directory_updates } from "@/lib/api/room-api";
+import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
+import { cn, get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
+import { useWebSocket } from "@/lib/websocket";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { CollapsibleSection, SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
-import type { LauncherAgentSummary, LauncherRoomSummary } from "@/types/app/launcher";
+import type {
+  LauncherAgentSummary,
+  LauncherConversationSummary,
+  LauncherRoomMemberSummary,
+  LauncherRoomSummary,
+} from "@/types/app/launcher";
 import type { EventMessage } from "@/types/conversation/message";
 
-// ==================== 辅助函数 ====================
-
-/** 获取 Room 的时间戳用于排序 */
-function get_room_timestamp(room: LauncherRoomSummary): number {
-  return new Date(
-    room.updated_at ?? room.created_at ?? 0,
-  ).getTime();
+interface SidebarDirectoryState {
+  agents: LauncherAgentSummary[];
+  rooms: LauncherRoomSummary[];
+  conversations: LauncherConversationSummary[];
+  is_loading: boolean;
+  refresh_directory: () => void;
 }
 
-function render_agent_avatar_icon(agent_name: string, avatar?: string | null) {
+interface SidebarConversationItem {
+  id: string;
+  kind: "room" | "dm";
+  title: string;
+  summary: string;
+  time_label: string;
+  members: LauncherRoomMemberSummary[];
+  avatar?: string | null;
+  room_id?: string;
+  conversation_id?: string;
+  agent_id?: string;
+  last_activity_at: number;
+  message_count: number;
+  running_task_count: number;
+  unread_count?: number;
+  can_delete: boolean;
+}
+
+interface DeleteTarget {
+  id: string;
+  name: string;
+  room_type: "room" | "dm";
+}
+
+const SIDEBAR_ROW_CLASS_NAME =
+  "group/item relative flex min-h-[68px] w-full cursor-pointer items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-[background,color,transform] duration-(--motion-duration-fast)";
+
+interface SidebarDirectorySnapshot {
+  agents: LauncherAgentSummary[];
+  rooms: LauncherRoomSummary[];
+  conversations: LauncherConversationSummary[];
+}
+
+let sidebar_directory_cache: SidebarDirectorySnapshot | null = null;
+
+function normalize_query(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function to_timestamp(value?: string | null): number {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function format_sidebar_time(timestamp: number): string {
+  if (!timestamp) {
+    return "";
+  }
+
+  const date = new Date(timestamp);
+  const now = new Date();
+  const today_start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const item_day_start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const day_delta = Math.floor((today_start - item_day_start) / 86400000);
+
+  if (day_delta <= 0) {
+    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  }
+  if (day_delta === 1) {
+    return "昨天";
+  }
+  if (day_delta < 7) {
+    return `周${"日一二三四五六"[date.getDay()]}`;
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function render_agent_avatar(
+  name: string,
+  avatar?: string | null,
+  class_name?: string,
+) {
   const avatar_src = get_icon_avatar_src(avatar);
   if (avatar_src) {
     return (
       <img
-        alt={agent_name}
-        className="h-5 w-5 rounded-full object-cover"
+        alt={name}
+        className={cn("h-full w-full rounded-full object-cover", class_name)}
         src={avatar_src}
       />
     );
   }
 
   return (
-    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[9px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-      {agent_name.trim().slice(0, 1).toUpperCase()}
+    <span
+      className={cn(
+        "flex h-full w-full items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[12px] font-semibold text-(--text-strong) shadow-(--surface-avatar-shadow)",
+        class_name,
+      )}
+    >
+      {name.trim().slice(0, 1).toUpperCase()}
     </span>
   );
 }
 
-function is_main_agent_dm_room(room: LauncherRoomSummary): boolean {
-  if (room.room_type !== "dm") {
-    return false;
+function CompositeRoomAvatar({
+  avatar,
+  members,
+  title,
+}: {
+  avatar?: string | null;
+  members: LauncherRoomMemberSummary[];
+  title: string;
+}) {
+  const visible_members = members.slice(0, 4);
+  if (visible_members.length === 0) {
+    const room_avatar_id = get_room_avatar_icon_id(title, title, avatar ?? undefined);
+    const room_avatar_src = get_icon_avatar_src(room_avatar_id, "room");
+    return (
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)">
+        {room_avatar_src ? (
+          <img alt={title} className="h-full w-full rounded-[10px] object-cover" src={room_avatar_src} />
+        ) : (
+          <Hash className="h-4 w-4" />
+        )}
+      </span>
+    );
   }
-  return Boolean(room.dm_target_agent_id && is_main_agent(room.dm_target_agent_id));
+
+  return (
+    <span
+      className={cn(
+        "grid h-10 w-10 shrink-0 gap-[2px] overflow-hidden rounded-[10px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,white)] p-[2px] shadow-(--surface-avatar-shadow)",
+        visible_members.length === 1 ? "grid-cols-1 grid-rows-1" : "grid-cols-2 grid-rows-2",
+        visible_members.length === 2 && "grid-rows-1",
+      )}
+    >
+      {visible_members.map((member) => (
+        <span className="min-h-0 min-w-0 overflow-hidden rounded-[6px]" key={member.id}>
+          {render_agent_avatar(member.name, member.avatar, "rounded-[6px]")}
+        </span>
+      ))}
+    </span>
+  );
 }
 
-// ==================== 主组件 ====================
+function DirectAvatar({
+  agent,
+  is_working,
+}: {
+  agent: LauncherRoomMemberSummary;
+  is_working: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+        is_working && "after:absolute after:inset-[-3px] after:rounded-full after:border after:border-[color:color-mix(in_srgb,var(--primary)_48%,transparent)] after:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+      )}
+    >
+      {render_agent_avatar(agent.name, agent.avatar)}
+    </span>
+  );
+}
 
-export const HomePanelContent = memo(function HomePanelContent() {
-  const { t } = useI18n();
-  const navigate = useNavigate();
-  const location = useLocation();
+function SidebarSearchField({
+  action,
+  on_change,
+  placeholder,
+  value,
+}: {
+  action?: ReactNode;
+  on_change: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-2.5 pb-2">
+      <label className="relative block min-w-0 flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--icon-muted)" />
+        <input
+          className="h-9 w-full rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] pl-8 pr-3 text-[13px] text-(--text-strong) outline-none transition-[border-color,background] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_92%,transparent)] focus:bg-(--surface-elevated-background) focus:shadow-none"
+          onChange={(event) => on_change(event.target.value)}
+          placeholder={placeholder}
+          type="search"
+          value={value}
+        />
+      </label>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+      {Array.from({ length: count }, (_, index) => (
+        <div
+          className="flex min-h-[68px] w-full items-center gap-3 rounded-[14px] px-3 py-2.5"
+          key={index}
+        >
+          <span className="h-10 w-10 shrink-0 animate-pulse rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <span className="min-w-0 flex-1 space-y-2">
+            <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
+            <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useSidebarDirectory(): SidebarDirectoryState {
   const ws_url = get_agent_ws_url();
-  const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
   const apply_agent_runtime_status = useAgentStore((s) => s.apply_agent_runtime_status);
-  const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
-  const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
-  const set_nexus_room_id = useSidebarStore((s) => s.set_nexus_room_id);
-  const [agents, set_agents] = useState<LauncherAgentSummary[]>([]);
-  const [rooms, set_rooms] = useState<LauncherRoomSummary[]>([]);
+  const [agents, set_agents] = useState<LauncherAgentSummary[]>(() => sidebar_directory_cache?.agents ?? []);
+  const [rooms, set_rooms] = useState<LauncherRoomSummary[]>(() => sidebar_directory_cache?.rooms ?? []);
+  const [conversations, set_conversations] = useState<LauncherConversationSummary[]>(
+    () => sidebar_directory_cache?.conversations ?? [],
+  );
+  const [is_loading, set_is_loading] = useState(sidebar_directory_cache === null);
 
-  // 对话框状态
-  const [delete_target, set_delete_target] = useState<{
-    id: string;
-    name: string;
-    room_type: "room" | "dm";
-  } | null>(null);
-  const [is_create_room_open, set_is_create_room_open] = useState(false);
-  const [is_creating_room, set_is_creating_room] = useState(false);
-  const untitled_room_label = t("home.untitled_room");
-
-  const refresh_directory = useCallback(async () => {
-    try {
-      const payload = await get_launcher_bootstrap_api();
+  const refresh_directory = useCallback(() => {
+    if (sidebar_directory_cache === null) {
+      set_is_loading(true);
+    }
+    void get_launcher_bootstrap_api().then((payload) => {
+      sidebar_directory_cache = {
+        agents: payload.agents,
+        rooms: payload.rooms,
+        conversations: payload.conversations,
+      };
       set_agents(payload.agents);
       set_rooms(payload.rooms);
-    } catch (error) {
-      console.error("[HomePanelContent] 加载侧边栏目录失败:", error);
-      set_agents([]);
-      set_rooms([]);
-    }
+      set_conversations(payload.conversations);
+      set_is_loading(false);
+    }).catch((error) => {
+      console.error("[HomeSidebarPanel] 加载侧边栏目录失败:", error);
+      if (sidebar_directory_cache === null) {
+        set_agents([]);
+        set_rooms([]);
+        set_conversations([]);
+      }
+      set_is_loading(false);
+    });
   }, []);
 
-  // 初始化加载数据
   useEffect(() => {
-    void refresh_directory();
+    refresh_directory();
   }, [refresh_directory]);
 
-  useEffect(() => subscribe_room_directory_updates(() => {
-    void refresh_directory();
-  }), [refresh_directory]);
+  useEffect(() => subscribe_room_directory_updates(refresh_directory), [refresh_directory]);
 
   useEffect(() => {
-    const handle_agent_list_updated = () => {
-      void refresh_directory();
-    };
-    window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, handle_agent_list_updated);
+    window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refresh_directory);
     return () => {
-      window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, handle_agent_list_updated);
+      window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refresh_directory);
     };
   }, [refresh_directory]);
 
   const agent_ids = useMemo(() => agents.map((agent) => agent.id), [agents]);
-  const has_agents = agent_ids.length > 0;
   const agent_id_set = useMemo(() => new Set(agent_ids), [agent_ids]);
-  const regular_agents = agents;
-  const create_room_agents = useMemo(
-    () => regular_agents.map((agent) => ({
-      agent_id: agent.id,
-      name: agent.name,
-      avatar: agent.avatar,
-    })),
-    [regular_agents],
-  );
   const handle_runtime_message = useCallback((message: unknown) => {
     const event = message as EventMessage;
     if (event.event_type !== "agent_runtime_event") {
@@ -163,7 +330,7 @@ export const HomePanelContent = memo(function HomePanelContent() {
   });
 
   useEffect(() => {
-    if (runtime_ws_state !== "connected" || !has_agents) {
+    if (runtime_ws_state !== "connected" || agent_ids.length === 0) {
       return;
     }
 
@@ -182,68 +349,282 @@ export const HomePanelContent = memo(function HomePanelContent() {
         });
       }
     };
-  }, [agent_ids, has_agents, runtime_ws_send, runtime_ws_state]);
+  }, [agent_ids, runtime_ws_send, runtime_ws_state]);
 
-  // 分离 Room 和 DM
-  const { normal_rooms, nexus_dm_room, regular_dm_rooms } = useMemo(() => {
-    const sorted = [...rooms].sort(
-      (a, b) => get_room_timestamp(b) - get_room_timestamp(a),
+  return {
+    agents,
+    rooms,
+    conversations,
+    is_loading,
+    refresh_directory,
+  };
+}
+
+function is_main_agent_dm_room(room: LauncherRoomSummary): boolean {
+  if (room.room_type !== "dm") {
+    return false;
+  }
+  return Boolean(room.dm_target_agent_id && is_main_agent(room.dm_target_agent_id));
+}
+
+function build_latest_conversation_by_room_id(
+  conversations: LauncherConversationSummary[],
+): Map<string, LauncherConversationSummary> {
+  const result = new Map<string, LauncherConversationSummary>();
+  for (const conversation of conversations) {
+    if (!conversation.room_id) {
+      continue;
+    }
+    const current = result.get(conversation.room_id);
+    if (!current || to_timestamp(conversation.last_activity) > to_timestamp(current.last_activity)) {
+      result.set(conversation.room_id, conversation);
+    }
+  }
+  return result;
+}
+
+function build_conversation_items({
+  agents,
+  agent_runtime_statuses,
+  conversations,
+  format_running_tasks_summary,
+  rooms,
+  untitled_room_label,
+}: {
+  agents: LauncherAgentSummary[];
+  agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
+  conversations: LauncherConversationSummary[];
+  format_running_tasks_summary: (count: number) => string;
+  rooms: LauncherRoomSummary[];
+  untitled_room_label: string;
+}): SidebarConversationItem[] {
+  const agent_by_id = new Map(agents.map((agent) => [agent.id, agent]));
+  const latest_by_room_id = build_latest_conversation_by_room_id(conversations);
+  const items: SidebarConversationItem[] = [];
+
+  for (const room of rooms) {
+    if (is_main_agent_dm_room(room)) {
+      continue;
+    }
+    const latest = latest_by_room_id.get(room.id);
+    if (!latest) {
+      continue;
+    }
+    const last_activity_at = to_timestamp(latest.last_activity);
+    const is_dm = room.room_type === "dm";
+    const dm_agent = room.dm_target_agent_id ? agent_by_id.get(room.dm_target_agent_id) : undefined;
+    const members = is_dm
+      ? dm_agent ? [{ id: dm_agent.id, name: dm_agent.name, avatar: dm_agent.avatar }] : []
+      : room.members ?? [];
+    const running_task_count = members.reduce(
+      (total, member) => total + (agent_runtime_statuses[member.id]?.running_task_count ?? 0),
+      0,
     );
-    const dm_rooms = sorted.filter((room) => room.room_type === "dm");
-    return {
-      normal_rooms: sorted.filter((room) => room.room_type !== "dm"),
-      nexus_dm_room: dm_rooms.find((room) => is_main_agent_dm_room(room)) ?? null,
-      regular_dm_rooms: dm_rooms.filter((room) => !is_main_agent_dm_room(room)),
-    };
-  }, [rooms]);
-  const regular_dm_rooms_by_agent_id = useMemo(
-    () =>
-      new Map(
-        regular_dm_rooms
-          .filter((room): room is LauncherRoomSummary & { dm_target_agent_id: string } =>
-            Boolean(room.dm_target_agent_id),
-          )
-          .map((room) => [room.dm_target_agent_id, room]),
-      ),
-    [regular_dm_rooms],
+    const title = is_dm
+      ? dm_agent?.name ?? room.name?.trim() ?? "DM"
+      : room.name?.trim() || untitled_room_label;
+
+    items.push({
+      id: room.id,
+      kind: is_dm ? "dm" : "room",
+      title,
+      summary: running_task_count > 0
+        ? format_running_tasks_summary(running_task_count)
+        : latest.title.trim(),
+      time_label: format_sidebar_time(last_activity_at),
+      members,
+      avatar: room.avatar,
+      room_id: room.id,
+      conversation_id: latest.conversation_id,
+      agent_id: room.dm_target_agent_id,
+      last_activity_at,
+      message_count: latest.message_count ?? 0,
+      running_task_count,
+      can_delete: true,
+    });
+  }
+
+  return items.sort((left, right) => {
+    if (left.last_activity_at !== right.last_activity_at) {
+      return right.last_activity_at - left.last_activity_at;
+    }
+    return left.title.localeCompare(right.title, "zh-CN");
+  });
+}
+
+function ConversationRow({
+  item,
+  is_active,
+  on_click,
+  on_delete,
+}: {
+  item: SidebarConversationItem;
+  is_active: boolean;
+  on_click: () => void;
+  on_delete?: () => void;
+}) {
+  const { t } = useI18n();
+  const is_working = item.running_task_count > 0;
+
+  return (
+    <div
+      className={cn(
+        SIDEBAR_ROW_CLASS_NAME,
+        is_active
+          ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
+          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+      )}
+      onClick={on_click}
+      role="button"
+      tabIndex={0}
+    >
+      {is_active ? (
+        <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
+      ) : null}
+
+      {item.kind === "room" ? (
+        <CompositeRoomAvatar avatar={item.avatar} members={item.members} title={item.title} />
+      ) : (
+        <DirectAvatar
+          agent={item.members[0] ?? { id: item.id, name: item.title, avatar: item.avatar ?? undefined }}
+          is_working={is_working}
+        />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{item.title}</span>
+          {item.time_label || on_delete ? (
+            <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
+              {item.time_label ? (
+                <span
+                  className={cn(
+                    "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
+                    on_delete && "group-hover/item:opacity-0",
+                  )}
+                >
+                  {item.time_label}
+                </span>
+              ) : null}
+              {on_delete ? (
+                <button
+                  className="absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[10px] border border-transparent text-(--icon-muted) opacity-0 transition-[background,color,border-color,opacity] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) group-hover/item:opacity-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    on_delete();
+                  }}
+                  title={t("common.delete")}
+                  type="button"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
+            {item.summary}
+          </span>
+          {is_working ? (
+            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] px-2 py-0.5 text-[11px] font-medium text-(--primary)">
+              {t("status.working")}
+            </span>
+          ) : null}
+          {item.unread_count ? (
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-(--destructive) px-1.5 text-[11px] font-semibold text-white">
+              {item.unread_count > 99 ? "99+" : item.unread_count}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
+  const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
+  const set_chat_badge_count = useSidebarStore((s) => s.set_chat_badge_count);
+  const set_nexus_room_id = useSidebarStore((s) => s.set_nexus_room_id);
+  const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
+  const { agents, conversations, is_loading, refresh_directory, rooms } = useSidebarDirectory();
+  const [query, set_query] = useState("");
+  const [delete_target, set_delete_target] = useState<DeleteTarget | null>(null);
+  const [is_create_room_open, set_is_create_room_open] = useState(false);
+  const [is_creating_room, set_is_creating_room] = useState(false);
+  const untitled_room_label = t("home.untitled_room");
+  const has_agents = agents.length > 0;
+
+  const nexus_dm_room = useMemo(
+    () => rooms.find((room) => is_main_agent_dm_room(room)) ?? null,
+    [rooms],
   );
 
   useEffect(() => {
-    // Nexus 已提升为 header 一级入口，这里只同步其真实 DM room_id，供 header 激活态复用。
     set_nexus_room_id(nexus_dm_room?.id ?? null);
   }, [nexus_dm_room, set_nexus_room_id]);
 
-  // 导航到 Room
-  const navigate_to_room = useCallback(
-    (room_id: string) => {
-      set_active_item(room_id);
-      navigate(AppRouteBuilders.room(room_id));
-    },
-    [navigate, set_active_item],
+  const items = useMemo(
+    () => build_conversation_items({
+      agents,
+      agent_runtime_statuses,
+      conversations,
+      format_running_tasks_summary: (count) => t("sidebar.running_tasks_summary", { count }),
+      rooms,
+      untitled_room_label,
+    }),
+    [agents, agent_runtime_statuses, conversations, rooms, t, untitled_room_label],
   );
 
-  // 导航到 Agent 对应私信
-  const navigate_to_agent_dm = useCallback(
-    async (agent_id: string) => {
-      const target = await resolve_direct_room_navigation_target(agent_id);
-      set_active_item(target.context.room.id);
-      navigate(target.route);
-    },
-    [navigate, set_active_item],
-  );
+  const filtered_items = useMemo(() => {
+    const normalized_query = normalize_query(query);
+    if (!normalized_query) {
+      return items;
+    }
+    return items.filter((item) => {
+      const member_names = item.members.map((member) => member.name).join(" ");
+      return `${item.title} ${item.summary} ${member_names}`.toLowerCase().includes(normalized_query);
+    });
+  }, [items, query]);
 
-  // 导航到 Agent 管理目录
-  const navigate_to_agents_directory = useCallback(() => {
-    set_active_item(null);
-    navigate(AppRouteBuilders.contacts());
+  const chat_badge_count = useMemo(() => {
+    const unread_total = items.reduce((total, item) => total + (item.unread_count ?? 0), 0);
+    if (unread_total > 0) {
+      return unread_total;
+    }
+    return items.filter((item) => item.message_count > 0).length;
+  }, [items]);
+
+  useEffect(() => {
+    set_chat_badge_count(chat_badge_count);
+  }, [chat_badge_count, set_chat_badge_count]);
+
+  const navigate_to_room = useCallback((item: SidebarConversationItem) => {
+    if (!item.room_id) {
+      return;
+    }
+    set_active_item(item.room_id);
+    if (item.conversation_id) {
+      navigate(AppRouteBuilders.room_conversation(item.room_id, item.conversation_id));
+      return;
+    }
+    navigate(AppRouteBuilders.room(item.room_id));
   }, [navigate, set_active_item]);
 
-  // 新建 Room — 弹出对话框
+  const navigate_to_agent_dm = useCallback(async (agent_id: string) => {
+    const target = await resolve_direct_room_navigation_target(agent_id);
+    set_active_item(target.context.room.id);
+    navigate(target.route);
+  }, [navigate, set_active_item]);
+
   const handle_create_room = useCallback(() => {
     set_is_create_room_open(true);
   }, []);
 
-  // 确认创建 Room
   const handle_confirm_create_room = useCallback(async (
     agent_ids: string[],
     name: string,
@@ -254,131 +635,90 @@ export const HomePanelContent = memo(function HomePanelContent() {
     try {
       const context = await create_room({ agent_ids, name, avatar, skill_names });
       set_is_create_room_open(false);
-      void refresh_directory();
-      // 创建后直接导航到新 Room
+      refresh_directory();
       navigate(AppRouteBuilders.room(context.room.id));
     } finally {
       set_is_creating_room(false);
     }
   }, [navigate, refresh_directory]);
 
-  // 删除 Room
   const handle_delete_room = useCallback(async () => {
-    if (!delete_target) return;
+    if (!delete_target) {
+      return;
+    }
     const deleted_room_id = delete_target.id;
     await delete_room(deleted_room_id);
     set_delete_target(null);
-    // 删除当前激活房间时不立即跳转，留给路由层做失效判断。
     if (active_item_id === deleted_room_id) {
       set_active_item(null);
     }
-    void refresh_directory();
+    refresh_directory();
   }, [active_item_id, delete_target, refresh_directory, set_active_item]);
 
-  const rooms_empty_description = has_agents
+  const empty_description = has_agents
     ? t("home.rooms_empty_description")
     : t("home.rooms_empty_no_agents_description");
-  const rooms_empty_action = has_agents
+  const empty_action = has_agents
     ? t("home.rooms_empty_action")
     : t("home.rooms_empty_no_agents_action");
-  const handle_rooms_empty_action = has_agents
+  const handle_empty_action = has_agents
     ? handle_create_room
-    : navigate_to_agents_directory;
+    : () => navigate(AppRouteBuilders.contacts());
 
   return (
-    <div className="flex flex-col">
-      {/* Rooms 分区 — 带新建按钮 */}
-      <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.rooms}>
-        <CollapsibleSection
-          action_icon={<Plus className="h-4 w-4" />}
-          action_title={t("home.create_room")}
-          count={normal_rooms.length}
-          on_action={handle_create_room}
-          section_id="home-rooms"
-          title={t("home.rooms")}
-        >
-          {normal_rooms.length > 0 ? (
-            normal_rooms.map((room) => (
-              <SidebarListItem
-                key={room.id}
-                icon={(() => {
-                  const room_avatar_id = get_room_avatar_icon_id(
-                    room.id,
-                    room.name,
-                    room.avatar,
-                  );
-                  const room_avatar_src = get_icon_avatar_src(room_avatar_id, "room");
+    <div className="flex min-h-0 flex-1 flex-col" data-tour-anchor={SIDEBAR_TOUR_ANCHORS.chat_list}>
+      <SidebarSearchField
+        action={(
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            onClick={handle_create_room}
+            title={t("home.create_room")}
+            type="button"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
+        on_change={set_query}
+        placeholder={t("sidebar.search_conversations")}
+        value={query}
+      />
 
-                  return room_avatar_src ? (
-                    <img
-                      alt={room.name?.trim() || untitled_room_label}
-                      className="h-5 w-5 rounded-[5px] object-cover"
-                      src={room_avatar_src}
-                    />
-                  ) : (
-                    <Hash className="h-4 w-4" />
-                  );
-                })()}
-                is_active={active_item_id === room.id}
-                label={room.name?.trim() || untitled_room_label}
-                on_click={() => navigate_to_room(room.id)}
-                on_delete={() => set_delete_target({
-                  id: room.id,
-                  name: room.name?.trim() || untitled_room_label,
-                  room_type: "room",
-                })}
+      {is_loading ? (
+        <SidebarListLoadingRows />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+          {filtered_items.length > 0 ? (
+            filtered_items.map((item) => (
+              <ConversationRow
+                is_active={active_item_id === item.id || (item.room_id ? active_item_id === item.room_id : false)}
+                item={item}
+                key={item.id}
+                on_click={() => {
+                  if (item.kind === "dm" && item.agent_id) {
+                    void navigate_to_agent_dm(item.agent_id);
+                    return;
+                  }
+                  navigate_to_room(item);
+                }}
+                on_delete={item.can_delete && item.room_id ? () => set_delete_target({
+                  id: item.room_id ?? item.id,
+                  name: item.title,
+                  room_type: item.kind,
+                }) : undefined}
               />
             ))
           ) : (
             <SidebarEmptyGuide
-              action_label={rooms_empty_action}
-              description={rooms_empty_description}
+              action_label={empty_action}
+              description={empty_description}
               icon={MessageSquarePlus}
-              on_action={handle_rooms_empty_action}
-              title={t("home.rooms_empty_title")}
+              on_action={handle_empty_action}
+              title={query ? t("sidebar.no_matching_conversations") : t("home.rooms_empty_title")}
             />
           )}
-        </CollapsibleSection>
-      </div>
+        </div>
+      )}
 
-      {/* Agents 分区 */}
-      <div data-tour-anchor={SIDEBAR_TOUR_ANCHORS.agents}>
-        <CollapsibleSection
-          count={regular_agents.length}
-          is_title_active={location.pathname === AppRouteBuilders.contacts()}
-          on_title_click={navigate_to_agents_directory}
-          section_id="home-agents"
-          title={t("home.agents")}
-        >
-          {regular_agents.length > 0 ? (
-            regular_agents.map((agent) => (
-              <SidebarListItem
-                key={agent.id}
-                icon={render_agent_avatar_icon(agent.name, agent.avatar)}
-                is_active={active_item_id === regular_dm_rooms_by_agent_id.get(agent.id)?.id}
-                label={agent.name}
-                meta={(() => {
-                  const running_task_count = agent_runtime_statuses[agent.id]?.running_task_count ?? 0;
-                  return running_task_count > 0
-                    ? `${running_task_count} 任务`
-                    : t("status.idle");
-                })()}
-                on_click={() => void navigate_to_agent_dm(agent.id)}
-              />
-            ))
-          ) : (
-            <SidebarEmptyGuide
-              action_label={t("home.agents_empty_action")}
-              description={t("home.agents_empty_description")}
-              icon={UserPlus}
-              on_action={navigate_to_agents_directory}
-              title={t("home.agents_empty_title")}
-            />
-          )}
-        </CollapsibleSection>
-      </div>
-
-      {/* 删除确认对话框 */}
       <ConfirmDialog
         confirm_text={t("common.delete")}
         is_open={delete_target !== null}
@@ -389,14 +729,175 @@ export const HomePanelContent = memo(function HomePanelContent() {
         variant="danger"
       />
 
-      {/* 创建 Room 对话框 */}
       <CreateRoomDialog
-        agents={create_room_agents}
+        agents={agents.map((agent) => ({
+          agent_id: agent.id,
+          name: agent.name,
+          avatar: agent.avatar,
+        }))}
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}
         on_confirm={(ids, name, avatar, skill_names) => void handle_confirm_create_room(ids, name, avatar, skill_names)}
       />
+    </div>
+  );
+});
+
+function ContactRow({
+  agent,
+  is_active,
+  is_working,
+  on_chat,
+  on_open_directory,
+  running_task_count,
+}: {
+  agent: LauncherAgentSummary;
+  is_active: boolean;
+  is_working: boolean;
+  on_chat: () => void;
+  on_open_directory: () => void;
+  running_task_count: number;
+}) {
+  const { t } = useI18n();
+  const description = agent.description?.trim();
+  const subtitle = is_working
+    ? t("sidebar.running_tasks_short", { count: running_task_count })
+    : (description || t("sidebar.contact_no_description"));
+
+  return (
+    <div
+      className={cn(
+        SIDEBAR_ROW_CLASS_NAME,
+        is_active
+          ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
+          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+      )}
+      onClick={on_open_directory}
+      role="button"
+      tabIndex={0}
+    >
+      {is_active ? (
+        <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
+      ) : null}
+      <DirectAvatar
+        agent={{ id: agent.id, name: agent.name, avatar: agent.avatar }}
+        is_working={is_working}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{agent.name}</span>
+          {is_working ? (
+            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] px-2 py-0.5 text-[11px] font-medium text-(--primary)">
+              {t("status.working")}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 truncate text-[12px] leading-5 text-(--text-muted)">
+          {subtitle}
+        </p>
+      </div>
+      <button
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) opacity-0 transition-[background,color,opacity,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) group-hover/item:opacity-100"
+        onClick={(event) => {
+          event.stopPropagation();
+          on_chat();
+        }}
+        title={t("sidebar.start_chat")}
+        type="button"
+      >
+        <MessageCircle className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelContent() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
+  const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
+  const { agents, is_loading } = useSidebarDirectory();
+  const [query, set_query] = useState("");
+  const active_agent_id = location.pathname === AppRouteBuilders.contacts()
+    ? new URLSearchParams(location.search).get("agent")
+    : null;
+
+  const filtered_agents = useMemo(() => {
+    const normalized_query = normalize_query(query);
+    if (!normalized_query) {
+      return agents;
+    }
+    return agents.filter((agent) => agent.name.toLowerCase().includes(normalized_query));
+  }, [agents, query]);
+
+  const navigate_to_contacts = useCallback(() => {
+    set_active_item(null);
+    if (location.pathname !== AppRouteBuilders.contacts() || location.search) {
+      navigate(AppRouteBuilders.contacts());
+    }
+  }, [location.pathname, location.search, navigate, set_active_item]);
+
+  const navigate_to_agent_detail = useCallback((agent_id: string) => {
+    set_active_item(agent_id);
+    navigate(AppRouteBuilders.contact_agent(agent_id));
+  }, [navigate, set_active_item]);
+
+  const navigate_to_agent_dm = useCallback(async (agent_id: string) => {
+    const target = await resolve_direct_room_navigation_target(agent_id);
+    set_active_item(target.context.room.id);
+    navigate(target.route);
+  }, [navigate, set_active_item]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-tour-anchor={SIDEBAR_TOUR_ANCHORS.contacts_list}>
+      <SidebarSearchField
+        action={(
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            onClick={navigate_to_contacts}
+            title={t("sidebar.manage_contacts")}
+            type="button"
+          >
+            <UserPlus className="h-4 w-4" />
+          </button>
+        )}
+        on_change={set_query}
+        placeholder={t("sidebar.search_contacts")}
+        value={query}
+      />
+
+      {is_loading ? (
+        <SidebarListLoadingRows />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+          {filtered_agents.length > 0 ? (
+            filtered_agents.map((agent) => {
+              const running_task_count = agent_runtime_statuses[agent.id]?.running_task_count ?? 0;
+              return (
+                <ContactRow
+                  agent={agent}
+                  is_active={active_agent_id === agent.id}
+                  is_working={running_task_count > 0}
+                  key={agent.id}
+                  on_chat={() => void navigate_to_agent_dm(agent.id)}
+                  on_open_directory={() => navigate_to_agent_detail(agent.id)}
+                  running_task_count={running_task_count}
+                />
+              );
+            })
+          ) : (
+            <SidebarEmptyGuide
+              action_label={t("sidebar.manage_contacts")}
+              description={t("sidebar.contacts_empty_description")}
+              icon={Users2}
+              on_action={navigate_to_contacts}
+              title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 });

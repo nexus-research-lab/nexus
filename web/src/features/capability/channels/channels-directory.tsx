@@ -30,6 +30,17 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import {
+  WorkspaceCatalogAction,
+  WorkspaceCatalogBody,
+  WorkspaceCatalogCard,
+  WorkspaceCatalogDescription,
+  WorkspaceCatalogFooter,
+  WorkspaceCatalogHeader,
+  WorkspaceCatalogTag,
+  WorkspaceCatalogTextAction,
+  WorkspaceCatalogTitle,
+} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { Agent } from "@/types/agent/agent";
 
 const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "feishu", "telegram", "discord"];
@@ -113,13 +124,62 @@ function ChannelIcon({ type, size = "card" }: { type: ImChannelType; size?: "car
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-[18px] shadow-[0_12px_28px_rgba(15,23,42,0.12)]",
-        size === "dialog" ? "h-[52px] w-[52px]" : "h-12 w-12",
+        "flex shrink-0 items-center justify-center border border-white/35 shadow-(--surface-avatar-shadow)",
+        size === "dialog" ? "h-[52px] w-[52px] rounded-[18px]" : "h-11 w-11 rounded-[16px]",
         style.cnName,
       )}
     >
-      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-6 w-6"} />
+      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-5 w-5"} />
     </span>
+  );
+}
+
+function ChannelStatePill({
+  children,
+  tone = "neutral",
+}: {
+  children: string;
+  tone?: "neutral" | "success" | "warning" | "danger" | "info";
+}) {
+  const tone_class_name =
+    tone === "success"
+      ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-700"
+      : tone === "warning"
+        ? "border-amber-200/80 bg-amber-50/88 text-amber-700"
+        : tone === "danger"
+          ? "border-rose-200/80 bg-rose-50/88 text-rose-700"
+          : tone === "info"
+            ? "border-sky-200/80 bg-sky-50/90 text-sky-700"
+            : "border-(--surface-panel-subtle-border) bg-(--surface-panel-subtle-background) text-(--text-soft)";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium leading-none tracking-[0.01em]",
+        tone_class_name,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ChannelMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="truncate text-[10.5px] font-medium text-(--text-soft)">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-[16px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -315,93 +375,141 @@ function ChannelCard({
   on_configure: (item: ChannelConfigView) => void;
 }) {
   const planned = is_channel_planned(item);
+  const connected = item.connection_state === "connected";
+  const state_tone = planned
+    ? "neutral"
+    : connected
+      ? "success"
+      : item.connection_state === "error"
+        ? "danger"
+        : item.runtime_status === "external_adapter"
+          ? "warning"
+          : item.configured
+            ? "info"
+            : "neutral";
+  const description = planned
+    ? "该消息渠道将在后续版本补充，目前仅保留入口和信息结构。"
+    : item.configured
+      ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
+      : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
 
   return (
-    <article className="rounded-[16px] border border-[#e7e8ec] bg-white px-6 py-6 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
-      <div className="flex items-start gap-4">
+    <WorkspaceCatalogCard
+      class_name="group h-full"
+      interactive={!planned}
+      muted={planned}
+      onClick={() => {
+        if (!planned) on_configure(item);
+      }}
+      size="catalog"
+    >
+      <WorkspaceCatalogHeader class_name="items-center gap-3.5">
         <ChannelIcon type={item.channel_type} />
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-[20px] font-black tracking-normal text-[#20222a]">{item.title}</h3>
-            {!planned && item.docs_url ? (
-              <a className="text-[13px] font-semibold text-[#2b74ff] underline-offset-2 hover:underline" href={item.docs_url} target="_blank" rel="noreferrer">
-                如何接入？
-              </a>
-            ) : null}
+          <WorkspaceCatalogTitle class_name="min-w-0" size="sm" truncate>
+            {item.title}
+          </WorkspaceCatalogTitle>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-(--text-soft)">
+            <span className="truncate">{item.bot_label}</span>
+            {item.runtime_status === "external_adapter" ? <span>外部适配器</span> : null}
           </div>
-          <p className="mt-1 truncate text-[14px] text-[#777d8a]">{item.bot_label}</p>
         </div>
-        <span className={cn(
-          "rounded-full px-3 py-1 text-[12px] font-semibold",
-          planned
-            ? "bg-[#f2f4f7] text-[#98a2b3]"
-            : item.connection_state === "connected"
-            ? "bg-[#ecfdf3] text-[#067647]"
-            : item.runtime_status === "external_adapter"
-              ? "bg-[#fff7ed] text-[#c2410c]"
-              : "bg-[#f6f7f9] text-[#9aa0ad]",
-        )}>
+        <ChannelStatePill tone={state_tone}>
           {channel_status_text(item)}
-        </span>
-      </div>
+        </ChannelStatePill>
+      </WorkspaceCatalogHeader>
 
-      <div className="mt-7 grid grid-cols-3 gap-2">
-        <div className="rounded-[12px] border border-[#e7e8ec] px-4 py-3">
-          <div className="text-[13px] text-[#777d8a]">已配对用户</div>
-          <div className="mt-1 text-right text-[20px] font-black text-[#20222a]">{item.stats.paired_user_count}</div>
-        </div>
-        <div className="rounded-[12px] border border-[#e7e8ec] px-4 py-3">
-          <div className="text-[13px] text-[#777d8a]">{item.supports_group ? "已配对群聊" : "不支持群聊配对"}</div>
-          <div className="mt-1 text-right text-[20px] font-black text-[#20222a]">{item.supports_group ? item.stats.paired_group_count : "-"}</div>
-        </div>
-        <div className="rounded-[12px] border border-[#e7e8ec] px-4 py-3">
-          <div className="text-[13px] text-[#777d8a]">待处理请求</div>
-          <div className="mt-1 text-right text-[20px] font-black text-[#20222a]">{item.stats.pending_count}</div>
-        </div>
-      </div>
+      <WorkspaceCatalogBody class_name="space-y-4" grow>
+        <WorkspaceCatalogDescription lines={2} min_height>
+          {description}
+        </WorkspaceCatalogDescription>
 
-      <button
-        className={cn(
-          "mt-6 flex h-20 w-full items-center gap-4 rounded-[14px] border border-dashed border-[#d8dbe3] px-4 text-left transition",
-          planned
-            ? "cursor-not-allowed bg-[#fafafa] text-[#9aa1ad]"
-            : "hover:border-[#b8c4d9] hover:bg-[#fafcff]",
-        )}
-        disabled={planned}
-        onClick={() => {
-          if (!planned) on_configure(item);
-        }}
-        type="button"
-      >
-        <Plus className="h-5 w-5 shrink-0 text-[#98a0ad]" />
-        <span className="min-w-0 flex-1">
-          <span className={cn("block text-[15px] font-black", planned ? "text-[#7d8490]" : "text-[#2f333d]")}>
-            {planned ? "未上线" : item.configured ? item.agent_name || "已配置智能体" : "请配置智能体"}
-          </span>
-          <span className="mt-1 block truncate text-[12px] text-[#777d8a]">
-            {planned ? "该消息渠道将在后续版本补充" : "选择一个智能体来处理此渠道的消息"}
-          </span>
-        </span>
-        {!planned ? <ChevronRight className="h-5 w-5 shrink-0 text-[#a7adba]" /> : null}
-      </button>
+        <div className="grid grid-cols-3 gap-3 border-y border-(--divider-subtle-color) py-3">
+          <ChannelMetric label="用户" value={item.stats.paired_user_count} />
+          <ChannelMetric label="群聊" value={item.supports_group ? item.stats.paired_group_count : "-"} />
+          <ChannelMetric label="待处理" value={item.stats.pending_count} />
+        </div>
 
-      <button
-        className={cn(
-          "mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[#e0e3e8] bg-white text-[15px] font-black transition",
-          planned
-            ? "cursor-not-allowed text-[#9aa1ad]"
-            : "text-[#282c35] hover:bg-[#f7f8fa]",
-        )}
-        disabled={planned}
-        onClick={() => {
-          if (!planned) on_configure(item);
-        }}
-        type="button"
-      >
-        <Sparkles className="h-4 w-4" />
-        {channel_hint(item)}
-      </button>
-    </article>
+        {item.runtime_note ? (
+          <p className="line-clamp-2 text-[11.5px] leading-5 text-(--text-soft)">
+            {item.runtime_note}
+          </p>
+        ) : null}
+      </WorkspaceCatalogBody>
+
+      <WorkspaceCatalogFooter class_name="items-center">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <WorkspaceCatalogTag class_name="px-2.5 text-[10px] text-(--text-soft)">
+            {item.configured ? "已绑定智能体" : "待配置"}
+          </WorkspaceCatalogTag>
+          {!item.supports_group ? (
+            <WorkspaceCatalogTag class_name="px-2.5 text-[10px] text-(--text-soft)">
+              仅私聊
+            </WorkspaceCatalogTag>
+          ) : null}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
+          {!planned && item.docs_url ? (
+            <WorkspaceCatalogAction
+              onClick={() => window.open(item.docs_url, "_blank", "noopener,noreferrer")}
+              size="sm"
+              title="查看接入文档"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </WorkspaceCatalogAction>
+          ) : null}
+          {!planned ? (
+            <WorkspaceCatalogTextAction
+              onClick={() => on_configure(item)}
+              tone="primary"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {channel_hint(item)}
+              <ChevronRight className="h-3.5 w-3.5" />
+            </WorkspaceCatalogTextAction>
+          ) : (
+            <WorkspaceCatalogTextAction disabled>
+              <Plus className="h-3.5 w-3.5" />
+              未上线
+            </WorkspaceCatalogTextAction>
+          )}
+        </div>
+      </WorkspaceCatalogFooter>
+    </WorkspaceCatalogCard>
+  );
+}
+
+function ChannelLoadingGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div
+          className="surface-card min-h-[190px] rounded-[22px] px-5 py-4"
+          key={index}
+        >
+          <div className="flex items-center gap-3.5">
+            <span className="h-11 w-11 animate-pulse rounded-[16px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+            <span className="min-w-0 flex-1 space-y-2">
+              <span className="block h-4 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
+              <span className="block h-3 w-32 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
+            </span>
+          </div>
+          <div className="mt-5 space-y-2">
+            <span className="block h-3 w-full animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
+            <span className="block h-3 w-2/3 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_46%,transparent)]" />
+          </div>
+          <div className="mt-5 grid grid-cols-3 gap-3 border-y border-(--divider-subtle-color) py-3">
+            {[0, 1, 2].map((metric) => (
+              <span className="space-y-2" key={metric}>
+                <span className="block h-2.5 w-12 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_50%,transparent)]" />
+                <span className="block h-4 w-8 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)]" />
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -453,14 +561,13 @@ export function ChannelsDirectory() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_class_name="px-6 py-5"
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
             badge={`${channels.length || 5} 个渠道`}
             density="compact"
             leading={<MessageCircle className="h-4 w-4" />}
-            subtitle="IM 渠道接入将在后续版本开放，当前仅保留入口骨架与本地配对数据结构。"
+            subtitle="统一管理 IM 渠道、机器人凭证与配对授权。"
             title="消息渠道"
             trailing={(
               <WorkspaceSurfaceToolbarAction onClick={() => void refresh()}>
@@ -472,15 +579,17 @@ export function ChannelsDirectory() {
         )}
         stable_gutter
       >
-        {loading ? (
-          <div className="flex h-40 items-center justify-center text-[13px] text-[#8d95a3]">加载消息渠道...</div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2 2xl:grid-cols-3">
-            {sorted_channels.map((item) => (
-              <ChannelCard item={item} key={item.channel_type} on_configure={set_selected} />
-            ))}
-          </div>
-        )}
+        <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
+          {loading ? (
+            <ChannelLoadingGrid />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+              {sorted_channels.map((item) => (
+                <ChannelCard item={item} key={item.channel_type} on_configure={set_selected} />
+              ))}
+            </div>
+          )}
+        </div>
       </WorkspaceSurfaceScaffold>
 
       {selected ? (

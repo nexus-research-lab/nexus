@@ -242,7 +242,6 @@ export function ScheduledTasksDirectory() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_class_name="px-5 py-5 xl:px-6"
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
@@ -265,58 +264,60 @@ export function ScheduledTasksDirectory() {
           />
         )}
       >
-        <section className="mb-4 grid gap-3 md:grid-cols-3">
-          <div className="surface-card rounded-[20px] px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-              执行中的任务
-            </p>
-            <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-              {running_count}
-            </p>
-            <p className="mt-1 text-sm text-(--text-default)">
-              当前有多少任务正在占用执行会话
-            </p>
-          </div>
-          <div className="surface-card rounded-[20px] px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-              已启用
-            </p>
-            <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-              {enabled_count}
-            </p>
-            <p className="mt-1 text-sm text-(--text-default)">
-              后续还会继续参与调度的任务数量
-            </p>
-          </div>
-          <div className="surface-card rounded-[20px] px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-              已暂停
-            </p>
-            <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-              {paused_count}
-            </p>
-            <p className="mt-1 text-sm text-(--text-default)">
-              仍保留在列表里，但暂时不会再自动触发
-            </p>
-          </div>
-        </section>
+        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
+          <section className="mb-4 grid gap-3 md:grid-cols-3">
+            <div className="surface-card rounded-[20px] px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                执行中的任务
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
+                {running_count}
+              </p>
+              <p className="mt-1 text-sm text-(--text-default)">
+                当前有多少任务正在占用执行会话
+              </p>
+            </div>
+            <div className="surface-card rounded-[20px] px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                已启用
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
+                {enabled_count}
+              </p>
+              <p className="mt-1 text-sm text-(--text-default)">
+                后续还会继续参与调度的任务数量
+              </p>
+            </div>
+            <div className="surface-card rounded-[20px] px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+                已暂停
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
+                {paused_count}
+              </p>
+              <p className="mt-1 text-sm text-(--text-default)">
+                仍保留在列表里，但暂时不会再自动触发
+              </p>
+            </div>
+          </section>
 
-        <div className="min-h-full">
-          <ScheduledTaskList
-            error_message={automation.tasks_error}
-            is_loading={automation.tasks_loading}
-            items={automation.scheduled_tasks}
-            on_create={() => set_is_dialog_open(true)}
-            on_open_history={set_history_task}
-            on_refresh={() => void refresh_tasks().catch(() => undefined)}
-            on_run_now={(task) => void handle_run_now(task)}
-            on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
-            on_delete={(task) => void handle_delete(task)}
-            on_edit={set_editing_task}
-            delete_pending_job_id={delete_pending_job_id}
-            run_pending_job_id={run_pending_job_id}
-            toggle_pending_job_id={toggle_pending_job_id}
-          />
+          <div className="min-h-full">
+            <ScheduledTaskList
+              error_message={automation.tasks_error}
+              is_loading={automation.tasks_loading}
+              items={automation.scheduled_tasks}
+              on_create={() => set_is_dialog_open(true)}
+              on_open_history={set_history_task}
+              on_refresh={() => void refresh_tasks().catch(() => undefined)}
+              on_run_now={(task) => void handle_run_now(task)}
+              on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
+              on_delete={(task) => void handle_delete(task)}
+              on_edit={set_editing_task}
+              delete_pending_job_id={delete_pending_job_id}
+              run_pending_job_id={run_pending_job_id}
+              toggle_pending_job_id={toggle_pending_job_id}
+            />
+          </div>
         </div>
       </WorkspaceSurfaceScaffold>
 

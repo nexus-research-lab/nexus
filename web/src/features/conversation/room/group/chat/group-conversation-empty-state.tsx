@@ -11,6 +11,7 @@
 
 import { FolderKanban, MessageSquarePlus } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceCatalogBody,
   WorkspaceCatalogCard,
@@ -28,15 +29,16 @@ interface GroupConversationEmptyStateProps {
   on_create_conversation: (title?: string) => void | Promise<string | null>;
 }
 
-const HIGHLIGHTS = [
-  "围绕同一 room 承接任务",
-  "消息线程和上下文自动保存",
-  "文件与协作视图共用同一工作区",
-] as const;
-
 export function GroupConversationEmptyState({
   on_create_conversation,
 }: GroupConversationEmptyStateProps) {
+  const { t } = useI18n();
+  const highlights = [
+    t("room.empty_group_highlight_members"),
+    t("room.empty_group_highlight_context"),
+    t("room.empty_group_highlight_workspace"),
+  ];
+
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6 sm:p-8">
       <WorkspaceCatalogCard class_name="w-full max-w-[56rem]" size="hero">
@@ -48,17 +50,17 @@ export function GroupConversationEmptyState({
               </WorkspaceIconFrame>
               <div>
                 <WorkspaceCatalogTag class_name="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                  Room Collaboration
+                  {t("room.empty_group_tag")}
                 </WorkspaceCatalogTag>
                 <WorkspaceCatalogTitle as="h2" class_name="mt-3" size="hero">
-                  让这间协作空间进入第一段对话。
+                  {t("room.empty_group_title")}
                 </WorkspaceCatalogTitle>
               </div>
             </WorkspaceCatalogHeader>
 
             <WorkspaceCatalogBody class_name="mt-5">
               <WorkspaceCatalogDescription lines={3} size="md">
-                Room 不再只是一个容器，它会承接会话历史、线程、文件和多人协作视图。创建第一条对话后，当前工作区就会进入真正的协作态。
+                {t("room.empty_group_description")}
               </WorkspaceCatalogDescription>
             </WorkspaceCatalogBody>
 
@@ -71,16 +73,16 @@ export function GroupConversationEmptyState({
                 }}
               >
                 <MessageSquarePlus className="h-5 w-5" />
-                创建新会话
+                {t("room.empty_group_create_action")}
               </WorkspaceCatalogTextAction>
             </WorkspaceCatalogFooter>
           </div>
 
           <div className="grid min-w-0 flex-1 gap-3 lg:max-w-[22rem]">
-            {HIGHLIGHTS.map((highlight) => (
+            {highlights.map((highlight) => (
               <WorkspaceCatalogCard key={highlight} size="stat">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
-                  Capability
+                  {t("room.empty_group_highlight_label")}
                 </p>
                 <WorkspaceCatalogTitle class_name="mt-2" size="sm">
                   {highlight}

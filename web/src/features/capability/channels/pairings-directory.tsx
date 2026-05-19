@@ -128,7 +128,6 @@ export function PairingsDirectory() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_class_name="px-6 py-5"
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
@@ -146,6 +145,7 @@ export function PairingsDirectory() {
         )}
         stable_gutter
       >
+        <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-[16px] border border-[#e7e8ec] bg-white px-4 py-3">
           <Filter className="h-4 w-4 text-[#8d95a3]" />
           <select
@@ -272,6 +272,7 @@ export function PairingsDirectory() {
             ))}
           </div>
         )}
+        </div>
       </WorkspaceSurfaceScaffold>
 
       <FeedbackBannerStack items={feedback_items} />

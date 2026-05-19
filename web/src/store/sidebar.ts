@@ -51,6 +51,8 @@ interface SidebarState {
   nexus_room_id: string | null;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;
+  /** 聊天入口消息提示数量，由聊天侧栏根据会话状态同步。 */
+  chat_badge_count: number;
   /** 宽面板各 Section 的折叠状态 */
   collapsed_sections: Record<string, boolean>;
 }
@@ -58,6 +60,7 @@ interface SidebarState {
 interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
   set_nexus_room_id: (room_id: string | null) => void;
+  set_chat_badge_count: (count: number) => void;
   /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
   set_wide_panel_width: (width: number) => void;
   toggle_section: (section_id: string) => void;
@@ -69,10 +72,12 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       active_panel_item_id: null,
       nexus_room_id: null,
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
+      chat_badge_count: 0,
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
       set_nexus_room_id: (room_id) => set({ nexus_room_id: room_id }),
+      set_chat_badge_count: (count) => set({ chat_badge_count: Math.max(0, Math.floor(count)) }),
 
       set_wide_panel_width: (width) =>
         set({ wide_panel_width: clamp_panel_width(width) }),
