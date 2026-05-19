@@ -323,7 +323,7 @@ nexus://connectors/oauth/callback
 
 ## 9. 发布链路
 
-当前 `Publish Release` workflow 已经负责同一个 tag 下的源码包、Linux/Windows 可运行包、release notes 和 GitHub Release 创建。macOS app 包也属于同一个 Release asset 集合，因此先复用同一个 workflow，但拆成独立 `macos_app` job 运行在 macOS runner 上；最终 `release` job 统一下载并上传全部 assets，避免两个 workflow 同时创建或追加同一个 Release。
+当前 `Publish Release` workflow 已经负责同一个 tag 下的源码包、Linux/Windows 可运行包、release notes 和 GitHub Release 创建。macOS 与 Windows 原生 app 包也属于同一个 Release asset 集合，因此复用同一个 workflow，并拆成独立 `macos_app` / `windows_app` job 在对应 runner 上构建；最终 `release` job 统一下载并上传全部 assets，避免两个 workflow 同时创建或追加同一个 Release。
 
 流水线：
 
@@ -334,8 +334,9 @@ nexus://connectors/oauth/callback
 5. 脚本执行 ad-hoc codesign、plist/codesign 校验和桌面 smoke。
 6. 脚本生成 `Nexus-macos-<version>-<build>.dmg`、`.sha256` 与 `.metadata.json`。
 7. macOS job 上传临时 workflow artifact。
-8. Ubuntu release job 继续生成源码包与 Linux/Windows 可运行包。
-9. Ubuntu release job 下载 macOS artifact，并统一上传到 GitHub Release。
+8. Windows job 执行 `scripts/desktop/package-windows-app.ps1`，生成 unsigned app zip、sha256 与 metadata。
+9. Ubuntu release job 继续生成源码包与 Linux/Windows 可运行包。
+10. Ubuntu release job 下载 macOS / Windows app artifacts，并统一上传到 GitHub Release。
 
 等 Developer ID、Notary、公证 staple 和 Sparkle appcast 都进入正式发布阶段后，再考虑拆成独立 `publish-macos-app.yml` 或可复用 workflow。那时 macOS 发布线会有独立证书、secret、失败重试和更新通道。
 
@@ -350,13 +351,15 @@ nexus://connectors/oauth/callback
 
 第一版可以本地构建 `.app` 和 zip/dmg，但 public beta 前签名、公证和自动更新必须完成。
 
-Windows 发布链路先不并入 GitHub Release 的正式 app asset。当前 `scripts/package-release.sh` 只产出 Windows 可运行服务包；`desktop/windows` 是下一条原生 app 线，第一阶段只提供本地构建脚本：
+Windows 原生 app 发布链路进入第一阶段闭环：`scripts/package-release.sh` 仍产出 Windows 可运行服务包，`desktop/windows` 产出独立的 WPF/WebView2 app zip，并作为同一个 GitHub Release 的 app asset 上传。当前包仍是 unsigned zip，不是安装器。
 
 ```powershell
-pwsh scripts/desktop/build-windows-app.ps1
+pwsh scripts/desktop/package-windows-app.ps1
 ```
 
-该脚本构建 `web/dist`、交叉编译 `nexus-server.exe`，再通过 `dotnet publish` 组装 WPF/WebView2 shell。加上 `-CreateArchive` 后会额外生成 zip 与 sha256。当前还有 `scripts/desktop/smoke-windows-app.ps1` 做本地 smoke，验证 launcher ready、sidecar 存在和退出清理。等 Windows 侧补齐安装器、签名、自动更新和 QA 清单后，再决定是复用当前 `Publish Release` workflow 的独立 job，还是拆出独立 Windows app workflow。
+该脚本会调用 `build-windows-app.ps1` 构建 `web/dist`、交叉编译 `nexus-server.exe`，再通过 `dotnet publish` 组装 WPF/WebView2 shell；随后调用 `smoke-windows-app.ps1` 验证 launcher ready、sidecar 存在和退出清理，最后输出 `Nexus-windows-<version>-<build>.zip`、`.zip.sha256` 和 `.zip.metadata.json`。
+
+GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest` 上执行同一 package 脚本，并把 Windows app zip、sha256、metadata 交给最终 `release` job 与 macOS dmg、Linux/Windows 可运行服务包一并上传。后续公开发布前仍需补齐代码签名、安装器、自动更新、卸载/升级策略和更完整的 Windows QA 记录。
 
 ## 10. 验收标准
 

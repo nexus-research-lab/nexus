@@ -83,8 +83,81 @@ jobs:
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.sha256
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.metadata.json
 
+  windows_app:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Tag
+        id: tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ github.event.inputs.tag }}"
+          } else {
+            $tag = "${env:GITHUB_REF_NAME}"
+          }
+
+          $version = $tag -replace "^v", ""
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout Tag
+        shell: pwsh
+        run: |
+          git checkout "${{ steps.tag.outputs.tag }}"
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+
+      - name: Build Windows App Zip
+        shell: pwsh
+        env:
+          NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}\windows-app\Nexus
+          NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}\windows-artifacts
+          NEXUS_DESKTOP_VERSION: ${{ steps.tag.outputs.version }}
+          NEXUS_DESKTOP_BUILD_NUMBER: ${{ github.run_number }}
+          NEXUS_DESKTOP_SMOKE_TIMEOUT_SECONDS: "75"
+        run: |
+          pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/desktop/package-windows-app.ps1
+
+      - name: Upload Windows App Assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: nexus-${{ steps.tag.outputs.tag }}-windows-app
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.zip
+            ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.zip.sha256
+            ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.zip.metadata.json
+
   release:
-    needs: macos_app
+    needs:
+      - macos_app
+      - windows_app
     runs-on: ubuntu-latest
 
     steps:
@@ -195,6 +268,12 @@ jobs:
           name: nexus-${{ steps.tag.outputs.tag }}-macos-app
           path: ${{ runner.temp }}/artifacts
 
+      - name: Download Windows App Assets
+        uses: actions/download-artifact@v7
+        with:
+          name: nexus-${{ steps.tag.outputs.tag }}-windows-app
+          path: ${{ runner.temp }}/artifacts
+
       - name: Upload Release Assets
         uses: actions/upload-artifact@v7
         with:
@@ -207,6 +286,9 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg
             ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.sha256
             ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.metadata.json
+            ${{ runner.temp }}/artifacts/Nexus-windows-*.zip
+            ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.sha256
+            ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.metadata.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -222,3 +304,6 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg
             ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.sha256
             ${{ runner.temp }}/artifacts/Nexus-macos-*.dmg.metadata.json
+            ${{ runner.temp }}/artifacts/Nexus-windows-*.zip
+            ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.sha256
+            ${{ runner.temp }}/artifacts/Nexus-windows-*.zip.metadata.json

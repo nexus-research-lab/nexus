@@ -60,8 +60,12 @@ public partial class App : Application
         {
             ["error"] = exception.Message,
         });
+        string? diagnosticsPath = DesktopDiagnosticsReport.WriteStartupFailure(exception, startupTimeline);
+        string message = diagnosticsPath is null
+            ? exception.Message
+            : $"{exception.Message}{Environment.NewLine}{Environment.NewLine}诊断文件：{diagnosticsPath}";
         MessageBox.Show(
-            exception.Message,
+            message,
             "Nexus 启动失败",
             MessageBoxButton.OK,
             MessageBoxImage.Error);

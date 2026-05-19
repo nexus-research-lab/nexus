@@ -37,7 +37,21 @@ desktop/windows/.build/app/Nexus/Nexus.exe
 pwsh scripts/desktop/smoke-windows-app.ps1
 ```
 
-生成 zip 与 sha256：
+构建、烟测并生成 zip、sha256 与 metadata：
+
+```powershell
+pwsh scripts/desktop/package-windows-app.ps1
+```
+
+默认输出：
+
+```text
+desktop/windows/.build/package/Nexus-windows-<version>-<build>.zip
+desktop/windows/.build/package/Nexus-windows-<version>-<build>.zip.sha256
+desktop/windows/.build/package/Nexus-windows-<version>-<build>.zip.metadata.json
+```
+
+低层构建脚本也可以直接生成 zip 与 sha256：
 
 ```powershell
 pwsh scripts/desktop/build-windows-app.ps1 -CreateArchive
@@ -60,4 +74,5 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 
 - 目前只在仓库内落了骨架；非 Windows 环境无法本地运行 WPF/WebView2。
 - sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `%LOCALAPPDATA%\Nexus\config\connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
-- 桥接接口先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；安装器、托盘和自动更新在后续阶段补齐。
+- 桥接接口先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；日志导出会带 `diagnostics.json`，启动失败会写 `startup-failure-*.json`。
+- GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows app zip、sha256 与 metadata。当前包仍是 unsigned zip，不是安装器；托盘、签名、安装器和自动更新在后续阶段补齐。

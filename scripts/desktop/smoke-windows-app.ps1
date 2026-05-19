@@ -88,6 +88,12 @@ try {
   if (-not $process.HasExited) {
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
   }
+  foreach ($sidecar in @(Find-SidecarProcess $process.Id $AppDir)) {
+    Stop-Process -Id $sidecar.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+  Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" |
+    Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf("Nexus\cache\WebView2", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
 Write-Host "==> Windows app smoke passed"
