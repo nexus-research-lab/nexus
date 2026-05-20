@@ -202,6 +202,9 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
             keys.push(key);
           }
         }
+        if (keys.length === 0) {
+          return state;
+        }
         return clear_chat_unread_keys(state, keys);
       }),
 

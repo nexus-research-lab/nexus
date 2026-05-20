@@ -13,6 +13,12 @@ import {
   type ChatNotificationTargetState,
   useSidebarStore,
 } from "@/store/sidebar";
+import {
+  build_chat_notification_target_key,
+  get_active_chat_target_from_path,
+  is_chat_notification_target_active,
+  type ActiveChatNotificationTarget,
+} from "./chat-notification-target";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
@@ -31,24 +37,12 @@ interface ChatNotificationDirectory {
   rooms: LauncherRoomSummary[];
 }
 
-interface ChatNotificationTargetInput {
-  conversation_id?: string | null;
-  room_id?: string | null;
-  session_key?: string | null;
-}
-
 interface ChatNotificationTarget {
   agent_id?: string | null;
   conversation_id?: string | null;
   key: string;
   room_id?: string | null;
   session_key?: string | null;
-}
-
-interface ActiveChatTarget {
-  conversation_id?: string | null;
-  key: string;
-  room_id?: string | null;
 }
 
 const EMPTY_DIRECTORY: ChatNotificationDirectory = {
@@ -59,58 +53,6 @@ const EMPTY_DIRECTORY: ChatNotificationDirectory = {
 const CHAT_NOTIFICATION_TEXT_LIMIT = 120;
 
 let chat_notification_directory_cache: ChatNotificationDirectory | null = null;
-
-export function build_chat_notification_target_key({
-  conversation_id,
-  room_id,
-  session_key,
-}: ChatNotificationTargetInput): string | null {
-  const normalized_room_id = room_id?.trim() ?? "";
-  const normalized_conversation_id = conversation_id?.trim() ?? "";
-  const normalized_session_key = session_key?.trim() ?? "";
-
-  if (normalized_room_id && normalized_conversation_id) {
-    return `room:${normalized_room_id}:conversation:${normalized_conversation_id}`;
-  }
-  if (normalized_room_id) {
-    return `room:${normalized_room_id}`;
-  }
-  if (normalized_session_key) {
-    return `session:${normalized_session_key}`;
-  }
-  return null;
-}
-
-function decode_path_part(value: string | undefined): string {
-  if (!value) {
-    return "";
-  }
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-function get_active_chat_target(pathname: string): ActiveChatTarget | null {
-  const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] !== "rooms") {
-    return null;
-  }
-
-  const room_id = decode_path_part(parts[1]);
-  const conversation_id = parts[2] === "conversations"
-    ? decode_path_part(parts[3])
-    : "";
-  const key = build_chat_notification_target_key({ conversation_id, room_id });
-  return key
-    ? {
-        conversation_id,
-        key,
-        room_id,
-      }
-    : null;
-}
 
 function is_window_active(): boolean {
   if (typeof document === "undefined") {
@@ -202,12 +144,15 @@ function get_message_notification_body(message: AssistantMessage): string {
 }
 
 function build_directory_maps(directory: ChatNotificationDirectory) {
+  const conversations_with_id = directory.conversations.filter((conversation) => conversation.conversation_id);
+  const conversations_with_session_key = directory.conversations.filter((conversation) => conversation.session_key);
   return {
     agent_by_id: new Map(directory.agents.map((agent) => [agent.id, agent])),
     conversation_by_id: new Map(
-      directory.conversations
-        .filter((conversation) => conversation.conversation_id)
-        .map((conversation) => [conversation.conversation_id as string, conversation]),
+      conversations_with_id.map((conversation) => [conversation.conversation_id as string, conversation]),
+    ),
+    conversation_by_session_key: new Map(
+      conversations_with_session_key.map((conversation) => [conversation.session_key, conversation]),
     ),
     room_by_id: new Map(directory.rooms.map((room) => [room.id, room])),
   };
@@ -238,10 +183,19 @@ function build_notification_title_and_body(
   return { title, body };
 }
 
-function build_message_target(event: EventMessage, message: Message): ChatNotificationTarget | null {
-  const room_id = event.room_id ?? message.room_id ?? null;
-  const conversation_id = event.conversation_id ?? message.conversation_id ?? null;
+function build_message_target(
+  event: EventMessage,
+  message: Message,
+  directory: ChatNotificationDirectory,
+): ChatNotificationTarget | null {
+  const { conversation_by_id, conversation_by_session_key } = build_directory_maps(directory);
+  const event_conversation_id = event.conversation_id ?? message.conversation_id ?? null;
   const session_key = event.session_key ?? message.session_key ?? null;
+  const directory_conversation = event_conversation_id
+    ? conversation_by_id.get(event_conversation_id)
+    : session_key ? conversation_by_session_key.get(session_key) : undefined;
+  const conversation_id = event_conversation_id ?? directory_conversation?.conversation_id ?? null;
+  const room_id = event.room_id ?? message.room_id ?? directory_conversation?.room_id ?? null;
   const key = build_chat_notification_target_key({
     conversation_id,
     room_id,
@@ -296,19 +250,51 @@ export function useChatCompletionNotifications(): void {
   const [directory, set_directory] = useState<ChatNotificationDirectory>(
     () => chat_notification_directory_cache ?? EMPTY_DIRECTORY,
   );
-  const active_target_ref = useRef<ActiveChatTarget | null>(
-    get_active_chat_target(location.pathname),
+  const active_target_ref = useRef<ActiveChatNotificationTarget | null>(
+    get_active_chat_target_from_path(location.pathname),
   );
   const directory_ref = useRef(directory);
   const room_seq_cursor_ref = useRef<Record<string, number>>({});
 
+  const clear_room_notifications = useCallback((room_id: string | null | undefined) => {
+    if (!room_id) {
+      return;
+    }
+    clear_chat_notifications_for_room(room_id);
+    const session_target_keys = new Set(
+      directory_ref.current.conversations
+        .filter((conversation) => conversation.room_id === room_id)
+        .map((conversation) => build_chat_notification_target_key({
+          session_key: conversation.session_key,
+        }))
+        .filter((key): key is string => Boolean(key)),
+    );
+    for (const session_target_key of session_target_keys) {
+      clear_chat_notifications_for_target(session_target_key);
+    }
+  }, [clear_chat_notifications_for_room, clear_chat_notifications_for_target]);
+
+  const clear_active_target_notifications = useCallback(() => {
+    if (!is_window_active()) {
+      return;
+    }
+    const active_target = active_target_ref.current;
+    if (active_target?.room_id) {
+      clear_room_notifications(active_target.room_id);
+      return;
+    }
+    clear_chat_notifications_for_target(active_target?.key);
+  }, [clear_chat_notifications_for_target, clear_room_notifications]);
+
   useEffect(() => {
-    active_target_ref.current = get_active_chat_target(location.pathname);
-  }, [location.pathname]);
+    active_target_ref.current = get_active_chat_target_from_path(location.pathname);
+    clear_active_target_notifications();
+  }, [clear_active_target_notifications, location.pathname]);
 
   useEffect(() => {
     directory_ref.current = directory;
-  }, [directory]);
+    clear_active_target_notifications();
+  }, [clear_active_target_notifications, directory]);
 
   useEffect(() => {
     if (!supports_browser_notification() || Notification.permission !== "default") {
@@ -352,27 +338,14 @@ export function useChatCompletionNotifications(): void {
     return subscribe_room_directory_updates(refresh_directory);
   }, [refresh_directory]);
 
-  const clear_active_target_notifications = useCallback(() => {
-    if (!is_window_active()) {
-      return;
-    }
-    const active_target = active_target_ref.current;
-    if (active_target?.room_id) {
-      clear_chat_notifications_for_room(active_target.room_id);
-      return;
-    }
-    clear_chat_notifications_for_target(active_target?.key);
-  }, [clear_chat_notifications_for_room, clear_chat_notifications_for_target]);
-
   useEffect(() => {
-    clear_active_target_notifications();
     window.addEventListener("focus", clear_active_target_notifications);
     document.addEventListener("visibilitychange", clear_active_target_notifications);
     return () => {
       window.removeEventListener("focus", clear_active_target_notifications);
       document.removeEventListener("visibilitychange", clear_active_target_notifications);
     };
-  }, [clear_active_target_notifications, location.pathname]);
+  }, [clear_active_target_notifications]);
 
   const room_ids = useMemo(
     () => directory.rooms.map((room) => room.id).filter(Boolean).sort(),
@@ -409,19 +382,17 @@ export function useChatCompletionNotifications(): void {
       return;
     }
 
-    const target = build_message_target(event, message);
+    const target = build_message_target(event, message, directory_ref.current);
     if (!target) {
       return;
     }
 
     notify_room_directory_updated();
     const active_target = active_target_ref.current;
-    const target_is_active = Boolean(
-      active_target?.room_id && target.room_id && active_target.room_id === target.room_id,
-    ) || active_target?.key === target.key;
+    const target_is_active = is_chat_notification_target_active(active_target, target);
     if (target_is_active && is_window_active()) {
       if (target.room_id) {
-        clear_chat_notifications_for_room(target.room_id);
+        clear_room_notifications(target.room_id);
       } else {
         clear_chat_notifications_for_target(target.key);
       }
@@ -440,7 +411,7 @@ export function useChatCompletionNotifications(): void {
       directory_ref.current,
     );
     show_browser_notification(title, body, message_id);
-  }, [clear_chat_notifications_for_room, clear_chat_notifications_for_target, record_chat_notification]);
+  }, [clear_chat_notifications_for_target, clear_room_notifications, record_chat_notification]);
 
   const { send: ws_send, state: ws_state } = useWebSocket({
     url: ws_url,

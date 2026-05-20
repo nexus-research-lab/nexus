@@ -471,7 +471,13 @@ export function SidebarWidePanel() {
     anchor: string;
     badge_count?: number;
   }[] = [
-    { key: "chat", label: t("sidebar.tab_chat"), icon: MessageCircle, anchor: SIDEBAR_TOUR_ANCHORS.chat_tab, badge_count: chat_badge_count },
+    {
+      key: "chat",
+      label: t("sidebar.tab_chat"),
+      icon: MessageCircle,
+      anchor: SIDEBAR_TOUR_ANCHORS.chat_tab,
+      badge_count: active_primary_tab === "chat" ? 0 : chat_badge_count,
+    },
     { key: "contacts", label: t("sidebar.tab_contacts"), icon: Users2, anchor: SIDEBAR_TOUR_ANCHORS.contacts_tab },
     { key: "capabilities", label: t("sidebar.tab_capabilities"), icon: Puzzle, anchor: SIDEBAR_TOUR_ANCHORS.capabilities_tab },
   ];
