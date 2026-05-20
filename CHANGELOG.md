@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 工作区文件预览支持 Markdown、HTML、Mermaid、图片、SVG、PDF 和普通文本，并在预览区、聊天文件卡和文件右键菜单提供统一下载入口。
 
 ### Fixed
+- 修复用户消息附件打开后文件树误聚焦到 `.nexus/attachments` 内部目录，导致刷新后附件预览路径异常的问题。
 - 修复图片附件只作为 `@"path"` 文本传入 runtime，导致首轮对话不稳定触发读图的问题，并对齐 Claude Code 的 `source.base64` 图片内容块。
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。
 - 修复 Windows 安装器在 Windows 11 ARM64 x64 兼容环境下因 Inno Setup 架构约束误报不支持当前 Windows 版本的问题。

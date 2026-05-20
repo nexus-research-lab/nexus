@@ -46,6 +46,27 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
+	attachmentPath := filepath.Join(agentValue.WorkspacePath, ".nexus", "attachments", "demo", "input.md")
+	if err = os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
+		t.Fatalf("创建附件目录失败: %v", err)
+	}
+	if err = os.WriteFile(attachmentPath, []byte("# 附件"), 0o644); err != nil {
+		t.Fatalf("写入附件失败: %v", err)
+	}
+	files, err = workspaceService.ListFiles(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("列出带附件 workspace 文件失败: %v", err)
+	}
+	if containsWorkspacePath(files, ".nexus") || containsWorkspacePath(files, ".nexus/attachments/demo/input.md") {
+		t.Fatalf("文件树不应展示内部附件目录: %+v", files)
+	}
+	attachmentContent, err := workspaceService.GetFile(ctx, agentValue.AgentID, ".nexus/attachments/demo/input.md")
+	if err != nil {
+		t.Fatalf("附件路径应允许消息预览读取: %v", err)
+	}
+	if attachmentContent.Content != "# 附件" {
+		t.Fatalf("附件内容读取不正确: %+v", attachmentContent)
+	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
 		t.Fatalf("系统托管 imagegen skill 未部署: %v", err)
 	}

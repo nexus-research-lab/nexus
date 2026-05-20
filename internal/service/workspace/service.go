@@ -474,6 +474,8 @@ func shouldHideWorkspaceEntry(relativePath string) bool {
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(relativePath))
 	return normalizedPath == ".agents" ||
 		strings.HasPrefix(normalizedPath, ".agents/") ||
+		normalizedPath == ".nexus" ||
+		strings.HasPrefix(normalizedPath, ".nexus/") ||
 		normalizedPath == ".git" ||
 		strings.HasPrefix(normalizedPath, ".git/") ||
 		normalizedPath == ".claude" ||

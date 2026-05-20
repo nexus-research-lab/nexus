@@ -42,6 +42,18 @@ export function get_parent_directory_path(path: string): string | null {
   return path.slice(0, last_slash_index);
 }
 
+function is_internal_attachment_workspace_path(path?: string | null): boolean {
+  const normalized_path = path?.trim().replaceAll("\\", "/").replace(/^\/+/, "") ?? "";
+  return normalized_path === ".nexus/attachments" || normalized_path.startsWith(".nexus/attachments/");
+}
+
+function get_workspace_focus_directory_path(path?: string | null): string | null {
+  if (!path || is_internal_attachment_workspace_path(path)) {
+    return null;
+  }
+  return get_parent_directory_path(path);
+}
+
 export function join_workspace_path(parent_path: string | null, name: string): string {
   return parent_path ? `${parent_path}/${name}` : name;
 }
@@ -154,7 +166,7 @@ export function useRoomWorkspaceController(
   }, [clear_workspace_agent, on_open_workspace_file, refresh_files, view_agent_id]);
 
   useEffect(() => {
-    set_focused_directory_path(get_parent_directory_path(active_workspace_path ?? ""));
+    set_focused_directory_path(get_workspace_focus_directory_path(active_workspace_path));
   }, [active_workspace_path, view_agent_id]);
 
   const handle_click_file = useCallback((path: string) => {
@@ -320,7 +332,9 @@ export function useRoomWorkspaceController(
     prompt_state,
     delete_target,
     focused_directory_path,
-    current_directory_label: focused_directory_path ?? "/",
+    current_directory_label: is_internal_attachment_workspace_path(active_workspace_path)
+      ? "附件预览"
+      : (focused_directory_path ?? "/"),
     handle_click_file,
     handle_click_directory,
     handle_upload_click,
