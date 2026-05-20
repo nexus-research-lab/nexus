@@ -45,7 +45,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
       resolve_file_path,
       on_open_workspace_file,
       current_agent_id,
-      { stream_code_blocks: true },
+      { stream_code_blocks: true, stream_mermaid: true },
     ),
     [current_agent_id, on_open_workspace_file, resolve_file_path],
   );

@@ -36,7 +36,10 @@ type MarkdownNodeLike = {
 type ResolveWorkspaceFilePath = (value: string) => string | null;
 
 interface CreateMarkdownComponentsOptions {
+  compact_mermaid?: boolean;
+  show_mermaid_header?: boolean;
   stream_code_blocks?: boolean;
+  stream_mermaid?: boolean;
 }
 
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
@@ -313,7 +316,14 @@ export function create_markdown_components(
       if (is_block_code(node as MarkdownNodeLike | undefined, className, value)) {
         const language = /language-(\w+)/.exec(className || "")?.[1] || "text";
         if (language.toLowerCase() === "mermaid" || language.toLowerCase() === "mmd") {
-          return <MermaidView chart={value} compact />;
+          return (
+            <MermaidView
+              chart={value}
+              compact={options.compact_mermaid ?? true}
+              is_streaming={options.stream_mermaid}
+              show_header={options.show_mermaid_header}
+            />
+          );
         }
         return <CodeBlock language={language} value={value} is_streaming={options.stream_code_blocks} />;
       }

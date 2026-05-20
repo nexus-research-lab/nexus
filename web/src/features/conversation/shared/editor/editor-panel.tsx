@@ -351,12 +351,20 @@ function TextFilePreview({
       <MarkdownRendererContent
         class_name="min-h-full"
         content={content}
+        mermaid_show_header={false}
       />
     );
   }
 
   if (file_type === "mermaid") {
-    return <MermaidView chart={content} class_name="min-h-full" />;
+    return (
+      <MermaidView
+        chart={content}
+        class_name="min-h-full"
+        constrain_height={false}
+        show_header={false}
+      />
+    );
   }
 
   if (file_type === "html") {
