@@ -36,13 +36,13 @@ public partial class App : Application
             SidecarRuntimeConfig runtime = await sidecar.StartAsync();
             startupTimeline.Mark("sidecar.ready");
 
-            mainWindow = new MainWindow(runtime, startupTimeline);
+            updateChecker = new DesktopUpdateChecker(startupTimeline);
+            mainWindow = new MainWindow(runtime, startupTimeline, updateChecker);
             MainWindow = mainWindow;
             DesktopWebRoute launchRoute = pendingActivationRoute
                 ?? DesktopProtocolRouter.RouteFromActivationMessage(DesktopProtocolRouter.ActivationMessage(e.Args));
             pendingActivationRoute = null;
             await mainWindow.ShowRouteAsync(launchRoute);
-            updateChecker = new DesktopUpdateChecker(startupTimeline);
             updateChecker.CheckOnLaunchIfNeeded(mainWindow);
         }
         catch (Exception exception)

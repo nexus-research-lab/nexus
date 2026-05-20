@@ -6,6 +6,7 @@ using Microsoft.Web.WebView2.Core;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
+using Nexus.Desktop.Update;
 
 namespace Nexus.Desktop.Bridge;
 
@@ -14,17 +15,23 @@ internal sealed class DesktopBridgeHandler
     private readonly CoreWebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
+    private readonly DesktopUpdateChecker updateChecker;
+    private readonly System.Windows.Window owner;
     private readonly Func<string, Task> openRoute;
 
     public DesktopBridgeHandler(
         CoreWebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
+        DesktopUpdateChecker updateChecker,
+        System.Windows.Window owner,
         Func<string, Task> openRoute)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
+        this.updateChecker = updateChecker;
+        this.owner = owner;
         this.openRoute = openRoute;
     }
 
@@ -49,6 +56,7 @@ internal sealed class DesktopBridgeHandler
                     platform = runtime.Platform,
                 },
                 "app.open_external_url" => OpenExternalUrl(payload),
+                "app.check_for_updates" => await updateChecker.CheckNowAsync(owner),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
                 "app.get_global_shortcut_status" => new

@@ -29,6 +29,7 @@ internal sealed class DesktopUpdateChecker
     private readonly DesktopAppVersion currentVersion;
     private readonly string statePath;
     private readonly bool isDisabled;
+    private readonly SemaphoreSlim checkLock = new(1, 1);
     private bool hasPerformedStartupCheck;
 
     public DesktopUpdateChecker(DesktopStartupTimeline startupTimeline, HttpClient? httpClient = null)
@@ -76,16 +77,53 @@ internal sealed class DesktopUpdateChecker
             }
         }
 
-        state.LastAutomaticCheckAt = now;
-        SaveState(state);
         _ = RunStartupCheckAsync(owner);
+    }
+
+    public async Task<DesktopUpdateCheckResult> CheckNowAsync(System.Windows.Window owner)
+    {
+        if (isDisabled)
+        {
+            startupTimeline.Mark("update_check.skipped", new Dictionary<string, string>
+            {
+                ["reason"] = "disabled",
+                ["source"] = "manual",
+            });
+            return DesktopUpdateCheckResult.Disabled(currentVersion);
+        }
+
+        return await CheckWithLockAsync(owner, "manual", showsUpToDateAlert: true);
     }
 
     private async Task RunStartupCheckAsync(System.Windows.Window owner)
     {
+        await CheckWithLockAsync(owner, "startup", showsUpToDateAlert: false);
+    }
+
+    private async Task<DesktopUpdateCheckResult> CheckWithLockAsync(
+        System.Windows.Window owner,
+        string reason,
+        bool showsUpToDateAlert)
+    {
+        await checkLock.WaitAsync();
+        try
+        {
+            return await PerformCheckAsync(owner, reason, showsUpToDateAlert);
+        }
+        finally
+        {
+            checkLock.Release();
+        }
+    }
+
+    private async Task<DesktopUpdateCheckResult> PerformCheckAsync(
+        System.Windows.Window owner,
+        string reason,
+        bool showsUpToDateAlert)
+    {
         startupTimeline.Mark("update_check.started", new Dictionary<string, string>
         {
-            ["reason"] = "startup",
+            ["reason"] = reason,
             ["current_version"] = currentVersion.Version,
             ["current_build"] = currentVersion.BuildNumber,
         });
@@ -94,9 +132,12 @@ internal sealed class DesktopUpdateChecker
         {
             DesktopReleaseInfo latest = await FetchLatestReleaseAsync();
             bool hasUpdate = latest.IsNewerThan(currentVersion);
+            UpdateCheckState previousState = LoadState();
             SaveState(new UpdateCheckState
             {
-                LastAutomaticCheckAt = DateTimeOffset.UtcNow,
+                LastAutomaticCheckAt = reason == "startup"
+                    ? DateTimeOffset.UtcNow
+                    : previousState.LastAutomaticCheckAt,
                 LastResult = hasUpdate ? "update_available" : "up_to_date",
                 LastLatestVersion = latest.Version,
                 LastLatestBuildNumber = latest.BuildNumber,
@@ -105,7 +146,7 @@ internal sealed class DesktopUpdateChecker
 
             startupTimeline.Mark("update_check.result", new Dictionary<string, string>
             {
-                ["reason"] = "startup",
+                ["reason"] = reason,
                 ["status"] = hasUpdate ? "update_available" : "up_to_date",
                 ["current_version"] = currentVersion.Version,
                 ["current_build"] = currentVersion.BuildNumber,
@@ -120,20 +161,33 @@ internal sealed class DesktopUpdateChecker
             {
                 await ShowUpdateAvailableAsync(owner, latest);
             }
+            else if (showsUpToDateAlert)
+            {
+                await ShowUpToDateAsync(owner, latest);
+            }
+
+            return DesktopUpdateCheckResult.From(currentVersion, latest, hasUpdate);
         }
         catch (Exception exception)
         {
+            UpdateCheckState previousState = LoadState();
             SaveState(new UpdateCheckState
             {
-                LastAutomaticCheckAt = DateTimeOffset.UtcNow,
+                LastAutomaticCheckAt = previousState.LastAutomaticCheckAt,
                 LastResult = "failed",
                 LastErrorMessage = exception.Message,
             });
             startupTimeline.Mark("update_check.failed", new Dictionary<string, string>
             {
-                ["reason"] = "startup",
+                ["reason"] = reason,
                 ["error"] = exception.Message,
             });
+            if (showsUpToDateAlert)
+            {
+                await ShowCheckFailedAsync(owner, exception);
+            }
+
+            return DesktopUpdateCheckResult.Failed(currentVersion, exception.Message);
         }
     }
 
@@ -225,6 +279,39 @@ internal sealed class DesktopUpdateChecker
             default:
                 break;
         }
+    }
+
+    private async Task ShowUpToDateAsync(System.Windows.Window owner, DesktopReleaseInfo latest)
+    {
+        if (owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+            owner,
+            string.Join(
+                Environment.NewLine,
+                $"当前版本：{currentVersion.DisplayText}",
+                $"最新版本：{latest.DisplayText}"),
+            "Nexus 已是最新版本",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information));
+    }
+
+    private async Task ShowCheckFailedAsync(System.Windows.Window owner, Exception exception)
+    {
+        if (owner.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+            owner,
+            exception.Message,
+            "Nexus 检查更新失败",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning));
     }
 
     private UpdatePromptAction PromptForUpdate(System.Windows.Window owner, DesktopReleaseInfo latest)
@@ -681,6 +768,50 @@ internal sealed class UpdateCheckState
     public string? LastLatestBuildNumber { get; set; }
 
     public string? LastErrorMessage { get; set; }
+}
+
+internal sealed record DesktopUpdateCheckResult(
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("current_version")] string CurrentVersion,
+    [property: JsonPropertyName("current_build_number")] string CurrentBuildNumber,
+    [property: JsonPropertyName("latest_version")] string? LatestVersion,
+    [property: JsonPropertyName("latest_build_number")] string? LatestBuildNumber,
+    [property: JsonPropertyName("release_page_url")] string? ReleasePageUrl,
+    [property: JsonPropertyName("can_download_installer")] bool CanDownloadInstaller,
+    [property: JsonPropertyName("error_message")] string? ErrorMessage)
+{
+    public static DesktopUpdateCheckResult From(
+        DesktopAppVersion current,
+        DesktopReleaseInfo latest,
+        bool hasUpdate) => new(
+            hasUpdate ? "update_available" : "up_to_date",
+            current.Version,
+            current.BuildNumber,
+            latest.Version,
+            latest.BuildNumber,
+            latest.ReleasePageUrl.ToString(),
+            latest.CanDownloadInstaller,
+            null);
+
+    public static DesktopUpdateCheckResult Disabled(DesktopAppVersion current) => new(
+        "disabled",
+        current.Version,
+        current.BuildNumber,
+        null,
+        null,
+        null,
+        false,
+        null);
+
+    public static DesktopUpdateCheckResult Failed(DesktopAppVersion current, string errorMessage) => new(
+        "failed",
+        current.Version,
+        current.BuildNumber,
+        null,
+        null,
+        null,
+        false,
+        errorMessage);
 }
 
 internal sealed record DesktopAppVersion(string Version, string BuildNumber)

@@ -1,6 +1,7 @@
 export type DesktopBridgeKind =
   | "app.get_app_version"
   | "app.open_external_url"
+  | "app.check_for_updates"
   | "app.export_logs"
   | "app.open_route"
   | "app.get_global_shortcut_status"
@@ -25,6 +26,23 @@ export interface DesktopAppVersion {
 export interface DesktopExportLogsResult {
   cancelled: boolean;
   path?: string;
+}
+
+export type DesktopUpdateCheckStatus =
+  | "disabled"
+  | "failed"
+  | "up_to_date"
+  | "update_available";
+
+export interface DesktopUpdateCheckResult {
+  can_download_installer: boolean;
+  current_build_number: string;
+  current_version: string;
+  error_message?: string;
+  latest_build_number?: string;
+  latest_version?: string;
+  release_page_url?: string;
+  status: DesktopUpdateCheckStatus;
 }
 
 export interface DesktopGlobalShortcutStatus {
@@ -56,6 +74,10 @@ export async function get_desktop_app_version(): Promise<DesktopAppVersion> {
 
 export async function open_external_url(url: string): Promise<void> {
   await invoke_desktop_bridge<{ url: string }, { opened: boolean }>("app.open_external_url", { url });
+}
+
+export async function check_desktop_updates(): Promise<DesktopUpdateCheckResult> {
+  return invoke_desktop_bridge<Record<string, never>, DesktopUpdateCheckResult>("app.check_for_updates", {});
 }
 
 export async function export_desktop_logs(): Promise<DesktopExportLogsResult> {

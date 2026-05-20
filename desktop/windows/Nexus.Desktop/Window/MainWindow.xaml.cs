@@ -2,6 +2,7 @@ using System.Windows;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
+using Nexus.Desktop.Update;
 using Nexus.Desktop.WebView;
 
 namespace Nexus.Desktop.Window;
@@ -10,13 +11,18 @@ public partial class MainWindow : System.Windows.Window
 {
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
+    private readonly DesktopUpdateChecker updateChecker;
     private WebViewHost? webViewHost;
     private bool closed;
 
-    public MainWindow(SidecarRuntimeConfig runtime, DesktopStartupTimeline startupTimeline)
+    internal MainWindow(
+        SidecarRuntimeConfig runtime,
+        DesktopStartupTimeline startupTimeline,
+        DesktopUpdateChecker updateChecker)
     {
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
+        this.updateChecker = updateChecker;
         InitializeComponent();
     }
 
@@ -47,7 +53,7 @@ public partial class MainWindow : System.Windows.Window
         if (webViewHost is null)
         {
             startupTimeline.Mark("main_window.create_begin");
-            webViewHost = new WebViewHost(MainWebView, runtime, startupTimeline);
+            webViewHost = new WebViewHost(MainWebView, runtime, startupTimeline, updateChecker, this);
             Show();
             Activate();
             await webViewHost.InitializeAsync();
