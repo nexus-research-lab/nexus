@@ -99,6 +99,14 @@ func (s *Service) UnsubscribeLive(token string) {
 	s.live.Unsubscribe(token)
 }
 
+// FlushLiveWrites 立即结算指定 Agent 尚未发出结束事件的实时写入。
+func (s *Service) FlushLiveWrites(agentID string) {
+	if s.live == nil {
+		return
+	}
+	s.live.FlushActiveWrites(agentID)
+}
+
 // ListFiles 返回 Agent workspace 的文件树。
 func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, error) {
 	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)

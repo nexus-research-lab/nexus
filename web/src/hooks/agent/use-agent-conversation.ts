@@ -17,6 +17,7 @@ import { get_room_conversation_messages } from "@/lib/api/room-api";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
 import { get_browser_client_id } from "@/lib/uuid";
 import { useWebSocket } from "@/lib/websocket";
+import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import {
   EventMessage,
@@ -459,6 +460,12 @@ export function useAgentConversation(
   const apply_workspace_event = useWorkspaceLiveStore(
     (state) => state.apply_event,
   );
+  const settle_agent_workspace_writes = useWorkspaceLiveStore(
+    (state) => state.settle_agent_writes,
+  );
+  const agent_runtime_status = useAgentStore((state) => (
+    agent_id ? state.agent_runtime_statuses[agent_id] : undefined
+  ));
   const runtime_machine_ref = useRef(
     new AgentConversationRuntimeMachine(chat_type),
   );
@@ -1048,6 +1055,9 @@ export function useAgentConversation(
     apply_runtime_transition((machine) => {
       machine.reset();
     });
+    if (agent_id) {
+      settle_agent_workspace_writes(agent_id);
+    }
     set_pending_permissions([]);
     set_pending_agent_slots((prev) =>
       prev.map((slot) =>
@@ -1094,7 +1104,9 @@ export function useAgentConversation(
     });
   }, [
     apply_runtime_transition,
+    agent_id,
     chat_type,
+    settle_agent_workspace_writes,
     set_messages,
     set_pending_agent_slots,
     set_pending_permissions,
@@ -1228,6 +1240,9 @@ export function useAgentConversation(
       if (status === "running") {
         return;
       }
+      if (agent_id && !runtime_machine_ref.current.snapshot().is_loading) {
+        settle_agent_workspace_writes(agent_id);
+      }
 
       const terminal_status = get_terminal_message_status(status);
       set_pending_permissions((prev) =>
@@ -1282,7 +1297,9 @@ export function useAgentConversation(
     },
     [
       apply_runtime_transition,
+      agent_id,
       clear_pending_chat_ack,
+      settle_agent_workspace_writes,
       set_messages,
       set_pending_agent_slots,
       set_pending_permissions,
@@ -1378,6 +1395,19 @@ export function useAgentConversation(
         return;
       }
 
+      if (event.event_type === "agent_runtime_event") {
+        const payload = event.data as { agent_id?: string; running_task_count?: number; status?: string } | undefined;
+        if (
+          payload?.agent_id &&
+          payload.agent_id === agent_id &&
+          payload.running_task_count === 0 &&
+          payload.status !== "running"
+        ) {
+          settle_agent_workspace_writes(payload.agent_id);
+        }
+        return;
+      }
+
       handle_agent_conversation_web_socket_message({
         backend_message,
         apply_workspace_event,
@@ -1407,11 +1437,13 @@ export function useAgentConversation(
       on_room_event,
       on_room_event_callback,
       room_id,
+      agent_id,
       session_key,
       conversation_id,
       build_session_bind_message,
       reload_current_session,
       apply_round_status,
+      settle_agent_workspace_writes,
       set_pending_agent_slots,
       set_input_queue_items,
       set_messages,
@@ -1532,6 +1564,16 @@ export function useAgentConversation(
       set_error(null);
     }
   }, [ws_state]);
+
+  useEffect(() => {
+    if (
+      agent_id &&
+      agent_runtime_status?.running_task_count === 0 &&
+      agent_runtime_status.status !== "running"
+    ) {
+      settle_agent_workspace_writes(agent_id);
+    }
+  }, [agent_id, agent_runtime_status, settle_agent_workspace_writes]);
 
   useEffect(() => {
     if (!agent_id || ws_state !== "connected") {

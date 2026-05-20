@@ -237,14 +237,14 @@ export function MessageUserSection({
               </MessageAvatar>
             </div>
 
-            <div className="ml-auto w-fit max-w-full rounded-2xl px-4 py-3">
+            <div className="ml-auto flex w-fit max-w-full flex-col items-end rounded-2xl px-4 py-3 text-right">
               {user_content.trim() ? (
                 <ContentRenderer
                   content={user_content}
                   on_open_workspace_file={on_open_workspace_file}
                   workspace_agent_id={workspace_agent_id}
                   class_name={cn(
-                    "text-left text-(--text-strong)",
+                    "w-full text-right text-(--text-strong) [&_pre]:text-left [&_table]:text-left",
                     compact
                       ? "text-[15px] leading-6 [&_.katex-display]:my-2"
                       : "text-[16px] leading-7 [&_.katex-display]:my-3",

@@ -12,7 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 聊天消息完成后新增通知闭环：非激活窗口触发浏览器系统通知，左侧聊天入口和会话行显示未读完成消息数，进入对应会话后自动清除。
 - 工作区文件预览支持 Markdown、HTML、Mermaid、图片、SVG、PDF 和普通文本，并在预览区、聊天文件卡和文件右键菜单提供统一下载入口。
 
+### Changed
+- `make logs`、`make logs-all` 与 `make logs-nginx` 默认显示最近 1000 行，便于直接查看启动前后的服务日志。
+
 ### Fixed
+- 修复 Agent 任务结束后工作区文件状态可能停留在“写入中”的问题。
+- 修复用户消息正文在右侧气泡中未按发送方方向对齐的问题。
 - 修复用户消息附件打开后文件树误聚焦到 `.nexus/attachments` 内部目录，导致刷新后附件预览路径异常的问题。
 - 修复图片附件只作为 `@"path"` 文本传入 runtime，导致首轮对话不稳定触发读图的问题，并对齐 Claude Code 的 `source.base64` 图片内容块。
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。

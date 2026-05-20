@@ -171,6 +171,7 @@ func (r *workspaceSubscriptionRegistry) broadcastRuntimeChanges() {
 	}
 
 	pending := make([]broadcast, 0)
+	flushAgentIDs := make([]string, 0)
 	r.mu.Lock()
 	for agentID, senders := range r.agentSenders {
 		snapshot := r.runtimeProvider(agentID)
@@ -192,8 +193,17 @@ func (r *workspaceSubscriptionRegistry) broadcastRuntimeChanges() {
 			senders: targets,
 			event:   runtimeSnapshotEvent(snapshot),
 		})
+		if snapshot.RunningTaskCount == 0 && snapshot.Status != "running" {
+			flushAgentIDs = append(flushAgentIDs, agentID)
+		}
 	}
 	r.mu.Unlock()
+
+	if r.workspace != nil {
+		for _, agentID := range flushAgentIDs {
+			r.workspace.FlushLiveWrites(agentID)
+		}
+	}
 
 	for _, item := range pending {
 		for _, sender := range item.senders {

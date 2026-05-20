@@ -16,6 +16,7 @@ interface WorkspaceLiveStoreState {
   file_states: Record<string, WorkspaceLiveFileState>;
   apply_event: (event: WorkspaceLiveEvent) => void;
   mark_file_seen: (agent_id: string, path: string) => void;
+  settle_agent_writes: (agent_id: string) => void;
   clear_agent: (agent_id: string) => void;
 }
 
@@ -102,6 +103,47 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
         recent_events: [
           ...state.recent_events.filter((item) => !(item.agent_id === agent_id && item.path === path)),
         ],
+        file_states: next_file_states,
+      };
+    });
+  },
+
+  settle_agent_writes: (agent_id) => {
+    const normalized_agent_id = agent_id.trim();
+    if (!normalized_agent_id) {
+      return;
+    }
+
+    set((state) => {
+      let has_changes = false;
+      const settled_at = Date.now();
+      const next_file_states = Object.fromEntries(
+        Object.entries(state.file_states).map(([key, value]) => {
+          if (value.agent_id !== normalized_agent_id || value.status !== 'writing') {
+            return [key, value];
+          }
+          has_changes = true;
+          return [
+            key,
+            {
+              ...value,
+              status: 'updated' as const,
+              updated_at: settled_at,
+            },
+          ];
+        }),
+      );
+
+      if (!has_changes) {
+        return state;
+      }
+
+      return {
+        recent_events: state.recent_events.map((item) => (
+          item.agent_id === normalized_agent_id && item.status === 'writing'
+            ? { ...item, status: 'updated' as const, updated_at: settled_at }
+            : item
+        )),
         file_states: next_file_states,
       };
     });

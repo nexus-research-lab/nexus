@@ -246,6 +246,14 @@ func (m *liveManager) EmitAPIDelete(agentID string, relativePath string) {
 	})
 }
 
+func (m *liveManager) FlushActiveWrites(agentID string) {
+	normalizedAgentID := strings.TrimSpace(agentID)
+	if normalizedAgentID == "" {
+		return
+	}
+	m.flushWrites(normalizedAgentID, true)
+}
+
 func (m *liveManager) startWatcherLocked(agentID string, workspacePath string) (*agentWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -463,6 +471,10 @@ func (m *liveManager) handleFSEvent(agentID string, event fsnotify.Event) {
 }
 
 func (m *liveManager) flushSettledWrites(agentID string) {
+	m.flushWrites(agentID, false)
+}
+
+func (m *liveManager) flushWrites(agentID string, force bool) {
 	type settledEvent struct {
 		Listeners []LiveListener
 		Event     LiveEvent
@@ -484,7 +496,7 @@ func (m *liveManager) flushSettledWrites(agentID string) {
 	}
 	listeners := m.snapshotListenersLocked(agentID)
 	for path, writeState := range state.ActiveWrites {
-		if now.Sub(writeState.LastChangeAt) < liveQuietWindow {
+		if !force && now.Sub(writeState.LastChangeAt) < liveQuietWindow {
 			continue
 		}
 		state.Snapshots[path] = cloneStringPointer(writeState.Current)

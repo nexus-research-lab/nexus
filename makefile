@@ -202,13 +202,13 @@ stop: ## Stop all Docker services
 restart: stop start ## Restart all Docker services
 
 logs: ## Show backend Docker service logs
-	TAG=$(TAG) $(COMPOSE_CMD) logs -f nexus
+	TAG=$(TAG) $(COMPOSE_CMD) logs -f nexus -n 1000
 
 logs-all: ## Show all Docker service logs
-	TAG=$(TAG) $(COMPOSE_CMD) logs -f
+	TAG=$(TAG) $(COMPOSE_CMD) logs -f -n 1000
 
 logs-nginx: ## Show nginx Docker service logs
-	TAG=$(TAG) $(COMPOSE_CMD) logs -f nginx
+	TAG=$(TAG) $(COMPOSE_CMD) logs -f nginx -n 1000
 
 status: ## Show Docker service status
 	TAG=$(TAG) $(COMPOSE_CMD) ps

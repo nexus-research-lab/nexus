@@ -269,6 +269,64 @@ func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 	}
 }
 
+func TestServiceFlushesWorkspaceLiveWrites(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	workspaceService := NewService(cfg, agentService)
+	ctx := context.Background()
+
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "写入结算助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	events := make(chan LiveEvent, 16)
+	token, err := workspaceService.SubscribeLive(ctx, agentValue.AgentID, func(event LiveEvent) {
+		events <- event
+	})
+	if err != nil {
+		t.Fatalf("订阅 workspace live 失败: %v", err)
+	}
+	defer workspaceService.UnsubscribeLive(token)
+	time.Sleep(200 * time.Millisecond)
+
+	agentFilePath := filepath.Join(agentValue.WorkspacePath, "notes", "flush.txt")
+	if err = os.MkdirAll(filepath.Dir(agentFilePath), 0o755); err != nil {
+		t.Fatalf("创建测试目录失败: %v", err)
+	}
+	if err = os.WriteFile(agentFilePath, []byte("flush warmup"), 0o644); err != nil {
+		t.Fatalf("模拟 agent 预热写文件失败: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if err = os.WriteFile(agentFilePath, []byte("flush now"), 0o644); err != nil {
+		t.Fatalf("模拟 agent 写文件失败: %v", err)
+	}
+	_ = waitWorkspaceLiveEvent(t, events, func(event LiveEvent) bool {
+		return event.Path == "notes/flush.txt" &&
+			event.Type == LiveEventFileWriteDelta &&
+			event.Source == LiveSourceAgent &&
+			event.ContentSnapshot != nil &&
+			*event.ContentSnapshot == "flush now"
+	})
+
+	workspaceService.FlushLiveWrites(agentValue.AgentID)
+	flushedEvent := waitWorkspaceLiveEvent(t, events, func(event LiveEvent) bool {
+		return event.Path == "notes/flush.txt" &&
+			event.Type == LiveEventFileWriteEnd &&
+			event.Source == LiveSourceAgent
+	})
+	if flushedEvent.ContentSnapshot == nil || *flushedEvent.ContentSnapshot != "flush now" {
+		t.Fatalf("强制结算 live 事件内容不正确: %+v", flushedEvent)
+	}
+}
+
 func containsWorkspacePath(items []FileEntry, target string) bool {
 	for _, item := range items {
 		if item.Path == target {
