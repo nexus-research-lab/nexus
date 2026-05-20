@@ -53,6 +53,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        mainWindow?.DisposeWebView();
         singleInstance?.Dispose();
         sidecar?.Dispose();
         base.OnExit(e);

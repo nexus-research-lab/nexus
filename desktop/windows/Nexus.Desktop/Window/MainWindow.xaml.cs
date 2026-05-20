@@ -11,12 +11,26 @@ public partial class MainWindow : System.Windows.Window
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private WebViewHost? webViewHost;
+    private bool closed;
 
     public MainWindow(SidecarRuntimeConfig runtime, DesktopStartupTimeline startupTimeline)
     {
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         InitializeComponent();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        closed = true;
+        startupTimeline.Mark("main_window.closed");
+        DisposeWebView();
+        base.OnClosed(e);
+
+        if (Application.Current?.Dispatcher.HasShutdownStarted == false)
+        {
+            Application.Current.Shutdown(0);
+        }
     }
 
     public async Task ShowLauncherAsync()
@@ -26,6 +40,10 @@ public partial class MainWindow : System.Windows.Window
 
     public async Task ShowRouteAsync(DesktopWebRoute route)
     {
+        if (closed)
+        {
+            return;
+        }
         if (webViewHost is null)
         {
             startupTimeline.Mark("main_window.create_begin");
@@ -41,5 +59,11 @@ public partial class MainWindow : System.Windows.Window
             Activate();
         }
         await webViewHost.LoadRouteAsync(route);
+    }
+
+    public void DisposeWebView()
+    {
+        webViewHost?.Dispose();
+        webViewHost = null;
     }
 }

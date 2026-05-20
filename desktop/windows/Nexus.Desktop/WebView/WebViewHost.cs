@@ -10,12 +10,13 @@ using Nexus.Desktop.Sidecar;
 
 namespace Nexus.Desktop.WebView;
 
-internal sealed class WebViewHost
+internal sealed class WebViewHost : IDisposable
 {
     private readonly WebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private DesktopBridgeHandler? bridgeHandler;
+    private bool disposed;
 
     public WebViewHost(WebView2 webView, SidecarRuntimeConfig runtime, DesktopStartupTimeline startupTimeline)
     {
@@ -76,6 +77,7 @@ internal sealed class WebViewHost
 
     public Task LoadRouteAsync(DesktopWebRoute route)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         Uri url = route.ToUri(runtime);
         startupTimeline.Mark("main_window.route_load", new Dictionary<string, string>
         {
@@ -83,6 +85,23 @@ internal sealed class WebViewHost
         });
         webView.Source = url;
         return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+        disposed = true;
+        try
+        {
+            webView.CoreWebView2?.Stop();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        webView.Dispose();
     }
 
     private async Task HandleWebMessageAsync(CoreWebView2WebMessageReceivedEventArgs args)

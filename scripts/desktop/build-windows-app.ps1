@@ -128,6 +128,30 @@ function Resolve-GitValue([string]$rootDir, [string[]]$arguments, [string]$fallb
   return $fallback
 }
 
+function Stop-OutputDirProcesses([string]$outputDir) {
+  if ([string]::IsNullOrWhiteSpace($outputDir)) {
+    return
+  }
+
+  $fullOutputDir = [System.IO.Path]::GetFullPath($outputDir)
+  $targets = @(
+    Get-CimInstance Win32_Process |
+      Where-Object {
+        ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase)) -or
+        ($_.CommandLine -and $_.CommandLine.IndexOf($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+      }
+  )
+  if ($targets.Count -eq 0) {
+    return
+  }
+
+  Write-Host "==> Stopping $($targets.Count) stale process(es) from $fullOutputDir"
+  foreach ($process in $targets) {
+    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+  Start-Sleep -Milliseconds 500
+}
+
 $rootDir = Resolve-RootDir
 Use-DotEnvValueIfMissing $rootDir "NEXUS_DESKTOP_GITHUB_CLIENT_ID"
 $windowsDir = Join-Path $rootDir "desktop/windows"
@@ -194,6 +218,7 @@ dotnet publish $projectPath `
   -o $publishDir
 
 Write-Host "==> Assembling $OutputDir"
+Stop-OutputDirProcesses $OutputDir
 Remove-Item -Recurse -Force $OutputDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null

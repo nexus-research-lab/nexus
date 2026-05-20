@@ -580,11 +580,36 @@ func (h *Handler) errorEventDetail(errorType string, err error) string {
 		return "未找到待确认的权限请求"
 	case "session_control_denied":
 		return message
+	case "chat_error":
+		return chatErrorDetail(err)
 	default:
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
 			return message
 		}
 		return "服务内部错误"
+	}
+}
+
+func chatErrorDetail(err error) string {
+	if err == nil {
+		return "Agent 启动失败，请检查运行时配置后重试。"
+	}
+	message := strings.TrimSpace(err.Error())
+	switch {
+	case strings.Contains(message, "cli executable") ||
+		strings.Contains(message, "claude.exe") ||
+		strings.Contains(message, "claude.cmd") ||
+		strings.Contains(message, "claude.ps1"):
+		return "未找到 Claude Code 命令，Agent 无法启动。请先安装 Claude Code，并在 PowerShell 里运行 `claude` 完成登录；如果已经安装，请确认 `claude` 在 PATH 中可用，或设置 NEXUS_CLAUDE_COMMAND_PATH 指向 claude.exe/claude.cmd。"
+	case strings.Contains(message, "LLM Provider") ||
+		strings.Contains(message, "provider=") ||
+		strings.Contains(message, "Provider"):
+		return "Agent 运行时 Provider 配置不可用。请到 Settings 检查默认 LLM Provider 是否已启用，并确认 auth_token、base_url、model 已填写完整。"
+	default:
+		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			return message
+		}
+		return "Agent 启动失败，请检查 Claude Code、Provider 配置和日志后重试。"
 	}
 }
 
