@@ -339,7 +339,7 @@ nexus://connectors/oauth/callback
 
 第一版可以本地构建 `.app` 和 zip/dmg，但 public beta 前签名、公证和自动更新必须完成。
 
-Windows 原生 app 发布链路进入第一阶段闭环：`scripts/package-release.sh` 仍产出 Windows 可运行服务包，`desktop/windows` 产出独立的 WPF/WebView2 app zip 与 Inno Setup 安装器，并作为同一个 GitHub Release 的 app asset 上传。当前默认构建为 `win-x64`，shell 使用 self-contained .NET，安装器会内置 WebView2 Evergreen Runtime bootstrapper；没有配置签名证书时仍会产出 unsigned 包。
+Windows 原生 app 发布链路进入第一阶段闭环：`scripts/package-release.sh` 仍产出 Windows 可运行服务包，`desktop/windows` 产出独立的 WPF/WebView2 app zip 与 Inno Setup 安装器，并作为同一个 GitHub Release 的 app asset 上传。当前默认构建为 `win-x64`，shell 使用 self-contained .NET，安装器使用 `x64compatible` 架构约束，可运行在 x64 Windows 与支持 x64 仿真的 Windows 11 ARM64 上，并内置 WebView2 Evergreen Runtime bootstrapper；没有配置签名证书时仍会产出 unsigned 包。
 
 ```powershell
 pwsh scripts/desktop/package-windows-app.ps1
