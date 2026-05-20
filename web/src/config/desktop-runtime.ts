@@ -25,6 +25,7 @@ type DesktopWebReadyPerformance = {
 type DesktopLifecycleMessage = {
   kind: "web.ready";
   location: string;
+  reduced_motion: boolean;
   source: string;
   performance: DesktopWebReadyPerformance;
 };
@@ -105,6 +106,7 @@ export function notify_desktop_web_ready(source = "unknown"): void {
   lifecycle_handler.postMessage({
     kind: "web.ready",
     location: window.location.pathname || "/",
+    reduced_motion: prefers_reduced_motion(),
     source,
     performance: get_desktop_ready_performance(),
   });
@@ -165,4 +167,11 @@ function get_desktop_ready_performance(): DesktopWebReadyPerformance {
 
 function rounded_milliseconds(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function prefers_reduced_motion(): boolean {
+  if (typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }

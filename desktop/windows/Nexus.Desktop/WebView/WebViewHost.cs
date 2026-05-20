@@ -147,9 +147,14 @@ internal sealed class WebViewHost : IDisposable
         string source = payload.TryGetProperty("source", out JsonElement sourceElement)
             ? sourceElement.GetString() ?? string.Empty
             : string.Empty;
+        string reducedMotion = payload.TryGetProperty("reduced_motion", out JsonElement reducedMotionElement) &&
+            reducedMotionElement.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? reducedMotionElement.GetBoolean().ToString().ToLowerInvariant()
+            : "unknown";
         startupTimeline.Mark("web.ready", new Dictionary<string, string>
         {
             ["location_path"] = string.IsNullOrWhiteSpace(location) ? "/" : location,
+            ["reduced_motion"] = reducedMotion,
             ["source"] = source,
             ["surface"] = "main",
         });

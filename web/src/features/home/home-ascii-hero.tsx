@@ -11,6 +11,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { get_desktop_runtime_config } from "@/config/desktop-runtime";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { useTheme } from "@/shared/theme/theme-context";
 
@@ -43,16 +44,26 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
+function should_reduce_home_hero_motion(prefers_reduced_motion: boolean) {
+  if (!prefers_reduced_motion) {
+    return false;
+  }
+
+  const runtime_config = get_desktop_runtime_config();
+  return runtime_config?.app_mode !== "desktop" || runtime_config.platform !== "windows";
+}
+
 export function HomeAsciiHero() {
   const { theme } = useTheme();
   const section_ref = useRef<HTMLDivElement | null>(null);
   const canvas_ref = useRef<HTMLCanvasElement | null>(null);
   const prefers_reduced_motion = usePrefersReducedMotion();
+  const should_reduce_motion = should_reduce_home_hero_motion(prefers_reduced_motion);
 
   useEffect(() => {
     const section = section_ref.current;
     const canvas = canvas_ref.current;
-    if (!section || !canvas || prefers_reduced_motion) {
+    if (!section || !canvas || should_reduce_motion) {
       return;
     }
 
@@ -385,7 +396,7 @@ export function HomeAsciiHero() {
       hero_canvas.removeEventListener("touchmove", on_touch);
       hero_canvas.removeEventListener("touchend", clear_pointer);
     };
-  }, [prefers_reduced_motion, theme]);
+  }, [should_reduce_motion, theme]);
 
   return (
     <div
@@ -405,7 +416,7 @@ export function HomeAsciiHero() {
 
       <h2 className="sr-only">{HERO_LABEL}</h2>
 
-      {prefers_reduced_motion ? (
+      {should_reduce_motion ? (
         <div
           className="absolute inset-0 flex items-center justify-center font-mono text-[clamp(3rem,11vw,6.8rem)] font-light italic leading-none"
           style={{ color: "var(--primary)" }}
