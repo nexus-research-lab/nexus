@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 优化 Markdown 列表渲染：修正列表项段落块导致 marker 后内容另起一行的问题。
 
 ### Fixed
+- 修复 Markdown 中 `Cron*（...）` 这类标识符星号被误解析为强调标记的问题。
+- 修复工作区文件编辑/预览工具栏按钮点击文字区域时先触发编辑器失焦，导致视图跳动的问题。
 - 修复 Agent 任务结束后工作区文件状态可能停留在“写入中”的问题。
 - 修复用户消息正文在右侧气泡中未按发送方方向对齐的问题。
 - 修复用户消息附件打开后文件树误聚焦到 `.nexus/attachments` 内部目录，导致刷新后附件预览路径异常的问题。

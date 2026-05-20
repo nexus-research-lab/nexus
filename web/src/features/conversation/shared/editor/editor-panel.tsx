@@ -170,6 +170,7 @@ function WorkspaceFileToolbarButton({
     <button
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
       disabled={disabled}
+      onMouseDown={(event) => event.preventDefault()}
       onClick={on_click}
       title={title}
       type="button"

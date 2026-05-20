@@ -22,6 +22,7 @@ import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent/agent";
+import { read_markdown_fence_marker } from "./markdown-fence";
 import { MermaidView } from "./mermaid-view";
 
 import { CodeBlock } from "../blocks/code-block";
@@ -47,6 +48,7 @@ const WORKSPACE_ABSOLUTE_FILE_PATTERN = /(?<path>\/[^\s`"'，。；！？]+\/\.n
 const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入到|生成到|created at|saved to|written to)\s*)[`"']?(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/[^/\s`"'，。；！？]+\/[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}|[A-Za-z0-9_.-][A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,10})[`"']?(?<suffix>.*)$/i;
 const WORKSPACE_ARTIFACT_EXTENSION_PATTERN = /\.(?:adoc|avif|bmp|csv|gif|html?|ico|jpe?g|jsonl?|log|markdown|md|mermaid|mmd|pdf|png|rst|svg|toml|txt|webp|xml|ya?ml)$/i;
 const WORKSPACE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
+const MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN = /(?<=[\p{L}\p{N}_./-])\*(?=[(\[（［])/gu;
 
 // 数学语法必须先于 GFM 表格解析，避免公式里的 `|` 被误判为列分隔符。
 export const MARKDOWN_PLUGINS = [remarkMath, remarkGfm, remarkBreaks];
@@ -263,16 +265,70 @@ export function normalize_markdown_content(
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
 ): string {
-  return content.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
+  const normalized_content = escape_identifier_asterisks_before_brackets(content);
+  return normalized_content.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
     if (
-      is_inside_inline_code(content, offset) ||
-      is_inside_markdown_link_destination(content, offset, match.length)
+      is_inside_inline_code(normalized_content, offset) ||
+      is_inside_markdown_link_destination(normalized_content, offset, match.length)
     ) {
       return match;
     }
     const resolved_path = resolve_workspace_artifact_path(match, resolve_file_path);
     return resolved_path && on_open_workspace_file ? `\`${match}\`` : match;
   });
+}
+
+function escape_identifier_asterisks_before_brackets(content: string): string {
+  let open_fence: { marker: "`" | "~"; length: number } | null = null;
+
+  return (content.match(/[^\n]*(?:\n|$)/g)?.filter((line) => line.length > 0) ?? [])
+    .map((line) => {
+      const fence_marker = read_markdown_fence_marker(line);
+
+      if (open_fence) {
+        if (
+          fence_marker &&
+          fence_marker.marker === open_fence.marker &&
+          fence_marker.length >= open_fence.length
+        ) {
+          open_fence = null;
+        }
+        return line;
+      }
+
+      if (fence_marker) {
+        open_fence = fence_marker;
+        return line;
+      }
+
+      return escape_inline_markdown_identifier_asterisks(line);
+    })
+    .join("");
+}
+
+function escape_inline_markdown_identifier_asterisks(line: string): string {
+  let in_code = false;
+  let code_marker = "";
+
+  return line
+    .split(/(`+)/)
+    .map((part) => {
+      if (/^`+$/.test(part)) {
+        if (!in_code) {
+          in_code = true;
+          code_marker = part;
+        } else if (part.length === code_marker.length) {
+          in_code = false;
+          code_marker = "";
+        }
+        return part;
+      }
+
+      return in_code
+        ? part
+        : part.replace(MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN, "\\*");
+    })
+    .join("");
 }
 
 function is_inside_inline_code(content: string, offset: number): boolean {
