@@ -6,6 +6,7 @@ import { CodeShell } from "./code-shell";
 
 interface CodeBlockProps {
   language: string;
+  is_streaming?: boolean;
   value: string;
 }
 
@@ -14,13 +15,13 @@ const LazyCodeBlockContent = lazy(async () => {
   return { default: module.CodeBlockContent };
 });
 
-function CodeBlockFallback({ language, value }: CodeBlockProps) {
+function CodeBlockFallback({ language, value, is_streaming }: CodeBlockProps) {
   return (
     <CodeShell
       language={language}
       right_slot={(
         <span className="message-cjk-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
-          Loading
+          {is_streaming ? "输出中" : "Loading"}
         </span>
       )}
       content_class_name="overflow-x-auto"
@@ -35,7 +36,11 @@ function CodeBlockFallback({ language, value }: CodeBlockProps) {
   );
 }
 
-export function CodeBlock({ language, value }: CodeBlockProps) {
+export function CodeBlock({ language, value, is_streaming }: CodeBlockProps) {
+  if (is_streaming) {
+    return <CodeBlockFallback language={language} value={value} is_streaming />;
+  }
+
   return (
     <Suspense fallback={<CodeBlockFallback language={language} value={value} />}>
       <LazyCodeBlockContent language={language} value={value} />

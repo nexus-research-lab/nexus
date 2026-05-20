@@ -35,6 +35,10 @@ type MarkdownNodeLike = {
 
 type ResolveWorkspaceFilePath = (value: string) => string | null;
 
+interface CreateMarkdownComponentsOptions {
+  stream_code_blocks?: boolean;
+}
+
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 const WORKSPACE_ABSOLUTE_FILE_PATTERN = /(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/(?<agent>[^/\s`"'，。；！？]+)\/(?<relative>[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}))/;
 const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入到|生成到|created at|saved to|written to)\s*)[`"']?(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/[^/\s`"'，。；！？]+\/[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}|[A-Za-z0-9_.-][A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,10})[`"']?(?<suffix>.*)$/i;
@@ -285,6 +289,7 @@ export function create_markdown_components(
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
   current_agent_id?: string | null,
+  options: CreateMarkdownComponentsOptions = {},
 ): Components {
   return {
     pre({ children }) {
@@ -297,7 +302,7 @@ export function create_markdown_components(
         if (language.toLowerCase() === "mermaid" || language.toLowerCase() === "mmd") {
           return <MermaidArtifactView chart={value} compact />;
         }
-        return <CodeBlock language={language} value={value} />;
+        return <CodeBlock language={language} value={value} is_streaming={options.stream_code_blocks} />;
       }
 
       const resolved_path = resolve_workspace_artifact_path(value, resolve_file_path);

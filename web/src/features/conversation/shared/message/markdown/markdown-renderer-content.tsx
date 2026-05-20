@@ -1,7 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
 
 import "katex/dist/katex.min.css";
 import {
@@ -15,6 +15,11 @@ import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
 } from "./markdown-renderer-shared";
+import {
+  StableMarkdownText,
+  StreamingMarkdownText,
+} from "./markdown-streaming";
+import { useSmoothStreamingMarkdownContent } from "./use-smooth-streaming-markdown-content";
 
 interface MarkdownRendererProps {
   content: string;
@@ -35,10 +40,32 @@ export function MarkdownRendererContent({
 }: MarkdownRendererProps) {
   const resolve_file_path = useMarkdownFileResolver(workspace_agent_id);
   const current_agent_id = useMarkdownCurrentAgentID(workspace_agent_id);
-  const markdown_components = variant === "summary"
-    ? create_markdown_summary_components(resolve_file_path, on_open_workspace_file, current_agent_id)
-    : create_markdown_components(resolve_file_path, on_open_workspace_file, current_agent_id);
-  const normalized_content = normalize_markdown_content(content, resolve_file_path, on_open_workspace_file);
+  const should_stream = Boolean(is_streaming);
+  const displayed_content = useSmoothStreamingMarkdownContent(content, should_stream);
+  const markdown_components = useMemo(
+    () => variant === "summary"
+      ? create_markdown_summary_components(resolve_file_path, on_open_workspace_file, current_agent_id)
+      : create_markdown_components(resolve_file_path, on_open_workspace_file, current_agent_id),
+    [current_agent_id, on_open_workspace_file, resolve_file_path, variant],
+  );
+  const streaming_markdown_components = useMemo(
+    () => variant === "summary"
+      ? create_markdown_summary_components(resolve_file_path, on_open_workspace_file, current_agent_id)
+      : create_markdown_components(
+        resolve_file_path,
+        on_open_workspace_file,
+        current_agent_id,
+        { stream_code_blocks: true },
+      ),
+    [current_agent_id, on_open_workspace_file, resolve_file_path, variant],
+  );
+  const normalized_content = normalize_markdown_content(displayed_content, resolve_file_path, on_open_workspace_file);
+  const shared_props = {
+    components: markdown_components,
+    content: normalized_content,
+    rehype_plugins: REHYPE_PLUGINS,
+    remark_plugins: MARKDOWN_PLUGINS,
+  };
 
   return (
     <div
@@ -48,13 +75,14 @@ export function MarkdownRendererContent({
         class_name,
       )}
     >
-      <ReactMarkdown
-        components={markdown_components}
-        rehypePlugins={REHYPE_PLUGINS}
-        remarkPlugins={MARKDOWN_PLUGINS}
-      >
-        {normalized_content}
-      </ReactMarkdown>
+      {should_stream ? (
+        <StreamingMarkdownText
+          {...shared_props}
+          streaming_components={streaming_markdown_components}
+        />
+      ) : (
+        <StableMarkdownText {...shared_props} />
+      )}
     </div>
   );
 }
