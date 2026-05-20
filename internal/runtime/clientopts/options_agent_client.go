@@ -66,7 +66,7 @@ func BuildAgentClientOptions(
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
 
 	options := agentclient.Options{
-		Backend:                agentclient.ProcessBackend(agentclient.ProcessOptions{}),
+		Backend:                agentclient.ProcessBackend(processBackendOptions()),
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
