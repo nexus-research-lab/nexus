@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 桌面应用打包支持从环境变量或仓库根 `.env` 读取 GitHub OAuth App 凭据，生成 bundle 内 `desktop.env` 并在 sidecar 启动时注入连接器后端配置；桌面 OAuth 回调成功后会返回连接器页。
+
 ## [0.1.6] - 2026-05-20
 
 ### Added

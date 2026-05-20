@@ -17,6 +17,39 @@ function Resolve-RootDir {
   return (Resolve-Path (Join-Path $scriptDir "../..")).Path
 }
 
+function Read-DotEnvValue([string]$rootDir, [string]$key) {
+  $dotenvPath = Join-Path $rootDir ".env"
+  if (-not (Test-Path $dotenvPath)) {
+    return ""
+  }
+
+  $pattern = "^\s*(?:export\s+)?$([Regex]::Escape($key))\s*=(.*)$"
+  foreach ($line in Get-Content $dotenvPath) {
+    $match = [Regex]::Match($line, $pattern)
+    if (-not $match.Success) {
+      continue
+    }
+    $value = $match.Groups[1].Value -replace "\s+#.*$", ""
+    $value = $value.Trim()
+    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    return $value
+  }
+
+  return ""
+}
+
+function Use-DotEnvValueIfMissing([string]$rootDir, [string]$key) {
+  if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) {
+    return
+  }
+  $value = Read-DotEnvValue $rootDir $key
+  if (-not [string]::IsNullOrWhiteSpace($value)) {
+    [Environment]::SetEnvironmentVariable($key, $value, "Process")
+  }
+}
+
 function Resolve-AppVersion([string]$rootDir, [string]$version) {
   if (-not [string]::IsNullOrWhiteSpace($version)) {
     return $version
@@ -96,6 +129,8 @@ function Resolve-GitValue([string]$rootDir, [string[]]$arguments, [string]$fallb
 }
 
 $rootDir = Resolve-RootDir
+Use-DotEnvValueIfMissing $rootDir "NEXUS_DESKTOP_GITHUB_CLIENT_ID"
+Use-DotEnvValueIfMissing $rootDir "NEXUS_DESKTOP_GITHUB_CLIENT_SECRET"
 $windowsDir = Join-Path $rootDir "desktop/windows"
 $projectPath = Join-Path $windowsDir "Nexus.Desktop/Nexus.Desktop.csproj"
 $appVersion = Resolve-AppVersion $rootDir $Version
@@ -170,6 +205,19 @@ Copy-Item -Recurse -Force (Join-Path $rootDir "web/dist") (Join-Path $resourcesD
 New-Item -ItemType Directory -Force -Path (Join-Path $resourcesDir "db") | Out-Null
 Copy-Item -Recurse -Force (Join-Path $rootDir "db/migrations") (Join-Path $resourcesDir "db/migrations")
 Copy-Item -Recurse -Force (Join-Path $rootDir "skills") (Join-Path $resourcesDir "skills")
+
+$desktopEnvPath = Join-Path $resourcesDir "desktop.env"
+Remove-Item -Force $desktopEnvPath -ErrorAction SilentlyContinue
+$desktopEnvLines = @()
+if (-not [string]::IsNullOrWhiteSpace($env:NEXUS_DESKTOP_GITHUB_CLIENT_ID)) {
+  $desktopEnvLines += "CONNECTOR_GITHUB_CLIENT_ID=$($env:NEXUS_DESKTOP_GITHUB_CLIENT_ID.Trim())"
+}
+if (-not [string]::IsNullOrWhiteSpace($env:NEXUS_DESKTOP_GITHUB_CLIENT_SECRET)) {
+  $desktopEnvLines += "CONNECTOR_GITHUB_CLIENT_SECRET=$($env:NEXUS_DESKTOP_GITHUB_CLIENT_SECRET.Trim())"
+}
+if ($desktopEnvLines.Count -gt 0) {
+  $desktopEnvLines | Set-Content -Encoding UTF8 $desktopEnvPath
+}
 
 $registerProtocolScript = Join-Path $OutputDir "register-nexus-protocol.ps1"
 @"

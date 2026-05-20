@@ -100,9 +100,32 @@ final class SidecarSupervisor {
     environment["DISCORD_ENABLED"] = "false"
     environment["TELEGRAM_ENABLED"] = "false"
     environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback"
+    applyPackagedConnectorConfig(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = "\(webOrigin),nexus://connectors"
     return environment
+  }
+
+  private func applyPackagedConnectorConfig(to environment: inout [String: String]) {
+    let configURL = locator.appRootURL.appendingPathComponent("desktop.env")
+    guard let data = try? String(contentsOf: configURL, encoding: .utf8) else {
+      return
+    }
+    for rawLine in data.split(whereSeparator: \.isNewline) {
+      let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+      if line.isEmpty || line.hasPrefix("#") {
+        continue
+      }
+      let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+      guard parts.count == 2 else {
+        continue
+      }
+      let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+      let value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+      if key.hasPrefix("CONNECTOR_") && !value.isEmpty {
+        environment[key] = value
+      }
+    }
   }
 
   private func connectorCredentialsKeyMode(environment: [String: String]) -> DesktopKeychainMode {
