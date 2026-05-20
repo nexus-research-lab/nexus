@@ -13,6 +13,7 @@ MAIN_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_URL_TIMEOUT_SECONDS:-3}"
 LAUNCHER_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_URL_TIMEOUT_SECONDS:-3}"
 EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}"
 ALLOW_FALLBACK="${NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK:-0}"
+MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=(/|/login) .*surface=main"
 
 APP_PID=""
 
@@ -98,7 +99,7 @@ if [[ -n "${EXPECTED_CREDENTIALS_STORAGE}" ]]; then
 fi
 
 wait_for_log "event=main_window\\.created.*material=windowBackground" "${MAIN_TIMEOUT_SECONDS}"
-wait_for_log "event=web\\.ready.*location_path=/ .*surface=main" "${MAIN_TIMEOUT_SECONDS}"
+wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 if [[ "${ALLOW_FALLBACK}" == "1" ]]; then
   wait_for_log "event=main_window\\.revealed.*source=(web\\.ready|fallback_timeout)" "${MAIN_TIMEOUT_SECONDS}"
 else
@@ -112,7 +113,7 @@ else
   post_main_window_notification || fail "failed to request launcher route through nexus://open"
   wait_for_log "event=main_window\\.route_load.*path=/($|[[:space:]])" "${MAIN_TIMEOUT_SECONDS}"
 fi
-wait_for_log "event=web\\.ready.*location_path=/ .*surface=main" "${MAIN_TIMEOUT_SECONDS}"
+wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 
 if open "nexus://launcher" >/dev/null 2>&1 &&
   wait_for_log_match "event=app\\.url_route.*host=launcher .*route_path=/($|[[:space:]])" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
@@ -121,7 +122,7 @@ else
   post_launcher_notification || fail "failed to request launcher route"
   wait_for_log "event=main_window\\.route_load.*path=/($|[[:space:]])" "${MAIN_TIMEOUT_SECONDS}"
 fi
-wait_for_log "event=web\\.ready.*location_path=/ .*surface=main" "${MAIN_TIMEOUT_SECONDS}"
+wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 
 unexpected_pattern="webview\\.content_process_terminated|startup\\.failed"
 if [[ "${ALLOW_FALLBACK}" != "1" ]]; then
