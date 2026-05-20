@@ -111,8 +111,40 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["DISCORD_ENABLED"] = "false";
         startInfo.Environment["TELEGRAM_ENABLED"] = "false";
         startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback";
+        ApplyPackagedConnectorConfig(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = $"{runtime.WebBaseUrl.TrimEnd('/')},nexus://connectors";
         return startInfo;
+    }
+
+    private void ApplyPackagedConnectorConfig(ProcessStartInfo startInfo)
+    {
+        string configPath = Path.Combine(locator.AppRoot, "desktop.env");
+        if (!File.Exists(configPath))
+        {
+            return;
+        }
+
+        foreach (string rawLine in File.ReadLines(configPath))
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            int separator = line.IndexOf('=');
+            if (separator <= 0)
+            {
+                continue;
+            }
+
+            string key = line[..separator].Trim().TrimStart('\uFEFF');
+            string value = line[(separator + 1)..].Trim();
+            if (key.StartsWith("CONNECTOR_", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(value))
+            {
+                startInfo.Environment[key] = value;
+            }
+        }
     }
 
     private static void PrepareDirectories()

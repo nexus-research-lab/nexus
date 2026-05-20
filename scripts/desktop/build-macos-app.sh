@@ -3,6 +3,36 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MACOS_DIR="${ROOT_DIR}/desktop/macos"
+load_desktop_env_from_dotenv() {
+  local dotenv_path="${ROOT_DIR}/.env"
+  [[ -f "${dotenv_path}" ]] || return 0
+  local key value
+  for key in NEXUS_DESKTOP_GITHUB_CLIENT_ID NEXUS_DESKTOP_GITHUB_CLIENT_SECRET; do
+    if [[ -n "${!key:-}" ]]; then
+      continue
+    fi
+    value="$(
+      awk -F= -v key="${key}" '
+        $0 ~ "^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=" {
+          sub(/^[[:space:]]*export[[:space:]]+/, "", $0)
+          sub("^[[:space:]]*" key "[[:space:]]*=", "", $0)
+          sub(/[[:space:]]+#.*$/, "", $0)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+          if (($0 ~ /^".*"$/) || ($0 ~ /^\047.*\047$/)) {
+            $0 = substr($0, 2, length($0) - 2)
+          }
+          value = $0
+        }
+        END { print value }
+      ' "${dotenv_path}"
+    )"
+    if [[ -n "${value}" ]]; then
+      export "${key}=${value}"
+    fi
+  done
+}
+
+load_desktop_env_from_dotenv
 APP_NAME="${NEXUS_DESKTOP_APP_NAME:-Nexus}"
 EXECUTABLE_NAME="${NEXUS_DESKTOP_EXECUTABLE_NAME:-Nexus}"
 BUNDLE_IDENTIFIER="${NEXUS_DESKTOP_BUNDLE_IDENTIFIER:-com.leemysw.nexus}"
@@ -49,6 +79,20 @@ chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/web/dist/" "${RESOURCES_DIR}/Web/"
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/db/migrations/" "${RESOURCES_DIR}/db/migrations/"
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/skills/" "${RESOURCES_DIR}/skills/"
+
+DESKTOP_ENV_PATH="${RESOURCES_DIR}/desktop.env"
+rm -f "${DESKTOP_ENV_PATH}"
+if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_ID:-}" || -n "${NEXUS_DESKTOP_GITHUB_CLIENT_SECRET:-}" ]]; then
+  {
+    if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_ID:-}" ]]; then
+      printf 'CONNECTOR_GITHUB_CLIENT_ID=%s\n' "${NEXUS_DESKTOP_GITHUB_CLIENT_ID}"
+    fi
+    if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_SECRET:-}" ]]; then
+      printf 'CONNECTOR_GITHUB_CLIENT_SECRET=%s\n' "${NEXUS_DESKTOP_GITHUB_CLIENT_SECRET}"
+    fi
+  } > "${DESKTOP_ENV_PATH}"
+  chmod 0600 "${DESKTOP_ENV_PATH}"
+fi
 
 sed \
   -e "s/__APP_NAME__/${APP_NAME}/g" \

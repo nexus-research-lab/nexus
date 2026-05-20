@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
+import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
+import { is_desktop_bridge_available, open_desktop_route } from "@/lib/desktop-bridge";
 import { complete_connector_o_auth_api } from "@/lib/api/connector-api";
 
 /** OAuth 回调专用页面，位于弹窗内，负责把结果回传给 opener 并自行关闭。 */
@@ -36,6 +38,14 @@ export function ConnectorOAuthCallbackPage() {
       set_message(msg);
     };
 
+    const complete_success = async () => {
+      if (is_desktop_bridge_available()) {
+        await open_desktop_route(AppRouteBuilders.connectors());
+        return;
+      }
+      post_and_close("connector-oauth:success", "连接成功");
+    };
+
     if (error) {
       post_and_close("connector-oauth:error", `OAuth 授权失败: ${error_description || error}`);
       return;
@@ -46,7 +56,7 @@ export function ConnectorOAuthCallbackPage() {
     }
 
     complete_connector_o_auth_api(code, state, get_connector_oauth_redirect_uri())
-      .then(() => post_and_close("connector-oauth:success", "连接成功"))
+      .then(complete_success)
       .catch((err: unknown) => {
         const text = err instanceof Error ? err.message : "OAuth 连接失败";
         post_and_close("connector-oauth:error", text);
