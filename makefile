@@ -11,6 +11,8 @@ WEB_PORT ?= 3000
 AGENT_UID ?= 1001
 AGENT_GID ?= 1001
 HOST_SUDO ?= sudo
+APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
+APP_WIN_OUTPUT_DIR ?=
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 
 # Default target
@@ -118,7 +120,7 @@ build-dmg: app-dmg ## app-dmg 的别名
 app-check: app-smoke ## 构建并烟测 macOS .app
 
 app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
-	pwsh scripts/desktop/build-windows-app.ps1
+	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)"
 
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1
