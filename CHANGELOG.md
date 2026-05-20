@@ -7,16 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-05-21
+
 ### Added
 - Windows 桌面 App 托盘右键菜单新增“检查更新”入口，可手动触发 GitHub Release 检测、下载和 sha256 校验安装链路。
 
 ### Changed
 - `make app-win-build` 默认使用当前时间戳作为 Windows 桌面 app 构建号，方便未提交改动的本地临时测试；需要固定构建号时仍可通过 `APP_WIN_BUILD_NUMBER` 覆盖。
+- 收口 Memory 调度与接口测试，提升记忆动态召回、checkpoint 和 HTTP API 的回归覆盖。
 - Windows 桌面 App 点击窗口关闭按钮时改为隐藏到系统托盘，真正退出需通过托盘图标右键菜单执行。
 - Windows 桌面 App 托盘右键菜单改为带标题、分组和悬停高亮的样式化菜单。
 
 ### Fixed
 - 修复桌面 App 在 Windows/macOS 因 sidecar 本地端口变化导致引导完成状态每次启动丢失的问题。
+- 修复点击 Nexus 或 DM 入口时未进入最近活跃会话的问题。
+- 修复发送附件时同一文件可能被重复存储的问题。
 - 修复 Windows 桌面 App 自动更新检查在请求前写入 24 小时节流状态，导致失败后后续启动被误判为近期已检查的问题。
 - 修复 Windows 桌面 App 受系统“动画效果”关闭影响时，首页 Nexus 动效被 WebView2 的 reduced-motion 媒体查询完全降级为静态文字的问题，并在启动日志中记录 reduced-motion 状态便于排查。
 - 修复 Windows 桌面 App 关闭主窗口后可能仍残留壳进程和 sidecar，导致下一次临时构建覆盖 `.build/app/Nexus` 时文件被占用的问题。
@@ -47,9 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复 Markdown 中 `Cron*（...）` 这类标识符星号被误解析为强调标记的问题。
 - 修复工作区文件编辑/预览工具栏按钮点击文字区域时先触发编辑器失焦，导致视图跳动的问题。
-- 修复点击 Nexus 或 DM 入口时未进入最近活跃会话的问题。
 - 修复 Agent 任务结束后工作区文件状态可能停留在“写入中”的问题。
-- 修复用户消息正文被错误右对齐的问题，并优化短文本与附件组合时的消息块对齐。
+- 修复用户消息正文在右侧气泡中未按发送方方向对齐的问题。
 - 修复用户消息附件打开后文件树误聚焦到 `.nexus/attachments` 内部目录，导致刷新后附件预览路径异常的问题。
 - 修复图片附件只作为 `@"path"` 文本传入 runtime，导致首轮对话不稳定触发读图的问题，并对齐 Claude Code 的 `source.base64` 图片内容块。
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。

@@ -68,8 +68,8 @@ After installation, run `claude` once and complete login. On native Windows, Git
 
 ```bash
 # Linux x86_64 example
-tar -xzf nexus-v0.1.7-linux-amd64.tar.gz
-cd nexus-v0.1.7-linux-amd64
+tar -xzf nexus-v0.1.8-linux-amd64.tar.gz
+cd nexus-v0.1.8-linux-amd64
 
 # Initialize database and create admin account
 ./bin/nexus-migrate up

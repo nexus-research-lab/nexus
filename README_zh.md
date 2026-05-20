@@ -68,8 +68,8 @@ winget install Anthropic.ClaudeCode
 
 ```bash
 # 解压（以 Linux x86_64 为例）
-tar -xzf nexus-v0.1.7-linux-amd64.tar.gz
-cd nexus-v0.1.7-linux-amd64
+tar -xzf nexus-v0.1.8-linux-amd64.tar.gz
+cd nexus-v0.1.8-linux-amd64
 
 # 初始化数据库，创建管理员账号
 ./bin/nexus-migrate up
