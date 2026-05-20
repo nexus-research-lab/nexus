@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import mermaid from "mermaid";
 
+import { postProcessMermaidSvg } from "./mermaid-svg-postprocess";
+
 const MERMAID_STREAM_RENDER_DELAY = 300;
 
 const MERMAID_CONFIG = {
@@ -86,7 +88,7 @@ export function useMermaidSvg(
         set_render_state({
           error: null,
           is_rendering: false,
-          svg: DOMPurify.sanitize(result.svg, {
+          svg: DOMPurify.sanitize(postProcessMermaidSvg(result.svg), {
             USE_PROFILES: { svg: true, svgFilters: true },
           }),
         });

@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 优化 Markdown 表格渲染：修正公式与 GFM 表格解析顺序，并让宽表格在自身容器内横向滚动。
 - 优化 Markdown 列表渲染：修正列表项段落块导致 marker 后内容另起一行的问题。
 - 优化 Markdown 文本渲染：支持安全的行内文本标签与 `<br>` 换行，并改善正文段落换行观感。
+- 优化 Mermaid SVG 渲染观感：统一边标签背景、节点圆角、note 配色和菱形节点圆角处理。
 
 ### Fixed
 - 修复 Markdown 中 `Cron*（...）` 这类标识符星号被误解析为强调标记的问题。
