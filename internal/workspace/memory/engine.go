@@ -93,12 +93,12 @@ func (e *Engine) CommitTurn(ctx context.Context, scope MemoryScope, turn Committ
 		turn.Timestamp = time.Now()
 	}
 	scopeKey := scope.Key()
-	checkpoint, shouldCapture, reason, err := e.advanceCheckpoint(scopeKey, strings.TrimSpace(turn.RoundID), turn.Timestamp, isHighImpactMemory(userText))
+	decision, err := NewMemoryScheduler(e.repository).Advance(scopeKey, turn.RoundID, turn.Timestamp, isHighImpactMemory(userText))
 	if err != nil {
 		return CaptureResult{}, err
 	}
-	if !shouldCapture {
-		return CaptureResult{Skipped: true, Reason: reason}, nil
+	if !decision.ShouldCapture {
+		return CaptureResult{Skipped: true, Reason: decision.Reason}, nil
 	}
 
 	entry, err := e.buildEntry(scope, turn, userText, assistantText)
@@ -118,7 +118,6 @@ func (e *Engine) CommitTurn(ctx context.Context, scope MemoryScope, turn Committ
 	if sessionPath != "" {
 		item.Source = strings.TrimSpace(strings.Join([]string{item.Source, sessionPath}, " "))
 	}
-	_ = checkpoint
 	return CaptureResult{Processed: true, Items: []MemoryItem{item}}, nil
 }
 
@@ -342,35 +341,6 @@ func (e *Engine) StableContext(ctx context.Context, maxChars int) (string, error
 		return "", nil
 	}
 	return e.repository.ReadStableContext(maxChars)
-}
-
-func (e *Engine) advanceCheckpoint(scopeKey string, roundID string, now time.Time, highImpact bool) (memoryScopeCheckpoint, bool, string, error) {
-	checkpoints, err := e.repository.ReadCheckpoints()
-	if err != nil {
-		return memoryScopeCheckpoint{}, false, "", err
-	}
-	checkpoint := checkpoints.Scopes[scopeKey]
-	if roundIDProcessed(checkpoint.RoundIDs, roundID) {
-		return checkpoint, false, "duplicate_round", nil
-	}
-	checkpoint.TurnCount++
-	if roundID != "" {
-		checkpoint.LastRoundID = roundID
-		checkpoint.RoundIDs = pruneRoundIDs(append(checkpoint.RoundIDs, roundID))
-	}
-	idleReady := checkpoint.LastExtractAt.IsZero() || now.Sub(checkpoint.LastExtractAt) >= 10*time.Minute
-	turnReady := checkpoint.TurnCount == 1 || checkpoint.TurnCount%5 == 0
-	shouldCapture := highImpact || idleReady || turnReady
-	reason := "scheduler_wait"
-	if shouldCapture {
-		checkpoint.LastExtractAt = now
-		reason = "captured"
-	}
-	checkpoints.Scopes[scopeKey] = checkpoint
-	if err := e.repository.WriteCheckpoints(checkpoints); err != nil {
-		return checkpoint, false, "", err
-	}
-	return checkpoint, shouldCapture, reason, nil
 }
 
 func (e *Engine) buildEntry(scope MemoryScope, turn CommittedTurn, userText string, assistantText string) (*Entry, error) {

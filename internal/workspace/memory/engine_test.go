@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEngineCommitRecallAndCheckpoint(t *testing.T) {
@@ -171,5 +172,43 @@ func TestEngineIgnoreRemovesFromRecall(t *testing.T) {
 		if recalled.EntryID == item.EntryID {
 			t.Fatalf("忽略后的记忆不应被召回: %+v", items)
 		}
+	}
+}
+
+func TestMemorySchedulerCadence(t *testing.T) {
+	workspace := t.TempDir()
+	scheduler := NewMemoryScheduler(NewRepository(workspace))
+	now := time.Date(2026, 5, 20, 10, 0, 0, 0, time.Local)
+
+	first, err := scheduler.Advance("dm:nexus", "round-1", now, false)
+	if err != nil {
+		t.Fatalf("首轮调度失败: %v", err)
+	}
+	if !first.ShouldCapture || first.Reason != "captured" {
+		t.Fatalf("首轮应立即抽取: %+v", first)
+	}
+
+	duplicate, err := scheduler.Advance("dm:nexus", "round-1", now.Add(time.Minute), true)
+	if err != nil {
+		t.Fatalf("重复轮次调度失败: %v", err)
+	}
+	if duplicate.ShouldCapture || duplicate.Reason != "duplicate_round" {
+		t.Fatalf("重复 round 不应抽取: %+v", duplicate)
+	}
+
+	wait, err := scheduler.Advance("dm:nexus", "round-2", now.Add(2*time.Minute), false)
+	if err != nil {
+		t.Fatalf("普通轮次调度失败: %v", err)
+	}
+	if wait.ShouldCapture || wait.Reason != "scheduler_wait" {
+		t.Fatalf("未到 5 轮或 10 分钟不应抽取: %+v", wait)
+	}
+
+	idle, err := scheduler.Advance("dm:nexus", "round-3", now.Add(12*time.Minute), false)
+	if err != nil {
+		t.Fatalf("空闲触发调度失败: %v", err)
+	}
+	if !idle.ShouldCapture {
+		t.Fatalf("空闲 10 分钟后应抽取: %+v", idle)
 	}
 }

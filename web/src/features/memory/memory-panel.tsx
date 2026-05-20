@@ -353,7 +353,11 @@ export function MemoryPanel() {
                       <div className="mt-1 text-[11px] text-(--text-soft)">
                         {item.kind}
                         {item.category ? ` / ${item.category}` : ""}
+                        {item.source ? ` · ${item.source}` : ""}
+                        {item.path ? ` · ${item.path}` : ""}
                         {item.scope ? ` · ${item.scope}` : ""}
+                        {item.session_key ? ` · ${item.session_key}` : ""}
+                        {item.round_id ? ` · ${item.round_id}` : ""}
                         {item.created_at ? ` · ${format_time(item.created_at)}` : ""}
                         {` · access ${item.access_count}`}
                       </div>
