@@ -44,6 +44,13 @@ function clamp_panel_width(width: number): number {
   return Math.round(Math.min(WIDE_PANEL_MAX_WIDTH, Math.max(WIDE_PANEL_MIN_WIDTH, width)));
 }
 
+export interface ChatNotificationTargetState {
+  key: string;
+  room_id?: string | null;
+  conversation_id?: string | null;
+  session_key?: string | null;
+}
+
 interface SidebarState {
   /** 宽面板中当前高亮的条目 ID（Room/DM/Agent/Skill） */
   active_panel_item_id: string | null;
@@ -55,6 +62,10 @@ interface SidebarState {
   chat_badge_count: number;
   /** 聊天会话维度的未读完成消息数。 */
   chat_unread_counts: Record<string, number>;
+  /** 未读目标元数据，用于列表按 Room 聚合并跳转到真实未读会话。 */
+  chat_unread_targets: Record<string, ChatNotificationTargetState>;
+  /** 未读目标最后更新时间，用于点击列表时优先进入最新未读会话。 */
+  chat_unread_timestamps: Record<string, number>;
   /** 已计入通知的消息 ID，避免 WebSocket 重放或多订阅重复提示。 */
   notified_chat_message_ids: string[];
   /** 宽面板各 Section 的折叠状态 */
@@ -65,8 +76,9 @@ interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
   set_nexus_room_id: (room_id: string | null) => void;
   set_chat_badge_count: (count: number) => void;
-  record_chat_notification: (target_key: string, message_id: string) => boolean;
+  record_chat_notification: (target: ChatNotificationTargetState, message_id: string) => boolean;
   clear_chat_notifications_for_target: (target_key: string | null | undefined) => void;
+  clear_chat_notifications_for_room: (room_id: string | null | undefined) => void;
   /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
   set_wide_panel_width: (width: number) => void;
   toggle_section: (section_id: string) => void;
@@ -78,6 +90,36 @@ function count_chat_unread_total(counts: Record<string, number>): number {
   return Object.values(counts).reduce((total, count) => total + Math.max(0, count), 0);
 }
 
+function clear_chat_unread_keys(
+  state: SidebarState,
+  keys: string[],
+): Pick<SidebarState, "chat_badge_count" | "chat_unread_counts" | "chat_unread_targets" | "chat_unread_timestamps"> {
+  const unique_keys = Array.from(new Set(keys.filter(Boolean)));
+  if (unique_keys.length === 0) {
+    return {
+      chat_badge_count: state.chat_badge_count,
+      chat_unread_counts: state.chat_unread_counts,
+      chat_unread_targets: state.chat_unread_targets,
+      chat_unread_timestamps: state.chat_unread_timestamps,
+    };
+  }
+
+  const next_counts = { ...state.chat_unread_counts };
+  const next_targets = { ...state.chat_unread_targets };
+  const next_timestamps = { ...state.chat_unread_timestamps };
+  for (const key of unique_keys) {
+    delete next_counts[key];
+    delete next_targets[key];
+    delete next_timestamps[key];
+  }
+  return {
+    chat_badge_count: count_chat_unread_total(next_counts),
+    chat_unread_counts: next_counts,
+    chat_unread_targets: next_targets,
+    chat_unread_timestamps: next_timestamps,
+  };
+}
+
 export const useSidebarStore = create<SidebarState & SidebarActions>()(
   persist(
     (set) => ({
@@ -86,16 +128,18 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
       chat_badge_count: 0,
       chat_unread_counts: {},
+      chat_unread_targets: {},
+      chat_unread_timestamps: {},
       notified_chat_message_ids: [],
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
       set_nexus_room_id: (room_id) => set({ nexus_room_id: room_id }),
       set_chat_badge_count: (count) => set({ chat_badge_count: Math.max(0, Math.floor(count)) }),
-      record_chat_notification: (target_key, message_id) => {
+      record_chat_notification: (target, message_id) => {
         let did_record = false;
         set((state) => {
-          const normalized_target_key = target_key.trim();
+          const normalized_target_key = target.key.trim();
           const normalized_message_id = message_id.trim();
           if (!normalized_target_key || !normalized_message_id) {
             return state;
@@ -109,6 +153,17 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
             ...state.chat_unread_counts,
             [normalized_target_key]: (state.chat_unread_counts[normalized_target_key] ?? 0) + 1,
           };
+          const next_targets = {
+            ...state.chat_unread_targets,
+            [normalized_target_key]: {
+              ...target,
+              key: normalized_target_key,
+            },
+          };
+          const next_timestamps = {
+            ...state.chat_unread_timestamps,
+            [normalized_target_key]: Date.now(),
+          };
           const next_message_ids = [
             normalized_message_id,
             ...state.notified_chat_message_ids,
@@ -116,6 +171,8 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
           return {
             chat_badge_count: count_chat_unread_total(next_counts),
             chat_unread_counts: next_counts,
+            chat_unread_targets: next_targets,
+            chat_unread_timestamps: next_timestamps,
             notified_chat_message_ids: next_message_ids,
           };
         });
@@ -126,12 +183,24 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
         if (!normalized_target_key || !state.chat_unread_counts[normalized_target_key]) {
           return state;
         }
-        const next_counts = { ...state.chat_unread_counts };
-        delete next_counts[normalized_target_key];
-        return {
-          chat_badge_count: count_chat_unread_total(next_counts),
-          chat_unread_counts: next_counts,
-        };
+        return clear_chat_unread_keys(state, [normalized_target_key]);
+      }),
+      clear_chat_notifications_for_room: (room_id) => set((state) => {
+        const normalized_room_id = room_id?.trim();
+        if (!normalized_room_id) {
+          return state;
+        }
+        const room_key = `room:${normalized_room_id}`;
+        const room_conversation_key_prefix = `${room_key}:conversation:`;
+        const keys = Object.entries(state.chat_unread_targets)
+          .filter(([, target]) => target.room_id === normalized_room_id)
+          .map(([key]) => key);
+        for (const key of Object.keys(state.chat_unread_counts)) {
+          if (key === room_key || key.startsWith(room_conversation_key_prefix)) {
+            keys.push(key);
+          }
+        }
+        return clear_chat_unread_keys(state, keys);
       }),
 
       set_wide_panel_width: (width) =>

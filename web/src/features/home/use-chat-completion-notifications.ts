@@ -8,7 +8,10 @@ import {
   subscribe_room_directory_updates,
 } from "@/lib/api/room-api";
 import { useWebSocket } from "@/lib/websocket";
-import { useSidebarStore } from "@/store/sidebar";
+import {
+  type ChatNotificationTargetState,
+  useSidebarStore,
+} from "@/store/sidebar";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
@@ -39,6 +42,12 @@ interface ChatNotificationTarget {
   key: string;
   room_id?: string | null;
   session_key?: string | null;
+}
+
+interface ActiveChatTarget {
+  conversation_id?: string | null;
+  key: string;
+  room_id?: string | null;
 }
 
 const EMPTY_DIRECTORY: ChatNotificationDirectory = {
@@ -82,7 +91,7 @@ function decode_path_part(value: string | undefined): string {
   }
 }
 
-function get_active_chat_target_key(pathname: string): string | null {
+function get_active_chat_target(pathname: string): ActiveChatTarget | null {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] !== "rooms") {
     return null;
@@ -92,7 +101,14 @@ function get_active_chat_target_key(pathname: string): string | null {
   const conversation_id = parts[2] === "conversations"
     ? decode_path_part(parts[3])
     : "";
-  return build_chat_notification_target_key({ conversation_id, room_id });
+  const key = build_chat_notification_target_key({ conversation_id, room_id });
+  return key
+    ? {
+        conversation_id,
+        key,
+        room_id,
+      }
+    : null;
 }
 
 function is_window_active(): boolean {
@@ -242,6 +258,17 @@ function build_message_target(event: EventMessage, message: Message): ChatNotifi
   };
 }
 
+function to_chat_notification_target_state(
+  target: ChatNotificationTarget,
+): ChatNotificationTargetState {
+  return {
+    conversation_id: target.conversation_id,
+    key: target.key,
+    room_id: target.room_id,
+    session_key: target.session_key,
+  };
+}
+
 function get_notification_message_id(
   event: EventMessage,
   message: AssistantMessage,
@@ -262,17 +289,20 @@ export function useChatCompletionNotifications(): void {
   const clear_chat_notifications_for_target = useSidebarStore(
     (s) => s.clear_chat_notifications_for_target,
   );
+  const clear_chat_notifications_for_room = useSidebarStore(
+    (s) => s.clear_chat_notifications_for_room,
+  );
   const [directory, set_directory] = useState<ChatNotificationDirectory>(
     () => chat_notification_directory_cache ?? EMPTY_DIRECTORY,
   );
-  const active_target_key_ref = useRef<string | null>(
-    get_active_chat_target_key(location.pathname),
+  const active_target_ref = useRef<ActiveChatTarget | null>(
+    get_active_chat_target(location.pathname),
   );
   const directory_ref = useRef(directory);
   const room_seq_cursor_ref = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    active_target_key_ref.current = get_active_chat_target_key(location.pathname);
+    active_target_ref.current = get_active_chat_target(location.pathname);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -325,8 +355,13 @@ export function useChatCompletionNotifications(): void {
     if (!is_window_active()) {
       return;
     }
-    clear_chat_notifications_for_target(active_target_key_ref.current);
-  }, [clear_chat_notifications_for_target]);
+    const active_target = active_target_ref.current;
+    if (active_target?.room_id) {
+      clear_chat_notifications_for_room(active_target.room_id);
+      return;
+    }
+    clear_chat_notifications_for_target(active_target?.key);
+  }, [clear_chat_notifications_for_room, clear_chat_notifications_for_target]);
 
   useEffect(() => {
     clear_active_target_notifications();
@@ -379,14 +414,21 @@ export function useChatCompletionNotifications(): void {
     }
 
     notify_room_directory_updated();
-    const target_is_active = active_target_key_ref.current === target.key;
+    const active_target = active_target_ref.current;
+    const target_is_active = Boolean(
+      active_target?.room_id && target.room_id && active_target.room_id === target.room_id,
+    ) || active_target?.key === target.key;
     if (target_is_active && is_window_active()) {
-      clear_chat_notifications_for_target(target.key);
+      if (target.room_id) {
+        clear_chat_notifications_for_room(target.room_id);
+      } else {
+        clear_chat_notifications_for_target(target.key);
+      }
       return;
     }
 
     const message_id = get_notification_message_id(event, message, target.key);
-    const did_record = record_chat_notification(target.key, message_id);
+    const did_record = record_chat_notification(to_chat_notification_target_state(target), message_id);
     if (!did_record) {
       return;
     }
@@ -397,7 +439,7 @@ export function useChatCompletionNotifications(): void {
       directory_ref.current,
     );
     show_browser_notification(title, body, message_id);
-  }, [clear_chat_notifications_for_target, record_chat_notification]);
+  }, [clear_chat_notifications_for_room, clear_chat_notifications_for_target, record_chat_notification]);
 
   const { send: ws_send, state: ws_state } = useWebSocket({
     url: ws_url,

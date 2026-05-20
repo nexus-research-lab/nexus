@@ -33,7 +33,10 @@ import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
-import { useSidebarStore } from "@/store/sidebar";
+import {
+  type ChatNotificationTargetState,
+  useSidebarStore,
+} from "@/store/sidebar";
 import { build_chat_notification_target_key } from "./use-chat-completion-notifications";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {
@@ -67,7 +70,9 @@ interface SidebarConversationItem {
   message_count: number;
   notification_key?: string | null;
   running_task_count: number;
+  unread_conversation_id?: string | null;
   unread_count?: number;
+  unread_target_key?: string | null;
   can_delete: boolean;
 }
 
@@ -483,6 +488,86 @@ function build_conversation_items({
   });
 }
 
+function get_sidebar_item_unread_state({
+  chat_unread_counts,
+  chat_unread_targets,
+  chat_unread_timestamps,
+  notification_key,
+  room_id,
+}: {
+  chat_unread_counts: Record<string, number>;
+  chat_unread_targets: Record<string, ChatNotificationTargetState>;
+  chat_unread_timestamps: Record<string, number>;
+  notification_key?: string | null;
+  room_id?: string | null;
+}): {
+  unread_conversation_id: string | null;
+  unread_count: number;
+  unread_target_key: string | null;
+} {
+  const normalized_room_id = room_id?.trim();
+  let unread_count = 0;
+  let unread_target: ChatNotificationTargetState | null = null;
+  let unread_target_timestamp = -1;
+  const counted_keys = new Set<string>();
+
+  if (normalized_room_id) {
+    for (const [key, target] of Object.entries(chat_unread_targets)) {
+      if (target.room_id !== normalized_room_id) {
+        continue;
+      }
+      const count = chat_unread_counts[key] ?? 0;
+      if (count <= 0) {
+        continue;
+      }
+      counted_keys.add(key);
+      unread_count += count;
+      const timestamp = chat_unread_timestamps[key] ?? 0;
+      if (timestamp >= unread_target_timestamp) {
+        unread_target = target;
+        unread_target_timestamp = timestamp;
+      }
+    }
+
+    const room_key = `room:${normalized_room_id}`;
+    const room_conversation_key_prefix = `${room_key}:conversation:`;
+    for (const [key, count] of Object.entries(chat_unread_counts)) {
+      if (counted_keys.has(key) || count <= 0) {
+        continue;
+      }
+      if (key !== room_key && !key.startsWith(room_conversation_key_prefix)) {
+        continue;
+      }
+      unread_count += count;
+      const timestamp = chat_unread_timestamps[key] ?? 0;
+      if (timestamp >= unread_target_timestamp) {
+        unread_target = chat_unread_targets[key] ?? {
+          conversation_id: key.startsWith(room_conversation_key_prefix)
+            ? key.slice(room_conversation_key_prefix.length)
+            : null,
+          key,
+          room_id: normalized_room_id,
+        };
+        unread_target_timestamp = timestamp;
+      }
+    }
+  } else if (notification_key) {
+    unread_count = chat_unread_counts[notification_key] ?? 0;
+    if (unread_count > 0) {
+      unread_target = chat_unread_targets[notification_key] ?? {
+        key: notification_key,
+        room_id,
+      };
+    }
+  }
+
+  return {
+    unread_conversation_id: unread_target?.conversation_id ?? null,
+    unread_count,
+    unread_target_key: unread_target?.key ?? null,
+  };
+}
+
 function ConversationRow({
   item,
   is_active,
@@ -580,8 +665,13 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
   const chat_unread_counts = useSidebarStore((s) => s.chat_unread_counts);
+  const chat_unread_targets = useSidebarStore((s) => s.chat_unread_targets);
+  const chat_unread_timestamps = useSidebarStore((s) => s.chat_unread_timestamps);
   const clear_chat_notifications_for_target = useSidebarStore(
     (s) => s.clear_chat_notifications_for_target,
+  );
+  const clear_chat_notifications_for_room = useSidebarStore(
+    (s) => s.clear_chat_notifications_for_room,
   );
   const set_nexus_room_id = useSidebarStore((s) => s.set_nexus_room_id);
   const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
@@ -615,13 +705,30 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         conversation_id: item.conversation_id,
         room_id: item.room_id,
       });
+      const unread_state = get_sidebar_item_unread_state({
+        chat_unread_counts,
+        chat_unread_targets,
+        chat_unread_timestamps,
+        notification_key,
+        room_id: item.room_id,
+      });
       return {
         ...item,
         notification_key,
-        unread_count: notification_key ? (chat_unread_counts[notification_key] ?? 0) : 0,
+        ...unread_state,
       };
     }),
-    [agents, agent_runtime_statuses, chat_unread_counts, conversations, rooms, t, untitled_room_label],
+    [
+      agents,
+      agent_runtime_statuses,
+      chat_unread_counts,
+      chat_unread_targets,
+      chat_unread_timestamps,
+      conversations,
+      rooms,
+      t,
+      untitled_room_label,
+    ],
   );
 
   const filtered_items = useMemo(() => {
@@ -639,25 +746,21 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     if (!item.room_id) {
       return;
     }
-    clear_chat_notifications_for_target(item.notification_key);
+    const target_conversation_id = item.unread_conversation_id || item.conversation_id;
+    clear_chat_notifications_for_room(item.room_id);
+    clear_chat_notifications_for_target(item.unread_target_key || item.notification_key);
     set_active_item(item.room_id);
-    if (item.conversation_id) {
-      navigate(AppRouteBuilders.room_conversation(item.room_id, item.conversation_id));
+    if (target_conversation_id) {
+      navigate(AppRouteBuilders.room_conversation(item.room_id, target_conversation_id));
       return;
     }
     navigate(AppRouteBuilders.room(item.room_id));
-  }, [clear_chat_notifications_for_target, navigate, set_active_item]);
-
-  const navigate_to_agent_dm = useCallback(async (agent_id: string, notification_key?: string | null) => {
-    clear_chat_notifications_for_target(notification_key);
-    const target = await resolve_direct_room_navigation_target(agent_id);
-    clear_chat_notifications_for_target(build_chat_notification_target_key({
-      conversation_id: target.context.conversation.id,
-      room_id: target.context.room.id,
-    }));
-    set_active_item(target.context.room.id);
-    navigate(target.route);
-  }, [clear_chat_notifications_for_target, navigate, set_active_item]);
+  }, [
+    clear_chat_notifications_for_room,
+    clear_chat_notifications_for_target,
+    navigate,
+    set_active_item,
+  ]);
 
   const handle_create_room = useCallback(() => {
     set_is_create_room_open(true);
@@ -741,10 +844,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
                 item={item}
                 key={item.id}
                 on_click={() => {
-                  if (item.kind === "dm" && item.agent_id) {
-                    void navigate_to_agent_dm(item.agent_id, item.notification_key);
-                    return;
-                  }
                   navigate_to_room(item);
                 }}
                 on_delete={item.can_delete && item.room_id ? () => set_delete_target({

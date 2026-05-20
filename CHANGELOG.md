@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - 聊天消息完成后新增通知闭环：非激活窗口触发浏览器系统通知，左侧聊天入口和会话行显示未读完成消息数，进入对应会话后自动清除。
 
+### Fixed
+- 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。
+
 ## [0.1.6] - 2026-05-20
 
 ### Added
