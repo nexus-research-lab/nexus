@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 修复 Windows WebView2 未写入 `nexus_desktop_token` cookie 时，WebSocket 握手可能被 sidecar 判定为桌面会话 token 无效并返回 401 的问题。
+
 ## [0.1.7] - 2026-05-20
 
 ### Added

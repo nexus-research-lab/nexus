@@ -46,6 +46,7 @@ internal sealed class WebViewHost
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
 
+        InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopBridgeScript.Make());
 
@@ -139,6 +140,33 @@ internal sealed class WebViewHost
     {
         webView.Source = DesktopWebRoute.FromPath(route).ToUri(runtime);
         return Task.CompletedTask;
+    }
+
+    private void InstallDesktopSessionCookie(CoreWebView2 core)
+    {
+        if (!Uri.TryCreate(runtime.WebBaseUrl, UriKind.Absolute, out Uri? webBaseUri))
+        {
+            startupTimeline.Mark("webview.cookie_failed", new Dictionary<string, string>
+            {
+                ["reason"] = "invalid_web_base_url",
+            });
+            return;
+        }
+
+        startupTimeline.Mark("webview.cookie_begin", new Dictionary<string, string>
+        {
+            ["host"] = webBaseUri.Host,
+        });
+        CoreWebView2Cookie cookie = core.CookieManager.CreateCookie(
+            "nexus_desktop_token",
+            runtime.SessionToken,
+            webBaseUri.Host,
+            "/");
+        core.CookieManager.AddOrUpdateCookie(cookie);
+        startupTimeline.Mark("webview.cookie_ready", new Dictionary<string, string>
+        {
+            ["host"] = webBaseUri.Host,
+        });
     }
 
     private void HandleNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
