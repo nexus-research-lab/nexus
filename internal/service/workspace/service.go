@@ -354,6 +354,7 @@ func (s *Service) UploadFile(ctx context.Context, agentID string, filename strin
 		filename,
 		destination,
 		reader,
+		uploadFileOptions{dedupeRoots: []string{".nexus/attachments"}},
 		func(path string) {
 			if s.live != nil {
 				s.live.SuppressWatcher(agentValue.AgentID, path)
@@ -373,7 +374,14 @@ func (s *Service) UploadFile(ctx context.Context, agentID string, filename strin
 
 // UploadFileToRoot 上传单个文件到指定根目录，调用方负责保证根目录归属。
 func UploadFileToRoot(root string, filename string, destination string, reader io.Reader) (*UploadResult, error) {
-	result, _, err := uploadFileToRoot(root, filename, destination, reader, nil)
+	result, _, err := uploadFileToRoot(
+		root,
+		filename,
+		destination,
+		reader,
+		uploadFileOptions{dedupeRoots: []string{"attachments"}},
+		nil,
+	)
 	return result, err
 }
 
@@ -382,6 +390,7 @@ func uploadFileToRoot(
 	filename string,
 	destination string,
 	reader io.Reader,
+	options uploadFileOptions,
 	beforeWrite func(string),
 ) (*UploadResult, []byte, error) {
 	safeName := normalizeUploadName(filename)
@@ -395,11 +404,36 @@ func uploadFileToRoot(
 	if len(content) > maxUploadSize {
 		return nil, nil, errors.New("文件大小超过限制 (20MB)")
 	}
+	contentMD5 := md5Hex(content)
 
 	relativePath := buildUploadTargetPath(strings.TrimSpace(destination), safeName)
 	targetPath, normalizedPath, err := resolveWorkspacePath(root, relativePath)
 	if err != nil {
 		return nil, nil, err
+	}
+	if matched, err := fileMatchesMD5(targetPath, contentMD5, int64(len(content))); err != nil {
+		return nil, nil, err
+	} else if matched {
+		return &UploadResult{
+			Path: normalizedPath,
+			Name: filepath.Base(normalizedPath),
+			Size: int64(len(content)),
+		}, content, nil
+	}
+	if existingPath, matched, err := findDuplicateUploadedFile(
+		root,
+		normalizedPath,
+		contentMD5,
+		int64(len(content)),
+		options.dedupeRoots,
+	); err != nil {
+		return nil, nil, err
+	} else if matched {
+		return &UploadResult{
+			Path: existingPath,
+			Name: filepath.Base(existingPath),
+			Size: int64(len(content)),
+		}, content, nil
 	}
 	if normalizedPath, targetPath, err = ensureUniqueWorkspaceFile(targetPath, normalizedPath); err != nil {
 		return nil, nil, err
