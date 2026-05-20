@@ -209,7 +209,7 @@ func (s *Service) queueRunningInput(
 	if err != nil {
 		return false, err
 	}
-	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent); err != nil {
+	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
 		return false, err
 	}
 	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments); err != nil {
@@ -260,7 +260,7 @@ func (s *Service) guideRunningInput(
 	if err != nil {
 		return false, err
 	}
-	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent)
+	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent.PlainText())
 	if err != nil {
 		return false, err
 	}

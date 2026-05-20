@@ -14,38 +14,39 @@ import (
 )
 
 type activeRoomSlot struct {
-	RoomSessionID     string
-	SDKSessionID      string
-	AgentID           string
-	AgentRoundID      string
-	MsgID             string
-	RuntimeSessionKey string
-	WorkspacePath     string
-	Client            runtimectx.Client
-	Cancel            context.CancelFunc
-	Status            string
-	Index             int
-	TimestampMS       int64
-	Trigger           roomTrigger
-	PublicCursorID    string
-	PublicCursorTS    int64
-	ActionCursorID    string
-	ActionCursorTS    int64
-	ReplyTarget       protocol.RoomReplyTarget
-	ReplySourceAction string
-	ReplySourceAgent  string
-	ReplyRequestID    string
-	ReplyAudience     []string
-	InterruptReason   string
-	QueuedInputs      []roomQueuedInput
-	GuidedInputs      []roomQueuedInput
-	SuppressOutput    bool
-	NoReplyCandidate  bool
-	PendingStream     []protocol.EventMessage
-	Done              chan struct{}
-	stateMu           sync.RWMutex
-	inputMu           sync.Mutex
-	doneOnce          sync.Once
+	RoomSessionID      string
+	SDKSessionID       string
+	AgentID            string
+	AgentRoundID       string
+	MsgID              string
+	RuntimeSessionKey  string
+	WorkspacePath      string
+	Client             runtimectx.Client
+	Cancel             context.CancelFunc
+	Status             string
+	Index              int
+	TimestampMS        int64
+	Trigger            roomTrigger
+	TriggerAttachments []protocol.ChatAttachment
+	PublicCursorID     string
+	PublicCursorTS     int64
+	ActionCursorID     string
+	ActionCursorTS     int64
+	ReplyTarget        protocol.RoomReplyTarget
+	ReplySourceAction  string
+	ReplySourceAgent   string
+	ReplyRequestID     string
+	ReplyAudience      []string
+	InterruptReason    string
+	QueuedInputs       []roomQueuedInput
+	GuidedInputs       []roomQueuedInput
+	SuppressOutput     bool
+	NoReplyCandidate   bool
+	PendingStream      []protocol.EventMessage
+	Done               chan struct{}
+	stateMu            sync.RWMutex
+	inputMu            sync.Mutex
+	doneOnce           sync.Once
 }
 
 type activeRoomRound struct {

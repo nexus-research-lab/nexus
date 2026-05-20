@@ -6,6 +6,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
@@ -25,9 +26,9 @@ func (s *Service) injectMemoryContext(
 	session protocol.Session,
 	sessionKey string,
 	content string,
-	runtimeContent string,
-) string {
-	if agentValue == nil || strings.TrimSpace(runtimeContent) == "" {
+	runtimeContent conversationsvc.RuntimeContent,
+) conversationsvc.RuntimeContent {
+	if agentValue == nil || runtimeContent.IsEmpty() {
 		return runtimeContent
 	}
 	engine := memorysvc.NewEngine(agentValue.WorkspacePath, s.memoryOptions())
@@ -52,7 +53,7 @@ func (s *Service) injectMemoryContext(
 	if strings.TrimSpace(injection.DynamicUserContext) == "" {
 		return runtimeContent
 	}
-	return strings.TrimSpace(injection.DynamicUserContext) + "\n\n" + runtimeContent
+	return runtimeContent.PrependText(injection.DynamicUserContext)
 }
 
 func (r *roundRunner) commitMemoryTurn() {

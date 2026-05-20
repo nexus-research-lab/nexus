@@ -308,7 +308,7 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 		if renderErr != nil {
 			return renderErr
 		}
-		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, roomID, conversationID, targetAgentIDs, content, runtimeContent, "queue_"+item.ID)
+		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, roomID, conversationID, targetAgentIDs, content, runtimeContent.PlainText(), "queue_"+item.ID)
 		if err != nil {
 			return err
 		}

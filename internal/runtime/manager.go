@@ -102,6 +102,13 @@ func (c *sdkClientAdapter) Query(ctx context.Context, prompt string) error {
 	return err
 }
 
+func (c *sdkClientAdapter) QueryContent(ctx context.Context, content any) error {
+	if prompt, ok := content.(string); ok {
+		return c.Query(ctx, prompt)
+	}
+	return c.SendContent(ctx, content, nil, "")
+}
+
 func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -496,6 +503,25 @@ func SendClientContent(ctx context.Context, client Client, content any) error {
 		return ErrStreamingInputUnsupported
 	}
 	return sender.SendContent(ctx, content, nil, "")
+}
+
+type queryContentClient interface {
+	QueryContent(context.Context, any) error
+}
+
+// QueryClientContent 通过 SDK client 启动一轮用户输入，图片等结构化输入走 content block。
+func QueryClientContent(ctx context.Context, client Client, content any) error {
+	if client == nil {
+		return ErrNoRunningRound
+	}
+	if prompt, ok := content.(string); ok {
+		return client.Query(ctx, prompt)
+	}
+	sender, ok := client.(queryContentClient)
+	if !ok {
+		return ErrStreamingInputUnsupported
+	}
+	return sender.QueryContent(ctx, content)
 }
 
 // GetInterruptReason 返回 round 是否已收到显式中断请求。

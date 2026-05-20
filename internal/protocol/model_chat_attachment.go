@@ -56,10 +56,10 @@ func NormalizeChatAttachmentScope(value string, conversationID string) ChatAttac
 }
 
 // NormalizeChatAttachment 归一化单个聊天附件。
-func NormalizeChatAttachment(value ChatAttachment, fallbackAgentID string) ChatAttachment {
+func NormalizeChatAttachment(value ChatAttachment, defaultAgentID string) ChatAttachment {
 	value.FileName = strings.TrimSpace(value.FileName)
 	value.WorkspacePath = strings.TrimSpace(strings.ReplaceAll(value.WorkspacePath, "\\", "/"))
-	value.WorkspaceAgentID = strings.TrimSpace(firstNonEmptyChatAttachment(value.WorkspaceAgentID, fallbackAgentID))
+	value.WorkspaceAgentID = strings.TrimSpace(firstNonEmptyChatAttachment(value.WorkspaceAgentID, defaultAgentID))
 	value.RoomID = strings.TrimSpace(value.RoomID)
 	value.ConversationID = strings.TrimSpace(value.ConversationID)
 	value.Scope = NormalizeChatAttachmentScope(string(value.Scope), value.ConversationID)
@@ -84,13 +84,13 @@ func firstNonEmptyChatAttachment(values ...string) string {
 }
 
 // NormalizeChatAttachments 归一化并过滤无效附件。
-func NormalizeChatAttachments(values []ChatAttachment, fallbackAgentID string) []ChatAttachment {
+func NormalizeChatAttachments(values []ChatAttachment, defaultAgentID string) []ChatAttachment {
 	if len(values) == 0 {
 		return nil
 	}
 	result := make([]ChatAttachment, 0, len(values))
 	for _, value := range values {
-		normalized := NormalizeChatAttachment(value, fallbackAgentID)
+		normalized := NormalizeChatAttachment(value, defaultAgentID)
 		if normalized.WorkspacePath == "" {
 			continue
 		}

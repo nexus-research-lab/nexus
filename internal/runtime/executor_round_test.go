@@ -14,18 +14,28 @@ import (
 )
 
 type fakeRoundExecutionClient struct {
-	sessionID   string
-	queryErr    error
-	streamErr   error
-	waitErr     error
-	messages    chan sdkprotocol.ReceivedMessage
-	interrupts  int
-	disconnects int
+	sessionID    string
+	queryErr     error
+	streamErr    error
+	waitErr      error
+	messages     chan sdkprotocol.ReceivedMessage
+	interrupts   int
+	disconnects  int
+	queryPrompts []string
+	queryContent []any
 }
 
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
 
-func (c *fakeRoundExecutionClient) Query(context.Context, string) error { return c.queryErr }
+func (c *fakeRoundExecutionClient) Query(_ context.Context, prompt string) error {
+	c.queryPrompts = append(c.queryPrompts, prompt)
+	return c.queryErr
+}
+
+func (c *fakeRoundExecutionClient) QueryContent(_ context.Context, content any) error {
+	c.queryContent = append(c.queryContent, content)
+	return c.queryErr
+}
 
 func (c *fakeRoundExecutionClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
 	return c.messages
@@ -154,6 +164,53 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 	}
 	if len(emitted) != 2 {
 		t.Fatalf("事件扇出次数不正确: %+v", emitted)
+	}
+}
+
+func TestExecuteRoundUsesStructuredContent(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-structured",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-structured",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+	mapper := &fakeRoundExecutionMapper{
+		results: []RoundMapResult{{
+			TerminalStatus: "finished",
+			ResultSubtype:  "success",
+		}},
+	}
+	content := []map[string]any{
+		{"type": "text", "text": "描述图片"},
+		{
+			"type": "image",
+			"source": map[string]any{
+				"type":       "base64",
+				"media_type": "image/png",
+				"data":       "ZmFrZQ==",
+			},
+		},
+	}
+
+	if _, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: content,
+		Client:  client,
+		Mapper:  mapper,
+	}); err != nil {
+		t.Fatalf("ExecuteRound 结构化输入失败: %v", err)
+	}
+	if len(client.queryPrompts) != 0 {
+		t.Fatalf("结构化输入不应走纯文本 Query: %+v", client.queryPrompts)
+	}
+	if len(client.queryContent) != 1 {
+		t.Fatalf("结构化输入未走 QueryContent: %+v", client.queryContent)
 	}
 }
 

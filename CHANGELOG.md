@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 工作区文件预览支持 Markdown、HTML、Mermaid、图片、SVG、PDF 和普通文本，并在预览区、聊天文件卡和文件右键菜单提供统一下载入口。
 
 ### Fixed
+- 修复图片附件只作为 `@"path"` 文本传入 runtime，导致首轮对话不稳定触发读图的问题，并对齐 Claude Code 的 `source.base64` 图片内容块。
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。
 - 修复 Windows 安装器在 Windows 11 ARM64 x64 兼容环境下因 Inno Setup 架构约束误报不支持当前 Windows 版本的问题。
 - 修复 Windows 桌面 App 内聊天、侧边栏订阅和完成通知 WebSocket 未携带桌面会话 token，导致连接被本地 sidecar 拒绝的问题。

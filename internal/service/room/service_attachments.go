@@ -12,20 +12,20 @@ import (
 
 func (s *RealtimeService) normalizeChatAttachments(
 	attachments []protocol.ChatAttachment,
-	fallbackAgentID string,
-	fallbackRoomID string,
-	fallbackConversationID string,
+	defaultAgentID string,
+	defaultRoomID string,
+	defaultConversationID string,
 ) []protocol.ChatAttachment {
-	normalized := protocol.NormalizeChatAttachments(attachments, strings.TrimSpace(fallbackAgentID))
+	normalized := protocol.NormalizeChatAttachments(attachments, strings.TrimSpace(defaultAgentID))
 	for index := range normalized {
 		if normalized[index].Scope != protocol.ChatAttachmentScopeRoomConversation {
 			continue
 		}
 		if strings.TrimSpace(normalized[index].RoomID) == "" {
-			normalized[index].RoomID = strings.TrimSpace(fallbackRoomID)
+			normalized[index].RoomID = strings.TrimSpace(defaultRoomID)
 		}
 		if strings.TrimSpace(normalized[index].ConversationID) == "" {
-			normalized[index].ConversationID = strings.TrimSpace(fallbackConversationID)
+			normalized[index].ConversationID = strings.TrimSpace(defaultConversationID)
 		}
 		normalized[index].WorkspaceAgentID = ""
 	}
@@ -36,7 +36,7 @@ func (s *RealtimeService) renderRuntimeContentWithAttachments(
 	ctx context.Context,
 	content string,
 	attachments []protocol.ChatAttachment,
-) (string, error) {
+) (conversationsvc.RuntimeContent, error) {
 	return conversationsvc.RenderRuntimeContentWithAttachments(
 		ctx,
 		content,
@@ -86,7 +86,7 @@ func (s *RealtimeService) renderRuntimeAttachmentMessages(
 			return nil, err
 		}
 		next := protocol.Clone(message)
-		next["content"] = runtimeContent
+		next["content"] = runtimeContent.PlainText()
 		result = append(result, next)
 	}
 	return result, nil

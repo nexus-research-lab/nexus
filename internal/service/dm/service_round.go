@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -51,7 +52,7 @@ type roundRunner struct {
 	roundID           string
 	reqID             string
 	content           string
-	runtimeContent    string
+	runtimeContent    conversationsvc.RuntimeContent
 	client            runtimectx.Client
 	runtimeProvider   string
 	runtimeModel      string
@@ -105,9 +106,9 @@ func (r *roundRunner) executeRound(
 	logger *slog.Logger,
 ) (runtimectx.RoundExecutionResult, error) {
 	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
-		Query:  r.runtimeContent,
-		Client: r.client,
-		Mapper: dmRoundMapperAdapter{mapper: r.mapper},
+		Content: r.runtimeContent.Payload(),
+		Client:  r.client,
+		Mapper:  dmRoundMapperAdapter{mapper: r.mapper},
 		InterruptReason: func() string {
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},

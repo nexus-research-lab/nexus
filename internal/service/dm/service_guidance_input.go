@@ -54,7 +54,7 @@ func (s *Service) inputQueueGuidanceHook(
 			}
 			inputs = append(inputs, runtimectx.GuidedInput{
 				RoundID: sourceRoundID,
-				Content: runtimeContent,
+				Content: runtimeContent.PlainText(),
 			})
 			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, sourceRoundID, item.Content)
 		}

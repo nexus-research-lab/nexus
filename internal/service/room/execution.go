@@ -251,11 +251,16 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	dispatchRuntimeContent, err := s.renderRuntimeContentWithAttachments(slotCtx, dispatchPrompt, slot.TriggerAttachments)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
 	slot.beginNoReplyCandidate()
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
-		Query:  dispatchPrompt,
-		Client: client,
-		Mapper: roomRoundMapperAdapter{mapper: mapper},
+		Content: dispatchRuntimeContent.Payload(),
+		Client:  client,
+		Mapper:  roomRoundMapperAdapter{mapper: mapper},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
 		},

@@ -186,7 +186,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			conversationID,
 			targetAgentIDs,
 			strings.TrimSpace(request.Content),
-			runtimeTriggerContent,
+			runtimeTriggerContent.PlainText(),
 			request.RoundID,
 		)
 		if guideErr != nil {
@@ -225,7 +225,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	}
 	initialTrigger := roomTrigger{
 		TriggerType: initialTriggerType,
-		Content:     runtimeTriggerContent,
+		Content:     strings.TrimSpace(request.Content),
 		MessageID:   request.RoundID,
 	}
 	activeRound := &activeRoomRound{
@@ -259,18 +259,19 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		slotTrigger := initialTrigger
 		slotTrigger.TargetAgentID = agentID
 		activeRound.Slots[msgID] = &activeRoomSlot{
-			RoomSessionID:     sessionRecord.ID,
-			SDKSessionID:      strings.TrimSpace(sessionRecord.SDKSessionID),
-			AgentID:           agentID,
-			AgentRoundID:      agentRoundID,
-			MsgID:             msgID,
-			RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, agentID, contextValue.Room.RoomType),
-			WorkspacePath:     agentValue.WorkspacePath,
-			Status:            "pending",
-			Index:             index,
-			TimestampMS:       normalizeInt64(userMessage["timestamp"]),
-			Trigger:           slotTrigger,
-			Done:              make(chan struct{}),
+			RoomSessionID:      sessionRecord.ID,
+			SDKSessionID:       strings.TrimSpace(sessionRecord.SDKSessionID),
+			AgentID:            agentID,
+			AgentRoundID:       agentRoundID,
+			MsgID:              msgID,
+			RuntimeSessionKey:  protocol.BuildRoomAgentSessionKey(conversationID, agentID, contextValue.Room.RoomType),
+			WorkspacePath:      agentValue.WorkspacePath,
+			Status:             "pending",
+			Index:              index,
+			TimestampMS:        normalizeInt64(userMessage["timestamp"]),
+			Trigger:            slotTrigger,
+			TriggerAttachments: attachments,
+			Done:               make(chan struct{}),
 		}
 		_ = sessionRecord
 		pending = append(pending, map[string]any{

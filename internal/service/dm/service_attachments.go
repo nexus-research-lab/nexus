@@ -10,16 +10,16 @@ import (
 
 func (s *Service) normalizeChatAttachments(
 	attachments []protocol.ChatAttachment,
-	fallbackAgentID string,
+	defaultAgentID string,
 ) []protocol.ChatAttachment {
-	return protocol.NormalizeChatAttachments(attachments, strings.TrimSpace(fallbackAgentID))
+	return protocol.NormalizeChatAttachments(attachments, strings.TrimSpace(defaultAgentID))
 }
 
 func (s *Service) renderRuntimeContentWithAttachments(
 	ctx context.Context,
 	content string,
 	attachments []protocol.ChatAttachment,
-) (string, error) {
+) (conversationsvc.RuntimeContent, error) {
 	return conversationsvc.RenderRuntimeContentWithAttachments(
 		ctx,
 		content,

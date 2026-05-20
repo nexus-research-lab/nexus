@@ -46,7 +46,7 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 			if renderErr != nil {
 				return sdkhook.Output{}, renderErr
 			}
-			item.Content = runtimeContent
+			item.Content = runtimeContent.PlainText()
 			runtimeQueueItems = append(runtimeQueueItems, item)
 		}
 		sourceRoundID, triggerContent := latestGuidanceTrigger(queuedInputs, runtimeQueueItems)
