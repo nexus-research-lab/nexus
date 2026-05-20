@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 聊天消息完成后新增通知闭环：非激活窗口触发浏览器系统通知，左侧聊天入口和会话行显示未读完成消息数，进入对应会话后自动清除。
 - 新增 Nexus Memory v1：支持本地 Markdown 真相源、自动动态召回、候选提升、checkpoint 去重、`nexusctl memory` 管理命令、HTTP API 与 Web Memory 面板。
+- 聊天消息完成后新增通知闭环：非激活窗口触发浏览器系统通知，左侧聊天入口和会话行显示未读完成消息数，进入对应会话后自动清除。
+- 工作区文件预览支持 Markdown、HTML、Mermaid、图片、SVG、PDF 和普通文本，并在预览区、聊天文件卡和文件右键菜单提供统一下载入口。
 
 ### Fixed
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。

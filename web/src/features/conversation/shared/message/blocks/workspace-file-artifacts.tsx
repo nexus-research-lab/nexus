@@ -39,6 +39,7 @@ export function WorkspaceFileArtifactBlock({
       label={artifact.label ?? "文件"}
       path={artifact.path}
       display_path={artifact.display_path ?? artifact.path}
+      workspace_agent_id={artifact.workspace_agent_id}
       on_open_workspace_file={on_open_workspace_file}
     />
   );

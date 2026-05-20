@@ -50,7 +50,6 @@ interface RoomSurfaceShellProps {
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
-  on_close_workspace_pane: () => void;
   on_start_editor_resize: () => void;
   on_loading_change: (is_loading: boolean) => void;
   on_todos_change: (todos: TodoItem[]) => void;
@@ -95,7 +94,6 @@ export function RoomSurfaceShell({
   on_update_room,
   on_update_conversation_title,
   on_open_workspace_file,
-  on_close_workspace_pane,
   on_start_editor_resize,
   on_loading_change,
   on_todos_change,
@@ -186,7 +184,6 @@ export function RoomSurfaceShell({
       on_save_agent_options={on_save_agent_options}
       on_validate_agent_name={on_validate_agent_name}
       on_change_surface_tab={handle_change_surface_tab}
-      on_close_workspace_pane={on_close_workspace_pane}
       on_conversation_snapshot_change={on_conversation_snapshot_change}
       on_create_conversation={handle_create_conversation_in_shell}
       on_delete_conversation={on_delete_conversation}

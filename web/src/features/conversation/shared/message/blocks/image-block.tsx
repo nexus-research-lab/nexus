@@ -1,8 +1,8 @@
 "use client";
 
-import { ImageIcon } from "lucide-react";
+import { Download, ImageIcon } from "lucide-react";
 
-import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
+import { get_workspace_file_download_url, get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { type ImageContent } from "@/types/conversation/message";
 
@@ -78,6 +78,9 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
   const current_agent_id = useMarkdownCurrentAgentID(workspace_agent_id);
   const { src, workspace_path } = resolve_image_source(block, resolve_file_path, current_agent_id);
   const can_open = Boolean(workspace_path && on_open_workspace_file);
+  const download_url = workspace_path && current_agent_id
+    ? get_workspace_file_download_url(current_agent_id, workspace_path)
+    : "";
 
   if (!src) {
     return (
@@ -111,6 +114,18 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
         <figcaption className="mt-1.5 text-[12px] leading-4 text-(--text-muted)">
           {block.alt}
         </figcaption>
+      ) : null}
+      {download_url ? (
+        <a
+          className="mt-2 inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary"
+          download={workspace_path?.split("/").at(-1) || "image"}
+          href={download_url}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <Download className="h-3.5 w-3.5" />
+          下载
+        </a>
       ) : null}
     </figure>
   );

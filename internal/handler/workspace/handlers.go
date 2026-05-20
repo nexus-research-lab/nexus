@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"errors"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -216,8 +217,9 @@ func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, reque
 
 // 中文注释：预览与下载共用同一路由，但内容处置必须显式分流，避免 PDF/图片预览复用下载语义。
 func buildWorkspaceFileDispositionHeader(fileName string, requestedDisposition string) string {
+	disposition := workspaceFileDispositionAttachment
 	if requestedDisposition == workspaceFileDispositionInline {
-		return `inline; filename="` + fileName + `"`
+		disposition = workspaceFileDispositionInline
 	}
-	return `attachment; filename="` + fileName + `"`
+	return mime.FormatMediaType(disposition, map[string]string{"filename": fileName})
 }

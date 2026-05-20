@@ -72,6 +72,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
               label={segment.label}
               path={segment.path}
               display_path={segment.display_path}
+              workspace_agent_id={workspace_agent_id}
               on_open_workspace_file={on_open_workspace_file}
             />
           );

@@ -42,10 +42,6 @@ export function useHomeWorkspaceController({
     setIsResizingEditor(true);
   }, []);
 
-  const handle_close_workspace_pane = useCallback(() => {
-    setIsEditorOpen(false);
-  }, []);
-
   useEffect(() => {
     if (!is_resizing_editor) {
       return;
@@ -87,6 +83,5 @@ export function useHomeWorkspaceController({
     set_is_conversation_busy: setIsConversationBusy,
     handle_open_workspace_file,
     handle_start_editor_resize,
-    handle_close_workspace_pane,
   };
 }

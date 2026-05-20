@@ -22,7 +22,7 @@ import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent/agent";
-import { MermaidArtifactView } from "@/features/conversation/shared/artifacts/mermaid-artifact-view";
+import { MermaidView } from "./mermaid-view";
 
 import { CodeBlock } from "../blocks/code-block";
 
@@ -300,7 +300,7 @@ export function create_markdown_components(
       if (is_block_code(node as MarkdownNodeLike | undefined, className, value)) {
         const language = /language-(\w+)/.exec(className || "")?.[1] || "text";
         if (language.toLowerCase() === "mermaid" || language.toLowerCase() === "mmd") {
-          return <MermaidArtifactView chart={value} compact />;
+          return <MermaidView chart={value} compact />;
         }
         return <CodeBlock language={language} value={value} is_streaming={options.stream_code_blocks} />;
       }

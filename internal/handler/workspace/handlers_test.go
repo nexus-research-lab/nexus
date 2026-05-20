@@ -1,19 +1,30 @@
 package workspace
 
-import "testing"
+import (
+	"mime"
+	"testing"
+)
 
 func TestBuildWorkspaceFileDispositionHeader(t *testing.T) {
 	t.Parallel()
 
-	if got := buildWorkspaceFileDispositionHeader("demo.pdf", ""); got != `attachment; filename="demo.pdf"` {
-		t.Fatalf("expected attachment disposition, got %q", got)
-	}
+	assertWorkspaceFileDispositionHeader(t, buildWorkspaceFileDispositionHeader("demo.pdf", ""), workspaceFileDispositionAttachment, "demo.pdf")
+	assertWorkspaceFileDispositionHeader(t, buildWorkspaceFileDispositionHeader("demo.pdf", workspaceFileDispositionInline), workspaceFileDispositionInline, "demo.pdf")
+	assertWorkspaceFileDispositionHeader(t, buildWorkspaceFileDispositionHeader("demo.pdf", "invalid"), workspaceFileDispositionAttachment, "demo.pdf")
+	assertWorkspaceFileDispositionHeader(t, buildWorkspaceFileDispositionHeader("报告.pdf", ""), workspaceFileDispositionAttachment, "报告.pdf")
+}
 
-	if got := buildWorkspaceFileDispositionHeader("demo.pdf", workspaceFileDispositionInline); got != `inline; filename="demo.pdf"` {
-		t.Fatalf("expected inline disposition, got %q", got)
-	}
+func assertWorkspaceFileDispositionHeader(t *testing.T, header string, wantDisposition string, wantFilename string) {
+	t.Helper()
 
-	if got := buildWorkspaceFileDispositionHeader("demo.pdf", "invalid"); got != `attachment; filename="demo.pdf"` {
-		t.Fatalf("expected invalid disposition to fallback to attachment, got %q", got)
+	disposition, params, err := mime.ParseMediaType(header)
+	if err != nil {
+		t.Fatalf("解析 Content-Disposition 失败: %v", err)
+	}
+	if disposition != wantDisposition {
+		t.Fatalf("disposition=%q, want %q, header=%q", disposition, wantDisposition, header)
+	}
+	if params["filename"] != wantFilename {
+		t.Fatalf("filename=%q, want %q, header=%q", params["filename"], wantFilename, header)
 	}
 }

@@ -7,13 +7,13 @@ import { AlertTriangle, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-interface MermaidArtifactViewProps {
+interface MermaidViewProps {
   chart: string;
   compact?: boolean;
   class_name?: string;
 }
 
-export function MermaidArtifactView({ chart, compact = false, class_name }: MermaidArtifactViewProps) {
+export function MermaidView({ chart, compact = false, class_name }: MermaidViewProps) {
   const render_id = `mermaid-${useId().replace(/:/g, "")}`;
   const [svg, set_svg] = useState("");
   const [error, set_error] = useState<string | null>(null);
@@ -79,7 +79,7 @@ export function MermaidArtifactView({ chart, compact = false, class_name }: Merm
   return (
     <div
       className={cn(
-        "mermaid-artifact flex min-w-0 justify-center overflow-auto rounded-[8px] bg-white p-4",
+        "mermaid-view flex min-w-0 justify-center overflow-auto rounded-[8px] bg-white p-4",
         compact ? "my-2 max-h-[420px]" : "h-full",
         class_name,
       )}

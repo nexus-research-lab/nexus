@@ -11,7 +11,7 @@
 
 import { createPortal } from "react-dom";
 import { useEffect, useRef } from "react";
-import { FilePlus, FolderPlus, Pencil, Trash2, Upload } from "lucide-react";
+import { Download, FilePlus, FolderPlus, Pencil, Trash2, Upload } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
@@ -24,6 +24,7 @@ interface WorkspaceContextMenuProps {
   on_upload: () => void;
   on_create_file: () => void;
   on_create_folder: () => void;
+  on_download: () => void;
   on_rename: () => void;
   on_delete: () => void;
   on_close: () => void;
@@ -36,6 +37,7 @@ export function WorkspaceContextMenu({
   on_upload,
   on_create_file,
   on_create_folder,
+  on_download,
   on_rename,
   on_delete,
   on_close,
@@ -116,6 +118,16 @@ export function WorkspaceContextMenu({
 
         {entry ? (
           <>
+            {!entry.is_dir ? (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                onClick={() => { on_download(); on_close(); }}
+              >
+                <Download className="h-4 w-4" />
+                <span>下载</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"

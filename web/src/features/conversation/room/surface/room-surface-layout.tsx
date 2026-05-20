@@ -66,7 +66,6 @@ interface RoomSurfaceLayoutProps {
   on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
   on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
-  on_close_workspace_pane: () => void;
   on_start_editor_resize: () => void;
   on_loading_change: (is_loading: boolean) => void;
   on_todos_change: (todos: TodoItem[]) => void;
@@ -129,7 +128,6 @@ function RoomSurfaceLayoutInner({
                                     on_update_room,
                                     on_update_conversation_title,
                                     on_open_workspace_file,
-                                    on_close_workspace_pane,
                                     on_start_editor_resize,
                                     on_loading_change,
                                     on_todos_change,
@@ -285,7 +283,6 @@ function RoomSurfaceLayoutInner({
                     is_dm={is_dm}
                     is_editor_open={is_editor_open}
                     room_members={room_members}
-                    on_close_workspace_pane={on_close_workspace_pane}
                     on_open_workspace_file={on_open_workspace_file}
                   />
                 </div>

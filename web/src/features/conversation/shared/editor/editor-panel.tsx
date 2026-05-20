@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
-  FileText, LoaderCircle, Minimize2, Save, FileWarning, Download, Eye, EyeOff, FileImage,
+  Download,
+  Eye,
+  EyeOff,
+  FileImage,
+  FileText,
+  FileWarning,
+  LoaderCircle,
+  Maximize2,
+  Minimize2,
+  Pencil,
+  Save,
 } from "lucide-react";
 
 import {
@@ -15,15 +25,18 @@ import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { MermaidView } from "@/features/conversation/shared/message/markdown/mermaid-view";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
 
 // 文件类型检测
-function get_file_type(path: string): "text" | "pdf" | "image" | "binary" | "unknown" {
+type WorkspaceFilePreviewKind = "text" | "markdown" | "html" | "mermaid" | "pdf" | "image" | "binary" | "unknown";
+
+function get_file_type(path: string): WorkspaceFilePreviewKind {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   const textExtensions = new Set([
-    "txt", "md", "markdown", "json", "jsonl", "yaml", "yml", "toml", "xml",
+    "txt", "json", "jsonl", "yaml", "yml", "toml", "xml",
     "csv", "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "java", "go", "rs",
-    "rb", "php", "sh", "bash", "zsh", "sql", "r", "html", "css", "scss", "less",
+    "rb", "php", "sh", "bash", "zsh", "sql", "r", "css", "scss", "less",
     "log", "ini", "conf", "env", "dockerfile", "makefile", "cmake", "gradle",
     "proto", "graphql", "rst", "adoc"
   ]);
@@ -32,6 +45,9 @@ function get_file_type(path: string): "text" | "pdf" | "image" | "binary" | "unk
   ]);
   if (ext === "pdf") return "pdf";
   if (imageExtensions.has(ext)) return "image";
+  if (ext === "md" || ext === "markdown") return "markdown";
+  if (ext === "html" || ext === "htm") return "html";
+  if (ext === "mmd" || ext === "mermaid") return "mermaid";
   if (textExtensions.has(ext)) return "text";
   return "binary";
 }
@@ -43,8 +59,9 @@ interface EditorPanelProps {
   width_percent: number;
   embedded?: boolean;
   class_name?: string;
-  on_close: () => void;
+  is_preview_focused?: boolean;
   on_resize_start: () => void;
+  on_toggle_preview_focus?: () => void;
 }
 
 function EditorPanelHeader({
@@ -53,9 +70,9 @@ function EditorPanelHeader({
   meta,
   title,
 }: {
-  actions: React.ReactNode;
+  actions: ReactNode;
   embedded?: boolean;
-  meta?: React.ReactNode;
+  meta?: ReactNode;
   title: string;
 }) {
   if (embedded) {
@@ -103,29 +120,276 @@ function EditorPanelHeader({
   );
 }
 
+function WorkspaceFileDownloadButton({
+  agent_id,
+  path,
+  file_name,
+  label = "下载",
+}: {
+  agent_id: string;
+  path: string;
+  file_name: string;
+  label?: string;
+}) {
+  const download_url = get_workspace_file_download_url(agent_id, path);
+
+  return (
+    <a
+      aria-label={`下载 ${file_name}`}
+      className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
+      download={file_name}
+      href={download_url}
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      <Download className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </a>
+  );
+}
+
+const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",
+  "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
+  "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
+  "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:border-(--divider-subtle-color) disabled:hover:bg-(--surface-panel-background) disabled:hover:text-(--text-default)",
+);
+
+function WorkspaceFileToolbarButton({
+  children,
+  disabled = false,
+  on_click,
+  title,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  on_click: () => void;
+  title?: string;
+}) {
+  return (
+    <button
+      className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
+      disabled={disabled}
+      onClick={on_click}
+      title={title}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function WorkspaceFilePreviewFocusButton({
+  is_preview_focused = false,
+  on_toggle_preview_focus,
+}: {
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
+}) {
+  if (!on_toggle_preview_focus) {
+    return null;
+  }
+
+  return (
+    <WorkspaceFileToolbarButton
+      on_click={on_toggle_preview_focus}
+      title={is_preview_focused ? "还原文件树" : "聚焦预览"}
+    >
+      {is_preview_focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+      <span>{is_preview_focused ? "还原" : "放大"}</span>
+    </WorkspaceFileToolbarButton>
+  );
+}
+
+function workspace_file_kind_label(file_type: WorkspaceFilePreviewKind): string {
+  switch (file_type) {
+    case "markdown":
+      return "Markdown 预览";
+    case "html":
+      return "HTML 预览";
+    case "mermaid":
+      return "Mermaid 预览";
+    case "text":
+      return "文本预览";
+    default:
+      return "文件预览";
+  }
+}
+
+const HTML_PREVIEW_WIDTH = 1920;
+const HTML_PREVIEW_HEIGHT = 1080;
+const HTML_PREVIEW_PADDING = 32;
+
+const HTML_PREVIEW_STORAGE_SHIM = `<script>
+(() => {
+  const createStorage = () => {
+    const values = new Map();
+    return {
+      get length() { return values.size; },
+      clear: () => values.clear(),
+      getItem: (key) => values.has(String(key)) ? values.get(String(key)) : null,
+      key: (index) => Array.from(values.keys())[Number(index)] ?? null,
+      removeItem: (key) => values.delete(String(key)),
+      setItem: (key, value) => values.set(String(key), String(value)),
+    };
+  };
+  const installStorage = (name) => {
+    try {
+      const storage = window[name];
+      const testKey = "__nexus_preview_storage_test__";
+      storage.setItem(testKey, "1");
+      storage.removeItem(testKey);
+    } catch (_) {
+      Object.defineProperty(window, name, {
+        configurable: true,
+        value: createStorage(),
+      });
+    }
+  };
+  installStorage("localStorage");
+  installStorage("sessionStorage");
+})();
+</script>`;
+
+function build_html_preview_document(content: string): string {
+  if (/<head(\s[^>]*)?>/i.test(content)) {
+    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${HTML_PREVIEW_STORAGE_SHIM}`);
+  }
+  if (/<html(\s[^>]*)?>/i.test(content)) {
+    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${HTML_PREVIEW_STORAGE_SHIM}</head>`);
+  }
+  return `${HTML_PREVIEW_STORAGE_SHIM}${content}`;
+}
+
+function HtmlFilePreview({ content, title }: { content: string; title: string }) {
+  const container_ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const preview_document = build_html_preview_document(content);
+
+  useEffect(() => {
+    const el = container_ref.current;
+    if (!el) {
+      return;
+    }
+
+    const update_scale = (width: number, height: number) => {
+      const available_width = Math.max(width - HTML_PREVIEW_PADDING, 1);
+      const available_height = Math.max(height - HTML_PREVIEW_PADDING, 1);
+      setScale(
+        Math.min(
+          available_width / HTML_PREVIEW_WIDTH,
+          available_height / HTML_PREVIEW_HEIGHT,
+          1,
+        ),
+      );
+    };
+
+    const bounds = el.getBoundingClientRect();
+    update_scale(bounds.width, bounds.height);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      update_scale(entry.contentRect.width, entry.contentRect.height);
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={container_ref}
+      className="soft-scrollbar flex h-full min-h-0 w-full items-start justify-center overflow-auto bg-(--surface-panel-subtle-background) p-4"
+    >
+      <div
+        className="shrink-0 overflow-hidden rounded-[10px] border border-(--divider-subtle-color) bg-white shadow-[0_20px_60px_rgba(15,23,42,0.10)]"
+        style={{
+          height: HTML_PREVIEW_HEIGHT * scale,
+          width: HTML_PREVIEW_WIDTH * scale,
+        }}
+      >
+        <div
+          style={{
+            height: HTML_PREVIEW_HEIGHT,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+            width: HTML_PREVIEW_WIDTH,
+          }}
+        >
+          <iframe
+            className="h-full w-full bg-white"
+            sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+            srcDoc={preview_document}
+            title={title}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TextFilePreview({
+  content,
+  file_name,
+  file_type,
+  is_loading,
+}: {
+  content: string;
+  file_name: string;
+  file_type: WorkspaceFilePreviewKind;
+  is_loading: boolean;
+}) {
+  if (is_loading) {
+    return <div className="font-mono text-sm leading-6 text-(--text-muted)">加载中...</div>;
+  }
+
+  if (file_type === "markdown") {
+    return (
+      <MarkdownRendererContent
+        class_name="min-h-full"
+        content={content}
+      />
+    );
+  }
+
+  if (file_type === "mermaid") {
+    return <MermaidView chart={content} class_name="min-h-full" />;
+  }
+
+  if (file_type === "html") {
+    return <HtmlFilePreview content={content} title={file_name} />;
+  }
+
+  return (
+    <pre className="message-cjk-code-font min-h-full whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
+      {content}
+    </pre>
+  );
+}
+
 // PDF 预览组件
 function PdfPreview({
   agent_id,
   path,
   file_name,
-  on_close,
+  is_preview_focused,
+  on_toggle_preview_focus,
   on_resize_start,
   embedded,
 }: {
   agent_id: string;
   path: string;
   file_name: string;
-  on_close: () => void;
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
   on_resize_start: () => void;
   embedded?: boolean;
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
-  const download_url = get_workspace_file_download_url(agent_id, path);
   const preview_url = get_workspace_file_preview_url(agent_id, path);
-
-  const handle_download = () => {
-    window.open(download_url, "_blank");
-  };
 
   return (
     <>
@@ -140,27 +404,11 @@ function PdfPreview({
       <EditorPanelHeader
         actions={(
           <>
-            <button
-              aria-label="下载 PDF"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
-              style={{
-                background: "var(--card-default-background)",
-                borderColor: "var(--card-default-border)",
-              }}
-              onClick={handle_download}
-              type="button"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>下载</span>
-            </button>
-            <button
-              aria-label="关闭预览"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-              onClick={on_close}
-              type="button"
-            >
-              <Minimize2 className="h-4 w-4" />
-            </button>
+            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFilePreviewFocusButton
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
+            />
           </>
         )}
         embedded={embedded}
@@ -203,25 +451,22 @@ function ImagePreview({
   agent_id,
   path,
   file_name,
-  on_close,
+  is_preview_focused,
+  on_toggle_preview_focus,
   on_resize_start,
   embedded,
 }: {
   agent_id: string;
   path: string;
   file_name: string;
-  on_close: () => void;
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
   on_resize_start: () => void;
   embedded?: boolean;
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
   const [has_error, setHasError] = useState(false);
-  const download_url = get_workspace_file_download_url(agent_id, path);
   const preview_url = get_workspace_file_preview_url(agent_id, path);
-
-  const handle_download = () => {
-    window.open(download_url, "_blank");
-  };
 
   return (
     <>
@@ -236,27 +481,11 @@ function ImagePreview({
       <EditorPanelHeader
         actions={(
           <>
-            <button
-              aria-label="下载图片"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
-              style={{
-                background: "var(--card-default-background)",
-                borderColor: "var(--card-default-border)",
-              }}
-              onClick={handle_download}
-              type="button"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>下载</span>
-            </button>
-            <button
-              aria-label="关闭预览"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-              onClick={on_close}
-              type="button"
-            >
-              <Minimize2 className="h-4 w-4" />
-            </button>
+            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFilePreviewFocusButton
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
+            />
           </>
         )}
         embedded={embedded}
@@ -313,47 +542,27 @@ function BinaryFilePlaceholder({
   agent_id,
   path,
   file_name,
-  on_close,
+  is_preview_focused,
+  on_toggle_preview_focus,
   embedded,
 }: {
   agent_id: string;
   path: string;
   file_name: string;
-  on_close: () => void;
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
   embedded?: boolean;
 }) {
-  const download_url = get_workspace_file_download_url(agent_id, path);
-
-  const handle_download = () => {
-    window.open(download_url, "_blank");
-  };
-
   return (
     <>
       <EditorPanelHeader
         actions={(
           <>
-            <button
-              aria-label="下载文件"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-all hover:bg-(--surface-interactive-hover-background)"
-              style={{
-                background: "var(--card-default-background)",
-                borderColor: "var(--card-default-border)",
-              }}
-              onClick={handle_download}
-              type="button"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>下载</span>
-            </button>
-            <button
-              aria-label="关闭"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-              onClick={on_close}
-              type="button"
-            >
-              <Minimize2 className="h-4 w-4" />
-            </button>
+            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFilePreviewFocusButton
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
+            />
           </>
         )}
         embedded={embedded}
@@ -388,8 +597,9 @@ export function EditorPanel({
   width_percent,
   embedded = false,
   class_name,
-  on_close,
+  is_preview_focused = false,
   on_resize_start,
+  on_toggle_preview_focus,
 }: EditorPanelProps) {
   const [draft_content, setDraftContent] = useState("");
   const [saved_content, setSavedContent] = useState("");
@@ -406,7 +616,7 @@ export function EditorPanel({
   const file_type = path ? get_file_type(path) : "unknown";
   const is_pdf = file_type === "pdf";
   const is_image = file_type === "image";
-  const is_text = file_type === "text";
+  const is_text = file_type === "text" || file_type === "markdown" || file_type === "html" || file_type === "mermaid";
   const is_binary = !is_text && !is_pdf && !is_image && file_type !== "unknown";
   const file_name = path ? path.split("/").at(-1) || "" : "";
 
@@ -557,7 +767,8 @@ export function EditorPanel({
               agent_id={agent_id}
               path={path}
               file_name={file_name}
-              on_close={on_close}
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
               on_resize_start={on_resize_start}
               embedded={embedded}
             />
@@ -566,7 +777,8 @@ export function EditorPanel({
               agent_id={agent_id}
               path={path}
               file_name={file_name}
-              on_close={on_close}
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
               on_resize_start={on_resize_start}
               embedded={embedded}
             />
@@ -575,7 +787,8 @@ export function EditorPanel({
               agent_id={agent_id}
               path={path}
               file_name={file_name}
-              on_close={on_close}
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
               embedded={embedded}
             />
           ) : (
@@ -592,58 +805,59 @@ export function EditorPanel({
               <EditorPanelHeader
                 actions={(
                   <>
-                    <button
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--text-muted) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
-                      onClick={() => {
+                    <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+                    <WorkspaceFilePreviewFocusButton
+                      is_preview_focused={is_preview_focused}
+                      on_toggle_preview_focus={on_toggle_preview_focus}
+                    />
+                    <WorkspaceFileToolbarButton
+                      on_click={() => {
                         if (is_editing) {
                           setIsEditing(false);
                           return;
                         }
                         enable_editing();
                       }}
-                      type="button"
                     >
-                      {is_editing ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      {is_editing ? "预览" : "编辑"}
-                    </button>
-                    <button
+                      {is_editing ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                      <span>{is_editing ? "预览" : "编辑"}</span>
+                    </WorkspaceFileToolbarButton>
+                    <WorkspaceFileToolbarButton
                       disabled={!is_dirty || is_saving || is_external_writing}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-                      onClick={() => void handle_save()}
-                      type="button"
+                      on_click={() => void handle_save()}
                     >
                       <Save className="h-4 w-4" />
-                      {is_saving ? "保存中" : "保存"}
-                    </button>
-                    <button
-                      aria-label="关闭编辑器"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-                      onClick={on_close}
-                      type="button"
-                    >
-                      <Minimize2 className="h-4 w-4" />
-                    </button>
+                      <span>{is_saving ? "保存中" : "保存"}</span>
+                    </WorkspaceFileToolbarButton>
                   </>
                 )}
                 embedded={embedded}
-                meta={live_state && live_state.source !== "api" ? (
-                  is_external_writing ? (
-                    <>
-                      <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
-                      <span className="truncate">模型正在实时写入该文件</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                      <span className="truncate">
-                        已同步最新内容
-                        {live_state.diff_stats
-                          ? ` · +${live_state.diff_stats.additions} -${live_state.diff_stats.deletions}`
-                          : ""}
-                      </span>
-                    </>
-                  )
-                ) : undefined}
+                meta={(
+                  <>
+                    <span className="flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      {workspace_file_kind_label(file_type)}
+                    </span>
+                    {live_state && live_state.source !== "api" ? (
+                      is_external_writing ? (
+                        <>
+                          <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
+                          <span className="truncate">模型正在实时写入该文件</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                          <span className="truncate">
+                            已同步最新内容
+                            {live_state.diff_stats
+                              ? ` · +${live_state.diff_stats.additions} -${live_state.diff_stats.deletions}`
+                              : ""}
+                          </span>
+                        </>
+                      )
+                    ) : null}
+                  </>
+                )}
                 title={file_name}
               />
 
@@ -651,23 +865,34 @@ export function EditorPanel({
                 <div className="px-4 py-3 text-sm text-destructive">{error}</div>
               ) : null}
 
-              <div ref={editor_area_ref} className="min-h-0 flex-1 overflow-hidden px-4 py-4">
+              <div
+                ref={editor_area_ref}
+                className={cn(
+                  "min-h-0 flex-1 overflow-hidden",
+                  file_type === "html" && !is_editing ? "p-0" : "px-4 py-4",
+                )}
+              >
                 {is_external_writing ? (
                   <TypewriterFileView
                     content={draft_content}
                     container_width={editor_width > 0 ? editor_width - 40 : undefined}
                     class_name="h-full"
                   />
+                ) : !is_editing && file_type === "html" ? (
+                  <TextFilePreview
+                    content={draft_content}
+                    file_name={file_name}
+                    file_type={file_type}
+                    is_loading={is_loading}
+                  />
                 ) : !is_editing ? (
                   <div className="soft-scrollbar h-full overflow-auto">
-                    {is_loading ? (
-                      <div className="font-mono text-sm leading-6 text-(--text-muted)">加载中...</div>
-                    ) : (
-                      <MarkdownRendererContent
-                        class_name="min-h-full"
-                        content={draft_content}
-                      />
-                    )}
+                    <TextFilePreview
+                      content={draft_content}
+                      file_name={file_name}
+                      file_type={file_type}
+                      is_loading={is_loading}
+                    />
                   </div>
                 ) : (
                   <textarea
