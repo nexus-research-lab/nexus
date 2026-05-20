@@ -132,6 +132,102 @@ interface MermaidPreviewDragState {
   scroll_top: number;
 }
 
+interface MermaidRenderState {
+  error: string | null;
+  is_rendering: boolean;
+  svg: string;
+}
+
+function useMermaidSvg(
+  chart: string,
+  is_streaming: boolean,
+  render_id_prefix: string,
+): MermaidRenderState {
+  const normalized_chart = chart.trim();
+  const latest_chart_ref = useRef(normalized_chart);
+  const render_index_ref = useRef(0);
+  const [render_state, set_render_state] = useState<MermaidRenderState>({
+    error: null,
+    is_rendering: false,
+    svg: "",
+  });
+
+  useEffect(() => {
+    latest_chart_ref.current = normalized_chart;
+  }, [normalized_chart]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!normalized_chart) {
+      set_render_state({
+        error: null,
+        is_rendering: false,
+        svg: "",
+      });
+      return;
+    }
+
+    set_render_state((previous) => ({
+      error: null,
+      is_rendering: true,
+      svg: is_streaming ? previous.svg : "",
+    }));
+
+    const commit_render_error = (message: string) => {
+      if (cancelled || latest_chart_ref.current !== normalized_chart) {
+        return;
+      }
+
+      set_render_state((previous) => ({
+        error: is_streaming ? null : message,
+        is_rendering: false,
+        svg: is_streaming ? previous.svg : "",
+      }));
+    };
+
+    const render = async () => {
+      try {
+        mermaid.initialize(MERMAID_CONFIG);
+        const parse_result = await mermaid.parse(normalized_chart, { suppressErrors: true });
+        if (!parse_result) {
+          commit_render_error("Mermaid 源码语法无效");
+          return;
+        }
+
+        const render_id = `${render_id_prefix}-${render_index_ref.current}`;
+        render_index_ref.current += 1;
+        const result = await mermaid.render(render_id, normalized_chart);
+        if (cancelled || latest_chart_ref.current !== normalized_chart) {
+          return;
+        }
+
+        set_render_state({
+          error: null,
+          is_rendering: false,
+          svg: DOMPurify.sanitize(result.svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+          }),
+        });
+      } catch (render_error) {
+        commit_render_error(render_error instanceof Error ? render_error.message : "Mermaid 渲染失败");
+      }
+    };
+
+    // Mermaid 流式输入常处在半截语法状态，防抖后只提交仍然最新的合法 SVG。
+    const timeout_id = setTimeout(
+      () => void render(),
+      is_streaming ? MERMAID_STREAM_RENDER_DELAY : 0,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout_id);
+    };
+  }, [is_streaming, normalized_chart, render_id_prefix]);
+
+  return render_state;
+}
+
 function MermaidImagePreviewDialog({
   is_open,
   svg,
@@ -297,19 +393,11 @@ export function MermaidView({
   show_header = true,
 }: MermaidViewProps) {
   const render_id_prefix = `mermaid-${useId().replace(/:/g, "")}`;
-  const latest_chart_ref = useRef(chart.trim());
-  const render_index_ref = useRef(0);
   const copy_reset_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [svg, set_svg] = useState("");
-  const [error, set_error] = useState<string | null>(null);
-  const [is_rendering, set_is_rendering] = useState(false);
+  const { error, is_rendering, svg } = useMermaidSvg(chart, is_streaming, render_id_prefix);
   const [view_mode, set_view_mode] = useState<MermaidViewMode>("preview");
   const [copied, set_copied] = useState(false);
   const [is_image_preview_open, set_is_image_preview_open] = useState(false);
-
-  useEffect(() => {
-    latest_chart_ref.current = chart.trim();
-  }, [chart]);
 
   useEffect(() => {
     return () => {
@@ -318,68 +406,6 @@ export function MermaidView({
       }
     };
   }, []);
-
-  useEffect(() => {
-    const render_chart = chart.trim();
-    let cancelled = false;
-
-    if (!render_chart) {
-      set_svg("");
-      set_error(null);
-      set_is_rendering(false);
-      return;
-    }
-
-    set_is_rendering(true);
-    set_error(null);
-    if (!is_streaming) {
-      set_svg("");
-    }
-
-    const render = async () => {
-      set_is_rendering(true);
-      try {
-        mermaid.initialize(MERMAID_CONFIG);
-        const parse_result = await mermaid.parse(render_chart, { suppressErrors: true });
-        if (!parse_result) {
-          if (!cancelled && !is_streaming) {
-            set_error("Mermaid 源码语法无效");
-          }
-          return;
-        }
-
-        const render_id = `${render_id_prefix}-${render_index_ref.current}`;
-        render_index_ref.current += 1;
-        const result = await mermaid.render(render_id, render_chart);
-        if (cancelled || latest_chart_ref.current !== render_chart) {
-          return;
-        }
-
-        set_svg(DOMPurify.sanitize(result.svg, {
-          USE_PROFILES: { svg: true, svgFilters: true },
-        }));
-        set_error(null);
-      } catch (render_error) {
-        if (!cancelled && !is_streaming && latest_chart_ref.current === render_chart) {
-          set_error(render_error instanceof Error ? render_error.message : "Mermaid 渲染失败");
-        }
-      } finally {
-        if (!cancelled && latest_chart_ref.current === render_chart) {
-          set_is_rendering(false);
-        }
-      }
-    };
-
-    // Mermaid 流式输入常处在半截语法状态，防抖后只提交仍然最新的合法 SVG。
-    const timeout_id = setTimeout(
-      () => void render(),
-      is_streaming ? MERMAID_STREAM_RENDER_DELAY : 0,
-    );
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout_id);
-    };
-  }, [chart, is_streaming, render_id_prefix]);
 
   const handle_copy_source = async () => {
     try {

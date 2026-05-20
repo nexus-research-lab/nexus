@@ -7,6 +7,8 @@ import {
 } from "react";
 import ReactMarkdown from "react-markdown";
 
+import { read_markdown_fence_marker } from "./markdown-fence";
+
 type ReactMarkdownProps = ComponentProps<typeof ReactMarkdown>;
 
 interface MarkdownTextBlockProps {
@@ -37,18 +39,6 @@ function is_standalone_block_line(line: string): boolean {
   return /^ {0,3}#{1,6}\s+\S/.test(line) || /^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line);
 }
 
-function read_fence_marker(line: string): { marker: "`" | "~"; length: number } | null {
-  const match = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-  if (!match) {
-    return null;
-  }
-  const marker_text = match[1];
-  return {
-    marker: marker_text[0] as "`" | "~",
-    length: marker_text.length,
-  };
-}
-
 function split_streaming_markdown_blocks(content: string): StreamingMarkdownBlock[] {
   const blocks: StreamingMarkdownBlock[] = [];
   const buffer: string[] = [];
@@ -71,7 +61,7 @@ function split_streaming_markdown_blocks(content: string): StreamingMarkdownBloc
   };
 
   for (const line of get_lines_with_endings(content)) {
-    const fence_marker = read_fence_marker(line);
+    const fence_marker = read_markdown_fence_marker(line);
 
     buffer.push(line);
     cursor_offset += line.length;

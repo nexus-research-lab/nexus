@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { find_open_markdown_fence_language } from "./markdown-fence";
+
 const STREAM_ACTIVE_INPUT_WINDOW_MS = 170;
 const STREAM_TARGET_LAG_CHARS = 5;
 const STREAM_ACTIVE_CPS = 92;
@@ -14,6 +16,10 @@ function get_now(): number {
 
 function count_chars(value: string): number {
   return [...value].length;
+}
+
+function should_bypass_stream_buffer(content: string): boolean {
+  return find_open_markdown_fence_language(content) !== null;
 }
 
 export function useSmoothStreamingMarkdownContent(content: string, enabled: boolean): string {
@@ -152,7 +158,11 @@ export function useSmoothStreamingMarkdownContent(content: string, enabled: bool
     const appended_count = count_chars(appended);
 
     // 中文注释：非追加更新通常来自历史回放、重载或运行时修正，必须立即对齐真实内容。
-    if (!appended || appended_count > STREAM_LARGE_APPEND_CHARS) {
+    if (
+      !appended ||
+      appended_count > STREAM_LARGE_APPEND_CHARS ||
+      should_bypass_stream_buffer(content)
+    ) {
       sync_immediate(content);
       return;
     }
