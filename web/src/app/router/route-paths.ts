@@ -12,6 +12,7 @@ export const APP_ROUTE_PATHS = {
   scheduled_tasks: "/capability/scheduled-tasks",
   channels: "/capability/channels",
   pairings: "/capability/pairings",
+  memory: "/memory",
   settings: "/settings",
 } as const;
 
@@ -31,6 +32,7 @@ export const AppRouteBuilders = {
   scheduled_tasks: () => APP_ROUTE_PATHS.scheduled_tasks,
   channels: () => APP_ROUTE_PATHS.channels,
   pairings: () => APP_ROUTE_PATHS.pairings,
+  memory: () => APP_ROUTE_PATHS.memory,
   settings: () => APP_ROUTE_PATHS.settings,
 } as const;
 

@@ -16,6 +16,7 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	slot *activeRoomSlot,
 	publicHistory []protocol.Message,
 	agentNameByID map[string]string,
+	agentValue *protocol.Agent,
 ) (string, error) {
 	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, agentNameByID, roomdomain.PublicCursor{})
 	if err != nil {
@@ -31,13 +32,14 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	if err != nil {
 		return "", err
 	}
-	return roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
+	base := roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
 		PublicMessages: runtimeMessages,
 		RoomActions:    actions,
 		LatestTrigger:  slot.Trigger,
 		AgentNameByID:  agentNameByID,
 		TargetAgentID:  slot.AgentID,
-	}), nil
+	})
+	return s.prependRoomMemoryContext(ctx, roundValue, slot, agentValue, base), nil
 }
 
 func (s *RealtimeService) buildSlotGuidedPublicContext(

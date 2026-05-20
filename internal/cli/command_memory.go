@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"strings"
 
 	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
@@ -19,6 +20,9 @@ func newMemoryCommand() *cobra.Command {
 
 	serviceFromFlags := func() *memorysvc.Service {
 		return memorysvc.NewService(workspacePath)
+	}
+	engineFromFlags := func() *memorysvc.Engine {
+		return memorysvc.NewEngine(workspacePath, memorysvc.DefaultOptions())
 	}
 
 	command.AddCommand(func() *cobra.Command {
@@ -69,6 +73,209 @@ func newMemoryCommand() *cobra.Command {
 		getCommand.Flags().IntVar(&lines, "lines", 50, "line count")
 		_ = getCommand.MarkFlagRequired("path")
 		return getCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var limit int
+		var statuses []string
+		var scope string
+		listCommand := &cobra.Command{
+			Use:   "list",
+			Short: "列出结构化记忆条目",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				items, err := engineFromFlags().List(context.Background(), memorysvc.MemoryListOptions{
+					Limit:    limit,
+					Statuses: statuses,
+					Scope:    scope,
+				})
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "list",
+					"items":  items,
+				})
+			},
+		}
+		listCommand.Flags().IntVar(&limit, "limit", 200, "result limit")
+		listCommand.Flags().StringSliceVar(&statuses, "status", nil, "status filter")
+		listCommand.Flags().StringVar(&scope, "scope", "", "scope key filter")
+		return listCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var query string
+		var limit int
+		var scope memoryScopeFlags
+		recallCommand := &cobra.Command{
+			Use:   "recall",
+			Short: "按运行时作用域召回动态记忆",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				injection, err := engineFromFlags().BeforeRecall(context.Background(), scope.toMemoryScope(), memorysvc.RecallRequest{
+					Query:      query,
+					MaxResults: limit,
+				})
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain":    "memory",
+					"action":    "recall",
+					"injection": injection,
+				})
+			},
+		}
+		recallCommand.Flags().StringVar(&query, "query", "", "recall query")
+		recallCommand.Flags().IntVar(&limit, "limit", 5, "result limit")
+		addMemoryScopeFlags(recallCommand, &scope)
+		_ = recallCommand.MarkFlagRequired("query")
+		return recallCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var input memorysvc.MemoryWriteInput
+		var scope memoryScopeFlags
+		addCommand := &cobra.Command{
+			Use:   "add",
+			Short: "手动新增候选记忆",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				item, err := engineFromFlags().Add(context.Background(), scope.toMemoryScope(), input)
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "add",
+					"item":   item,
+				})
+			},
+		}
+		addCommand.Flags().StringVar(&input.Kind, "kind", "LRN", "LRN | ERR | FEAT | REF")
+		addCommand.Flags().StringVar(&input.Category, "category", "preference", "optional category")
+		addCommand.Flags().StringVar(&input.Title, "title", "", "entry title")
+		addCommand.Flags().StringVar(&input.Content, "content", "", "entry content")
+		addCommand.Flags().StringVar(&input.Status, "status", "candidate", "entry status")
+		addCommand.Flags().StringVar(&input.Priority, "priority", "medium", "entry priority")
+		addCommand.Flags().StringVar(&input.Source, "source", "manual", "entry source")
+		addMemoryScopeFlags(addCommand, &scope)
+		_ = addCommand.MarkFlagRequired("content")
+		return addCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var entryID string
+		var input memorysvc.MemoryWriteInput
+		updateCommand := &cobra.Command{
+			Use:   "update",
+			Short: "更新结构化记忆",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				item, err := engineFromFlags().Update(context.Background(), entryID, input)
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "update",
+					"item":   item,
+				})
+			},
+		}
+		updateCommand.Flags().StringVar(&entryID, "entry-id", "", "entry id")
+		updateCommand.Flags().StringVar(&input.Title, "title", "", "entry title")
+		updateCommand.Flags().StringVar(&input.Content, "content", "", "entry content")
+		updateCommand.Flags().StringVar(&input.Status, "status", "", "entry status")
+		updateCommand.Flags().StringVar(&input.Priority, "priority", "", "entry priority")
+		updateCommand.Flags().StringVar(&input.Source, "source", "", "entry source")
+		updateCommand.Flags().StringVar(&input.Scope, "scope", "", "scope key")
+		_ = updateCommand.MarkFlagRequired("entry-id")
+		return updateCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var entryID string
+		deleteCommand := &cobra.Command{
+			Use:   "delete",
+			Short: "删除结构化记忆",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := engineFromFlags().Delete(context.Background(), entryID); err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain":  "memory",
+					"action":  "delete",
+					"deleted": true,
+				})
+			},
+		}
+		deleteCommand.Flags().StringVar(&entryID, "entry-id", "", "entry id")
+		_ = deleteCommand.MarkFlagRequired("entry-id")
+		return deleteCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var entryID string
+		var note string
+		ignoreCommand := &cobra.Command{
+			Use:   "ignore",
+			Short: "忽略候选记忆",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				item, err := engineFromFlags().Ignore(context.Background(), entryID, note)
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "ignore",
+					"item":   item,
+				})
+			},
+		}
+		ignoreCommand.Flags().StringVar(&entryID, "entry-id", "", "entry id")
+		ignoreCommand.Flags().StringVar(&note, "note", "", "optional note")
+		_ = ignoreCommand.MarkFlagRequired("entry-id")
+		return ignoreCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		statsCommand := &cobra.Command{
+			Use:   "stats",
+			Short: "查看记忆统计",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				stats, err := engineFromFlags().Stats(context.Background())
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "stats",
+					"stats":  stats,
+				})
+			},
+		}
+		return statsCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
+		var sessionKey string
+		summaryCommand := &cobra.Command{
+			Use:   "session-summary",
+			Short: "读取会话记忆摘要",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				summary, err := engineFromFlags().SessionSummary(context.Background(), sessionKey)
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain":  "memory",
+					"action":  "session_summary",
+					"summary": summary,
+				})
+			},
+		}
+		summaryCommand.Flags().StringVar(&sessionKey, "session-key", "", "session key")
+		_ = summaryCommand.MarkFlagRequired("session-key")
+		return summaryCommand
 	}())
 
 	command.AddCommand(func() *cobra.Command {
@@ -140,6 +347,20 @@ func newMemoryCommand() *cobra.Command {
 			Use:   "promote",
 			Short: "提升为长期规则",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				if strings.TrimSpace(entryID) != "" && strings.TrimSpace(content) == "" {
+					item, err := engineFromFlags().Promote(context.Background(), entryID, target)
+					if err != nil {
+						return err
+					}
+					return emitJSON(map[string]any{
+						"domain": "memory",
+						"action": "promote",
+						"item":   item,
+					})
+				}
+				if strings.TrimSpace(content) == "" {
+					return usageErrorf("content 不能为空；或者提供 --entry-id 直接提升已有条目")
+				}
 				item, err := serviceFromFlags().Promote(target, content, title, entryID)
 				if err != nil {
 					return err
@@ -156,7 +377,6 @@ func newMemoryCommand() *cobra.Command {
 		promoteCommand.Flags().StringVar(&content, "content", "", "promotion content")
 		promoteCommand.Flags().StringVar(&entryID, "entry-id", "", "optional entry id")
 		_ = promoteCommand.MarkFlagRequired("target")
-		_ = promoteCommand.MarkFlagRequired("content")
 		return promoteCommand
 	}())
 
@@ -228,4 +448,36 @@ func parseMemoryFields(values []string) ([]memorysvc.Field, error) {
 		})
 	}
 	return items, nil
+}
+
+type memoryScopeFlags struct {
+	Kind           string
+	UserID         string
+	AgentID        string
+	SessionKey     string
+	SessionID      string
+	RoomID         string
+	ConversationID string
+}
+
+func addMemoryScopeFlags(command *cobra.Command, scope *memoryScopeFlags) {
+	command.Flags().StringVar(&scope.Kind, "scope-kind", string(memorysvc.ScopeKindAgent), "user|agent|dm_session|room_shared|room_agent_session")
+	command.Flags().StringVar(&scope.UserID, "user-id", "", "owner user id")
+	command.Flags().StringVar(&scope.AgentID, "agent-id", "", "agent id")
+	command.Flags().StringVar(&scope.SessionKey, "session-key", "", "session key")
+	command.Flags().StringVar(&scope.SessionID, "session-id", "", "runtime session id")
+	command.Flags().StringVar(&scope.RoomID, "room-id", "", "room id")
+	command.Flags().StringVar(&scope.ConversationID, "conversation-id", "", "conversation id")
+}
+
+func (s memoryScopeFlags) toMemoryScope() memorysvc.MemoryScope {
+	return memorysvc.MemoryScope{
+		Kind:           memorysvc.ScopeKind(strings.TrimSpace(s.Kind)),
+		UserID:         strings.TrimSpace(s.UserID),
+		AgentID:        strings.TrimSpace(s.AgentID),
+		SessionKey:     strings.TrimSpace(s.SessionKey),
+		SessionID:      strings.TrimSpace(s.SessionID),
+		RoomID:         strings.TrimSpace(s.RoomID),
+		ConversationID: strings.TrimSpace(s.ConversationID),
+	}
 }

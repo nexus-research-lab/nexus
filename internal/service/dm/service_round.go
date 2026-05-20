@@ -87,6 +87,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
+		go r.commitMemoryTurn()
 	}
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	r.refreshSessionMetaAfterRoundFinished()

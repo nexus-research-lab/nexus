@@ -9,6 +9,7 @@
 
 import {
   Calendar,
+  Database,
   Link2,
   type LucideIcon,
   Puzzle,
@@ -161,6 +162,13 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       label: t("capability.pairings"),
       meta: String(pairing_count),
       path: AppRouteBuilders.pairings(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.memory,
+      icon: Database,
+      label: t("capability.memory"),
+      meta: "v1",
+      path: AppRouteBuilders.memory(),
     },
   ], [
     channel_count,

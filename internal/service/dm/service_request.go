@@ -81,6 +81,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
+	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
 
 	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {

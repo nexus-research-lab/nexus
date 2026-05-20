@@ -21,6 +21,7 @@ export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   scheduled_tasks: "capability:scheduled-tasks",
   channels: "capability:channels",
   pairings: "capability:pairings",
+  memory: "capability:memory",
 } as const;
 
 /** 根据当前路由派生侧栏高亮条目，保证整套导航只走一个状态源。 */
@@ -30,6 +31,7 @@ export function derive_sidebar_item_id_from_path(pathname: string): string | nul
   if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks;
   if (pathname.startsWith("/capability/channels")) return SIDEBAR_CAPABILITY_ITEM_IDS.channels;
   if (pathname.startsWith("/capability/pairings")) return SIDEBAR_CAPABILITY_ITEM_IDS.pairings;
+  if (pathname.startsWith("/memory")) return SIDEBAR_CAPABILITY_ITEM_IDS.memory;
 
   if (pathname.startsWith("/rooms/")) {
     const room_id = pathname.split("/")[2];

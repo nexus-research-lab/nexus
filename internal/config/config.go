@@ -45,6 +45,11 @@ type Config struct {
 	AuthSessionTTLHours            int
 	BaseSystemPrompt               string
 	MainAgentSystemPrompt          string
+	MemoryEnabled                  bool
+	MemoryAutoRecall               bool
+	MemoryAutoExtract              bool
+	MemoryMaxResults               int
+	MemoryScoreThreshold           float64
 	DiscordEnabled                 bool
 	DiscordBotToken                string
 	TelegramEnabled                bool
@@ -130,6 +135,11 @@ func Load() Config {
 		AuthSessionTTLHours:            mustInt(getEnv("AUTH_SESSION_TTL_HOURS", "24")),
 		BaseSystemPrompt:               getEnv("BASE_SYSTEM_PROMPT", ""),
 		MainAgentSystemPrompt:          getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
+		MemoryEnabled:                  mustBool(getEnv("MEMORY_ENABLED", "true")),
+		MemoryAutoRecall:               mustBool(getEnv("MEMORY_AUTO_RECALL", "true")),
+		MemoryAutoExtract:              mustBool(getEnv("MEMORY_AUTO_EXTRACT", "true")),
+		MemoryMaxResults:               mustInt(getEnv("MEMORY_MAX_RESULTS", "5")),
+		MemoryScoreThreshold:           mustFloat(getEnv("MEMORY_SCORE_THRESHOLD", "0.08")),
 		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
 		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
 		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),
@@ -172,6 +182,14 @@ func mustBool(raw string) bool {
 	value, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false
+	}
+	return value
+}
+
+func mustFloat(raw string) float64 {
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0
 	}
 	return value
 }

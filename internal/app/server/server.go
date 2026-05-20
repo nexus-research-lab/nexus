@@ -49,7 +49,7 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 		api:                  api,
 		router:               chi.NewRouter(),
 		services:             appServices,
-		handlers:             newHandlerSet(api, appServices, websocketHandler, internalControlToken),
+		handlers:             newHandlerSet(api, appServices, websocketHandler, internalControlToken, cfg),
 		internalControlToken: internalControlToken,
 	}
 

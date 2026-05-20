@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/nexus-research-lab/nexus/internal/config"
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	automationhandler "github.com/nexus-research-lab/nexus/internal/handler/automation"
@@ -9,6 +10,7 @@ import (
 	connectorhandler "github.com/nexus-research-lab/nexus/internal/handler/connector"
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
+	memoryhandler "github.com/nexus-research-lab/nexus/internal/handler/memory"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	skillhandler "github.com/nexus-research-lab/nexus/internal/handler/skill"
@@ -27,6 +29,7 @@ type handlerSet struct {
 	channel    *channelhandler.Handlers
 	automation *automationhandler.Handlers
 	launcher   *launcherhandler.Handlers
+	memory     *memoryhandler.Handlers
 	workspace  *workspacehandler.Handlers
 	websocket  *handlerwebsocket.Handler
 }
@@ -36,6 +39,7 @@ func newHandlerSet(
 	services *AppServices,
 	websocketHandler *handlerwebsocket.Handler,
 	internalControlToken string,
+	cfg config.Config,
 ) handlerSet {
 	return handlerSet{
 		auth: authhandler.New(api, services.Auth, services.Usage),
@@ -69,6 +73,7 @@ func newHandlerSet(
 		channel:    channelhandler.New(api, services.Ingress, services.ChannelControl),
 		automation: automationhandler.New(api, services.Automation),
 		launcher:   launcherhandler.New(api, services.Launcher),
+		memory:     memoryhandler.New(api, cfg, services.Core.Agent),
 		workspace:  workspacehandler.New(api, services.Workspace),
 		websocket:  websocketHandler,
 	}
