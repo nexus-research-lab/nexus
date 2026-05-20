@@ -5,7 +5,12 @@
  * [OUTPUT]: 对外提供连接器 CRUD + OAuth 操作
  */
 
-import { ConnectorDetail, ConnectorInfo, ConnectorOAuthClientView } from "@/types/capability/connector";
+import {
+  ConnectorDetail,
+  ConnectorDeviceAuthPollResult,
+  ConnectorDeviceAuthStart,
+  ConnectorInfo,
+} from "@/types/capability/connector";
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 
@@ -95,42 +100,6 @@ export const get_connector_auth_url_api = async (
   });
 };
 
-/** 获取用户自助配置的 OAuth 应用摘要 */
-export const get_connector_oauth_client_api = async (
-  connector_id: string,
-): Promise<ConnectorOAuthClientView | null> => {
-  const result = await request_api<ConnectorOAuthClientView & { configured?: boolean }>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
-    { method: "GET" },
-  );
-  return result.configured === false ? null : result;
-};
-
-/** 保存用户自助配置的 OAuth 应用凭据 */
-export const upsert_connector_oauth_client_api = async (
-  connector_id: string,
-  client_id: string,
-  client_secret: string,
-): Promise<ConnectorOAuthClientView> => {
-  return request_api<ConnectorOAuthClientView>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ client_id, client_secret }),
-    },
-  );
-};
-
-/** 清除用户自助配置的 OAuth 应用凭据 */
-export const delete_connector_oauth_client_api = async (
-  connector_id: string,
-): Promise<void> => {
-  await request_api<{ configured: false }>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
-    { method: "DELETE" },
-  );
-};
-
 /** 完成 OAuth 回调 */
 export const complete_connector_o_auth_api = async (
   code: string,
@@ -142,4 +111,30 @@ export const complete_connector_o_auth_api = async (
     method: "POST",
     body: JSON.stringify(body),
   });
+};
+
+/** 启动 OAuth Device Flow */
+export const start_connector_device_auth_api = async (
+  connector_id: string,
+): Promise<ConnectorDeviceAuthStart> => {
+  return request_api<ConnectorDeviceAuthStart>(
+    `${BASE}/connectors/${connector_id}/device/start`,
+    {
+      method: "POST",
+    },
+  );
+};
+
+/** 轮询 OAuth Device Flow */
+export const poll_connector_device_auth_api = async (
+  connector_id: string,
+  device_code: string,
+): Promise<ConnectorDeviceAuthPollResult> => {
+  return request_api<ConnectorDeviceAuthPollResult>(
+    `${BASE}/connectors/${connector_id}/device/poll`,
+    {
+      method: "POST",
+      body: JSON.stringify({ device_code }),
+    },
+  );
 };

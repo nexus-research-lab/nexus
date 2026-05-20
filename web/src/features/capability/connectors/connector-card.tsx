@@ -85,7 +85,7 @@ export function ConnectorCard({
         : auth_type === "token"
           ? "Token"
           : "免授权";
-  const state_label = is_connected ? "已连接" : !is_configured ? "未配置" : is_coming_soon ? "即将推出" : "可连接";
+  const state_label = is_connected ? "已连接" : !is_configured ? "后端未配置" : is_coming_soon ? "即将推出" : "可连接";
   const state_tone = is_connected ? "success" : !is_configured ? "warning" : !is_coming_soon ? "info" : "neutral";
 
   return (

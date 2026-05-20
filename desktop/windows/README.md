@@ -8,6 +8,7 @@
 - WebView：WebView2，只作为 React/Vite UI 的渲染面。
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/`。
+- GitHub OAuth：桌面包只注入公开 `NEXUS_DESKTOP_GITHUB_CLIENT_ID`，WebView 内使用 Device Flow 授权码完成连接，不打包 Client Secret。
 
 第一阶段已支持 Inno Setup 安装器、WebView2 Evergreen Runtime bootstrapper、可选 Authenticode 签名、portable zip 和启动后更新检测/下载校验；托盘和全局快捷键在后续阶段补齐。
 

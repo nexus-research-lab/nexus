@@ -177,6 +177,36 @@ func TestServiceAccessTokenBearer(t *testing.T) {
 	}
 }
 
+func TestServiceDesktopModeBypassesPasswordAuth(t *testing.T) {
+	cfg, db := newAuthTestDB(t)
+	cfg.AppMode = "desktop"
+	service := NewServiceWithDB(cfg, db)
+	ctx := context.Background()
+
+	if _, err := service.InitOwner(ctx, InitOwnerInput{
+		Username: "admin",
+		Password: "password123",
+	}); err != nil {
+		t.Fatalf("初始化 owner 失败: %v", err)
+	}
+
+	state, err := service.GetState(ctx)
+	if err != nil {
+		t.Fatalf("读取 desktop auth 状态失败: %v", err)
+	}
+	if state.SetupRequired || state.AuthRequired || state.PasswordLoginEnabled {
+		t.Fatalf("desktop 模式不应要求本地账号登录: %+v", state)
+	}
+
+	status, err := service.BuildStatusPayload(ctx, httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil))
+	if err != nil {
+		t.Fatalf("构建 desktop auth 状态失败: %v", err)
+	}
+	if status.AuthRequired || status.SetupRequired || !status.Authenticated {
+		t.Fatalf("desktop auth status 不正确: %+v", status)
+	}
+}
+
 func TestServiceDisablesAccessTokenAfterOwnerInit(t *testing.T) {
 	cfg, db := newAuthTestDB(t)
 	cfg.AccessToken = "access-token"

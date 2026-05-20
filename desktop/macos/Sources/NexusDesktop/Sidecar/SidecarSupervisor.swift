@@ -122,7 +122,7 @@ final class SidecarSupervisor {
       }
       let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
       let value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-      if key.hasPrefix("CONNECTOR_") && !value.isEmpty {
+      if key == "CONNECTOR_GITHUB_CLIENT_ID" && !value.isEmpty {
         environment[key] = value
       }
     }

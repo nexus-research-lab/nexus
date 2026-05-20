@@ -118,11 +118,10 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/connectors/categories"), s.handlers.connector.HandleConnectorCategories)
 	s.router.Get(s.prefixPath("/connectors/count"), s.handlers.connector.HandleConnectorCount)
 	s.router.Get(s.prefixPath("/connectors/{connector_id}"), s.handlers.connector.HandleConnectorDetail)
-	s.router.Get(s.prefixPath("/connectors/{connector_id}/oauth-client"), s.handlers.connector.HandleGetConnectorOAuthClient)
-	s.router.Put(s.prefixPath("/connectors/{connector_id}/oauth-client"), s.handlers.connector.HandleUpsertConnectorOAuthClient)
-	s.router.Delete(s.prefixPath("/connectors/{connector_id}/oauth-client"), s.handlers.connector.HandleDeleteConnectorOAuthClient)
 	s.router.Get(s.prefixPath("/connectors/{connector_id}/auth-url"), s.handlers.connector.HandleConnectorAuthURL)
 	s.router.Post(s.prefixPath("/connectors/oauth/callback"), s.handlers.connector.HandleConnectorOAuthCallback)
+	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/start"), s.handlers.connector.HandleConnectorDeviceAuthStart)
+	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/poll"), s.handlers.connector.HandleConnectorDeviceAuthPoll)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
 

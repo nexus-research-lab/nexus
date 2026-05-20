@@ -17,7 +17,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	"github.com/nexus-research-lab/nexus/internal/storage"
-	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
 // Info 表示连接器列表项。
@@ -47,14 +46,6 @@ type Detail struct {
 	Features     []string `json:"features"`
 }
 
-// OAuthClientView 是前端可见的 OAuth 应用配置摘要，不包含 secret 明文。
-type OAuthClientView struct {
-	ConnectorID     string    `json:"connector_id"`
-	ClientID        string    `json:"client_id"`
-	HasClientSecret bool      `json:"has_client_secret"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
 // AuthURLResult 表示 OAuth 授权地址。
 type AuthURLResult struct {
 	AuthURL string `json:"auth_url"`
@@ -68,9 +59,33 @@ type OAuthCallbackRequest struct {
 	RedirectURI string `json:"redirect_uri"`
 }
 
+// DeviceAuthStartResult 表示桌面 Device Flow 的启动信息。
+type DeviceAuthStartResult struct {
+	ConnectorID             string `json:"connector_id"`
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+}
+
+// DeviceAuthPollResult 表示 Device Flow 轮询结果。
+type DeviceAuthPollResult struct {
+	Status    string `json:"status"`
+	Message   string `json:"message,omitempty"`
+	Connector *Info  `json:"connector,omitempty"`
+}
+
 const (
 	oauthRedirectKindWeb     = "web"
 	oauthRedirectKindDesktop = "desktop"
+
+	deviceAuthStatusPending   = "pending"
+	deviceAuthStatusSlowDown  = "slow_down"
+	deviceAuthStatusConnected = "connected"
+	deviceAuthStatusExpired   = "expired"
+	deviceAuthStatusDenied    = "denied"
 )
 
 type connectionRecord struct {
@@ -100,23 +115,15 @@ type Service struct {
 	db         *sql.DB
 	driver     string
 	httpClient *http.Client
-	clients    *connectorstore.OAuthClientStore
 }
 
 // NewService 创建连接器服务。
 func NewService(cfg config.Config, db *sql.DB) *Service {
 	driver := storage.NormalizeSQLDriver(cfg.DatabaseDriver)
-	var clients *connectorstore.OAuthClientStore
-	if key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey); err == nil {
-		clients = connectorstore.NewOAuthClientStore(db, driver, key)
-	} else if strings.TrimSpace(cfg.ConnectorCredentialsKey) != "" {
-		fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 解析失败，OAuth client DB 配置将不可用")
-	}
 	return &Service{
-		config:  cfg,
-		db:      db,
-		driver:  driver,
-		clients: clients,
+		config: cfg,
+		db:     db,
+		driver: driver,
 		httpClient: &http.Client{
 			Timeout: 20 * time.Second,
 		},
@@ -416,6 +423,91 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string,
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "connected")
 	return &info, nil
+}
+
+// StartDeviceAuth 启动支持桌面公共客户端的 OAuth Device Flow。
+func (s *Service) StartDeviceAuth(ctx context.Context, ownerUserID string, connectorID string) (*DeviceAuthStartResult, error) {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	if entry.Status != "available" {
+		return nil, errors.New("连接器暂不可用")
+	}
+	provider, err := s.deviceProvider(entry)
+	if err != nil {
+		return nil, err
+	}
+	clientID, err := s.oauthPublicClientID(ctx, ownerUserID, entry.ConnectorID, entry.Title)
+	if err != nil {
+		return nil, err
+	}
+	response, err := provider.RequestDeviceCode(ctx, s.httpClient, providers.DeviceCodeRequest{
+		ClientID: clientID,
+		Scopes:   entry.Scopes,
+	})
+	if err != nil {
+		return nil, friendlyDeviceAuthError(err)
+	}
+	return &DeviceAuthStartResult{
+		ConnectorID:             entry.ConnectorID,
+		DeviceCode:              response.DeviceCode,
+		UserCode:                response.UserCode,
+		VerificationURI:         response.VerificationURI,
+		VerificationURIComplete: response.VerificationURIComplete,
+		ExpiresIn:               response.ExpiresIn,
+		Interval:                response.Interval,
+	}, nil
+}
+
+// PollDeviceAuth 轮询 OAuth Device Flow，并在成功后保存连接凭证。
+func (s *Service) PollDeviceAuth(ctx context.Context, ownerUserID string, connectorID string, deviceCode string) (*DeviceAuthPollResult, error) {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	if entry.Status != "available" {
+		return nil, errors.New("连接器暂不可用")
+	}
+	if strings.TrimSpace(deviceCode) == "" {
+		return nil, errors.New("device_code 不能为空")
+	}
+	provider, err := s.deviceProvider(entry)
+	if err != nil {
+		return nil, err
+	}
+	clientID, err := s.oauthPublicClientID(ctx, ownerUserID, entry.ConnectorID, entry.Title)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := provider.ExchangeDeviceToken(ctx, s.httpClient, providers.DeviceTokenRequest{
+		ClientID:   clientID,
+		DeviceCode: deviceCode,
+	})
+	if err != nil {
+		status := deviceAuthStatusFromError(err)
+		if status != "" {
+			return &DeviceAuthPollResult{
+				Status:  status,
+				Message: deviceAuthMessage(status),
+			}, nil
+		}
+		return nil, friendlyDeviceAuthError(err)
+	}
+	credentials := normalizeOAuthPayload(payload)
+	if err = s.upsertConnection(ctx, connectionRecord{
+		ConnectorID: entry.ConnectorID,
+		State:       "connected",
+		Credentials: credentials,
+		AuthType:    entry.AuthType,
+	}); err != nil {
+		return nil, err
+	}
+	info := s.toInfo(ctx, ownerUserID, entry, "connected")
+	return &DeviceAuthPollResult{
+		Status:    deviceAuthStatusConnected,
+		Connector: &info,
+	}, nil
 }
 
 // Connect 使用显式凭证直接连接。
@@ -737,81 +829,31 @@ func (s *Service) connectionCredentialsPayload(record connectionRecord) ([]byte,
 	return []byte(record.Credentials), nil
 }
 
-func (s *Service) GetOAuthClient(ctx context.Context, ownerUserID, connectorID string) (*OAuthClientView, error) {
-	entry, ok := getConnector(connectorID)
-	if !ok {
-		return nil, errors.New("未知连接器")
-	}
-	if entry.AuthType != "oauth2" {
-		return nil, errors.New("连接器不支持 OAuth")
-	}
-	if s.clients == nil {
-		return nil, nil
-	}
-	record, err := s.clients.Get(ctx, ownerUserID, entry.ConnectorID)
+func (s *Service) deviceProvider(entry CatalogEntry) (providers.DeviceProvider, error) {
+	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	provider, err := providers.Get(providerID)
 	if err != nil {
 		return nil, err
 	}
-	if record == nil {
-		return nil, nil
-	}
-	return &OAuthClientView{
-		ConnectorID:     record.ConnectorID,
-		ClientID:        record.ClientID,
-		HasClientSecret: strings.TrimSpace(record.ClientSecret) != "",
-		UpdatedAt:       record.UpdatedAt,
-	}, nil
-}
-
-func (s *Service) UpsertOAuthClient(ctx context.Context, ownerUserID, connectorID, clientID, clientSecret string) error {
-	entry, ok := getConnector(connectorID)
+	deviceProvider, ok := provider.(providers.DeviceProvider)
 	if !ok {
-		return errors.New("未知连接器")
+		return nil, errors.New("连接器不支持 Device Flow")
 	}
-	if entry.AuthType != "oauth2" {
-		return errors.New("连接器不支持 OAuth")
-	}
-	if entry.Status != "available" {
-		return errors.New("连接器暂不可用")
-	}
-	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(clientSecret) == "" {
-		return errors.New("OAuth Client ID / Secret 不能为空")
-	}
-	if s.clients == nil {
-		return errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 OAuth 应用凭据")
-	}
-	return s.clients.Upsert(ctx, connectorstore.OAuthClient{
-		OwnerUserID:  ownerUserID,
-		ConnectorID:  entry.ConnectorID,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-	})
+	return deviceProvider, nil
 }
 
-func (s *Service) DeleteOAuthClient(ctx context.Context, ownerUserID, connectorID string) error {
-	entry, ok := getConnector(connectorID)
-	if !ok {
-		return errors.New("未知连接器")
+func (s *Service) oauthPublicClientID(_ context.Context, _ string, connectorID string, _ string) (string, error) {
+	if connectorID == "github" && s.isDesktopMode() {
+		return requireOAuthClientID(s.config.ConnectorGitHubClientID, "GitHub")
 	}
-	if entry.AuthType != "oauth2" {
-		return errors.New("连接器不支持 OAuth")
+	clientID, _, err := s.defaultOAuthCredentials(connectorID)
+	if err == nil {
+		return clientID, nil
 	}
-	if s.clients == nil {
-		return nil
-	}
-	return s.clients.Delete(ctx, ownerUserID, entry.ConnectorID)
+	return "", err
 }
 
-func (s *Service) oauthCredentials(ctx context.Context, ownerUserID string, connectorID string) (string, string, error) {
-	if s.clients != nil {
-		record, err := s.clients.Get(ctx, ownerUserID, connectorID)
-		if err != nil {
-			return "", "", err
-		}
-		if record != nil {
-			return requireOAuthCredentials(record.ClientID, record.ClientSecret, connectorID)
-		}
-	}
+func (s *Service) oauthCredentials(_ context.Context, _ string, connectorID string) (string, string, error) {
 	return s.defaultOAuthCredentials(connectorID)
 }
 
@@ -838,6 +880,13 @@ func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, conn
 	if authType != "oauth2" || status != "available" {
 		return ""
 	}
+	if connectorID == "github" && s.isDesktopMode() {
+		_, err := s.oauthPublicClientID(ctx, ownerUserID, connectorID, "GitHub")
+		if err != nil {
+			return err.Error()
+		}
+		return ""
+	}
 	_, _, err := s.oauthCredentials(ctx, ownerUserID, connectorID)
 	if err != nil {
 		return err.Error()
@@ -845,25 +894,15 @@ func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, conn
 	return ""
 }
 
-func (s *Service) listOAuthConfigErrors(ctx context.Context, ownerUserID string) map[string]string {
-	var (
-		records map[string]connectorstore.OAuthClient
-		loadErr error
-	)
-	if s.clients != nil {
-		records, loadErr = s.clients.ListByOwner(ctx, ownerUserID)
-	}
-
+func (s *Service) listOAuthConfigErrors(_ context.Context, _ string) map[string]string {
 	result := map[string]string{}
 	for _, entry := range connectorCatalog {
 		if entry.AuthType != "oauth2" || entry.Status != "available" {
 			continue
 		}
 		var err error
-		if loadErr != nil {
-			err = loadErr
-		} else if record, ok := records[entry.ConnectorID]; ok {
-			_, _, err = requireOAuthCredentials(record.ClientID, record.ClientSecret, entry.ConnectorID)
+		if entry.ConnectorID == "github" && s.isDesktopMode() {
+			_, err = requireOAuthClientID(s.config.ConnectorGitHubClientID, "GitHub")
 		} else {
 			_, _, err = s.defaultOAuthCredentials(entry.ConnectorID)
 		}
@@ -872,6 +911,10 @@ func (s *Service) listOAuthConfigErrors(ctx context.Context, ownerUserID string)
 		}
 	}
 	return result
+}
+
+func (s *Service) isDesktopMode() bool {
+	return strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop")
 }
 
 func getConnector(connectorID string) (CatalogEntry, bool) {
@@ -918,6 +961,55 @@ func requireOAuthCredentials(clientID string, clientSecret string, label string)
 		return "", "", fmt.Errorf("%s OAuth Client ID / Secret 未配置", label)
 	}
 	return clientID, clientSecret, nil
+}
+
+func requireOAuthClientID(clientID string, label string) (string, error) {
+	if strings.TrimSpace(clientID) == "" {
+		return "", fmt.Errorf("%s OAuth Client ID 未配置", label)
+	}
+	return strings.TrimSpace(clientID), nil
+}
+
+func deviceAuthStatusFromError(err error) string {
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "authorization_pending"):
+		return deviceAuthStatusPending
+	case strings.Contains(message, "slow_down"):
+		return deviceAuthStatusSlowDown
+	case strings.Contains(message, "expired_token"), strings.Contains(message, "token_expired"):
+		return deviceAuthStatusExpired
+	case strings.Contains(message, "access_denied"):
+		return deviceAuthStatusDenied
+	default:
+		return ""
+	}
+}
+
+func deviceAuthMessage(status string) string {
+	switch status {
+	case deviceAuthStatusPending:
+		return "等待 GitHub 授权确认"
+	case deviceAuthStatusSlowDown:
+		return "GitHub 要求降低轮询频率"
+	case deviceAuthStatusExpired:
+		return "GitHub 授权码已过期"
+	case deviceAuthStatusDenied:
+		return "用户取消了 GitHub 授权"
+	default:
+		return ""
+	}
+}
+
+func friendlyDeviceAuthError(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "device_flow_disabled") {
+		return errors.New("GitHub OAuth App 未启用 Device Flow，请在 GitHub Developer settings 的 OAuth App 设置中启用 Device Flow 后重试")
+	}
+	return err
 }
 
 func normalizeOAuthPayload(payload []byte) string {

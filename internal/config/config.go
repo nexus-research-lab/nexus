@@ -32,6 +32,7 @@ type Config struct {
 	WorkspacePath                  string
 	CacheFileDir                   string
 	WebDistDir                     string
+	AppMode                        string
 	DesktopSessionToken            string
 	PnpmRegistry                   string
 	SkillsAPIURL                   string
@@ -122,6 +123,7 @@ func Load() Config {
 		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
 		CacheFileDir:                   cacheDir,
 		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
+		AppMode:                        getEnv("NEXUS_APP_MODE", ""),
 		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		PnpmRegistry:                   getEnv("PNPM_REGISTRY", ""),
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),

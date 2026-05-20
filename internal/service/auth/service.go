@@ -57,7 +57,13 @@ func (s *Service) GetState(ctx context.Context) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	return toState(state), nil
+	result := toState(state)
+	if s.desktopAuthBypassEnabled() {
+		result.SetupRequired = false
+		result.AuthRequired = false
+		result.PasswordLoginEnabled = false
+	}
+	return result, nil
 }
 
 // InspectRequest 解析请求身份并返回认证系统状态。
@@ -465,6 +471,10 @@ func (s *Service) buildStatusPayload(state State, principal *Principal) StatusPa
 	result.Avatar = stringPointer(principal.Avatar)
 	result.AuthMethod = stringPointer(principal.AuthMethod)
 	return result
+}
+
+func (s *Service) desktopAuthBypassEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop")
 }
 
 func (s *Service) userByID(ctx context.Context, userID string) (*User, error) {

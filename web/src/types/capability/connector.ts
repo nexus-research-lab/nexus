@@ -38,13 +38,25 @@ export interface ConnectorDetail extends ConnectorInfo {
   features: string[];
 }
 
-/** 用户配置的 OAuth 应用摘要，不包含 client_secret 明文 */
-export interface ConnectorOAuthClientView {
+/** OAuth Device Flow 启动信息 */
+export interface ConnectorDeviceAuthStart {
   connector_id: string;
-  client_id: string;
-  has_client_secret: boolean;
-  updated_at: string;
-  configured?: boolean;
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete?: string;
+  expires_in: number;
+  interval: number;
+}
+
+/** OAuth Device Flow 轮询状态 */
+export type ConnectorDeviceAuthStatus = "pending" | "slow_down" | "connected" | "expired" | "denied";
+
+/** OAuth Device Flow 轮询结果 */
+export interface ConnectorDeviceAuthPollResult {
+  status: ConnectorDeviceAuthStatus;
+  message?: string;
+  connector?: ConnectorInfo;
 }
 
 /** 连接器类别 */

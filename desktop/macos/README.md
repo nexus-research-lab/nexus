@@ -14,7 +14,7 @@
 - Shell 会在 `~/.nexus/NexusSidecar.pid.json` 记录当前 sidecar；下次启动前会清理同 bundle 路径下的崩溃遗留进程。
 - Shell 会把本地 session token 同步进 WKWebView cookie store，保证 WebSocket 握手也能通过本地 API 校验。
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/.nexus/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
-- Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动、Dock 重新打开和重复启动已有实例默认显示 launcher，只有显式路由才进入 `/app` 工作台。
+- Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/` launcher 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/app`、`/settings` 和 OAuth callback。
@@ -26,7 +26,7 @@
 - Shell 会记录外链打开、未知 scheme 阻断和右键菜单抑制，便于桌面 QA 追踪 native 行为。
 - 前端 ready signal 会带 source 和 performance marks；隐藏窗口 rAF 被节流时会用短 timer 兜底，避免主窗口等待 ready 时只能靠原生 fallback reveal。sidecar 会记录桌面 Web 静态资源请求摘要；两边都只记录 path 和 query key，不记录 OAuth code/state/token 等 query value。
 - 首屏通过前端 ready signal 后再显示窗口，避免直接暴露 WebView 白屏。
-- 桌面 OAuth 默认使用 `nexus://connectors/oauth/callback`，由 shell 转回本地 WebView 回调页。
+- 桌面 OAuth 默认使用 `nexus://connectors/oauth/callback`，由 shell 转回本地 WebView 回调页；GitHub 在桌面包中走 Device Flow，只需要 `NEXUS_DESKTOP_GITHUB_CLIENT_ID` 注入公开 Client ID，不打包 Client Secret。
 
 ## 开发命令
 

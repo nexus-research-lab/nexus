@@ -19,7 +19,7 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 | 场景 | 操作 | 期望 |
 | --- | --- | --- |
 | 默认入口 | 打开 `Nexus.app` | 首屏不出现长期白屏或黑屏；默认显示 launcher，不直接进入 `/app` 工作台。 |
-| Dock reopen | 关闭窗口后点击 Dock 图标 | launcher 重新出现，sidecar 不重启。 |
+| Dock reopen | 关闭窗口后点击 Dock 图标 | 主窗口按关闭前路由恢复，sidecar 不重启。 |
 | Cmd+W | 主窗口按 `Command+W` | 只隐藏窗口，不退出应用。 |
 | Cmd+Q | 按 `Command+Q` | App 退出，`nexus-server` 无残留。 |
 | Launcher | 窗口菜单选择“显示启动器”，或执行 `open nexus://launcher` | 主窗口显示完整 launcher 首页，不出现紧凑浮层。 |
@@ -37,6 +37,17 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 | 未知 scheme | 触发非允许 scheme | 被阻断，应用不崩溃，日志有 `webview.navigation_blocked`。 |
 
 ## 3. OAuth 回调
+
+### 3.1 GitHub Device Flow
+
+1. 使用带 `NEXUS_DESKTOP_GITHUB_CLIENT_ID` 的桌面包。
+2. 在 Nexus Connectors 页面点击 GitHub 授权。
+3. App 显示 GitHub 授权码，并把 GitHub device 页面交给系统浏览器打开。
+4. 在 GitHub 输入授权码并确认授权。
+5. App 自动轮询到 connected，连接状态变为已连接。
+6. 打包产物中只能出现公开 Client ID，不应出现 OAuth Client Secret。
+
+### 3.2 Custom scheme callback
 
 1. 在 provider 后台登记 `nexus://connectors/oauth/callback`。
 2. 在 Nexus Connectors 页面发起授权。

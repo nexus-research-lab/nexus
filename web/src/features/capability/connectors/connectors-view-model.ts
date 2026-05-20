@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import type { ConnectorDetail, ConnectorInfo } from "@/types/capability/connector";
+import type { ConnectorDetail, ConnectorDeviceAuthStart, ConnectorInfo } from "@/types/capability/connector";
 
 export interface ConnectorDirectoryController {
   connectors: ConnectorInfo[];
@@ -19,11 +19,10 @@ export interface ConnectorDirectoryController {
   connected_count: number;
   selected_detail: ConnectorDetail | null;
   detail_loading: boolean;
-  oauth_client_config_connector_id: string | null;
+  device_auth_session: ConnectorDeviceAuthStart | null;
   open_detail: (connector_id: string) => void;
   close_detail: () => void;
-  open_oauth_client_config: (connector_id: string) => void;
-  close_oauth_client_config: () => void;
+  close_device_auth_session: () => void;
   handle_connect: (connector_id: string) => Promise<void>;
   handle_disconnect: (connector_id: string) => Promise<void>;
   busy_id: string | null;

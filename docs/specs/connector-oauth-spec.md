@@ -2,6 +2,8 @@
 
 ## Flow
 
+### Web authorization code
+
 ```mermaid
 sequenceDiagram
     participant User as User
@@ -25,11 +27,34 @@ sequenceDiagram
     Web-->>User: Connection success
 ```
 
+### Desktop GitHub Device Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Web as Nexus Desktop WebView
+    participant API as Local Go sidecar
+    participant GitHub as GitHub
+    participant DB as SQLite
+
+    User->>Web: Click GitHub Connect
+    Web->>API: POST /nexus/v1/connectors/github/device/start
+    API->>GitHub: POST /login/device/code with public client_id
+    GitHub-->>API: device_code + user_code + verification_uri
+    API-->>Web: user_code + verification_uri
+    Web-->>User: Show user_code
+    Web->>API: POST /nexus/v1/connectors/github/device/poll
+    API->>GitHub: POST /login/oauth/access_token with device_code
+    GitHub-->>API: authorization_pending / token
+    API->>DB: Upsert connector_connections connected with encrypted credentials
+    API-->>Web: connected
+```
+
 ## Provider Matrix
 
 | Provider | Authorize URL | Token URL | Scopes | PKCE | Token auth | Extras |
 | --- | --- | --- | --- | --- | --- | --- |
-| GitHub | `https://github.com/login/oauth/authorize` | `https://github.com/login/oauth/access_token` | `repo read:user user:email` | No | form `client_secret` | none |
+| GitHub | `https://github.com/login/oauth/authorize` / desktop `https://github.com/login/device/code` | `https://github.com/login/oauth/access_token` | `repo read:user user:email` | No | web form `client_secret`; desktop Device Flow uses public `client_id` only | none |
 | Gmail | `https://accounts.google.com/o/oauth2/v2/auth` | `https://oauth2.googleapis.com/token` | `https://www.googleapis.com/auth/gmail.modify` | Yes | form `client_secret` | none |
 | LinkedIn | `https://www.linkedin.com/oauth/v2/authorization` | `https://www.linkedin.com/oauth/v2/accessToken` | `openid profile email` | Yes | form `client_secret` | none |
 | X / Twitter | `https://twitter.com/i/oauth2/authorize` | `https://api.twitter.com/2/oauth2/token` | `tweet.read users.read offline.access` | Yes | HTTP Basic Auth | none |
@@ -45,6 +70,8 @@ http://localhost:3000/capability/connectors/oauth/callback
 ```
 
 GitHub: create an OAuth App under Developer settings and set Authorization callback URL.
+
+GitHub desktop: enable Device Flow on the OAuth App and expose only the public Client ID through `NEXUS_DESKTOP_GITHUB_CLIENT_ID` or GitHub Actions variable `NEXUS_DESKTOP_GITHUB_CLIENT_ID`.
 
 Google: create a Web application OAuth client under APIs & Services, add the callback as an authorized redirect URI, and add the Gmail scope on the consent screen.
 
@@ -63,17 +90,18 @@ Shopify: create a public app in the Partner dashboard and add the callback under
 - Redirect URIs must match `CONNECTOR_OAUTH_ALLOWED_ORIGINS` by scheme, host, and path prefix. The default allows local web development at `http://localhost:3000`.
 - Only provider-declared extra keys are persisted in `extra_json`; unknown query parameters are ignored.
 - Connector credentials are encrypted with AES-GCM into `connector_connections.credentials_encrypted` when `CONNECTOR_CREDENTIALS_KEY` is configured. The key must be a 32-byte base64 value.
+- Desktop GitHub packages only `CONNECTOR_GITHUB_CLIENT_ID`. `client_secret` must not be embedded in `.app` resources, Windows resources, zip, DMG, or installer assets.
 
-## Per-user OAuth clients
+## OAuth client configuration
 
-Users can configure OAuth application credentials from the connector detail dialog. Records are stored in `connector_oauth_clients` by `(owner_user_id, connector_id)`.
+The frontend does not provide OAuth App self-service configuration. Connector cards and detail dialogs only use `is_configured` from the backend to decide whether the user can start authorization.
 
 Credential resolution order:
 
-1. User-scoped DB row in `connector_oauth_clients`.
-2. Deployment-level `CONNECTOR_*_CLIENT_ID` / `CONNECTOR_*_CLIENT_SECRET` environment config.
+1. Deployment-level `CONNECTOR_*_CLIENT_ID` / `CONNECTOR_*_CLIENT_SECRET` environment config.
+2. Desktop GitHub package config with public `CONNECTOR_GITHUB_CLIENT_ID` for Device Flow.
 
-`client_secret` is always encrypted into `client_secret_encrypted` with AES-GCM using `CONNECTOR_CREDENTIALS_KEY`. Unlike connector token storage, OAuth client secrets do not allow plaintext debug fallback; saving a user OAuth app fails when the key is missing or invalid.
+If the backend reports `is_configured=false`, the frontend shows a backend-not-configured state and does not expose a form for users to enter OAuth Client ID or Client Secret.
 
 ## Troubleshooting
 

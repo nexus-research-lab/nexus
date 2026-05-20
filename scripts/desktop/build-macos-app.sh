@@ -7,7 +7,7 @@ load_desktop_env_from_dotenv() {
   local dotenv_path="${ROOT_DIR}/.env"
   [[ -f "${dotenv_path}" ]] || return 0
   local key value
-  for key in NEXUS_DESKTOP_GITHUB_CLIENT_ID NEXUS_DESKTOP_GITHUB_CLIENT_SECRET; do
+  for key in NEXUS_DESKTOP_GITHUB_CLIENT_ID; do
     if [[ -n "${!key:-}" ]]; then
       continue
     fi
@@ -82,14 +82,9 @@ rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/skills/" "${RESOURCES_DIR}/
 
 DESKTOP_ENV_PATH="${RESOURCES_DIR}/desktop.env"
 rm -f "${DESKTOP_ENV_PATH}"
-if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_ID:-}" || -n "${NEXUS_DESKTOP_GITHUB_CLIENT_SECRET:-}" ]]; then
+if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_ID:-}" ]]; then
   {
-    if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_ID:-}" ]]; then
-      printf 'CONNECTOR_GITHUB_CLIENT_ID=%s\n' "${NEXUS_DESKTOP_GITHUB_CLIENT_ID}"
-    fi
-    if [[ -n "${NEXUS_DESKTOP_GITHUB_CLIENT_SECRET:-}" ]]; then
-      printf 'CONNECTOR_GITHUB_CLIENT_SECRET=%s\n' "${NEXUS_DESKTOP_GITHUB_CLIENT_SECRET}"
-    fi
+    printf 'CONNECTOR_GITHUB_CLIENT_ID=%s\n' "${NEXUS_DESKTOP_GITHUB_CLIENT_ID}"
   } > "${DESKTOP_ENV_PATH}"
   chmod 0600 "${DESKTOP_ENV_PATH}"
 fi

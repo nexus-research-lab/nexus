@@ -16,8 +16,14 @@ func Register(p Provider) {
 func Get(connectorID string) (Provider, error) {
 	switch connectorID {
 	case "github":
-		if tokenURL := os.Getenv("NEXUS_CONNECTOR_GITHUB_TOKEN_URL"); tokenURL != "" {
-			return NewGitHubProvider(defaultGitHubAuthURL, tokenURL), nil
+		tokenURL := os.Getenv("NEXUS_CONNECTOR_GITHUB_TOKEN_URL")
+		deviceCodeURL := os.Getenv("NEXUS_CONNECTOR_GITHUB_DEVICE_CODE_URL")
+		if tokenURL != "" || deviceCodeURL != "" {
+			return NewGitHubProviderWithDeviceURL(
+				defaultGitHubAuthURL,
+				firstNonEmpty(tokenURL, defaultGitHubTokenURL),
+				firstNonEmpty(deviceCodeURL, defaultGitHubDeviceCodeURL),
+			), nil
 		}
 	case "gmail":
 		if tokenURL := os.Getenv("NEXUS_CONNECTOR_GOOGLE_TOKEN_URL"); tokenURL != "" {
@@ -41,4 +47,13 @@ func Get(connectorID string) (Provider, error) {
 		return nil, errors.New("connector provider not registered: " + connectorID)
 	}
 	return p, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

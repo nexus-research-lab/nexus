@@ -58,6 +58,10 @@ export function get_desktop_runtime_config(): DesktopRuntimeConfig | null {
   return runtime_config;
 }
 
+export function is_desktop_runtime(): boolean {
+  return get_desktop_runtime_config()?.app_mode === "desktop";
+}
+
 export function get_desktop_session_token(): string {
   return get_desktop_runtime_config()?.auth_token?.trim() || "";
 }

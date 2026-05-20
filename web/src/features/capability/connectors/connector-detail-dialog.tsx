@@ -24,7 +24,6 @@ interface ConnectorDetailDialogProps {
   on_close: () => void;
   on_connect: (connector_id: string) => void;
   on_disconnect: (connector_id: string) => void;
-  on_configure_oauth_client: (connector_id: string) => void;
 }
 
 /** 连接器详情弹窗 */
@@ -35,7 +34,6 @@ export function ConnectorDetailDialog({
   on_close,
   on_connect,
   on_disconnect,
-  on_configure_oauth_client,
 }: ConnectorDetailDialogProps) {
   const handle_backdrop_click = useCallback(
     (e: React.MouseEvent) => {
@@ -112,7 +110,7 @@ export function ConnectorDetailDialog({
                   </span>
                 ) : !is_configured ? (
                   <span className={cn(DIALOG_TAG_CLASS_NAME, "text-amber-700")}>
-                    待配置
+                    后端未配置
                   </span>
                 ) : (
                   <span className={DIALOG_TAG_CLASS_NAME}>
@@ -190,33 +188,26 @@ export function ConnectorDetailDialog({
                 <Unplug className="h-3.5 w-3.5" />
                 断开连接
               </button>
-            ) : (
+            ) : is_configured ? (
               <button
                 className={get_dialog_action_class_name("primary")}
                 disabled={busy}
-                onClick={() => {
-                  if (is_configured) {
-                    on_connect(detail.connector_id);
-                    return;
-                  }
-                  on_configure_oauth_client(detail.connector_id);
-                }}
+                onClick={() => on_connect(detail.connector_id)}
                 type="button"
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {is_configured ? "授权连接" : "配置 OAuth 应用"}
+                授权连接
               </button>
-            )}
-            {detail.auth_type === "oauth2" && is_configured ? (
+            ) : (
               <button
                 className={get_dialog_action_class_name("default")}
-                disabled={busy}
-                onClick={() => on_configure_oauth_client(detail.connector_id)}
+                disabled
                 type="button"
               >
-                更新 OAuth 应用
+                <Shield className="h-3.5 w-3.5" />
+                后端未配置
               </button>
-            ) : null}
+            )}
           </div>
         )}
       </div>

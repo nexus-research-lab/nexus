@@ -12,10 +12,11 @@ import {
   get_connector_auth_url_api,
   get_connector_detail_api,
   get_connectors_api,
+  start_connector_device_auth_api,
 } from "@/lib/api/connector-api";
-import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
+import { get_connector_oauth_redirect_uri, is_desktop_runtime } from "@/config/desktop-runtime";
 import { open_shop_prompt } from "@/features/capability/connectors/shop-domain-prompt";
-import { ConnectorDetail, ConnectorInfo } from "@/types/capability/connector";
+import { ConnectorDetail, ConnectorDeviceAuthStart, ConnectorInfo } from "@/types/capability/connector";
 import type { ConnectorDirectoryController } from "@/features/capability/connectors/connectors-view-model";
 
 export function useConnectorController(): ConnectorDirectoryController {
@@ -25,7 +26,7 @@ export function useConnectorController(): ConnectorDirectoryController {
   const [active_category, set_active_category] = useState("all");
   const [selected_detail, set_selected_detail] = useState<ConnectorDetail | null>(null);
   const [detail_loading, set_detail_loading] = useState(false);
-  const [oauth_client_config_connector_id, set_oauth_client_config_connector_id] = useState<string | null>(null);
+  const [device_auth_session, set_device_auth_session] = useState<ConnectorDeviceAuthStart | null>(null);
   const [busy_id, set_busy_id] = useState<string | null>(null);
   const [status_message, set_status_message] = useState<string | null>(null);
   const [error_message, set_error_message] = useState<string | null>(null);
@@ -91,12 +92,8 @@ export function useConnectorController(): ConnectorDirectoryController {
     set_selected_detail(null);
   }, []);
 
-  const open_oauth_client_config = useCallback((connector_id: string) => {
-    set_oauth_client_config_connector_id(connector_id);
-  }, []);
-
-  const close_oauth_client_config = useCallback(() => {
-    set_oauth_client_config_connector_id(null);
+  const close_device_auth_session = useCallback(() => {
+    set_device_auth_session(null);
   }, []);
 
   // 连接 —— OAuth 类型打开授权窗口，其他直接连接
@@ -114,6 +111,17 @@ export function useConnectorController(): ConnectorDirectoryController {
               return;
             }
             shop = prompted_shop;
+          }
+
+          if (target.connector_id === "github" && is_desktop_runtime()) {
+            const session = await start_connector_device_auth_api(connector_id);
+            set_device_auth_session(session);
+            set_status_message("已生成 GitHub 授权码");
+            const auth_url = session.verification_uri_complete || session.verification_uri;
+            if (auth_url) {
+              window.open(auth_url, "_blank", "noopener,noreferrer");
+            }
+            return;
           }
 
           // 获取 OAuth 授权 URL 并在新窗口打开
@@ -181,11 +189,10 @@ export function useConnectorController(): ConnectorDirectoryController {
     connected_count,
     selected_detail,
     detail_loading,
-    oauth_client_config_connector_id,
     open_detail,
     close_detail,
-    open_oauth_client_config,
-    close_oauth_client_config,
+    device_auth_session,
+    close_device_auth_session,
     handle_connect,
     handle_disconnect,
     busy_id,

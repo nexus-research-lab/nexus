@@ -130,7 +130,6 @@ function Resolve-GitValue([string]$rootDir, [string[]]$arguments, [string]$fallb
 
 $rootDir = Resolve-RootDir
 Use-DotEnvValueIfMissing $rootDir "NEXUS_DESKTOP_GITHUB_CLIENT_ID"
-Use-DotEnvValueIfMissing $rootDir "NEXUS_DESKTOP_GITHUB_CLIENT_SECRET"
 $windowsDir = Join-Path $rootDir "desktop/windows"
 $projectPath = Join-Path $windowsDir "Nexus.Desktop/Nexus.Desktop.csproj"
 $appVersion = Resolve-AppVersion $rootDir $Version
@@ -211,9 +210,6 @@ Remove-Item -Force $desktopEnvPath -ErrorAction SilentlyContinue
 $desktopEnvLines = @()
 if (-not [string]::IsNullOrWhiteSpace($env:NEXUS_DESKTOP_GITHUB_CLIENT_ID)) {
   $desktopEnvLines += "CONNECTOR_GITHUB_CLIENT_ID=$($env:NEXUS_DESKTOP_GITHUB_CLIENT_ID.Trim())"
-}
-if (-not [string]::IsNullOrWhiteSpace($env:NEXUS_DESKTOP_GITHUB_CLIENT_SECRET)) {
-  $desktopEnvLines += "CONNECTOR_GITHUB_CLIENT_SECRET=$($env:NEXUS_DESKTOP_GITHUB_CLIENT_SECRET.Trim())"
 }
 if ($desktopEnvLines.Count -gt 0) {
   $desktopEnvLines | Set-Content -Encoding UTF8 $desktopEnvPath

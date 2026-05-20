@@ -35,6 +35,28 @@ type TokenRequest struct {
 	Extra        map[string]string
 }
 
+// DeviceCodeRequest 是 OAuth Device Flow 获取用户码时需要的上下文。
+type DeviceCodeRequest struct {
+	ClientID string
+	Scopes   []string
+}
+
+// DeviceCodeResponse 表示 OAuth Device Flow 返回的设备授权信息。
+type DeviceCodeResponse struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+}
+
+// DeviceTokenRequest 是 OAuth Device Flow 轮询 token 时需要的上下文。
+type DeviceTokenRequest struct {
+	ClientID   string
+	DeviceCode string
+}
+
 // Provider 定义单个 OAuth 供应商。
 type Provider interface {
 	ConnectorID() string
@@ -43,6 +65,12 @@ type Provider interface {
 	RequiredExtraKeys() []string
 	BuildAuthURL(ctx context.Context, req AuthRequest) (string, error)
 	ExchangeToken(ctx context.Context, httpClient *http.Client, req TokenRequest) ([]byte, error)
+}
+
+// DeviceProvider 定义支持 OAuth Device Flow 的供应商。
+type DeviceProvider interface {
+	RequestDeviceCode(ctx context.Context, httpClient *http.Client, req DeviceCodeRequest) (*DeviceCodeResponse, error)
+	ExchangeDeviceToken(ctx context.Context, httpClient *http.Client, req DeviceTokenRequest) ([]byte, error)
 }
 
 // GeneratePKCE 返回 verifier 和 S256 challenge。

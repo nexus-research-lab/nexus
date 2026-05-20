@@ -20,6 +20,8 @@ env:
 jobs:
   macos_app:
     runs-on: macos-latest
+    env:
+      NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
 
     steps:
       - name: Checkout
@@ -85,6 +87,8 @@ jobs:
 
   windows_app:
     runs-on: windows-latest
+    env:
+      NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
 
     steps:
       - name: Checkout

@@ -140,7 +140,7 @@ internal sealed class SidecarSupervisor : IDisposable
 
             string key = line[..separator].Trim().TrimStart('\uFEFF');
             string value = line[(separator + 1)..].Trim();
-            if (key.StartsWith("CONNECTOR_", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(value))
+            if (string.Equals(key, "CONNECTOR_GITHUB_CLIENT_ID", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(value))
             {
                 startInfo.Environment[key] = value;
             }

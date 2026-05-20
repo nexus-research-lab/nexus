@@ -36,6 +36,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
     showMainWindow(route: DesktopWebRoute(path: "/", entry: .app))
   }
 
+  func reopenMainWindow() {
+    showMainWindow(route: mainWindow == nil ? defaultMainRoute() : nil)
+  }
+
   func showLauncher() {
     showMainWindow(route: DesktopWebRoute(path: "/", entry: .app))
   }
