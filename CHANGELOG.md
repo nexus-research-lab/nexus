@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 优化 Markdown/预览流式输出：按 block 显式区分已稳定内容和流式尾块，未闭合代码围栏直接对齐真实内容，Mermaid 流式预览保留上一版合法 SVG，代码块流式期间跳过完整高亮，HTML 预览按 head 就绪和节流提交减少重载抖动。
 - 优化 Markdown 表格渲染：修正公式与 GFM 表格解析顺序，并让宽表格在自身容器内横向滚动。
 - 优化 Markdown 列表渲染：修正列表项段落块导致 marker 后内容另起一行的问题。
+- 优化 Markdown 文本渲染：支持安全的行内文本标签与 `<br>` 换行，并改善正文段落换行观感。
 
 ### Fixed
 - 修复 Markdown 中 `Cron*（...）` 这类标识符星号被误解析为强调标记的问题。

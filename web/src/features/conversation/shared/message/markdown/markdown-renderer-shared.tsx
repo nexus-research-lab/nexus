@@ -23,6 +23,7 @@ import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent/agent";
 import { read_markdown_fence_marker } from "./markdown-fence";
+import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plugins";
 import { MermaidView } from "./mermaid-view";
 
 import { CodeBlock } from "../blocks/code-block";
@@ -51,7 +52,13 @@ const WORKSPACE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
 const MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN = /(?<=[\p{L}\p{N}_./-])\*(?=[(\[（［])/gu;
 
 // 数学语法必须先于 GFM 表格解析，避免公式里的 `|` 被误判为列分隔符。
-export const MARKDOWN_PLUGINS = [remarkMath, remarkGfm, remarkBreaks];
+export const MARKDOWN_PLUGINS = [
+  remarkMath,
+  remarkGfm,
+  remarkMarkdownBreaks,
+  remarkInlineHtmlTags,
+  remarkBreaks,
+];
 export const REHYPE_PLUGINS = [rehypeKatex];
 export const MARKDOWN_BODY_CLASS_NAME = "message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-(--divider-subtle-color)";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
@@ -403,7 +410,7 @@ export function create_markdown_components(
       );
     },
     p({ children }) {
-      return <div data-markdown-anchor className="mb-2 mt-2 min-w-0 max-w-full leading-relaxed text-foreground/90 wrap-anywhere last:mb-0">{children}</div>;
+      return <div data-markdown-anchor className="mb-2 mt-2 min-w-0 max-w-full leading-relaxed text-pretty text-foreground/90 wrap-anywhere last:mb-0">{children}</div>;
     },
     ul({ children }) {
       return <ul className="mb-4 max-w-full list-outside list-disc space-y-2 pl-5 text-foreground/90 marker:text-muted-foreground">{children}</ul>;
@@ -416,7 +423,7 @@ export function create_markdown_components(
     },
     blockquote({ children }) {
       return (
-        <blockquote data-markdown-anchor className="my-4 w-full min-w-0 max-w-full overflow-hidden border-l-[3px] border-primary/40 bg-primary/4 px-1 py-2 pl-4 italic text-(--text-muted) wrap-anywhere">
+        <blockquote data-markdown-anchor className="my-4 w-full min-w-0 max-w-full overflow-hidden border-l-[3px] border-primary/40 bg-primary/4 px-1 py-2 pl-4 text-pretty italic text-(--text-muted) wrap-anywhere">
           <div className="min-w-0 max-w-full">{children}</div>
         </blockquote>
       );
@@ -486,6 +493,18 @@ export function create_markdown_components(
     },
     h3({ children }) {
       return <h3 data-markdown-anchor className="mb-2 mt-4 max-w-full break-words text-lg font-bold text-foreground">{children}</h3>;
+    },
+    kbd({ children }) {
+      return <kbd className="message-cjk-code-font mx-0.5 inline-flex items-center rounded-[5px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-1.5 py-0.5 align-baseline text-[0.82em] font-medium text-(--text-strong) shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]">{children}</kbd>;
+    },
+    mark({ children }) {
+      return <mark className="rounded-[4px] bg-amber-200/55 px-1 text-inherit">{children}</mark>;
+    },
+    sub({ children }) {
+      return <sub className="text-[0.75em] leading-none">{children}</sub>;
+    },
+    sup({ children }) {
+      return <sup className="text-[0.75em] leading-none">{children}</sup>;
     },
     table({ children }) {
       return <table className="my-4 block w-max max-w-full overflow-x-auto overflow-y-hidden rounded-[8px] border border-(--divider-subtle-color) border-collapse text-left text-sm">{children}</table>;
