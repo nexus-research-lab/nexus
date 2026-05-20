@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ONBOARDING_TOUR_CONTEXT } from "@/shared/ui/onboarding/tour-context";
 import {
+  hydrate_onboarding_state_from_desktop,
   read_completed_tours,
   reset_all_tour_state,
   write_completed_tours,
@@ -66,6 +67,7 @@ export interface OnboardingTourContextValue {
   is_tour_registered: (tour_id: string) => boolean;
   reset_all_tours: () => void;
   active_tour_id: string | null;
+  is_tour_state_ready: boolean;
   reset_version: number;
 }
 
@@ -502,7 +504,27 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     () => read_completed_tours(),
   );
   const [active_tour, set_active_tour] = useState<ActiveTourState | null>(null);
+  const [is_tour_state_ready, set_is_tour_state_ready] = useState(false);
   const [reset_version, set_reset_version] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void hydrate_onboarding_state_from_desktop().then((state) => {
+      if (cancelled) {
+        return;
+      }
+      set_completed_tours(state.completed_tours);
+      set_is_tour_state_ready(true);
+    }).catch(() => {
+      if (!cancelled) {
+        set_is_tour_state_ready(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const register_tour = useCallback((tour: OnboardingTourDefinition) => {
     tours_ref.current[tour.id] = tour;
@@ -597,6 +619,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     reset_all_tour_state();
     set_completed_tours({});
     set_active_tour(null);
+    set_is_tour_state_ready(true);
     set_reset_version((current_value) => current_value + 1);
   }, []);
 
@@ -611,12 +634,14 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     is_tour_registered,
     reset_all_tours,
     active_tour_id: active_tour?.tour_id ?? null,
+    is_tour_state_ready,
     reset_version,
   }), [
     active_tour?.tour_id,
     close_tour,
     has_completed_tour,
     is_tour_registered,
+    is_tour_state_ready,
     next_step,
     previous_step,
     register_tour,

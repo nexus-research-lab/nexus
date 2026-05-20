@@ -28,7 +28,7 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
-        trayController = new DesktopTrayController(startupTimeline, RestoreFromTray, ExitFromTray);
+        trayController = new DesktopTrayController(startupTimeline, RestoreFromTray, CheckForUpdatesFromTray, ExitFromTray);
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -71,7 +71,7 @@ public partial class MainWindow : System.Windows.Window
         if (webViewHost is null)
         {
             startupTimeline.Mark("main_window.create_begin");
-            webViewHost = new WebViewHost(MainWebView, runtime, startupTimeline, updateChecker, this);
+            webViewHost = new WebViewHost(MainWebView, runtime, startupTimeline);
             ShowMainWindow();
             await webViewHost.InitializeAsync();
             startupTimeline.Mark("main_window.created");
@@ -131,6 +131,18 @@ public partial class MainWindow : System.Windows.Window
 
         exitRequested = true;
         App.RequestApplicationExit(0);
+    }
+
+    private void CheckForUpdatesFromTray()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(CheckForUpdatesFromTray);
+            return;
+        }
+
+        startupTimeline.Mark("tray.update_check_requested");
+        _ = updateChecker.CheckNowAsync(this);
     }
 
     private void ShowMainWindow()

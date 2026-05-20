@@ -89,6 +89,7 @@ export function SidebarWidePanel() {
     active_tour_id,
     has_completed_tour,
     is_tour_registered,
+    is_tour_state_ready,
     register_tour,
     reset_version,
     reset_all_tours,
@@ -269,6 +270,9 @@ export function SidebarWidePanel() {
     if (has_auto_started_tour_ref.current) {
       return;
     }
+    if (!is_tour_state_ready) {
+      return;
+    }
     if (active_tour_id) {
       return;
     }
@@ -283,7 +287,7 @@ export function SidebarWidePanel() {
     return () => {
       window.clearTimeout(timeout_id);
     };
-  }, [active_tour_id, has_completed_tour, start_tour]);
+  }, [active_tour_id, has_completed_tour, is_tour_state_ready, start_tour]);
 
   useEffect(() => {
     has_auto_started_tour_ref.current = false;

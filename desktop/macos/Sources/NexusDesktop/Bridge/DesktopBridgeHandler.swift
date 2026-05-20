@@ -79,6 +79,19 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         self.openRoute(route)
       }
       return ["opened": true]
+    case "app.get_persistent_state":
+      let key = request.stringPayload("key")
+      let value = try DesktopPersistentStateStore.get(key)
+      return [
+        "key": key,
+        "value": value ?? NSNull(),
+      ]
+    case "app.set_persistent_state":
+      try DesktopPersistentStateStore.set(request.stringPayload("value"), forKey: request.stringPayload("key"))
+      return ["saved": true]
+    case "app.remove_persistent_state":
+      try DesktopPersistentStateStore.remove(request.stringPayload("key"))
+      return ["removed": true]
     case "app.get_global_shortcut_status":
       return globalShortcutStatusProvider()
     case "app.set_global_shortcut_enabled":

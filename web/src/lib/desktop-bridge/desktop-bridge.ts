@@ -1,9 +1,11 @@
 export type DesktopBridgeKind =
   | "app.get_app_version"
   | "app.open_external_url"
-  | "app.check_for_updates"
   | "app.export_logs"
   | "app.open_route"
+  | "app.get_persistent_state"
+  | "app.set_persistent_state"
+  | "app.remove_persistent_state"
   | "app.get_global_shortcut_status"
   | "app.set_global_shortcut_enabled"
   | "app.set_global_shortcut_accelerator"
@@ -28,21 +30,9 @@ export interface DesktopExportLogsResult {
   path?: string;
 }
 
-export type DesktopUpdateCheckStatus =
-  | "disabled"
-  | "failed"
-  | "up_to_date"
-  | "update_available";
-
-export interface DesktopUpdateCheckResult {
-  can_download_installer: boolean;
-  current_build_number: string;
-  current_version: string;
-  error_message?: string;
-  latest_build_number?: string;
-  latest_version?: string;
-  release_page_url?: string;
-  status: DesktopUpdateCheckStatus;
+export interface DesktopPersistentStateResult {
+  key: string;
+  value?: string | null;
 }
 
 export interface DesktopGlobalShortcutStatus {
@@ -76,16 +66,33 @@ export async function open_external_url(url: string): Promise<void> {
   await invoke_desktop_bridge<{ url: string }, { opened: boolean }>("app.open_external_url", { url });
 }
 
-export async function check_desktop_updates(): Promise<DesktopUpdateCheckResult> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopUpdateCheckResult>("app.check_for_updates", {});
-}
-
 export async function export_desktop_logs(): Promise<DesktopExportLogsResult> {
   return invoke_desktop_bridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
 }
 
 export async function open_desktop_route(route: string): Promise<void> {
   await invoke_desktop_bridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
+}
+
+export async function get_desktop_persistent_state(key: string): Promise<DesktopPersistentStateResult> {
+  return invoke_desktop_bridge<{ key: string }, DesktopPersistentStateResult>(
+    "app.get_persistent_state",
+    { key },
+  );
+}
+
+export async function set_desktop_persistent_state(key: string, value: string): Promise<void> {
+  await invoke_desktop_bridge<{ key: string; value: string }, { saved: boolean }>(
+    "app.set_persistent_state",
+    { key, value },
+  );
+}
+
+export async function remove_desktop_persistent_state(key: string): Promise<void> {
+  await invoke_desktop_bridge<{ key: string }, { removed: boolean }>(
+    "app.remove_persistent_state",
+    { key },
+  );
 }
 
 export async function get_desktop_global_shortcut_status(): Promise<DesktopGlobalShortcutStatus> {

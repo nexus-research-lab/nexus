@@ -6,7 +6,6 @@ using Microsoft.Web.WebView2.Core;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
-using Nexus.Desktop.Update;
 
 namespace Nexus.Desktop.Bridge;
 
@@ -15,23 +14,17 @@ internal sealed class DesktopBridgeHandler
     private readonly CoreWebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
-    private readonly DesktopUpdateChecker updateChecker;
-    private readonly System.Windows.Window owner;
     private readonly Func<string, Task> openRoute;
 
     public DesktopBridgeHandler(
         CoreWebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        DesktopUpdateChecker updateChecker,
-        System.Windows.Window owner,
         Func<string, Task> openRoute)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
-        this.updateChecker = updateChecker;
-        this.owner = owner;
         this.openRoute = openRoute;
     }
 
@@ -56,9 +49,11 @@ internal sealed class DesktopBridgeHandler
                     platform = runtime.Platform,
                 },
                 "app.open_external_url" => OpenExternalUrl(payload),
-                "app.check_for_updates" => await updateChecker.CheckNowAsync(owner),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
+                "app.get_persistent_state" => GetPersistentState(payload),
+                "app.set_persistent_state" => SetPersistentState(payload),
+                "app.remove_persistent_state" => RemovePersistentState(payload),
                 "app.get_global_shortcut_status" => new
                 {
                     enabled = false,
@@ -148,12 +143,30 @@ internal sealed class DesktopBridgeHandler
         return new { cancelled = false, path = zipPath };
     }
 
+    private static object GetPersistentState(JsonElement payload)
+    {
+        string key = StringPayload(payload, "key");
+        return new { key, value = DesktopPersistentStateStore.Get(key) };
+    }
+
+    private static object SetPersistentState(JsonElement payload)
+    {
+        string key = StringPayload(payload, "key");
+        string value = StringPayload(payload, "value");
+        DesktopPersistentStateStore.Set(key, value);
+        return new { saved = true };
+    }
+
+    private static object RemovePersistentState(JsonElement payload)
+    {
+        string key = StringPayload(payload, "key");
+        DesktopPersistentStateStore.Remove(key);
+        return new { removed = true };
+    }
+
     private async Task<object> OpenRouteAsync(JsonElement payload)
     {
-        string? route = payload.TryGetProperty("payload", out JsonElement payloadElement)
-            && payloadElement.TryGetProperty("route", out JsonElement routeElement)
-            ? routeElement.GetString()
-            : null;
+        string? route = StringPayload(payload, "route");
         if (string.IsNullOrWhiteSpace(route))
         {
             throw new ArgumentException("路由无效。");
@@ -161,6 +174,14 @@ internal sealed class DesktopBridgeHandler
 
         await openRoute(route);
         return new { opened = true };
+    }
+
+    private static string StringPayload(JsonElement payload, string name)
+    {
+        return payload.TryGetProperty("payload", out JsonElement payloadElement)
+            && payloadElement.TryGetProperty(name, out JsonElement valueElement)
+            ? valueElement.GetString() ?? string.Empty
+            : string.Empty;
     }
 
     private static void AddDirectoryToArchive(ZipArchive archive, string directory, string prefix)

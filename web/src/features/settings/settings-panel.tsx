@@ -24,7 +24,6 @@ import {
   MonitorCog,
   PackageOpen,
   Palette,
-  RefreshCw,
   RotateCcw,
   ShieldCheck,
   UserRound,
@@ -39,7 +38,6 @@ import {
   type SystemVersionInfo,
 } from "@/lib/api/system-api";
 import {
-  check_desktop_updates,
   export_desktop_logs,
   get_desktop_app_version,
   is_desktop_bridge_available,
@@ -219,9 +217,7 @@ function GeneralSettingsSection() {
   const [desktop_available] = useState(() => is_desktop_bridge_available());
   const [desktop_version, set_desktop_version] = useState<DesktopAppVersion | null>(null);
   const [desktop_feedback, set_desktop_feedback] = useState<PreferenceFeedback | null>(null);
-  const [checking_updates, set_checking_updates] = useState(false);
   const [exporting_logs, set_exporting_logs] = useState(false);
-  const can_check_desktop_updates = desktop_version?.platform === "windows";
 
   useEffect(() => {
     let cancelled = false;
@@ -392,43 +388,6 @@ function GeneralSettingsSection() {
       });
     } finally {
       set_exporting_logs(false);
-    }
-  }, [t]);
-
-  const handle_check_updates = useCallback(async () => {
-    try {
-      set_checking_updates(true);
-      set_desktop_feedback(null);
-      const result = await check_desktop_updates();
-      if (result.status === "update_available") {
-        set_desktop_feedback({
-          message: t("settings.desktop.update_available")
-            .replace("{version}", result.latest_version ?? "-")
-            .replace("{build}", result.latest_build_number ?? "-"),
-        });
-        return;
-      }
-      if (result.status === "up_to_date") {
-        set_desktop_feedback({
-          message: t("settings.desktop.update_up_to_date")
-            .replace("{version}", result.latest_version ?? result.current_version)
-            .replace("{build}", result.latest_build_number ?? result.current_build_number),
-        });
-        return;
-      }
-      if (result.status === "disabled") {
-        set_desktop_feedback({ message: t("settings.desktop.update_check_disabled") });
-        return;
-      }
-      set_desktop_feedback({
-        message: result.error_message || t("settings.desktop.update_check_failed"),
-      });
-    } catch (error) {
-      set_desktop_feedback({
-        message: error instanceof Error ? error.message : t("settings.desktop.update_check_failed"),
-      });
-    } finally {
-      set_checking_updates(false);
     }
   }, [t]);
 
@@ -641,17 +600,6 @@ function GeneralSettingsSection() {
                 </div>
               </div>
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                {can_check_desktop_updates ? (
-                  <button
-                    className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
-                    disabled={checking_updates}
-                    onClick={handle_check_updates}
-                    type="button"
-                  >
-                    {checking_updates ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    {t("settings.desktop.check_updates")}
-                  </button>
-                ) : null}
                 <button
                   className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
                   disabled={exporting_logs}

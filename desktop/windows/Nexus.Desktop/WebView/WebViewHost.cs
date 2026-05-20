@@ -7,7 +7,6 @@ using Nexus.Desktop.Bridge;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
-using Nexus.Desktop.Update;
 
 namespace Nexus.Desktop.WebView;
 
@@ -16,23 +15,17 @@ internal sealed class WebViewHost : IDisposable
     private readonly WebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
-    private readonly DesktopUpdateChecker updateChecker;
-    private readonly System.Windows.Window owner;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
 
     public WebViewHost(
         WebView2 webView,
         SidecarRuntimeConfig runtime,
-        DesktopStartupTimeline startupTimeline,
-        DesktopUpdateChecker updateChecker,
-        System.Windows.Window owner)
+        DesktopStartupTimeline startupTimeline)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
-        this.updateChecker = updateChecker;
-        this.owner = owner;
     }
 
     public async Task InitializeAsync()
@@ -61,7 +54,7 @@ internal sealed class WebViewHost : IDisposable
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopBridgeScript.Make());
 
-        bridgeHandler = new DesktopBridgeHandler(core, runtime, startupTimeline, updateChecker, owner, OpenRouteAsync);
+        bridgeHandler = new DesktopBridgeHandler(core, runtime, startupTimeline, OpenRouteAsync);
         core.WebMessageReceived += async (_, args) => await HandleWebMessageAsync(args);
         core.NavigationStarting += HandleNavigationStarting;
         core.NavigationCompleted += (_, _) => startupTimeline.Mark("webview.navigation_completed");

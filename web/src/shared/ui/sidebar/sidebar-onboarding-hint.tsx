@@ -2,42 +2,45 @@
 
 import type { LucideIcon } from "lucide-react";
 import { Compass, Hash, Puzzle, Users2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  is_sidebar_onboarding_hint_dismissed,
+  set_sidebar_onboarding_hint_dismissed,
+} from "@/shared/ui/onboarding/tour-state";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { SIDEBAR_NAVIGATION_TOUR_ID } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 
-export const SIDEBAR_ONBOARDING_HINT_DISMISSED_KEY =
-  "nexus:sidebar-onboarding-dismissed";
-
-function read_sidebar_hint_dismissed(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return window.localStorage.getItem(SIDEBAR_ONBOARDING_HINT_DISMISSED_KEY) === "true";
-}
-
 export function SidebarOnboardingHint() {
   const { t } = useI18n();
-  const { active_tour_id, has_completed_tour, start_tour } = useOnboardingTour();
+  const {
+    active_tour_id,
+    has_completed_tour,
+    is_tour_state_ready,
+    start_tour,
+  } = useOnboardingTour();
   const [dismissed, set_dismissed] = useState(() => {
     if (typeof window === "undefined") {
       return true;
     }
-    return read_sidebar_hint_dismissed();
+    return is_sidebar_onboarding_hint_dismissed();
   });
   const is_completed = has_completed_tour(SIDEBAR_NAVIGATION_TOUR_ID);
   const is_tour_running = active_tour_id === SIDEBAR_NAVIGATION_TOUR_ID;
 
+  useEffect(() => {
+    if (is_tour_state_ready) {
+      set_dismissed(is_sidebar_onboarding_hint_dismissed());
+    }
+  }, [is_tour_state_ready]);
+
   const dismiss = () => {
     set_dismissed(true);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(SIDEBAR_ONBOARDING_HINT_DISMISSED_KEY, "true");
-    }
+    set_sidebar_onboarding_hint_dismissed();
   };
 
-  if (dismissed) {
+  if (!is_tour_state_ready || dismissed) {
     return null;
   }
 

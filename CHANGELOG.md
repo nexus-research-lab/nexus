@@ -8,13 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Windows 桌面 App 设置页新增“检查更新”入口，可手动触发 GitHub Release 检测、下载和 sha256 校验安装链路。
+- Windows 桌面 App 托盘右键菜单新增“检查更新”入口，可手动触发 GitHub Release 检测、下载和 sha256 校验安装链路。
 
 ### Changed
 - `make app-win-build` 默认使用当前时间戳作为 Windows 桌面 app 构建号，方便未提交改动的本地临时测试；需要固定构建号时仍可通过 `APP_WIN_BUILD_NUMBER` 覆盖。
 - Windows 桌面 App 点击窗口关闭按钮时改为隐藏到系统托盘，真正退出需通过托盘图标右键菜单执行。
+- Windows 桌面 App 托盘右键菜单改为带标题、分组和悬停高亮的样式化菜单。
 
 ### Fixed
+- 修复桌面 App 在 Windows/macOS 因 sidecar 本地端口变化导致引导完成状态每次启动丢失的问题。
 - 修复 Windows 桌面 App 自动更新检查在请求前写入 24 小时节流状态，导致失败后后续启动被误判为近期已检查的问题。
 - 修复 Windows 桌面 App 受系统“动画效果”关闭影响时，首页 Nexus 动效被 WebView2 的 reduced-motion 媒体查询完全降级为静态文字的问题，并在启动日志中记录 reduced-motion 状态便于排查。
 - 修复 Windows 桌面 App 关闭主窗口后可能仍残留壳进程和 sidecar，导致下一次临时构建覆盖 `.build/app/Nexus` 时文件被占用的问题。

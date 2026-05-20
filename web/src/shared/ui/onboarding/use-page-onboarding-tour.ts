@@ -26,6 +26,7 @@ export function usePageOnboardingTour({
     active_tour_id,
     close_tour,
     has_completed_tour,
+    is_tour_state_ready,
     register_tour,
     reset_version,
     start_tour,
@@ -39,7 +40,7 @@ export function usePageOnboardingTour({
   }, [reset_version]);
 
   useEffect(() => {
-    if (!tour || !enabled) {
+    if (!tour || !enabled || !is_tour_state_ready) {
       return undefined;
     }
 
@@ -47,7 +48,7 @@ export function usePageOnboardingTour({
     return () => {
       unregister_tour(tour.id);
     };
-  }, [enabled, register_tour, tour, unregister_tour]);
+  }, [enabled, is_tour_state_ready, register_tour, tour, unregister_tour]);
 
   useEffect(() => {
     const previous_active_tour_id = previous_active_tour_id_ref.current;
@@ -67,7 +68,7 @@ export function usePageOnboardingTour({
   }, [active_tour_id, has_completed_tour, tour]);
 
   useEffect(() => {
-    if (!tour || !enabled) {
+    if (!tour || !enabled || !is_tour_state_ready) {
       return undefined;
     }
     if (active_tour_id) {
@@ -88,10 +89,10 @@ export function usePageOnboardingTour({
     return () => {
       window.clearTimeout(timeout_id);
     };
-  }, [active_tour_id, enabled, start_tour, tour]);
+  }, [active_tour_id, enabled, is_tour_state_ready, start_tour, tour]);
 
   useEffect(() => {
-    if (!tour || !enabled) {
+    if (!tour || !enabled || !is_tour_state_ready) {
       return undefined;
     }
     if (active_tour_id) {
@@ -120,6 +121,7 @@ export function usePageOnboardingTour({
     auto_start_delay_ms,
     enabled,
     has_completed_tour,
+    is_tour_state_ready,
     start_tour,
     tour,
   ]);
