@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `make app-win-build` 默认使用当前时间戳作为 Windows 桌面 app 构建号，方便未提交改动的本地临时测试；需要固定构建号时仍可通过 `APP_WIN_BUILD_NUMBER` 覆盖。
 
 ### Fixed
+- 修复 Windows 桌面 App 导出日志时，正在写入的 sidecar 日志文件可能因文件共享锁导致导出失败的问题。
 - 修复 Windows WebView2 未写入 `nexus_desktop_token` cookie 时，WebSocket 握手可能被 sidecar 判定为桌面会话 token 无效并返回 401 的问题。
 
 ## [0.1.7] - 2026-05-20

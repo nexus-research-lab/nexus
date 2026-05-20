@@ -168,7 +168,7 @@ internal sealed class DesktopBridgeHandler
             string entryPath = $"{prefix}/{relativePath}";
             try
             {
-                archive.CreateEntryFromFile(file, entryPath);
+                AddFileEntry(archive, file, entryPath);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -176,6 +176,18 @@ internal sealed class DesktopBridgeHandler
                 AddTextEntry(archive, $"{entryPath}.export-error.txt", exception.Message);
             }
         }
+    }
+
+    private static void AddFileEntry(ZipArchive archive, string sourcePath, string entryPath)
+    {
+        ZipArchiveEntry entry = archive.CreateEntry(entryPath);
+        using Stream source = new FileStream(
+            sourcePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using Stream target = entry.Open();
+        source.CopyTo(target);
     }
 
     private static void AddTextEntry(ZipArchive archive, string path, string content)
