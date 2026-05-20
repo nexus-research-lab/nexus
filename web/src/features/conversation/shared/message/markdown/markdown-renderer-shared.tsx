@@ -42,6 +42,7 @@ interface CreateMarkdownComponentsOptions {
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 const WORKSPACE_ABSOLUTE_FILE_PATTERN = /(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/(?<agent>[^/\s`"'，。；！？]+)\/(?<relative>[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}))/;
 const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入到|生成到|created at|saved to|written to)\s*)[`"']?(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/[^/\s`"'，。；！？]+\/[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}|[A-Za-z0-9_.-][A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,10})[`"']?(?<suffix>.*)$/i;
+const WORKSPACE_ARTIFACT_EXTENSION_PATTERN = /\.(?:adoc|avif|bmp|csv|gif|html?|ico|jpe?g|jsonl?|log|markdown|md|mermaid|mmd|pdf|png|rst|svg|toml|txt|webp|xml|ya?ml)$/i;
 const WORKSPACE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
 
 export const MARKDOWN_PLUGINS = [remarkGfm, remarkMath, remarkBreaks];
@@ -123,6 +124,9 @@ export function resolve_workspace_artifact_path(
   if (resolved_path) {
     return resolved_path;
   }
+  if (is_workspace_relative_artifact_path(normalized)) {
+    return normalized.replace(/^\.\//, "");
+  }
   if (is_workspace_image_path(normalized) && looks_like_workspace_file_reference(normalized)) {
     return normalized.replace(/^\.\//, "");
   }
@@ -136,6 +140,15 @@ function normalize_artifact_label(prefix: string): string {
 
 function is_workspace_image_path(path: string): boolean {
   return WORKSPACE_IMAGE_EXTENSION_PATTERN.test(path.trim());
+}
+
+function is_workspace_relative_artifact_path(path: string): boolean {
+  const normalized = path.trim();
+  return (
+    looks_like_workspace_file_reference(normalized) &&
+    normalized.includes("/") &&
+    WORKSPACE_ARTIFACT_EXTENSION_PATTERN.test(normalized)
+  );
 }
 
 export function split_markdown_file_artifacts(
@@ -344,6 +357,17 @@ export function create_markdown_components(
     a({ href, children }) {
       if (!href) {
         return <span className="text-primary">{children}</span>;
+      }
+
+      const resolved_path = resolve_workspace_artifact_path(href, resolve_file_path);
+      if (resolved_path && on_open_workspace_file) {
+        return (
+          <WorkspaceFileButton
+            label={children}
+            path={resolved_path}
+            on_open_workspace_file={on_open_workspace_file}
+          />
+        );
       }
 
       return (
