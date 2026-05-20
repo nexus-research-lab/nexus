@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
+import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
 import { get_agent_ws_url } from "@/config/options";
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import {
@@ -443,6 +444,7 @@ export function useChatCompletionNotifications(): void {
 
   const { send: ws_send, state: ws_state } = useWebSocket({
     url: ws_url,
+    protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,

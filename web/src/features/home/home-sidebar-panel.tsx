@@ -21,6 +21,7 @@ import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
 import { get_agent_ws_url, is_main_agent } from "@/config/options";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
@@ -330,6 +331,7 @@ function useSidebarDirectory(): SidebarDirectoryState {
 
   const { state: runtime_ws_state, send: runtime_ws_send } = useWebSocket({
     url: ws_url,
+    protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,

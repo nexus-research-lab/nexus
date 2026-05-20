@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。
 - 修复 Windows 安装器在 Windows 11 ARM64 x64 兼容环境下因 Inno Setup 架构约束误报不支持当前 Windows 版本的问题。
+- 修复 Windows 桌面 App 内聊天、侧边栏订阅和完成通知 WebSocket 未携带桌面会话 token，导致连接被本地 sidecar 拒绝的问题。
 
 ## [0.1.6] - 2026-05-20
 

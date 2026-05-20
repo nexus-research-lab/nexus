@@ -12,6 +12,7 @@ import {
   get_message_history_round_page_size,
   get_message_send_ack_timeout_ms,
 } from "@/config/options";
+import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
 import { get_room_conversation_messages } from "@/lib/api/room-api";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
 import { get_browser_client_id } from "@/lib/uuid";
@@ -1490,6 +1491,7 @@ export function useAgentConversation(
     reconnect: ws_reconnect,
   } = useWebSocket({
     url: ws_url,
+    protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,
