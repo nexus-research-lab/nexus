@@ -450,7 +450,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 		return nil, err
 	}
 	chain := buildPrimaryTranscriptChain(entries)
-	projectedRows := projectTranscriptChain(sessionKey, agentID, chain, roundMarkers)
+	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers)
 	s.writeTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint, projectedRows)
 	return projectedRows, nil
 }
@@ -749,6 +749,7 @@ func shouldSkipTranscriptEntry(entry map[string]any) bool {
 }
 
 func projectTranscriptChain(
+	workspacePath string,
 	sessionKey string,
 	agentID string,
 	chain []transcriptEntry,
@@ -790,7 +791,7 @@ func projectTranscriptChain(
 			if isTranscriptToolResult(decoded) {
 				if processor == nil {
 					currentRoundID = firstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
-					processor = newTranscriptProcessor(sessionKey, agentID, currentRoundID, decoded.SessionID)
+					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
 				}
 				output := processor.Process(decoded)
 				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
@@ -804,7 +805,7 @@ func projectTranscriptChain(
 			}
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
-			processor = newTranscriptProcessor(sessionKey, agentID, currentRoundID, decoded.SessionID)
+			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
 			userMessage := buildTranscriptUserMessage(
 				sessionKey,
 				agentID,
@@ -825,7 +826,7 @@ func projectTranscriptChain(
 			sdkprotocol.MessageTypeToolProgress:
 			if processor == nil {
 				currentRoundID = buildTranscriptRoundID(decoded.UUID)
-				processor = newTranscriptProcessor(sessionKey, agentID, currentRoundID, decoded.SessionID)
+				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
 			}
 			output := processor.Process(decoded)
 			projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
@@ -1113,16 +1114,18 @@ func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) t
 }
 
 func newTranscriptProcessor(
+	workspacePath string,
 	sessionKey string,
 	agentID string,
 	roundID string,
 	sessionID string,
 ) *message.Processor {
 	return message.NewProcessor(message.MessageContext{
-		SessionKey: sessionKey,
-		AgentID:    agentID,
-		RoundID:    roundID,
-		ParentID:   roundID,
+		SessionKey:    sessionKey,
+		AgentID:       agentID,
+		WorkspacePath: strings.TrimSpace(workspacePath),
+		RoundID:       roundID,
+		ParentID:      roundID,
 	}, strings.TrimSpace(sessionID))
 }
 

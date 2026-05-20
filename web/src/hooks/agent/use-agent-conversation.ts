@@ -655,6 +655,16 @@ export function useAgentConversation(
     [],
   );
 
+  const is_current_room_event = useCallback(
+    (incoming_room_id?: string | null) => {
+      if (!incoming_room_id || !room_id) {
+        return false;
+      }
+      return incoming_room_id === room_id;
+    },
+    [room_id],
+  );
+
   const on_background_message = useCallback((key: string, message: Message) => {
     if (is_ephemeral_message(message)) {
       return;
@@ -1370,6 +1380,7 @@ export function useAgentConversation(
       handle_agent_conversation_web_socket_message({
         backend_message,
         apply_workspace_event,
+        is_current_room_event,
         is_current_session_event,
         set_error,
         set_messages,
@@ -1388,6 +1399,7 @@ export function useAgentConversation(
     },
     [
       apply_workspace_event,
+      is_current_room_event,
       is_current_session_event,
       enqueue_stream_payload,
       on_background_message,

@@ -79,6 +79,37 @@ func TestRoomSubscriptionRegistryRequestsResyncWhenReplayBufferMissed(t *testing
 	}
 }
 
+func TestRoomSubscriptionRegistryKeepsGlobalAndConversationSubscriptions(t *testing.T) {
+	registry := newRoomSubscriptionRegistry(8)
+	ctx := context.Background()
+	sender := newFakeRoomRegistrySender("sender-global")
+
+	if err := registry.SubscribeRoom(ctx, sender, "chat-1", "", nil); err != nil {
+		t.Fatalf("全房间 subscribe_room 失败: %v", err)
+	}
+	if err := registry.SubscribeRoom(ctx, sender, "chat-1", "conv-1", nil); err != nil {
+		t.Fatalf("会话 subscribe_room 失败: %v", err)
+	}
+
+	registry.Broadcast(ctx, "chat-1", durableRoomTestEvent(protocol.EventTypeMessage, "conv-2"))
+	event := readRoomRegistryEvent(t, sender.events)
+	if event.ConversationID != "conv-2" {
+		t.Fatalf("全房间订阅未收到其他会话事件: %+v", event)
+	}
+	assertNoRoomRegistryEvent(t, sender.events)
+
+	registry.UnsubscribeRoom(sender, "chat-1", "conv-1")
+	registry.Broadcast(ctx, "chat-1", durableRoomTestEvent(protocol.EventTypeMessage, "conv-2"))
+	event = readRoomRegistryEvent(t, sender.events)
+	if event.ConversationID != "conv-2" {
+		t.Fatalf("移除会话订阅后全房间订阅应继续生效: %+v", event)
+	}
+
+	registry.UnsubscribeRoom(sender, "chat-1", "")
+	registry.Broadcast(ctx, "chat-1", durableRoomTestEvent(protocol.EventTypeMessage, "conv-2"))
+	assertNoRoomRegistryEvent(t, sender.events)
+}
+
 func durableRoomTestEvent(eventType protocol.EventType, conversationID string) protocol.EventMessage {
 	event := protocol.NewEvent(eventType, map[string]any{
 		"conversation_id": conversationID,
@@ -96,5 +127,14 @@ func readRoomRegistryEvent(t *testing.T, events <-chan protocol.EventMessage) pr
 	case <-time.After(2 * time.Second):
 		t.Fatal("等待 Room registry 事件超时")
 		return protocol.EventMessage{}
+	}
+}
+
+func assertNoRoomRegistryEvent(t *testing.T, events <-chan protocol.EventMessage) {
+	t.Helper()
+	select {
+	case event := <-events:
+		t.Fatalf("不应收到 Room registry 事件: %+v", event)
+	case <-time.After(80 * time.Millisecond):
 	}
 }

@@ -34,6 +34,7 @@ import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
+import { build_chat_notification_target_key } from "./use-chat-completion-notifications";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {
   LauncherAgentSummary,
@@ -64,6 +65,7 @@ interface SidebarConversationItem {
   agent_id?: string;
   last_activity_at: number;
   message_count: number;
+  notification_key?: string | null;
   running_task_count: number;
   unread_count?: number;
   can_delete: boolean;
@@ -383,6 +385,33 @@ function build_latest_conversation_by_room_id(
   return result;
 }
 
+function is_launcher_conversation_active(
+  conversation?: LauncherConversationSummary,
+): boolean {
+  if (!conversation) {
+    return false;
+  }
+  return conversation.is_active === true || conversation.status === "active";
+}
+
+function running_task_count_for_sidebar_conversation({
+  agent_runtime_statuses,
+  dm_agent_id,
+  is_dm,
+  latest,
+}: {
+  agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
+  dm_agent_id?: string;
+  is_dm: boolean;
+  latest?: LauncherConversationSummary;
+}): number {
+  if (is_dm) {
+    return dm_agent_id ? (agent_runtime_statuses[dm_agent_id]?.running_task_count ?? 0) : 0;
+  }
+
+  return is_launcher_conversation_active(latest) ? 1 : 0;
+}
+
 function build_conversation_items({
   agents,
   agent_runtime_statuses,
@@ -416,10 +445,12 @@ function build_conversation_items({
     const members = is_dm
       ? dm_agent ? [{ id: dm_agent.id, name: dm_agent.name, avatar: dm_agent.avatar }] : []
       : room.members ?? [];
-    const running_task_count = members.reduce(
-      (total, member) => total + (agent_runtime_statuses[member.id]?.running_task_count ?? 0),
-      0,
-    );
+    const running_task_count = running_task_count_for_sidebar_conversation({
+      agent_runtime_statuses,
+      dm_agent_id: room.dm_target_agent_id,
+      is_dm,
+      latest,
+    });
     const title = is_dm
       ? dm_agent?.name ?? room.name?.trim() ?? "DM"
       : room.name?.trim() || untitled_room_label;
@@ -548,7 +579,10 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   const navigate = useNavigate();
   const active_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
-  const set_chat_badge_count = useSidebarStore((s) => s.set_chat_badge_count);
+  const chat_unread_counts = useSidebarStore((s) => s.chat_unread_counts);
+  const clear_chat_notifications_for_target = useSidebarStore(
+    (s) => s.clear_chat_notifications_for_target,
+  );
   const set_nexus_room_id = useSidebarStore((s) => s.set_nexus_room_id);
   const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
   const { agents, conversations, is_loading, refresh_directory, rooms } = useSidebarDirectory();
@@ -576,8 +610,18 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       format_running_tasks_summary: (count) => t("sidebar.running_tasks_summary", { count }),
       rooms,
       untitled_room_label,
+    }).map((item) => {
+      const notification_key = build_chat_notification_target_key({
+        conversation_id: item.conversation_id,
+        room_id: item.room_id,
+      });
+      return {
+        ...item,
+        notification_key,
+        unread_count: notification_key ? (chat_unread_counts[notification_key] ?? 0) : 0,
+      };
     }),
-    [agents, agent_runtime_statuses, conversations, rooms, t, untitled_room_label],
+    [agents, agent_runtime_statuses, chat_unread_counts, conversations, rooms, t, untitled_room_label],
   );
 
   const filtered_items = useMemo(() => {
@@ -591,35 +635,29 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     });
   }, [items, query]);
 
-  const chat_badge_count = useMemo(() => {
-    const unread_total = items.reduce((total, item) => total + (item.unread_count ?? 0), 0);
-    if (unread_total > 0) {
-      return unread_total;
-    }
-    return items.filter((item) => item.message_count > 0).length;
-  }, [items]);
-
-  useEffect(() => {
-    set_chat_badge_count(chat_badge_count);
-  }, [chat_badge_count, set_chat_badge_count]);
-
   const navigate_to_room = useCallback((item: SidebarConversationItem) => {
     if (!item.room_id) {
       return;
     }
+    clear_chat_notifications_for_target(item.notification_key);
     set_active_item(item.room_id);
     if (item.conversation_id) {
       navigate(AppRouteBuilders.room_conversation(item.room_id, item.conversation_id));
       return;
     }
     navigate(AppRouteBuilders.room(item.room_id));
-  }, [navigate, set_active_item]);
+  }, [clear_chat_notifications_for_target, navigate, set_active_item]);
 
-  const navigate_to_agent_dm = useCallback(async (agent_id: string) => {
+  const navigate_to_agent_dm = useCallback(async (agent_id: string, notification_key?: string | null) => {
+    clear_chat_notifications_for_target(notification_key);
     const target = await resolve_direct_room_navigation_target(agent_id);
+    clear_chat_notifications_for_target(build_chat_notification_target_key({
+      conversation_id: target.context.conversation.id,
+      room_id: target.context.room.id,
+    }));
     set_active_item(target.context.room.id);
     navigate(target.route);
-  }, [navigate, set_active_item]);
+  }, [clear_chat_notifications_for_target, navigate, set_active_item]);
 
   const handle_create_room = useCallback(() => {
     set_is_create_room_open(true);
@@ -704,7 +742,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
                 key={item.id}
                 on_click={() => {
                   if (item.kind === "dm" && item.agent_id) {
-                    void navigate_to_agent_dm(item.agent_id);
+                    void navigate_to_agent_dm(item.agent_id, item.notification_key);
                     return;
                   }
                   navigate_to_room(item);
@@ -827,6 +865,9 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
   const navigate = useNavigate();
   const location = useLocation();
   const set_active_item = useSidebarStore((s) => s.set_active_panel_item);
+  const clear_chat_notifications_for_target = useSidebarStore(
+    (s) => s.clear_chat_notifications_for_target,
+  );
   const agent_runtime_statuses = useAgentStore((s) => s.agent_runtime_statuses);
   const { agents, is_loading } = useSidebarDirectory();
   const [query, set_query] = useState("");
@@ -856,9 +897,13 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
 
   const navigate_to_agent_dm = useCallback(async (agent_id: string) => {
     const target = await resolve_direct_room_navigation_target(agent_id);
+    clear_chat_notifications_for_target(build_chat_notification_target_key({
+      conversation_id: target.context.conversation.id,
+      room_id: target.context.room.id,
+    }));
     set_active_item(target.context.room.id);
     navigate(target.route);
-  }, [navigate, set_active_item]);
+  }, [clear_chat_notifications_for_target, navigate, set_active_item]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-tour-anchor={SIDEBAR_TOUR_ANCHORS.contacts_list}>

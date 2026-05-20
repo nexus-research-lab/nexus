@@ -263,7 +263,11 @@ func (h *Handler) handleUnsubscribeRoom(sender *handlershared.WebSocketSender, i
 	if h.roomSubs == nil {
 		return
 	}
-	h.roomSubs.UnsubscribeRoom(sender, handlershared.StringValue(inbound["room_id"]))
+	h.roomSubs.UnsubscribeRoom(
+		sender,
+		handlershared.StringValue(inbound["room_id"]),
+		handlershared.StringValue(inbound["conversation_id"]),
+	)
 }
 
 func (h *Handler) handleBindSession(

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -144,6 +145,35 @@ func assertContainsConversationTitle(
 		}
 	}
 	t.Fatalf("bootstrap conversations 缺少标题 %q: %+v", title, items)
+}
+
+func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
+	roomID := "room-1"
+	conversationID := "conversation-1"
+	now := time.Date(2026, 5, 20, 9, 30, 0, 0, time.UTC)
+
+	items := buildBootstrapConversations([]protocol.Session{
+		{
+			SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
+			AgentID:        "amy",
+			RoomID:         &roomID,
+			ConversationID: &conversationID,
+			ChatType:       protocol.RoomTypeGroup,
+			Status:         "active",
+			IsActive:       true,
+			CreatedAt:      now,
+			LastActivity:   now,
+			Title:          "room",
+			MessageCount:   2,
+		},
+	}, map[string]string{roomID: protocol.RoomTypeGroup})
+
+	if len(items) != 1 {
+		t.Fatalf("bootstrap conversations 数量不正确: %+v", items)
+	}
+	if items[0].Status != "active" || !items[0].IsActive {
+		t.Fatalf("bootstrap conversation 应携带运行态: %+v", items[0])
+	}
 }
 
 func createLauncherAgent(

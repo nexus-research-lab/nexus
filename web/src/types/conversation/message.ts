@@ -72,6 +72,9 @@ export interface WorkspaceFileArtifactContent {
   path: string;
   display_path?: string | null;
   label?: string | null;
+  title?: string | null;
+  artifact_kind?: string | null;
+  mime_type?: string | null;
   operation?: string | null;
   scope?: MessageAttachmentScope;
   workspace_agent_id?: string | null;

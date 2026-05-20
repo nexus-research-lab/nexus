@@ -62,6 +62,8 @@ type BootstrapConversation struct {
 	ConversationID string `json:"conversation_id,omitempty"`
 	RoomType       string `json:"room_type"`
 	Title          string `json:"title"`
+	Status         string `json:"status,omitempty"`
+	IsActive       bool   `json:"is_active,omitempty"`
 	LastActivity   string `json:"last_activity"`
 	MessageCount   int    `json:"message_count,omitempty"`
 }

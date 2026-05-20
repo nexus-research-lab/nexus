@@ -48,6 +48,8 @@ export interface LauncherConversationSummary {
   conversation_id?: string;
   room_type: "dm" | "room";
   title: string;
+  status?: string;
+  is_active?: boolean;
   last_activity: string;
   message_count?: number;
 }

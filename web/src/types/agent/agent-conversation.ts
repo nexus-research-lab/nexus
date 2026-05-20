@@ -249,6 +249,7 @@ export interface RoomEventPayload {
 export interface HandleAgentConversationWebSocketMessageParams {
   backend_message: unknown;
   apply_workspace_event: (payload: WorkspaceEventPayload) => void;
+  is_current_room_event?: (incoming_room_id?: string | null) => boolean;
   is_current_session_event: (incoming_session_key?: string | null) => boolean;
   set_error: Dispatch<SetStateAction<string | null>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;

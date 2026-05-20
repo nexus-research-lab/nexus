@@ -225,6 +225,129 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	}
 }
 
+func TestAgentHistoryStoreProjectsWorkspaceFileArtifactFromTranscriptToolResult(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "6a855871-4614-4032-b0b3-62d2358fad99"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-game", "写一个简单的游戏，html的", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	targetPath := filepath.Join(workspacePath, "snake-game.html")
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-game",
+			"sessionId": sessionID,
+			"timestamp": "2026-05-20T01:07:51.493Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "写一个简单的游戏，html的",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-write",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-game",
+			"timestamp":  "2026-05-20T01:08:39.805Z",
+			"message": map[string]any{
+				"id":          "msg_game_write",
+				"type":        "message",
+				"role":        "assistant",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type": "text",
+						"text": "好的，我来写一个 HTML 游戏。",
+					},
+					{
+						"type": "tool_use",
+						"id":   "tool-write-game",
+						"name": "Write",
+						"input": map[string]any{
+							"file_path": targetPath,
+							"content":   "<!doctype html><html><body>game</body></html>",
+						},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "transcript-tool-result",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-assistant-write",
+			"timestamp":  "2026-05-20T01:08:39.850Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "tool-write-game",
+						"content":     "File created successfully at: " + targetPath,
+					},
+				},
+			},
+			"toolUseResult": map[string]any{
+				"type":     "create",
+				"filePath": targetPath,
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-final",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-tool-result",
+			"timestamp":  "2026-05-20T01:08:47.315Z",
+			"message": map[string]any{
+				"id":          "msg_game_final",
+				"type":        "message",
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{
+						"type": "text",
+						"text": "游戏写好了，文件在 `snake-game.html`。",
+					},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	for _, row := range rows {
+		blocks, _ := row["content"].([]map[string]any)
+		for _, block := range blocks {
+			if block["type"] != protocol.ContentBlockTypeWorkspaceFileArtifact {
+				continue
+			}
+			if block["path"] != "snake-game.html" || block["source_tool_use_id"] != "tool-write-game" {
+				t.Fatalf("workspace file artifact 内容不正确: %+v", block)
+			}
+			return
+		}
+	}
+	t.Fatalf("transcript tool_result 应投影出 workspace_file_artifact: %+v", rows)
+}
+
 func TestAgentHistoryStoreRoomPublicCursorIsControlRow(t *testing.T) {
 	root := t.TempDir()
 	workspacePath := t.TempDir()

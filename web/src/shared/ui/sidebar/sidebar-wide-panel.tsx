@@ -31,6 +31,7 @@ import {
   ChatSidebarPanelContent,
   ContactsSidebarPanelContent,
 } from "@/features/home/home-sidebar-panel";
+import { useChatCompletionNotifications } from "@/features/home/use-chat-completion-notifications";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
@@ -101,7 +102,6 @@ export function SidebarWidePanel() {
   const nexus_room_id = useSidebarStore((s) => s.nexus_room_id);
   const chat_badge_count = useSidebarStore((s) => s.chat_badge_count);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-  const set_chat_badge_count = useSidebarStore((s) => s.set_chat_badge_count);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
   const root_ref = useRef<HTMLDivElement | null>(null);
@@ -121,27 +121,7 @@ export function SidebarWidePanel() {
     [t],
   );
   const has_auto_started_tour_ref = useRef(false);
-
-  const refresh_chat_badge_count = useCallback(() => {
-    void get_launcher_bootstrap_api()
-      .then((payload) => {
-        const next_count = payload.conversations.filter(
-          (conversation) => (conversation.message_count ?? 0) > 0,
-        ).length;
-        set_chat_badge_count(next_count);
-      })
-      .catch(() => {
-        set_chat_badge_count(0);
-      });
-  }, [set_chat_badge_count]);
-
-  useEffect(() => {
-    refresh_chat_badge_count();
-    window.addEventListener("focus", refresh_chat_badge_count);
-    return () => {
-      window.removeEventListener("focus", refresh_chat_badge_count);
-    };
-  }, [refresh_chat_badge_count]);
+  useChatCompletionNotifications();
   const is_dm_tour_registered = is_tour_registered(DM_CONVERSATION_TOUR_ID);
   const registered_room_tour_id = useMemo(() => {
     if (is_tour_registered(ROOM_CONVERSATION_TOUR_ID)) {

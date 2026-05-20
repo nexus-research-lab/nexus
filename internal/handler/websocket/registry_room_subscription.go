@@ -15,8 +15,8 @@ type roomEventSender interface {
 }
 
 type roomSubscription struct {
-	Sender         roomEventSender
-	ConversationID string
+	Sender          roomEventSender
+	ConversationIDs map[string]struct{}
 }
 
 // roomSubscriptionRegistry 负责 Room 广播订阅、durable 回放与 resync。
@@ -59,10 +59,13 @@ func (r *roomSubscriptionRegistry) SubscribeRoom(
 		roomSubscribers = make(map[string]roomSubscription)
 		r.roomSubs[roomID] = roomSubscribers
 	}
-	roomSubscribers[sender.Key()] = roomSubscription{
-		Sender:         sender,
-		ConversationID: conversationID,
+	subscription := roomSubscribers[sender.Key()]
+	if subscription.ConversationIDs == nil {
+		subscription.ConversationIDs = make(map[string]struct{})
 	}
+	subscription.Sender = sender
+	subscription.ConversationIDs[conversationID] = struct{}{}
+	roomSubscribers[sender.Key()] = subscription
 	senderRooms := r.senderRooms[sender.Key()]
 	if senderRooms == nil {
 		senderRooms = make(map[string]struct{})
@@ -82,7 +85,7 @@ func (r *roomSubscriptionRegistry) SubscribeRoom(
 	return r.replayRoomEvents(ctx, sender, roomID, conversationID, *lastSeenRoomSeq, latestRoomSeq, buffer)
 }
 
-func (r *roomSubscriptionRegistry) UnsubscribeRoom(sender roomEventSender, roomID string) {
+func (r *roomSubscriptionRegistry) UnsubscribeRoom(sender roomEventSender, roomID string, conversationID string) {
 	if sender == nil || roomID == "" {
 		return
 	}
@@ -94,7 +97,18 @@ func (r *roomSubscriptionRegistry) UnsubscribeRoom(sender roomEventSender, roomI
 	if len(roomSubscribers) == 0 {
 		return
 	}
-	delete(roomSubscribers, sender.Key())
+
+	subscription, exists := roomSubscribers[sender.Key()]
+	if !exists {
+		return
+	}
+	delete(subscription.ConversationIDs, conversationID)
+	if len(subscription.ConversationIDs) == 0 {
+		delete(roomSubscribers, sender.Key())
+	} else {
+		roomSubscribers[sender.Key()] = subscription
+		return
+	}
 	if len(roomSubscribers) == 0 {
 		delete(r.roomSubs, roomID)
 	}
@@ -265,7 +279,7 @@ func (r *roomSubscriptionRegistry) matchingSubscribersLocked(roomID string, conv
 			delete(roomSubscribers, senderKey)
 			continue
 		}
-		if !conversationMatches(subscription.ConversationID, conversationID) {
+		if !subscriptionMatchesConversation(subscription.ConversationIDs, conversationID) {
 			continue
 		}
 		result = append(result, subscription)
@@ -305,4 +319,16 @@ func conversationMatches(subscribedConversationID string, eventConversationID st
 		return true
 	}
 	return subscribedConversationID == eventConversationID
+}
+
+func subscriptionMatchesConversation(subscribedConversationIDs map[string]struct{}, eventConversationID string) bool {
+	if len(subscribedConversationIDs) == 0 {
+		return false
+	}
+	for subscribedConversationID := range subscribedConversationIDs {
+		if conversationMatches(subscribedConversationID, eventConversationID) {
+			return true
+		}
+	}
+	return false
 }

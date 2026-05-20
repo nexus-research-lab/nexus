@@ -51,8 +51,12 @@ interface SidebarState {
   nexus_room_id: string | null;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;
-  /** 聊天入口消息提示数量，由聊天侧栏根据会话状态同步。 */
+  /** 聊天入口未读消息提示数量。 */
   chat_badge_count: number;
+  /** 聊天会话维度的未读完成消息数。 */
+  chat_unread_counts: Record<string, number>;
+  /** 已计入通知的消息 ID，避免 WebSocket 重放或多订阅重复提示。 */
+  notified_chat_message_ids: string[];
   /** 宽面板各 Section 的折叠状态 */
   collapsed_sections: Record<string, boolean>;
 }
@@ -61,9 +65,17 @@ interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
   set_nexus_room_id: (room_id: string | null) => void;
   set_chat_badge_count: (count: number) => void;
+  record_chat_notification: (target_key: string, message_id: string) => boolean;
+  clear_chat_notifications_for_target: (target_key: string | null | undefined) => void;
   /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
   set_wide_panel_width: (width: number) => void;
   toggle_section: (section_id: string) => void;
+}
+
+const MAX_NOTIFIED_CHAT_MESSAGE_IDS = 300;
+
+function count_chat_unread_total(counts: Record<string, number>): number {
+  return Object.values(counts).reduce((total, count) => total + Math.max(0, count), 0);
 }
 
 export const useSidebarStore = create<SidebarState & SidebarActions>()(
@@ -73,11 +85,54 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       nexus_room_id: null,
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
       chat_badge_count: 0,
+      chat_unread_counts: {},
+      notified_chat_message_ids: [],
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
       set_nexus_room_id: (room_id) => set({ nexus_room_id: room_id }),
       set_chat_badge_count: (count) => set({ chat_badge_count: Math.max(0, Math.floor(count)) }),
+      record_chat_notification: (target_key, message_id) => {
+        let did_record = false;
+        set((state) => {
+          const normalized_target_key = target_key.trim();
+          const normalized_message_id = message_id.trim();
+          if (!normalized_target_key || !normalized_message_id) {
+            return state;
+          }
+          if (state.notified_chat_message_ids.includes(normalized_message_id)) {
+            return state;
+          }
+
+          did_record = true;
+          const next_counts = {
+            ...state.chat_unread_counts,
+            [normalized_target_key]: (state.chat_unread_counts[normalized_target_key] ?? 0) + 1,
+          };
+          const next_message_ids = [
+            normalized_message_id,
+            ...state.notified_chat_message_ids,
+          ].slice(0, MAX_NOTIFIED_CHAT_MESSAGE_IDS);
+          return {
+            chat_badge_count: count_chat_unread_total(next_counts),
+            chat_unread_counts: next_counts,
+            notified_chat_message_ids: next_message_ids,
+          };
+        });
+        return did_record;
+      },
+      clear_chat_notifications_for_target: (target_key) => set((state) => {
+        const normalized_target_key = target_key?.trim();
+        if (!normalized_target_key || !state.chat_unread_counts[normalized_target_key]) {
+          return state;
+        }
+        const next_counts = { ...state.chat_unread_counts };
+        delete next_counts[normalized_target_key];
+        return {
+          chat_badge_count: count_chat_unread_total(next_counts),
+          chat_unread_counts: next_counts,
+        };
+      }),
 
       set_wide_panel_width: (width) =>
         set({ wide_panel_width: clamp_panel_width(width) }),

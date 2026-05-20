@@ -16,6 +16,16 @@ const (
 	WorkspaceFileArtifactOperationUpdate = "update"
 )
 
+const (
+	WorkspaceFileArtifactKindFile     = "file"
+	WorkspaceFileArtifactKindImage    = "image"
+	WorkspaceFileArtifactKindMarkdown = "markdown"
+	WorkspaceFileArtifactKindHTML     = "html"
+	WorkspaceFileArtifactKindMermaid  = "mermaid"
+	WorkspaceFileArtifactKindSVG      = "svg"
+	WorkspaceFileArtifactKindPDF      = "pdf"
+)
+
 // WorkspaceFileArtifactBlock 描述对话中可直接打开的工作区文件产物。
 type WorkspaceFileArtifactBlock struct {
 	ID               string `json:"id,omitempty"`
@@ -23,6 +33,9 @@ type WorkspaceFileArtifactBlock struct {
 	Path             string `json:"path"`
 	DisplayPath      string `json:"display_path,omitempty"`
 	Label            string `json:"label,omitempty"`
+	Title            string `json:"title,omitempty"`
+	ArtifactKind     string `json:"artifact_kind,omitempty"`
+	MIMEType         string `json:"mime_type,omitempty"`
 	Operation        string `json:"operation,omitempty"`
 	Scope            string `json:"scope,omitempty"`
 	WorkspaceAgentID string `json:"workspace_agent_id,omitempty"`
@@ -44,6 +57,15 @@ func (b WorkspaceFileArtifactBlock) Map() map[string]any {
 	}
 	if value := strings.TrimSpace(b.Label); value != "" {
 		result["label"] = value
+	}
+	if value := strings.TrimSpace(b.Title); value != "" {
+		result["title"] = value
+	}
+	if value := strings.TrimSpace(b.ArtifactKind); value != "" {
+		result["artifact_kind"] = value
+	}
+	if value := strings.TrimSpace(b.MIMEType); value != "" {
+		result["mime_type"] = value
 	}
 	if value := strings.TrimSpace(b.Operation); value != "" {
 		result["operation"] = value
