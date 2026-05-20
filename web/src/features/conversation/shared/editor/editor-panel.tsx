@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   Eye,
@@ -219,6 +219,7 @@ function workspace_file_kind_label(file_type: WorkspaceFilePreviewKind): string 
 const HTML_PREVIEW_WIDTH = 1920;
 const HTML_PREVIEW_HEIGHT = 1080;
 const HTML_PREVIEW_PADDING = 32;
+const HTML_PREVIEW_COMMIT_INTERVAL_MS = 250;
 
 const HTML_PREVIEW_STORAGE_SHIM = `<script>
 (() => {
@@ -261,10 +262,105 @@ function build_html_preview_document(content: string): string {
   return `${HTML_PREVIEW_STORAGE_SHIM}${content}`;
 }
 
-function HtmlFilePreview({ content, title }: { content: string; title: string }) {
+function is_html_preview_head_ready(content: string): boolean {
+  const normalized = content.trim().toLowerCase();
+  if (!/<(?:head|style)(?:\s|>)/i.test(normalized)) {
+    return true;
+  }
+
+  return (
+    normalized.includes("</head>") ||
+    normalized.includes("</style>") ||
+    normalized.includes("<body") ||
+    normalized.includes("</body>") ||
+    normalized.includes("</html>")
+  );
+}
+
+function should_defer_html_preview_commit(content: string): boolean {
+  return content.trim().length > 0 && !is_html_preview_head_ready(content);
+}
+
+function useHtmlPreviewDocument(content: string, is_streaming: boolean) {
+  const [committed_content, setCommittedContent] = useState<string | null>(() => (
+    is_streaming && should_defer_html_preview_commit(content) ? null : content
+  ));
+  const latest_content_ref = useRef(content);
+  const last_commit_ts_ref = useRef(0);
+  const pending_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clear_pending_timer = useCallback(() => {
+    if (pending_timer_ref.current) {
+      clearTimeout(pending_timer_ref.current);
+      pending_timer_ref.current = null;
+    }
+  }, []);
+
+  const commit_content = useCallback((next_content: string) => {
+    clear_pending_timer();
+    last_commit_ts_ref.current = Date.now();
+    setCommittedContent(next_content);
+  }, [clear_pending_timer]);
+
+  useEffect(() => {
+    latest_content_ref.current = content;
+  }, [content]);
+
+  useEffect(() => {
+    if (!is_streaming) {
+      commit_content(content);
+      return;
+    }
+
+    if (should_defer_html_preview_commit(content)) {
+      return;
+    }
+
+    const elapsed = Date.now() - last_commit_ts_ref.current;
+    if (elapsed >= HTML_PREVIEW_COMMIT_INTERVAL_MS) {
+      commit_content(content);
+      return;
+    }
+
+    if (pending_timer_ref.current) {
+      return;
+    }
+
+    pending_timer_ref.current = setTimeout(() => {
+      pending_timer_ref.current = null;
+      const latest_content = latest_content_ref.current;
+      if (!should_defer_html_preview_commit(latest_content)) {
+        commit_content(latest_content);
+      }
+    }, HTML_PREVIEW_COMMIT_INTERVAL_MS - elapsed);
+  }, [commit_content, content, is_streaming]);
+
+  useEffect(() => () => clear_pending_timer(), [clear_pending_timer]);
+
+  const preview_document = useMemo(
+    () => committed_content === null ? "" : build_html_preview_document(committed_content),
+    [committed_content],
+  );
+
+  return {
+    has_committed_content: committed_content !== null,
+    is_waiting_for_head: is_streaming && committed_content === null && should_defer_html_preview_commit(content),
+    preview_document,
+  };
+}
+
+function HtmlFilePreview({
+  content,
+  is_streaming = false,
+  title,
+}: {
+  content: string;
+  is_streaming?: boolean;
+  title: string;
+}) {
   const container_ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const preview_document = build_html_preview_document(content);
+  const { has_committed_content, is_waiting_for_head, preview_document } = useHtmlPreviewDocument(content, is_streaming);
 
   useEffect(() => {
     const el = container_ref.current;
@@ -298,6 +394,16 @@ function HtmlFilePreview({ content, title }: { content: string; title: string })
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  if (!has_committed_content && is_waiting_for_head) {
+    return (
+      <div className="soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4">
+        <pre className="message-cjk-code-font whitespace-pre-wrap break-words text-sm leading-6 text-(--text-muted)">
+          {content}
+        </pre>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -336,11 +442,13 @@ function TextFilePreview({
   file_name,
   file_type,
   is_loading,
+  is_streaming = false,
 }: {
   content: string;
   file_name: string;
   file_type: WorkspaceFilePreviewKind;
   is_loading: boolean;
+  is_streaming?: boolean;
 }) {
   if (is_loading) {
     return <div className="font-mono text-sm leading-6 text-(--text-muted)">加载中...</div>;
@@ -368,7 +476,7 @@ function TextFilePreview({
   }
 
   if (file_type === "html") {
-    return <HtmlFilePreview content={content} title={file_name} />;
+    return <HtmlFilePreview content={content} is_streaming={is_streaming} title={file_name} />;
   }
 
   return (
@@ -880,7 +988,7 @@ export function EditorPanel({
                   file_type === "html" && !is_editing ? "p-0" : "px-4 py-4",
                 )}
               >
-                {is_external_writing ? (
+                {is_external_writing && file_type !== "html" ? (
                   <TypewriterFileView
                     content={draft_content}
                     container_width={editor_width > 0 ? editor_width - 40 : undefined}
@@ -892,6 +1000,7 @@ export function EditorPanel({
                     file_name={file_name}
                     file_type={file_type}
                     is_loading={is_loading}
+                    is_streaming={is_external_writing}
                   />
                 ) : !is_editing ? (
                   <div className="soft-scrollbar h-full overflow-auto">

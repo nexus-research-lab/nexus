@@ -11,10 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 Nexus Memory v1：支持本地 Markdown 真相源、自动动态召回、候选提升、checkpoint 去重、`nexusctl memory` 管理命令、HTTP API 与 Web Memory 面板。
 - 聊天消息完成后新增通知闭环：非激活窗口触发浏览器系统通知，左侧聊天入口和会话行显示未读完成消息数，进入对应会话后自动清除。
 - 工作区文件预览支持 Markdown、HTML、Mermaid、图片、SVG、PDF 和普通文本，并在预览区、聊天文件卡和文件右键菜单提供统一下载入口。
+- 桌面 App 内置 GitHub OAuth Device Flow：发布包只注入公开 Client ID，用户输入 GitHub 授权码后由本地 sidecar 轮询并保存 token。
 
 ### Changed
 - `make logs`、`make logs-all` 与 `make logs-nginx` 默认显示最近 1000 行，便于直接查看启动前后的服务日志。
-- 优化 Markdown 流式输出：按 block 显式区分已稳定内容和流式尾块，未闭合代码围栏直接对齐真实内容，Mermaid 流式预览保留上一版合法 SVG，减少半截语法造成的预览抖动。
+- 优化 Markdown/预览流式输出：按 block 显式区分已稳定内容和流式尾块，未闭合代码围栏直接对齐真实内容，Mermaid 流式预览保留上一版合法 SVG，代码块流式期间跳过完整高亮，HTML 预览按 head 就绪和节流提交减少重载抖动。
 
 ### Fixed
 - 修复 Agent 任务结束后工作区文件状态可能停留在“写入中”的问题。
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复聊天未读只记在全局入口、会话行不显示且点击未进入对应未读会话的问题。
 - 修复 Windows 安装器在 Windows 11 ARM64 x64 兼容环境下因 Inno Setup 架构约束误报不支持当前 Windows 版本的问题。
 - 修复 Windows 桌面 App 内聊天、侧边栏订阅和完成通知 WebSocket 未携带桌面会话 token，导致连接被本地 sidecar 拒绝的问题。
+- 移除桌面发布包内 GitHub OAuth Client Secret 注入，避免分发产物暴露 confidential client secret。
 
 ## [0.1.6] - 2026-05-20
 
