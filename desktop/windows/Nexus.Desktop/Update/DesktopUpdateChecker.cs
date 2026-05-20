@@ -288,7 +288,7 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+        await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
             owner,
             string.Join(
                 Environment.NewLine,
@@ -306,7 +306,7 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+        await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
             owner,
             exception.Message,
             "Nexus 检查更新失败",
@@ -323,7 +323,7 @@ internal sealed class DesktopUpdateChecker
             ["can_download_installer"] = latest.CanDownloadInstaller.ToString(),
         });
 
-        MessageBoxResult result = MessageBox.Show(
+        MessageBoxResult result = System.Windows.MessageBox.Show(
             owner,
             UpdateAvailableMessage(latest),
             "发现 Nexus 新版本",
@@ -466,7 +466,7 @@ internal sealed class DesktopUpdateChecker
                 ["installer_path"] = downloadedUpdate.InstallerPath,
             });
 
-            return MessageBox.Show(
+            return System.Windows.MessageBox.Show(
                 owner,
                 InstallReadyMessage(latest, downloadedUpdate),
                 "Nexus 更新已就绪",
@@ -493,7 +493,7 @@ internal sealed class DesktopUpdateChecker
 
         if (!owner.Dispatcher.HasShutdownStarted)
         {
-            await owner.Dispatcher.InvokeAsync(() => Application.Current.Shutdown(0));
+            await owner.Dispatcher.InvokeAsync(() => App.RequestApplicationExit(0));
         }
     }
 
@@ -504,7 +504,7 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
             owner,
             "当前 Release 缺少可自动校验的 Windows 安装器或 sha256 文件。是否打开下载页手动处理？",
             "Nexus 更新暂不可自动下载",
@@ -526,7 +526,7 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
             owner,
             $"更新下载或校验失败：{exception.Message}{Environment.NewLine}{Environment.NewLine}是否打开 Release 页面手动下载？",
             "Nexus 更新下载失败",

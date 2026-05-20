@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `make app-win-build` 默认使用当前时间戳作为 Windows 桌面 app 构建号，方便未提交改动的本地临时测试；需要固定构建号时仍可通过 `APP_WIN_BUILD_NUMBER` 覆盖。
+- Windows 桌面 App 点击窗口关闭按钮时改为隐藏到系统托盘，真正退出需通过托盘图标右键菜单执行。
 
 ### Fixed
 - 修复 Windows 桌面 App 自动更新检查在请求前写入 24 小时节流状态，导致失败后后续启动被误判为近期已检查的问题。

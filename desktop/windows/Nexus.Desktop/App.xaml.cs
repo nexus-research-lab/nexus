@@ -8,7 +8,7 @@ using Nexus.Desktop.Window;
 
 namespace Nexus.Desktop;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private readonly DesktopStartupTimeline startupTimeline = new();
     private DesktopSingleInstanceCoordinator? singleInstance;
@@ -16,16 +16,37 @@ public partial class App : Application
     private DesktopUpdateChecker? updateChecker;
     private MainWindow? mainWindow;
     private DesktopWebRoute? pendingActivationRoute;
+    private bool exitRequested;
+
+    internal static bool IsExplicitExitRequested => Current is App app && app.exitRequested;
+
+    internal static void RequestApplicationExit(int exitCode)
+    {
+        if (Current is App app)
+        {
+            app.exitRequested = true;
+            app.Shutdown(exitCode);
+            return;
+        }
+
+        Current?.Shutdown(exitCode);
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         startupTimeline.Mark("app.startup");
         singleInstance = new DesktopSingleInstanceCoordinator(startupTimeline);
+        string activationMessage = DesktopProtocolRouter.ActivationMessage(e.Args);
         if (!singleInstance.IsPrimary)
         {
-            await singleInstance.NotifyPrimaryAsync(DesktopProtocolRouter.ActivationMessage(e.Args));
-            Shutdown(0);
+            await singleInstance.NotifyPrimaryAsync(activationMessage);
+            RequestApplicationExit(0);
+            return;
+        }
+        if (DesktopProtocolRouter.IsExitActivationMessage(activationMessage))
+        {
+            RequestApplicationExit(0);
             return;
         }
         singleInstance.StartServer(HandleActivationAsync);
@@ -40,7 +61,7 @@ public partial class App : Application
             mainWindow = new MainWindow(runtime, startupTimeline, updateChecker);
             MainWindow = mainWindow;
             DesktopWebRoute launchRoute = pendingActivationRoute
-                ?? DesktopProtocolRouter.RouteFromActivationMessage(DesktopProtocolRouter.ActivationMessage(e.Args));
+                ?? DesktopProtocolRouter.RouteFromActivationMessage(activationMessage);
             pendingActivationRoute = null;
             await mainWindow.ShowRouteAsync(launchRoute);
             updateChecker.CheckOnLaunchIfNeeded(mainWindow);
@@ -59,6 +80,12 @@ public partial class App : Application
         base.OnExit(e);
     }
 
+    protected override void OnSessionEnding(System.Windows.SessionEndingCancelEventArgs e)
+    {
+        exitRequested = true;
+        base.OnSessionEnding(e);
+    }
+
     private void ShowStartupError(Exception exception)
     {
         startupTimeline.Mark("startup.failed", new Dictionary<string, string>
@@ -69,16 +96,22 @@ public partial class App : Application
         string message = diagnosticsPath is null
             ? exception.Message
             : $"{exception.Message}{Environment.NewLine}{Environment.NewLine}诊断文件：{diagnosticsPath}";
-        MessageBox.Show(
+        System.Windows.MessageBox.Show(
             message,
             "Nexus 启动失败",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
-        Shutdown(1);
+        RequestApplicationExit(1);
     }
 
     private Task HandleActivationAsync(string message)
     {
+        if (DesktopProtocolRouter.IsExitActivationMessage(message))
+        {
+            Dispatcher.Invoke(() => RequestApplicationExit(0));
+            return Task.CompletedTask;
+        }
+
         DesktopWebRoute route = DesktopProtocolRouter.RouteFromActivationMessage(message);
         Dispatcher.Invoke(() =>
         {

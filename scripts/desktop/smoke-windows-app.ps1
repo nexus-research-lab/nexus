@@ -84,8 +84,26 @@ try {
     throw "Expected bundled nexus-server.exe sidecar process"
   }
 
-  Write-Host "==> Closing app"
+  Write-Host "==> Closing app to tray"
   [void]$process.CloseMainWindow()
+  Wait-Until {
+    $log = Read-Log $logPath
+    $markerIndex = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
+    if ($markerIndex -lt 0) {
+      return $false
+    }
+    $current = $log.Substring($markerIndex)
+    return $current.Contains("event=main_window.hidden_to_tray")
+  } 10 "window hidden to tray"
+
+  $process.Refresh()
+  if ($process.HasExited) {
+    throw "Expected window close to keep Nexus running in the tray"
+  }
+
+  Write-Host "==> Exiting app"
+  $exitProcess = Start-Process -FilePath $appExe -WorkingDirectory $AppDir -ArgumentList "--nexus-desktop-exit" -PassThru
+  [void]$exitProcess.WaitForExit(5000)
   Wait-Until {
     $process.Refresh()
     return $process.HasExited

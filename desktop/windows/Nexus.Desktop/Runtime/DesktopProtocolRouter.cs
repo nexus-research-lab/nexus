@@ -3,11 +3,23 @@ namespace Nexus.Desktop.Runtime;
 internal static class DesktopProtocolRouter
 {
     private const string OAuthCallbackPath = "/capability/connectors/oauth/callback";
+    private const string ExitCommandArgument = "--nexus-desktop-exit";
+    private const string ExitActivationMessage = "NEXUS_DESKTOP_INTERNAL_EXIT";
 
     public static string ActivationMessage(string[] args)
     {
+        if (args.Any(item => string.Equals(item, ExitCommandArgument, StringComparison.OrdinalIgnoreCase)))
+        {
+            return ExitActivationMessage;
+        }
+
         return args.FirstOrDefault(item => item.StartsWith("nexus:", StringComparison.OrdinalIgnoreCase))
             ?? string.Empty;
+    }
+
+    public static bool IsExitActivationMessage(string message)
+    {
+        return string.Equals(message, ExitActivationMessage, StringComparison.Ordinal);
     }
 
     public static DesktopWebRoute RouteFromActivationMessage(string message)
