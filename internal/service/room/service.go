@@ -108,7 +108,7 @@ func (s *Service) GetConversationContext(ctx context.Context, conversationID str
 	return contextValue, nil
 }
 
-// EnsureDirectRoom 获取或创建直聊房间。
+// EnsureDirectRoom 获取或创建直聊房间，并返回最近活跃的对话上下文。
 func (s *Service) EnsureDirectRoom(ctx context.Context, agentID string) (*protocol.ConversationContextAggregate, error) {
 	agentValue, err := s.resolveRoomAgent(ctx, agentID)
 	if err != nil {

@@ -200,8 +200,7 @@ LIMIT 1`, conversationID, ownerUserID)
 
 // FindDMRoomContext 查找指定 Agent 的 DM 上下文。
 func (r *RoomRepository) FindDMRoomContext(ctx context.Context, ownerUserID string, agentID string) (*protocol.ConversationContextAggregate, error) {
-	var roomID string
-	err := r.db.QueryRowContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, `
 SELECT r.id
 FROM rooms r
 WHERE r.room_type = 'dm'
@@ -217,25 +216,74 @@ WHERE r.room_type = 'dm'
       SELECT COUNT(1)
       FROM members m
       WHERE m.room_id = r.id AND m.member_type = 'agent'
-  ) = 1
-LIMIT 1`, ownerUserID, agentID).Scan(&roomID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
+  ) = 1`, ownerUserID, agentID)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	contexts, err := r.GetRoomContexts(ctx, ownerUserID, roomID)
-	if err != nil || len(contexts) == 0 {
+	roomIDs := make([]string, 0)
+	for rows.Next() {
+		var roomID string
+		if err = rows.Scan(&roomID); err != nil {
+			return nil, err
+		}
+		roomIDs = append(roomIDs, roomID)
+	}
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	for _, contextValue := range contexts {
-		if contextValue.Conversation.ConversationType == protocol.ConversationTypeDM {
-			return &contextValue, nil
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+
+	contexts := make([]protocol.ConversationContextAggregate, 0)
+	for _, roomID := range roomIDs {
+		roomContexts, loadErr := r.GetRoomContexts(ctx, ownerUserID, roomID)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		contexts = append(contexts, roomContexts...)
+	}
+	return pickLatestConversationContext(contexts), nil
+}
+
+func pickLatestConversationContext(contexts []protocol.ConversationContextAggregate) *protocol.ConversationContextAggregate {
+	if len(contexts) == 0 {
+		return nil
+	}
+
+	latestIndex := 0
+	latestAt := conversationContextLastActivityAt(contexts[0])
+	for index := 1; index < len(contexts); index++ {
+		candidateAt := conversationContextLastActivityAt(contexts[index])
+		if candidateAt.After(latestAt) {
+			latestIndex = index
+			latestAt = candidateAt
 		}
 	}
-	return &contexts[0], nil
+	return &contexts[latestIndex]
+}
+
+func conversationContextLastActivityAt(contextValue protocol.ConversationContextAggregate) time.Time {
+	latestAt := contextValue.Conversation.UpdatedAt
+	if latestAt.IsZero() {
+		latestAt = contextValue.Conversation.CreatedAt
+	}
+
+	for _, sessionValue := range contextValue.Sessions {
+		sessionAt := sessionValue.LastActivityAt
+		if sessionAt.IsZero() {
+			sessionAt = sessionValue.UpdatedAt
+		}
+		if sessionAt.IsZero() {
+			sessionAt = sessionValue.CreatedAt
+		}
+		if sessionAt.After(latestAt) {
+			latestAt = sessionAt
+		}
+	}
+	return latestAt
 }
 
 // CreateRoom 创建房间、主对话和初始会话。

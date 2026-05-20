@@ -326,6 +326,51 @@ func TestRoomServiceAllowsMainAgentDirectRoom(t *testing.T) {
 	}
 }
 
+func TestRoomServiceEnsureDirectRoomReturnsLatestConversation(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	if err = agentService.EnsureReady(ctx); err != nil {
+		t.Fatalf("初始化主智能体失败: %v", err)
+	}
+
+	dmContext, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("主智能体直聊创建失败: %v", err)
+	}
+
+	nextContext, err := roomService.CreateConversation(ctx, dmContext.Room.ID, protocol.CreateConversationRequest{
+		Title: "新的主智能体会话",
+	})
+	if err != nil {
+		t.Fatalf("创建新的 DM 对话失败: %v", err)
+	}
+	if _, err = db.ExecContext(ctx, `
+UPDATE sessions
+SET last_activity_at = datetime('now', '+1 hour'), updated_at = datetime('now', '+1 hour')
+WHERE conversation_id = ?`, nextContext.Conversation.ID); err != nil {
+		t.Fatalf("标记最新 session 失败: %v", err)
+	}
+
+	reusedContext, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("复用主智能体直聊失败: %v", err)
+	}
+	if reusedContext.Room.ID != dmContext.Room.ID {
+		t.Fatalf("主智能体直聊未复用既有 room: got=%s want=%s", reusedContext.Room.ID, dmContext.Room.ID)
+	}
+	if reusedContext.Conversation.ID != nextContext.Conversation.ID {
+		t.Fatalf("主智能体直聊未返回最新对话: got=%s want=%s", reusedContext.Conversation.ID, nextContext.Conversation.ID)
+	}
+}
+
 func TestRoomServiceRejectsMainAgentAsGroupMember(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
