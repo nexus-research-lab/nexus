@@ -327,9 +327,13 @@ function PrivateThreadList({
                   </span>
                   <ThreadScopeIcon scope={thread.scope} />
                 </div>
-                <p className="mt-1 line-clamp-2 text-[12px] leading-4 text-(--text-muted)">
-                  {thread.last_content_preview || action_type_label(thread.last_action_type)}
-                </p>
+                <MarkdownRendererContent
+                  class_name="mt-1 line-clamp-2 text-[12px] leading-4 text-(--text-muted) [&_*]:leading-4"
+                  content={thread.last_content_preview || action_type_label(thread.last_action_type)}
+                  mermaid_show_header={false}
+                  variant="summary"
+                  workspace_agent_id={thread.participant_agent_ids[0] ?? agent_id}
+                />
                 <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-(--text-soft)">
                   <span className="truncate">{thread.room_name || "房间"}</span>
                   <span>·</span>
