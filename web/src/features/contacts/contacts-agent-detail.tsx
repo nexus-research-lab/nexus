@@ -60,14 +60,14 @@ export function ContactsAgentDetail({
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const avatar_src = get_icon_avatar_src(agent.avatar);
-  const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("identity");
+  const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("private_domain");
 
   const config_tabs = useMemo(
     () => [
+      { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
       { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
       { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
-      { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
     ],
     [t],
   );
@@ -79,7 +79,7 @@ export function ContactsAgentDetail({
   }, [agent.vibe_tags]);
 
   useEffect(() => {
-    set_active_tab("identity");
+    set_active_tab("private_domain");
   }, [agent.agent_id]);
 
   const initial_options = useMemo(

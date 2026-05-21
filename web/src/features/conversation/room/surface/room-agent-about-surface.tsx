@@ -158,10 +158,10 @@ const ROOM_AGENT_PANEL_TABS: Array<{
   label: string;
   icon: LucideIcon;
 }> = [
+  { key: "private_domain", label: "联络", icon: Handshake },
   { key: "identity", label: "身份", icon: UserPen },
   { key: "advanced", label: "工具", icon: ToolCase },
   { key: "skills", label: "技能", icon: Album },
-  { key: "private_domain", label: "联络", icon: Handshake },
 ];
 
 function RoomAgentPanelTabs({
