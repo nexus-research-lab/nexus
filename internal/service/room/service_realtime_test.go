@@ -481,7 +481,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	hostPrompt := make(chan string, 1)
 	client.onQuery = func(_ context.Context, prompt string) error {
 		hostPrompt <- prompt
-		go sendFakeAssistantResult(client, "amy-room-host-default", "@Devin 请你处理这条需求。")
+		go sendFakeAssistantResult(client, "amy-room-host-default", "我来处理这条需求。")
 		return nil
 	}
 
@@ -521,6 +521,29 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	}
 	if hasChatAckPendingAgent(events, devin.AgentID) {
 		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)
+	}
+	hostAckFound := false
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeChatAck || event.Data["round_id"] != "room-round-host-default" {
+			continue
+		}
+		hostAckFound = true
+		if event.Data["public_user_message"] != false {
+			t.Fatalf("群主默认接管输入不应进入公区: %+v", event.Data)
+		}
+	}
+	if !hostAckFound {
+		t.Fatalf("事件流缺少群主默认接管 chat_ack: %+v", events)
+	}
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取 Room 公区历史失败: %v", err)
+	}
+	for _, message := range sharedMessages {
+		if message["message_id"] == "room-round-host-default" && message["role"] == "user" {
+			t.Fatalf("群主默认接管的用户输入不应写入公区历史: %+v", message)
+		}
 	}
 }
 
@@ -2108,7 +2131,16 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	guidanceEvents := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeMessage && event.Data["role"] == "system"
 	})
+	guidanceEvents = append(guidanceEvents, collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "room-round-guide-2"
+	})...)
 	guidanceEvent := guidanceEvents[len(guidanceEvents)-1]
+	for index := len(guidanceEvents) - 1; index >= 0; index-- {
+		if guidanceEvents[index].EventType == protocol.EventTypeMessage && guidanceEvents[index].Data["role"] == "system" {
+			guidanceEvent = guidanceEvents[index]
+			break
+		}
+	}
 	if guidanceEvent.Data["round_id"] != "room-round-guide-1" || guidanceEvent.Data["message_id"] != "room-round-guide-2" {
 		t.Fatalf("Room 引导消息应归入运行中的 agent round: %+v", guidanceEvent.Data)
 	}
@@ -2121,6 +2153,19 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	metadata, _ := guidanceEvent.Data["metadata"].(map[string]any)
 	if metadata["subtype"] != message.SystemMessageSubtypeGuidedInput {
 		t.Fatalf("Room 引导消息缺少 typed metadata: %+v", guidanceEvent.Data)
+	}
+	foundGuideAck := false
+	for _, event := range guidanceEvents {
+		if event.EventType != protocol.EventTypeChatAck || event.Data["round_id"] != "room-round-guide-2" {
+			continue
+		}
+		foundGuideAck = true
+		if event.Data["public_user_message"] != false {
+			t.Fatalf("Room 引导消息不应进入公区: %+v", event.Data)
+		}
+	}
+	if !foundGuideAck {
+		t.Fatalf("Room 引导消息缺少 chat_ack: %+v", guidanceEvents)
 	}
 
 	client.mu.Lock()
@@ -2139,20 +2184,13 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
 	}
-	foundGuidedPublicMessage := false
 	for _, message := range sharedMessages {
 		if message["message_id"] != "room-round-guide-2" {
 			continue
 		}
-		if message["role"] != "user" ||
-			message["content"] != "@助手甲 等工具结果回来后优先看错误日志" ||
-			message["delivery_policy"] != string(protocol.ChatDeliveryPolicyGuide) {
-			t.Fatalf("Room 引导公区消息缺少 guide 标记: %+v", message)
+		if message["role"] == "user" {
+			t.Fatalf("Room 引导消息不应写入公区历史: %+v", message)
 		}
-		foundGuidedPublicMessage = true
-	}
-	if !foundGuidedPublicMessage {
-		t.Fatalf("Room 引导消息应先进入公区事实历史: %+v", sharedMessages)
 	}
 
 	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
