@@ -20,19 +20,32 @@
 
 ---
 
-在 Nexus 里，AI 智能体像同事一样工作。
+## 项目概述
 
-它们有名字，有自己的工作区，记得上次聊到哪里。你可以建一个房间，把几个智能体拉进来，看它们围绕一个问题讨论、分工，把结果整理出来。也可以只和其中一个对话，让它专心完成一件事。
+Nexus 是面向企业、科研团队及开发者的多智能体协作平台。通过可独立命名、拥有自主工作区和持久记忆的 AI 代理（Agent），实现跨会话任务协作和知识积累。可在“房间”中组织多智能体围绕复杂任务进行讨论、分工和汇总，也可与单一智能体进行专注任务处理。
+
+相比传统的单体 AI 办公工具，Nexus 提供：
+
+* 多代理协作：支持多智能体同时参与任务，协同生成结果
+* 持续记忆与知识积累：工作成果在 Agent 工作区内沉淀，可跨会话延续
+* 主动执行能力：Agent 可通过定时任务、心跳机制和环境感知主动推进工作
+* 灵活扩展能力：Skill 插件扩展和 Connector 集成外部服务（GitHub、Gmail 等）
+
+Nexus 将智能体管理、任务协作和外部服务连接整合于一个统一平台，构建现代化的 AI 协同生态。
 
 ---
 
-## 特性
+## 核心特性
 
-- 智能体有独立的身份、工作区和技能配置，记忆跨会话保留，工作产出自主沉淀
-- Room 里多个智能体可以和你一起讨论、分工，支持 @ 提及、私域动作、定向回复、多线程推进
-- 通过 heartbeat、定时任务和环境感知，智能体可以按计划主动推进，不只是等待响应
-- Skill 扩展能力，Connector 接入外部服务（GitHub、Gmail、LinkedIn、X、Instagram、Shopify）
-- 支持 Web 界面、Linux / Windows 服务端部署、macOS 原生桌面应用
+
+| **分类**         | **特性**                                         | **优势**                           |
+| ---------------- | ------------------------------------------------ | ---------------------------------- |
+| **Agent 管理**   | 独立身份、工作区、技能配置，记忆跨会话保留       | 提供连续性工作流程，减少重复输入   |
+| **房间协作**     | 多 Agent 协作，支持 @ 提及、定向回复、多线程推进 | 高效团队协作，分工明确             |
+| **主动执行**     | 心跳、定时任务、环境感知                         | Agent 可主动推进任务，而非被动响应 |
+| **技能与连接器** | Skill 扩展能力，Connector 接入外部服务           | 可扩展业务逻辑，与企业现有系统集成 |
+| **部署灵活性**   | Web 界面、Docker/源码服务端、macOS/Windows 原生桌面 | 满足多平台、多场景部署需求         |
+
 
 ---
 
@@ -62,47 +75,39 @@ irm https://claude.ai/install.ps1 | iex
 winget install Anthropic.ClaudeCode
 ```
 
-安装后先运行一次 `claude` 并完成登录。原生 Windows 环境建议安装 Git for Windows，这样 Claude Code 可以使用 Bash 工具；没有 Git for Windows 时会回退到 PowerShell。最新平台安装方式以 [Claude Code 官方安装文档](https://code.claude.com/docs/en/getting-started) 为准。
+### 桌面 App
 
-### 使用发布包
+* macOS：`Nexus-macos-<version>-<build>.dmg`
+* Windows：`NexusSetup-<version>-<build>.exe`
+
+安装前校验对应的 `.sha256`。桌面 App 本地数据统一存放在 `~/.nexus`。
+
+### 服务端部署
+
+#### Docker 部署
+
+服务端部署推荐使用 Docker Compose：
 
 ```bash
-# 解压（以 Linux x86_64 为例）
-tar -xzf nexus-v0.1.8-linux-amd64.tar.gz
-cd nexus-v0.1.8-linux-amd64
+cat > .env <<'EOF'
+AUTH_INIT_OWNER_PASSWORD=your-password
+HTTP_PORT=80
+HOST_DATA_DIR=./data
+EOF
 
-# 初始化数据库，创建管理员账号
-./bin/nexus-migrate up
-printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin --password-stdin
-
-# 启动
-./run-nexus
+make start
 ```
 
-打开 `http://localhost:8010`，登录后即可开始。
+打开 `http://localhost`。
 
-macOS app 包会在同一个 GitHub Release 中发布，文件名形如 `Nexus-macos-<version>-<build>.dmg`。当前包是 ad-hoc 签名，尚未公证；安装前先校验 sha256，若首次启动被 macOS 拦截，可信构建可通过 Finder 右键 Open 打开。
-
-发布包升级时，在 Web UI 的设置页打开新版本下载入口，下载对应平台的发布包；停止 Nexus 后替换解压目录，再执行迁移并重新启动。
-
-### Docker 部署
+#### 源码部署：
 
 ```bash
-# 构建镜像
-docker build -f deploy/Dockerfile -t nexus:latest .
-
-# 启动容器
-docker run -d \
-  -p 8010:8010 \
-  -v nexus-data:/home/agent/.nexus \
-  --name nexus \
-  nexus:latest
-```
-
-初始化管理员账号：
-
-```bash
-printf '%s\n' 'your-password' | docker exec -i nexus nexusctl auth init-owner --username admin --password-stdin
+make install
+cd web && pnpm build && cd ..
+make db-init
+printf '%s\n' 'your-password' | go run ./cmd/nexusctl auth init-owner --username admin --password-stdin
+PORT=8010 go run ./cmd/nexus-server
 ```
 
 ### 本地开发
@@ -112,9 +117,8 @@ make install
 make dev
 ```
 
-后端在 `http://localhost:8010` 启动，前端开发服务在 `http://localhost:3000` 启动，两个进程独立运行，热更新各自生效。
+后端在 `http://localhost:8010` 启动，前端开发服务在 `http://localhost:3000` 启动。
 
-需要：Go 1.26+、Node.js 22+、pnpm 9.15+，并确保 Claude Code 可以通过 `claude` 命令访问。
 
 ---
 
@@ -129,18 +133,6 @@ make dev
 | **Skill** | 安装到 Agent 的能力扩展，内置或自定义均可 |
 | **Connector** | 管理 OAuth 应用配置与外部服务账号连接 |
 | **主智能体** | 系统保留 Agent，负责默认入口与平台级编排 |
-
----
-
-## 内置技能
-
-| 技能 | 功能 |
-|------|------|
-| `imagegen` | 调用图片生成 Provider，结果保存到工作区 |
-| `nexus-manager` | 让 Agent 操作 Nexus 的智能体、房间、会话和工作区 |
-| `room-playbook` | 为房间协作提供固定规则和操作指引 |
-| `scheduled-task-manager` | 管理定时任务与 heartbeat 类持续跟进任务 |
-| `memory-manager` | 按约定维护项目记忆文件 |
 
 ---
 
