@@ -138,6 +138,7 @@ function RoomSurfaceLayoutInner({
                                   }: RoomSurfaceLayoutProps) {
   const is_dm = current_room_type === "dm";
   const is_auxiliary_panel_open = active_surface_tab !== "chat";
+  const is_wide_auxiliary_panel = active_surface_tab === "workspace" || active_surface_tab === "about";
   const [about_request, set_about_request] = useState<{
     agent_id: string | null;
     tab: RoomAgentAboutRequestedTab;
@@ -284,8 +285,8 @@ function RoomSurfaceLayoutInner({
                 className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
                 style={{
                   width: `${editor_width_percent}%`,
-                  minWidth: active_surface_tab === "workspace" ? "660px" : "460px",
-                  maxWidth: active_surface_tab === "workspace" ? "960px" : "660px",
+                  minWidth: is_wide_auxiliary_panel ? "660px" : "460px",
+                  maxWidth: is_wide_auxiliary_panel ? "960px" : "660px",
                 }}
               >
                 <ConversationResizeHandle
