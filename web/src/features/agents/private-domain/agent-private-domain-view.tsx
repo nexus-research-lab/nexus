@@ -71,7 +71,7 @@ export function AgentPrivateDomainView({
         return next_threads[0]?.thread_id ?? null;
       });
     } catch (load_error) {
-      set_error(load_error instanceof Error ? load_error.message : "加载私域记录失败");
+      set_error(load_error instanceof Error ? load_error.message : "加载联络记录失败");
       set_threads([]);
       set_selected_thread_id(null);
     } finally {
@@ -93,7 +93,7 @@ export function AgentPrivateDomainView({
       });
       set_events(page.items ?? []);
     } catch (load_error) {
-      set_error(load_error instanceof Error ? load_error.message : "加载私域消息失败");
+      set_error(load_error instanceof Error ? load_error.message : "加载联络消息失败");
       set_events([]);
     } finally {
       set_events_loading(false);
@@ -113,7 +113,7 @@ export function AgentPrivateDomainView({
       })
       .catch((load_error) => {
         if (cancelled) return;
-        set_error(load_error instanceof Error ? load_error.message : "加载私域记录失败");
+        set_error(load_error instanceof Error ? load_error.message : "加载联络记录失败");
         set_threads([]);
         set_selected_thread_id(null);
       })
@@ -148,7 +148,7 @@ export function AgentPrivateDomainView({
       })
       .catch((load_error) => {
         if (!cancelled) {
-          set_error(load_error instanceof Error ? load_error.message : "加载私域消息失败");
+          set_error(load_error instanceof Error ? load_error.message : "加载联络消息失败");
           set_events([]);
         }
       })
@@ -179,7 +179,7 @@ export function AgentPrivateDomainView({
           count={threads.length}
           is_loading={threads_loading || events_loading}
           on_refresh={handle_refresh}
-          title="私域"
+          title="联络"
         />
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(132px,0.38fr)_minmax(0,1fr)] gap-3 px-4 pb-4 pt-3">
           <PrivateThreadList
@@ -210,7 +210,7 @@ export function AgentPrivateDomainView({
             count={threads.length}
             is_loading={threads_loading}
             on_refresh={handle_refresh}
-            title="私域"
+            title="联络"
           />
           <PrivateThreadList
             agent_id={agent.agent_id}
@@ -260,7 +260,7 @@ function PrivateDomainToolbar({
         <span className="text-[11px] font-semibold text-(--text-soft)">{count}</span>
       </div>
       <button
-        aria-label="刷新私域"
+        aria-label="刷新联络"
         className="flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
         onClick={on_refresh}
         type="button"
@@ -298,7 +298,7 @@ function PrivateThreadList({
     return (
       <div className={cn("flex flex-col items-center justify-center gap-2 px-4 text-center", class_name)}>
         <Inbox className="h-5 w-5 text-(--text-soft)" />
-        <p className="text-[12px] font-semibold text-(--text-muted)">暂无私域记录</p>
+        <p className="text-[12px] font-semibold text-(--text-muted)">暂无联络记录</p>
       </div>
     );
   }
@@ -372,7 +372,7 @@ function PrivateEventTimeline({
       <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-bold text-(--text-strong)">
-            {thread ? private_thread_title(thread, agent_id) : "私域消息"}
+            {thread ? private_thread_title(thread, agent_id) : "联络消息"}
           </p>
           {thread ? (
             <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
@@ -392,7 +392,7 @@ function PrivateEventTimeline({
         {!error && !thread ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-(--text-soft)">
             <MessageCircle className="h-6 w-6" />
-            <span className="text-[12px] font-semibold">选择一条私域记录</span>
+            <span className="text-[12px] font-semibold">选择一条联络记录</span>
           </div>
         ) : null}
         {!error && thread && events.length === 0 && !is_loading ? (
@@ -477,9 +477,6 @@ function PrivateThreadInspector({
     <aside className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_38%,transparent)]">
       <div className="border-b border-(--divider-subtle-color) px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">Thread</p>
-        <h3 className="mt-1 truncate text-[16px] font-black tracking-[-0.04em] text-(--text-strong)">
-          {private_thread_title(thread, agent_id)}
-        </h3>
       </div>
       <div className="soft-scrollbar h-[calc(100%-70px)] overflow-y-auto px-4 py-4">
         <InfoRow label="范围" value={scope_label(thread.scope)} />
@@ -584,7 +581,7 @@ function action_type_label(action_type?: string | null) {
     case "marker":
       return "标记";
     default:
-      return "私域";
+      return "联络";
   }
 }
 

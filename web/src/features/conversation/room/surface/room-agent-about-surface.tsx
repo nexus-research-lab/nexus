@@ -161,7 +161,7 @@ const ROOM_AGENT_PANEL_TABS: Array<{
   { key: "identity", label: "身份", icon: UserPen },
   { key: "advanced", label: "工具", icon: ToolCase },
   { key: "skills", label: "技能", icon: Album },
-  { key: "private_domain", label: "私域", icon: LockKeyhole },
+  { key: "private_domain", label: "联络", icon: LockKeyhole },
 ];
 
 function RoomAgentPanelTabs({
