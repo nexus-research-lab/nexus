@@ -420,7 +420,6 @@ function PrivateEventBubble({
   const is_outgoing = event.direction === "outgoing";
   const is_self = event.direction === "self";
   const source = event.participants.find((participant) => participant.agent_id === event.source_agent_id);
-  const route_label = event_route_label(event, agent_id);
   return (
     <div className={cn("flex", is_self ? "justify-center" : is_outgoing ? "justify-end" : "justify-start")}>
       <div
@@ -433,28 +432,23 @@ function PrivateEventBubble({
               : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
         )}
       >
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <AgentAvatar participant={source} size="sm" />
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="truncate text-[12px] font-bold text-(--text-strong)">
-              {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
-            </span>
-            <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
-              {action_type_label(event.action_type)}
-            </span>
-            <span
-              className="min-w-0 truncate rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)"
-              title={route_label}
-            >
-              {route_label}
-            </span>
-          </div>
-          <span className="shrink-0 pt-0.5 text-[10.5px] font-semibold text-(--text-soft)">
+          <span className="truncate text-[12px] font-bold text-(--text-strong)">
+            {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
+          </span>
+          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
+            {action_type_label(event.action_type)}
+          </span>
+          <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
             {format_relative_time(event.timestamp)}
           </span>
         </div>
         <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-5 text-(--text-default)">
           {event.content || "（无正文）"}
+        </p>
+        <p className="mt-2 truncate text-[10.5px] font-semibold text-(--text-soft)">
+          {event_route_label(event, agent_id)}
         </p>
       </div>
     </div>
