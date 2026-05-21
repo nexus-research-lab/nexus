@@ -149,6 +149,40 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, ".agents/forbidden.txt", "x"); err == nil {
 		t.Fatal("不应允许直接写入内部运行时目录")
 	}
+	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, "nested/.git/config", "x"); err == nil {
+		t.Fatal("不应允许写入嵌套仓库内部目录")
+	}
+}
+
+func TestWorkspaceHiddenEntryMatchesNestedHeavyDirs(t *testing.T) {
+	testCases := []string{
+		".git/config",
+		"repo/.git/config",
+		"repo/.claude/settings.json",
+		"repo/node_modules/pkg/index.js",
+		"repo/web/node_modules/pkg/index.js",
+		"repo/web/.next/server/app.js",
+		"repo/web/dist/assets/main.js",
+		"repo/coverage/index.html",
+		"repo/__pycache__/cache.pyc",
+		"repo/.DS_Store",
+	}
+	for _, testCase := range testCases {
+		if !shouldHideWorkspaceEntry(testCase) {
+			t.Fatalf("应隐藏 workspace 重目录: %s", testCase)
+		}
+	}
+
+	visibleCases := []string{
+		"repo/internal/service/workspace/service.go",
+		"repo/web/src/main.tsx",
+		"repo/docs/spec.md",
+	}
+	for _, testCase := range visibleCases {
+		if shouldHideWorkspaceEntry(testCase) {
+			t.Fatalf("不应隐藏普通 workspace 文件: %s", testCase)
+		}
+	}
 }
 
 func TestUploadFileToRootReusesIdenticalTargetByMD5(t *testing.T) {

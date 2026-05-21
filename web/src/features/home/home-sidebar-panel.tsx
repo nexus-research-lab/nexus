@@ -363,6 +363,7 @@ function useSidebarDirectory(): SidebarDirectoryState {
       runtime_ws_send({
         type: "subscribe_workspace",
         agent_id,
+        watch_files: false,
       });
     }
 

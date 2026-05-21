@@ -318,7 +318,7 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if info == nil || info.IsDir() {
+		if info == nil {
 			return nil
 		}
 		relativePath, err := filepath.Rel(state.Root, path)
@@ -326,6 +326,12 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 			return err
 		}
 		normalizedPath := normalizeLivePath(relativePath)
+		if info.IsDir() {
+			if normalizedPath != "" && normalizedPath != "." && shouldHideWorkspaceEntry(normalizedPath) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if shouldHideWorkspaceEntry(normalizedPath) {
 			return nil
 		}
