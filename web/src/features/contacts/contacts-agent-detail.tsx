@@ -5,7 +5,7 @@ import {
   ArrowLeft,
   Album,
   Bot,
-  LockKeyhole,
+  MessageCircleMore,
   MessageSquareText,
   ToolCase,
   UserPen,
@@ -67,7 +67,7 @@ export function ContactsAgentDetail({
       { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
       { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
-      { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: LockKeyhole },
+      { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: MessageCircleMore },
     ],
     [t],
   );

@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Inbox,
   Loader2,
-  LockKeyhole,
   MessageCircle,
+  MessageCircleMore,
   RefreshCw,
   StickyNote,
   UsersRound,
@@ -254,7 +254,7 @@ function PrivateDomainToolbar({
     <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
       <div className="flex min-w-0 items-center gap-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-          <LockKeyhole className="h-3.5 w-3.5" />
+          <MessageCircleMore className="h-3.5 w-3.5" />
         </span>
         <span className="truncate text-[13px] font-bold text-(--text-strong)">{title}</span>
         <span className="text-[11px] font-semibold text-(--text-soft)">{count}</span>

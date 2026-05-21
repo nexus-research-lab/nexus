@@ -12,7 +12,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Album,
-  LockKeyhole,
+  MessageCircleMore,
   ToolCase,
   UserPen,
   type LucideIcon,
@@ -161,7 +161,7 @@ const ROOM_AGENT_PANEL_TABS: Array<{
   { key: "identity", label: "身份", icon: UserPen },
   { key: "advanced", label: "工具", icon: ToolCase },
   { key: "skills", label: "技能", icon: Album },
-  { key: "private_domain", label: "联络", icon: LockKeyhole },
+  { key: "private_domain", label: "联络", icon: MessageCircleMore },
 ];
 
 function RoomAgentPanelTabs({
