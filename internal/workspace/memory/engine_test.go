@@ -208,6 +208,31 @@ func TestEngineSkipsReadmeImageTask(t *testing.T) {
 	}
 }
 
+func TestEngineRejectsUnscopedStructuredMemory(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+
+	_, err := engine.Add(context.Background(), MemoryScope{Kind: ScopeKindAgent}, MemoryWriteInput{
+		Title:   "无 scope 记忆",
+		Content: "没有明确作用域的结构化记忆不应写入。",
+	})
+	if err == nil || !IsClientError(err) {
+		t.Fatalf("缺少明确 scope 时应返回客户端错误: %v", err)
+	}
+
+	result, err := engine.CommitTurn(context.Background(), MemoryScope{Kind: ScopeKindAgent}, CommittedTurn{
+		UserText:      "结论：没有 agent_id 的自动记忆不能落盘。",
+		AssistantText: "已跳过这类无明确作用域的自动记忆。",
+		RoundID:       "round-invalid-scope",
+	})
+	if err != nil {
+		t.Fatalf("无 scope 自动记忆不应返回硬错误: %v", err)
+	}
+	if !result.Skipped || result.Reason != "invalid_scope" {
+		t.Fatalf("无 scope 自动记忆应被跳过: %+v", result)
+	}
+}
+
 func TestEngineCleanupRemovesOrphanSessionAndCheckpoint(t *testing.T) {
 	workspace := t.TempDir()
 	memoryDir := filepath.Join(workspace, "memory")
@@ -285,6 +310,13 @@ func TestEngineScopeRankingAndDelete(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("新增 Agent 记忆失败: %v", err)
 	}
+	if _, err = engine.Add(context.Background(), MemoryScope{Kind: ScopeKindAgent, AgentID: "nexus-2"}, MemoryWriteInput{
+		Title:   "另一个 Agent 中文注释偏好",
+		Content: "另一个 Agent 也提到中文注释。",
+		Status:  "candidate",
+	}); err != nil {
+		t.Fatalf("新增相似 Agent 记忆失败: %v", err)
+	}
 
 	items, err := engine.Search(context.Background(), dmScope, RecallRequest{
 		Query:      "中文 注释",
@@ -303,6 +335,9 @@ func TestEngineScopeRankingAndDelete(t *testing.T) {
 		if strings.HasPrefix(item.Scope, string(ScopeKindRoomShared)+":") {
 			t.Fatalf("DM 召回不应串入 Room 共享记忆: %+v", items)
 		}
+		if item.Scope == "agent:nexus-2" {
+			t.Fatalf("AgentID 前缀相似的记忆不应串入当前 Agent: %+v", items)
+		}
 	}
 
 	if err = engine.Delete(context.Background(), dmItem.EntryID); err != nil {
@@ -318,6 +353,59 @@ func TestEngineScopeRankingAndDelete(t *testing.T) {
 	for _, item := range items {
 		if item.EntryID == dmItem.EntryID {
 			t.Fatalf("删除后的记忆不应被召回: %+v", items)
+		}
+	}
+}
+
+func TestEngineRoomSharedScopeRequiresSameConversation(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+	roomOne := MemoryScope{
+		Kind:           ScopeKindRoomShared,
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+	}
+	roomTwo := MemoryScope{
+		Kind:           ScopeKindRoomShared,
+		RoomID:         "room-2",
+		ConversationID: "conversation-2",
+	}
+	roomAgent := MemoryScope{
+		Kind:           ScopeKindRoomAgentSession,
+		AgentID:        "nexus",
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+		SessionKey:     "room-agent-session",
+	}
+	roomOneItem, err := engine.Add(context.Background(), roomOne, MemoryWriteInput{
+		Title:   "Room 一共享结论",
+		Content: "Room 一约定所有发布说明都用中文。",
+		Status:  "candidate",
+	})
+	if err != nil {
+		t.Fatalf("新增 Room 一共享记忆失败: %v", err)
+	}
+	if _, err = engine.Add(context.Background(), roomTwo, MemoryWriteInput{
+		Title:   "Room 二共享结论",
+		Content: "Room 二约定所有发布说明都用中文。",
+		Status:  "candidate",
+	}); err != nil {
+		t.Fatalf("新增 Room 二共享记忆失败: %v", err)
+	}
+
+	items, err := engine.Search(context.Background(), roomAgent, RecallRequest{
+		Query:      "发布 说明 中文",
+		MaxResults: 5,
+	})
+	if err != nil {
+		t.Fatalf("Room 成员召回失败: %v", err)
+	}
+	if len(items) == 0 || items[0].EntryID != roomOneItem.EntryID {
+		t.Fatalf("Room 成员应优先召回同 conversation 共享记忆: %+v", items)
+	}
+	for _, item := range items {
+		if item.Scope == roomTwo.Key() {
+			t.Fatalf("Room 共享记忆不能跨 conversation 召回: %+v", items)
 		}
 	}
 }

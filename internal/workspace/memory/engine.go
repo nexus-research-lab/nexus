@@ -97,6 +97,9 @@ func (e *Engine) CommitTurn(ctx context.Context, scope MemoryScope, turn Committ
 		return CaptureResult{Skipped: true, Reason: signal.Reason}, nil
 	}
 	scopeKey := scope.Key()
+	if scopeKey == "" {
+		return CaptureResult{Skipped: true, Reason: "invalid_scope"}, nil
+	}
 	decision, err := NewMemoryScheduler(e.repository).Advance(scopeKey, turn.RoundID, turn.Timestamp, signal.HighImpact)
 	if err != nil {
 		return CaptureResult{}, err
@@ -206,13 +209,17 @@ func (e *Engine) Add(ctx context.Context, scope MemoryScope, input MemoryWriteIn
 	if e == nil || !e.options.Enabled {
 		return MemoryItem{}, nil
 	}
+	scopeKey := firstNonEmpty(input.Scope, scope.Key())
+	if scopeKey == "" {
+		return MemoryItem{}, newClientError("scope 不能为空")
+	}
 	fields := append([]Field{}, input.Fields...)
 	fields = append(fields,
 		Field{Key: "详情", Value: input.Content},
 		Field{Key: "状态", Value: firstNonEmpty(input.Status, "candidate")},
 		Field{Key: "优先级", Value: firstNonEmpty(input.Priority, "medium")},
 		Field{Key: "来源", Value: firstNonEmpty(input.Source, "manual")},
-		Field{Key: "Scope", Value: firstNonEmpty(input.Scope, scope.Key())},
+		Field{Key: "Scope", Value: scopeKey},
 	)
 	kind := firstNonEmpty(input.Kind, "LRN")
 	category := firstNonEmpty(input.Category, "preference")
@@ -411,7 +418,6 @@ func (e *Engine) buildEntry(
 			Field{Key: "优先级", Value: "high"},
 			Field{Key: "错误", Value: truncateRunes(content, 700)},
 			Field{Key: "修复", Value: truncateRunes(assistantText, 700)},
-			Field{Key: "可复现", Value: "unknown"},
 		)
 	case "FEAT":
 		fields = append(fields,
@@ -551,14 +557,14 @@ func scopeBoost(scope MemoryScope, item MemoryItem) float64 {
 	scopeKey := scope.Key()
 	switch {
 	case item.Scope == "":
-		return 0.02
-	case item.Scope == scopeKey:
+		return 0
+	case scopeKey != "" && item.Scope == scopeKey:
 		return 0.35
-	case strings.HasPrefix(item.Scope, string(ScopeKindAgent)+":") && strings.Contains(item.Scope, scope.AgentID):
+	case itemScopeAgentID(item.Scope) == strings.TrimSpace(scope.AgentID) && strings.TrimSpace(scope.AgentID) != "":
 		return 0.16
-	case strings.HasPrefix(item.Scope, string(ScopeKindUser)+":") && strings.Contains(item.Scope, scope.UserID):
+	case itemScopeUserID(item.Scope) == strings.TrimSpace(scope.UserID) && strings.TrimSpace(scope.UserID) != "":
 		return 0.12
-	case strings.HasPrefix(item.Scope, string(ScopeKindRoomShared)+":") && scope.Kind == ScopeKindRoomAgentSession:
+	case sameRoomScope(item.Scope, scope) && scope.Kind == ScopeKindRoomAgentSession:
 		return 0.10
 	default:
 		return 0
@@ -568,28 +574,84 @@ func scopeBoost(scope MemoryScope, item MemoryItem) float64 {
 func scopeCanAccessItem(scope MemoryScope, item MemoryItem) bool {
 	itemScope := strings.TrimSpace(item.Scope)
 	if itemScope == "" {
-		return true
+		return false
 	}
 	scopeKey := scope.Key()
-	if itemScope == scopeKey {
+	if scopeKey != "" && itemScope == scopeKey {
 		return true
 	}
-	if strings.HasPrefix(itemScope, string(ScopeKindUser)+":") {
-		return scope.UserID != "" && strings.Contains(itemScope, scope.UserID)
+	switch scopeKeyKind(itemScope) {
+	case ScopeKindUser:
+		return itemScopeUserID(itemScope) == strings.TrimSpace(scope.UserID) && strings.TrimSpace(scope.UserID) != ""
+	case ScopeKindAgent:
+		return itemScopeAgentID(itemScope) == strings.TrimSpace(scope.AgentID) && strings.TrimSpace(scope.AgentID) != ""
+	case ScopeKindDMSession:
+		return scope.Kind == ScopeKindAgent &&
+			itemScopeAgentID(itemScope) == strings.TrimSpace(scope.AgentID) &&
+			strings.TrimSpace(scope.AgentID) != ""
+	case ScopeKindRoomAgentSession:
+		return scope.Kind == ScopeKindAgent &&
+			itemScopeAgentID(itemScope) == strings.TrimSpace(scope.AgentID) &&
+			strings.TrimSpace(scope.AgentID) != ""
+	case ScopeKindRoomShared:
+		return sameRoomScope(itemScope, scope) &&
+			(scope.Kind == ScopeKindRoomShared || scope.Kind == ScopeKindRoomAgentSession)
+	default:
+		return false
 	}
-	if strings.HasPrefix(itemScope, string(ScopeKindAgent)+":") {
-		return scope.AgentID != "" && strings.Contains(itemScope, scope.AgentID)
+}
+
+func scopeKeyKind(scope string) ScopeKind {
+	parts := strings.Split(strings.TrimSpace(scope), ":")
+	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+		return ""
 	}
-	if strings.HasPrefix(itemScope, string(ScopeKindDMSession)+":") {
-		return scope.Kind == ScopeKindAgent && scope.AgentID != "" && strings.Contains(itemScope, scope.AgentID)
+	return ScopeKind(parts[0])
+}
+
+func itemScopeAgentID(scope string) string {
+	parts := strings.Split(strings.TrimSpace(scope), ":")
+	switch scopeKeyKind(scope) {
+	case ScopeKindAgent, ScopeKindDMSession:
+		if len(parts) >= 2 {
+			return strings.TrimSpace(parts[1])
+		}
+	case ScopeKindRoomAgentSession:
+		if len(parts) >= 4 {
+			return strings.TrimSpace(parts[3])
+		}
 	}
-	if strings.HasPrefix(itemScope, string(ScopeKindRoomAgentSession)+":") {
-		return scope.Kind == ScopeKindAgent && scope.AgentID != "" && strings.Contains(itemScope, scope.AgentID)
+	return ""
+}
+
+func itemScopeUserID(scope string) string {
+	parts := strings.Split(strings.TrimSpace(scope), ":")
+	if scopeKeyKind(scope) == ScopeKindUser && len(parts) >= 2 {
+		return strings.TrimSpace(parts[1])
 	}
-	if strings.HasPrefix(itemScope, string(ScopeKindRoomShared)+":") {
-		return scope.Kind == ScopeKindRoomShared || scope.Kind == ScopeKindRoomAgentSession
+	return ""
+}
+
+func sameRoomScope(itemScope string, scope MemoryScope) bool {
+	roomID, conversationID, ok := itemScopeRoomPair(itemScope)
+	if !ok {
+		return false
 	}
-	return false
+	return roomID == strings.TrimSpace(scope.RoomID) &&
+		conversationID == strings.TrimSpace(scope.ConversationID) &&
+		roomID != "" &&
+		conversationID != ""
+}
+
+func itemScopeRoomPair(scope string) (string, string, bool) {
+	parts := strings.Split(strings.TrimSpace(scope), ":")
+	switch scopeKeyKind(scope) {
+	case ScopeKindRoomShared, ScopeKindRoomAgentSession:
+		if len(parts) >= 3 {
+			return strings.TrimSpace(parts[1]), strings.TrimSpace(parts[2]), true
+		}
+	}
+	return "", "", false
 }
 
 func statusBoost(status string) float64 {

@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,7 +44,7 @@ func NewRepository(workspacePath string) *Repository {
 func (r *Repository) Search(query string, limit int) ([]SearchMatch, error) {
 	terms := tokenizeQuery(query)
 	if len(terms) == 0 {
-		return nil, errors.New("query 不能为空")
+		return nil, newClientError("query 不能为空")
 	}
 	if limit <= 0 {
 		limit = 20
@@ -187,7 +186,7 @@ func (r *Repository) UpdateEntry(entryID string, updater func(*Entry)) (*Entry, 
 			return entry, nil
 		}
 	}
-	return nil, fmt.Errorf("未找到条目: %s", entryID)
+	return nil, newClientError("未找到条目: %s", entryID)
 }
 
 // AppendToMemorySection 向长期文件追加规则。
@@ -284,19 +283,19 @@ func (r *Repository) resolveWorkspaceFile(relativePath string) (string, string, 
 	normalized := strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/"))
 	normalized = strings.TrimPrefix(normalized, "/")
 	if normalized == "" {
-		return "", "", errors.New("path 不能为空")
+		return "", "", newClientError("path 不能为空")
 	}
 	targetPath := filepath.Clean(filepath.Join(r.workspacePath, normalized))
 	workspaceRoot := filepath.Clean(r.workspacePath)
 	if targetPath != workspaceRoot && !strings.HasPrefix(targetPath, workspaceRoot+string(os.PathSeparator)) {
-		return "", "", errors.New("path 超出 workspace 范围")
+		return "", "", newClientError("path 超出 workspace 范围")
 	}
 	info, err := os.Stat(targetPath)
 	if err != nil {
 		return "", "", err
 	}
 	if info.IsDir() {
-		return "", "", errors.New("不能直接读取目录")
+		return "", "", newClientError("不能直接读取目录")
 	}
 	return targetPath, filepath.ToSlash(normalized), nil
 }

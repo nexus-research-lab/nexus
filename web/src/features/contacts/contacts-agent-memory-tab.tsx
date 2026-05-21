@@ -454,7 +454,7 @@ function MemoryStatusBadge({ status }: { status: string }) {
         status_badge_class(status),
       )}
     >
-      {status || "unknown"}
+      {status || "未标记"}
     </span>
   );
 }

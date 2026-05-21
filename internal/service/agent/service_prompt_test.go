@@ -12,7 +12,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
 func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T) {
@@ -20,11 +19,6 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	writePromptFile(t, workspacePath, "AGENTS.md", "# AGENTS.md\n\n执行规则：必须先读 AGENTS。")
 	writePromptFile(t, workspacePath, "USER.md", "# USER.md\n\n用户偏好：默认中文。")
 	writePromptFile(t, workspacePath, "MEMORY.md", "# MEMORY.md\n\n长期约束：不要改路径。")
-	if _, err := memorysvc.NewService(workspacePath).Log("REF", "提示词注入测试", "", []memorysvc.Field{
-		{Key: "经验", Value: "近期记忆应进入运行时提示词。"},
-	}, ""); err != nil {
-		t.Fatalf("写入记忆条目失败: %v", err)
-	}
 
 	service := agentsvc.NewService(config.Config{
 		DefaultAgentID:        "nexus",
@@ -54,8 +48,9 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	assertPromptContains(t, prompt, "规划助手")
 	assertPromptContains(t, prompt, "擅长任务拆解")
 	assertPromptContains(t, prompt, "偏好明确目标与验收标准")
-	assertPromptContains(t, prompt, "最近日记提醒")
-	assertPromptContains(t, prompt, "提示词注入测试")
+	if strings.Contains(prompt, "最近日记提醒") {
+		t.Fatalf("运行时 system prompt 不应无条件注入近期动态记忆: %s", prompt)
+	}
 }
 
 func TestServiceBuildRuntimePromptDirectsScheduledTaskSkill(t *testing.T) {

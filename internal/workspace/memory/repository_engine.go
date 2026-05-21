@@ -2,7 +2,6 @@ package memory
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,7 +51,7 @@ func (r *Repository) ListEntries(limit int) ([]*Entry, error) {
 func (r *Repository) FindEntry(entryID string) (*Entry, error) {
 	entryID = strings.TrimSpace(entryID)
 	if entryID == "" {
-		return nil, errors.New("entry_id 不能为空")
+		return nil, newClientError("entry_id 不能为空")
 	}
 	for _, path := range r.iterDiaryFiles() {
 		content, err := os.ReadFile(path)
@@ -69,13 +68,13 @@ func (r *Repository) FindEntry(entryID string) (*Entry, error) {
 			}
 		}
 	}
-	return nil, errors.New("未找到条目: " + entryID)
+	return nil, newClientError("未找到条目: %s", entryID)
 }
 
 func (r *Repository) DeleteEntry(entryID string) error {
 	entryID = strings.TrimSpace(entryID)
 	if entryID == "" {
-		return errors.New("entry_id 不能为空")
+		return newClientError("entry_id 不能为空")
 	}
 	for _, path := range r.iterDiaryFiles() {
 		content, err := os.ReadFile(path)
@@ -107,7 +106,7 @@ func (r *Repository) DeleteEntry(entryID string) error {
 		}
 		return os.WriteFile(path, []byte(renderEntries(next)), 0o644)
 	}
-	return errors.New("未找到条目: " + entryID)
+	return newClientError("未找到条目: %s", entryID)
 }
 
 func (r *Repository) ReadStableContext(maxChars int) (string, error) {
@@ -424,20 +423,6 @@ func safeMemoryFilename(value string) string {
 		result = result[:96]
 	}
 	return result
-}
-
-func joinScopeParts(parts ...string) string {
-	clean := make([]string, 0, len(parts))
-	for _, part := range parts {
-		value := strings.TrimSpace(part)
-		if value != "" {
-			clean = append(clean, value)
-		}
-	}
-	if len(clean) == 0 {
-		return "unknown"
-	}
-	return strings.Join(clean, ":")
 }
 
 func sortMemoryItems(items []MemoryItem) {

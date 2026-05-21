@@ -151,7 +151,7 @@ func newMemoryCommand() *cobra.Command {
 				})
 			},
 		}
-		addCommand.Flags().StringVar(&input.Kind, "kind", "LRN", "LRN | ERR | FEAT | REF")
+		addCommand.Flags().StringVar(&input.Kind, "kind", "LRN", "LRN | ERR | FEAT")
 		addCommand.Flags().StringVar(&input.Category, "category", "preference", "optional category")
 		addCommand.Flags().StringVar(&input.Title, "title", "", "entry title")
 		addCommand.Flags().StringVar(&input.Content, "content", "", "entry content")
@@ -347,7 +347,7 @@ func newMemoryCommand() *cobra.Command {
 				})
 			},
 		}
-		logCommand.Flags().StringVar(&kind, "kind", "", "LRN | ERR | FEAT | REF")
+		logCommand.Flags().StringVar(&kind, "kind", "", "LRN | ERR | FEAT")
 		logCommand.Flags().StringVar(&title, "title", "", "entry title")
 		logCommand.Flags().StringVar(&category, "category", "", "optional category")
 		logCommand.Flags().StringVar(&promoteTarget, "promote-target", "", "memory|soul|tools|agents")

@@ -116,9 +116,6 @@ func (s *Service) Log(kind string, title string, category string, fields []Field
 
 	var promoted *PromoteResult
 	target := strings.TrimSpace(promoteTarget)
-	if target == "" {
-		target = s.factory.InferAutoPromotionTarget(entry)
-	}
 	if target != "" {
 		promotion, promoteErr := s.Promote(target, buildPromotionContent(entry), entry.Title, entry.ID)
 		if promoteErr != nil {
@@ -148,7 +145,7 @@ func (s *Service) Log(kind string, title string, category string, fields []Field
 func (s *Service) Promote(target string, content string, title string, entryID string) (*PromoteResult, error) {
 	config, ok := promotionTargets[strings.ToLower(strings.TrimSpace(target))]
 	if !ok {
-		return nil, fmt.Errorf("不支持的提升目标: %s", target)
+		return nil, newClientError("不支持的提升目标: %s", target)
 	}
 	bullet := strings.TrimSpace(content)
 	if strings.TrimSpace(title) != "" {
@@ -200,7 +197,12 @@ func (s *Service) SetEntryStatus(entryID string, status string, note string) (*R
 }
 
 func buildPromotionContent(entry *Entry) string {
-	for _, key := range []string{"提升内容", "行动", "经验", "修复", "详情"} {
+	if key := primaryContentField(entry); key != "" {
+		if value := strings.TrimSpace(entry.FieldValue(key)); value != "" {
+			return value
+		}
+	}
+	for _, key := range []string{"提升内容", "行动", "经验", "修复", "详情", "需求", "错误"} {
 		value := strings.TrimSpace(entry.FieldValue(key))
 		if value != "" {
 			return value

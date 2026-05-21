@@ -269,7 +269,7 @@ func (h *Handlers) writeMemoryError(writer http.ResponseWriter, err error) {
 	if err == nil {
 		return
 	}
-	if strings.Contains(err.Error(), "不能为空") || strings.Contains(err.Error(), "未找到") || strings.Contains(err.Error(), "不支持") {
+	if memorysvc.IsClientError(err) {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
