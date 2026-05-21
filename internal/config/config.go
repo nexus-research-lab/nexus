@@ -57,6 +57,7 @@ type Config struct {
 	TelegramBotToken               string
 	ConnectorOAuthRedirectURI      string
 	ConnectorOAuthAllowedOrigins   []string
+	AllowedWebSocketOrigins        []string
 	ConnectorOAuthStateTTLSeconds  int
 	ConnectorCredentialsKey        string
 	ConnectorGitHubClientID        string
@@ -148,6 +149,7 @@ func Load() Config {
 		TelegramBotToken:               getEnv("TELEGRAM_BOT_TOKEN", ""),
 		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
 		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
+		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
 		ConnectorOAuthStateTTLSeconds:  mustInt(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600")),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),

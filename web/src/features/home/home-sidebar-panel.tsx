@@ -859,18 +859,27 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     }
   }, [navigate, refresh_directory]);
 
-  const handle_delete_room = useCallback(async () => {
-    if (!delete_target) {
-      return;
-    }
-    const deleted_room_id = delete_target.id;
+  const handle_delete_room = useCallback(async (target: DeleteTarget) => {
+    const deleted_room_id = target.id;
     await delete_room(deleted_room_id);
-    set_delete_target(null);
     if (active_item_id === deleted_room_id) {
       set_active_item(null);
     }
     refresh_directory();
-  }, [active_item_id, delete_target, refresh_directory, set_active_item]);
+  }, [active_item_id, refresh_directory, set_active_item]);
+
+  const handle_confirm_delete_room = useCallback(() => {
+    const target = delete_target;
+    if (!target) {
+      return;
+    }
+
+    set_delete_target(null);
+    void handle_delete_room(target).catch((error) => {
+      console.error("[Sidebar] Failed to delete room", error);
+      refresh_directory();
+    });
+  }, [delete_target, handle_delete_room, refresh_directory]);
 
   const empty_description = has_agents
     ? t("home.rooms_empty_description")
@@ -937,7 +946,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         is_open={delete_target !== null}
         message={t("home.delete_message", { name: delete_target?.name ?? "" })}
         on_cancel={() => set_delete_target(null)}
-        on_confirm={() => void handle_delete_room()}
+        on_confirm={handle_confirm_delete_room}
         title={t("home.delete_confirm")}
         variant="danger"
       />

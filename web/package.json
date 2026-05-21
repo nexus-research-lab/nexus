@@ -54,5 +54,10 @@
     "typescript": "^5",
     "typescript-eslint": "^8.46.1",
     "vite": "npm:rolldown-vite@latest"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.10"
+    }
   }
 }
