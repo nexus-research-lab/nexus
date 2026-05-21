@@ -32,6 +32,7 @@ func (s *RealtimeService) runRound(
 	agentNameByID map[string]string,
 	agentByID map[string]*protocol.Agent,
 ) {
+	ctx = contextWithQueueOwner(ctx, roundValue.OwnerUserID)
 	logger := s.loggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,

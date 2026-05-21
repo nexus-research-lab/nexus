@@ -766,6 +766,7 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 	devinClient := newFakeRoomClient()
 	amyWakeClient := newFakeRoomClient()
 	var amySawReply atomic.Bool
+	var amyWakeOwner atomic.Value
 	devinClient.onQuery = func(_ context.Context, prompt string) error {
 		if !strings.Contains(prompt, "需要私下回 Amy 的内容") {
 			t.Fatalf("sender_private reply_target 不应影响目标读取原 private_message:\n%s", prompt)
@@ -776,19 +777,21 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 		sendFakeAssistantResult(devinClient, "devin-private-reply-sender", "这是给 Amy 的私下回复")
 		return nil
 	}
-	amyWakeClient.onQuery = func(_ context.Context, prompt string) error {
+	amyWakeClient.onQuery = func(ctx context.Context, prompt string) error {
+		amyWakeOwner.Store(authsvc.OwnerUserID(ctx))
 		amySawReply.Store(strings.Contains(prompt, "收到一条 Room private_message") &&
 			strings.Contains(prompt, "这是给 Amy 的私下回复"))
 		sendFakeAssistantResult(amyWakeClient, "amy-private-reply-wake", "<nexus_room_no_reply/>")
 		return nil
 	}
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{devinClient, amyWakeClient}}
 	service := roomsvc.NewRealtimeServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
 		runtimectx.NewManager(),
 		permissionctx.NewContext(),
-		&fakeRoomFactory{clients: []*fakeRoomClient{devinClient, amyWakeClient}},
+		factory,
 	)
 	broadcaster := &roomActionBroadcaster{}
 	service.SetRoomBroadcaster(broadcaster)
@@ -830,6 +833,16 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
+	}
+	if got, _ := amyWakeOwner.Load().(string); got != "user-room-action-reply-sender" {
+		t.Fatalf("sender_private 回复唤醒应保留 owner user scope: got=%q", got)
+	}
+	options := factory.LastOptions()
+	if got := strings.TrimSpace(options.Env["NEXUSCTL_USER_ID"]); got != "user-room-action-reply-sender" {
+		t.Fatalf("sender_private 回复唤醒的 nexusctl user scope 不正确: got=%q env=%+v", got, options.Env)
+	}
+	if got := strings.TrimSpace(options.Env["NEXUS_ROOM_CONVERSATION_ID"]); got != roomContext.Conversation.ID {
+		t.Fatalf("sender_private 回复唤醒的 conversation env 不正确: got=%q want=%q", got, roomContext.Conversation.ID)
 	}
 	devinActions, err := actionStore.ReadContextActions(roomContext.Conversation.ID, devin.AgentID)
 	if err != nil {
