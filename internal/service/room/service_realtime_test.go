@@ -449,6 +449,89 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceKeepsPublicOutputFinishedWhenPrivateOverlayFails(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-overlay-warning",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	memberAgent := createTestAgent(t, agentService, ctx, "公区助手")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{memberAgent.AgentID},
+		Name:     "overlay 失败房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType)
+	overlayPath := workspacestore.New(cfg.WorkspacePath).SessionOverlayPath(memberAgent.WorkspacePath, privateSessionKey)
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		if err := os.Remove(overlayPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.MkdirAll(overlayPath, 0o755); err != nil {
+			return err
+		}
+		sendFakeAssistantResult(client, "assistant-public-overlay-warning", "公区回复已经完成。")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-overlay-warning")
+	permission.BindSession(sharedSessionKey, sender, "client-overlay-warning", true)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@公区助手 输出一句话",
+		RoundID:        "room-round-overlay-warning",
+		ReqID:          "room-round-overlay-warning",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeError || event.Data["status"] == "error" {
+			t.Fatalf("公区输出完成后，私有 overlay 失败不应把聊天区标红: %+v", event)
+		}
+	}
+	if countRoomResultSubtype(events, "error") > 0 {
+		t.Fatalf("公区输出完成后不应追加 error result: %+v", events)
+	}
+	if countRoomResultSubtype(events, "success") == 0 {
+		t.Fatalf("公区输出完成后应广播 success result 摘要: %+v", events)
+	}
+}
+
 func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

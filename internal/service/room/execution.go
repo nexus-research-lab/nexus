@@ -322,9 +322,7 @@ func (s *RealtimeService) runSlot(
 				return err
 			}
 			if !protocol.IsTranscriptNativeMessage(protocol.Message(messageValue)) {
-				if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
-					return err
-				}
+				s.persistSupplementalPrivateOverlayMessage(slotCtx, roundValue, slot, messageValue)
 			}
 			return nil
 		},
@@ -367,15 +365,12 @@ func (s *RealtimeService) runSlot(
 	}
 	if slot.getStatus() == "finished" {
 		if err := s.recordRoomPublicCursor(slot, roundValue, slot.PublicCursorID, slot.PublicCursorTS); err != nil {
-			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-			return
+			s.logSlotSidecarFailure(slotCtx, roundValue, slot, "Room 公区 cursor 写入失败，保留已完成输出", err)
 		}
 		actionCursor, actionCursorRecorded, err := s.recordRoomActionCursor(slot, roundValue)
 		if err != nil {
-			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-			return
-		}
-		if actionCursorRecorded {
+			s.logSlotSidecarFailure(slotCtx, roundValue, slot, "Room action cursor 写入失败，保留已完成输出", err)
+		} else if actionCursorRecorded {
 			s.broadcastSharedEventWithTimeout(
 				slotCtx,
 				roundValue.SessionKey,
@@ -445,6 +440,48 @@ func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *active
 		return nil
 	}
 	return s.rooms.UpdateSessionSDKSessionID(ctx, slot.RoomSessionID, sessionID)
+}
+
+func (s *RealtimeService) persistSupplementalPrivateOverlayMessage(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	messageValue protocol.Message,
+) {
+	if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
+		s.logSlotSidecarFailure(ctx, roundValue, slot, "Room 公区输出的私有 overlay 写入失败，保留已完成输出", err,
+			"message_id", anyString(messageValue["message_id"]),
+			"message_role", protocol.MessageRole(messageValue),
+		)
+	}
+}
+
+func (s *RealtimeService) logSlotSidecarFailure(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	message string,
+	err error,
+	extra ...any,
+) {
+	fields := make([]any, 0, 12+len(extra))
+	if roundValue != nil {
+		fields = append(fields,
+			"session_key", roundValue.SessionKey,
+			"room_id", roundValue.RoomID,
+			"conversation_id", roundValue.ConversationID,
+		)
+	}
+	if slot != nil {
+		fields = append(fields,
+			"agent_id", slot.AgentID,
+			"round_id", slot.AgentRoundID,
+			"msg_id", slot.MsgID,
+		)
+	}
+	fields = append(fields, extra...)
+	fields = append(fields, "err", err)
+	s.loggerFor(ctx).Warn(message, fields...)
 }
 
 func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {
