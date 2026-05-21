@@ -203,9 +203,9 @@ export function AgentPrivateDomainView({
   }
 
   return (
-    <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
-      <div className="mx-auto grid min-h-[620px] w-full max-w-[1280px] grid-cols-[280px_minmax(0,1fr)_280px] gap-4">
-        <section className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
+    <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
+      <div className="grid h-full min-h-0 w-full grid-cols-[280px_minmax(320px,1fr)_240px] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)_270px]">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
           <PrivateDomainToolbar
             count={threads.length}
             is_loading={threads_loading}
@@ -214,7 +214,7 @@ export function AgentPrivateDomainView({
           />
           <PrivateThreadList
             agent_id={agent.agent_id}
-            class_name="h-[calc(100%-44px)]"
+            class_name="min-h-0 flex-1"
             is_loading={threads_loading}
             on_select={set_selected_thread_id}
             selected_thread_id={selected_thread_id}
@@ -304,14 +304,14 @@ function PrivateThreadList({
   }
 
   return (
-    <div className={cn("soft-scrollbar overflow-y-auto p-2", class_name)}>
-      <div className="space-y-1.5">
+    <div className={cn("soft-scrollbar min-h-0 overflow-y-auto p-2", class_name)}>
+      <div className="space-y-1">
         {threads.map((thread) => {
           const is_active = thread.thread_id === selected_thread_id;
           return (
             <button
               className={cn(
-                "group flex w-full min-w-0 items-start gap-2.5 rounded-[14px] border px-2.5 py-2.5 text-left transition",
+                "group flex w-full min-w-0 items-start gap-2.5 rounded-[12px] border px-2.5 py-2.5 text-left transition",
                 is_active
                   ? "border-[color:color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
                   : "border-transparent hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background)",
@@ -335,7 +335,7 @@ function PrivateThreadList({
                   {thread.last_content_preview || action_type_label(thread.last_action_type)}
                 </p>
                 <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-(--text-soft)">
-                  <span className="truncate">{thread.room_name || "Room"}</span>
+                  <span className="truncate">{thread.room_name || "房间"}</span>
                   <span>·</span>
                   <span>{thread.action_count}</span>
                   {thread.last_timestamp ? (
@@ -368,7 +368,7 @@ function PrivateEventTimeline({
   thread: AgentPrivateThread | null;
 }) {
   return (
-    <section className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]">
       <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-bold text-(--text-strong)">
@@ -376,14 +376,14 @@ function PrivateEventTimeline({
           </p>
           {thread ? (
             <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
-              {thread.room_name || "Room"} · {thread.conversation_title || "主对话"}
+              {thread.room_name || "房间"} · {thread.conversation_title || "主对话"}
             </p>
           ) : null}
         </div>
         {is_loading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
       </div>
 
-      <div className="soft-scrollbar h-[calc(100%-44px)] overflow-y-auto px-4 py-4">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {error ? (
           <p className="rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-[12px] font-semibold text-(--destructive)">
             {error}
@@ -429,7 +429,7 @@ function PrivateEventBubble({
     <div className={cn("flex", is_self ? "justify-center" : is_outgoing ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[78%] rounded-[16px] border px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
+          "w-fit max-w-[min(720px,78%)] rounded-[16px] border px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
           is_self
             ? "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_72%,transparent)]"
             : is_outgoing
@@ -469,22 +469,22 @@ function PrivateThreadInspector({
 }) {
   if (!thread) {
     return (
-      <aside className="min-h-0 rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_34%,transparent)] p-4" />
+      <aside className="min-h-0 rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_34%,transparent)] p-4" />
     );
   }
   const peers = thread.participants.filter((participant) => participant.agent_id !== agent_id);
   return (
-    <aside className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_38%,transparent)]">
+    <aside className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_38%,transparent)]">
       <div className="border-b border-(--divider-subtle-color) px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">Thread</p>
+        <p className="text-[11px] font-semibold tracking-[0.12em] text-(--text-soft)">详情</p>
       </div>
-      <div className="soft-scrollbar h-[calc(100%-70px)] overflow-y-auto px-4 py-4">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <InfoRow label="范围" value={scope_label(thread.scope)} />
-        <InfoRow label="Room" value={thread.room_name || thread.room_id || "-"} />
+        <InfoRow label="房间" value={thread.room_name || thread.room_id || "-"} />
         <InfoRow label="对话" value={thread.conversation_title || thread.conversation_id || "-"} />
         <InfoRow label="消息数" value={String(thread.action_count)} />
         <div className="mt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">Members</p>
+          <p className="text-[11px] font-semibold tracking-[0.12em] text-(--text-soft)">成员</p>
           <div className="mt-2 space-y-2">
             {(peers.length ? peers : thread.participants).map((participant) => (
               <div className="flex min-w-0 items-center gap-2" key={participant.agent_id}>
